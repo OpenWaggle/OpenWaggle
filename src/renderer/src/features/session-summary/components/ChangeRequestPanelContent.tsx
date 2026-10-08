@@ -1,9 +1,10 @@
 import type { VcsChangeRequestDetails } from '@shared/types/git'
 import { ExternalLink, GitMerge } from 'lucide-react'
-import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
+import { openWorkspaceWebLink } from '@/shell/open-workspace-web-link'
 import { useUIStore } from '@/shell/ui-store'
+import { providerSiteLabel } from '../model/change-request-attention'
 import {
   ChangeRequestChangedFiles,
   ChangeRequestChecks,
@@ -42,14 +43,58 @@ function RequestSelection({
   )
 }
 
-function RequestIdentity({ details }: { readonly details: VcsChangeRequestDetails }) {
+/** Opens a change request wherever the user's web links open (`browserLinkTarget`). */
+export function ChangeRequestWebsiteButton({
+  ownerKey,
+  url,
+  label,
+  fullWidth = false,
+}: {
+  readonly ownerKey: string
+  readonly url: string
+  readonly label: string
+  readonly fullWidth?: boolean
+}) {
+  const showToast = useUIStore((state) => state.showToast)
+  return (
+    <Button
+      fullWidth={fullWidth}
+      variant="secondary"
+      onClick={() => {
+        void openWorkspaceWebLink(ownerKey, url).catch((cause: unknown) => {
+          showToast(
+            cause instanceof Error ? cause.message : 'Could not open this request.',
+            'error',
+          )
+        })
+      }}
+      leftIcon={<ExternalLink className="size-3.5" aria-hidden="true" />}
+    >
+      {label}
+    </Button>
+  )
+}
+
+function RequestIdentity({
+  details,
+  account,
+}: {
+  readonly details: VcsChangeRequestDetails
+  readonly account: string | null
+}) {
   return (
     <div className="border-b border-border px-4 py-3">
-      <h3 className="text-sm font-semibold leading-snug text-text-primary">{details.title}</h3>
+      <h3
+        tabIndex={-1}
+        className="text-sm font-semibold leading-snug text-text-primary focus:outline-none"
+      >
+        {details.title}
+      </h3>
       <p className="mt-1 truncate font-mono text-xs text-text-tertiary">
         #{details.reference} ·{' '}
         {details.headCommit?.slice(0, HEAD_COMMIT_DISPLAY_LENGTH) ?? 'head unavailable'}
       </p>
+      {account ? <p className="mt-1 text-xs text-text-tertiary">via @{account}</p> : null}
       <p className="mt-1 truncate text-xs text-text-tertiary" title={details.url}>
         {details.url}
       </p>
@@ -59,7 +104,6 @@ function RequestIdentity({ details }: { readonly details: VcsChangeRequestDetail
 
 function MergeControls({ controller }: { readonly controller: ChangeRequestPanelController }) {
   const selected = controller.selected
-  const showToast = useUIStore((state) => state.showToast)
   if (!selected) return null
   const mergeStatus = controller.merging ? 'Merging…' : (controller.mergeMessage ?? '')
   return (
@@ -71,21 +115,12 @@ function MergeControls({ controller }: { readonly controller: ChangeRequestPanel
           ? ''
           : ` · ${requestMetric(selected.unresolvedReviewThreadsCount)} unresolved threads`}
       </p>
-      <Button
+      <ChangeRequestWebsiteButton
         fullWidth
-        variant="secondary"
-        onClick={() => {
-          void api.openExternal(selected.url).catch((cause: unknown) => {
-            showToast(
-              cause instanceof Error ? cause.message : 'Could not open this request.',
-              'error',
-            )
-          })
-        }}
-        leftIcon={<ExternalLink className="size-3.5" aria-hidden="true" />}
-      >
-        Open in browser
-      </Button>
+        ownerKey={controller.ownerKey}
+        url={selected.url}
+        label={providerSiteLabel(controller.snapshot?.provider.id ?? null, selected.url)}
+      />
       <div className="flex gap-2">
         <label className="sr-only" htmlFor="change-request-merge-method">
           Merge method
@@ -154,7 +189,7 @@ export function ChangeRequestPanelContent({
       <div className="px-4 pt-3">
         <RequestSelection controller={controller} onSelectRequest={onSelectRequest} />
       </div>
-      <RequestIdentity details={selected} />
+      <RequestIdentity details={selected} account={controller.snapshot?.account ?? null} />
       <ChangeRequestDetailSummary details={selected} />
       <ChangeRequestChangedFiles
         details={selected}

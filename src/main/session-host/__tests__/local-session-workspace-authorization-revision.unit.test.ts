@@ -19,7 +19,7 @@ describe('Local Session workspace authorization revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([22])
+      expect(supportedRevisionsForCommand(payload)).toEqual([23])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 8)).toThrow(/revision 9/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 9)).toEqual(payload)
     },

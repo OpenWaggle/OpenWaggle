@@ -24,6 +24,8 @@ export interface ProjectConfig {
   readonly authorizationGrants?: readonly ScopedAuthorizationGrant[]
   readonly pi?: JsonObject
   readonly actions?: readonly ProjectAction[]
+  /** Raw shared source-control section, parsed entry by entry by its own module (ADR 0048). */
+  readonly sourceControl?: JsonObject
 }
 
 export type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
@@ -53,6 +55,7 @@ export function parseProjectConfig(settings: ParsedProjectSettingsFile | null): 
     ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
     ...(settings.pi ? { pi: settings.pi } : {}),
     ...(actions.length > 0 ? { actions } : {}),
+    ...(settings.sourceControl ? { sourceControl: settings.sourceControl } : {}),
   }
   return Object.keys(config).length === 0 ? EMPTY_CONFIG : config
 }

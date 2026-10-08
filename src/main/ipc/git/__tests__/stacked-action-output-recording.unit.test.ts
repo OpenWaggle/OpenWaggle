@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
 import { sessionResourceTestLayer } from '../../../application/__tests__/session-resource-capture.fixtures'
+import { recordSessionGitOutputs } from '../../../application/session-git-output-recording'
 import { subscribeToSessionResourceInvalidations } from '../../../application/session-resource-invalidation'
 import { SessionOutputRetryRepositoryError } from '../../../errors'
 import {
@@ -13,7 +14,7 @@ import {
   SessionOutputRetryRepository,
 } from '../../../ports/session-output-retry-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../../ports/session-repository'
-import { recordStackedActionOutputs } from '../stacked-action-output-recording'
+import { outputsPayloadFor } from './session-git-outputs-payload'
 
 describe('stacked action Output recording', () => {
   it('records the commit and created request only in the originating session', async () => {
@@ -66,11 +67,14 @@ describe('stacked action Output recording', () => {
     })
 
     const recorded = await Effect.runPromise(
-      recordStackedActionOutputs(result, sessionId, {
-        nodeId: 'node-at-action',
-        branchId: 'branch-at-action',
-        createdAt: 1000,
-      }).pipe(Effect.provide(layer)),
+      recordSessionGitOutputs(
+        sessionId,
+        outputsPayloadFor(result, {
+          nodeId: 'node-at-action',
+          branchId: 'branch-at-action',
+          createdAt: 1000,
+        }),
+      ).pipe(Effect.provide(layer)),
     ).finally(unsubscribe)
 
     expect(recorded).toMatchObject({
@@ -135,11 +139,14 @@ describe('stacked action Output recording', () => {
     }
 
     const recorded = await Effect.runPromise(
-      recordStackedActionOutputs(result, sessionId, {
-        nodeId: 'later-node',
-        branchId: 'later-branch',
-        createdAt: 2000,
-      }).pipe(Effect.provide(layer)),
+      recordSessionGitOutputs(
+        sessionId,
+        outputsPayloadFor(result, {
+          nodeId: 'later-node',
+          branchId: 'later-branch',
+          createdAt: 2000,
+        }),
+      ).pipe(Effect.provide(layer)),
     )
 
     expect(recorded).toMatchObject({ changeRequestOutput: { ok: true } })
@@ -204,15 +211,16 @@ describe('stacked action Output recording', () => {
       })
 
       const recorded = await Effect.runPromise(
-        recordStackedActionOutputs(result, sessionId, {
-          nodeId: 'node-at-action',
-          branchId: 'branch-at-action',
-          createdAt: 1000,
-        }).pipe(Effect.provide(layer)),
+        recordSessionGitOutputs(
+          sessionId,
+          outputsPayloadFor(result, {
+            nodeId: 'node-at-action',
+            branchId: 'branch-at-action',
+            createdAt: 1000,
+          }),
+        ).pipe(Effect.provide(layer)),
       ).finally(unsubscribe)
 
-      expect(recorded.ok).toBe(true)
-      if (!recorded.ok) throw new Error('Expected the change request to be created.')
       expect(recorded.changeRequestOutput).toMatchObject({ ok: false, retryPersisted })
       expect(invalidations).toEqual(retryPersisted ? [sessionId] : [])
     },
@@ -266,11 +274,14 @@ describe('stacked action Output recording', () => {
     }
 
     await Effect.runPromise(
-      recordStackedActionOutputs(result, sessionId, {
-        nodeId: 'node-at-commit',
-        branchId: 'branch-at-commit',
-        createdAt: 1000,
-      }).pipe(Effect.provide(layer)),
+      recordSessionGitOutputs(
+        sessionId,
+        outputsPayloadFor(result, {
+          nodeId: 'node-at-commit',
+          branchId: 'branch-at-commit',
+          createdAt: 1000,
+        }),
+      ).pipe(Effect.provide(layer)),
     )
 
     expect(pendingOutputs).toHaveLength(1)

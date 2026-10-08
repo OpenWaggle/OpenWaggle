@@ -2,7 +2,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
+import { resolveRepositoryRoot } from '../../services/git/repository-root'
 import { typedHandle } from '../typed-ipc'
 import { resolveCommittedHead } from './commit-head-resolution'
 import {
@@ -12,13 +12,11 @@ import {
 } from './commit-path-contract'
 import { resolveSelectedCommitPaths } from './commit-path-selection'
 import { withGitMutationLock } from './mutation-lock'
-import { verifySessionWorkingPath } from './session-working-path'
+import { recordSessionGitOutputsWhereOwned, verifySessionGitContext } from './session-git-host'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
-import { recordSessionCommitOutput } from './stacked-action-output-recording'
 import { GIT_LITERAL_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
 import { invalidateVcsStatus } from './vcs-status-cache'
-import { resolveRepositoryRoot } from './working-tree-service'
 
 const COMMIT_HASH_UNAVAILABLE_MESSAGE =
   'The commit was created, but Git did not return its full hash. OpenWaggle did not add an Output for it. Do not repeat the commit; refresh Git status before continuing.'
@@ -230,34 +228,28 @@ export function registerGitCommitHandlers(): void {
       return yield* withGitMutationLock(
         projectPath,
         Effect.gen(function* () {
-          if (
-            payload.sessionId &&
-            !(yield* verifySessionWorkingPath(payload.sessionId, projectPath))
-          ) {
+          const verification = payload.sessionId
+            ? yield* verifySessionGitContext(payload.sessionId, projectPath)
+            : null
+          if (verification && !verification.owned) {
             return commitFailure(
               'unknown',
               'The requested working tree does not belong to the originating session.',
             )
           }
-          const occurrenceContext = payload.sessionId
-            ? yield* resolveSessionOutputOccurrenceContext(payload.sessionId).pipe(
-                Effect.catchAll(() =>
-                  Effect.succeed({ nodeId: null, branchId: null, createdAt: Date.now() }),
-                ),
-              )
-            : null
           const result = yield* Effect.promise(() => commitGit(projectPath, payload))
           if (result.ok) {
             invalidateGitStatusCache(projectPath)
             invalidateVcsStatus(projectPath)
-            if (payload.sessionId && occurrenceContext) {
+            if (payload.sessionId && verification?.owned) {
               if (result.commitHash === null) return result
-              const commitOutput = yield* recordSessionCommitOutput(
-                { commitHash: result.commitHash, summary: result.summary },
-                payload.sessionId,
-                occurrenceContext,
-              )
-              return { ...result, commitOutput }
+              const recorded = yield* recordSessionGitOutputsWhereOwned(payload.sessionId, {
+                occurrence: verification.occurrence,
+                commit: { commitHash: result.commitHash, summary: result.summary },
+              })
+              return recorded.commitOutput
+                ? { ...result, commitOutput: recorded.commitOutput }
+                : result
             }
           }
           return result

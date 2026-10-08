@@ -1,5 +1,6 @@
 import type { ActionRun } from '@shared/types/action-runs'
 import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import type { VcsStatus } from '@shared/types/git'
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
@@ -30,6 +31,10 @@ const mocks = vi.hoisted(() => ({
   useCombinedVcsStatus: vi.fn<typeof useCombinedVcsStatusHook>(),
   useGit: vi.fn<typeof useGitHook>(),
   commitOrPushDialog: vi.fn(() => null),
+  openExternal: vi.fn<OpenWaggleApi['openExternal']>(),
+  getChangeRequestOpenDestination: vi.fn<OpenWaggleApi['getChangeRequestOpenDestination']>(),
+  refreshSourceControlStatus: vi.fn<OpenWaggleApi['refreshSourceControlStatus']>(),
+  invalidateVcsStatus: vi.fn<(workingPath: string) => Promise<void>>(),
 }))
 
 export const listSessionResources: Mock<OpenWaggleApi['listSessionResources']> =
@@ -44,8 +49,17 @@ export const useCombinedVcsStatus: Mock<typeof useCombinedVcsStatusHook> =
 export const useGit: Mock<typeof useGitHook> = mocks.useGit
 export const commitOrPushDialog = mocks.commitOrPushDialog
 export const toggleSessionTerminal: Mock<() => void> = mocks.toggleTerminal
+export const openExternal: Mock<OpenWaggleApi['openExternal']> = mocks.openExternal
+export const getChangeRequestOpenDestination: Mock<
+  OpenWaggleApi['getChangeRequestOpenDestination']
+> = mocks.getChangeRequestOpenDestination
+export const invalidateVcsStatus: Mock<(workingPath: string) => Promise<void>> =
+  mocks.invalidateVcsStatus
+export const refreshSourceControlStatus: Mock<OpenWaggleApi['refreshSourceControlStatus']> =
+  mocks.refreshSourceControlStatus
 
-vi.mock('@/features/terminal', () => ({
+vi.mock('@/features/terminal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/terminal')>()),
   useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
 }))
 
@@ -65,7 +79,9 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSessionHiveRelations: vi
       .fn()
       .mockResolvedValue({ current: null, parent: null, workers: [] }),
-    openExternal: vi.fn(),
+    openExternal: mocks.openExternal,
+    getChangeRequestOpenDestination: mocks.getChangeRequestOpenDestination,
+    refreshSourceControlStatus: mocks.refreshSourceControlStatus,
   },
 }))
 
@@ -84,6 +100,7 @@ vi.mock('@/features/git', () => ({
   }),
   useStackedGitActions: mocks.useStackedGitActions,
   useCombinedVcsStatus: mocks.useCombinedVcsStatus,
+  invalidateVcsStatus: mocks.invalidateVcsStatus,
 }))
 
 export function session(id = 'session-1'): SessionDetail {
@@ -158,6 +175,7 @@ type HubProps = {
   readonly autoHidden?: boolean
   readonly rightSidebarOpen?: boolean
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
+  readonly onOpenChangeRequest?: (url: string) => void
 }
 
 export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
@@ -182,6 +200,7 @@ export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
           rightSidebarOpen: props.rightSidebarOpen ?? false,
           onOpenDiff: vi.fn(),
           onOpenResources: props.onOpenResources ?? vi.fn(),
+          ...(props.onOpenChangeRequest ? { onOpenChangeRequest: props.onOpenChangeRequest } : {}),
           onNavigateSession: vi.fn(),
           extensionRegistry: null,
           extensionProjectPaths: ['/project'],
@@ -202,6 +221,32 @@ export function sessionSummarySectionOrder() {
   return SESSION_SUMMARY_SECTION_ORDER
 }
 
+/** The Git status every Session Summary Hub test starts from. */
+export function hubVcsStatus(): VcsStatus {
+  return {
+    isRepo: true,
+    sourceControlProvider: { id: 'github', host: 'github.com' },
+    sourceControlHost: { host: 'github.com', provider: 'github', source: 'public-host' },
+    sourceControlAttention: null,
+    sourceControlRepositoryUrl: null,
+    hasPrimaryRemote: true,
+    refName: 'codex/session-summary-resource-hub',
+    defaultRef: 'main',
+    isDefaultRef: false,
+    pushTargetRef: 'codex/session-summary-resource-hub',
+    pushTargetIsDefaultRef: false,
+    hasWorkingTreeChanges: true,
+    workingTree: { files: [], insertions: 12, deletions: 3 },
+    hasUpstream: true,
+    aheadCount: 1,
+    behindCount: 0,
+    aheadOfDefaultCount: 1,
+    changeRequest: null,
+    changeRequestAttention: null,
+    changeRequestAccount: null,
+  }
+}
+
 export function setupSessionSummaryHubHarness() {
   mocks.actionRuns = []
   localStorage.clear()
@@ -214,6 +259,12 @@ export function setupSessionSummaryHubHarness() {
     backfillComplete: true,
   })
   mocks.listArchivedSessions.mockReset().mockResolvedValue([])
+  mocks.openExternal.mockReset().mockResolvedValue(undefined)
+  mocks.getChangeRequestOpenDestination
+    .mockReset()
+    .mockResolvedValue({ destination: 'inspector', source: 'default' })
+  mocks.refreshSourceControlStatus.mockReset().mockResolvedValue(undefined)
+  mocks.invalidateVcsStatus.mockReset().mockResolvedValue(undefined)
   mocks.listMcpEventSubscriptions.mockReset().mockResolvedValue([])
   mocks.useGit.mockReset().mockReturnValue(gitState())
   useStackedGitActions.mockReset().mockReturnValue({
@@ -227,23 +278,7 @@ export function setupSessionSummaryHubHarness() {
     localState: 'loaded',
     remote: null,
     remoteState: 'loaded',
-    status: {
-      isRepo: true,
-      sourceControlProvider: { id: 'github', host: 'github.com' },
-      hasPrimaryRemote: true,
-      refName: 'codex/session-summary-resource-hub',
-      defaultRef: 'main',
-      isDefaultRef: false,
-      pushTargetRef: 'codex/session-summary-resource-hub',
-      pushTargetIsDefaultRef: false,
-      hasWorkingTreeChanges: true,
-      workingTree: { files: [], insertions: 12, deletions: 3 },
-      hasUpstream: true,
-      aheadCount: 1,
-      behindCount: 0,
-      aheadOfDefaultCount: 1,
-      changeRequest: null,
-    },
+    status: hubVcsStatus(),
     refresh: vi.fn(),
   })
   commitOrPushDialog.mockClear()

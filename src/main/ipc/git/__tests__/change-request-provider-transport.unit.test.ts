@@ -9,12 +9,14 @@ vi.mock('../../../adapters/source-control', () => ({
   getSourceControlProvider: providerMocks.getSourceControlProvider,
 }))
 
-vi.mock('../primary-remote', () => ({
+vi.mock('../../../services/git/primary-remote', () => ({
   resolvePrimaryRemote: providerMocks.resolvePrimaryRemote,
   resolvePrimaryRemoteUrl: vi.fn(),
 }))
 
-const { resolveSourceControlProvider } = await import('../change-request-provider')
+const { resolveSourceControlProvider } = await import(
+  '../../../services/source-control/change-request-provider'
+)
 
 describe('change-request provider transport safety', () => {
   beforeEach(() => {

@@ -6,6 +6,7 @@
  */
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
+import { PRELOAD_SOURCE_CONTROL_METHODS } from './preload-source-control-methods'
 
 export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getCliShimStatus',
@@ -236,11 +237,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getRemoteVcsStatus',
   'runStackedGitAction',
   'cancelStackedGitAction',
-  'preflightChangeRequest',
-  'listChangeRequests',
-  'checkoutChangeRequest',
-  'getChangeRequestPanel',
-  'mergeChangeRequest',
+  ...PRELOAD_SOURCE_CONTROL_METHODS,
   // Attachments
   'prepareAttachments',
   'prepareAttachmentFromText',

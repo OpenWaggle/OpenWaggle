@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 
 /**
  * Component tests need a lightweight SVGR replacement because jsdom cannot
@@ -62,6 +63,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
+          env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
           include: ['src/**/*.unit.test.ts', 'src/**/*.integration.test.ts', 'scripts/**/*.unit.test.ts'],
         },
       },

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { insertComposerInvocation } from '@/features/composer/lib'
 import { useComposerActionStore } from '@/features/composer/state'
-import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { invalidateVcsStatus, useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useGit } from '@/features/git/hooks'
-import { useTerminalCommands } from '@/features/terminal'
+import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
+import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionResourceCatalog } from '../hooks/useSessionResources'
 import {
@@ -11,11 +13,13 @@ import {
   type SessionSummaryGitAction,
 } from '../model/session-summary-git-action'
 import type { SessionSummaryHubInput } from './session-summary-hub-types'
+import { useChangeRequestOpener } from './use-change-request-opener'
 import {
   usePersistedSummaryDisclosure,
   useSessionSummaryPanelLifecycle,
 } from './use-session-summary-panel-lifecycle'
 
+const logger = createRendererLogger('session-summary')
 const SESSION_SUMMARY_RESOURCE_PAGE_SIZE = 6
 const SESSION_SUMMARY_CHANGE_REQUEST_PAGE_SIZE = 50
 
@@ -30,6 +34,26 @@ function runSessionQuickAction(input: {
     return
   }
   if (input.quickAction.kind === 'run_action') input.openCommand()
+}
+
+function sessionTerminal(session: SessionSummaryHubInput['session']) {
+  if (session === null) return null
+  const owner = terminalOwnerContext(session, session.projectPath ?? null)
+  return owner.defaultCwd === null || owner.ownerKey.length === 0
+    ? null
+    : { ownerKey: owner.ownerKey, cwd: owner.defaultCwd }
+}
+
+/** How this Session's change requests open, and the terminal its source-control sign-in uses. */
+function useSessionChangeRequestAccess(input: SessionSummaryHubInput, enabled: boolean) {
+  const session = input.session
+  const changeRequestOpener = useChangeRequestOpener({
+    sessionId: session ? String(session.id) : null,
+    projectPath: session?.projectPath ?? null,
+    enabled: enabled && session !== null,
+    onOpenInspector: input.onOpenChangeRequest ?? (() => {}),
+  })
+  return { changeRequestOpener, sourceControlTerminal: sessionTerminal(session) }
 }
 
 function useSessionSummaryGitController(input: SessionSummaryHubInput, panelVisible: boolean) {
@@ -55,12 +79,27 @@ function useSessionSummaryGitController(input: SessionSummaryHubInput, panelVisi
       if (git.workingPath) void git.refreshStatus(git.workingPath)
     },
   })
+  const changeRequestAccess = useSessionChangeRequestAccess(input, vcsVisible)
   const quickAction = resolveSessionSummaryGitAction(
     combined.status,
     stackedActions.isRunning,
     combined.localState,
     git.status?.ahead ?? 0,
   )
+
+  const recheckSourceControl = async () => {
+    // The Host caches remote status for a while; a fresh sign-in must not read the old answer.
+    const workingPath = git.workingPath
+    if (!workingPath) {
+      await combined.refresh()
+      return
+    }
+    await api.refreshSourceControlStatus(workingPath).catch((error: unknown) => {
+      logger.warn('Could not drop the source-control status cache', { error: String(error) })
+    })
+    // Every surface showing this tree re-reads, this Summary included.
+    await invalidateVcsStatus(workingPath)
+  }
 
   const refreshGitStatus = () => {
     if (git.workingPath) void git.refreshStatus(git.workingPath)
@@ -106,10 +145,11 @@ function useSessionSummaryGitController(input: SessionSummaryHubInput, panelVisi
       branchError: git.error,
       onOpenDiff: input.onOpenDiff,
       onCreateChangeRequest: () => setComposerOpen(true),
-      onViewChangeRequest: input.onOpenChangeRequest ?? (() => {}),
+      ...changeRequestAccess,
       onToggleTerminal: toggleTerminal,
       onRefreshBranches: () => void git.refreshBranches(git.repositoryPath),
       onRefreshVcsStatus: () => void combined.refresh(),
+      onRecheckSourceControl: recheckSourceControl,
       onSelectBranch: selectBranch,
       onCreateBranch: createBranch,
       quickAction,

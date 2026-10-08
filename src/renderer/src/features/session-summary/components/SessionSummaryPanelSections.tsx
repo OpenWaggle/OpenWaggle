@@ -103,10 +103,10 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
       <SessionChangeRequestsSection
         resources={resources.changeRequests}
         currentUrl={git.environment.vcsStatus?.changeRequest?.url ?? null}
-        provider={git.environment.vcsStatus?.sourceControlProvider?.id ?? null}
+        remote={git.environment.vcsStatus?.sourceControlProvider ?? null}
         expanded={disclosures.changeRequests.expanded}
         onExpandedChange={disclosures.changeRequests.setExpanded}
-        onOpen={input.onOpenChangeRequest ?? (() => {})}
+        opener={git.environment.changeRequestOpener}
       />
     ),
     'extensions-context': extensionSection(context, 'context'),

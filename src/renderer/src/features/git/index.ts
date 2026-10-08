@@ -11,6 +11,7 @@ export {
 } from './hooks/useSessionContextRow'
 export { useStackedGitActions } from './hooks/useStackedGitActions'
 export { type GitQuickAction, resolveQuickAction } from './lib/git-quick-action'
+export { invalidateVcsStatus } from './lib/vcs-status-invalidation'
 export {
   resolveDefaultWorktreeBaseRef,
   resolveWorktreeSendPlan,

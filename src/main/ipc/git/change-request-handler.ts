@@ -7,13 +7,13 @@ import type {
 import { resolveAutoFeatureBranchName } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { networkGitOptions } from '../../adapters/git/run-git'
-import { typedHandle } from '../typed-ipc'
-import { listGitBranches } from './branch-list'
-import { resolveChangeRequestIdentity } from './change-request-identity'
+import { resolveRepositoryChangeRequestIdentity } from '../../adapters/source-control/repository-context'
 import {
   buildChangeRequestFallbackUrl,
   resolveSourceControlProvider,
-} from './change-request-provider'
+} from '../../services/source-control/change-request-provider'
+import { typedHandle } from '../typed-ipc'
+import { listGitBranches } from './branch-list'
 import { planChangeRequestFetch } from './change-request-refs'
 import { adoptionSchema, referenceSchema } from './change-request-schemas'
 import { withGitMutationLock } from './mutation-lock'
@@ -125,12 +125,7 @@ export function registerGitChangeRequestHandlers(): void {
       const [readiness, browserUrl] = yield* Effect.promise(() =>
         Promise.all([
           sourceControl.provider.authStatus(projectPath),
-          buildChangeRequestFallbackUrl(
-            projectPath,
-            plannedPayload,
-            false,
-            sourceControl.remoteUrl,
-          ),
+          buildChangeRequestFallbackUrl(projectPath, plannedPayload, false, sourceControl),
         ]),
       )
       return {
@@ -166,9 +161,8 @@ export function registerGitChangeRequestHandlers(): void {
             )
             if (!sourceControl) return NO_PROVIDER
             if (adoption === 'fetch') {
-              const identity = resolveChangeRequestIdentity(
-                sourceControl.remoteUrl,
-                sourceControl.info.id,
+              const identity = resolveRepositoryChangeRequestIdentity(
+                sourceControl.repository,
                 reference,
               )
               if (!identity) {

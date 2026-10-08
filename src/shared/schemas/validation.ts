@@ -235,6 +235,11 @@ export const projectSettingsFileSchema = Schema.Struct(
     ),
     pi: Schema.optional(jsonObjectSchema),
     actions: Schema.optional(storedProjectActionsSchema),
+    /**
+     * Shared Source control host declarations and Change request open destination (ADR 0048).
+     * Kept loose here and read entry by entry, so one bad entry never invalidates the file.
+     */
+    sourceControl: Schema.optional(jsonObjectSchema),
   },
   jsonLooseRecordSchema,
 )

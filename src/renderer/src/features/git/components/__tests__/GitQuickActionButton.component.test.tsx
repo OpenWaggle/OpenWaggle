@@ -7,6 +7,9 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
   return {
     isRepo: true,
     sourceControlProvider: { id: 'github', host: 'github.com' },
+    sourceControlHost: null,
+    sourceControlAttention: null,
+    sourceControlRepositoryUrl: null,
     hasPrimaryRemote: true,
     isDefaultRef: false,
     pushTargetRef: 'feature/x',
@@ -19,6 +22,8 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     behindCount: 0,
     aheadOfDefaultCount: 0,
     changeRequest: null,
+    changeRequestAttention: null,
+    changeRequestAccount: null,
     ...overrides,
   }
 }
