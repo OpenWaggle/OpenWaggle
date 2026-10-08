@@ -211,6 +211,43 @@ describe('Operations on a discovered Pi session', () => {
     ])
   })
 
+  it.each([
+    ['forks', 'before', ['First question', 'Answer to: First question']],
+    [
+      'clones',
+      'at',
+      [
+        'First question',
+        'Answer to: First question',
+        'Second question',
+        'Answer to: Second question',
+      ],
+    ],
+  ] as const)(
+    '%s through the Session lifecycle, as the desktop app does',
+    async (_, position, texts) => {
+      // The desktop app always has a selected model, which new Sessions' profiles start from.
+      const { SettingsService } = await import('../../../services/settings-service')
+      await run(
+        Effect.flatMap(SettingsService, (settings) =>
+          settings.update({ enabledModels: [MODEL], selectedModel: MODEL }),
+        ),
+      )
+      const { sessionId } = await discoveredSession()
+      const [, secondUser] = await userNodeIds(sessionId)
+      const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
+      const { forkSession } = await import(
+        '../../../application/host-ui-session-lifecycle-operations'
+      )
+      const target = position === 'before' ? String(secondUser) : String(lastNode)
+
+      const fork = await run(forkSession([sessionId, MODEL, target], position))
+
+      expect(fork.session.id).not.toBe(sessionId)
+      expect(messageTexts(fork.session)).toEqual(texts)
+    },
+  )
+
   it('compacts and keeps the summary pointing at a prefixed node', async () => {
     const { sessionId, prefix } = await discoveredSession({ long: true })
     reply = 'Summary of the work so far'

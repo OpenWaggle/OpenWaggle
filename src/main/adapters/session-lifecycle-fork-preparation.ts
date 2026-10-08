@@ -7,6 +7,7 @@ import { reserveSessionTreeMutation } from '../application/active-session-runs'
 import { attributeCopiedVisualizationSources } from '../application/inline-visualization-ownership'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { AgentKernelServiceShape } from '../ports/agent-kernel-service'
+import { discoveredPiEntryNodeIdPrefix } from '../store/session-details/discovered-pi-entry-node-ids'
 
 interface ForkSourceRow {
   readonly id: string
@@ -23,6 +24,8 @@ interface ForkSourceRow {
   readonly worktree_start_from_origin: number
   readonly authorization_mode_override: 'yolo' | 'ask-for-approval' | null
   readonly last_active_node_id: string | null
+  readonly pi_adopted: number
+  readonly pi_cwd: string | null
 }
 
 function forkError(operation: string, cause: unknown) {
@@ -47,6 +50,12 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
     ...(row.authorization_mode_override
       ? { authorizationMode: row.authorization_mode_override }
       : {}),
+    // A discovered Pi session keys its nodes under a prefix and runs in its own folder (ADR 0048);
+    // without them the fork target would reach Pi still prefixed.
+    ...(row.pi_adopted === 1
+      ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(command.sourceSessionId) }
+      : {}),
+    ...(row.pi_cwd ? { piSessionCwd: row.pi_cwd } : {}),
   }
 }
 
@@ -66,7 +75,9 @@ export function prepareLifecycleFork(input: {
         id, title, project_path, pi_session_id, pi_session_file, archived,
         created_at, updated_at, environment_mode, worktree_path,
         worktree_base_ref, worktree_start_from_origin,
-        authorization_mode_override, last_active_node_id
+        authorization_mode_override, last_active_node_id,
+        EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_adopted,
+        (SELECT cwd FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_cwd
       FROM sessions WHERE id = ${input.command.sourceSessionId} LIMIT 1
     `
       const row = rows[0]
