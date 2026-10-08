@@ -83,4 +83,30 @@ describe('a pooled connection that has to go away', () => {
     expect(closed).toHaveBeenCalledOnce()
     expect(crashedClosed).toHaveBeenCalledOnce()
   })
+
+  it('closes at once when the only pending request is the one that hit the expired session', async () => {
+    const upstream = new FakeUpstream()
+    const pooled = connection(upstream)
+    const lease = pooled.attach()
+    await handshake(lease)
+    upstream.failSend = sessionExpired()
+
+    await expect(lease.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' })).rejects.toThrow()
+    await flush()
+
+    expect(pooled.isClosed).toBe(true)
+    expect(upstream.closed).toBe(true)
+  })
+
+  it("closes at once when the connection's own request was the one that failed", async () => {
+    const upstream = new FakeUpstream()
+    const pooled = connection(upstream)
+    await handshake(pooled.attach())
+    upstream.failSend = sessionExpired()
+
+    await expect(pooled.request('tools/list')).rejects.toThrow()
+    await flush()
+
+    expect(upstream.closed).toBe(true)
+  })
 })

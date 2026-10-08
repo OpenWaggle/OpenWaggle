@@ -179,11 +179,17 @@ export class McpPooledConnection {
     return stderr ? new Error(`${error.message}\n${stderr}`) : error
   }
 
-  private sendUpstream(message: JsonRpcMessage) {
+  /**
+   * Sends to the server. `settleFailed` drops the request that failed from the ledger before an
+   * unusable upstream is retired, so the connection does not wait for a request that cannot be
+   * answered.
+   */
+  private sendUpstream(message: JsonRpcMessage, settleFailed?: (failure: Error) => void) {
     const upstream = this.upstream
     if (!upstream || this.closed) return Promise.reject(this.closedConnectionError())
     return upstream.transport.send(message).catch((error: unknown) => {
       const failure = toError(error)
+      settleFailed?.(failure)
       if (DISCARDING_ERRORS.has(failure.name)) this.retire()
       throw failure
     })
@@ -204,9 +210,9 @@ export class McpPooledConnection {
       method,
       ...(params === undefined ? {} : { params }),
     }
-    this.sendUpstream(request).catch((error: unknown) => {
-      this.ledger.rejectRequest(id, toError(error))
-    })
+    this.sendUpstream(request, (failure) => this.ledger.rejectRequest(id, failure)).catch(
+      () => undefined,
+    )
     return response
   }
 
@@ -215,10 +221,7 @@ export class McpPooledConnection {
       if (this.retiring) throw this.closedConnectionError()
       if (message.method === INITIALIZE) return this.handshake.answer(lease, message)
       const upstreamRequest = this.ledger.trackLease(lease, message)
-      return this.sendUpstream(upstreamRequest).catch((error: unknown) => {
-        this.ledger.forget(upstreamRequest.id)
-        throw error
-      })
+      return this.sendUpstream(upstreamRequest, () => this.ledger.forget(upstreamRequest.id))
     }
     if (isJsonRpcNotification(message)) return this.forwardLeaseNotification(lease, message)
     // A client's answer to a server request it was given.
