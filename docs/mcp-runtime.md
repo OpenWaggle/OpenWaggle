@@ -403,9 +403,11 @@ code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwa
 connected a server only when MCP was on (project switch, else the global switch, default off), its
 state record said `enabled: true`, and it was not muted for the project. Where the new merge would
 differ, the migration writes `enabled` into OpenWaggle's global file (a project that inherits
-everything) and into each project's file. This covers projects OpenWaggle knew on the first run
-(settings and the old state); projects added later, and users with no old state and no global
-file, get the new behaviour.
+everything) and into each project's file. This covers projects OpenWaggle knew on the first run:
+settings, every Session's project and workspace root, and the old state. Projects added later,
+and users with no old state and no global file, get the new behaviour. Files are migrated only
+in project roots (settings and Sessions' project paths), never in a managed worktree, where a
+new `.openwaggle/mcp.json` would be an untracked file in the user's checkout.
 
 The old code also named each server by an instance ID (`servers[*].instanceId` in
 `~/.openwaggle/mcp/state.json`), and Agent definitions and Session execution profiles could list

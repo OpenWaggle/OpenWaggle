@@ -28,6 +28,20 @@ export function findSessionWorkspaceRoot(requestedPath: string, canonicalPath: s
   )
 }
 
+/** Every Session's durable project root (not the worktree it may run in). */
+export function listSessionProjectRoots() {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly root: string }>`
+        SELECT DISTINCT project_path AS root FROM sessions
+        WHERE project_path IS NOT NULL AND project_path != ''
+      `
+      return rows.map((row) => row.root)
+    }),
+  )
+}
+
 const ROOT_PAGE_SIZE = 64
 
 /** Legacy aliases need a live realpath check; page only distinct, currently owned roots. */
