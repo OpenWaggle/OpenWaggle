@@ -4,13 +4,15 @@ import type { DiffView } from '@shared/types/settings'
 import { useEffect, useMemo } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
+import { PIERRE_WORKER_POOL_OPTIONS } from '@/shared/lib/syntax/pierre-worker-pool'
 import { SourceView } from './SourceView'
 
-const DIFF_BLOCK_AST_CACHE_ENTRIES = 16
-
-function createPierreWorker() {
-  return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
-}
+/**
+ * An embedded diff caps Pierre's own code scroller rather than an outer box: Pierre
+ * scrolls long lines horizontally on that element, so an outer vertical cap would hide
+ * its horizontal scrollbar below the fold. Pierre's `unsafe` layer wins over its base.
+ */
+const EMBEDDED_DIFF_CSS = '[data-code] { max-height: 15rem; overflow-y: auto; }'
 
 function diffOverflow(wrap: boolean): 'wrap' | 'scroll' {
   return wrap ? 'wrap' : 'scroll'
@@ -42,7 +44,10 @@ export function DiffBlock({
   readonly view: DiffView
   readonly wrap: boolean
   readonly theme: string
-  /** Inside a card that already names the file: no Pierre file header, quiet hunk separators. */
+  /**
+   * Inside a card that already names the file: no Pierre file header, quiet hunk
+   * separators, and a 15rem cap that scrolls both ways on Pierre's code element.
+   */
   readonly embedded?: boolean
 }) {
   const options = useMemo(
@@ -50,11 +55,18 @@ export function DiffBlock({
       theme,
       diffStyle: view,
       overflow: diffOverflow(wrap),
-      ...(embedded ? { disableFileHeader: true, hunkSeparators: 'simple' as const } : {}),
+      ...(embedded
+        ? {
+            disableFileHeader: true,
+            hunkSeparators: 'simple' as const,
+            unsafeCSS: EMBEDDED_DIFF_CSS,
+          }
+        : {}),
     }),
     [theme, view, wrap, embedded],
   )
   if (shouldVirtualizeSyntaxSource(patch)) {
+    // The virtualized view scrolls inside a fixed height; an embedded card is compact.
     return (
       <SourceView
         source={completeUnifiedPatch(patch)}
@@ -62,18 +74,14 @@ export function DiffBlock({
         theme={theme}
         showLineNumbers={false}
         ariaLabel="Large diff source"
-        className={cn('max-h-128 min-h-48', className)}
+        className={cn(embedded ? 'h-60' : 'max-h-128 min-h-48', className)}
       />
     )
   }
   registerPendingPierreSyntaxResources()
   return (
     <WorkerPoolContextProvider
-      poolOptions={{
-        workerFactory: createPierreWorker,
-        poolSize: 1,
-        totalASTLRUCacheSize: DIFF_BLOCK_AST_CACHE_ENTRIES,
-      }}
+      poolOptions={PIERRE_WORKER_POOL_OPTIONS}
       highlighterOptions={{ theme }}
     >
       <DiffBlockWorkerTheme theme={theme} />

@@ -200,9 +200,23 @@ function firstChangedLineInPatch(patch: string) {
     }
     if (line === null) continue
     if (text.startsWith('+') || text.startsWith('-')) return Math.max(1, line)
-    if (text.startsWith(' ')) line += 1
+    // Some generators strip the space from an empty context line.
+    if (text.startsWith(' ') || text === '') line += 1
   }
   return null
+}
+
+/**
+ * Pi's unified patch, when it is one Pierre can render: anything without a hunk header
+ * (an extension overriding `edit`, a corrupt Session) falls back to text, because
+ * Pierre throws while rendering a patch it cannot parse.
+ */
+function renderablePatch(value: unknown) {
+  const patch = nonEmptyString(value)
+  if (patch === null) return null
+  return patch.split(LINE_SPLIT_SEPARATOR).some((line) => UNIFIED_HUNK_HEADER.test(line))
+    ? patch
+    : null
 }
 
 function nonEmptyString(value: unknown) {
@@ -222,8 +236,8 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
   if (!isRecord(details)) {
     return null
   }
-  const patch = nonEmptyString(details.patch)
-  const text = patch ?? nonEmptyString(details.diff)
+  const patch = renderablePatch(details.patch)
+  const text = patch ?? nonEmptyString(details.diff) ?? nonEmptyString(details.patch)
   if (text === null) {
     return null
   }

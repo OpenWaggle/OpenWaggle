@@ -9,6 +9,15 @@ export function hasNonZeroStat(stat: { additions: number; deletions: number }): 
   return stat.additions > 0 || stat.deletions > 0
 }
 
+function countLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
+/** Spoken form of a diff stat, e.g. "1 addition, 3 deletions". */
+export function describeDiffStat(stat: { additions: number; deletions: number }): string {
+  return `${countLabel(stat.additions, 'addition', 'additions')}, ${countLabel(stat.deletions, 'deletion', 'deletions')}`
+}
+
 function formatCompactDiffCount(value: number) {
   if (value < DIFF_STAT_COMPACT_THRESHOLD) return String(value)
   if (value < DIFF_STAT_COMPACT_MILLION) {
@@ -45,7 +54,7 @@ export function DiffStatLabel({
         className,
       )}
     >
-      <span className="sr-only">{`${additions} additions, ${deletions} deletions`}</span>
+      <span className="sr-only">{describeDiffStat({ additions, deletions })}</span>
       <span aria-hidden="true" className="font-mono text-success">
         +{formatCompactDiffCount(additions)}
       </span>

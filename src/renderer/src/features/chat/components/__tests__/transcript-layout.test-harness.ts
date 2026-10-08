@@ -179,6 +179,7 @@ export function transcriptSection(
     isLoading: true,
     projectPath: '/repo',
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: null,
     // A known branch: a new Session's view keeps its send pending until its branch is known.

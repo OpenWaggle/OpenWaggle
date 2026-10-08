@@ -119,6 +119,29 @@ describe('tool call block view helpers', () => {
     })
   })
 
+  it('derives the first changed line when Pi reports an invalid one', () => {
+    const patch = '--- a\n+++ a\n@@ -3,3 +3,3 @@\n keep\n\n-x\n+y'
+    for (const firstChangedLine of [0, -1, 1.5, '7', null]) {
+      expect(getEditDiff({ details: { patch, firstChangedLine } }, 'edit')?.firstChangedLine).toBe(
+        5,
+      )
+    }
+  })
+
+  it('treats text without a hunk header as a display diff, not a patch', () => {
+    expect(getEditDiff({ details: { patch: 'not a patch' } }, 'edit')).toEqual({
+      patch: null,
+      text: 'not a patch',
+      additions: 0,
+      deletions: 0,
+      firstChangedLine: null,
+    })
+    expect(
+      getEditDiff({ details: { patch: '--- a\n+++ a\n', diff: '+1 new' } }, 'edit')?.text,
+    ).toBe('+1 new')
+    expect(getEditDiff({ details: { patch: '   ', diff: '-1 old' } }, 'edit')?.patch).toBeNull()
+  })
+
   it('has no diff for other tools or edits without details', () => {
     expect(getEditDiff({ details: { patch: '@@ -1 +1 @@\n-a\n+b' } }, 'write')).toBeNull()
     expect(getEditDiff('Successfully replaced 1 block(s).', 'edit')).toBeNull()

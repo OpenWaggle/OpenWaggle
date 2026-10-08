@@ -1,9 +1,10 @@
 import { FileText } from 'lucide-react'
-import { lazy, Suspense } from 'react'
+import { Component, lazy, type ReactNode, Suspense } from 'react'
 import type { EditDiffData } from '@/features/chat/lib/tool-call-block'
-import { usePreferencesStore } from '@/features/settings'
+import { usePreferencesStore } from '@/features/settings/state'
 import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { useChatDisplayText, useChatWorkspaceRelativePath } from './ChatDisplayPathContext'
@@ -16,6 +17,31 @@ const LazyDiffBlock = lazy(() =>
 
 /** Codex caps an inline file diff at 15rem and scrolls the rest (ADR 0050). */
 const EDIT_DIFF_BODY_CLASS = 'max-h-60'
+
+const logger = createRendererLogger('EditDiffCard')
+
+/**
+ * A diff that cannot render (a patch Pierre rejects, a failed chunk load) falls back to
+ * the diff as text inside its own row instead of taking down the whole transcript.
+ */
+class EditDiffRenderBoundary extends Component<
+  { readonly fallback: ReactNode; readonly children: ReactNode },
+  { readonly failed: boolean }
+> {
+  override state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  override componentDidCatch(error: Error) {
+    logger.warn('Edit diff failed to render; showing it as text', { message: error.message })
+  }
+
+  override render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
 
 function basename(path: string) {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
@@ -79,10 +105,7 @@ function EditDiffFileName({ path, line }: { readonly path: string; readonly line
       title={displayPath}
       aria-label={`Open ${displayPath}`}
       className="flex min-w-0 items-center gap-1 text-text-secondary transition-colors hover:text-text-primary hover:underline"
-      onClick={(event) => {
-        event.stopPropagation()
-        openWorkspaceFile(relativePath, line)
-      }}
+      onClick={() => openWorkspaceFile(relativePath, line)}
     >
       {label}
     </Button>
@@ -92,37 +115,37 @@ function EditDiffFileName({ path, line }: { readonly path: string; readonly line
 function EditDiffBody({ diff }: { readonly diff: EditDiffData }) {
   const wrap = usePreferencesStore((state) => state.settings.diffWrapLines)
   const { shikiTheme } = useSyntaxTheme()
+  const text = <EditDiffText text={diff.text} wrap={wrap} />
 
   if (diff.patch === null) {
     // Edits recorded before Pi sent a unified patch only carry its line-numbered
     // display diff, which Pierre cannot parse; show it as highlighted text.
-    return (
-      <div className={`${EDIT_DIFF_BODY_CLASS} overflow-y-auto`}>
-        <SyntaxBlock
-          source={diff.text}
-          language="diff"
-          wrap={wrap}
-          ariaLabel="Edit diff"
-          className="rounded-none bg-bg text-xs"
-        />
-      </div>
-    )
+    return text
   }
 
   return (
-    <Suspense
-      fallback={
-        <div aria-label="Loading diff" className="h-24 animate-pulse bg-bg/60" role="status" />
-      }
-    >
-      <LazyDiffBlock
-        patch={diff.patch}
-        view="unified"
-        wrap={wrap}
-        theme={shikiTheme}
-        embedded
-        className={`${EDIT_DIFF_BODY_CLASS} text-xs`}
-      />
-    </Suspense>
+    <EditDiffRenderBoundary fallback={text}>
+      <Suspense
+        fallback={
+          <div role="status" className="h-24 animate-pulse bg-bg/60 motion-reduce:animate-none">
+            <span className="sr-only">Loading diff…</span>
+          </div>
+        }
+      >
+        <LazyDiffBlock patch={diff.patch} view="unified" wrap={wrap} theme={shikiTheme} embedded />
+      </Suspense>
+    </EditDiffRenderBoundary>
+  )
+}
+
+function EditDiffText({ text, wrap }: { readonly text: string; readonly wrap: boolean }) {
+  return (
+    <SyntaxBlock
+      source={text}
+      language="diff"
+      wrap={wrap}
+      ariaLabel="Edit diff"
+      className={`${EDIT_DIFF_BODY_CLASS} rounded-none bg-bg text-xs`}
+    />
   )
 }

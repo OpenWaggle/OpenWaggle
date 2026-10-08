@@ -77,26 +77,47 @@ function pathRelativeToRoot(path: string, root: string) {
 
 const WINDOWS_ABSOLUTE_PATH = /^[a-z]:\//iu
 
+function isAbsolutePath(path: string) {
+  return path.startsWith('/') || WINDOWS_ABSOLUTE_PATH.test(path)
+}
+
 /**
- * The path of `path` inside one of `roots`, for opening it in the workspace file view.
- * A relative path is already workspace-relative; a path outside every root, or one
- * that climbs out of the workspace, has none.
+ * Resolves `.` and `..` segments. Returns null when `..` climbs above the start of the
+ * path, which for a relative path means leaving the directory it is relative to.
  */
-export function workspaceRelativePath(
-  path: string,
-  roots: readonly (string | null | undefined)[],
-): string | null {
-  const normalized = normalizePath(path)
-  if (!normalized || normalized === '.') return null
-  if (!normalized.startsWith('/') && !WINDOWS_ABSOLUTE_PATH.test(normalized)) {
-    const relative = normalized.replace(/^(?:\.\/)+/u, '')
-    return relative === '..' || relative.startsWith('../') ? null : relative
+function collapseDotSegments(path: string) {
+  const [head = '', ...rest] = path.split('/')
+  const absolute = isAbsolutePath(path)
+  const segments: string[] = []
+  for (const segment of absolute ? rest : [head, ...rest]) {
+    if (segment === '' || segment === '.') continue
+    if (segment !== '..') {
+      segments.push(segment)
+      continue
+    }
+    if (segments.length === 0) return null
+    segments.pop()
   }
-  for (const root of displayRoots(roots)) {
-    const relative = pathRelativeToRoot(normalized, root)
-    if (relative !== null && relative !== '.') return relative
-  }
-  return null
+  return absolute ? `${head}/${segments.join('/')}` : segments.join('/')
+}
+
+/**
+ * The path of a tool's `path` argument inside the Session's working root, for opening
+ * it in the workspace file view, which resolves relative paths against that root.
+ * Mirrors how Pi resolves the argument (a leading `@` is dropped). A path outside the
+ * root, one that climbs out of it, or a `~` path (the home directory is not known
+ * here) has none.
+ */
+export function workspaceRelativePath(path: string, workingRoot: string | null): string | null {
+  const argument = path.trim().replace(/^@/u, '')
+  if (argument.startsWith('~')) return null
+  const collapsed = collapseDotSegments(normalizePath(argument))
+  if (!collapsed) return null
+  if (!isAbsolutePath(collapsed)) return collapsed
+  const root = workingRoot ? collapseDotSegments(normalizePath(workingRoot)) : null
+  if (!root) return null
+  const relative = pathRelativeToRoot(collapsed, root)
+  return relative === null || relative === '.' ? null : relative
 }
 
 /**

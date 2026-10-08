@@ -1,6 +1,6 @@
 # Turn Settle-Fold Presentation
 
-Status: accepted
+Status: accepted. Partially superseded by ADR 0050 (the "One diff surface" clause).
 
 ## Context
 

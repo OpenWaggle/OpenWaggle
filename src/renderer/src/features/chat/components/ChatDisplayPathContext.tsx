@@ -7,6 +7,8 @@ import {
 
 const ChatProjectPathContext = createContext<string | null>(null)
 const ChatWorktreePathContext = createContext<string | null>(null)
+/** The root the workspace file view resolves relative paths against. */
+const ChatWorkingPathContext = createContext<string | null>(null)
 
 function useChatDisplayRoots() {
   const projectPath = useContext(ChatProjectPathContext)
@@ -17,15 +19,20 @@ function useChatDisplayRoots() {
 export function ChatDisplayPathProvider({
   projectPath,
   worktreePath,
+  workingPath = null,
   children,
 }: {
   readonly projectPath: string | null
   readonly worktreePath: string | null
+  /** Defaults to none, so no tool path is openable from the transcript. */
+  readonly workingPath?: string | null
   readonly children: ReactNode
 }) {
   return (
     <ChatProjectPathContext value={projectPath}>
-      <ChatWorktreePathContext value={worktreePath}>{children}</ChatWorktreePathContext>
+      <ChatWorktreePathContext value={worktreePath}>
+        <ChatWorkingPathContext value={workingPath}>{children}</ChatWorkingPathContext>
+      </ChatWorktreePathContext>
     </ChatProjectPathContext>
   )
 }
@@ -38,9 +45,13 @@ export function useChatDisplayMarkdown(markdown: string) {
   return formatDisplayPathsInMarkdown(markdown, useChatDisplayRoots())
 }
 
-/** The workspace-relative path of a tool's file path, or null when it is outside the workspace. */
+/**
+ * The path of a tool's file path inside the Session's working root, or null when the
+ * file view cannot open it there. Only the working root counts: in a worktree Session
+ * a path under the project root names a different file than the worktree copy.
+ */
 export function useChatWorkspaceRelativePath(path: string) {
-  return workspaceRelativePath(path, useChatDisplayRoots())
+  return workspaceRelativePath(path, useContext(ChatWorkingPathContext))
 }
 
 export function useChatDisplayMarkdownFormatter() {
