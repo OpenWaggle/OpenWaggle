@@ -67,6 +67,31 @@ export function sourceValueOf(node: Rule.Node) {
   return typeof sourceValue === 'string' ? sourceValue : null
 }
 
+function stringLiteralValue(value: unknown) {
+  const literal = property(value, 'value')
+  return typeof literal === 'string' ? literal : null
+}
+
+/**
+ * The module a node names with a string literal: an import or export declaration, a dynamic
+ * `import()`, an `import()` type (Babel puts its specifier in `source`, typescript-estree in
+ * `argument.literal`), or `require()`. A computed specifier names no module that lint can see.
+ */
+export function moduleSpecifierOf(node: Rule.Node) {
+  const type = nodeType(node)
+  if (type === 'TSImportType') {
+    const argument = property(node, 'argument')
+    return sourceValueOf(node) ?? stringLiteralValue(property(argument, 'literal') ?? argument)
+  }
+  if (type === 'CallExpression') {
+    const callee = property(node, 'callee')
+    const args = property(node, 'arguments')
+    const isRequire = hasNodeType(callee, 'Identifier') && property(callee, 'name') === 'require'
+    return isRequire && isUnknownArray(args) && args.length === 1 ? stringLiteralValue(args[0]) : null
+  }
+  return sourceValueOf(node)
+}
+
 export function jsxIdentifierName(node: Rule.Node) {
   const name = property(property(node, 'name'), 'name')
   return typeof name === 'string' ? name : null

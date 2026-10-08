@@ -1,6 +1,6 @@
 import path from 'node:path'
 import type { Rule } from 'eslint'
-import { isTestFilename, normalizedFilename, property, sourceValueOf } from '../ast-helpers'
+import { isTestFilename, moduleSpecifierOf, normalizedFilename, property } from '../ast-helpers'
 
 /**
  * Every Pi SDK package (`@earendil-works/pi-ai`, `pi-coding-agent`, `pi-mcp`, `pi-codemode`, ...),
@@ -153,6 +153,11 @@ function piWaggleDesktopRootImportReason(importPath: string, projectPath: string
     : null
 }
 
+/** OpenWaggle app code; scripts are development tooling outside the app's layers. */
+function isAppFile(projectPath: string) {
+  return projectPath.startsWith('src/') || projectPath.startsWith('packages/')
+}
+
 function piSdkBoundaryReason(importPath: string, projectPath: string) {
   return isPiSdkImport(importPath) &&
     !projectPath.startsWith(MAIN_PI_ADAPTER_PREFIX) &&
@@ -234,6 +239,19 @@ function reasonForInvalidImport(importPath: string, projectPath: string) {
   )
 }
 
+/**
+ * The Pi SDK boundary for module references that are not declarations: dynamic `import()`, an
+ * `import()` type and a literal `require()`, which otherwise bypass the static rule in app code.
+ * Development scripts may load Pi dynamically, for example an ESM-only Pi entry point.
+ */
+function reasonForInvalidPiReference(importPath: string, projectPath: string) {
+  if (!isAppFile(projectPath)) return null
+  if (projectPath.startsWith(PACKAGE_WAGGLE_CORE_PREFIX) && isPiSdkImport(importPath)) {
+    return waggleCoreBoundaryReason(importPath, null)
+  }
+  return piSdkBoundaryReason(importPath, projectPath)
+}
+
 function reportViolation(context: Rule.RuleContext, node: Rule.Node, reason: string) {
   context.report({
     node,
@@ -254,7 +272,7 @@ export const mainArchitectureBoundariesRule: Rule.RuleModule = {
     const isProductionFile = !isTestFilename(projectPath)
 
     function checkImport(node: Rule.Node) {
-      const importPath = sourceValueOf(node)
+      const importPath = moduleSpecifierOf(node)
       if (!importPath) {
         return
       }
@@ -265,7 +283,14 @@ export const mainArchitectureBoundariesRule: Rule.RuleModule = {
       }
     }
 
+    function checkPiReference(node: Rule.Node) {
+      const importPath = moduleSpecifierOf(node)
+      const reason = importPath ? reasonForInvalidPiReference(importPath, projectPath) : null
+      if (reason) reportViolation(context, node, reason)
+    }
+
     return {
+      CallExpression: checkPiReference,
       ExportAllDeclaration: checkImport,
       ExportNamedDeclaration: checkImport,
       Identifier(node: Rule.Node) {
@@ -286,6 +311,8 @@ export const mainArchitectureBoundariesRule: Rule.RuleModule = {
         }
       },
       ImportDeclaration: checkImport,
+      ImportExpression: checkPiReference,
+      TSImportType: checkPiReference,
       Program() {
         if (projectPath.startsWith(MAIN_PROVIDERS_PREFIX)) {
           context.report({
