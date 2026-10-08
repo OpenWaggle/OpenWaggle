@@ -6,16 +6,16 @@
  */
 import { isRecord } from '@shared/utils/validation'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
+import { isCredentialName, portableArguments } from './import-credentials'
 import type { ExternalMcpImportSource } from './import-types'
-
-const SENSITIVE_NAME_PATTERN =
-  /(api[-_]?key|token|secret|password|credential|authorization|cookie|private[-_]?key)/i
-const REFERENCE_PATTERN = /\$\{[^}]+\}/
+import { sourceVariablePattern } from './import-variables'
 
 export interface ImportValueContext {
   readonly source: ExternalMcpImportSource
   readonly serverName: string
   readonly warnings: string[]
+  /** Vault-backed variables that replace credentials found in the arguments. */
+  readonly argumentEnv: Record<string, ImportedCredential>
 }
 
 export type ImportedCredential = string | { readonly secret: string }
@@ -31,7 +31,7 @@ function environmentName(id: string) {
  */
 export function literalString(value: string, location: string, context: ImportValueContext) {
   if (warnVsCodeVariable(value, location, context)) return value
-  const pattern = SOURCE_VARIABLES[context.source]
+  const pattern = sourceVariablePattern(context.source)
   const variable = pattern ? new RegExp(pattern.source).exec(value)?.[0] : undefined
   if (variable) {
     context.warnings.push(
@@ -53,30 +53,6 @@ function warnVsCodeVariable(value: string, location: string, context: ImportValu
     `${location} uses VS Code's ${variable}, which only VS Code fills in; Pi takes it as written, so put the real value there.`,
   )
   return true
-}
-
-/** True for values Pi resolves when it connects (`${VAR}` or `!command`), not literal secrets. */
-function isResolvedLater(value: string) {
-  return REFERENCE_PATTERN.test(value) || value.startsWith('!')
-}
-
-const NAME = '[A-Za-z_][A-Za-z0-9_]*'
-const ENV_REFERENCE = `\\$\\{env:(${NAME})\\}`
-
-/**
- * The variable syntaxes each tool really expands in `env` and `headers` values, with the Pi
- * variable each one becomes. Everything else is literal text there: Claude Desktop, Codex, and Zed
- * pass values as written.
- */
-const SOURCE_VARIABLES: Readonly<Record<ExternalMcpImportSource, RegExp | undefined>> = {
-  'claude-code': new RegExp(`\\$\\{(${NAME})(:-[^}]*)?\\}`, 'g'),
-  cursor: new RegExp(ENV_REFERENCE, 'g'),
-  vscode: new RegExp(`\\$\\{(?:env:(${NAME})|input:([^}]+))\\}`, 'g'),
-  windsurf: new RegExp(ENV_REFERENCE, 'g'),
-  opencode: new RegExp(`\\{env:(${NAME})\\}`, 'g'),
-  'claude-desktop': undefined,
-  codex: undefined,
-  zed: undefined,
 }
 
 function variableName(match: RegExpMatchArray, location: string, context: ImportValueContext) {
@@ -101,7 +77,7 @@ function variableName(match: RegExpMatchArray, location: string, context: Import
  */
 export function piValueFrom(value: string, location: string, context: ImportValueContext) {
   warnVsCodeVariable(value, location, context)
-  const pattern = SOURCE_VARIABLES[context.source]
+  const pattern = sourceVariablePattern(context.source)
   if (!pattern) return { value: piLiteral(value), references: false }
   let result = ''
   let last = 0
@@ -131,7 +107,7 @@ function credentialValue(
     return undefined
   }
   const pi = piValueFrom(value, location, context)
-  if (pi.references || !SENSITIVE_NAME_PATTERN.test(fieldName)) return pi.value
+  if (pi.references || !isCredentialName(fieldName)) return pi.value
   // Named after the field until the import places the server: the vault secret is then named
   // `<SERVER>_<FIELD>` after the name it is saved as, which a rename can change.
   context.warnings.push(
@@ -151,44 +127,20 @@ export function credentialMap(value: unknown, mapName: string, context: ImportVa
   return Object.keys(result).length > 0 ? result : undefined
 }
 
-function isCredentialFlag(value: string) {
-  return value.startsWith('-') && SENSITIVE_NAME_PATTERN.test(value)
-}
-
 /**
- * Arguments, without the value of a credential flag: the argument after `--api-key`, or all of
- * `--api-key=VALUE` (Pi passes arguments as written, so no vault reference can stand there). The
- * value is never repeated in a warning.
+ * Arguments, without any credential they carry; see `portableArguments`. A credential the server
+ * can read from its environment is added to `context.argumentEnv` as a vault reference.
  */
-export function portableArgs(values: readonly string[], context: ImportValueContext) {
-  const result: string[] = []
-  let credentialFlag: string | undefined
-  for (const value of values) {
-    if (credentialFlag !== undefined && !isResolvedLater(value)) {
-      context.warnings.push(
-        `A command-line credential after ${credentialFlag} was not imported. Move it to the encrypted vault or an environment variable.`,
-      )
-      credentialFlag = undefined
-      continue
-    }
-    credentialFlag = undefined
-    const separator = value.indexOf('=')
-    const flag = separator > 0 ? value.slice(0, separator) : value
-    if (separator > 0 && isCredentialFlag(flag)) {
-      if (!isResolvedLater(value.slice(separator + 1))) {
-        context.warnings.push(
-          `A command-line credential in ${flag}=… was not imported. Move it to the encrypted vault or an environment variable.`,
-        )
-        continue
-      }
-      result.push(literalString(value, 'args', context))
-      continue
-    }
-    const portable = literalString(value, 'args', context)
-    result.push(portable)
-    if (isCredentialFlag(portable)) credentialFlag = portable
-  }
-  return result
+export function portableArgs(
+  values: readonly string[],
+  command: string | undefined,
+  context: ImportValueContext,
+) {
+  const portable = portableArguments(values, command, context, (value) =>
+    literalString(value, 'args', context),
+  )
+  Object.assign(context.argumentEnv, portable.env)
+  return portable.args
 }
 
 export function stringArray(value: unknown) {

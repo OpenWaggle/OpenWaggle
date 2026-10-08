@@ -216,11 +216,11 @@ describe('previewing MCP imports as Pi entries', () => {
     expect(result.candidates[0]).toMatchObject({
       entry: {
         command: 'api-mcp',
-        args: ['--api-key', '--verbose'],
+        args: ['--verbose'],
         env: { API_TOKEN: { secret: 'API_TOKEN' }, FROM_ENV: `\${API_SECRET}`, MODE: 'fast' },
       },
       warnings: [
-        'A command-line credential after --api-key was not imported. Move it to the encrypted vault or an environment variable.',
+        'A command-line credential in --api-key was not imported, with its flag. Move it to the encrypted vault or an environment variable.',
         'env.API_TOKEN contains a plaintext credential. Its value was not imported; it becomes a vault secret named after the server and API_TOKEN, which you fill in after importing.',
       ],
     })
@@ -242,13 +242,15 @@ describe('previewing MCP imports as Pi entries', () => {
     const result = await preview(source)
 
     expect(result.candidates[0]).toMatchObject({
-      // A value resolved when the server starts is not a plaintext credential.
-      entry: { command: 'api-mcp', args: ['--port', '8080', '--token=!pass show api'] },
+      // Pi runs no `!command` in an argument, so it is withheld like any other credential.
+      entry: { command: 'api-mcp', args: ['--port', '8080'] },
       warnings: [
-        'A command-line credential in --api-key=… was not imported. Move it to the encrypted vault or an environment variable.',
+        'A command-line credential in --api-key=… was not imported, with its flag. Move it to the encrypted vault or an environment variable.',
+        'A command-line credential in --token=… was not imported, with its flag. Move it to the encrypted vault or an environment variable.',
       ],
     })
     expect(JSON.stringify(result)).not.toContain('sk-inline')
+    expect(JSON.stringify(result)).not.toContain('pass show')
   })
 
   it('reports an unreadable source and still previews the others', async () => {

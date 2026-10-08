@@ -4,6 +4,7 @@
  * `type: "sse"` for SSE endpoints (OpenWaggle keeps a legacy SSE transport).
  */
 import { isRecord } from '@shared/utils/validation'
+import { urlWithoutCredentials } from './import-credentials'
 import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
 import {
   credentialMap,
@@ -81,11 +82,15 @@ function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
   const rawCommand = commandArray?.[0] ?? nonEmptyString(value.command)
   // Pi takes these as written, like arguments: a variable in them is kept, with a warning.
   const command = rawCommand && literalString(rawCommand, 'command', context)
-  const args = portableArgs(commandArray?.slice(1) ?? stringArray(value.args) ?? [], context)
+  const args = portableArgs(
+    commandArray?.slice(1) ?? stringArray(value.args) ?? [],
+    rawCommand,
+    context,
+  )
   const rawCwd = nonEmptyString(value.cwd)
   const cwd = rawCwd && literalString(rawCwd, 'cwd', context)
   const rawUrl = nonEmptyString(value.url)
-  const url = rawUrl && literalString(rawUrl, 'url', context)
+  const url = rawUrl && urlWithoutCredentials(literalString(rawUrl, 'url', context), 'url', context)
   return {
     ...(command ? { command } : {}),
     ...(args.length > 0 ? { args } : {}),
@@ -121,7 +126,9 @@ function credentialFields(
   value: Raw,
   context: ImportValueContext,
 ): PiMcpEntry {
-  const env = credentialMap(value.env, 'env', context)
+  const mapped = credentialMap(value.env, 'env', context)
+  const env =
+    Object.keys(context.argumentEnv).length > 0 ? { ...context.argumentEnv, ...mapped } : mapped
   const headerSource = source === 'codex' ? (value.http_headers ?? value.headers) : value.headers
   const headers = {
     ...credentialMap(headerSource, 'headers', context),
@@ -214,7 +221,7 @@ export function normalizeImportedEntry(
   value: unknown,
 ): NormalizedImport | undefined {
   if (!isRecord(value)) return undefined
-  const context: ImportValueContext = { source, serverName: name, warnings: [] }
+  const context: ImportValueContext = { source, serverName: name, warnings: [], argumentEnv: {} }
   const shaped = reshape(source, value)
   const entry: PiMcpEntry = {
     ...endpointFields(shaped, context),

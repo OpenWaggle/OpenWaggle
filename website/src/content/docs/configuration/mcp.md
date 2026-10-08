@@ -32,7 +32,17 @@ Installing adds an ordinary entry to OpenWaggle's file, so the server then works
 
 To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 
-Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}` in `env`, `headers`, and an OAuth client secret, the places Pi fills variables in. Elsewhere, in arguments, the command, the working directory, and the URL, a value is kept as written and the import warns that Pi does not expand it there. VS Code's own variables, such as `${workspaceFolder}` or `${userHome}`, are kept as written everywhere, with a warning to put the real value there. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command. Passwords and tokens written out in the other app are not copied: OpenWaggle names a secret for you to add instead.
+Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}` in `env`, `headers`, and an OAuth client secret, the places Pi fills variables in. Elsewhere, in arguments, the command, the working directory, and the URL, a value is kept as written and the import warns that Pi does not expand it there. VS Code's own variables, such as `${workspaceFolder}` or `${userHome}`, are kept as written everywhere, with a warning to put the real value there. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command.
+
+Passwords, tokens, and API keys written out in the other app are never copied. What happens instead depends on where they were:
+
+- In `env` or `headers`, under a name such as `API_KEY`, `OPENAI_KEY`, `GITHUB_TOKEN`, `DB_PASSWORD`, or `Authorization`: the entry refers to a secret named after the imported server and the field, such as `GITHUB_AUTHORIZATION` (see [Secrets](#secrets)). If the import renames the server, for example to `github-2`, the secret is named after the new name, `GITHUB_2_AUTHORIZATION`. OpenWaggle tells you which secrets to add and which already exist.
+- In Docker's `-e NAME=value`: the argument becomes `-e NAME`, and `NAME` is read from a secret, the same way.
+- In mcp-remote's `--header "Authorization: Bearer …"`: the argument becomes `Authorization:${AUTHORIZATION}`, which mcp-remote fills in from a secret.
+- In any other argument, such as `--api-key value`, `--token=value`, or `--header "X-Api-Key: …"`: the flag and its value are left out, with a warning. Only a variable the other app fills in, such as `${env:NAME}` from Cursor, is kept. Codex, Claude's desktop app, and Zed fill in nothing there, so their values are left out too.
+- In a URL, as a user name and password or as a query parameter such as `?api_key=…`: that part of the URL is removed, with a warning. If the server needs it, add it as a header that refers to a secret.
+
+A name counts as a credential by its last word: `--api-key` and `DD_APP_KEY` do; `--max-tokens`, `--token-limit`, and `--credentials-file` do not, so their values are copied. The warnings name the field or flag but never the value.
 
 ## Where servers are configured
 
