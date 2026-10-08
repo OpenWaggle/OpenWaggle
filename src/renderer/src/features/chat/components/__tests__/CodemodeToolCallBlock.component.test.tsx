@@ -125,6 +125,31 @@ describe('CodemodeToolCallBlock', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Error: boom')
   })
 
+  it('shows a failed script error once, not again in the expanded output', () => {
+    render(
+      <CodemodeToolCallBlock
+        args={JSON.stringify({ code: 'throw new Error("boom")' })}
+        state="error"
+        result={{
+          state: 'error',
+          content: {
+            content: [
+              { type: 'text', text: 'Script failed\nWall time 0.1 seconds\nOutput:\npartial' },
+              { type: 'text', text: 'Script error:\nError: boom' },
+            ],
+            details: { calls: [] },
+          },
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /script/iu }))
+
+    expect(screen.getByLabelText('Script output')).toHaveTextContent('partial')
+    expect(screen.getByLabelText('Script output')).not.toHaveTextContent('Script error:')
+    expect(screen.getAllByText(/Error: boom/u)).toHaveLength(1)
+  })
+
   it('lists only model calls when the tool calls appear as nested tool cards', () => {
     render(
       <CodemodeToolCallBlock

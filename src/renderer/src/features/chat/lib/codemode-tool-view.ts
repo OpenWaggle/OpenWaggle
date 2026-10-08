@@ -143,7 +143,8 @@ export function codemodeToolView(args: JsonObject, result: unknown): CodemodeToo
     failed: texts[0]?.startsWith(SCRIPT_FAILED_HEADER) === true,
     ...withOptional('error', errorBlock?.slice(SCRIPT_ERROR_PREFIX.length)),
     script: typeof args.code === 'string' ? args.code : null,
-    output: texts.join('\n'),
+    // The card shows the error on its own, so the output leaves it out.
+    output: texts.filter((text) => text !== errorBlock).join('\n'),
     images: imagesOf(blocks),
     calls,
     ...withOptional('modelCost', totalCost(calls)),
