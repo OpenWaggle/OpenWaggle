@@ -75,7 +75,7 @@ describe('Host-owned MCP sign-in', () => {
     const exit = await signIn()
 
     expect(exit._tag).toBe('Failure')
-    expect(JSON.stringify(exit)).toMatch(/require https/)
+    expect(JSON.stringify(exit)).toMatch(/must be https: or http:/)
     expect(mocks.openExternal).not.toHaveBeenCalled()
   })
 

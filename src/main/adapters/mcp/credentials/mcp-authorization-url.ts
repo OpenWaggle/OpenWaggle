@@ -4,15 +4,11 @@
  * pi-mcp only refuses `javascript:`, `data:`, and `vbscript:` authorization URLs, so a malicious
  * server or authorization server could otherwise make OpenWaggle open `file:`, `smb:`, `ms-msdt:`,
  * or any custom scheme with the operating system's handler. A page is opened only when it is
- * `https:` (or `http:` on loopback), carries no credentials, and its host is the MCP server's,
+ * `https:` or `http:`, carries no credentials, and its host is the MCP server's,
  * the authorization server Pi discovered for it, that server's authorization endpoint, or the
  * authorization server metadata host the user configured.
  */
-import {
-  assertSecureMcpProtocol,
-  isAllowedMcpHostname,
-  normalizeMcpAllowedHosts,
-} from '../runtime/mcp-network-hosts'
+import { isAllowedMcpHostname, normalizeMcpAllowedHosts } from '../runtime/mcp-network-hosts'
 
 export interface McpAuthorizationOrigin {
   readonly serverUrl: string
@@ -56,7 +52,11 @@ export function checkMcpAuthorizationUrl(href: string, origin: McpAuthorizationO
   if (url.username || url.password) {
     throw new Error('MCP sign-in pages cannot contain credentials.')
   }
-  assertSecureMcpProtocol(url, false)
+  // Plain http only for the hosts below, which the transport reaches over http too: the page's
+  // host is checked next, and every other scheme is refused here.
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('MCP sign-in pages must be https: or http: pages.')
+  }
   if (!isAllowedMcpHostname(allowedHosts(origin), url.hostname)) {
     throw new Error(
       `The MCP sign-in page is on ${url.hostname}, which is neither the server nor its authorization server.`,

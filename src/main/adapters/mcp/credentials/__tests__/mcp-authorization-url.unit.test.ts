@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { checkMcpAuthorizationUrl } from '../mcp-authorization-url'
 
 const SERVER = { serverUrl: 'https://mcp.example.com/mcp' }
+const HTTP_SERVER = { serverUrl: 'http://mcp.internal/mcp' }
 const DISCOVERED = {
   serverUrl: 'https://mcp.example.com/mcp',
   discovery: {
@@ -35,6 +36,16 @@ describe('checkMcpAuthorizationUrl', () => {
       'http://127.0.0.1:8080/authorize',
       { serverUrl: 'http://127.0.0.1:8080/mcp' },
     ],
+    // The transport reaches these too, so their pages open (a company's internal sign-in).
+    ['plain http on the server host', 'http://mcp.internal/authorize', HTTP_SERVER],
+    [
+      'plain http on a discovered authorization server',
+      'http://auth.internal/authorize',
+      {
+        ...HTTP_SERVER,
+        discovery: { authorizationServerUrl: 'http://auth.internal' },
+      },
+    ],
   ])('accepts %s', (_case, url, origin) => {
     expect(checkMcpAuthorizationUrl(url, origin).href).toBe(new URL(url).href)
   })
@@ -45,7 +56,8 @@ describe('checkMcpAuthorizationUrl', () => {
     ['ms-msdt', 'ms-msdt:/id PCWDiagnostic'],
     ['a custom scheme', 'vscode://mcp.example.com/authorize'],
     ['javascript', 'javascript:alert(1)'],
-    ['plain http to a remote host', 'http://mcp.example.com/authorize'],
+    ['plain http to another host', 'http://evil.example/authorize'],
+    ['ftp on the server host', 'ftp://mcp.example.com/authorize'],
     ['credentials in the URL', 'https://user:pass@mcp.example.com/authorize'],
     ['another host', 'https://evil.example/authorize'],
     ['a look-alike subdomain', 'https://mcp.example.com.evil.example/authorize'],
