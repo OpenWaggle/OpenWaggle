@@ -775,6 +775,27 @@ The three nested right sidebars (`ActionPanelLayout` > `WorkspaceRightPanel` > t
 
 A read-only action output tab lives in its own store (`features/terminal/state/action-output-view-store.ts`, `openwaggle:terminal-action-output-views:v1`), never in the PTY layout: a view has no terminal id, so close/split/clear/dock and the PTY lifecycle cannot reach it. It is keyed `(ownerKey = Session id, actionId)` and stores only the followed run ids; output is re-read from the Host's `output` pages on mount, so persistence after restart is cheap. A view covers the drawer only while the terminal tab that was active when it was chosen is still active (`coveredTabId`), so any shortcut that creates or selects a terminal tab uncovers it without extra wiring. Restart-following appends the next run of the same action only once the followed run is no longer active, so a concurrent finite task cannot take the view over. xterm needs `scrollOnEraseInDisplay` and the feed strips ED3 (`ESC[3J`, held across page boundaries), otherwise a dev server's clear-screen erases earlier runs above the "restarted" divider.
 
+### Project Actions follow the open Session's project, not the project preference
+
+`settings.projectPath` only mirrors the selected project. When you select a Session, the chat store changes first, then the preference is updated through an awaited Host `settings:update`. If that write lags or is refused (Host stall, drain), the preference keeps naming the previous project until the next switch. Project Actions surfaces read it, so they listed the previous project's actions inside the new Session, and Add action saved there. That made actions look like they leaked between projects.
+
+Project-scoped Session consumers resolve the project through `useSessionProjectPath` (`features/sessions/hooks`, `resolveSessionProjectPath`). With a selected Session it returns, in order:
+- the loaded detail's project;
+- otherwise the catalog summary's project (active, archived or Hive list);
+- otherwise `null`, never the previous project.
+
+Without a Session it returns the preference.
+
+Its users:
+- the Project Actions right panel surface, background effects, rail entry and running dot;
+- action shortcuts and the command palette;
+- Settings → Shortcuts (action rows only; extension panels mirror the rail);
+- the Settings resource-project default (Session project, then preference, then recents).
+
+Drafts deliberately stay on the preference. The draft composer (send gate, worktree plan stash, branch row, scoped drafts, preparation choice) and first send all key on it. Moving only some of them to `draftSession.projectPath` split the env/base-ref choice from the created Session. A draft whose sidebar project differs from a stale preference, New Session (⌘N) seeding from the preference, the header label and the extension panel rail are known follow-ups.
+
+Reproduced in hidden Electron QA by delaying or failing the renderer's settings write.
+
 ### Project Action completion is not an activity-change event
 
 The reuse barrier must observe every successful process sample, including an unchanged idle snapshot. The authenticated next prompt is authoritative on integrated shells. A fast command can start and finish between polls, so two reliable idle observations after a 1.5-second grace release that missed transition; any unreliable sample resets the streak. This fallback cannot identify a long-running builtin in an unsupported shell because no child process or authenticated prompt exists, so keep that limitation visible in user documentation.

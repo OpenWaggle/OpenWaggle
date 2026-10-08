@@ -40,7 +40,7 @@ export function RightPanelHost() {
     }
   }, [railShown])
 
-  const effects = <ProjectActionsBackgroundEffects projectPath={model.projectPath} />
+  const effects = <ProjectActionsBackgroundEffects />
   if (!railShown) return effects
   return (
     <>
