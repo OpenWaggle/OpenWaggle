@@ -26,17 +26,29 @@ export interface McpServerSettingsPatch {
 
 type JsonRecord = Record<string, unknown>
 
+/**
+ * Applies per-tool changes. An empty result is dropped from a full entry, but an override keeps
+ * `toolExposure: {}` when it replaced rules (its own or inherited ones): without the key, the
+ * rules of the file below would apply again.
+ */
 function applyToolExposure(
   server: JsonRecord,
   patch: Readonly<Record<string, McpExposure | null>>,
-  inherited: Readonly<Record<string, McpExposure>> = {},
+  options: {
+    readonly override: boolean
+    readonly inherited?: Readonly<Record<string, McpExposure>>
+  },
 ) {
-  const current = isJsonRecord(server.toolExposure) ? { ...server.toolExposure } : { ...inherited }
+  const inherited = options.inherited ?? {}
+  const ownRules = server.toolExposure
+  const own = isJsonRecord(ownRules)
+  const current = own ? { ...ownRules } : { ...inherited }
   for (const [tool, exposure] of Object.entries(patch)) {
     if (exposure === null) delete current[tool]
     else current[tool] = exposure
   }
-  if (Object.keys(current).length === 0) delete server.toolExposure
+  const resets = options.override && (own || Object.keys(inherited).length > 0)
+  if (Object.keys(current).length === 0 && !resets) delete server.toolExposure
   else server.toolExposure = current
 }
 
@@ -69,7 +81,10 @@ export function updateMcpServerSettings(
       else server.exposure = patch.exposure
     }
     if (patch.toolExposure) {
-      applyToolExposure(server, patch.toolExposure, patch.inheritedToolExposure)
+      applyToolExposure(server, patch.toolExposure, {
+        override: keepDefaults,
+        ...(patch.inheritedToolExposure ? { inherited: patch.inheritedToolExposure } : {}),
+      })
     }
     return true
   })

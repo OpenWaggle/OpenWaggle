@@ -130,6 +130,40 @@ describe('MCP config writer', () => {
     })
   })
 
+  it('resets inherited tool rules in an override instead of letting them show through', () => {
+    const filePath = path.join(root, 'project', '.openwaggle', 'mcp.json')
+    // The defining file hides delete_*; the override has no rules of its own yet.
+    const inherited = { 'delete_*': 'hidden' } as const
+
+    updateMcpServerSettings(
+      filePath,
+      'figma',
+      { toolExposure: { 'delete_*': null }, inheritedToolExposure: inherited },
+      { override: true },
+    )
+    expect(JSON.parse(read(filePath))).toEqual({ mcpServers: { figma: { toolExposure: {} } } })
+
+    // A rule of the override set back to "Same as server": the defining file's rules return only
+    // when the override says nothing, so it stays an explicit empty set.
+    updateMcpServerSettings(
+      filePath,
+      'figma',
+      { toolExposure: { get: 'direct' } },
+      { override: true },
+    )
+    updateMcpServerSettings(filePath, 'figma', { toolExposure: { get: null } }, { override: true })
+    expect(JSON.parse(read(filePath))).toEqual({ mcpServers: { figma: { toolExposure: {} } } })
+  })
+
+  it('drops an empty rule set from an override with nothing to reset', () => {
+    const filePath = path.join(root, 'project', '.openwaggle', 'mcp.json')
+
+    updateMcpServerSettings(filePath, 'figma', { enabled: false }, { override: true })
+    updateMcpServerSettings(filePath, 'figma', { toolExposure: { get: null } }, { override: true })
+
+    expect(JSON.parse(read(filePath))).toEqual({ mcpServers: { figma: { enabled: false } } })
+  })
+
   it('refuses to change a server the file does not define', () => {
     const filePath = file('mcp.json', '{"mcpServers":{}}')
 
