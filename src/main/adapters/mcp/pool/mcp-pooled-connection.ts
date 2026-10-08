@@ -236,7 +236,11 @@ export class McpPooledConnection {
       const upstreamId = this.ledger.upstreamId(lease, params.requestId)
       if (upstreamId === undefined) return
       this.ledger.forget(upstreamId)
-      return this.sendUpstream({ ...message, params: { ...params, requestId: upstreamId } })
+      try {
+        return await this.sendUpstream({ ...message, params: { ...params, requestId: upstreamId } })
+      } finally {
+        this.closeIfRetiredAndIdle()
+      }
     }
     return this.sendUpstream(message)
   }
@@ -252,6 +256,12 @@ export class McpPooledConnection {
       }).catch(() => undefined)
     }
     this.router.detach(lease)
+    this.closeIfRetiredAndIdle()
+  }
+
+  /** A retiring connection closes once no request is left to settle, not after the grace. */
+  private closeIfRetiredAndIdle() {
+    if (this.retiring && !this.ledger.hasPending) void this.close()
   }
 
   private handleUpstreamMessage(message: JsonRpcMessage) {
@@ -268,7 +278,7 @@ export class McpPooledConnection {
 
   private handleResponse(message: JsonRpcResponse) {
     this.deliverResponse(message)
-    if (this.retiring && !this.ledger.hasPending) void this.close()
+    this.closeIfRetiredAndIdle()
   }
 
   private deliverResponse(message: JsonRpcResponse) {
