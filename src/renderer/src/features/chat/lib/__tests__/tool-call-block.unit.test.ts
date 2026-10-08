@@ -182,6 +182,24 @@ describe('tool call block view helpers', () => {
       )
     })
 
+    it('keeps the indentation of aligned diagnostics', () => {
+      const frame = '    10 | const x: number = "a"\n       |       ^ TS2322'
+      expect(getEditExtraOutput(blocks(PI_LINE, frame), 'src/a.(b).ts')).toBe(frame)
+      expect(getEditExtraOutput(blocks(`${PI_LINE}\n${frame}`), 'src/a.(b).ts')).toBe(frame)
+    })
+
+    it("removes Pi's line once wherever an extension moved it", () => {
+      expect(getEditExtraOutput(blocks('LSP: 2 errors', PI_LINE), 'src/a.(b).ts')).toBe(
+        'LSP: 2 errors',
+      )
+      expect(getEditExtraOutput(blocks(`LSP: 2 errors\n${PI_LINE}`), 'src/a.(b).ts')).toBe(
+        'LSP: 2 errors',
+      )
+      const rewrittenPath = 'Successfully replaced 1 block(s) in /abs/src/a.(b).ts.'
+      expect(getEditExtraOutput(blocks(rewrittenPath, 'lint: ok'), 'src/a.(b).ts')).toBe('lint: ok')
+      expect(getEditExtraOutput(blocks(PI_LINE, PI_LINE), 'src/a.(b).ts')).toBe(PI_LINE)
+    })
+
     it('never serializes non-text content', () => {
       const image = { content: [{ type: 'image', data: 'iVBOR' }], details: { patch: 'x' } }
       expect(getEditExtraOutput(image, 'src/a.ts')).toBe('')

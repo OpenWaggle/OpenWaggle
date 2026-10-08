@@ -255,18 +255,44 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
 }
 
 const REGEXP_SPECIAL_CHARACTERS = /[.*+?^${}()|[\]\\]/gu
+/** Pi's sentence as a whole line of its own, for any path. */
+const PI_EDIT_RESULT_WHOLE_LINE = /^Successfully replaced \d+ block\(s\) in .+\.(?:\r?\n|$)/mu
+const LEADING_BLANK_LINES = /^(?:[ \t]*\r?\n)+/u
 
-/** Pi's own edit result line, which an edit row's diff already says. */
-function piEditResultLine(path: string | null) {
+/** Pi's own edit result line opening a block, for the edited path. */
+function piEditResultPrefix(path: string | null) {
   const target = path === null ? '.+?' : path.replace(REGEXP_SPECIAL_CHARACTERS, '\\$&')
-  return new RegExp(`^Successfully replaced \\d+ block\\(s\\) in ${target}\\.(?=\\s|$)`, 'u')
+  return new RegExp(
+    `^Successfully replaced \\d+ block\\(s\\) in ${target}\\.(?=\\s|$)[ \\t]*(?:\\r?\\n)?`,
+    'u',
+  )
+}
+
+/**
+ * Removes Pi's own line, which the diff already says, once: where Pi puts it (opening
+ * the first block, possibly followed by text an extension appended on the same line),
+ * or else as a line of its own anywhere, which also covers an extension that put its
+ * block first or rewrote the path Pi reports.
+ */
+function withoutPiEditResultLine(blocks: readonly string[], path: string | null) {
+  const [first = '', ...rest] = blocks
+  const prefix = piEditResultPrefix(path)
+  const opening = first.replace(LEADING_BLANK_LINES, '')
+  if (prefix.test(opening)) return [opening.replace(prefix, ''), ...rest]
+  let removed = false
+  return blocks.map((text) => {
+    if (removed || !PI_EDIT_RESULT_WHOLE_LINE.test(text)) return text
+    removed = true
+    return text.replace(PI_EDIT_RESULT_WHOLE_LINE, '')
+  })
 }
 
 /**
  * Text in an edit result that its diff does not already convey, such as diagnostics an
  * extension added through Pi's `tool_result` hook: the text blocks without Pi's own
- * leading line. Non-text blocks and structured payloads are not output a reader needs
- * next to the diff, so this never falls back to serializing them.
+ * line. Indentation is kept, because diagnostics are often aligned code frames. Non-text
+ * blocks and structured payloads are not output a reader needs next to the diff, so
+ * this never falls back to serializing them.
  */
 export function getEditExtraOutput(content: unknown, path: string | null): string {
   const parsed = parseResultPayload(content)
@@ -276,10 +302,9 @@ export function getEditExtraOutput(content: unknown, path: string | null): strin
       content.filter(isTextContentBlock).map((block) => block.text),
     )
     .otherwise(() => [])
-  const [first = '', ...rest] = blocks
-  return [first.trim().replace(piEditResultLine(path), ''), ...rest]
-    .map((text) => text.trim())
-    .filter(Boolean)
+  return withoutPiEditResultLine(blocks, path)
+    .map((text) => text.replace(LEADING_BLANK_LINES, '').trimEnd())
+    .filter((text) => text.trim() !== '')
     .join('\n')
 }
 
