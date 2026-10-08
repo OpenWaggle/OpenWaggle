@@ -26,7 +26,7 @@ export type McpServerRequestHandler = (request: McpServerRequest) => Promise<unk
 
 export interface McpPooledConnectionOptions {
   readonly serverName: string
-  readonly open: () => McpUpstream
+  readonly open: () => McpUpstream | Promise<McpUpstream>
   /** Adds OpenWaggle's client capabilities to the first `initialize`. */
   readonly augmentInitializeParams?: (params: unknown) => unknown
   readonly handleServerRequest?: McpServerRequestHandler

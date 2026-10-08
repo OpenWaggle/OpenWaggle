@@ -10,6 +10,7 @@ import {
 import { isRecord } from '@shared/utils/validation'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
+import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import {
@@ -207,9 +208,13 @@ export function openWaggleMcpTransport(
       identity: mcpServerIdentity(entry.name, entry.config),
       projectPath: input.projectPath,
       ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
-      open: () =>
+      // A server that was off when the Run started reads its vault secrets only now.
+      open: async () =>
         openPiMcpUpstream({
-          entry,
+          entry: {
+            ...entry,
+            config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
+          },
           transport,
           cwd,
           authProvider: hardenedMcpAuthProvider(entry, authProvider),
@@ -238,6 +243,7 @@ export async function createOpenWaggleMcpExtensions(
       ? {}
       : { sessionMcpEnabled: input.sessionMcpEnabled }),
     ...(input.serverAllowlist ? { serverAllowlist: input.serverAllowlist } : {}),
+    deferSecretsOfServersOff: true,
   })
   // A server that is on connects in the background: its old sign-in first, so it is not reported
   // signed out while the keychain is read, and the login shell's environment for its command and

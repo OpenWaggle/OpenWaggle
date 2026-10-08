@@ -35,7 +35,8 @@ export interface McpPooledServerSpec {
   readonly projectPath?: string | null
   /** A server a Pi extension registered (`pi.registerMcpServer`): no MCP file defines it. */
   readonly fromExtension?: boolean
-  readonly open: () => McpUpstream
+  /** Opens the upstream; it may first read what it needs, such as vault secrets. */
+  readonly open: () => McpUpstream | Promise<McpUpstream>
   readonly roots?: McpPooledConnectionOptions['roots']
 }
 

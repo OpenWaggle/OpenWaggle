@@ -18,6 +18,7 @@ import {
   openWaggleMcpConfigPath,
   readMcpConfigLayers,
 } from './mcp-config-files'
+import { deferredMcpSecret } from './mcp-deferred-secrets'
 
 /** One server as Pi's MCP extension receives it (`McpServerEntry`). */
 export interface McpRuntimeServerEntry {
@@ -58,6 +59,11 @@ export interface LoadMcpRuntimeConfigInput {
   readonly sessionMcpEnabled?: boolean
   /** An Agent definition's MCP allowlist: servers it does not name are left out. */
   readonly serverAllowlist?: readonly string[]
+  /**
+   * A Run's servers that are off get deferred markers instead of their vault secrets, read when
+   * Pi connects them (`resolveDeferredMcpSecrets`), so a Run with no server on reads no keychain.
+   */
+  readonly deferSecretsOfServersOff?: boolean
   readonly reader?: McpConfigFileReader
 }
 
@@ -191,7 +197,12 @@ export async function loadMcpRuntimeConfig(
   const transports = new Map<string, McpTransportKind>()
   const unavailable = new Map<string, string>()
   for (const server of selected) {
-    const resolved = await resolveServer(server, input.resolveSecret)
+    const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
+    const resolved = await resolveServer(
+      server,
+      // Not piLiteral-escaped: a marker holds no `$` and does not start with `!`.
+      deferred ? async (name) => deferredMcpSecret(name) : input.resolveSecret,
+    )
     if (!resolved.ok) {
       errors.push(resolved.error)
       unavailable.set(server.name, resolved.error)

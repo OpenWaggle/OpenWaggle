@@ -152,8 +152,10 @@ export class McpPooledConnection {
 
   private async openUpstream() {
     try {
-      const upstream = this.options.open()
+      const upstream = await this.options.open()
       this.upstream = upstream
+      // Closed while it was opening (it may read vault secrets first): release it below.
+      if (this.closed) throw this.closedConnectionError()
       upstream.transport.onMessage((message) => this.handleUpstreamMessage(message))
       upstream.transport.onError((error) => {
         this.lastErrorValue = error.message
