@@ -67,15 +67,25 @@ export function sourceValueOf(node: Rule.Node) {
   return typeof sourceValue === 'string' ? sourceValue : null
 }
 
+/** A string literal's value, or the text of a template literal with no `${}` expressions. */
 function stringLiteralValue(value: unknown) {
+  if (hasNodeType(value, 'TemplateLiteral')) {
+    const expressions = property(value, 'expressions')
+    const quasis = property(value, 'quasis')
+    if (!isUnknownArray(expressions) || expressions.length > 0) return null
+    if (!isUnknownArray(quasis) || quasis.length !== 1) return null
+    const cooked = property(property(quasis[0], 'value'), 'cooked')
+    return typeof cooked === 'string' ? cooked : null
+  }
   const literal = property(value, 'value')
   return typeof literal === 'string' ? literal : null
 }
 
 /**
- * The module a node names with a string literal: an import or export declaration, a dynamic
- * `import()`, an `import()` type (Babel puts its specifier in `source`, typescript-estree in
- * `argument.literal`), or `require()`. A computed specifier names no module that lint can see.
+ * The module a node names with a string literal or a template literal with no expressions: an
+ * import or export declaration, a dynamic `import()`, an `import()` type (Babel puts its specifier
+ * in `source`, typescript-estree in `argument.literal`), or `require()`. A computed specifier
+ * names no module that lint can see.
  */
 export function moduleSpecifierOf(node: Rule.Node) {
   const type = nodeType(node)
@@ -89,7 +99,8 @@ export function moduleSpecifierOf(node: Rule.Node) {
     const isRequire = hasNodeType(callee, 'Identifier') && property(callee, 'name') === 'require'
     return isRequire && isUnknownArray(args) && args.length === 1 ? stringLiteralValue(args[0]) : null
   }
-  return sourceValueOf(node)
+  // Declarations always name a string literal; a dynamic import() may name a template literal.
+  return stringLiteralValue(property(node, 'source'))
 }
 
 export function jsxIdentifierName(node: Rule.Node) {

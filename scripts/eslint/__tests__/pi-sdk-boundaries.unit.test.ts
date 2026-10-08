@@ -89,6 +89,8 @@ describe('Pi SDK import boundary', () => {
     ["type Mcp = typeof import('@earendil-works/pi-mcp')", 'typeof import()'],
     ["type Run = import('@earendil-works/pi-codemode').Run", 'an import() type'],
     ["const tui = require('@earendil-works/pi-tui')", 'a literal require()'],
+    ['const pi = await import(`@earendil-works/pi-ai`)', 'a template-literal import()'],
+    ['const tui = require(`@earendil-works/pi-tui`)', 'a template-literal require()'],
   ])('reports %s (%s) outside the Pi adapter', (source) => {
     const messages = lintBoundaries(`${source}\nexport const value = 1\n`, 'src/main/application/example.ts')
 
@@ -109,6 +111,15 @@ describe('Pi SDK import boundary', () => {
   it('ignores a require() or import() whose specifier is not a literal', () => {
     const messages = lintBoundaries(
       "const name = '@earendil-works/pi-ai'\nconst a = require(name)\nconst b = await import(name)\nexport const value = [a, b]\n",
+      'src/main/application/example.ts',
+    )
+
+    expect(messages).toHaveLength(0)
+  })
+
+  it('ignores a template-literal import() whose specifier is computed', () => {
+    const messages = lintBoundaries(
+      "const pkg = 'pi-ai'\nconst pi = await import(`@earendil-works/${pkg}`)\nexport const value = pi\n",
       'src/main/application/example.ts',
     )
 
