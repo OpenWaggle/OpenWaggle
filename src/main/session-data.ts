@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { configureSessionScratchNamespace } from './utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
+const LOGS_DIRECTORY_NAME = 'logs'
 const CHROMIUM_DIPS_BASENAME = 'DIPS'
 const CHROMIUM_DIPS_SIDE_SUFFIXES = ['', '-wal', '-shm'] as const
 const CHROMIUM_DIPS_REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
@@ -10,6 +11,7 @@ const CHROMIUM_DIPS_REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
 export interface AppPathManager {
   getPath(name: 'userData'): string
   setPath(name: 'userData' | 'sessionData', value: string): void
+  setAppLogsPath(path?: string): void
 }
 
 function getChromiumDipsPaths(sessionDataPath: string) {
@@ -46,6 +48,11 @@ export function configureAppStoragePaths(
   const userDataPath = overrideUserDataPath ?? appPaths.getPath('userData')
   appPaths.setPath('userData', userDataPath)
   mkdirSync(userDataPath, { recursive: true })
+  // An overridden profile (QA, tests, OPENWAGGLE_USER_DATA_DIR) keeps its logs too, Electron's and
+  // the Session Host's file, instead of writing to the real ~/Library/Logs/<app>.
+  if (overrideUserDataPath !== undefined) {
+    appPaths.setAppLogsPath(join(userDataPath, LOGS_DIRECTORY_NAME))
+  }
   // The GUI captures Session images from scratch directories too, so it must agree with the Host.
   configureSessionScratchNamespace(userDataPath)
 
