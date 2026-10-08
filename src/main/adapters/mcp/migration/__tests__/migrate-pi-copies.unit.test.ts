@@ -13,6 +13,7 @@ import {
   oldIdentityKey,
   PI_GLOBAL,
   piCopy,
+  recordingLogger,
 } from './migration-fixtures'
 
 const DOCS_NORMALIZED = { url: 'https://docs.example.com/mcp', transport: 'streamable-http' }
@@ -201,6 +202,36 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     })
 
     expect(report.files.map((file) => file.path)).toEqual([OPENWAGGLE_GLOBAL])
+  })
+
+  it("logs, and does not apply to every project, the home folder's own old switches", async () => {
+    const files = { [OPENWAGGLE_GLOBAL]: { mcpServers: { own: { command: 'own-mcp' } } } }
+    const state = allConnectedState(files)
+    const fs = memoryFs({
+      ...files,
+      [LEGACY_STATE]: {
+        ...state,
+        projectStates: { [HOME]: 'inherit', '/work/other': 'inherit' },
+        projectServerStates: { [HOME]: { 'own-id': 'off' } },
+      },
+    })
+    const logger = recordingLogger()
+
+    await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      projectPaths: [HOME],
+      knownProjectPaths: async () => [HOME, '/work/other'],
+      now: () => NOW,
+      fs,
+      logger,
+    })
+
+    // Turning `own` off in the global file would turn it off in /work/other too.
+    expect(globalServers(fs)).toEqual({ own: { command: 'own-mcp' } })
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('home folder'),
+      expect.objectContaining({ servers: ['own'] }),
+    )
   })
 
   it('keeps servers that connected on and turns off every server that did not', async () => {

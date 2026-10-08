@@ -118,7 +118,9 @@ Imports from other tools convert only the variable syntax that tool really expan
 Writes resolve a symbolic link and replace the file it points to (temporary file beside it). Pi's
 global file is `getPiAgentDir()/mcp.json` (honouring `PI_CODING_AGENT_DIR`) for the migration as
 for the loader. File locations are de-duplicated by path, so a project at the home folder reads
-`~/.openwaggle/mcp.json` once, as the global file.
+`~/.openwaggle/mcp.json` once, as the global file. Pi gets no `projectConfig` for it, so `/mcp`
+"in this project" cannot write the global file, and the migration logs (does not apply) the old
+per-project switches of that project (`home-project-state.ts`), which would change every project.
 
 ### What Pi receives
 

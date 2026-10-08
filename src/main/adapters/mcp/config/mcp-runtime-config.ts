@@ -142,7 +142,11 @@ export async function loadMcpRuntimeConfig(
   input: LoadMcpRuntimeConfigInput,
 ): Promise<McpRuntimeConfig> {
   const merged = loadMcpMergedConfig(input.roots, input.reader)
-  const projectConfig = input.roots.projectPath
+  // A project at the home folder has no project file of its own: its path is the global file's,
+  // and Pi's /mcp "in this project" must not write that.
+  const projectConfig = mcpConfigFileLocations(input.roots).some(
+    (file) => file.fileId === 'project-openwaggle',
+  )
     ? openWaggleMcpConfigPath(input.roots, 'project')
     : undefined
   const allowlist = input.serverAllowlist ? new Set(input.serverAllowlist) : undefined

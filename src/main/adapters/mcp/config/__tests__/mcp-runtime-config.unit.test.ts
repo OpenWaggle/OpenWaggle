@@ -119,4 +119,19 @@ describe('MCP runtime configuration', () => {
     expect(off.loaded.servers).toEqual([])
     expect(allowlisted.loaded.servers.map((server) => server.name)).toEqual(['b'])
   })
+
+  it('gives Pi no project file for a project at the home folder, whose file is the global one', async () => {
+    write(path.join(homeDir, '.openwaggle', 'mcp.json'), { mcpServers: { fs: { command: 'fs' } } })
+
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath: homeDir },
+      resolveSecret,
+    })
+
+    // Pi's /mcp "in this project" would otherwise write the global file.
+    expect(config.loaded.projectConfig).toBeUndefined()
+    expect(config.loaded.servers.map((server) => [server.name, server.scope])).toEqual([
+      ['fs', 'global'],
+    ])
+  })
 })

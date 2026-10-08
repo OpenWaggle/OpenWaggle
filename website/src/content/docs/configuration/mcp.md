@@ -48,7 +48,7 @@ OpenWaggle reads five files, in this order:
 
 When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one.
 
-Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
+Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file, and a switch for that project only is not available, since it would change every project. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
 
 Every file uses the same format:
 
@@ -123,6 +123,7 @@ The first time a new version starts, OpenWaggle converts its older MCP files to 
 - If MCP was off in OpenWaggle, every server is turned off.
 - Otherwise, servers that connected before stay on, and the others are turned off.
 - This applies to every project OpenWaggle knew about when it upgraded. Projects added later, and people who never set up MCP in OpenWaggle, start with servers on as their files say.
+- A project that is your home folder shares its OpenWaggle file with every project, so servers you had switched on or off for that project only are not carried over. Switch them again in that project if you need to.
 
 Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server. A copy you edited, or one that reads a secret from the encrypted store, is kept.
 

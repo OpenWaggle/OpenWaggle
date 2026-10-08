@@ -19,6 +19,7 @@ import {
   type FileComputation,
   McpFileSources,
 } from './file-computation'
+import { reportHomeFolderProjectState } from './home-project-state'
 import { contentHash } from './json-document'
 import {
   type LegacyStateFile,
@@ -224,8 +225,16 @@ export async function migrateOpenWaggleMcpFiles(
     // A project that is the home folder has the global file as its project file; it is migrated once.
     if (
       path.resolve(projectMcpPaths(projectPath).openwaggle) === path.resolve(paths.openwaggleGlobal)
-    )
+    ) {
+      await reportHomeFolderProjectState({
+        sources,
+        state,
+        projectPath,
+        preserveEnablement: kept?.includes(projectPath) === true,
+        logger,
+      })
       continue
+    }
     files.push(
       await migrator.run({
         path: projectMcpPaths(projectPath).openwaggle,
