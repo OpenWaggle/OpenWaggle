@@ -113,6 +113,7 @@ async function readSnapshot(
     return { kind: 'unchanged', fingerprint }
   }
   const branch = sessionManager.getBranch()
+  const name = sessionManager.getSessionName()?.trim()
   return {
     kind: 'changed',
     piSessionId: sessionManager.getSessionId(),
@@ -125,6 +126,7 @@ async function readSnapshot(
     ),
     ...branchModelSelection(branch),
     ...branchThinkingLevel(branch),
+    ...(name ? { name } : {}),
   }
 }
 

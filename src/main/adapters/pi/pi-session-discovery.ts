@@ -186,7 +186,12 @@ async function readHeader(file: string): Promise<PiSessionFileHeader | null> {
   }
 }
 
-async function fileState(file: string) {
+interface FileVersion {
+  readonly size: number
+  readonly mtimeMs: number
+}
+
+async function fileState(file: string): Promise<FileVersion | null> {
   try {
     const stats = await stat(file)
     return { size: stats.size, mtimeMs: stats.mtimeMs }
@@ -204,11 +209,11 @@ async function readDirectoryNames(directory: string) {
 }
 
 /**
- * A file's header never changes, so the scanner reads each file once and remembers it, and a file
- * without one is read again only after it changes. A file of
- * a sibling directory that shares the project's prefix, or of a session OpenWaggle lists under
- * another path, is then never read again; a project added later is matched against what is
- * already known.
+ * The scanner remembers what it read from each file by the version it read, and reads a file
+ * again only once it changes: its header never changes, but a later `/name` does. A file of a
+ * sibling directory that shares the project's prefix, or of a session OpenWaggle lists under
+ * another path, is then not read again until it changes; a project added later is matched against
+ * what is already known. A file no scan lists any more is forgotten.
  */
 export function createPiSessionDiscoveryScanner(
   options: {
@@ -216,25 +221,16 @@ export function createPiSessionDiscoveryScanner(
     readonly resolveSessionDirectory?: (projectPath: string) => string | undefined
   } = {},
 ): PiSessionDiscoveryScanner {
-  const headers = new Map<string, PiSessionFileHeader>()
-  /** Files without a Pi header, by the version read: read again only once they change. */
-  const headerless = new Map<string, { readonly size: number; readonly mtimeMs: number }>()
+  /** What each file's start held, or null for a file without a Pi header, by the version read. */
+  const headers = new Map<string, FileVersion & { readonly header: PiSessionFileHeader | null }>()
 
-  const headerOf = async (
-    file: string,
-    state: { readonly size: number; readonly mtimeMs: number },
-  ) => {
+  const headerOf = async (file: string, state: FileVersion) => {
     const remembered = headers.get(file)
-    if (remembered) return remembered
-    const skipped = headerless.get(file)
-    if (skipped?.size === state.size && skipped.mtimeMs === state.mtimeMs) return null
-    const header = await readHeader(file)
-    if (header) {
-      headers.set(file, header)
-      headerless.delete(file)
-    } else {
-      headerless.set(file, state)
+    if (remembered?.size === state.size && remembered.mtimeMs === state.mtimeMs) {
+      return remembered.header
     }
+    const header = await readHeader(file)
+    headers.set(file, { ...state, header })
     return header
   }
 
@@ -269,6 +265,7 @@ export function createPiSessionDiscoveryScanner(
     for (const name of await readDirectoryNames(directory)) {
       if (!name.endsWith(PI_SESSION_FILE_SUFFIX)) continue
       const file = path.join(directory, name)
+      listedFiles.add(file)
       if (isKnownFile(file)) continue
       const session = await discoveredSession(file, projectPaths)
       if (session) discovered.push(session)
@@ -276,38 +273,54 @@ export function createPiSessionDiscoveryScanner(
     return discovered
   }
 
+  /** The files the current scan listed; what it did not list is forgotten when it ends. */
+  const listedFiles = new Set<string>()
+  const forgetUnlistedFiles = () => {
+    for (const file of headers.keys()) if (!listedFiles.has(file)) headers.delete(file)
+    listedFiles.clear()
+  }
+
+  const scan = async ({ projectPaths, isKnownFile }: PiSessionDiscoveryInput) => {
+    if (projectPaths.length === 0) return []
+    const resolveDirectory = options.resolveSessionDirectory ?? resolvePiSessionDirectory
+    const defaultProjects: string[] = []
+    const projectsByCustomDirectory = new Map<string, string[]>()
+    for (const projectPath of projectPaths) {
+      const custom = resolveDirectory(projectPath)
+      if (!custom) {
+        defaultProjects.push(projectPath)
+        continue
+      }
+      projectsByCustomDirectory.set(custom, [
+        ...(projectsByCustomDirectory.get(custom) ?? []),
+        projectPath,
+      ])
+    }
+    const discovered: DiscoveredPiSession[] = []
+    for (const [directory, projects] of projectsByCustomDirectory) {
+      discovered.push(...(await scanDirectory(directory, projects, isKnownFile)))
+    }
+    if (defaultProjects.length === 0) return discovered
+    const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
+    const prefixes = defaultProjects.map(encodedPathPrefix)
+    const directories = (await readDirectoryNames(sessionsRoot)).filter((name) =>
+      prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)),
+    )
+    for (const directory of directories) {
+      const directoryPath = path.join(sessionsRoot, directory)
+      discovered.push(...(await scanDirectory(directoryPath, defaultProjects, isKnownFile)))
+    }
+    return discovered
+  }
+
   return {
-    scan: async ({ projectPaths, isKnownFile }) => {
-      if (projectPaths.length === 0) return []
-      const resolveDirectory = options.resolveSessionDirectory ?? resolvePiSessionDirectory
-      const defaultProjects: string[] = []
-      const projectsByCustomDirectory = new Map<string, string[]>()
-      for (const projectPath of projectPaths) {
-        const custom = resolveDirectory(projectPath)
-        if (!custom) {
-          defaultProjects.push(projectPath)
-          continue
-        }
-        projectsByCustomDirectory.set(custom, [
-          ...(projectsByCustomDirectory.get(custom) ?? []),
-          projectPath,
-        ])
+    scan: async (input) => {
+      listedFiles.clear()
+      try {
+        return await scan(input)
+      } finally {
+        forgetUnlistedFiles()
       }
-      const discovered: DiscoveredPiSession[] = []
-      for (const [directory, projects] of projectsByCustomDirectory) {
-        discovered.push(...(await scanDirectory(directory, projects, isKnownFile)))
-      }
-      if (defaultProjects.length === 0) return discovered
-      const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
-      const prefixes = defaultProjects.map(encodedPathPrefix)
-      const directories = (await readDirectoryNames(sessionsRoot)).filter((name) =>
-        prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)),
-      )
-      for (const directory of directories) {
-        const directoryPath = path.join(sessionsRoot, directory)
-        discovered.push(...(await scanDirectory(directoryPath, defaultProjects, isKnownFile)))
-      }
-      return discovered
     },
   }
 }

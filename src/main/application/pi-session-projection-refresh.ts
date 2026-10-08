@@ -1,3 +1,4 @@
+import { boundGeneratedSessionTitle } from '@shared/session-title'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionQuery } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
@@ -18,6 +19,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SessionSettingsRepository } from '../ports/session-settings-repository'
+import { SessionTitleRepository } from '../ports/session-title-repository'
 import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
@@ -116,6 +118,43 @@ function continueWithPiSessionSettings(
   )
 }
 
+/** Titles the user did not choose, which a discovered Session's Pi `/name` replaces. */
+const FOLLOWED_TITLE_SOURCES = ['default', 'provisional', 'generated'] as const
+
+/**
+ * A discovered Session's title follows its Pi session's latest `/name` (ADR 0048), unless the user
+ * renamed the Session in OpenWaggle: that title is `manual`, and stays.
+ */
+function followPiSessionName(
+  sessionId: SessionId,
+  state: PiSessionProjectionState,
+  snapshot: PiSessionFileSnapshot,
+) {
+  const name = snapshot.name ? boundGeneratedSessionTitle(snapshot.name) : undefined
+  if (!state.piEntryNodeIdPrefix || !name) return Effect.void
+  return Effect.gen(function* () {
+    const titles = yield* Effect.serviceOption(SessionTitleRepository)
+    if (Option.isNone(titles)) return
+    const current = yield* titles.value.getState(sessionId)
+    if (!current || current.title === name) return
+    yield* titles.value.applyGenerated({
+      sessionId,
+      expected: { title: current.title, sources: FOLLOWED_TITLE_SOURCES },
+      title: name,
+      needsRefinement: false,
+    })
+  }).pipe(
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('Could not follow a Pi session name', {
+          sessionId,
+          error: formatErrorMessage(Cause.squash(cause)),
+        })
+      }),
+    ),
+  )
+}
+
 function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefreshOwner) {
   return Effect.gen(function* () {
     const busy = () =>
@@ -165,6 +204,7 @@ function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefre
     if (!persisted) return 'superseded'
     // A Run already started with its model; a reader can still change the next Run's.
     if (owner === 'reader') yield* continueWithPiSessionSettings(sessionId, state, snapshot)
+    yield* followPiSessionName(sessionId, state, snapshot)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     return 'projected'
   })

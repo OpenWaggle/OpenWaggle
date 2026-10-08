@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
@@ -113,10 +114,13 @@ export async function adoptDiscoveredPiSession(
           // Last, inside the transaction: a project removal that started after this check sees
           // the adopted Session when it reads the project's Sessions again.
           if (!input.isStillWanted()) return false
+          // Discovery chose the title, not the user, so a later Pi `/name` may replace it.
           yield* sql`
             UPDATE sessions
             SET pi_session_id = ${input.piSessionId}, pi_session_file = ${input.piSessionFile},
-                created_at = ${input.createdAt}, updated_at = ${input.updatedAt}
+                created_at = ${input.createdAt}, updated_at = ${input.updatedAt},
+                title_source = CASE WHEN title = ${DEFAULT_SESSION_TITLE}
+                  THEN ${'default'} ELSE ${'generated'} END
             WHERE id = ${input.sessionId}
           `
           yield* sql`

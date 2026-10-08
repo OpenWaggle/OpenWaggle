@@ -59,6 +59,8 @@ export interface PiSessionFileSnapshot {
   readonly lastModelChange?: string
   /** The branch's last thinking level change; without one `pi --resume` uses Pi's default. */
   readonly lastThinkingLevel?: string
+  /** The session's latest `/name`, which a discovered Session's title follows. */
+  readonly name?: string
 }
 
 /**
