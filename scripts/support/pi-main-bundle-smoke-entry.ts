@@ -9,7 +9,7 @@
 // Like src/main/index.ts: before any Pi module reads its package.json.
 import '../../src/main/apply-pi-package-directory'
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
@@ -241,12 +241,28 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
   }
 }
 
+/**
+ * Pi writes output files, such as the images codemode scripts show, to `os.tmpdir()`, which reads
+ * these variables on every call. Pointing them into the work directory removes the files with it.
+ */
+async function useTemporaryDirectory(workDirectory: string) {
+  const directory = path.join(workDirectory, 'tmp')
+  await mkdir(directory)
+  for (const name of ['TMPDIR', 'TMP', 'TEMP']) process.env[name] = directory
+  return directory
+}
+
 async function main() {
   const workDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-pi-bundle-smoke-'))
   try {
+    const temporaryDirectory = await useTemporaryDirectory(workDirectory)
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
     const { codemode, mcp } = await runBundledSession(pi, workDirectory)
+    const outputFiles = await readdir(temporaryDirectory)
+    if (!outputFiles.some((file) => /^pi-codemode-[0-9a-f]+\.png$/.test(file))) {
+      fail(`codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`)
+    }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
       `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, imageWorker, packageAssets })}\n`,
