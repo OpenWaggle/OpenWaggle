@@ -47,12 +47,6 @@ export class McpSessionConnectionPool {
 
   /** The transport Pi's client gets for one server of one Session. */
   lease(sessionId: string, spec: McpPooledServerSpec): McpWireTransport {
-    if (
-      this.closedSessions.has(sessionId) ||
-      (this.closedAll && !this.reopenedSessions.has(sessionId))
-    ) {
-      throw new Error("This Session's MCP connections were closed; its next Run reconnects.")
-    }
     if (this.sessions.get(sessionId)?.closedServers.has(spec.name)) {
       throw new Error(`The MCP server "${spec.name}" was turned off or removed.`)
     }
@@ -73,6 +67,13 @@ export class McpSessionConnectionPool {
 
   /** The Session's connection to a server, opened when it has none. */
   connectionFor(sessionId: string, spec: McpPooledServerSpec) {
+    // A Run's lease and an MCP App request alike: a Session closed on purpose stays closed.
+    if (
+      this.closedSessions.has(sessionId) ||
+      (this.closedAll && !this.reopenedSessions.has(sessionId))
+    ) {
+      throw new Error("This Session's MCP connections were closed; its next Run reconnects.")
+    }
     const session = this.touch(sessionId)
     const existing = session.servers.get(spec.name)
     if (existing && existing.fingerprint === spec.fingerprint && !existing.connection.isClosed) {

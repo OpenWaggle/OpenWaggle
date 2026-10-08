@@ -295,4 +295,17 @@ describe('MCP Session connection pool', () => {
 
     expect(() => pool.lease('s1', docs)).toThrow('turned off')
   })
+
+  it('refuses an MCP App connection for a Session whose connections were closed', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool()
+    const docs = server('docs', upstreams)
+
+    // An App request that started before the Session was archived or switched MCP off.
+    await pool.closeSession('s1')
+    expect(() => pool.connectionFor('s1', docs)).toThrow('closed')
+    await pool.closeAll()
+    expect(() => pool.connectionFor('s2', docs)).toThrow('closed')
+    expect(upstreams).toHaveLength(0)
+  })
 })

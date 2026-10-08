@@ -74,12 +74,9 @@ import {
   MCP_APP_REQUEST_TIMEOUT_MS,
 } from '../pi-mcp-app-runtime-service'
 
-// The service gets its pool injected; this test's own pool stands in for the Host's.
-const mcpSessionConnectionPool = new McpSessionConnectionPool()
-const PiMcpAppRuntimeServiceLive = Layer.succeed(
-  McpAppRuntimeService,
-  createPiMcpAppRuntimeService(mcpSessionConnectionPool),
-)
+// The service gets its pool injected; each test's own pool stands in for the Host's. A pool that
+// closed everything stays closed, as the Host's does when it stops.
+let mcpSessionConnectionPool = new McpSessionConnectionPool()
 
 const IDENTITY = mcpServerIdentity(ENTRY.name, ENTRY.config)
 const APP = {
@@ -92,11 +89,16 @@ const APP = {
 
 function run<A>(use: (runtime: typeof McpAppRuntimeService.Service) => Effect.Effect<A, Error>) {
   return Effect.runPromise(
-    Effect.flatMap(McpAppRuntimeService, use).pipe(Effect.provide(PiMcpAppRuntimeServiceLive)),
+    Effect.flatMap(McpAppRuntimeService, use).pipe(
+      Effect.provide(
+        Layer.succeed(McpAppRuntimeService, createPiMcpAppRuntimeService(mcpSessionConnectionPool)),
+      ),
+    ),
   )
 }
 
 beforeEach(() => {
+  mcpSessionConnectionPool = new McpSessionConnectionPool()
   mocks.upstreams.length = 0
   mocks.open.mockReset()
   mocks.createAuthProvider.mockReset()
