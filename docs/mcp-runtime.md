@@ -429,6 +429,12 @@ which starts no server and sends no request. For each configured server it repor
 `mcp:inspect-server` connects outside any Session and runs only on **Check connection** and in the
 CLI's `list`. The state is in memory only, so it starts empty after the Host restarts.
 
+A draining Session Host still answers `mcp:get-configuration` and `mcp:get-server-statuses`, so
+Settings stays usable during an update. While it drains (`isMcpHostDraining`, installed with the
+Host's event runtime) they answer from the current files and sign-in store: the configuration
+view skips `migrateBeforeEachCall` (a 30 s migration lock, and writes) and the states skip the
+sign-in migration (the keychain), so a Settings poll never holds the drain open.
+
 ## Approval
 
 The companion extension's `tool_call` handler raises an OpenWaggle authorization request for

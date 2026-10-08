@@ -4,6 +4,7 @@ import { promptCacheWarming } from '../application/prompt-cache-warming'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
+import { installMcpHostDrainingProbe } from '../mcp-host-draining'
 import {
   keepSessionScratchDirectory,
   removeSessionScratchDirectory,
@@ -134,8 +135,11 @@ export function installSessionHostEventRuntime(input: {
     projectHostOwnedRunState(payload)
     input.eventHub.publish(payload)
   })
+  // MCP reads admitted while draining skip migration work that could hold the drain open.
+  const releaseMcpDrainingProbe = installMcpHostDrainingProbe(() => input.liveness.isDraining())
   return () => {
     releasePublisher()
+    releaseMcpDrainingProbe()
     if (eventRuntime === input) eventRuntime = null
   }
 }

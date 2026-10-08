@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { Layer } from 'effect'
+import { isMcpHostDraining } from '../../../mcp-host-draining'
 import {
   McpConfigurationService,
   type McpConfigurationServiceShape,
@@ -34,6 +35,7 @@ export function getOpenWaggleMcpConfigurationService() {
         knownProjectPaths: durableMcpProjectPaths,
       }),
       migrateOpenWaggleMcpFilesOnce,
+      { skipReadsWhile: isMcpHostDraining },
     ),
     async (projectPath) =>
       (

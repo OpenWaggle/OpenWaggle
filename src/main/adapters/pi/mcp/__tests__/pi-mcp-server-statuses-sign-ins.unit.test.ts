@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
     finishSignIns = resolve
   })
   return {
+    draining: false,
     signIns,
     finishSignIns: () => finishSignIns(),
     statuses: vi.fn(async () => [{ name: 'docs', source: 'not-checked', signedIn: true }]),
@@ -19,6 +20,7 @@ vi.mock('../openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpSignInsOnce: () => mocks.signIns,
 }))
 vi.mock('../pi-mcp-server-status', () => ({ getMcpServerStatuses: mocks.statuses }))
+vi.mock('../../../../mcp-host-draining', () => ({ isMcpHostDraining: () => mocks.draining }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 
 const { createPiMcpServerRuntimeService } = await import('../pi-mcp-server-runtime-service')
@@ -43,5 +45,17 @@ describe("Settings' MCP server states", () => {
     await expect(statuses).resolves.toEqual([
       { name: 'docs', source: 'not-checked', signedIn: true },
     ])
+  })
+
+  it('answer from the current sign-in store while the Host drains', async () => {
+    mocks.draining = true
+    mocks.signIns = new Promise<void>(() => {})
+    const runtime = createPiMcpServerRuntimeService(fromPartial({}))
+
+    // The sign-in migration below never ends here: a drain must not wait for the keychain.
+    await expect(
+      Effect.runPromise(runtime.getServerStatuses({ projectPath: '/other' })),
+    ).resolves.toEqual([{ name: 'docs', source: 'not-checked', signedIn: true }])
+    mocks.draining = false
   })
 })

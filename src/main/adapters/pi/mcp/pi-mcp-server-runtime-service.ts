@@ -11,6 +11,7 @@ import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-c
 import { isRecord } from '@shared/utils/validation'
 import { Effect } from 'effect'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
+import { isMcpHostDraining } from '../../../mcp-host-draining'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import type {
@@ -265,8 +266,9 @@ export function createPiMcpServerRuntimeService(
     getServerStatuses: (input) =>
       attempt(async () => {
         // The states include whether a server is signed in: an old sign-in is moved first, so a
-        // migrated server never shows as signed out on the first launch.
-        await migrateOpenWaggleMcpSignInsOnce(input.projectPath)
+        // migrated server never shows as signed out on the first launch. Not while the Host
+        // drains: the migration may wait on the keychain and would hold the drain open.
+        if (!isMcpHostDraining()) await migrateOpenWaggleMcpSignInsOnce(input.projectPath)
         return getMcpServerStatuses(input, defaultMcpServerRuntimeRoots(), pool)
       }),
     signIn: (input) => attempt(() => signIn(pool, input)),

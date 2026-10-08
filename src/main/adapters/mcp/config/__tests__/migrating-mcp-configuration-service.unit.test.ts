@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Layer } from 'effect'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMcpConfigurationOperation,
   setMcpServerEnabledOperation,
@@ -113,5 +113,25 @@ describe('the MCP configuration view', () => {
     )
 
     expect(view.errors).toEqual([...merged, vaultError])
+  })
+
+  it('answers a read from the current files while the Host drains, migrating nothing', async () => {
+    const service = createFilesystemMcpConfigurationService({
+      homeDir,
+      piAgentDir: path.join(homeDir, '.pi', 'agent'),
+    })
+    const migrate = vi.fn(() => new Promise<void>(() => {}))
+    let draining = true
+    const migrating = migrateBeforeEachCall(service, migrate, { skipReadsWhile: () => draining })
+
+    // A Settings poll during an update drain neither waits for nor starts the migration.
+    await expect(Effect.runPromise(migrating.getView({ projectPath: null }))).resolves.toEqual(
+      expect.objectContaining({ servers: [] }),
+    )
+    expect(migrate).not.toHaveBeenCalled()
+
+    draining = false
+    void Effect.runPromise(migrating.getView({ projectPath: null }))
+    await vi.waitFor(() => expect(migrate).toHaveBeenCalledOnce())
   })
 })

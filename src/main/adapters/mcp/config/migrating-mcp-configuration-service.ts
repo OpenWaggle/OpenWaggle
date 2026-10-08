@@ -13,6 +13,13 @@ import type {
 export function migrateBeforeEachCall(
   service: McpConfigurationServiceShape,
   migrate: (projectPath: string | null) => Promise<unknown>,
+  options: {
+    /**
+     * While true (the Session Host drains), a read answers from the current files without the
+     * migration, so it never holds the drain open. Writes are refused during a drain anyway.
+     */
+    readonly skipReadsWhile?: () => boolean
+  } = {},
 ): McpConfigurationServiceShape {
   function first<A, E>(
     input: McpConfigurationScopeInput,
@@ -23,7 +30,12 @@ export function migrateBeforeEachCall(
     )
   }
   return {
-    getView: (input) => first(input, () => service.getView(input)),
+    getView: (input) =>
+      Effect.suspend(() =>
+        options.skipReadsWhile?.()
+          ? service.getView(input)
+          : first(input, () => service.getView(input)),
+      ),
     setServerEnabled: (input) => first(input, () => service.setServerEnabled(input)),
     setServerExposure: (input) => first(input, () => service.setServerExposure(input)),
     addServer: (input) => first(input, () => service.addServer(input)),
