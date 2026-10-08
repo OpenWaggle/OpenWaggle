@@ -13,6 +13,7 @@ import {
 } from '../../mcp/config/migrating-mcp-configuration-service'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { createFilesystemMcpImportService } from '../../mcp/filesystem-mcp-import-service'
+import { migrateBeforeImports } from '../../mcp/migrating-mcp-import-service'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 
@@ -42,7 +43,10 @@ export function getOpenWaggleMcpConfigurationService() {
 /** The importer for the Host, with Pi's agent directory where `PI_CODING_AGENT_DIR` puts it. */
 export const OpenWaggleMcpImportServiceLive = Layer.sync(McpImportService, () =>
   McpImportService.of(
-    createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
+    migrateBeforeImports(
+      createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
+      migrateOpenWaggleMcpFilesOnce,
+    ),
   ),
 )
 
