@@ -29,7 +29,6 @@ const legacyStateFileSchema = Schema.Struct({
 })
 
 export type LegacyStateFile = typeof legacyStateFileSchema.Type
-export type LegacyServerState = typeof legacyServerStateSchema.Type
 
 export const EMPTY_LEGACY_STATE: LegacyStateFile = {
   projectStates: {},

@@ -22,8 +22,7 @@ import { importCommand } from './mcp-cli-management-import'
 import { listCommand } from './mcp-cli-management-list'
 import { registryCommand } from './mcp-cli-management-registry'
 
-export type { McpCliHost, McpCliOutput, McpManagementContext } from './mcp-cli-management-context'
-export { MCP_MANAGEMENT_EXIT } from './mcp-cli-management-context'
+export type { McpCliHost } from './mcp-cli-management-context'
 
 /**
  * `openwaggle mcp add|remove|list|enable|disable|login|logout|import`, mirroring `pi mcp`, plus

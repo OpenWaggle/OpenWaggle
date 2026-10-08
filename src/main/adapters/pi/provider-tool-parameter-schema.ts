@@ -8,8 +8,6 @@ import {
   schemaArray,
 } from './json-schema-object'
 
-export { isJsonSchemaObject } from './json-schema-object'
-
 /**
  * Root keywords at least one supported provider rejects. Bedrock (and Anthropic) require
  * `type: "object"` and reject root `anyOf`/`oneOf`/`allOf`; OpenAI function parameters must be

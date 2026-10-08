@@ -1,7 +1,5 @@
 import type { ExtensionAPI, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
-export const TEST_VIRTUAL_MODEL_REF = 'router/auto'
-
 /**
  * An inline extension registering the virtual model `router/auto`, which routes every request to
  * the physical `test-provider/<target>` model, as a user's router extension would.
