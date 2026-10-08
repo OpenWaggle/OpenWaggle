@@ -4,7 +4,7 @@ import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { registerAgentLoopInteractionDeadline } from '../application/agent-loop-interaction-broker'
-import { refreshPiSessionProjectionSafely } from '../application/pi-session-projection-refresh'
+import { prepareSessionForRun } from '../application/pi-session-projection-refresh'
 import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
@@ -150,8 +150,9 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
       return yield* Effect.fail(new Error(`Run authority is no longer valid: ${authorityBlock}.`))
     }
     // A discovered Session nobody opened is projected now, so its profile already holds the model
-    // and thinking level `pi --resume` would continue with (ADR 0050).
-    yield* refreshPiSessionProjectionSafely(input.sessionId, 'run')
+    // and thinking level `pi --resume` would continue with; one whose file was deleted is refused
+    // (ADR 0050).
+    yield* prepareSessionForRun(input.sessionId)
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(

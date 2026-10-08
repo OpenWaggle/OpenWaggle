@@ -22,6 +22,7 @@ import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { appendDurableAgentLoopEvents } from './agent-run/agent-loop-events'
 import { validateSessionId } from './host-ui-session-operation-validation'
 import { continueWithPiSessionSettings } from './pi-session-continuation'
+import { refuseRunWithDeletedPiFile } from './pi-session-deleted-files'
 
 /**
  * A Session discovered from the `pi` CLI is projected the first time it is opened, and any Session
@@ -221,6 +222,17 @@ export function refreshPiSessionProjectionSafely(
   })
 }
 
+/**
+ * Before a Run reads its Session or profile: refuses a discovered Session whose Pi file was
+ * deleted, then takes in what the Pi CLI wrote since the last projection (ADR 0050).
+ */
+export function prepareSessionForRun(sessionId: SessionId) {
+  return Effect.zipRight(
+    refuseRunWithDeletedPiFile(sessionId),
+    refreshPiSessionProjectionSafely(sessionId, 'run'),
+  )
+}
+
 /** A Session read: the Session is shown as its Pi file is now (ADR 0050). */
 export function openedSessionId(value: unknown) {
   return Effect.tap(validateSessionId(value), (sessionId) =>
@@ -228,10 +240,13 @@ export function openedSessionId(value: unknown) {
   )
 }
 
-/** A Run's Session, after taking in what the Pi CLI added since it was last projected. */
+/**
+ * A Run's Session, after taking in what the Pi CLI added since it was last projected. A
+ * discovered Session whose Pi file was deleted is refused.
+ */
 export function loadSessionForRun(sessionId: SessionId) {
   return Effect.zipRight(
-    refreshPiSessionProjectionSafely(sessionId, 'run'),
+    prepareSessionForRun(sessionId),
     Effect.flatMap(SessionProjectionRepository, (repository) => repository.getOptional(sessionId)),
   )
 }

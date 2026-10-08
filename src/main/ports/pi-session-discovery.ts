@@ -86,6 +86,8 @@ export interface PiSessionFilesShape {
   ) => Effect.Effect<readonly DiscoveredPiSession[], Error>
   /** Null when the file does not exist (yet). */
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
+  /** The file was deleted: it is missing while its folder is there. */
+  readonly isDeleted: (piSessionFile: string) => Effect.Effect<boolean>
   /**
    * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0050).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.
@@ -175,6 +177,11 @@ export interface PiSessionDiscoveryRepositoryShape {
    */
   readonly listUnattachedDiscoveredSessions: () => Effect.Effect<
     readonly SessionId[],
+    SessionProjectionRepositoryError
+  >
+  /** Every discovered Session that has its Pi file attached, with the file. */
+  readonly listAdoptedPiSessionFiles: () => Effect.Effect<
+    readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],
     SessionProjectionRepositoryError
   >
   /** Records that the projection still matches the file; false when a snapshot landed meanwhile. */

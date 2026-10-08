@@ -17,6 +17,7 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { removeSessionsWithDeletedPiFiles } from './pi-session-deleted-files'
 import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
 import { runSessionRemovalHooks } from './session-removal-hooks'
 
@@ -242,6 +243,7 @@ export function discoverPiSessions<R>(options: {
   return Effect.gen(function* () {
     const repository = yield* PiSessionDiscoveryRepository
     const files = yield* PiSessionFiles
+    yield* removeSessionsWithDeletedPiFiles()
     const scope = yield* repository.readScope()
     const projectPaths = yield* openWaggleProjectPaths(scope.sessionProjectPaths)
     const unpaused = new Set(unpausedProjects(projectPaths, options.now))

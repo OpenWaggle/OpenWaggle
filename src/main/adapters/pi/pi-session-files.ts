@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises'
+import path from 'node:path'
 import {
   type FileEntry,
   getAgentDir,
@@ -22,6 +23,27 @@ import { isPiVirtualModel } from './pi-virtual-models'
 
 function toError(cause: unknown) {
   return cause instanceof Error ? cause : new Error(String(cause))
+}
+
+function errorCode(cause: unknown) {
+  return cause instanceof Error && 'code' in cause ? cause.code : undefined
+}
+
+/**
+ * Gone, not out of reach: the file does not exist while the folder that held it does. A folder on
+ * a drive that is not mounted, or one that was moved, is not taken as a deletion.
+ */
+async function isDeletedFile(file: string) {
+  try {
+    await stat(file)
+    return false
+  } catch (cause) {
+    if (errorCode(cause) !== 'ENOENT') return false
+  }
+  return stat(path.dirname(file)).then(
+    (folder) => folder.isDirectory(),
+    () => false,
+  )
 }
 
 async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | null> {
@@ -151,6 +173,7 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
   return {
     discover: (input) => Effect.tryPromise({ try: () => scanner.scan(input), catch: toError }),
     fingerprint: (file) => Effect.promise(() => fingerprintOf(file)),
+    isDeleted: (file) => Effect.promise(() => isDeletedFile(file)),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }

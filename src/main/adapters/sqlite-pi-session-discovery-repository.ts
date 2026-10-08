@@ -17,6 +17,7 @@ import {
 import {
   adoptDiscoveredPiSession,
   getPiSessionProjectionState,
+  listAdoptedPiSessionFiles,
   listUnattachedDiscoveredPiSessions,
   readPiSessionDiscoveryScope,
 } from '../store/session-details/pi-session-discovery-store'
@@ -44,6 +45,8 @@ function createPiSessionDiscoveryRepository(
       repositoryOperation('adoptDiscoveredPiSession', () => adoptDiscoveredPiSession(input)),
     listUnattachedDiscoveredSessions: () =>
       repositoryOperation('listUnattachedDiscoveredPiSessions', listUnattachedDiscoveredPiSessions),
+    listAdoptedPiSessionFiles: () =>
+      repositoryOperation('listAdoptedPiSessionFiles', listAdoptedPiSessionFiles),
     getProjectionState: (sessionId) =>
       repositoryOperation('getPiSessionProjectionState', () =>
         getPiSessionProjectionState(sessionId),

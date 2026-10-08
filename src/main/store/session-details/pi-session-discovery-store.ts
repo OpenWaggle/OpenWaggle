@@ -155,6 +155,24 @@ export async function listUnattachedDiscoveredPiSessions(): Promise<readonly Ses
   )
 }
 
+/** See `PiSessionDiscoveryRepositoryShape.listAdoptedPiSessionFiles`. */
+export async function listAdoptedPiSessionFiles() {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly session_id: string; readonly pi_session_file: string }>`
+        SELECT sessions.id AS session_id, sessions.pi_session_file FROM sessions
+        JOIN pi_session_adoptions ON pi_session_adoptions.session_id = sessions.id
+        WHERE sessions.pi_session_file IS NOT NULL
+      `
+      return rows.map((row) => ({
+        sessionId: SessionId(row.session_id),
+        piSessionFile: row.pi_session_file,
+      }))
+    }),
+  )
+}
+
 export interface PiSessionProjectionStateRow {
   readonly sessionId: SessionId
   readonly piSessionFile: string | null
