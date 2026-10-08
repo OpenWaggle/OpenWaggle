@@ -203,6 +203,7 @@ export function openWaggleMcpTransport(
       fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
       identity: mcpServerIdentity(entry.name, entry.config),
       projectPath: input.projectPath,
+      ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
       open: () =>
         openPiMcpUpstream({
           entry,

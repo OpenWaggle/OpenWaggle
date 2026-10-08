@@ -7,7 +7,7 @@ function connection(
   name: string,
   projectPath: string | null,
 ): McpPoolServerConnection {
-  return { sessionId, name, identity: `id-${name}`, projectPath }
+  return { sessionId, name, identity: `id-${name}`, projectPath, fromExtension: false }
 }
 
 describe('closing MCP servers a configuration change turned off', () => {
@@ -46,6 +46,18 @@ describe('closing MCP servers a configuration change turned off', () => {
     const pool = { closeServer, serverConnections: () => [connection('a', 'docs', '/p1')] }
 
     await closeTurnedOffMcpServers(pool, () => undefined)
+
+    expect(closeServer).not.toHaveBeenCalled()
+  })
+
+  it('leaves a server a Pi extension registered alone, since no file defines it', async () => {
+    const closeServer = vi.fn(async () => undefined)
+    const pool = {
+      closeServer,
+      serverConnections: () => [{ ...connection('a', 'jira', '/p1'), fromExtension: true }],
+    }
+
+    await closeTurnedOffMcpServers(pool, () => [])
 
     expect(closeServer).not.toHaveBeenCalled()
   })

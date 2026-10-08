@@ -41,6 +41,21 @@ describe('servers Pi extensions register', () => {
     expect(leases.lease).not.toHaveBeenCalled()
   })
 
+  it('lease as extension servers, which no MCP file judges', () => {
+    const leases = pool()
+    const transport = openWaggleMcpTransport(
+      { sessionId: 's1', projectPath: '/work', pool: leases },
+      { transports: new Map() },
+    )
+
+    transport(registered, '/work', undefined)
+
+    expect(leases.lease).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ name: 'from-extension', fromExtension: true }),
+    )
+  })
+
   it('may ask for sampling during a Run, like configured servers', async () => {
     const { attachSessionMcpContext } = await import('../mcp-session-context')
     const sample = vi.fn(async () => ({ role: 'assistant' }))

@@ -198,8 +198,20 @@ describe('MCP Session connection pool', () => {
     await useServer(pool, 's1', server('lint', upstreams))
 
     expect(pool.serverConnections()).toEqual([
-      { sessionId: 's1', name: 'docs', identity: 'id-docs', projectPath: '/p' },
-      { sessionId: 's1', name: 'lint', identity: undefined, projectPath: null },
+      {
+        sessionId: 's1',
+        name: 'docs',
+        identity: 'id-docs',
+        projectPath: '/p',
+        fromExtension: false,
+      },
+      {
+        sessionId: 's1',
+        name: 'lint',
+        identity: undefined,
+        projectPath: null,
+        fromExtension: false,
+      },
     ])
     await pool.closeServer('s1', 'docs')
 

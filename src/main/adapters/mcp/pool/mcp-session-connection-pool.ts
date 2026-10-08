@@ -91,6 +91,7 @@ export class McpSessionConnectionPool {
       fingerprint: spec.fingerprint,
       identity: spec.identity,
       projectPath: spec.projectPath ?? null,
+      fromExtension: spec.fromExtension === true,
       connection,
     })
     if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
@@ -184,6 +185,7 @@ export class McpSessionConnectionPool {
           name,
           identity: server.identity,
           projectPath: server.projectPath,
+          fromExtension: server.fromExtension,
         })),
     )
   }

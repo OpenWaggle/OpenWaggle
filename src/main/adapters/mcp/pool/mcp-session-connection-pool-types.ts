@@ -33,6 +33,8 @@ export interface McpPooledServerSpec {
   readonly identity?: string
   /** The project whose configuration defines the server; null for global-only Sessions. */
   readonly projectPath?: string | null
+  /** A server a Pi extension registered (`pi.registerMcpServer`): no MCP file defines it. */
+  readonly fromExtension?: boolean
   readonly open: () => McpUpstream
   readonly roots?: McpPooledConnectionOptions['roots']
 }
@@ -59,6 +61,7 @@ export interface PooledServer {
   readonly fingerprint: string
   readonly identity: string | undefined
   readonly projectPath: string | null
+  readonly fromExtension: boolean
   readonly connection: McpPooledConnection
 }
 
@@ -90,4 +93,5 @@ export interface McpPoolServerConnection {
   readonly name: string
   readonly identity: string | undefined
   readonly projectPath: string | null
+  readonly fromExtension: boolean
 }

@@ -42,6 +42,8 @@ export async function closeTurnedOffMcpServers(
   const byProject = new Map<string | null, ReadonlyMap<string, boolean> | undefined>()
   const closing: Promise<void>[] = []
   for (const connection of pool.serverConnections()) {
+    // Only servers a configuration file defines are judged by it.
+    if (connection.fromExtension) continue
     if (!byProject.has(connection.projectPath)) {
       const configured = servers(connection.projectPath)
       byProject.set(
