@@ -133,6 +133,8 @@ export interface PiSessionProjectionStateRow {
   readonly projectPath: string | null
   readonly piEntryNodeIdPrefix?: string
   readonly projectedPiEntryCount: number
+  /** The ids of the projected nodes, so a file rewritten under new ids is not taken as projected. */
+  readonly projectedNodeIds: ReadonlySet<string>
   readonly revision: number
   readonly fingerprint: { readonly size: number; readonly mtimeMs: number } | null
 }
@@ -155,8 +157,8 @@ export async function getPiSessionProjectionState(
       const session = sessions[0]
       if (!session) return null
       const { revision, fingerprint } = yield* readPiProjectionFreshnessWithSql(sql, sessionId)
-      const counts = yield* sql<{ readonly node_count: number }>`
-        SELECT COUNT(*) AS node_count FROM session_nodes WHERE session_id = ${sessionId}
+      const nodes = yield* sql<{ readonly id: string }>`
+        SELECT id FROM session_nodes WHERE session_id = ${sessionId}
       `
       const customNodes = yield* sql<{ readonly kind: string; readonly content_json: string }>`
         SELECT kind, content_json FROM session_nodes
@@ -172,7 +174,8 @@ export async function getPiSessionProjectionState(
         ...(session.adopted === 1
           ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionId) }
           : {}),
-        projectedPiEntryCount: (counts[0]?.node_count ?? 0) - auditNodes,
+        projectedPiEntryCount: nodes.length - auditNodes,
+        projectedNodeIds: new Set(nodes.map((node) => String(node.id))),
         revision,
         fingerprint,
       }

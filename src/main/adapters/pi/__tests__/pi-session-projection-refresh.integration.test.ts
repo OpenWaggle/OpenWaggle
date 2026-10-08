@@ -222,7 +222,42 @@ describe('Pi session projection refresh', () => {
       'A real turn after the refreshes',
     )
   })
+
+  it('projects again when the file was rewritten in place with the same number of entries', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Upgraded by pi --resume')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+
+    await rewriteWithNewEntryIds(cli.file)
+
+    expect(await openSession(sessionId)).toBe('projected')
+    expect(messageTexts(await sessionDetail(sessionId))).toEqual([
+      'Upgraded by pi --resume',
+      'Answer to: Upgraded by pi --resume',
+    ])
+  })
 })
+
+/** What `pi --resume` does when it upgrades an older file: the same entries under new ids. */
+async function rewriteWithNewEntryIds(file: string) {
+  const lines = (await fs.readFile(file, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  const renamed = new Map<string, string>()
+  for (const line of lines) if (typeof line.id === 'string') renamed.set(line.id, `${line.id}-v2`)
+  const rewritten = lines.map((line) =>
+    line.type === 'session'
+      ? line
+      : {
+          ...line,
+          id: renamed.get(line.id),
+          parentId: line.parentId === null ? null : (renamed.get(line.parentId) ?? line.parentId),
+        },
+  )
+  await fs.writeFile(file, `${rewritten.map((line) => JSON.stringify(line)).join('\n')}\n`)
+}
 
 /** What a warming session writes: a usage entry for one prompt cache refresh. */
 function appendCacheRefresh(file: string) {

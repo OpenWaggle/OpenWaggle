@@ -32,14 +32,22 @@ async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | n
 /**
  * The file holds the projected entries and, after them, at most usage entries: the cost records a
  * warming session appends for each prompt cache refresh. They change no transcript node a Session
- * shows, so projecting them would only move the Session in the sidebar.
+ * shows, so projecting them would only move the Session in the sidebar. The projected entries are
+ * matched by id, not only counted: `pi --resume` upgrading an older file rewrites the same number
+ * of entries under new ids.
  */
 function holdsOnlyProjectedEntries(
   entries: readonly SessionEntry[],
-  projectedPiEntryCount: number | undefined,
+  input: Parameters<PiSessionFilesShape['readSnapshot']>[0],
 ) {
-  if (projectedPiEntryCount === undefined || entries.length < projectedPiEntryCount) return false
-  return entries.slice(projectedPiEntryCount).every((entry) => entry.type === 'usage')
+  const count = input.projectedPiEntryCount
+  if (count === undefined || !input.projectedNodeIds || entries.length < count) return false
+  const nodeIds = piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix)
+  const projected = input.projectedNodeIds
+  return (
+    entries.slice(0, count).every((entry) => projected.has(nodeIds.toNodeId(entry.id))) &&
+    entries.slice(count).every((entry) => entry.type === 'usage')
+  )
 }
 
 /**
@@ -61,7 +69,7 @@ async function readSnapshot(
   }
   const sessionManager = SessionManager.inMemory(input.cwd, undefined, fileEntries)
   const entries = sessionManager.getEntries()
-  if (holdsOnlyProjectedEntries(entries, input.projectedPiEntryCount)) {
+  if (holdsOnlyProjectedEntries(entries, input)) {
     return { kind: 'unchanged', fingerprint }
   }
   const context = sessionManager.buildSessionContext()

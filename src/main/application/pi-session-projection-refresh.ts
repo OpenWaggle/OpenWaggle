@@ -114,6 +114,7 @@ function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefre
       cwd: state.projectPath,
       ...(state.piEntryNodeIdPrefix ? { piEntryNodeIdPrefix: state.piEntryNodeIdPrefix } : {}),
       projectedPiEntryCount: state.projectedPiEntryCount,
+      projectedNodeIds: state.projectedNodeIds,
     })
     if (snapshot.kind === 'unchanged') {
       // The projection was taken from these entries (cache refreshes since add nothing to show);

@@ -80,6 +80,7 @@ export interface PiSessionFilesShape {
     readonly cwd: string
     readonly piEntryNodeIdPrefix?: string
     readonly projectedPiEntryCount?: number
+    readonly projectedNodeIds?: ReadonlySet<string>
   }) => Effect.Effect<PiSessionFileRead, Error>
 }
 
@@ -115,6 +116,8 @@ export interface PiSessionProjectionState {
   readonly piEntryNodeIdPrefix?: string
   /** The Pi entries the projection holds (durable agent-loop nodes are not Pi entries). */
   readonly projectedPiEntryCount: number
+  /** Every projected node's id, Pi entries and durable agent-loop nodes alike. */
+  readonly projectedNodeIds: ReadonlySet<string>
   /** Advances on every persisted snapshot, so a projection read earlier can tell it is stale. */
   readonly revision: number
   /** The file state the last persisted snapshot came from, when this Host recorded one. */
