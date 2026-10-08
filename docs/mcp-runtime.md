@@ -369,6 +369,12 @@ everything) and into each project's file. This covers projects OpenWaggle knew o
 (settings and the old state); projects added later, and users with no old state and no global
 file, get the new behaviour.
 
+The old code also named each server by an instance ID (`servers[*].instanceId` in
+`~/.openwaggle/mcp/state.json`), and Agent definitions and Session execution profiles could list
+servers by it. The migration records which server name each ID stood for (`legacyServerNames` in
+`migration.json`, `legacy-server-names.ts`). Agent-definition validation accepts an ID whose server
+is still configured, and a Run's and an MCP App's server allowlist replace IDs with names.
+
 ## Removed
 
 Per-server trust and its records, capability grants, trust tiers, the stdio sandbox, the `mcp`

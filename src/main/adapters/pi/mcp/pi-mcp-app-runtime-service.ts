@@ -22,6 +22,7 @@ import {
   mcpServerIdentity,
 } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import { resolveLegacyMcpServerAllowlist } from './legacy-mcp-server-allowlist'
 import { mcpToolVisibleToApps, recordMcpToolVisibility } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
@@ -49,7 +50,9 @@ async function assertSessionMayUse(input: McpAppServerInput) {
   if (!(await isSessionMcpEnabled(input.sessionId))) {
     throw new Error('MCP is turned off for this Session.')
   }
-  const allowlist = await readSessionMcpServerAllowlist(input.sessionId)
+  const allowlist = await resolveLegacyMcpServerAllowlist(
+    await readSessionMcpServerAllowlist(input.sessionId),
+  )
   if (allowlist && !allowlist.includes(input.serverName)) {
     throw new Error(
       `This Session's Agent definition does not use the MCP server "${input.serverName}".`,

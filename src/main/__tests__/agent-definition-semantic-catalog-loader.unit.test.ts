@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -126,5 +129,44 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
         { packagePath: extensionPackage.packagePath, resourceRoot: 'pi' },
       ],
     })
+  })
+
+  it('accepts the old instance ID of a configured MCP server, as the migration recorded it', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await mkdir(path.join(home, '.openwaggle', 'mcp'), { recursive: true })
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp.json'),
+      JSON.stringify({ mcpServers: { github: { command: 'github-mcp' } } }),
+    )
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp', 'migration.json'),
+      JSON.stringify({
+        version: 1,
+        files: {},
+        legacyServerNames: { 'gh-1': 'github', 'gone-1': 'removed' },
+      }),
+    )
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({ extensions: [], errors: [] }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toEqual(['github', 'gh-1'])
+    await rm(home, { recursive: true, force: true })
   })
 })

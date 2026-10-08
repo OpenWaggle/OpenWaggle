@@ -2,11 +2,13 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
+import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
 import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
 import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
+import { legacyMcpServerAliases } from './domain/mcp/migration/legacy-server-references'
 import { getEnvWithOverrides } from './env'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
@@ -92,8 +94,11 @@ export async function loadAgentDefinitionSemanticCatalog(
       projectPath: input.projectPath,
     })
     // An unreadable file leaves the list incomplete; checking names against it would misreport.
-    if (configured.errors.length === 0) mcpServers = configured.names
-    else loadDiagnostics.push(...configured.errors)
+    if (configured.errors.length === 0) {
+      // A definition from before ADR 0048 may name a server by its old instance ID.
+      const legacyNames = await readLegacyMcpServerNames(input.userHome)
+      mcpServers = [...configured.names, ...legacyMcpServerAliases(configured.names, legacyNames)]
+    } else loadDiagnostics.push(...configured.errors)
   } catch (error) {
     loadDiagnostics.push(`MCP project resources failed to load: ${message(error)}`)
   }

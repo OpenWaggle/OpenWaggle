@@ -31,7 +31,10 @@ vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => {
 })
 vi.mock('../../../../store/session-details/session-mcp-server-allowlist', () => ({
   readSessionMcpServerAllowlist: async (sessionId: string) =>
-    sessionId === 'narrowed-session' ? ['docs'] : undefined,
+    ({ 'narrowed-session': ['docs'], 'legacy-session': ['figma-1'] })[sessionId],
+}))
+vi.mock('../../../mcp/migration/legacy-server-names', () => ({
+  readLegacyMcpServerNames: async () => new Map([['figma-1', 'figma']]),
 }))
 vi.mock('../../../../store/session-mcp-switch', () => ({
   isSessionMcpEnabled: async (sessionId: string) => sessionId !== 'switched-off',
@@ -155,5 +158,15 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(off).rejects.toThrow('MCP is turned off for this Session.')
     await expect(narrowed).rejects.toThrow('does not use the MCP server "figma"')
     expect(mocks.open).not.toHaveBeenCalled()
+  })
+
+  it('lets a Session whose profile names the server by its old instance ID use it', async () => {
+    mocks.respond = () => ({ contents: [{ uri: 'ui://app', text: '<p/>' }] })
+
+    await run((runtime) =>
+      runtime.readResource({ ...APP, sessionId: 'legacy-session', uri: 'ui://app' }),
+    )
+
+    expect(mocks.open).toHaveBeenCalled()
   })
 })

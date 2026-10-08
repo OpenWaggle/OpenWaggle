@@ -148,6 +148,7 @@ describe('migrateOpenWaggleMcpFiles on a real pre-ADR-0048 install', () => {
       },
       oauth: {},
       legacyProjects: [],
+      legacyServerNames: expect.any(Object),
     })
   })
 })

@@ -1,3 +1,6 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -147,6 +150,49 @@ describe('runPiAgentKernel', () => {
     expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(
       runMocks.runPiSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
+  })
+
+  it('gives the Run server names for old MCP instance IDs in its allowlist', async () => {
+    const recordPath = path.join(homedir(), '.openwaggle', 'mcp', 'migration.json')
+    await mkdir(path.dirname(recordPath), { recursive: true })
+    await writeFile(
+      recordPath,
+      JSON.stringify({ version: 1, files: {}, legacyServerNames: { 'gh-1': 'github' } }),
+    )
+    runMocks.runPiSession.mockResolvedValue({
+      newMessages: [],
+      piSessionId: 'pi-session',
+      sessionSnapshot: { nodes: [], activeNodeId: null },
+    })
+    const input = fromPartial<AgentKernelRunInput>({
+      session: { id: SessionId('session-legacy'), projectPath: '/repo', messages: [] },
+      runId: 'run-1',
+      payload: { text: 'Hi', attachments: [] },
+      model: SupportedModelId('openai/gpt-5.4'),
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+      mcpServerAllowlist: ['gh-1', 'lint'],
+    })
+
+    try {
+      await Effect.runPromise(
+        runPiAgentKernel(input, {
+          runtimeExtensionIsolation: {},
+          mcpPool: new McpSessionConnectionPool(),
+          ...actionWorkspaceDependencies(),
+          terminal: fromPartial({}),
+          browserPreviewAutomation: fromPartial({}),
+          enableBrowserPreviewAutomation: false,
+          inlineVisualization: fromPartial({ prepareSession: () => Effect.succeed(undefined) }),
+        }),
+      )
+    } finally {
+      await rm(recordPath, { force: true })
+    }
+
+    expect(runMocks.runPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerAllowlist: ['github', 'lint'] }),
     )
   })
 

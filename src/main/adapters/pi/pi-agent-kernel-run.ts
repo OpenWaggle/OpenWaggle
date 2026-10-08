@@ -17,6 +17,7 @@ import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
+import { resolveLegacyMcpServerAllowlist } from './mcp/legacy-mcp-server-allowlist'
 import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
 import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
 import { migrateOpenWaggleMcpFilesOnce } from './mcp/openwaggle-mcp-migration'
@@ -139,16 +140,30 @@ export function runPiAgentKernel(
   )
 }
 
+/**
+ * The Run's input with old MCP instance IDs in its server allowlist replaced by server names. The
+ * migration records those names, so it runs first; the allowlist is kept as is when it fails.
+ */
+function withLegacyMcpServerNames(input: AgentKernelRunInput, projectPath: string) {
+  if (!input.mcpServerAllowlist?.length) return Effect.succeed(input)
+  return Effect.tryPromise(async () => {
+    await migrateOpenWaggleMcpFilesOnce(projectPath)
+    const mcpServerAllowlist = await resolveLegacyMcpServerAllowlist(input.mcpServerAllowlist)
+    return { ...input, ...(mcpServerAllowlist ? { mcpServerAllowlist } : {}) }
+  }).pipe(Effect.orElseSucceed(() => input))
+}
+
 function runPiAgentKernelTurn(
-  input: AgentKernelRunInput,
+  originalInput: AgentKernelRunInput,
   dependencies: Parameters<typeof runPiAgentKernel>[1],
 ) {
   return Effect.gen(function* () {
-    const launchReporter = createWorktreeLaunchReporter(input)
+    const launchReporter = createWorktreeLaunchReporter(originalInput)
     const { projectPath, executionPath, preparedEnvironment } = yield* prepareActionWorkspace(
       launchReporter.runInput,
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
+    const input = yield* withLegacyMcpServerNames(originalInput, projectPath)
     const [, visualizationDirectory, scratchDirectory, extensionFactories] = yield* Effect.all(
       [
         refreshFirstRunBranch(input, executionPath, launchReporter.report),

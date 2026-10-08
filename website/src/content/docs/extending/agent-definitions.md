@@ -118,8 +118,9 @@ openwaggle agents explain security-reviewer --project /path/to/project --json
 ```
 
 `validate` and `explain` resolve every referenced model, tool, skill, and MCP server against the
-selected project's live runtime catalogs. MCP servers may be referenced by configured name or stable
-instance ID. Validation returns a non-zero exit code and structured, actionable diagnostics when a
+selected project's live runtime catalogs. MCP servers are referenced by configured name; a definition
+written before OpenWaggle used Pi's MCP configuration may still use a server's old instance ID,
+which keeps working while that server is configured. Validation returns a non-zero exit code and structured, actionable diagnostics when a
 reference is unknown, duplicated, or cannot be checked because a project catalog failed to load.
 `create`, `update`, import, and refresh use the same validation before writing, so an invalid role is
 not installed through the CLI.

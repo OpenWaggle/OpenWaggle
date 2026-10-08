@@ -42,6 +42,14 @@ const migrationRecordSchema = Schema.Struct({
    * OpenWaggle had no MCP setup to keep (no old state.json and no ~/.openwaggle/mcp.json).
    */
   legacyProjects: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  /**
+   * The server name each old instance ID (state.json `servers[*].instanceId`) stood for, so Agent
+   * definitions and Session profiles that still name a server by that ID keep reaching it.
+   */
+  legacyServerNames: Schema.optionalWith(
+    Schema.Record({ key: Schema.String, value: Schema.String }),
+    { default: () => ({}) },
+  ),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -61,6 +69,7 @@ export class McpMigrationRecord {
     private readonly oauth: Record<string, McpMigrationOAuthRecord>,
     private readonly sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>,
     private legacy: readonly string[] | null | undefined,
+    private readonly serverNames: Record<string, string> = {},
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
@@ -76,7 +85,21 @@ export class McpMigrationRecord {
       { ...decoded.oauth },
       { ...decoded.sessionSwitches },
       decoded.legacyProjects,
+      { ...decoded.legacyServerNames },
     )
+  }
+
+  /** Old instance ID to server name; see `legacyServerNames` in the schema. */
+  get legacyServerNames(): ReadonlyMap<string, string> {
+    return new Map(Object.entries(this.serverNames))
+  }
+
+  /**
+   * Adds the names not known yet (the first name seen for an ID is kept). Saved with the next
+   * handled file, as the files they come from are handled in the same run.
+   */
+  noteLegacyServerNames(names: ReadonlyMap<string, string>) {
+    for (const [instanceId, name] of names) this.serverNames[instanceId] ??= name
   }
 
   /** Undefined until the first run decides it; see `legacyProjects` in the schema. */
@@ -126,6 +149,9 @@ export class McpMigrationRecord {
         ? {}
         : { sessionSwitches: this.sessionSwitches }),
       ...(this.legacy === undefined ? {} : { legacyProjects: this.legacy }),
+      ...(Object.keys(this.serverNames).length === 0
+        ? {}
+        : { legacyServerNames: this.serverNames }),
     }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)
   }
