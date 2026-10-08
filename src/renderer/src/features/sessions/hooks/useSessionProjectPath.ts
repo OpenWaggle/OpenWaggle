@@ -1,3 +1,4 @@
+import type { SessionSummary } from '@shared/types/session'
 import { useChatStore } from '@/features/chat/state'
 import { useSessionStore } from '@/features/sessions/state/session-store'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -33,11 +34,16 @@ export function useSessionProjectPath(): string | null {
       ? state.activeSession.projectPath
       : null,
   )
-  const activeSummaryProjectPath = useSessionStore((state) =>
-    activeSessionId === null
-      ? null
-      : (state.sessions.find((session) => session.id === activeSessionId)?.projectPath ?? null),
-  )
+  const activeSummaryProjectPath = useSessionStore((state) => {
+    if (activeSessionId === null) return null
+    const isActive = (session: SessionSummary) => session.id === activeSessionId
+    // An archived Session or a Hive Worker opened by route is only in its own catalog list.
+    const summary =
+      state.sessions.find(isActive) ??
+      state.archivedSessions.find(isActive) ??
+      state.hiveSessions.find(isActive)
+    return summary?.projectPath ?? null
+  })
   const preferredProjectPath = usePreferencesStore((state) => state.settings.projectPath ?? null)
   return resolveSessionProjectPath({
     activeSessionId,

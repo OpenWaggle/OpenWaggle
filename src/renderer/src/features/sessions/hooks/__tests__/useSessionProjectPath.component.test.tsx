@@ -59,6 +59,15 @@ describe('useSessionProjectPath', () => {
     expect(renderHook(() => useSessionProjectPath()).result.current).toBe(PROJECT_B)
   })
 
+  it('finds an archived Session or Hive Worker summary while its detail loads', () => {
+    selectSession({ detail: false, summary: false })
+    const summary = fromPartial<SessionSummary>({ id: SESSION_B, projectPath: PROJECT_B })
+    useSessionStore.setState({ archivedSessions: [summary] })
+    expect(renderHook(() => useSessionProjectPath()).result.current).toBe(PROJECT_B)
+    useSessionStore.setState({ archivedSessions: [], hiveSessions: [summary] })
+    expect(renderHook(() => useSessionProjectPath()).result.current).toBe(PROJECT_B)
+  })
+
   it('names no project while the selected Session is unknown', () => {
     selectSession({ detail: false, summary: false })
     expect(renderHook(() => useSessionProjectPath()).result.current).toBeNull()

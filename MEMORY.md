@@ -781,7 +781,7 @@ A read-only action output tab lives in its own store (`features/terminal/state/a
 
 Project-scoped Session consumers resolve the project through `useSessionProjectPath` (`features/sessions/hooks`, `resolveSessionProjectPath`). With a selected Session it returns, in order:
 - the loaded detail's project;
-- otherwise the catalog summary's project;
+- otherwise the catalog summary's project (active, archived or Hive list);
 - otherwise `null`, never the previous project.
 
 Without a Session it returns the preference.
