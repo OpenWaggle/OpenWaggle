@@ -5,6 +5,8 @@ export interface TestUserLocations {
   readonly home: string
   readonly piAgentDir: string
   readonly userDataDir: string | undefined
+  /** `PI_CODING_AGENT_SESSION_DIR`, which Pi writes every session file to when it is set. */
+  readonly piSessionDir: string | undefined
 }
 
 function inside(child: string, parent: string) {
@@ -24,7 +26,12 @@ export function realHomeLocations(
 ): string[] {
   const home = path.resolve(realHome)
   const temporary = path.resolve(temporaryRoot)
-  const candidates = [locations.home, locations.piAgentDir, locations.userDataDir]
+  const candidates = [
+    locations.home,
+    locations.piAgentDir,
+    locations.userDataDir,
+    locations.piSessionDir,
+  ]
   return candidates.filter((location): location is string => {
     if (location === undefined) return false
     const resolved = path.resolve(location)
@@ -42,6 +49,6 @@ export function assertTestUserLocationsIsolated(
   if (real.length === 0) return
   throw new Error(
     `Tests must not use the real user's files, but these resolve inside ${realHome}: ${real.join(', ')}. ` +
-      'Use a temporary HOME, PI_CODING_AGENT_DIR, and OPENWAGGLE_USER_DATA_DIR.',
+      'Use a temporary HOME, PI_CODING_AGENT_DIR, PI_CODING_AGENT_SESSION_DIR, and OPENWAGGLE_USER_DATA_DIR.',
   )
 }
