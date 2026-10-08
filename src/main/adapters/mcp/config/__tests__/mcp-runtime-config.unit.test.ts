@@ -134,4 +134,23 @@ describe('MCP runtime configuration', () => {
       ['fs', 'global'],
     ])
   })
+
+  it('tells Pi about project overrides only, so /mcp does not call a global one a project file', async () => {
+    write(path.join(piAgentDir, 'mcp.json'), {
+      mcpServers: { docs: { url: 'https://docs.example/mcp' } },
+    })
+    write(path.join(homeDir, '.openwaggle', 'mcp.json'), {
+      mcpServers: { docs: { exposure: 'direct' } },
+    })
+
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath: null },
+      resolveSecret,
+    })
+
+    expect(config.loaded.servers[0]?.override).toBeUndefined()
+    expect(config.merged.servers[0]?.override?.path).toBe(
+      path.join(homeDir, '.openwaggle', 'mcp.json'),
+    )
+  })
 })

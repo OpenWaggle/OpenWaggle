@@ -110,10 +110,19 @@ export interface McpUpdateConfigEntry {
  * Pi's `updateConfig` option: saves `/mcp` changes to the entry's override when it has one, else
  * to its defining file, then tells OpenWaggle the configuration changed.
  */
-export function createMcpUpdateConfig(onChanged: (filePath: string) => void) {
+/**
+ * Pi's `updateConfig`. Pi names an entry's `override` only for a project override (or one it
+ * just created with "in this project"); an override in a global file, which Pi is not told about
+ * so `/mcp` does not call it a project file, comes from OpenWaggle's merge (`overrideOf`).
+ */
+export function createMcpUpdateConfig(
+  onChanged: (filePath: string) => void,
+  overrideOf: (name: string) => string | undefined = () => undefined,
+) {
   return (entry: McpUpdateConfigEntry, patch: McpServerSettingsPatch) => {
-    const filePath = entry.override ?? entry.source
-    updateMcpServerSettings(filePath, entry.name, patch, { override: entry.override !== undefined })
+    const override = entry.override ?? overrideOf(entry.name)
+    const filePath = override ?? entry.source
+    updateMcpServerSettings(filePath, entry.name, patch, { override: override !== undefined })
     onChanged(filePath)
   }
 }

@@ -165,4 +165,18 @@ describe('MCP config writer', () => {
     })
     expect(changed).toEqual([override, source])
   })
+
+  it("saves Pi's /mcp changes to a global override that Pi was not told about", () => {
+    const source = file('pi-global.json', JSON.stringify({ mcpServers: { s: { command: 's' } } }))
+    const globalOverride = file('openwaggle-global.json', JSON.stringify({ mcpServers: { s: {} } }))
+    const updateConfig = createMcpUpdateConfig(
+      () => undefined,
+      (name) => (name === 's' ? globalOverride : undefined),
+    )
+
+    updateConfig({ name: 's', source }, { enabled: false })
+
+    expect(JSON.parse(read(globalOverride))).toEqual({ mcpServers: { s: { enabled: false } } })
+    expect(JSON.parse(read(source))).toEqual({ mcpServers: { s: { command: 's' } } })
+  })
 })

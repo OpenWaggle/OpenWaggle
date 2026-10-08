@@ -1,6 +1,7 @@
 import {
   type McpMergedConfig,
   type McpMergedServer,
+  mcpConfigFileScope,
   mergeMcpConfigLayers,
 } from '../../../domain/mcp/config/mcp-config-merge'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
@@ -123,7 +124,10 @@ function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRunt
     config,
     source: server.source.path,
     scope: server.scope,
-    ...(server.override ? { override: server.override.path } : {}),
+    // Pi calls every override a project one, so it hears only of project overrides.
+    ...(server.override && mcpConfigFileScope(server.override.fileId) === 'project'
+      ? { override: server.override.path }
+      : {}),
   }
 }
 

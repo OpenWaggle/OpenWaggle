@@ -170,6 +170,24 @@ describe('openwaggle mcp list', () => {
   })
 })
 
+describe('openwaggle mcp list overrides', () => {
+  it('labels an override in a global file as an override, not a project override', async () => {
+    const result = await run('list', [], {
+      'mcp:get-configuration': () =>
+        view([
+          server({
+            name: 'docs',
+            enabled: false,
+            override: { fileId: 'openwaggle-global', path: '/home/.openwaggle/mcp.json' },
+          }),
+        ]),
+    })
+
+    expect(result.logs).toContain('  override: /home/.openwaggle/mcp.json')
+    expect(result.logs).not.toContain('project override')
+  })
+})
+
 describe('openwaggle mcp enable, disable, remove, login, logout', () => {
   it('switches a global server for this project only with --in-project', async () => {
     const result = await run('disable', ['docs', '--in-project'], {

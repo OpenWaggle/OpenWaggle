@@ -62,7 +62,7 @@ function reportLines(entry: ServerReport) {
   return [
     `${entry.name}: ${stateLabel(entry)} (${entry.exposure}, ${entry.scope})`,
     `  ${entry.transport}`,
-    ...(entry.override ? [`  project override: ${entry.override}`] : []),
+    ...(entry.override ? [`  override: ${entry.override}`] : []),
     ...(entry.state === 'needs-sign-in'
       ? [`  sign in with: openwaggle mcp login ${entry.name}`]
       : []),

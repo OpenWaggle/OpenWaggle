@@ -234,7 +234,10 @@ export async function createOpenWaggleMcpExtensions(
     credentials: getOpenWaggleMcpCredentials(),
     logPath: openWaggleMcpLogPath(),
     openUrl: createRunSignInOpener(() => config.loaded.servers),
-    updateConfig: createMcpUpdateConfig((filePath) => input.onConfigChanged?.(filePath)),
+    updateConfig: createMcpUpdateConfig(
+      (filePath) => input.onConfigChanged?.(filePath),
+      (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+    ),
     startupWaitMs: MCP_STARTUP_WAIT_MS,
   })
   return [
