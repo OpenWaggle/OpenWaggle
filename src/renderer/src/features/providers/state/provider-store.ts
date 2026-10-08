@@ -37,36 +37,57 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
   return available
 }
 
-/**
- * Whether the picker can actually select this model: enabled in settings and currently
- * available in the Pi catalog. Before the catalog has hydrated, the model is left as-is rather
- * than gated during startup.
- */
+/** The model of a Session's latest response, which a gone selection's Runs fall back to. */
+export function latestAnsweringModel(
+  messages: readonly { readonly role: string; readonly model?: SupportedModelId }[],
+) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === 'assistant' && message.model) return message.model
+  }
+  return undefined
+}
+
 /**
  * Whether a Session can run on `model`: Pi has it and can sign in to its provider. Enabled models
  * only decide what the picker offers. A Session continued from the `pi` CLI keeps its own model,
- * as `pi --resume` does, though the user never enabled it in OpenWaggle.
+ * as `pi --resume` does, though the user never enabled it in OpenWaggle. A Session whose model is
+ * gone from the catalog, such as a removed virtual model, can still send while the model that
+ * answered last is available: the Run falls back to it and says so. Before the catalog has
+ * hydrated, the model is left as-is rather than gated during startup.
  */
 export function isSelectableModel(
   providerModels: readonly ProviderInfo[],
   model: SupportedModelId | undefined,
   catalogHydrated: boolean,
+  lastAnsweringModel?: SupportedModelId,
 ): model is SupportedModelId {
   if (!model) return false
   if (!catalogHydrated) return true
-  return catalogModel(providerModels, model)?.available === true
+  const listed = catalogModel(providerModels, model)
+  if (listed) return listed.available
+  return (
+    lastAnsweringModel !== undefined &&
+    catalogModel(providerModels, lastAnsweringModel)?.available === true
+  )
 }
 
 /** Why the live catalog cannot run `model`, as an error to show, or undefined when it can. */
-export function modelActionError(model: SupportedModelId | undefined) {
-  if (isModelActionable(model)) return undefined
+export function modelActionError(
+  model: SupportedModelId | undefined,
+  lastAnsweringModel?: SupportedModelId,
+) {
+  if (isModelActionable(model, lastAnsweringModel)) return undefined
   return new Error(modelUnavailableMessage(useProviderStore.getState().providerModels, model))
 }
 
 /** Catalog check against the live provider store. */
-export function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
+export function isModelActionable(
+  model: SupportedModelId | undefined,
+  lastAnsweringModel?: SupportedModelId,
+): model is SupportedModelId {
   const state = useProviderStore.getState()
-  return isSelectableModel(state.providerModels, model, state.catalogHydrated)
+  return isSelectableModel(state.providerModels, model, state.catalogHydrated, lastAnsweringModel)
 }
 
 function catalogModel(providerModels: readonly ProviderInfo[], model: SupportedModelId) {

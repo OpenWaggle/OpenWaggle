@@ -6,7 +6,12 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {},
 }))
 
-import { buildModelCatalogSet, isSelectableModel, modelUnavailableMessage } from '../provider-store'
+import {
+  buildModelCatalogSet,
+  isSelectableModel,
+  latestAnsweringModel,
+  modelUnavailableMessage,
+} from '../provider-store'
 
 const PROVIDER_MODELS: ProviderInfo[] = [
   {
@@ -130,5 +135,31 @@ describe("a Session's model that is not enabled in OpenWaggle", () => {
     expect(modelUnavailableMessage(PROVIDER_MODELS, undefined)).toBe(
       'Select a model before sending.',
     )
+  })
+})
+
+describe('a Session whose selected model is gone from the catalog', () => {
+  const REMOVED = SupportedModelId('router/removed-auto')
+  const MINI = SupportedModelId('openai/gpt-4.1-mini')
+
+  it('can send, so the Run falls back to the model that answered last', () => {
+    const answeredBy = latestAnsweringModel([
+      { role: 'user' },
+      { role: 'assistant', model: MINI },
+      { role: 'user' },
+    ])
+
+    expect(answeredBy).toBe(MINI)
+    expect(isSelectableModel(PROVIDER_MODELS, REMOVED, true, answeredBy)).toBe(true)
+  })
+
+  it('cannot send when nothing answered yet, or what answered is unavailable too', () => {
+    const signedOut = PROVIDER_MODELS.map((group) => ({
+      ...group,
+      models: group.models.map((model) => ({ ...model, available: false })),
+    }))
+
+    expect(isSelectableModel(PROVIDER_MODELS, REMOVED, true, undefined)).toBe(false)
+    expect(isSelectableModel(signedOut, REMOVED, true, MINI)).toBe(false)
   })
 })

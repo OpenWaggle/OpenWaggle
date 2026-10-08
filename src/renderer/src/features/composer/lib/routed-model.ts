@@ -1,5 +1,6 @@
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import { parseModelRef } from '@shared/types/llm'
+import { latestAnsweringModel } from '@/features/providers/state'
 
 interface RoutedModelInput {
   /** The model the composer selects. */
@@ -64,11 +65,7 @@ export function answeringModel(input: {
   const { messages, selected, providerModels } = input
   // Before the catalog loads every selection looks gone.
   if (selected && providerModels.length > 0 && !catalogModel(providerModels, selected)) {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index]
-      if (message?.role === 'assistant' && message.model) return message.model
-    }
-    return undefined
+    return latestAnsweringModel(messages)
   }
   return lastAnsweringModel(messages, selected)
 }
