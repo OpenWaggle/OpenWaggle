@@ -21,7 +21,7 @@ import {
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
 import { logger } from './constants'
-import { notifyModelFallback } from './interaction-ui-context'
+import { notifyModelFallback, type PiInteractionUiContextInput } from './interaction-ui-context'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { createPiRunControl } from './pi-run-control'
@@ -86,15 +86,17 @@ function runSystemPromptAppendices(input: CreatePiRunSessionRuntimeInput) {
 
 function exposePiRunControl(
   input: CreatePiRunSessionRuntimeInput,
-  model: PiModel,
+  runtime: { readonly model: PiModel; readonly modelFallbackMessage?: string },
   session: AgentSession,
+  openWaggleUi: PiInteractionUiContextInput,
 ) {
+  notifyModelFallback(openWaggleUi, input.modelReference, runtime.modelFallbackMessage)
   input.onControlAvailable?.(
     createPiRunControl(session, input.signal, {
       routeThroughInputHook: input.steeringInputHook === true,
     }),
   )
-  return { model, session }
+  return { model: runtime.model, session }
 }
 
 /** A Run starts with the Session thinking level, clamped to the model the Run uses. */
@@ -171,8 +173,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
-    notifyModelFallback(openWaggleUi, selectedRuntime.runtime.modelFallbackMessage)
-    return exposePiRunControl(input, selectedRuntime.runtime.model, session)
+    return exposePiRunControl(input, selectedRuntime.runtime, session, openWaggleUi)
   } catch (error) {
     if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
       throw error
@@ -196,8 +197,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
-    notifyModelFallback(openWaggleUi, fallbackRuntime.modelFallbackMessage)
-    return exposePiRunControl(input, fallbackRuntime.model, session)
+    return exposePiRunControl(input, fallbackRuntime, session, openWaggleUi)
   }
 }
 

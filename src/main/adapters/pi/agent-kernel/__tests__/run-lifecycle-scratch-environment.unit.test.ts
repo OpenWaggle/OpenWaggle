@@ -162,4 +162,26 @@ describe('Pi run session scratch environment', () => {
     )
     await idleCacheWarming.releaseAll()
   })
+
+  it('warns about a model fallback once per Session until the selection changes', async () => {
+    mocks.runtime.modelFallbackMessage =
+      'Could not restore model router/auto (model no longer exists). Using provider/model.'
+    const notices = (onEvent: ReturnType<typeof vi.fn>) =>
+      onEvent.mock.calls.filter(([event]) => event?.type === 'agent_interaction_request').length
+    const run = async (modelReference: string) => {
+      const input = { ...runtimeInput(), modelReference: SupportedModelId(modelReference) }
+      const onEvent = vi.fn()
+      await createPiRunSessionRuntime({
+        ...input,
+        session: fromPartial({ ...input.session, id: SessionId('session-with-fallback') }),
+        onEvent,
+        modelFallback: 'last-answering-model',
+      })
+      return notices(onEvent)
+    }
+
+    expect(await run('router/auto')).toBe(1)
+    expect(await run('router/auto')).toBe(0)
+    expect(await run('router/other-removed')).toBe(1)
+  })
 })

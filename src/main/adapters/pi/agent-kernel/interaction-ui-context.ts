@@ -246,12 +246,25 @@ function createDeclaredConfirmChannel(
   }
 }
 
-/** The Run says, in its transcript, that it answers on another model than the one selected. */
+/** The selection each Session last warned about, so the warning shows once until it changes. */
+const modelFallbackNoticeBySession = new Map<string, string>()
+
+/**
+ * The Run says, in its transcript, that it answers on another model than the one selected: once
+ * per Session and selection. A Run on its selected model forgets the warning.
+ */
 export function notifyModelFallback(
   context: PiInteractionUiContextInput,
+  selection: string,
   message: string | undefined,
 ) {
-  if (!message) return
+  const sessionId = String(context.sessionId)
+  if (!message) {
+    modelFallbackNoticeBySession.delete(sessionId)
+    return
+  }
+  if (modelFallbackNoticeBySession.get(sessionId) === selection) return
+  modelFallbackNoticeBySession.set(sessionId, selection)
   const interaction = {
     ...baseInteraction({ context }),
     kind: 'notify',
