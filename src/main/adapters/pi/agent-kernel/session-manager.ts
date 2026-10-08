@@ -7,6 +7,7 @@ import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { logger } from './constants'
 import { piEntryNodeIds } from './pi-entry-node-ids'
+import { onlyUsageAppendedAfter } from './usage-only-appends'
 
 /**
  * The opened checkout for a session.
@@ -78,7 +79,8 @@ export function resolveSessionWorkingPath(session: SessionDetail): string {
 function resumeSelectedPosition(sessionManager: SessionManager, session: SessionDetail) {
   const position = session.resumePosition
   if (!position) return
-  if (sessionManager.getEntries().length !== position.piEntryCount) return
+  // Only warming refreshes may have been appended since the projection, or it is stale.
+  if (!onlyUsageAppendedAfter(sessionManager.getEntries(), position.piEntryCount)) return
   const entryId = piEntryNodeIds(session).toEntryId(String(position.nodeId))
   if (sessionManager.getLeafId() === entryId || !sessionManager.getEntry(entryId)) return
   sessionManager.branch(entryId)

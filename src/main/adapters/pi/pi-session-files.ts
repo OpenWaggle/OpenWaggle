@@ -13,6 +13,7 @@ import {
 } from '../../ports/pi-session-discovery'
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
+import { onlyUsageAppendedAfter } from './agent-kernel/usage-only-appends'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
 import { isPiVirtualModel } from './pi-virtual-models'
 
@@ -42,13 +43,11 @@ function holdsOnlyProjectedEntries(
   input: Parameters<PiSessionFilesShape['readSnapshot']>[0],
 ) {
   const count = input.projectedPiEntryCount
-  if (count === undefined || !input.projectedNodeIds || entries.length < count) return false
+  if (count === undefined || !input.projectedNodeIds) return false
+  if (!onlyUsageAppendedAfter(entries, count)) return false
   const nodeIds = piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix)
   const projected = input.projectedNodeIds
-  return (
-    entries.slice(0, count).every((entry) => projected.has(nodeIds.toNodeId(entry.id))) &&
-    entries.slice(count).every((entry) => entry.type === 'usage')
-  )
+  return entries.slice(0, count).every((entry) => projected.has(nodeIds.toNodeId(entry.id)))
 }
 
 function modelReference(entry: { readonly provider: string; readonly modelId: string }) {
