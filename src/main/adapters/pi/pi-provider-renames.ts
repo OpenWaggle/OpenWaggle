@@ -36,9 +36,16 @@ function renamedModelKeyedObject(value: JsonValue | undefined): JsonObject | und
   return next
 }
 
+function renamedCompaction(value: JsonValue | undefined): JsonObject | undefined {
+  if (!isJsonObject(value)) return undefined
+  const modelOverrides = renamedModelKeyedObject(value.modelOverrides)
+  return modelOverrides ? { ...value, modelOverrides } : undefined
+}
+
 /**
- * Pi settings with renamed providers in `defaultProvider`, `enabledModels` patterns, and
- * `modelThinkingLevels` keys. Returns the same object when nothing needs renaming.
+ * Pi settings with renamed providers in `defaultProvider`, `enabledModels` patterns, and the
+ * `provider/modelId` keys of `modelThinkingLevels` and `compaction.modelOverrides`. Returns the
+ * same object when nothing needs renaming.
  */
 export function renameLegacyProviderPiSettings<T extends JsonObject>(settings: T): T {
   const next: Record<string, JsonValue> = { ...settings }
@@ -59,6 +66,11 @@ export function renameLegacyProviderPiSettings<T extends JsonObject>(settings: T
   const modelThinkingLevels = renamedModelKeyedObject(settings.modelThinkingLevels)
   if (modelThinkingLevels) {
     next.modelThinkingLevels = modelThinkingLevels
+    changed = true
+  }
+  const compaction = renamedCompaction(settings.compaction)
+  if (compaction) {
+    next.compaction = compaction
     changed = true
   }
   return changed ? { ...settings, ...next } : settings

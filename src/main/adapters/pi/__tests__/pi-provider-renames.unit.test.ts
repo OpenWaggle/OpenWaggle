@@ -30,8 +30,41 @@ describe('Pi provider renames', () => {
     })
   })
 
+  it('rewrites compaction model override keys and keeps the other compaction settings', () => {
+    const azureOverride = { reserveTokens: 8000 }
+    const settings = {
+      compaction: {
+        enabled: true,
+        reserveTokens: 16_384,
+        modelOverrides: {
+          'azure-openai-responses/gpt-5.4': azureOverride,
+          'azure-openai-responses/gpt-5.5': { keepRecentTokens: 1 },
+          'azure/gpt-5.5': { keepRecentTokens: 2 },
+          'openai/gpt-5.4': { reserveTokens: 4000 },
+        },
+      },
+    }
+
+    expect(renameLegacyProviderPiSettings(settings)).toEqual({
+      compaction: {
+        enabled: true,
+        reserveTokens: 16_384,
+        modelOverrides: {
+          'azure/gpt-5.4': azureOverride,
+          // An override already set under the new name wins.
+          'azure/gpt-5.5': { keepRecentTokens: 2 },
+          'openai/gpt-5.4': { reserveTokens: 4000 },
+        },
+      },
+    })
+  })
+
   it('returns the same settings object when nothing names the old provider', () => {
-    const settings = { defaultProvider: 'openai', enabledModels: ['openai/*'] }
+    const settings = {
+      defaultProvider: 'openai',
+      enabledModels: ['openai/*'],
+      compaction: { modelOverrides: { 'openai/gpt-5.4': { reserveTokens: 1 } } },
+    }
 
     expect(renameLegacyProviderPiSettings(settings)).toBe(settings)
   })
