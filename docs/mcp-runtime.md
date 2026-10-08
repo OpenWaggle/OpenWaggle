@@ -140,6 +140,11 @@ refuses a server the allowlist does not name. Neither writes a file. Sampling an
 an extension's server are answered during a Run like any other server's, under the identity its
 lease names.
 
+An Agent definition's tool allowlist is enforced by a `tool_call` hook
+(`createAgentToolAllowlistGuard`) that is the first of OpenWaggle's inline extensions, ahead of
+MCP approval, so a refused call is never offered for approval. Pi loads extensions from paths and
+packages before every inline factory, so their `tool_call` hooks see a call before the guard.
+
 ## Writes
 
 | Change | Destination |
