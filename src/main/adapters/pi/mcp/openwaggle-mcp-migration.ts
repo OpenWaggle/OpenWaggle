@@ -19,14 +19,36 @@ const migrations = new Map<string, MigrationAttempt>()
 /** Runs migrations one at a time: they share the migration record and the global file. */
 let migrationQueue: Promise<unknown> = Promise.resolve()
 
-/** The projects OpenWaggle knows, so the first run keeps their servers' old on/off state. */
-async function knownProjectPaths() {
+/** Session workspace roots, paged as `WorkspaceProjectAuthorization` reads them. */
+async function sessionWorkspaceRoots() {
+  const { listSessionWorkspaceRootPage } = await import(
+    '../../../store/session-details/workspace-root-authorization'
+  )
+  const roots: string[] = []
+  let afterRoot: string | undefined
+  while (true) {
+    const page = await listSessionWorkspaceRootPage(afterRoot)
+    roots.push(...page)
+    const last = page.at(-1)
+    if (last === undefined || last === afterRoot) return roots
+    afterRoot = last
+  }
+}
+
+/**
+ * The projects OpenWaggle knows, so the first run keeps their servers' old on/off state: the
+ * same sources as workspace authorization, settings plus every Session's workspace root.
+ */
+export async function knownMcpProjectPaths(): Promise<readonly string[]> {
   const { getSettings } = await import('../../../store/settings')
   const settings = getSettings()
   return [
-    ...(settings.projectPath ? [settings.projectPath] : []),
-    ...settings.recentProjects,
-    ...Object.keys(settings.projectDisplayNames),
+    ...new Set([
+      ...(settings.projectPath ? [settings.projectPath] : []),
+      ...settings.recentProjects,
+      ...Object.keys(settings.projectDisplayNames),
+      ...(await sessionWorkspaceRoots()),
+    ]),
   ]
 }
 
@@ -70,7 +92,7 @@ function migrateOnce(projectPath: string | null) {
     homeDir: homedir(),
     piAgentDir: getPiAgentDir(),
     projectPaths: projectPath ? [projectPath] : [],
-    knownProjectPaths,
+    knownProjectPaths: knownMcpProjectPaths,
     now: () => new Date(),
     oauth: {
       readOld: (name) => resolveMcpVaultSecret(name).catch(() => undefined),
@@ -87,6 +109,6 @@ function migrateOnce(projectPath: string | null) {
  */
 export async function migrateOpenWaggleMcpFilesAtHostStart() {
   await migrateOpenWaggleMcpFilesOnce(null)
-  const projects = await knownProjectPaths().catch(() => [])
+  const projects = await knownMcpProjectPaths().catch((): readonly string[] => [])
   for (const projectPath of new Set(projects)) await migrateOpenWaggleMcpFilesOnce(projectPath)
 }

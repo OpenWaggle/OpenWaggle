@@ -10,6 +10,9 @@ vi.unmock('../openwaggle-mcp-migration')
 vi.mock('../../../../store/settings', () => ({
   getSettings: () => ({ projectPath: null, recentProjects: [], projectDisplayNames: {} }),
 }))
+vi.mock('../../../../store/session-details/workspace-root-authorization', () => ({
+  listSessionWorkspaceRootPage: async () => [],
+}))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   resolveMcpVaultSecret: async () => {
     throw new Error('no vault in this test')
