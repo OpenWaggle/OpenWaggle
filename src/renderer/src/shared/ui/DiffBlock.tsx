@@ -30,6 +30,12 @@ function completeUnifiedPatch(patch: string) {
   return `--- a/file\n+++ b/file\n${patch}`
 }
 
+/** The hunks alone: an embedded diff's card already names the file. */
+function withoutFileHeaders(patch: string) {
+  const firstHunk = patch.search(/^@@ /mu)
+  return firstHunk > 0 ? patch.slice(firstHunk) : patch
+}
+
 function DiffBlockWorkerTheme({ theme }: { readonly theme: string }) {
   const workerPool = useWorkerPool()
   useEffect(() => {
@@ -74,9 +80,10 @@ export function DiffBlock({
   )
   if (shouldVirtualizeSyntaxSource(patch)) {
     // The virtualized view scrolls inside a fixed height; an embedded card is compact.
+    // It does not wrap lines, so `wrap` applies only to Pierre-rendered diffs.
     return (
       <SourceView
-        source={completeUnifiedPatch(patch)}
+        source={embedded ? withoutFileHeaders(patch) : completeUnifiedPatch(patch)}
         language="diff"
         theme={theme}
         showLineNumbers={false}

@@ -27,8 +27,10 @@ vi.mock('@pierre/diffs/react', () => ({
 }))
 
 vi.mock('../SourceView', () => ({
-  SourceView: ({ className }: { readonly className?: string }) => (
-    <section aria-label="Large diff source" className={className} />
+  SourceView: ({ className, source }: { readonly className?: string; readonly source: string }) => (
+    <section aria-label="Large diff source" className={className}>
+      {source.slice(0, 40)}
+    </section>
   ),
 }))
 
@@ -73,10 +75,11 @@ describe('DiffBlock', () => {
   })
 
   it('gives an embedded oversized diff a fixed scrolling height', () => {
-    const patch = `@@ -1,2000 +1,2000 @@\n${'+line\n'.repeat(2000)}`
+    const patch = `--- a.ts\n+++ a.ts\n@@ -1,2000 +1,2000 @@\n${'+line\n'.repeat(2000)}`
     render(<DiffBlock patch={patch} view="unified" wrap theme="dark-plus" embedded />)
 
     expect(screen.getByRole('region', { name: 'Large diff source' })).toHaveClass('h-60')
+    expect(screen.getByRole('region', { name: 'Large diff source' }).textContent).toMatch(/^@@ /u)
     expect(screen.getByRole('region', { name: 'Large diff source' })).not.toHaveClass('max-h-128')
   })
 

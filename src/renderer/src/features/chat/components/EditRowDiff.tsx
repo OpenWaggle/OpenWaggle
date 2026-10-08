@@ -5,6 +5,7 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { RenderErrorBoundary } from '@/shared/ui/RenderErrorBoundary'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { useChatDisplayText, useChatWorkspaceRelativePath } from './ChatDisplayPathContext'
@@ -23,6 +24,18 @@ const LazyDiffBlock = lazy(() =>
  */
 const EDIT_DIFF_BODY_CLASS = 'max-h-60'
 
+/** Pi's own edit result line, which the diff already says; anything else is shown. */
+const PI_EDIT_RESULT_LINE = /^Successfully replaced \d+ block\(s\) in .+\.$/u
+
+/**
+ * Output the diff does not already convey, such as diagnostics an extension appended
+ * to the edit result through Pi's `tool_result` hook.
+ */
+function extraEditOutput(resultText: string) {
+  const text = resultText.trim()
+  return text && !PI_EDIT_RESULT_LINE.test(text) ? text : ''
+}
+
 function basename(path: string) {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
   const slashIndex = normalized.lastIndexOf('/')
@@ -33,15 +46,19 @@ function basename(path: string) {
  * The expanded body of a successful edit row: a header naming the file with its
  * +/- counts and copy actions, then the file's diff (ADR 0050).
  */
-export function EditDiffCard({
+export function EditRowDiff({
   diff,
   path,
   args,
+  resultText,
 }: {
   readonly diff: EditDiffData
   readonly path: string | null
   readonly args: string
+  /** The edit tool's text result. */
+  readonly resultText: string
 }) {
+  const output = extraEditOutput(resultText)
   return (
     <div className="ml-5 mt-1 overflow-hidden rounded-md border border-border bg-bg-secondary/50">
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border px-3 py-1.5 text-xs text-text-tertiary">
@@ -53,9 +70,25 @@ export function EditDiffCard({
           <CopyButton label="Copy diff" value={diff.text} />
           {path && <CopyButton label="Copy path" value={path} />}
           <CopyButton label="Copy args" value={args} />
+          <CopyButton label="Copy output" value={resultText} />
         </div>
       </div>
-      <EditDiffBody diff={diff} />
+      <section aria-label={path ? `Diff of ${basename(path)}` : 'Edit diff'}>
+        <EditDiffBody diff={diff} />
+      </section>
+      {output && <EditRowOutput text={output} />}
+    </div>
+  )
+}
+
+function EditRowOutput({ text }: { readonly text: string }) {
+  const displayText = useChatDisplayText(text)
+  return (
+    <div className="border-t border-border px-3 py-2">
+      <div className="mb-1 text-sm text-text-tertiary">Output</div>
+      <PlainTextBlock reason="log" className="max-h-50 text-sm">
+        {displayText}
+      </PlainTextBlock>
     </div>
   )
 }
@@ -124,7 +157,6 @@ function EditDiffText({ text, wrap }: { readonly text: string; readonly wrap: bo
       source={text}
       language="diff"
       wrap={wrap}
-      ariaLabel="Edit diff"
       className={`${EDIT_DIFF_BODY_CLASS} rounded-none bg-bg text-xs`}
     />
   )

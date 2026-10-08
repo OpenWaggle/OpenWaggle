@@ -77,12 +77,11 @@ function editArgs(path: string) {
   return JSON.stringify({ path, edits: [{ oldText: 'const old = 3', newText: 'const next = 3' }] })
 }
 
-function editResult(details: { readonly [key: string]: unknown }) {
+const PI_EDIT_RESULT = 'Successfully replaced 1 block(s) in src/geo.ts.'
+
+function editResult(details: { readonly [key: string]: unknown }, text = PI_EDIT_RESULT) {
   return {
-    content: {
-      content: [{ type: 'text', text: 'Successfully replaced 1 block(s) in src/geo.ts.' }],
-      details,
-    },
+    content: { content: [{ type: 'text', text }], details },
     state: 'complete',
   }
 }
@@ -91,10 +90,12 @@ function renderEdit({
   path = 'src/geo.ts',
   details = { patch: EDIT_PATCH, firstChangedLine: 11 },
   workingPath = WORKTREE,
+  resultText = PI_EDIT_RESULT,
 }: {
   readonly path?: string
   readonly details?: { readonly [key: string]: unknown }
   readonly workingPath?: string | null
+  readonly resultText?: string
 } = {}) {
   const args = editArgs(path)
   render(
@@ -103,7 +104,12 @@ function renderEdit({
       worktreePath={WORKTREE}
       workingPath={workingPath}
     >
-      <ToolCallBlock name="edit" args={args} state="complete" result={editResult(details)} />
+      <ToolCallBlock
+        name="edit"
+        args={args}
+        state="complete"
+        result={editResult(details, resultText)}
+      />
     </ChatDisplayPathProvider>,
   )
   fireEvent.click(screen.getByRole('button', { name: /^Edited / }))
@@ -128,6 +134,7 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
 
     const diff = await screen.findByTestId('patch-diff')
     expect(diff).toHaveTextContent('+const next = 3')
+    expect(screen.getByRole('region', { name: 'Diff of geo.ts' })).toContainElement(diff)
     expect(diff).toHaveAttribute('data-view', 'unified')
     expect(diff).toHaveAttribute('data-embedded', 'true')
     expect(screen.queryByText('Arguments')).toBeNull()
@@ -142,6 +149,17 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
     expect(mockCopyToClipboard).toHaveBeenLastCalledWith(EDIT_PATCH)
     fireEvent.click(screen.getByRole('button', { name: 'Copy args' }))
     expect(mockCopyToClipboard).toHaveBeenLastCalledWith(args)
+  })
+
+  it('shows output an extension added to the edit result', async () => {
+    const resultText = `${PI_EDIT_RESULT}\n\nLSP diagnostics: src/geo.ts:11 error TS2304`
+    renderEdit({ resultText })
+
+    await screen.findByTestId('patch-diff')
+    expect(screen.getByText('Output')).toBeInTheDocument()
+    expect(screen.getByText(/LSP diagnostics/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy output' }))
+    expect(mockCopyToClipboard).toHaveBeenLastCalledWith(resultText)
   })
 
   it('stays collapsed until the row is expanded', () => {
@@ -220,7 +238,9 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
     renderEdit({ details: { diff: '-10 const old = 3\n+10 const next = 3' } })
 
     expect(screen.queryByTestId('patch-diff')).toBeNull()
-    expect(screen.getByLabelText('Edit diff')).toHaveTextContent('+10 const next = 3')
+    expect(screen.getByRole('region', { name: 'Diff of geo.ts' })).toHaveTextContent(
+      '+10 const next = 3',
+    )
   })
 
   it('falls back to text inside the row when the diff cannot render', async () => {
@@ -230,7 +250,9 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
 
     renderEdit({ details: { patch: `${EDIT_PATCH}${UNRENDERABLE_MARKER}` } })
 
-    expect(await screen.findByLabelText('Edit diff')).toHaveTextContent('+const next = 3')
+    expect(await screen.findByRole('region', { name: 'Diff of geo.ts' })).toHaveTextContent(
+      '+const next = 3',
+    )
     expect(screen.queryByTestId('patch-diff')).toBeNull()
     expect(screen.getByRole('button', { name: 'Copy diff' })).toBeInTheDocument()
   })

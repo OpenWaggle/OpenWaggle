@@ -12,7 +12,7 @@ import {
   type ToolCallResultPayload,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
-import { EditDiffCard } from './EditDiffCard'
+import { EditRowDiff } from './EditRowDiff'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
 import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
 
@@ -172,7 +172,9 @@ function ExpandedToolDetails({
   readonly view: ToolCallViewModel
 }) {
   if (view.diff) {
-    return <EditDiffCard diff={view.diff} path={view.path} args={args} />
+    return (
+      <EditRowDiff diff={view.diff} path={view.path} args={args} resultText={view.resultText} />
+    )
   }
   return (
     <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
