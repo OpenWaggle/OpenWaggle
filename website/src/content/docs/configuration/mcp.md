@@ -81,7 +81,7 @@ Every file uses the same format:
 
 - `command` is one program and `args` its arguments. It is not run through a shell.
 - `env` sets environment variables for a local server; `cwd` sets its working folder.
-- `url` connects to a remote server over HTTP. Older servers that only offer Server-Sent Events need `"type": "sse"`; WebSocket servers use a `ws://` or `wss://` URL.
+- `url` connects to a remote server over HTTP. Older servers that only offer Server-Sent Events need `"type": "sse"`; WebSocket servers use a `ws://` or `wss://` URL. Both work only in OpenWaggle's files, `~/.openwaggle/mcp.json` and `<project>/.openwaggle/mcp.json`: Pi cannot read them, so OpenWaggle does not save them to Pi's files or to `.mcp.json`.
 - `${NAME}` or `$NAME` in `env`, `headers`, or an OAuth client secret uses an environment variable from your login shell, and a value starting with `!` runs a command, as in Pi. Write `$$` for a literal `$`. `url`, `command`, and `args` are used as written; Pi does not fill variables in there.
 - If a value cannot be filled in, for example a missing variable or secret, that server reports the error and the others still connect.
 - `enabled: false` keeps a server without connecting to it.

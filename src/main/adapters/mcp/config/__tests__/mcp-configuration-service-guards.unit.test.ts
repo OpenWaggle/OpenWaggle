@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Exit } from 'effect'
@@ -113,12 +113,20 @@ describe('adding MCP servers', () => {
         destination: 'project-mcp-json',
       }),
     )
+    // A ws:// or wss:// URL is a WebSocket server without a `type`.
+    const untypedWsInPi = await failure(
+      add({ name: 'bare-ws', entry: { url: 'wss://ws.example' }, destination: 'pi-global' }),
+    )
     await Effect.runPromise(
       add({ name: 'ok-sse', entry: { type: 'sse', url: 'https://sse.example' } }),
     )
 
     expect(sseInPi).toContain('Pi cannot read an sse server')
     expect(wsInShared).toContain('Pi cannot read a websocket server')
+    expect(untypedWsInPi).toContain('Pi cannot read a websocket server')
+    expect(existsSync(piGlobal()) && readFileSync(piGlobal(), 'utf8').includes('bare-ws')).toBe(
+      false,
+    )
     expect(JSON.parse(readFileSync(owGlobal(), 'utf8')).mcpServers['ok-sse']).toMatchObject({
       type: 'sse',
     })

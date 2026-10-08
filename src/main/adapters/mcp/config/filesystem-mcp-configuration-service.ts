@@ -189,7 +189,6 @@ function addServer(context: ServiceContext, input: McpAddServerInput) {
     input.destination ?? (input.scope === 'global' ? 'openwaggle-global' : 'project-openwaggle')
   assertDestinationInScope(destination, input.scope)
   assertNoProjectAuth(destination, input.entry)
-  assertPiReadableDestination(destination, input.entry)
   const merged = loadMcpMergedConfig(context.roots(input), context.reader)
   assertNameFree(merged.servers, input.name, { replace: input.replace === true })
   const validated = validateMcpServerEntry(input.name, input.entry, {
@@ -198,6 +197,7 @@ function addServer(context: ServiceContext, input: McpAddServerInput) {
   if (!validated.ok) {
     throw new McpConfigurationError({ reason: 'validation', message: validated.error })
   }
+  assertPiReadableDestination(destination, validated.server.transport)
   const filePath = fileFor(context, input, destination)
   addMcpServerEntry(filePath, input.name, input.entry)
   return filePath

@@ -4,7 +4,7 @@ import {
   type McpMergedServer,
   mcpConfigFileScope,
 } from '../../../domain/mcp/config/mcp-config-merge'
-import { mcpNamespace } from '../../../domain/mcp/config/mcp-server-config'
+import { type McpTransportKind, mcpNamespace } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 
 function refuse(message: string): never {
@@ -39,17 +39,21 @@ export function assertNoProjectAuth(
 }
 
 /** Transports only OpenWaggle's files carry (`sse`, `websocket`): Pi's reader refuses them. */
-const OPENWAGGLE_ONLY_TYPES: Readonly<Record<string, string>> = {
+const OPENWAGGLE_ONLY_TRANSPORTS: Readonly<Partial<Record<McpTransportKind, string>>> = {
   sse: 'an sse',
   websocket: 'a websocket',
 }
 
-/** An entry Pi cannot read goes only to OpenWaggle's files, never to Pi's or a shared one. */
+/**
+ * An entry Pi cannot read goes only to OpenWaggle's files, never to Pi's or a shared one. The
+ * validated transport decides, not `type`: a `ws://` or `wss://` URL is a WebSocket server
+ * without one.
+ */
 export function assertPiReadableDestination(
   destination: McpWriteDestination,
-  entry: Readonly<Record<string, unknown>>,
+  transport: McpTransportKind,
 ) {
-  const kind = typeof entry.type === 'string' ? OPENWAGGLE_ONLY_TYPES[entry.type] : undefined
+  const kind = OPENWAGGLE_ONLY_TRANSPORTS[transport]
   if (!kind || isOpenWaggleMcpConfigFile(destination)) return
   refuse(
     `Pi cannot read ${kind} server, so it is saved only to OpenWaggle's files: choose ~/.openwaggle/mcp.json or the project's .openwaggle/mcp.json.`,
