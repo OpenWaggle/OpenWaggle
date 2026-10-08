@@ -128,8 +128,13 @@ per-project switches of that project (`home-project-state.ts`), which would chan
 
 `loadConfig(ctx)` returns Pi's `LoadedMcpConfig`:
 
-- `servers`: one `McpServerEntry` per merged server, `source` = defining file, `scope` =
-  `global` or `project`, `override` = last override file.
+- `servers`: one `McpServerEntry` per merged server, with `scope` = `global` or `project`. Pi
+  knows one kind of override, a project file's override of a global server ("global, project
+  override", saved to the project file), so `override` (the last override file) is set only for
+  that. Any other override, a global file's or one of a project server, is where `updateConfig`
+  saves changes, so Pi gets it as `source` instead of the defining file, and `/mcp` names the file
+  that is written. Without an override, `source` is the defining file (`runtimeEntry` in
+  `mcp-runtime-config.ts`).
 - `projectConfig`: `<project>/.openwaggle/mcp.json`, so Pi's "enable/disable in this project"
   writes a per-project override into OpenWaggle's file.
 - `errors`: file parse errors and invalid entries.
