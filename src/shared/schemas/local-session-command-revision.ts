@@ -11,7 +11,7 @@ import {
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_22_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -48,7 +48,7 @@ function usesRevision21Argument(request: Pick<HostUiV1Request, 'channel' | 'args
 /** The revision a Host UI request needs: its channel's, or later for an argument added since. */
 export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
-  if (HOST_UI_REVISION_22_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+  if (HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_SOURCE_CONTROL_REVISION
   }
   if (

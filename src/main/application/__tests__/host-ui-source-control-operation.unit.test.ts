@@ -66,7 +66,7 @@ describe('source-control operations the Session Host runs for the window', () =>
         dispatchHostUiSourceControlOperation(
           'git:session:verify-working-path',
           ['session-a', '/repo/session-a'],
-          22,
+          23,
         ),
       ),
     ).resolves.toMatchObject({ _tag: 'Success', value: verification })
@@ -85,7 +85,7 @@ describe('source-control operations the Session Host runs for the window', () =>
         dispatchHostUiSourceControlOperation(
           'git:session:record-outputs',
           ['session-a', payload],
-          22,
+          23,
         ),
       ),
     ).resolves.toMatchObject({ _tag: 'Success', value: { commitOutput: { ok: true } } })
@@ -96,7 +96,7 @@ describe('source-control operations the Session Host runs for the window', () =>
         dispatchHostUiSourceControlOperation(
           'git:session:verify-working-path',
           ['session-a', 'relative/path'],
-          22,
+          23,
         ),
       ),
     ).resolves.toMatchObject({ _tag: 'Failure' })
@@ -107,7 +107,7 @@ describe('source-control operations the Session Host runs for the window', () =>
       dispatchHostUiSourceControlOperation(
         'source-control:patch-settings',
         [{ sourceControlHostProviders: { 'git.acme.io': 'gitlab' } }],
-        21,
+        22,
       ),
     )
 
@@ -119,7 +119,7 @@ describe('source-control operations the Session Host runs for the window', () =>
     const patch = { sourceControlHostProviders: { 'git.acme.io': 'gitlab' } }
 
     await expect(
-      run(dispatchHostUiSourceControlOperation('source-control:patch-settings', [patch], 22)),
+      run(dispatchHostUiSourceControlOperation('source-control:patch-settings', [patch], 23)),
     ).resolves.toMatchObject({ _tag: 'Success', value: { ok: true } })
     expect(mocks.patch).toHaveBeenCalledWith(patch)
   })
@@ -132,7 +132,7 @@ describe('source-control operations the Session Host runs for the window', () =>
         dispatchHostUiSourceControlOperation(
           'source-control:patch-settings',
           [{ changeRequestOpenDestination: 'website' }],
-          22,
+          23,
         ),
       ),
     ).resolves.toMatchObject({ _tag: 'Success', value: { ok: false, error: 'disk full' } })
@@ -143,7 +143,7 @@ describe('source-control operations the Session Host runs for the window', () =>
       dispatchHostUiSourceControlOperation(
         'source-control:patch-settings',
         [{ sourceControlHostProviders: { 'git.acme.io': 'bitbucket' } }],
-        22,
+        23,
       ),
     )
 

@@ -14,6 +14,24 @@ const REMOTE_RECOVERY_MAX_BACKOFF_EXPONENT = Math.ceil(
   Math.log(REMOTE_RECOVERY_MAX_DELAY_MS / REMOTE_RECONNECT_DELAY_MS) /
     Math.log(REMOTE_RECOVERY_BACKOFF_FACTOR),
 )
+/** Retry interval once recovery keeps failing, and after authentication failures. */
+const REMOTE_RECOVERY_LONG_DELAY_MS = 30_000
+/** Consecutive failed recoveries after which the pump logs one error and retries slowly. */
+const REMOTE_RECOVERY_ESCALATION_ATTEMPTS = 10
+/** How long a subscription must stay up before its failure no longer counts as consecutive. */
+const REMOTE_HEALTHY_SUBSCRIPTION_MS = 10_000
+/**
+ * The Host throttles authentication for 30 s after a burst of failed attempts from any local
+ * client. A Host-wide throttle says so; older Hosts report it as an ordinary
+ * `authentication_failed`, so that code waits out the throttle once a quick retry has failed too.
+ */
+const QUICK_AUTHENTICATION_RETRIES = 1
+
+function needsSlowRetry(error: unknown, attempt: number) {
+  if (!(error instanceof LocalSessionClientProtocolError)) return false
+  if (error.code === 'authentication_throttled') return true
+  return error.code === 'authentication_failed' && attempt > QUICK_AUTHENTICATION_RETRIES
+}
 
 class RemoteSessionHostSubscriptionClosedError extends Error {
   constructor() {
@@ -28,6 +46,7 @@ export interface RemoteSessionHostRendererBridgeDependencies {
   readonly refreshPaths: typeof refreshLocalSessionHostEndpoint
   readonly wait: (milliseconds: number, signal?: AbortSignal) => Promise<void>
   readonly logger: Pick<Logger, 'warn' | 'error'>
+  readonly now?: () => number
 }
 
 interface RemoteSessionHostRendererPumpHandlers {
@@ -40,8 +59,24 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function isTerminalRendererFailure(error: unknown) {
-  return error instanceof LocalSessionClientProtocolError && error.retryable === false
+/** Attempts that are not a power of two are counted into the next logged one. */
+function isLoggedRecoveryAttempt(attempt: number) {
+  return attempt > 0 && Number.isInteger(Math.log2(attempt))
+}
+
+/** Logs attempts 1, 2, 4, 8, ... and escalates once; returns whether this attempt logged. */
+function logRecoveryAttempt(
+  logger: RemoteSessionHostRendererBridgeDependencies['logger'],
+  attempt: number,
+  details: object,
+) {
+  if (attempt === REMOTE_RECOVERY_ESCALATION_ATTEMPTS) {
+    logger.error('Remote Session Host renderer connection keeps failing; retrying slowly.', details)
+    return true
+  }
+  if (!isLoggedRecoveryAttempt(attempt)) return false
+  logger.warn('Remote Session Host renderer connection is degraded; retrying.', details)
+  return true
 }
 
 function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal) {
@@ -68,7 +103,10 @@ function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal) {
   })
 }
 
-function remoteRecoveryDelay(attempt: number) {
+function remoteRecoveryDelay(attempt: number, error: unknown) {
+  if (attempt >= REMOTE_RECOVERY_ESCALATION_ATTEMPTS || needsSlowRetry(error, attempt)) {
+    return REMOTE_RECOVERY_LONG_DELAY_MS
+  }
   const exponent = Math.min(Math.max(0, attempt - 1), REMOTE_RECOVERY_MAX_BACKOFF_EXPONENT)
   return Math.min(
     REMOTE_RECONNECT_DELAY_MS * REMOTE_RECOVERY_BACKOFF_FACTOR ** exponent,
@@ -124,15 +162,13 @@ async function recoverRemoteRendererConnection(input: {
   readonly signal: AbortSignal
   readonly error: unknown
   readonly attempt: number
+  readonly suppressedWarnings: number
 }) {
-  if (isTerminalRendererFailure(input.error)) {
-    input.dependencies.logger.error(
-      'Remote Session Host renderer subscription stopped after a terminal failure.',
-      { error: errorMessage(input.error) },
-    )
-    return false
-  }
-
+  // No failure stops the pump. The renderer has no other source of live Session events, so
+  // stopping froze every Session until OpenWaggle restarted. Hosts mark connection-level failures
+  // such as a handshake timeout under load non-retryable, an older Host that outlived a GUI update
+  // still does, and nothing the launcher reports is permanent for the GUI's own connection.
+  // Persistent failures retry slowly instead.
   let ensureError: unknown
   try {
     await awaitWithSignal(
@@ -146,29 +182,26 @@ async function recoverRemoteRendererConnection(input: {
       input.signal,
     )
   } catch (error) {
-    if (input.signal.aborted) return false
-    if (isTerminalRendererFailure(error)) {
-      input.dependencies.logger.error(
-        'Remote Session Host renderer recovery stopped after a terminal failure.',
-        { error: errorMessage(error) },
-      )
-      return false
-    }
+    if (input.signal.aborted) return { retry: false, logged: false }
     ensureError = error
   }
 
-  const delayMs = remoteRecoveryDelay(input.attempt)
-  input.dependencies.logger.warn('Remote Session Host renderer connection is degraded; retrying.', {
+  const failure = ensureError ?? input.error
+  const delayMs = remoteRecoveryDelay(input.attempt, failure)
+  const details = {
     attempt: input.attempt,
     delayMs,
-    error: errorMessage(ensureError ?? input.error),
-  })
-  return waitForReconnect({
+    error: errorMessage(failure),
+    ...(input.suppressedWarnings > 0 ? { suppressedWarnings: input.suppressedWarnings } : {}),
+  }
+  const logged = logRecoveryAttempt(input.dependencies.logger, input.attempt, details)
+  const retry = await waitForReconnect({
     dependencies: input.dependencies,
     delayMs,
     signal: input.signal,
     failureMessage: 'Remote Session Host renderer recovery delay failed.',
   })
+  return { retry, logged }
 }
 
 export async function runRemoteSessionHostRendererPump(input: {
@@ -181,12 +214,28 @@ export async function runRemoteSessionHostRendererPump(input: {
   let paths = input.paths
   let after: SessionHostEventEnvelope['cursor'] | undefined
   let pendingResyncReason: string | undefined
+  const now = input.dependencies.now ?? (() => performance.now())
   let recoveryAttempts = 0
-  const markConnected = () => {
+  let suppressedWarnings = 0
+  // A snapshot alone does not prove recovery: a Host that fails every subscription right after
+  // its snapshot would otherwise retry at the shortest delay forever. Recovery counts once the
+  // stream delivers something after it was established, or stays up long enough.
+  const markHealthy = () => {
     recoveryAttempts = 0
+    suppressedWarnings = 0
   }
 
   while (!input.signal.aborted) {
+    let establishedAt: number | undefined
+    let initialCursorSeen = false
+    const markEstablished = () => {
+      establishedAt ??= now()
+    }
+    const markHealthyIfLongLived = () => {
+      if (establishedAt !== undefined && now() - establishedAt >= REMOTE_HEALTHY_SUBSCRIPTION_MS) {
+        markHealthy()
+      }
+    }
     try {
       paths = await awaitWithSignal(input.dependencies.refreshPaths(paths), input.signal)
       const result = await awaitWithSignal(
@@ -199,7 +248,7 @@ export async function runRemoteSessionHostRendererPump(input: {
           ...(after ? { after } : {}),
           signal: input.signal,
           onSnapshot: (snapshots) => {
-            markConnected()
+            markEstablished()
             input.handlers.onSnapshot(snapshots)
             if (!pendingResyncReason) return
             const reason = pendingResyncReason
@@ -207,19 +256,23 @@ export async function runRemoteSessionHostRendererPump(input: {
             input.handlers.onResyncRequired(reason)
           },
           onCursor: (cursor) => {
-            markConnected()
+            // The first cursor confirms the subscription; later ones are stream progress.
+            if (initialCursorSeen) markHealthy()
+            initialCursorSeen = true
+            markEstablished()
             after = cursor
           },
           onEvent: (event) => {
-            markConnected()
+            markEstablished()
+            markHealthy()
             after = event.cursor
             input.handlers.onEvent(event)
           },
         }),
         input.signal,
       )
+      markHealthyIfLongLived()
       if (result.status === 'resync-required') {
-        markConnected()
         after = undefined
         pendingResyncReason = result.reason
       }
@@ -228,16 +281,19 @@ export async function runRemoteSessionHostRendererPump(input: {
       }
     } catch (error) {
       if (input.signal.aborted) break
+      markHealthyIfLongLived()
       recoveryAttempts += 1
-      const retry = await recoverRemoteRendererConnection({
+      const recovery = await recoverRemoteRendererConnection({
         paths,
         clientVersion: input.clientVersion,
         dependencies: input.dependencies,
         signal: input.signal,
         error,
         attempt: recoveryAttempts,
+        suppressedWarnings,
       })
-      if (!retry) break
+      suppressedWarnings = recovery.logged ? 0 : suppressedWarnings + 1
+      if (!recovery.retry) break
       continue
     }
     const retry = await waitForReconnect({

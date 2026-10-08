@@ -22,6 +22,7 @@ import {
   type LocalSessionCursorResolution,
   LocalSessionEventCursorProjection,
 } from './local-session-event-cursor-projection'
+import type { LocalSessionInflightCommands } from './local-session-inflight-commands'
 import { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import type { LocalSessionSocketFrameWriter } from './local-session-outbound-writer'
 import {
@@ -76,6 +77,8 @@ export interface LocalSessionServerDependencies {
     snapshot: BackgroundRunSnapshot,
   ) => Promise<boolean>
   readonly handshakeTimeoutMs?: number
+  /** Diagnostics only: records which commands are executing when the Host stalls. */
+  readonly inflightCommands?: LocalSessionInflightCommands
   readonly maxConnections?: number
   readonly maxSubscriptionsPerConnection?: number
   readonly maxSubscriptionsGlobal?: number

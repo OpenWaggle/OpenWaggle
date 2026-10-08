@@ -54,6 +54,7 @@ const [
   hostStopCapability,
   titleRegenerationCapability,
   followUpEditCapability,
+  runSnapshotContentCapability,
   sourceControlCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -90,6 +91,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(hostStopCapability),
   Schema.Literal(titleRegenerationCapability),
   Schema.Literal(followUpEditCapability),
+  Schema.Literal(runSnapshotContentCapability),
   Schema.Literal(sourceControlCapability),
 )
 

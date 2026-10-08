@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { settlingRunId } from '../lib/run-ids'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
@@ -101,7 +102,8 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
       held.push(completion)
       return 'held'
     }
-    if (completion.runId === boundRunId) {
+    // A requested Waggle's id (`waggle-of-<X>`) settles as the classic Run X it goes on with.
+    if (settlingRunId(completion.runId) === boundRunId) {
       settle(completion.error)
       return 'settled'
     }

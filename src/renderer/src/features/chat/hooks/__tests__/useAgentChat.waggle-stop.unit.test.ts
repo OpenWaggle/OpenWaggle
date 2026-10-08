@@ -84,7 +84,8 @@ describe('useAgentChat Waggle stop', () => {
       {
         id: MessageId('persisted-user-1'),
         role: 'user',
-        createdAt: 1,
+        // Saved after the send below.
+        createdAt: Date.now() + 60_000,
         parts: [{ type: 'text', text: SEND_PAYLOAD.text }],
       },
     ])

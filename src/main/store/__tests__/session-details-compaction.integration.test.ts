@@ -40,7 +40,7 @@ afterEach(async () => {
 })
 
 describe('session-details compaction projection', () => {
-  it('loads the active post-compaction working context instead of the pre-compaction history', async () => {
+  it('loads the whole active branch with each compaction marker where it happened', async () => {
     const session = await createSession({
       projectPath: '/tmp/project-post-compaction-context',
       piSessionId: 'pi-session-post-compaction-context',
@@ -195,17 +195,20 @@ describe('session-details compaction projection', () => {
     const reloaded = await getSessionDetail(session.id)
     const workspace = await getSessionWorkspace(sessionId)
 
-    expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
-      'compaction-summary-2',
+    // The history both compactions summarized stays visible for the user (ADR 0048).
+    const fullBranch = [
+      'old-user',
+      'old-assistant',
+      'kept-user',
+      'kept-assistant',
+      'compaction-summary',
       'user-after-compaction',
       'assistant-after-compaction',
-    ])
-    expect(workspace?.transcriptPath.map((entry) => String(entry.node.id))).toEqual([
       'compaction-summary-2',
-      'user-after-compaction',
-      'assistant-after-compaction',
-    ])
-    expect(workspace?.transcriptPath[0]?.node.message?.metadata?.compactionSummary).toEqual({
+    ]
+    expect(reloaded?.messages.map((message) => String(message.id))).toEqual(fullBranch)
+    expect(workspace?.transcriptPath.map((entry) => String(entry.node.id))).toEqual(fullBranch)
+    expect(workspace?.transcriptPath[7]?.node.message?.metadata?.compactionSummary).toEqual({
       summary: 'Summarized the continued work.',
       tokensBefore: 150000,
       reason: 'overflow',

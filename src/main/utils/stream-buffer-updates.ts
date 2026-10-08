@@ -6,11 +6,7 @@ import type {
 import type { JsonValue } from '@shared/types/json'
 import type { AgentTransportMessageStartEvent } from '@shared/types/stream'
 import { retainedBytesAfterTextAppend, retainedPartsBytes } from './stream-buffer-byte-accounting'
-import {
-  appendReasoningPart,
-  appendTextPart,
-  upsertToolCallPart,
-} from './stream-buffer-message-parts'
+import { appendTextDeltaPart, upsertToolCallPart } from './stream-buffer-message-parts'
 import {
   type ActiveStreamBuffer,
   exceedsStreamBufferLimit,
@@ -82,17 +78,21 @@ export function appendStreamBufferToolCallDelta(
 
 export function appendStreamBufferText(
   buffer: ActiveStreamBuffer,
-  type: 'text' | 'reasoning',
-  delta: string,
+  text: {
+    readonly type: 'text' | 'reasoning'
+    readonly delta: string
+    readonly contentIndex: number
+  },
   totalRetainedBytes: number,
 ): StreamBufferUpdate {
-  const parts =
-    type === 'text' ? appendTextPart(buffer.parts, delta) : appendReasoningPart(buffer.parts, delta)
+  const { type, delta, contentIndex } = text
+  const parts = appendTextDeltaPart(buffer.parts, type, delta, contentIndex)
   const retainedBytes = retainedBytesAfterTextAppend({
     parts: buffer.parts,
     retainedBytes: buffer.retainedBytes,
     type,
     delta,
+    contentIndex,
   })
   const retainedDelta = retainedBytes - buffer.retainedBytes
   if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {

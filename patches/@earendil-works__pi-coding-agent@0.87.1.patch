@@ -1367,7 +1367,7 @@ index 202e45d4d595a50b10d639c32dcc685ef5b34d69..9df5aff99396c286453d06cb8e62c6f6
 @@ -694,7 +705,110 @@ Create a concise checkpoint of the user's request and the progress shown above.
  ## Context Needed to Continue
  - [Information from these messages needed to understand the later work]
-
+ 
 -Only summarize information explicitly present above. Do not infer or recreate later messages.`;
 +Only summarize information explicitly present above. Do not infer or recreate later messages. Be concise. Focus on what's needed to understand the kept suffix.`;
 +const NATIVE_REPLACEMENT_IMAGE_DETAILS = new Set(["low", "high", "auto", "original"]);
@@ -1910,7 +1910,7 @@ index 76c53813b3c8de823afe3a34b4447da983450c26..7b6c4f89e1d55d99f72600061529f798
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde19415984f99cc82 100644
+index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..c2e4d59f2a533b146ab2c1fa96ae40df097d75ec 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,5 +1,5 @@
@@ -1993,7 +1993,27 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
  function createSessionId() {
      return uuidv7();
  }
-@@ -185,7 +250,7 @@ export function sessionEntryToContextMessages(entry) {
+@@ -19,13 +84,15 @@ export function assertValidSessionId(id) {
+ }
+ /** Generate a unique short ID (8 hex chars, collision-checked) */
+ function generateId(byId) {
+-    for (let i = 0; i < 100; i++) {
+-        const id = randomUUID().slice(0, 8);
++    // OpenWaggle projects the entries of every session into one node table keyed by entry id, so
++    // an id must be unique across sessions, not only within this file. Eight hex characters
++    // collide across a large session history; a full random UUID cannot equal an existing
++    // eight-character id and does not collide in practice.
++    while (true) {
++        const id = randomUUID();
+         if (!byId.has(id))
+             return id;
+     }
+-    // Fallback to full UUID if somehow we have collisions
+-    return randomUUID();
+ }
+ /** Migrate v1 → v2: add id/parentId tree structure. Mutates in place. */
+ function migrateV1ToV2(entries) {
+@@ -185,7 +252,7 @@ export function sessionEntryToContextMessages(entry) {
          return [createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp)];
      }
      if (entry.type === "compaction") {
@@ -2002,7 +2022,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
          return entry.systemMessage ? [entry.systemMessage, summary] : [summary];
      }
      return [];
-@@ -198,7 +263,27 @@ export function sessionEntryToContextMessages(entry) {
+@@ -198,7 +265,27 @@ export function sessionEntryToContextMessages(entry) {
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -2031,7 +2051,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
      const path = buildSessionPath(entries, leafId, byId);
      let compaction = null;
      for (const entry of path) {
-@@ -209,6 +294,9 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -209,6 +296,9 @@ export function buildContextEntries(entries, leafId, byId) {
      if (!compaction) {
          return path;
      }
@@ -2041,7 +2061,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -227,6 +315,110 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -227,6 +317,110 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
@@ -2152,7 +2172,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
  /**
   * Build the session context from entries using tree traversal.
   * If leafId is provided, walks from that entry to root.
-@@ -253,16 +445,20 @@ function projectContextEntry(entry, edit) {
+@@ -253,16 +447,20 @@ function projectContextEntry(entry, edit) {
      });
  }
  /** Build provenance-preserving, compaction-aware model context. */
@@ -2176,7 +2196,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
          sourceEntry,
          // buildContextEntries() may retain an older compaction entry because its
          // raw ID lies inside the newest retained range. Only the newest compaction
-@@ -271,6 +467,18 @@ export function buildSessionProjection(entries, leafId, byId) {
+@@ -271,6 +469,18 @@ export function buildSessionProjection(entries, leafId, byId) {
              ? []
              : projectContextEntry(sourceEntry, edits.get(sourceEntry.id)),
      }));
@@ -2195,7 +2215,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
      return {
          entries: projectedEntries,
          messages: projectedEntries.flatMap((entry) => entry.messages),
-@@ -279,8 +487,9 @@ export function buildSessionProjection(entries, leafId, byId) {
+@@ -279,8 +489,9 @@ export function buildSessionProjection(entries, leafId, byId) {
      };
  }
  /** Build the finalized model context from the canonical session projection. */
@@ -2207,7 +2227,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -877,7 +1086,7 @@ export class SessionManager {
+@@ -877,7 +1088,7 @@ export class SessionManager {
          return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2216,7 +2236,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
          const timestamp = new Date().toISOString();
          const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
          const id = generateId(this.byId);
-@@ -892,6 +1101,7 @@ export class SessionManager {
+@@ -892,6 +1103,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -2224,7 +2244,7 @@ index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde1941598
              ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-@@ -1074,19 +1284,37 @@ export class SessionManager {
+@@ -1074,19 +1286,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2355,7 +2375,7 @@ index d8339661293e51358d0165680bad4334ff78f92e..44c3aba2462193b94d1ae787467c2159
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
 @@ -20,7 +20,7 @@ export { AgentSessionRuntime,
- createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
+ createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, 
  // Tool factories (for custom cwd)
  createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
 -export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";

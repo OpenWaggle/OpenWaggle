@@ -1,4 +1,5 @@
 import * as Layer from 'effect/Layer'
+import { PiSessionTranscriptFilesLive } from './adapters/pi/pi-session-transcript-files'
 import { WorkspaceExecutionAdmissionLive } from './adapters/project-actions/action-workspace-admission'
 import { HostActionRunServiceLive } from './adapters/project-actions/host-action-run-service'
 import { HostWorkspacePreparationServiceLive } from './adapters/project-actions/host-workspace-preparation-service'
@@ -24,5 +25,5 @@ export const ActionKernelServicesLive = Layer.mergeAll(
 )
 
 export const SessionProjectionWithActionsLive = SqliteSessionProjectionRepositoryLive.pipe(
-  Layer.provide(ActionKernelServicesLive),
+  Layer.provide(Layer.mergeAll(ActionKernelServicesLive, PiSessionTranscriptFilesLive)),
 )

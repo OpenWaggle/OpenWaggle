@@ -1,7 +1,201 @@
+diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
+index 5dd85f19db51b73dcd0c5c4cd8c28ad99e09ee6f..d6979a5a98a2b62c9c72e0e8a382be528b773742 100644
+--- a/dist/api/anthropic-messages.js
++++ b/dist/api/anthropic-messages.js
+@@ -3,7 +3,7 @@ import { calculateCost } from "../models.js";
+ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord } from "../utils/headers.js";
+-import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments, } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { retryProviderRequest } from "../utils/provider-retry.js";
+@@ -507,7 +507,7 @@ export const stream = (model, context, options) => {
+                         const block = blocks[index];
+                         if (block && block.type === "toolCall") {
+                             block.partialJson += event.delta.partial_json;
+-                            block.arguments = parseStreamingJson(block.partialJson);
++                            block.arguments = parseStreamingToolArguments(block, block.partialJson);
+                             stream.push({
+                                 type: "toolcall_delta",
+                                 contentIndex: index,
+@@ -621,12 +621,18 @@ export const stream = (model, context, options) => {
+                     },
+                 });
+             }
++            // A tool block the stream never stopped still holds rate-limited arguments.
++            finishStreamingToolCalls(output.content);
+             stream.push({ type: "done", reason: output.stopReason, message: output });
+             stream.end();
+         }
+         catch (error) {
+             for (const block of output.content) {
+                 delete block.index;
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialJson !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialJson);
++                }
+                 // partialJson is only a streaming scratch buffer; never persist it.
+                 delete block.partialJson;
+             }
+diff --git a/dist/api/azure-openai-responses.js b/dist/api/azure-openai-responses.js
+index ec1e2069102ed3165b2d702b9fc4105d5cf8f4e1..2d9bd6a1c91ac157aac437e5948242eaf2ede337 100644
+--- a/dist/api/azure-openai-responses.js
++++ b/dist/api/azure-openai-responses.js
+@@ -3,6 +3,7 @@ import { clampThinkingLevel } from "../models.js";
+ import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord } from "../utils/headers.js";
++import { parseStreamingJson } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { retryProviderRequest } from "../utils/provider-retry.js";
+@@ -107,6 +108,10 @@ export const stream = (model, context, options) => {
+         catch (error) {
+             for (const block of output.content) {
+                 delete block.index;
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialJson !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialJson);
++                }
+                 // Streaming scratch buffers are only used during parsing; never persist them.
+                 delete block.partialJson;
+                 delete block.customInput;
+diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
+index 44e3f13e808f0665a44e34437e173743f81bd51f..420ce9fdee38e32ba824003019ccb24d12d02c02 100644
+--- a/dist/api/bedrock-converse-stream.js
++++ b/dist/api/bedrock-converse-stream.js
+@@ -7,7 +7,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+ import { normalizeProviderError } from "../utils/error-body.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { providerHeadersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+@@ -459,7 +459,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+     }
+     else if (delta?.toolUse && block?.type === "toolCall") {
+         block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
+-        block.arguments = parseStreamingJson(block.partialJson);
++        block.arguments = parseStreamingToolArguments(block, block.partialJson);
+         stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
+     }
+     else if (delta?.reasoningContent) {
+@@ -526,6 +526,10 @@ function flushRedactedContent(block) {
+  */
+ function finalizeStreamingBlock(block) {
+     delete block.index;
++    // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++    if (block.type === "toolCall" && block.partialJson !== undefined) {
++        block.arguments = parseStreamingJson(block.partialJson);
++    }
+     // partialJson is only a streaming scratch buffer; never persist it.
+     delete block.partialJson;
+     flushRedactedContent(block);
+diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
+index 3106c5d470dc3610c05d8ee153026df20f86f66e..1fa91886a5bca9639dc04dd1bed2c2d63fb33f79 100644
+--- a/dist/api/mistral-conversations.js
++++ b/dist/api/mistral-conversations.js
+@@ -2,7 +2,7 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { shortHash } from "../utils/hash.js";
+ import { headersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+@@ -49,6 +49,10 @@ export const stream = (model, context, options) => {
+         }
+         catch (error) {
+             for (const block of output.content) {
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialArgs !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialArgs);
++                }
+                 // partialArgs is only a streaming scratch buffer; never persist it.
+                 delete block.partialArgs;
+             }
+@@ -541,7 +545,7 @@ async function consumeChatStream(model, output, stream, mistralStream) {
+                 ? toolCall.function.arguments
+                 : JSON.stringify(toolCall.function.arguments || {});
+             block.partialArgs = (block.partialArgs || "") + argsDelta;
+-            block.arguments = parseStreamingJson(block.partialArgs);
++            block.arguments = parseStreamingToolArguments(block, block.partialArgs);
+             stream.push({
+                 type: "toolcall_delta",
+                 contentIndex: toolBlocksByKey.get(key),
+diff --git a/dist/api/openai-codex-responses.js b/dist/api/openai-codex-responses.js
+index dfdb6ec3651febbba6b8788f16118ecbf4b38fa8..3d560722a13af1d52b02c757d173f7ef05ea8ff4 100644
+--- a/dist/api/openai-codex-responses.js
++++ b/dist/api/openai-codex-responses.js
+@@ -5,6 +5,7 @@ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic, for
+ import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord } from "../utils/headers.js";
++import { parseStreamingJson } from "../utils/json-parse.js";
+ import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getSystemMessageText } from "../utils/text.js";
+@@ -339,6 +340,10 @@ export const stream = (model, context, options) => {
+         }
+         catch (error) {
+             for (const block of output.content) {
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialJson !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialJson);
++                }
+                 // Streaming scratch buffers are only used during parsing; never persist them.
+                 delete block.partialJson;
+                 delete block.customInput;
+diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+index fc8e89382b75f259eb4f041b522840b0d603c033..a43d79c68fbf2dd2535bd49c501ee5596a102b48 100644
+--- a/dist/api/openai-completions.js
++++ b/dist/api/openai-completions.js
+@@ -4,7 +4,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { shortHash } from "../utils/hash.js";
+ import { headersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { retryProviderRequest } from "../utils/provider-retry.js";
+@@ -437,7 +437,7 @@ export const stream = (model, context, options) => {
+                             if (toolCall.function?.arguments) {
+                                 delta = toolCall.function.arguments;
+                                 block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
+-                                block.arguments = parseStreamingJson(block.partialArgs);
++                                block.arguments = parseStreamingToolArguments(block, block.partialArgs);
+                             }
+                             else if (toolCall.custom?.input) {
+                                 const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
+@@ -493,6 +493,10 @@ export const stream = (model, context, options) => {
+                     applyStreamedReasoningDetails(block);
+                 }
+                 delete block.index;
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialArgs !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialArgs);
++                }
+                 // Streaming scratch buffers are only used during parsing; never persist them.
+                 delete block.partialArgs;
+                 delete block.customInput;
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index 53597d2c3becdd2c03d4fd265c213a36b403f26b..512a56fde3ebca765145950d6273e7ffd96bde04 100644
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..e01c200a9ce2e0276d4b7879f30cf22b9f34dcc0 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
+@@ -1,6 +1,6 @@
+ import { calculateCost } from "../models.js";
+ import { shortHash } from "../utils/hash.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+ import { resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 @@ -177,7 +177,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                  if (block.type === "thinking") {
                      if (block.thinkingSignature) {
@@ -13,6 +207,24 @@ index 53597d2c3becdd2c03d4fd265c213a36b403f26b..512a56fde3ebca765145950d6273e7ff
                      }
                  }
                  else if (block.type === "text") {
+@@ -546,7 +548,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             if (!slot || slot.block.partialJson === undefined)
+                 continue;
+             slot.block.partialJson += event.delta;
+-            slot.block.arguments = parseStreamingJson(slot.block.partialJson);
++            slot.block.arguments = parseStreamingToolArguments(slot.block, slot.block.partialJson);
+             pushToolCallDelta(slot, event.delta);
+         }
+         else if (event.type === "response.function_call_arguments.done") {
+@@ -656,6 +658,8 @@ export async function processResponsesStream(openaiStream, output, stream, model
+     if (!sawTerminalResponseEvent) {
+         throw new Error("OpenAI Responses stream ended before a terminal response event");
+     }
++    // A function call the response never finished still holds rate-limited arguments.
++    finishStreamingToolCalls(output.content);
+ }
+ function mapStopReason(status, incompleteReason) {
+     if (!status)
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
 index 41267bd50904069aa0879cc8634ea94bc1045236..7b431baee4581266a093653615b4f6515903ca59 100644
 --- a/dist/api/openai-responses.d.ts
@@ -38,10 +250,14 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..7b431baee4581266a093653615b4f651
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a165a14b99 100644
+index 1396c8d57ffb0e300382281a026d878e6a96b43a..05971b666193652a1ce9a019162cd451a9175e4f 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
-@@ -6,13 +6,15 @@ import { headersToRecord } from "../utils/headers.js";
+@@ -3,16 +3,19 @@ import { clampThinkingLevel } from "../models.js";
+ import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord } from "../utils/headers.js";
++import { parseStreamingJson } from "../utils/json-parse.js";
  import { getPiUserAgent } from "../utils/pi-user-agent.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
@@ -58,7 +274,7 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a1
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  function hasHeader(headers, name) {
-@@ -32,6 +34,24 @@ function getClientApiKey(provider, apiKey, headers) {
+@@ -32,6 +35,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);
  }
@@ -83,7 +299,7 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a1
  function detectSessionAffinityFormat(model) {
      return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
  }
-@@ -50,6 +70,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -50,6 +71,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -91,7 +307,18 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a1
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
-@@ -171,7 +192,51 @@ export const streamSimple = (model, context, options) => {
+@@ -146,6 +168,10 @@ export const stream = (model, context, options) => {
+         catch (error) {
+             for (const block of output.content) {
+                 delete block.index;
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialJson !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialJson);
++                }
+                 // Streaming scratch buffers are only used during parsing; never persist them.
+                 delete block.partialJson;
+                 delete block.customInput;
+@@ -171,7 +197,51 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -144,7 +371,7 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a1
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -197,9 +262,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -197,9 +267,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -167,6 +394,46 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a1
          dangerouslyAllowBrowser: true,
          fetch,
          defaultHeaders: headers,
+diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
+index ad5f4605e8e157f12b8948e88e0c66e8a5494fc4..9ddb70d2df664760ba7a911e9112535968c1a14c 100644
+--- a/dist/api/pi-messages.js
++++ b/dist/api/pi-messages.js
+@@ -11,7 +11,7 @@
+ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ export class PiMessagesResponseError extends Error {
+     code;
+@@ -91,7 +91,17 @@ function createEventConverter(model) {
+         timestamp: Date.now(),
+     };
+     const toolJson = new Map();
++    // Delta parsing is rate-limited, so bring unfinished arguments up to date at the end.
++    const finishToolJson = () => {
++        for (const [contentIndex, json] of toolJson) {
++            partial.content[contentIndex].arguments = parseStreamingJson(json);
++        }
++        toolJson.clear();
++    };
+     return (event) => {
++        if (event.type === "done" || event.type === "error") {
++            finishToolJson();
++        }
+         switch (event.type) {
+             case "done":
+                 Object.assign(partial, {
+@@ -156,7 +166,7 @@ function createEventConverter(model) {
+                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
+                 toolJson.set(event.contentIndex, json);
+                 partial.content[event.contentIndex].arguments =
+-                    parseStreamingJson(json);
++                    parseStreamingToolArguments(partial.content[event.contentIndex], json);
+                 break;
+             }
+             case "toolcall_end":
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
 index c53dcaa13ee7106a07383697302e63962bb23f9d..d2be610a021040efdc35722564b8dfe5df7c82db 100644
 --- a/dist/providers/openai-codex.models.js
@@ -232,6 +499,98 @@ index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..8c92cbbfe94788aea88109058e10eb25
      /** Whether the provider supports the `developer` role (vs `system`). Default: true. */
      supportsDeveloperRole?: boolean;
      /** Whether the exact model accepts developer or system messages after the conversation has started. When false, later system messages are folded into the leading system message. Default: false; the generated model catalog enables it for verified models. */
+diff --git a/dist/utils/json-parse.d.ts b/dist/utils/json-parse.d.ts
+index 6d7935322c2e60d425188d9c4c94809208073fe3..aae95e3e186e7f75a19c28e77e5e0b2115b9006c 100644
+--- a/dist/utils/json-parse.d.ts
++++ b/dist/utils/json-parse.d.ts
+@@ -13,4 +13,19 @@ export declare function parseJsonWithRepair<T>(json: string): T;
+  * @returns Parsed object or empty object if parsing fails
+  */
+ export declare function parseStreamingJson<T = Record<string, unknown>>(partialJson: string | undefined): T;
++/**
++ * Returns the arguments for a streaming tool-call block whose accumulated JSON is
++ * `partialJson`, re-parsing it only at a bounded rate. Small arguments are parsed on
++ * every call; larger ones only after enough growth or time, otherwise the block's current
++ * `arguments` are returned. Parse the complete JSON with `parseStreamingJson` when the
++ * block ends.
++ */
++export declare function parseStreamingToolArguments<T = Record<string, unknown>>(block: {
++    arguments: T;
++}, partialJson: string | undefined): T;
++/**
++ * Parses the complete JSON of every tool call in `content` that still holds its streaming
++ * buffer under `bufferKey` (default `partialJson`), then drops the buffer.
++ */
++export declare function finishStreamingToolCalls(content: readonly object[], bufferKey?: string): void;
+ //# sourceMappingURL=json-parse.d.ts.map
+\ No newline at end of file
+diff --git a/dist/utils/json-parse.js b/dist/utils/json-parse.js
+index 82e105cb676a2f4be16167023243aa73dd8cb2e4..b69b65805e7034b2e7f62095c8dc91d4d9ec400a 100644
+--- a/dist/utils/json-parse.js
++++ b/dist/utils/json-parse.js
+@@ -110,4 +110,61 @@ export function parseStreamingJson(partialJson) {
+         }
+     }
+ }
++/**
++ * Streamed tool-call arguments up to this length are re-parsed on every delta, exactly
++ * as before; a parse this small costs well under a millisecond.
++ */
++const STREAMING_TOOL_ARGUMENTS_EAGER_BYTES = 8 * 1024;
++/** Beyond the eager size, re-parse once the JSON grew by this fraction of the last parse. */
++const STREAMING_TOOL_ARGUMENTS_GROWTH_RATIO = 1 / 8;
++/** ...or once this much time has passed, so a slow stream still refreshes its preview. */
++const STREAMING_TOOL_ARGUMENTS_MIN_INTERVAL_MS = 50;
++/** The time trigger never spends more than about 1/N of the stream's wall time parsing. */
++const STREAMING_TOOL_ARGUMENTS_INTERVAL_PER_PARSE_MS = 10;
++const streamingToolArgumentsState = new WeakMap();
++function streamingParseClock() {
++    return typeof performance !== "undefined" ? performance.now() : Date.now();
++}
++/**
++ * Returns the arguments for a streaming tool-call block whose accumulated JSON is
++ * `partialJson`, re-parsing it only at a bounded rate.
++ *
++ * Re-parsing the whole partial JSON on every delta costs O(n) per delta and O(n^2) per
++ * tool call: a 200 KB argument streamed in 20-byte deltas took ~15 s of synchronous CPU.
++ * Small arguments are still parsed on every delta. Larger ones are parsed when the JSON
++ * grew by 1/8 since the last parse (O(n) total) or when enough time passed, and the
++ * block's current `arguments` are returned otherwise. Callers must still parse the
++ * complete JSON with `parseStreamingJson` when the block ends, so final arguments stay
++ * exact.
++ */
++export function parseStreamingToolArguments(block, partialJson) {
++    const length = partialJson?.length ?? 0;
++    const state = streamingToolArgumentsState.get(block);
++    const now = streamingParseClock();
++    if (state !== undefined && length > STREAMING_TOOL_ARGUMENTS_EAGER_BYTES) {
++        const grownEnough = length - state.length >= state.length * STREAMING_TOOL_ARGUMENTS_GROWTH_RATIO;
++        const interval = Math.max(STREAMING_TOOL_ARGUMENTS_MIN_INTERVAL_MS, state.parseMs * STREAMING_TOOL_ARGUMENTS_INTERVAL_PER_PARSE_MS);
++        if (!grownEnough && now - state.parsedAt < interval) {
++            return block.arguments;
++        }
++    }
++    const value = parseStreamingJson(partialJson);
++    const parsedAt = streamingParseClock();
++    streamingToolArgumentsState.set(block, { length, parsedAt, parseMs: parsedAt - now });
++    return value;
++}
++/**
++ * Parses the complete JSON of every tool call in `content` that still holds its streaming
++ * buffer under `bufferKey`, then drops the buffer. `parseStreamingToolArguments` may have
++ * skipped the latest deltas, so a stream that ends without closing a tool block must call
++ * this before it hands the message out.
++ */
++export function finishStreamingToolCalls(content, bufferKey = "partialJson") {
++    for (const block of content) {
++        if (block.type !== "toolCall" || typeof block[bufferKey] !== "string")
++            continue;
++        block.arguments = parseStreamingJson(block[bufferKey]);
++        delete block[bufferKey];
++    }
++}
+ //# sourceMappingURL=json-parse.js.map
+\ No newline at end of file
 diff --git a/dist/utils/provider-retry.d.ts b/dist/utils/provider-retry.d.ts
 index 1872cd204eba7d413f452ccc747fa28a920b3ac7..4fab69c6db737275bfc951b974b0b1fbb00bedc6 100644
 --- a/dist/utils/provider-retry.d.ts

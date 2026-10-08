@@ -4,7 +4,7 @@ import { isAgentErrorCode, makeErrorInfo } from '@shared/types/errors'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { api } from '@/shared/lib/ipc'
@@ -25,9 +25,18 @@ interface UseSessionHydrationEffectsParams {
   readonly isSessionIdle: boolean
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: (sessionId: SessionId) => boolean
+  /**
+   * Counts restores of the activity in progress when the renderer started. A Session the route
+   * restored before the monitor learned its Run hydrates again then, or it showed the Run's
+   * messages only from its next start. A Run that starts live streams into the transcript, so
+   * activity changes otherwise do not rehydrate (a manual compaction of an idle Session stays one).
+   */
+  readonly activityRestoreRevision: number
   readonly getRunRenderSnapshot: (sessionId: SessionId) => {
     readonly messages: readonly UIMessage[]
     readonly compactionStatus: AgentCompactionStatus | null
+    readonly seededByRunId?: string
+    readonly settledMessageIds?: ReadonlySet<string>
   } | null
   readonly removeMatchedOptimisticUserMessages: (
     sessionId: SessionId,
@@ -128,6 +137,19 @@ function handleRunCompletedPayload(
   }
 }
 
+/**
+ * Counts Host event-stream resyncs. Events published before one may never have arrived, and a
+ * refetched detail that did not change does not rehydrate, so a Run streaming then would keep
+ * missing them (a steer Pi incorporated during a stall) until the Session was opened again.
+ */
+function useSessionHostResyncRevision() {
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    return api.onSessionHostResyncRequired(() => setRevision((current) => current + 1))
+  }, [])
+  return revision
+}
+
 export function useSessionHydrationEffects(params: UseSessionHydrationEffectsParams) {
   const {
     sessionId,
@@ -135,10 +157,12 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
     isSessionIdle,
     optimisticUserMessages,
     hasActiveRun,
+    activityRestoreRevision,
     getRunRenderSnapshot,
     removeMatchedOptimisticUserMessages,
     context,
   } = params
+  const resyncRevision = useSessionHostResyncRevision()
 
   useEffect(() => {
     if (!sessionId || !session) {
@@ -155,11 +179,24 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         optimisticUserMessages,
         hasActiveRun: activeRun,
         cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
+        cachedRenderSeeded: activeRun && cachedRenderSnapshot?.seededByRunId !== undefined,
+        cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds,
         cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
+        resyncRevision,
+        activityRestoreRevision,
       },
       context,
     )
-  }, [sessionId, session, hasActiveRun, getRunRenderSnapshot, optimisticUserMessages, context])
+  }, [
+    sessionId,
+    session,
+    hasActiveRun,
+    activityRestoreRevision,
+    getRunRenderSnapshot,
+    optimisticUserMessages,
+    resyncRevision,
+    context,
+  ])
 
   useEffect(() => {
     if (!sessionId || !session || !isSessionIdle) {

@@ -124,7 +124,7 @@ describe('stream-buffer cumulative tool-call accounting', () => {
         mode: 'classic',
         startedAt: 0,
         parts: [],
-        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds },
+        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds, messageCutShort: true },
       },
     ])
 
@@ -154,7 +154,7 @@ describe('stream-buffer cumulative tool-call accounting', () => {
         mode: 'classic',
         startedAt: 0,
         parts: [],
-        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds },
+        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds, messageCutShort: true },
       },
     ])
 

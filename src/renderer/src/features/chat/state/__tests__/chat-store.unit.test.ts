@@ -8,6 +8,7 @@ import {
   terminalSidePanelLayoutKey,
   useTerminalStore,
 } from '@/features/terminal'
+import { useBackgroundRunStore } from '../background-run-store'
 import { useChatStore } from '../chat-store'
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -159,6 +160,19 @@ describe('useChatStore unit', () => {
       expect(useChatStore.getState().activeSession).toBeNull()
       expect(useChatStore.getState().missingSessionIds.has(id)).toBe(true)
       expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+    })
+
+    it('drops the render snapshot of a deleted session', async () => {
+      const id = SessionId('delete-session-id')
+      useChatStore.getState().upsertSession(makeSessionDetail(id))
+      useBackgroundRunStore
+        .getState()
+        .applyRunRenderEvent(id, { type: 'agent_start', runId: 'run-1', timestamp: 1 })
+      mockApi.deleteSession.mockResolvedValueOnce(undefined)
+
+      await useChatStore.getState().deleteSession(id)
+
+      expect(useBackgroundRunStore.getState().getRunRenderSnapshot(id)).toBeNull()
     })
 
     it('throws and restores state when api deletion fails', async () => {

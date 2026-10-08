@@ -19,6 +19,13 @@ export interface SessionListenerState {
   readonly thinkingSteps: Set<string>
   readonly startedToolCalls: Set<string>
   readonly toolCallInputs: Map<string, JsonValue>
+  /** Per streaming tool call: the Pi arguments object last emitted and raw deltas held since. */
+  readonly toolCallStreams: Map<string, ToolCallStreamState>
+}
+
+export interface ToolCallStreamState {
+  readonly arguments: unknown
+  pendingDelta: string
 }
 
 export interface PiAssistantToolCall {

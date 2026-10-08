@@ -2,11 +2,11 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
- * Session-coupled source-control operations ship with revision 22 (ADR 0048): the window's
+ * Session-coupled source-control operations ship with revision 23 (ADR 0048): the window's
  * database is isolated, so the Change request inspector, merges, Session working-path checks,
  * and Git Output recording run in the Session Host.
  */
-export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
+export const HOST_UI_REVISION_23_REQUIRED_CHANNELS = [
   'git:change-request:panel',
   'git:change-request:merge-candidate',
   'git:change-request:merge-confirmed',
@@ -128,7 +128,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_22_REQUIRED_CHANNELS,
+  ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_17_REQUIRED_CHANNELS,

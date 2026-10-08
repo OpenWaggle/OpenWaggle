@@ -58,6 +58,8 @@ async function expectRefusedBeforePiCleanup(id: SessionId, piSessionFile: string
 
 beforeEach(async () => {
   state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-session-delete-'))
+  // Deletion looks for the transcript's Pi files; keep that search out of the real Pi directory.
+  vi.stubEnv('PI_CODING_AGENT_DIR', path.join(state.userDataDir, 'pi-agent'))
   const { resetAppRuntimeForTests } = await import('../../runtime')
   await resetAppRuntimeForTests()
   await promisify(execFile)('git', ['init', state.userDataDir])
@@ -66,6 +68,7 @@ beforeEach(async () => {
 afterEach(async () => {
   const { resetAppRuntimeForTests } = await import('../../runtime')
   await resetAppRuntimeForTests()
+  vi.unstubAllEnvs()
   await fs.rm(state.userDataDir, { recursive: true, force: true })
 })
 

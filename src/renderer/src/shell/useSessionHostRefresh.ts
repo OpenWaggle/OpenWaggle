@@ -8,6 +8,7 @@ import {
   sessionFollowUpQueueOptions,
   type useChat,
 } from '@/features/chat/hooks'
+import { useBackgroundRunStore } from '@/features/chat/state'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
@@ -35,6 +36,12 @@ interface PendingSessionHostRefresh {
 }
 
 type HostCursor = { readonly hostInstanceId: string; readonly sequence: number }
+
+/** No route renders an archived or deleted Session: forget its status and cached transcript. */
+function forgetRemovedSession(sessionId: SessionId) {
+  useSessionStatusStore.getState().clearStatus(sessionId)
+  useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+}
 
 function acceptsHostEvent(cursor: HostCursor, previous: HostCursor | null) {
   return !previous ||
@@ -162,7 +169,7 @@ export function useSessionHostRefresh(input: {
         event.payload.kind === 'session-list-changed' &&
         (event.payload.change === 'archived' || event.payload.change === 'deleted')
       ) {
-        useSessionStatusStore.getState().clearStatus(SessionId(sessionId))
+        forgetRemovedSession(SessionId(sessionId))
       }
       if (event.payload.kind === 'session-list-changed' && event.payload.change === 'deleted') {
         pendingRefresh.current.relationshipMayHaveChanged = true

@@ -1,10 +1,11 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ChatRow } from './types-chat-row'
 
-export function chatRowKey(row: ChatRow) {
+function keyForRow(row: ChatRow) {
+  // Most rows are messages; skip building a matcher for each of them.
+  if (row.type === 'message') return `message:${row.message.id}`
   return matchBy(row, 'type')
     .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
-    .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
     .with('turn-fold', (value) => `turn-fold:${value.turnKey}`)
     .with('worktree-launch', (value) => `worktree-launch:${value.id}`)
@@ -23,6 +24,17 @@ export function chatRowKey(row: ChatRow) {
     .with('retry-status', (value) => `retry:${String(value.attempt)}`)
     .with('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
     .exhaustive()
+}
+
+const keyByRow = new WeakMap<ChatRow, string>()
+
+/** A row's key. Rows keep their identity while unchanged, so a key is derived once per row. */
+export function chatRowKey(row: ChatRow) {
+  const cached = keyByRow.get(row)
+  if (cached !== undefined) return cached
+  const key = keyForRow(row)
+  keyByRow.set(row, key)
+  return key
 }
 
 /**

@@ -4,6 +4,8 @@ Status: accepted
 
 Date: 2026-09-30
 
+Amended by: [ADR 0049](0049-pi-entry-ids-are-full-uuids.md). Independent Sessions did collide, so Pi now mints full UUID entry ids, and an entry that reuses another Session's node id is renamed when its Session is saved.
+
 ## Context
 
 Pi forks a session by copying the path to the fork point into a new session file. The copied entries keep their ids, because Pi only needs ids to be unique within one file.

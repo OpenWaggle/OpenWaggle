@@ -2,7 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { sourceControlSettingsPatchSchema } from '@shared/schemas/source-control'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
-import { HOST_UI_REVISION_22_REQUIRED_CHANNELS } from '@shared/types/host-ui-protocol'
+import { HOST_UI_REVISION_23_REQUIRED_CHANNELS } from '@shared/types/host-ui-protocol'
 import { LOCAL_SESSION_SOURCE_CONTROL_REVISION } from '@shared/types/local-session-protocol-revisions'
 import * as Effect from 'effect/Effect'
 import {
@@ -29,12 +29,12 @@ import {
 
 const THREE_ARGUMENTS = 3
 
-export type HostUiSourceControlChannel = (typeof HOST_UI_REVISION_22_REQUIRED_CHANNELS)[number]
+export type HostUiSourceControlChannel = (typeof HOST_UI_REVISION_23_REQUIRED_CHANNELS)[number]
 
 export function isHostUiSourceControlChannel(
   channel: HostBackedGuiChannel,
 ): channel is HostUiSourceControlChannel {
-  return HOST_UI_REVISION_22_REQUIRED_CHANNELS.some((candidate) => candidate === channel)
+  return HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)
 }
 
 function threeArguments(args: readonly unknown[]): [unknown, unknown, unknown] {

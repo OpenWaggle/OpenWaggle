@@ -115,7 +115,8 @@ describe('appendMissingOptimisticUserMessages', () => {
         {
           id: MessageId('durable-image-message'),
           role: 'user',
-          createdAt: 2,
+          // The Host saves the send after the renderer sent it.
+          createdAt: (optimistic.createdAt?.getTime() ?? 0) + 1,
           parts: [
             { type: 'text', text: 'Fix this layout' },
             { type: 'attachment', attachment },

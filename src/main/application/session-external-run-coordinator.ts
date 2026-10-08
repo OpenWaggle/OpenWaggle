@@ -100,6 +100,10 @@ export function settleExternalSessionRun(input: {
       sessionId: input.sessionId,
       stateRevision: settlement.stateRevision,
       operation: settlement.scheduled ? 'follow-up-started' : 'run-settled',
+      // Which Run settled and how. The renderer relays a hand-off to a queued Follow-up only when
+      // it names the settled Run; without it a Waggle's answers were kept as the next Run's.
+      runId: input.runId,
+      terminalStatus: input.terminalStatus,
     })
     if (settlement.delegationUpdate) {
       publishSessionHostEvent({

@@ -74,17 +74,20 @@ function streamAnswer(
 const FIRST_USER = { text: SEND_PAYLOAD.text, sessionNodeCreatedOrder: 0 }
 const QUEUED_USER = { text: 'Queued question', sessionNodeCreatedOrder: 2 }
 
+// The Host saves each send after the renderer sent it: the turns are saved in the test's future.
+const SAVED_AT = Date.now() + 60_000
+
 const FIRST_TURN: SessionDetail['messages'] = [
   {
     id: MessageId('user-1'),
     role: 'user',
-    createdAt: 1,
+    createdAt: SAVED_AT + 1,
     parts: [{ type: 'text', text: SEND_PAYLOAD.text }],
   },
   {
     id: MessageId('assistant-1'),
     role: 'assistant',
-    createdAt: 2,
+    createdAt: SAVED_AT + 2,
     parts: [{ type: 'text', text: 'Answer 1' }],
   },
 ]
@@ -93,13 +96,13 @@ const QUEUED_TURN: SessionDetail['messages'] = [
   {
     id: MessageId('user-2'),
     role: 'user',
-    createdAt: 3,
+    createdAt: SAVED_AT + 3,
     parts: [{ type: 'text', text: 'Queued question' }],
   },
   {
     id: MessageId('assistant-2'),
     role: 'assistant',
-    createdAt: 4,
+    createdAt: SAVED_AT + 4,
     parts: [{ type: 'text', text: 'Answer 2' }],
   },
 ]
