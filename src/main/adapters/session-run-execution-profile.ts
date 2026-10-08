@@ -157,14 +157,12 @@ function identityContext(
   row: SessionRunExecutionProfileRow,
   profile: ResolvedSessionExecutionProfile,
   agentSnapshot: ResolvedAgentDefinitionSnapshot | undefined,
-  runId: string,
 ) {
   const isWorker = row.parent_session_id !== null
   const role = isWorker ? 'Worker' : row.direct_worker_count > 0 ? 'Queen' : 'Independent'
   const capabilities = decodeCapabilities(row.capabilities_json, isWorker, profile)
   const identity = {
     sessionId: row.session_id,
-    runId,
     sessionTitle: row.title,
     hiveRole: role,
     ...(row.parent_session_id
@@ -199,7 +197,6 @@ function identityContext(
 
 export function resolveSessionRunExecution(
   row: SessionRunExecutionProfileRow,
-  runId: string,
 ): ResolvedSessionRunExecution {
   const profile = decodeSessionExecutionProfile(row.profile_json)
   const agentSnapshot = decodeAgentSnapshot(row.resolved_agent_snapshot_json)
@@ -217,7 +214,7 @@ export function resolveSessionRunExecution(
     ...(profile.mcpServers ? { mcpServerAllowlist: profile.mcpServers } : {}),
     sessionCapabilities,
     ...(row.project_path ? { projectPath: row.project_path } : {}),
-    identityContext: identityContext(row, profile, agentSnapshot, runId),
+    identityContext: identityContext(row, profile, agentSnapshot),
   }
 }
 
