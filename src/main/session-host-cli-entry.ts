@@ -67,6 +67,24 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
   }
 }
 
+/**
+ * Electron turns SIGTERM and SIGINT into an app quit, which would end the Host at once: the MCP
+ * pool would not close, and a stdio server that ignores SIGTERM would outlive it (its SIGKILL is
+ * due 2 s later). The quit is held and the Host stopped instead; its disposal closes the pool and
+ * kills what is still in its SIGTERM grace, then the Host exits through app.exit(), which skips
+ * quit events.
+ */
+export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
+  const holdQuit = (event: { preventDefault(): void }) => {
+    event.preventDefault()
+    void stop()
+  }
+  app.on('before-quit', holdQuit)
+  return () => {
+    app.off('before-quit', holdQuit)
+  }
+}
+
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
@@ -111,6 +129,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         }
         const runtime = await import('./runtime')
         const settings = await import('./store/settings')
+        let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()
           await settings.initializeSettingsStore()
@@ -150,6 +169,8 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             endpointDirectory: paths.endpointDirectory,
             stop: () => host.stop(),
           })
+          // Held until the runtime is disposed, so a second signal cannot cut that short.
+          releaseQuitHold = stopSessionHostOnQuit(() => host.stop())
           try {
             await host.waitUntilStopped()
           } finally {
@@ -159,6 +180,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         } finally {
           await flushUsageStatistics()
           await runtime.disposeAppRuntime()
+          releaseQuitHold()
         }
       } finally {
         await ownership.release()

@@ -22,6 +22,8 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
   },
 }))
 vi.mock('../env', () => ({ env: mocks.env }))

@@ -32,6 +32,8 @@ vi.mock('electron', () => ({
     getVersion: () => '1.2.0',
     whenReady: async () => undefined,
     setActivationPolicy: () => undefined,
+    on: () => undefined,
+    off: () => undefined,
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
