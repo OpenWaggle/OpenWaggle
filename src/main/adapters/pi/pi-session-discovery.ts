@@ -5,7 +5,7 @@ import type { DiscoveredPiSession, PiSessionDiscoveryInput } from '../../ports/p
 import { resolvePiSessionDirectory } from './pi-session-directory'
 
 /**
- * Pi session discovery (ADR 0048): finds Pi sessions the `pi` CLI created inside an OpenWaggle
+ * Pi session discovery (ADR 0050): finds Pi sessions the `pi` CLI created inside an OpenWaggle
  * project without loading their transcripts.
  *
  * Pi keeps one directory per working directory under `<agent dir>/sessions`, named from the path

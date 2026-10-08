@@ -1,6 +1,6 @@
 # Windows MCP Stdio Sandbox Strategy
 
-Status: superseded by [ADR 0048](0048-openwaggle-is-the-gui-for-the-pi-ecosystem.md)
+Status: superseded by [ADR 0050](0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md)
 
 OpenWaggle sandboxes local (stdio) MCP servers before trusting them. macOS uses `sandbox-exec` with a generated Seatbelt profile; Linux uses `bubblewrap` (`bwrap`). Both work because each platform ships a command-line sandbox *wrapper* that the MCP runtime can prepend to the server command, producing a `SandboxedStdioCommand` (`src/main/adapters/mcp/runtime/stdio-sandbox.ts`). Windows ships no equivalent built-in wrapper, so the current runtime fails closed on Windows: a trusted local stdio server is blocked unless the user explicitly approves unsandboxed execution.
 

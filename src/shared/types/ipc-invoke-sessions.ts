@@ -48,7 +48,7 @@ export interface IpcSessionInvokeChannelMap {
   }
   /**
    * `removingProject` deletes the Session as part of removing its project: a Pi session discovered
-   * from the `pi` CLI keeps its file and is listed again if the folder is added back (ADR 0048).
+   * from the `pi` CLI keeps its file and is listed again if the folder is added back (ADR 0050).
    */
   'sessions:delete': {
     args: [id: SessionId, options?: { readonly removingProject?: boolean }]
@@ -56,7 +56,7 @@ export interface IpcSessionInvokeChannelMap {
   }
   /**
    * The desktop app is about to remove a project and read the Sessions it deletes: Pi session
-   * discovery stops listing the project's `pi` sessions until the removal is done (ADR 0048).
+   * discovery stops listing the project's `pi` sessions until the removal is done (ADR 0050).
    */
   'sessions:begin-project-removal': { args: [projectPath: string]; return: undefined }
   'sessions:archive': { args: [id: SessionId]; return: undefined }

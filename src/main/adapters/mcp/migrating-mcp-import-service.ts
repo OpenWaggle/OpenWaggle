@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 import type { McpImportServiceShape } from '../../ports/mcp-import-service'
 
 /**
- * Runs the one-time ADR 0048 migration before an import reads OpenWaggle's files, so an import
+ * Runs the one-time ADR 0050 migration before an import reads OpenWaggle's files, so an import
  * previews and writes against the migrated files (taken names, earlier imports), not old ones
  * the migration would rewrite afterwards.
  */

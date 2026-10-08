@@ -2,6 +2,8 @@ import type { AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
+import { isUnnamedRunStart, settlingRunId } from '@/features/chat/lib/run-ids'
+import { withIncorporatedPreview } from '@/features/chat/lib/steer-preview-incorporation'
 
 /** What the user row a steer becomes shows: its typed text and how many attachments it carries. */
 export interface SteerIncorporatedContent {
@@ -17,17 +19,29 @@ export interface OptimisticSteerPreview {
   readonly durableContent: string
   /** null waits for the Host receipt; undefined uses the locally known prompt text. */
   readonly receipt?: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null
-  readonly baselineLength: number
   readonly baselineUserMessageIds: ReadonlySet<string>
   /** The highest native log order the transcript held when the preview began, or -1. */
   readonly baselineMaxCreatedOrder: number
   readonly message: UIMessage
   readonly durableMessageId?: string
   readonly durableMessageCreatedOrder?: number
+  /**
+   * When Pi incorporated the steer (the Host time of the user row it became, once seen): should
+   * that row leave the transcript (rebuilt from a detail that lacks it), the preview stands in
+   * for it there, not below the answers after it.
+   */
+  readonly incorporatedAt?: number
+  /** The user row `incorporatedAt` came from, and its log order: the preview is that row only. */
+  readonly incorporatedRowId?: string
+  readonly incorporatedOrder?: number
+  /** The Run the steer was promoted into, as this renderer last saw one start. */
+  readonly runId?: string
 }
 
 interface OptimisticSteerState {
   readonly previews: Map<SessionId, readonly OptimisticSteerPreview[]>
+  /** The Run each Session last started, as this renderer saw it: previews are promoted into it. */
+  readonly runIds: Map<SessionId, string>
   readonly pendingPromotions: Map<SessionId, readonly string[]>
   /** How many times the user has stopped each Session's Run from this window. */
   readonly userStops: Map<SessionId, number>
@@ -42,6 +56,14 @@ interface OptimisticSteerState {
   ) => void
   readonly remove: (sessionId: SessionId, previewId: string) => void
   readonly clearSession: (sessionId: SessionId) => void
+  /**
+   * A named Run started (an `agent_start`, relayed live or by a resync): a preview promoted into
+   * another Run is gone, as that Run ended and the Host returned its untaken steers to the queue
+   * when it settled, though a stall may have hidden that settlement.
+   */
+  readonly noteRunStarted: (sessionId: SessionId, runId: string) => void
+  /** Pi incorporated a user message: the waiting preview it is records when (`incorporatedAt`). */
+  readonly noteIncorporated: (sessionId: SessionId, userRow: UIMessage) => void
   readonly reconcile: (
     sessionId: SessionId,
     observedPreviews: readonly OptimisticSteerPreview[],
@@ -77,8 +99,25 @@ export function selectOptimisticSteerPreviews(sessionId: SessionId | null) {
   return selector
 }
 
+/** The state once `runId` started in the Session: previews promoted into another Run go. */
+function withRunStarted(state: OptimisticSteerState, sessionId: SessionId, runId: string) {
+  const runIds = new Map(state.runIds).set(sessionId, runId)
+  const current = state.previews.get(sessionId)
+  // A Waggle the Run requested goes on as that Run; a retry or continuation keeps its id.
+  const kept = current?.filter(
+    (preview) =>
+      preview.runId === undefined || settlingRunId(preview.runId) === settlingRunId(runId),
+  )
+  if (!current || !kept || kept.length === current.length) return { runIds }
+  const previews = new Map(state.previews)
+  if (kept.length > 0) previews.set(sessionId, kept)
+  else previews.delete(sessionId)
+  return { runIds, previews }
+}
+
 export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
   previews: new Map(),
+  runIds: new Map(),
   pendingPromotions: new Map(),
   userStops: new Map(),
   noteUserStop(sessionId) {
@@ -113,10 +152,14 @@ export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
   },
   add(sessionId, preview) {
     set((state) => {
+      const runId = preview.runId ?? state.runIds.get(sessionId)
       const next = new Map(state.previews)
-      next.set(sessionId, [...(next.get(sessionId) ?? []), preview])
+      next.set(sessionId, [...(next.get(sessionId) ?? []), runId ? { ...preview, runId } : preview])
       return { previews: next }
     })
+  },
+  noteRunStarted(sessionId, runId) {
+    if (!isUnnamedRunStart(runId)) set((state) => withRunStarted(state, sessionId, runId))
   },
   update(sessionId, previewId, update) {
     set((state) => {
@@ -149,6 +192,14 @@ export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
       const next = new Map(state.previews)
       next.delete(sessionId)
       return { previews: next }
+    })
+  },
+  noteIncorporated(sessionId, userRow) {
+    set((state) => {
+      const current = state.previews.get(sessionId)
+      const noted = current ? withIncorporatedPreview(current, userRow) : current
+      if (!current || noted === current) return state
+      return { previews: new Map(state.previews).set(sessionId, noted ?? current) }
     })
   },
   reconcile(sessionId, observedPreviews, allObservedAreDurable) {

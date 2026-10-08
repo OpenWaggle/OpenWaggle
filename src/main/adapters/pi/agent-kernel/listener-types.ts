@@ -13,7 +13,7 @@ export interface SessionListenerInput {
   readonly onEvent: (event: AgentTransportEvent) => void
   /** The Run's Session log; null where no user message can arrive, such as manual compaction. */
   readonly sessionEntries: PiUserMessageEntrySource | null
-  /** Maps Pi entry ids reported to the transport to the Session's node ids (ADR 0048). */
+  /** Maps Pi entry ids reported to the transport to the Session's node ids (ADR 0050). */
   readonly nodeIds?: PiEntryNodeIds
 }
 
@@ -24,6 +24,13 @@ export interface SessionListenerState {
   readonly thinkingSteps: Set<string>
   readonly startedToolCalls: Set<string>
   readonly toolCallInputs: Map<string, JsonValue>
+  /** Per streaming tool call: the Pi arguments object last emitted and raw deltas held since. */
+  readonly toolCallStreams: Map<string, ToolCallStreamState>
+}
+
+export interface ToolCallStreamState {
+  readonly arguments: unknown
+  pendingDelta: string
 }
 
 export interface PiAssistantToolCall {

@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Superseded in part by [ADR 0048](0048-openwaggle-is-the-gui-for-the-pi-ecosystem.md): MCP runs on Pi's built-in MCP extension; the gateway, `mcp_run`, trust, sandbox, and off-by-default clauses no longer apply. The `openwaggle mcp serve` clauses stand.
+Superseded in part by [ADR 0050](0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md): MCP runs on Pi's built-in MCP extension; the gateway, `mcp_run`, trust, sandbox, and off-by-default clauses no longer apply. The `openwaggle mcp serve` clauses stand.
 
 Superseded in part by [ADR 0042](0042-cross-project-session-reach-and-session-scratch-directories.md): internal root Session agents with the desktop user's authority reach Sessions in every project, not only their own.
 

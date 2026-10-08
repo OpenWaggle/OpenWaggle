@@ -13,6 +13,7 @@ export function useChatRows(inputs: {
   messages: UIMessage[]
   customMessages?: Parameters<typeof buildChatRows>[0]['customMessages']
   interactionEvents?: Parameters<typeof buildChatRows>[0]['interactionEvents']
+  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
   isLoading: boolean
   isFinishing?: boolean
   error: Error | undefined
@@ -33,6 +34,7 @@ export function useChatRows(inputs: {
     messages: inputs.messages,
     customMessages: inputs.customMessages ?? [],
     interactionEvents: inputs.interactionEvents ?? [],
+    agentLoopAnchorMessageIds: inputs.agentLoopAnchorMessageIds,
     isLoading: inputs.isLoading,
     isFinishing: inputs.isFinishing,
     error: inputs.error,

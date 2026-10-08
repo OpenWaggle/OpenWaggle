@@ -63,7 +63,7 @@ export async function knownMcpProjectPaths(): Promise<readonly string[]> {
 }
 
 /**
- * Runs the one-time silent migration of OpenWaggle's pre-ADR-0048 MCP files (global and this
+ * Runs the one-time silent migration of OpenWaggle's pre-ADR-0050 MCP files (global and this
  * project) before the project's configuration is first loaded in this process. The migration
  * records what it did, so later processes skip it; a failure leaves the files as they were, and
  * the next call after `MCP_MIGRATION_RETRY_MS` tries again.

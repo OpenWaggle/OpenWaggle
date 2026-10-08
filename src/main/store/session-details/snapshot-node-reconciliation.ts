@@ -44,6 +44,7 @@ function projectedNode(input: NodeReconciliationInput, node: ProjectedSessionNod
 
 function updateSnapshotNode(input: {
   readonly sql: SqlClient.SqlClient
+  readonly sessionId: PersistSessionSnapshotInput['sessionId']
   readonly nodeId: string
   readonly next: ReturnType<typeof projectedNode>
   readonly updateSearchProjection: boolean
@@ -55,7 +56,7 @@ function updateSnapshotNode(input: {
         timestamp_ms = ${input.next.timestampMs},
         metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
         path_depth = ${input.next.pathDepth}
-      WHERE id = ${input.nodeId}
+      WHERE id = ${input.nodeId} AND session_id = ${input.sessionId}
     `
   }
   return input.sql`
@@ -65,7 +66,7 @@ function updateSnapshotNode(input: {
       timestamp_ms = ${input.next.timestampMs}, content_json = ${input.next.contentJson},
       metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
       path_depth = ${input.next.pathDepth}, created_order = ${input.next.createdOrder}
-    WHERE id = ${input.nodeId}
+    WHERE id = ${input.nodeId} AND session_id = ${input.sessionId}
   `
 }
 
@@ -96,11 +97,15 @@ export function nodesToPark(input: {
  * what keeps a parked row off a positive slot a live row still holds. It also means `session_nodes`
  * can never carry a `CHECK (created_order >= 0)`.
  */
-function parkNodeOrders(sql: SqlClient.SqlClient, nodeIds: readonly string[]) {
+function parkNodeOrders(
+  sql: SqlClient.SqlClient,
+  sessionId: PersistSessionSnapshotInput['sessionId'],
+  nodeIds: readonly string[],
+) {
   if (nodeIds.length === 0) return Effect.void
   return sql`
     UPDATE session_nodes SET created_order = -1 - created_order
-    WHERE created_order >= 0
+    WHERE session_id = ${sessionId} AND created_order >= 0
       AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
   `
 }
@@ -135,7 +140,7 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
 
     const parkedIds = nodesToPark(input)
     const parked = new Set(parkedIds)
-    yield* parkNodeOrders(input.sql, parkedIds)
+    yield* parkNodeOrders(input.sql, input.sessionId, parkedIds)
     for (const node of input.nodes) {
       const existing = existingById.get(node.id)
       if (!existing) continue
@@ -146,6 +151,7 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
       if (!restoreParkedOrder && !nodeProjectionChanged(existing, next)) continue
       yield* updateSnapshotNode({
         sql: input.sql,
+        sessionId: input.sessionId,
         nodeId: node.id,
         next,
         updateSearchProjection: restoreParkedOrder || searchProjectionChanged(existing, next),
@@ -153,7 +159,9 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
     }
     for (const existing of input.existingNodes) {
       if (!retainedIds.has(existing.id)) {
-        yield* input.sql`DELETE FROM session_nodes WHERE id = ${existing.id}`
+        yield* input.sql`
+          DELETE FROM session_nodes WHERE id = ${existing.id} AND session_id = ${input.sessionId}
+        `
       }
     }
     for (const node of input.nodes) {

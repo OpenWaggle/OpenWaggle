@@ -1,5 +1,6 @@
 import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@shared/types/brand'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
@@ -156,5 +157,29 @@ describe('Session Control Run coordinators and Undelivered steering messages', (
       expect.objectContaining({ runId, undeliveredSteers: undelivered }),
     ])
     expect(setup.events).toEqual([`read:${runId}`, 'settle', `forget:${runId}`])
+  })
+
+  it('names the external Run it settles when the Host goes on to a queued Follow-up', async () => {
+    const setup = harness(() =>
+      Effect.succeed(
+        fromPartial<SessionControlRunSettlementResult>({
+          accepted: true,
+          stateRevision: 6,
+          scheduled: { followUpId: FollowUpId('follow-up-1'), runId: RunId('run-2') },
+        }),
+      ),
+    )
+
+    await setup.run(settleExternalSessionRun({ sessionId, runId, terminalStatus: 'completed' }))
+
+    // The renderer relays a hand-off only when it names the settled Run.
+    expect(setup.published).toContainEqual({
+      kind: 'session-state-changed',
+      sessionId,
+      stateRevision: 6,
+      operation: 'follow-up-started',
+      runId,
+      terminalStatus: 'completed',
+    })
   })
 })

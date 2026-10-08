@@ -17,12 +17,7 @@ import { FilesystemSessionExportResourceResolverLive } from './adapters/filesyst
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
-import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
-import {
-  OpenWaggleMcpConfigurationServiceLive,
-  OpenWaggleMcpImportServiceLive,
-} from './adapters/pi/mcp/openwaggle-mcp-configuration'
+import { PiSessionTranscriptRepairLive } from './adapters/pi/agent-kernel/snapshot-entry-id-repair'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -48,7 +43,7 @@ import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqlitePiSessionDiscoveryRepositoryLive } from './adapters/sqlite-pi-session-discovery-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
-import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
+import { SqliteSessionRepositoryLive as SqliteSessionRepositoryWithoutRepairLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
@@ -62,7 +57,7 @@ import { startMcpHostServices } from './mcp-host-start'
 import {
   closeHostMcpConnections,
   HostPiAgentKernelLive,
-  PiMcpRuntimeServicesLive,
+  McpServicesLive,
 } from './mcp-runtime-layers'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
@@ -81,6 +76,9 @@ import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
 import { setStoreEffectRunner } from './store/store-runtime'
 
+const SqliteSessionRepositoryLive = SqliteSessionRepositoryWithoutRepairLive.pipe(
+  Layer.provide(PiSessionTranscriptRepairLive),
+)
 const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
@@ -241,11 +239,7 @@ const AppLayer = Layer.mergeAll(
   SessionTitleServicesLive,
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
-  EncryptedMcpSecretVaultServiceLive,
-  OpenWaggleMcpConfigurationServiceLive,
-  OpenWaggleMcpImportServiceLive,
-  McpRegistryServiceLive,
-  PiMcpRuntimeServicesLive,
+  McpServicesLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,

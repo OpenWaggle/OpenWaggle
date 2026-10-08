@@ -156,7 +156,7 @@ export function mcpDefaultDestination(scope: McpConfigFileScope): McpWriteDestin
   return scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
 }
 
-/** The files a new server can go to, OpenWaggle's first, as ADR 0048 orders them. */
+/** The files a new server can go to, OpenWaggle's first, as ADR 0050 orders them. */
 export function mcpDestinationFiles(
   files: readonly McpConfigFileView[],
   scope: McpConfigFileScope,

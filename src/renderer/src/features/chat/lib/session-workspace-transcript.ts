@@ -149,15 +149,33 @@ function isViewingDraftBranchSource(
   )
 }
 
+const persistedIdsByTree = new WeakMap<
+  SessionWorkspace['tree'],
+  { readonly messageIds: ReadonlySet<string>; readonly nodeIds: ReadonlySet<string> }
+>()
+
+/** Every persisted message and node id of a tree; built once per loaded tree, not per delta. */
+function persistedIds(tree: SessionWorkspace['tree']) {
+  const cached = persistedIdsByTree.get(tree)
+  if (cached) return cached
+  const ids = {
+    messageIds: new Set(
+      tree.nodes.flatMap((node) => (node.message ? [String(node.message.id)] : [])),
+    ),
+    nodeIds: new Set(tree.nodes.map((node) => String(node.id))),
+  }
+  persistedIdsByTree.set(tree, ids)
+  return ids
+}
+
 function unsavedLiveTail(
   workspace: SessionWorkspace,
   messages: UIMessage[],
   lastWorkspaceMessageIndex: number,
 ) {
-  const persistedMessageIds = new Set(
-    workspace.tree.nodes.flatMap((node) => (node.message ? [String(node.message.id)] : [])),
+  const { messageIds: persistedMessageIds, nodeIds: persistedNodeIds } = persistedIds(
+    workspace.tree,
   )
-  const persistedNodeIds = new Set(workspace.tree.nodes.map((node) => String(node.id)))
 
   // A persisted message from another branch is not a live tail, including a reconciled user row
   // whose optimistic id hides its node: showing it put the abandoned branch into a retry draft.

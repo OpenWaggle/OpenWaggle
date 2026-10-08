@@ -14,7 +14,7 @@ export function beginPiSessionProjectRemoval(projectPath: string) {
 }
 
 /**
- * Deletes one Session as part of removing its project (ADR 0048). Unlike deleting a single
+ * Deletes one Session as part of removing its project (ADR 0050). Unlike deleting a single
  * discovered Session, this does not dismiss its Pi file: the file stays for the `pi` CLI, and the
  * session is listed again if the folder is added back as a project. Discovery pauses for the
  * project until its removal finishes, so it neither lists the file again meanwhile nor adds

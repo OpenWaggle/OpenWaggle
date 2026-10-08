@@ -1,6 +1,6 @@
 /**
  * The user's login-shell environment, for MCP `${NAME}` values and MCP server processes only
- * (ADR 0048, Pi MCP parity). A Pi user's `${GITHUB_TOKEN}` resolves from the terminal Pi runs in;
+ * (ADR 0050, Pi MCP parity). A Pi user's `${GITHUB_TOKEN}` resolves from the terminal Pi runs in;
  * an app opened from the Dock or Start menu has none of those variables, so OpenWaggle reads the
  * whole environment of the user's login shell once, the same bounded way it reads `PATH` for the
  * desktop (`desktop-shell-environment-probes.ts`). It never widens the environment other child

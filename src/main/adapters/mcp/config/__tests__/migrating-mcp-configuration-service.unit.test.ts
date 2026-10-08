@@ -62,7 +62,7 @@ function run<A, E>(
 describe('MCP configuration reads and writes from Settings and the CLI', () => {
   it('see the migrated files, and a later Run start does not undo what the user changed', async () => {
     const owGlobal = path.join(homeDir, '.openwaggle', 'mcp.json')
-    // A pre-ADR-0048 file whose server was never turned on: the migration turns it off.
+    // A pre-ADR-0050 file whose server was never turned on: the migration turns it off.
     write(owGlobal, {
       mcpServers: { docs: { url: 'https://docs.example/mcp', directTools: true } },
     })

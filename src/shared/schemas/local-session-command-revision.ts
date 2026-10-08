@@ -11,9 +11,9 @@ import {
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_22_ARGUMENT_COUNTS,
-  HOST_UI_REVISION_22_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_22_SESSION_CHANNELS,
+  HOST_UI_REVISION_23_ARGUMENT_COUNTS,
+  HOST_UI_REVISION_23_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_23_SESSION_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -49,20 +49,20 @@ function usesArgumentAddedIn(
   return count !== undefined && request.args.length >= count
 }
 
-/** MCP configuration and Pi session discovery's project removal ship with revision 22. */
-function requiresRevision22(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+/** MCP configuration and Pi session discovery's project removal ship with revision 23. */
+function requiresRevision23(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
   return (
-    HOST_UI_REVISION_22_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
-    HOST_UI_REVISION_22_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
-    usesArgumentAddedIn(HOST_UI_REVISION_22_ARGUMENT_COUNTS, request)
+    HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
+    HOST_UI_REVISION_23_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
+    usesArgumentAddedIn(HOST_UI_REVISION_23_ARGUMENT_COUNTS, request)
   )
 }
 
 /** The revision a Host UI request needs: its channel's, or later for an argument added since. */
 export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
-  if (requiresRevision22(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
+  if (requiresRevision23(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
   if (
     HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
     usesArgumentAddedIn(HOST_UI_REVISION_21_ARGUMENT_COUNTS, request)

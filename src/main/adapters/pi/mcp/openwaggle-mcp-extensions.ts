@@ -31,7 +31,7 @@ import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
-/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0048). */
+/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0050). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
 export interface OpenWaggleMcpSessionInput {

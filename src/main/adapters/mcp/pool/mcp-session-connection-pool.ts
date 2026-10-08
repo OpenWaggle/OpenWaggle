@@ -19,7 +19,7 @@ const systemClock: McpPoolClock = {
   },
 }
 
-/** A Session's connections close after this long without a new Run (ADR 0048). */
+/** A Session's connections close after this long without a new Run (ADR 0050). */
 export const MCP_IDLE_CLOSE_MS = 300_000
 /** Sessions that may hold warm connections at once; the least recently used gives them up. */
 export const MCP_MAX_WARM_SESSIONS = 8

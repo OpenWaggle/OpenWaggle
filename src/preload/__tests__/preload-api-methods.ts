@@ -296,5 +296,6 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getUpdateStatus',
   'getAppVersion',
   'getDesktopNativeAdmissionIssue',
+  'recoverDesktopNativeAdmission',
   'onUpdateStatus',
 ]

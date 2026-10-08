@@ -11,7 +11,7 @@ import {
 
 /**
  * The Sessions tool and `openwaggle sessions` read a discovered Pi session as its file is now
- * (ADR 0048), like the sidebar does, instead of an empty or stale projection.
+ * (ADR 0050), like the sidebar does, instead of an empty or stale projection.
  */
 
 const { state, getPathMock } = vi.hoisted(() => ({

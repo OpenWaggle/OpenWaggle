@@ -118,7 +118,6 @@ export function useOptimisticSteeredTurn(
         content,
         incorporatedContent,
         durableContent: buildAgentPromptText(payload),
-        baselineLength: messagesRef.current.length,
         baselineMaxCreatedOrder: Math.max(
           -1,
           ...messagesRef.current.flatMap(

@@ -44,7 +44,7 @@ function toContextUsageSnapshot(
 
 /**
  * Reads use the Session's warming session while it has one. Otherwise they read an in-memory
- * copy of the Pi file, so looking at a Session never writes its file (ADR 0048).
+ * copy of the Pi file, so looking at a Session never writes its file (ADR 0050).
  */
 async function readPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,

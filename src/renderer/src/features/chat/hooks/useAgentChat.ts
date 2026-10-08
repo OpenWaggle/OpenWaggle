@@ -60,10 +60,11 @@ export function useAgentChat(
   model: SupportedModelId | undefined,
 ): AgentChatReturn {
   const upsertSession = useChatStore((state) => state.upsertSession)
-  const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
   const selectedSessionHasActiveRun = useBackgroundRunStore((state) =>
     sessionId ? state.hasActiveRun(sessionId) : false,
   )
+  const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
+  const activityRestoreRevision = useBackgroundRunStore((state) => state.activityRestoreRevision)
   const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
   const setRunCompactionStatus = useBackgroundRunStore((state) => state.setRunCompactionStatus)
@@ -112,6 +113,8 @@ export function useAgentChat(
     setCompactionStatus(nextStatus)
   }
   const backgroundReconnectSessionIdRef = useRef<SessionId | null>(null)
+  const lastHydratedResyncRevisionRef = useRef(0)
+  const reconnectGenerationRef = useRef(0)
   const [streamSignalVersionRef] = useState(() => new StreamSignalVersionStore())
   const streamSignalVersion = useSyncExternalStore(
     streamSignalVersionRef.subscribe,
@@ -124,6 +127,7 @@ export function useAgentChat(
   const lastHydratedSnapshotKeyRef = useRef<string | null>(null)
   const lastHydratedOptimisticKeyRef = useRef<string | null>(null)
   const pendingRunWaiterRef = useRef<PendingRunWaiter | null>(null)
+  const sessionRef = useRef(session)
   const agentRunActionsRef = useRef<AgentRunActions | null>(null)
 
   useLayoutEffect(() => {
@@ -132,7 +136,8 @@ export function useAgentChat(
     statusRef.current = status
     backgroundStreamingRef.current = backgroundStreaming
     messagesRef.current = messages
-  }, [messagesBySessionId, sessionId, status, backgroundStreaming, messages])
+    sessionRef.current = session
+  }, [messagesBySessionId, sessionId, status, backgroundStreaming, messages, session])
 
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
     messages,
@@ -155,6 +160,7 @@ export function useAgentChat(
     deferredSnapshotRefreshCountRef,
     pendingRunWaiterRef,
     messagesBySessionIdRef,
+    sessionRef,
   }
   const runControls = createAgentRunControls({
     sessionId,
@@ -190,6 +196,8 @@ export function useAgentChat(
     lastHydratedOptimisticKeyRef,
     backgroundStreamingRef,
     backgroundReconnectSessionIdRef,
+    lastHydratedResyncRevisionRef,
+    reconnectGenerationRef,
     messagesBySessionIdRef,
     setMessagesBySessionId,
     setRunRenderMessages,
@@ -243,6 +251,7 @@ export function useAgentChat(
     isSessionIdle,
     optimisticUserMessages,
     hasActiveRun,
+    activityRestoreRevision,
     getRunRenderSnapshot,
     removeMatchedOptimisticUserMessages,
     context: hydrationContext,

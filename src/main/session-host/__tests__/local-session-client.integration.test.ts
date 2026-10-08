@@ -148,11 +148,17 @@ describe('Local Session client', () => {
           activityEvents: [{ type: 'compaction_start', reason: 'threshold', timestamp: 2 }],
           mode: 'classic',
           startedAt: 1,
+          messageStartedAt: 3,
           parts: [{ type: 'text', text: 'already streamed' }],
+          // The Run's finished answers, so a reloaded renderer still shows them.
+          assistantMessages: [
+            { messageId: 'answer-1', timestamp: 2, parts: [{ type: 'text', text: 'first' }] },
+          ],
           degraded: {
             reason: 'content-limit',
             omittedBytes: 42,
             toolCallIds: ['tool-already-running'],
+            messageCutShort: true,
           },
         },
       ],
@@ -242,11 +248,16 @@ describe('Local Session client', () => {
           activityEvents: [{ type: 'compaction_start', reason: 'threshold', timestamp: 2 }],
           mode: 'classic',
           startedAt: 1,
+          messageStartedAt: 3,
           parts: [{ type: 'text', text: 'already streamed' }],
+          assistantMessages: [
+            { messageId: 'answer-1', timestamp: 2, parts: [{ type: 'text', text: 'first' }] },
+          ],
           degraded: {
             reason: 'content-limit',
             omittedBytes: 42,
             toolCallIds: ['tool-already-running'],
+            messageCutShort: true,
           },
         },
       ],

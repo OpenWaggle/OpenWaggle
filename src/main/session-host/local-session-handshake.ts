@@ -1,11 +1,59 @@
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientHello } from '@shared/schemas/local-session-protocol'
+import * as Cause from 'effect/Cause'
+import * as Option from 'effect/Option'
+import * as Runtime from 'effect/Runtime'
 import { negotiateLocalSessionProtocol } from './local-session-negotiation'
-import type { LocalSessionAuthenticationBudget } from './local-session-resource-policy'
+import {
+  type LocalSessionAuthenticationBudget,
+  LocalSessionGlobalAuthenticationThrottledError,
+} from './local-session-resource-policy'
 import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
+
+/** The failure code only; the error may carry the presented credential. */
+function authenticationFailureCode(error: unknown) {
+  const failure: unknown = Runtime.isFiberFailure(error)
+    ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
+    : error
+  const code: unknown =
+    typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'code') : undefined
+  return typeof code === 'string' ? code : 'unknown'
+}
+
+export interface LocalSessionAuthenticationFailure {
+  /** For the Host log only. */
+  readonly reason: string
+  readonly code: 'authentication_failed' | 'authentication_throttled'
+  readonly message: string
+  readonly retryable: boolean
+}
+
+/**
+ * How the Host answers a failed authentication. Why it failed stays in the Host log: telling an
+ * unauthenticated peer whether a profile exists or was revoked would let it probe for profile
+ * names. The Host-wide throttle is the exception. It reveals nothing about the presented profile,
+ * and the GUI's own connection must not treat a throttle that another local client tripped as
+ * final, so it is reported as retryable. The per-profile throttle stays an ordinary failure.
+ */
+function describeAuthenticationFailure(error: unknown): LocalSessionAuthenticationFailure {
+  if (error instanceof LocalSessionGlobalAuthenticationThrottledError) {
+    return {
+      reason: 'global_throttle',
+      code: 'authentication_throttled',
+      message: error.message,
+      retryable: true,
+    }
+  }
+  return {
+    reason: authenticationFailureCode(error),
+    code: 'authentication_failed',
+    message: 'Local Session authentication failed.',
+    retryable: false,
+  }
+}
 
 interface LocalSessionHandshakeInput {
   readonly value: unknown
@@ -14,7 +62,7 @@ interface LocalSessionHandshakeInput {
   readonly budget: LocalSessionAuthenticationBudget
   readonly signal: AbortSignal
   readonly send: (frame: unknown) => Promise<void>
-  readonly authenticationFailed: (error: unknown) => Promise<void>
+  readonly authenticationFailed: (failure: LocalSessionAuthenticationFailure) => Promise<void>
 }
 
 async function authenticate(
@@ -48,7 +96,7 @@ export async function establishLocalSessionHandshake(input: LocalSessionHandshak
   try {
     caller = await authenticate(input, hello)
   } catch (error) {
-    await input.authenticationFailed(error)
+    await input.authenticationFailed(describeAuthenticationFailure(error))
     return { status: 'closed' }
   }
   if (!preliminary.accepted) {

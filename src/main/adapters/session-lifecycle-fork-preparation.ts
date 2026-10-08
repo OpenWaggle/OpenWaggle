@@ -50,7 +50,7 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
     ...(row.authorization_mode_override
       ? { authorizationMode: row.authorization_mode_override }
       : {}),
-    // A discovered Pi session keys its nodes under a prefix and runs in its own folder (ADR 0048);
+    // A discovered Pi session keys its nodes under a prefix and runs in its own folder (ADR 0050);
     // without them the fork target would reach Pi still prefixed.
     ...(row.pi_adopted === 1
       ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(command.sourceSessionId) }

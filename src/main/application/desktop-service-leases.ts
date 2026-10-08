@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { DesktopOwnerRecord } from '@shared/types/desktop-owner'
 import {
   DESKTOP_SERVICE_LIMITS,
   type DesktopServiceRequest,
@@ -82,12 +83,13 @@ export class DesktopServiceLeases {
     this.lease = undefined
   }
 
-  private async register(guiInstanceId: string): Promise<DesktopServiceResponse> {
+  private async register(guiInstanceId: string, recover = false): Promise<DesktopServiceResponse> {
     return this.admit(async () => {
       const current = this.current()
       const durable = await Effect.runPromise(this.input.owners.get())
       if (durable?.state === 'active' && durable.guiInstanceId !== guiInstanceId) {
-        return { operation: 'quarantined', reason: 'previous-owner-unclean' }
+        if (!recover) return { operation: 'quarantined', reason: 'previous-owner-unclean' }
+        await this.recoverStaleOwner(current, durable, guiInstanceId)
       }
       if (current && current.guiInstanceId !== guiInstanceId)
         throw new Error('Another OpenWaggle desktop owns the current lease.')
@@ -114,6 +116,42 @@ export class DesktopServiceLeases {
         fences,
       }
     })
+  }
+
+  /**
+   * ADR 0049: no process can prove an unclean desktop's children settled, so the user attests to
+   * it. That attestation also covers mutations of earlier Hosts, which no live Host can release.
+   * It runs inside the registration admission and swaps owners in one transaction.
+   */
+  private async recoverStaleOwner(
+    current: DesktopLease | undefined,
+    stale: DesktopOwnerRecord,
+    guiInstanceId: string,
+  ) {
+    if (current) {
+      throw new Error(
+        'Another OpenWaggle window is still connected, or the previous one has not timed out yet. Try again in a few seconds.',
+      )
+    }
+    const hostInstanceId = this.hostInstanceId()
+    // Released before the owner swap, outside its transaction. If the swap then fails the user's
+    // retry finds no orphans left and completes it; release is part of the same attestation.
+    const orphans = (await this.readFences()).filter(
+      (fence) => fence.state === 'active' && fence.hostInstanceId !== hostInstanceId,
+    )
+    await Effect.runPromise(
+      Effect.forEach(
+        orphans,
+        (fence) => this.input.fences.markReleased(fence.token, fence.hostInstanceId),
+        { discard: true },
+      ),
+    )
+    await Effect.runPromise(
+      this.input.owners.replaceStale(
+        { guiInstanceId: stale.guiInstanceId, hostInstanceId: stale.hostInstanceId },
+        { guiInstanceId, hostInstanceId },
+      ),
+    )
   }
 
   private async markClosed(
@@ -184,7 +222,8 @@ export class DesktopServiceLeases {
     request: DesktopServiceRequest,
     signal: AbortSignal,
   ): Promise<DesktopServiceResponse> {
-    if (request.operation === 'register') return this.register(request.guiInstanceId)
+    if (request.operation === 'register' || request.operation === 'recoverOwner')
+      return this.register(request.guiInstanceId, request.operation === 'recoverOwner')
     if (request.operation === 'markClosed') return this.markClosed(request)
     if (request.operation === 'disconnect' && !this.current())
       return { operation: 'disconnect', accepted: true }

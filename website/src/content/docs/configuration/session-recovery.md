@@ -48,6 +48,10 @@ To stop active work, use the square **Cancel** button beside the message box and
 
 Quitting the desktop window and stopping the background service are different actions. Database recovery commands below need exclusive access, so they refuse to proceed while another process owns the database. Do not remove ownership files or force database access to get around that refusal.
 
+## Archiving fails because a desktop is required
+
+If archiving a session fails with "An attached OpenWaggle desktop is required", and a banner says **Desktop tools are paused**, the previous OpenWaggle window closed without confirming that its terminals and previews stopped. Check that nothing you started from its terminals is still running, then choose **Recover desktop tools** on the banner. See [App shutdown and recovery](/docs/developer-workflow/built-in-terminal#app-shutdown-and-recovery).
+
 ## Collect details before asking for help
 
 Copy the error message and note the selected provider, model, project, and working directory. Review logs for secrets and private code before sharing them. [App settings](/docs/configuration/app-settings#logs) lists log locations. For an external tool connection, use [MCP troubleshooting](/docs/configuration/mcp#when-something-fails).

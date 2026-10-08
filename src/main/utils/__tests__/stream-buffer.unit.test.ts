@@ -211,7 +211,7 @@ describe('stream-buffer', () => {
     expect(serializedObjects).toHaveLength(1)
     expect(Math.max(...serializedStrings.map((value) => value.length))).toBeLessThanOrEqual(3)
     expect(getStreamBuffer(SESSION_ID)?.parts).toEqual([
-      { type: 'text', text: 'ab'.repeat(10_000) },
+      { type: 'text', text: 'ab'.repeat(10_000), contentIndex: 0 },
     ])
   })
 

@@ -47,6 +47,7 @@ interface AgentRunControlRefs {
   readonly deferredSnapshotRefreshCountRef: MutableValueRef<number>
   readonly pendingRunWaiterRef: MutableValueRef<PendingRunWaiter | null>
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
+  readonly sessionRef: MutableValueRef<SessionDetail | null>
 }
 
 interface AgentRunControlParams {
@@ -130,17 +131,16 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   async function refreshSessionSnapshot(targetSessionId: SessionId) {
     const nextSession = await api.getSessionDetail(targetSessionId)
-    if (!nextSession || refs.currentSessionIdRef.current !== targetSessionId) {
-      return
-    }
+    const shown = refs.sessionRef.current
+    if (!nextSession || refs.currentSessionIdRef.current !== targetSessionId) return
+    // A slow reply landing after a newer refetch hid the Runs that one held.
+    if (shown?.id === nextSession.id && nextSession.updatedAt < shown.updatedAt) return
     params.upsertSession(nextSession)
   }
 
   function flushDeferredSessionSnapshot() {
     const targetSessionId = refs.deferredRefreshSessionIdRef.current
-    if (!targetSessionId || shouldDeferSnapshotRefresh(refs)) {
-      return
-    }
+    if (!targetSessionId || shouldDeferSnapshotRefresh(refs)) return
     if (refs.currentSessionIdRef.current !== targetSessionId) {
       refs.deferredRefreshSessionIdRef.current = null
       return

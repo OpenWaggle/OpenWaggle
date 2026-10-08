@@ -50,3 +50,20 @@ export function applyToolExecutionEndToParts(
     isError: value.isError,
   })
 }
+
+/**
+ * Applies a tool execution event to the buffered parts. A model-issued call whose arguments the
+ * buffer degraded keeps its part as it is until it ends, and then keeps its buffered arguments.
+ */
+export function applyToolExecutionToParts(
+  parts: readonly MessagePart[],
+  value: Extract<
+    AgentTransportEvent,
+    { type: 'tool_execution_start' | 'tool_execution_update' | 'tool_execution_end' }
+  >,
+  degraded: boolean,
+) {
+  if (value.type === 'tool_execution_end')
+    return applyToolExecutionEndToParts(parts, value, degraded)
+  return degraded && !value.parentToolCallId ? parts : applyToolExecutionStartToParts(parts, value)
+}

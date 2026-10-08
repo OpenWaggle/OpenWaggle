@@ -1,4 +1,5 @@
 import type { MessagePart } from '@shared/types/agent'
+import { textDeltaTargetIndex } from './stream-buffer-message-parts'
 
 const JSON_STRING_QUOTES_BYTES = 2
 const JSON_ARRAY_BRACKETS_BYTES = 2
@@ -30,13 +31,12 @@ export function retainedBytesAfterTextAppend(input: {
   readonly retainedBytes: number
   readonly type: 'text' | 'reasoning'
   readonly delta: string
+  readonly contentIndex: number
 }) {
-  const lastPart = input.parts[input.parts.length - 1]
-  if (lastPart?.type === input.type) {
-    return input.retainedBytes + appendedJsonStringBytes(lastPart.text, input.delta)
+  const target = input.parts[textDeltaTargetIndex(input.parts, input.type, input.contentIndex)]
+  if (target?.type === input.type) {
+    return input.retainedBytes + appendedJsonStringBytes(target.text, input.delta)
   }
-  return (
-    input.retainedBytes +
-    appendedPartBytes({ type: input.type, text: input.delta }, input.parts.length > 0)
-  )
+  const part = { type: input.type, text: input.delta, contentIndex: input.contentIndex }
+  return input.retainedBytes + appendedPartBytes(part, input.parts.length > 0)
 }

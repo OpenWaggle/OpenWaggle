@@ -1,5 +1,5 @@
 /**
- * Agent definitions and Session profiles from before ADR 0048 may name an MCP server by its old
+ * Agent definitions and Session profiles from before ADR 0050 may name an MCP server by its old
  * instance ID. The migration recorded which name each ID stood for; these map such references.
  */
 

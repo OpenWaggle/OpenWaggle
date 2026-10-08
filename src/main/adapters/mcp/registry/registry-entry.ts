@@ -20,7 +20,7 @@ import {
   stringValue,
 } from './registry-values'
 
-/** Turns a Registry server into an ordinary Pi `mcpServers` entry (ADR 0048). */
+/** Turns a Registry server into an ordinary Pi `mcpServers` entry (ADR 0050). */
 
 type RegistryRecord = Readonly<Record<string, unknown>>
 

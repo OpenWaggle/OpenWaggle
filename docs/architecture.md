@@ -9,7 +9,7 @@ This file is the entrypoint for OpenWaggle architecture documentation. It is int
 - `docs/system-architecture.md` describes the current whole-system shape.
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
 - `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
-- `docs/mcp-runtime.md` explains how the MCP runtime of ADR 0048 fits together: Pi's MCP client, the MCP transport layer, configuration files, and ports.
+- `docs/mcp-runtime.md` explains how the MCP runtime of ADR 0050 fits together: Pi's MCP client, the MCP transport layer, configuration files, and ports.
 
 ## Decision Records
 
@@ -62,7 +62,10 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0045-usage-statistics-go-through-an-openwaggle-endpoint.md`
 - `docs/adr/0046-usage-statistics-are-on-by-default.md`
 - `docs/adr/0047-installing-an-update-releases-the-session-host.md`
-- `docs/adr/0048-openwaggle-is-the-gui-for-the-pi-ecosystem.md`
+- `docs/adr/0048-compacted-history-stays-visible-in-the-transcript.md`
+- `docs/adr/0049-pi-entry-ids-are-full-uuids.md`
+- `docs/adr/0049-users-can-recover-desktop-tools-after-an-unclean-quit.md`
+- `docs/adr/0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md`
 
 ## Testing
 

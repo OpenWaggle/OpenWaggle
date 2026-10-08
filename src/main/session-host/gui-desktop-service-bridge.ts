@@ -9,24 +9,26 @@ import {
   DESKTOP_BRIDGE_TICK_MS,
   DESKTOP_SHUTDOWN_DRAIN_MS,
   DesktopNativeQuarantinedError,
+  DesktopNativeRecoveryError,
   DesktopServiceAttachmentError,
   desktopBridgeDelay,
   type GuiDesktopBridgeInput,
   type GuiDesktopServiceLifecycle,
+  registerGuiDesktop,
   withDesktopShutdownDeadline,
 } from './gui-desktop-service-lifecycle'
-import { executeLocalSessionCommand } from './local-session-client'
+import { makeGuiDesktopServiceRequest } from './gui-desktop-service-request'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 
 export {
   DesktopNativeQuarantinedError,
+  DesktopNativeRecoveryError,
   DesktopServiceAttachmentError,
 } from './gui-desktop-service-lifecycle'
 
 const logger = createLogger('session-host/desktop-bridge')
 const RETRY_DELAY_MS = 1_000
-const REQUEST_TIMEOUT_MS = 10_000
 const HEARTBEAT_MS = 5_000
 
 /** Resolve only after native admission fences have been restored; retain the executor on reconnect. */
@@ -42,6 +44,7 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
   private leaseId: string | undefined
   private hostInstanceId: string | undefined
   private attached = false
+  private recoveryPending: boolean
   private failureReported = false
   private transportClosed = false
   private stopping: Promise<void> | undefined
@@ -53,23 +56,10 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
 
   constructor(private readonly input: GuiDesktopBridgeInput) {
     this.guiInstanceId = input.executor.guiInstanceId
+    this.recoveryPending = input.recoverPreviousOwner === true
     this.paths = input.client.paths
     this.request =
-      input.request ??
-      (async (message: DesktopServiceRequest) => {
-        const result = await executeLocalSessionCommand({
-          paths: this.paths,
-          clientVersion: input.client.clientVersion,
-          clientKind: 'gui',
-          // Transport negotiation uses the standard supported revisions; the desktop contract is
-          // revision-gated per command, so pinning the handshake to it fails once it leaves the window.
-          timeoutMs: REQUEST_TIMEOUT_MS,
-          payload: { contract: 'desktop-service-v1', request: message },
-        })
-        if (result.contract !== 'desktop-service-v1')
-          throw new Error('Invalid desktop-service response contract.')
-        return result.response
-      })
+      input.request ?? makeGuiDesktopServiceRequest(() => this.paths, input.client.clientVersion)
   }
 
   private async reconcile(
@@ -91,14 +81,15 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
   }
 
   private async attach() {
-    if (!this.input.request) this.paths = await refreshLocalSessionHostEndpoint(this.paths)
-    const registered = await this.request({
-      operation: 'register',
+    const registered = await registerGuiDesktop({
+      request: this.request,
+      refresh: async () => {
+        if (!this.input.request) this.paths = await refreshLocalSessionHostEndpoint(this.paths)
+      },
       guiInstanceId: this.guiInstanceId,
+      recovering: this.recoveryPending,
     })
-    if (registered.operation === 'quarantined') throw new DesktopNativeQuarantinedError()
-    if (registered.operation !== 'register')
-      throw new Error('Desktop registration was not acknowledged.')
+    this.recoveryPending = false
     this.leaseId = registered.leaseId
     this.hostInstanceId = registered.hostInstanceId
     const activeTokens = await this.reconcile(registered.leaseId, registered.fences)
@@ -295,12 +286,19 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
     if (response.operation !== 'markClosed' || !response.accepted)
       throw new Error('Desktop clean shutdown was not acknowledged.')
   }
+  attachment() {
+    if (this.stopped.signal.aborted) return 'stopped'
+    return this.attached ? 'attached' : 'reconnecting'
+  }
   async start(): Promise<GuiDesktopServiceLifecycle> {
     this.startHeartbeat()
     try {
       await this.attach()
     } catch (error) {
-      if (error instanceof DesktopNativeQuarantinedError) {
+      if (
+        error instanceof DesktopNativeQuarantinedError ||
+        error instanceof DesktopNativeRecoveryError
+      ) {
         this.stopped.abort()
         await this.heartbeat
         throw error

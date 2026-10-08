@@ -1,6 +1,6 @@
 /**
  * Requests and results of the Settings > MCP and `openwaggle mcp` operations. They travel
- * through the Session Host (Host UI protocol revision 22) and are decoded by the schemas in
+ * through the Session Host (Host UI protocol revision 23) and are decoded by the schemas in
  * `src/shared/schemas/mcp-configuration.ts`.
  */
 import type { McpJsonValue } from './mcp'

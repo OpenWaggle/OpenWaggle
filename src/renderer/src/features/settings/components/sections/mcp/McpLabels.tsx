@@ -21,7 +21,7 @@ export function McpStatusPill({ status }: { readonly status: McpServerStatus }) 
 
 /**
  * A file in plain words. Pi's files are named as Pi's: OpenWaggle is the GUI for the Pi ecosystem
- * (ADR 0048), so naming Pi for a resource Pi owns is allowed, and the visible-copy guard checks it.
+ * (ADR 0050), so naming Pi for a resource Pi owns is allowed, and the visible-copy guard checks it.
  */
 export function McpFileName({ fileId }: { readonly fileId: McpConfigFileKind }) {
   return match(fileId)

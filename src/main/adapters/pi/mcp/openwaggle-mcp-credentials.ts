@@ -35,7 +35,7 @@ export function getOpenWaggleMcpCredentials() {
   return credentials
 }
 
-/** Stores one server's state under Pi's key, for the migration of pre-ADR-0048 sign-ins. */
+/** Stores one server's state under Pi's key, for the migration of pre-ADR-0050 sign-ins. */
 export function writeOpenWaggleMcpOAuthState(key: string, state: unknown) {
   getBackend().withLock((current) => {
     const parsed: unknown = current === undefined ? {} : JSON.parse(current)

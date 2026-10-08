@@ -52,14 +52,21 @@ async function receiptMatches(
     }),
   )
   const consumed = new Set(previews.flatMap((preview) => preview.durableMessageCreatedOrder ?? []))
+  // A row another preview's steer became (`incorporatedOrder`) is that preview's alone, and a
+  // preview whose own row is known takes only it: two steers may say the same thing.
+  const incorporatedOrders = new Set(previews.flatMap((preview) => preview.incorporatedOrder ?? []))
   return previews.map((preview) => {
     if (!preview.receipt || preview.durableMessageId) return preview
     const receipt = preview.receipt
+    const own = preview.incorporatedOrder
     const match = candidates.find(
       (candidate) =>
         candidate.createdOrder >= receipt.minimumCreatedOrder &&
         !consumed.has(candidate.createdOrder) &&
-        candidate.digest === receipt.durableTextSha256,
+        candidate.digest === receipt.durableTextSha256 &&
+        (own === undefined
+          ? !incorporatedOrders.has(candidate.createdOrder)
+          : candidate.createdOrder === own),
     )
     if (!match) return preview
     consumed.add(match.createdOrder)

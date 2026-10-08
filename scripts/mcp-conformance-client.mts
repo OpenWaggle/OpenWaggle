@@ -3,7 +3,7 @@
  *
  * Drives Pi's MCP client (`@earendil-works/pi-mcp`, the one Pi's MCP extension uses) through
  * OpenWaggle's MCP transport layer: a pooled connection lease over streamable HTTP with
- * OpenWaggle's hardened fetch and client capabilities (ADR 0048). Pi's client negotiates
+ * OpenWaggle's hardened fetch and client capabilities (ADR 0050). Pi's client negotiates
  * `2024-11-05` to `2025-11-25`; newer revisions are not exercised.
  */
 import { McpClient, StreamableHttpTransport } from '@earendil-works/pi-mcp'

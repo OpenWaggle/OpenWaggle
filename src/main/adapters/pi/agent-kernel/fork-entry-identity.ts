@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { rename, rm, writeFile } from 'node:fs/promises'
+import { open, rename, rm, stat } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { isRecord } from '@shared/utils/validation'
+import { logger } from './constants'
 
 /**
  * Pi entry fields that name another entry of the same session file. `parentId` links the tree;
@@ -36,18 +38,15 @@ function isSessionEntry(line: unknown): line is { readonly id: string; readonly 
 }
 
 /**
- * Gives every entry of a freshly forked Pi session a new id, keeping the tree and every
- * cross-entry reference intact.
- *
- * Pi forks by copying the source path into a new session file with the source entry ids. Pi only
- * needs ids to be unique within one file, but OpenWaggle projects every session into one SQLite
- * node table keyed by id, so a copy that keeps the source ids collides with the source session's
- * own nodes and the fork cannot be saved. Re-keying the new file before it is projected keeps the
- * forked session a normal Pi session with ids of its own.
+ * Gives the selected entries of a Pi session new ids, keeping the tree and every cross-entry
+ * reference intact. Entries that are not selected keep their ids.
  */
-export function rekeyForkedSessionLines(lines: readonly unknown[]): {
+export function rekeySessionLines(
+  lines: readonly unknown[],
+  shouldRekey: (entryId: string) => boolean,
+): {
   readonly lines: readonly unknown[]
-  /** The source entry each new id was copied from. */
+  /** The previous id of each entry that was given a new id, keyed by the new id. */
   readonly sourceIdById: ReadonlyMap<string, string>
 } {
   const taken = new Set<string>()
@@ -56,7 +55,7 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): {
   }
   const idMap = new Map<string, string>()
   for (const line of lines) {
-    if (!isSessionEntry(line)) continue
+    if (!isSessionEntry(line) || !shouldRekey(line.id)) continue
     const id = nextEntryId(taken)
     taken.add(id)
     idMap.set(line.id, id)
@@ -76,6 +75,20 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): {
   return { lines: rekeyed, sourceIdById }
 }
 
+/**
+ * Gives every entry of a freshly forked Pi session a new id, keeping the tree and every
+ * cross-entry reference intact.
+ *
+ * Pi forks by copying the source path into a new session file with the source entry ids. Pi only
+ * needs ids to be unique within one file, but OpenWaggle projects every session into one SQLite
+ * node table keyed by id, so a copy that keeps the source ids collides with the source session's
+ * own nodes and the fork cannot be saved. Re-keying the new file before it is projected keeps the
+ * forked session a normal Pi session with ids of its own.
+ */
+export function rekeyForkedSessionLines(lines: readonly unknown[]) {
+  return rekeySessionLines(lines, () => true)
+}
+
 function remapReferences(
   record: Record<string, unknown>,
   idMap: ReadonlyMap<string, string>,
@@ -89,6 +102,69 @@ function remapReferences(
 }
 
 /**
+ * Makes a rename durable where the filesystem allows it. Windows cannot open a directory for
+ * fsync, and network and FUSE mounts may refuse it; the rename has already replaced the file
+ * then, so a refusal is logged rather than reported as a failed write.
+ */
+async function syncDirectory(directory: string) {
+  if (process.platform === 'win32') return
+  try {
+    const handle = await open(directory, 'r')
+    try {
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+  } catch (error) {
+    logger.warn('Could not sync the Pi session directory after replacing a file', {
+      directory,
+      code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
+    })
+  }
+}
+
+/**
+ * Replaces a Pi session file with the given lines atomically and durably: the new content is
+ * synced before it replaces the file, and the directory after, so a crash leaves either the old
+ * file or the new one, never a truncated one.
+ *
+ * With `unchangedSince`, the file is replaced only if its size and modification time still match,
+ * so an append that raced the rewrite is not lost; the result says whether it was replaced.
+ */
+export async function writeSessionLinesAtomically(
+  sessionFile: string,
+  lines: readonly unknown[],
+  options: { readonly unchangedSince?: { readonly size: number; readonly mtimeMs: number } } = {},
+) {
+  const temporaryFile = `${sessionFile}.${randomUUID()}.rekey`
+  try {
+    const handle = await open(temporaryFile, 'w')
+    try {
+      await handle.writeFile(`${lines.map((line) => JSON.stringify(line)).join('\n')}\n`, 'utf8')
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    if (options.unchangedSince) {
+      const current = await stat(sessionFile)
+      if (
+        current.size !== options.unchangedSince.size ||
+        current.mtimeMs !== options.unchangedSince.mtimeMs
+      ) {
+        await rm(temporaryFile, { force: true })
+        return false
+      }
+    }
+    await rename(temporaryFile, sessionFile)
+    await syncDirectory(dirname(sessionFile))
+    return true
+  } catch (error) {
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+}
+
+/**
  * Writes a forked Pi session with fresh entry ids; see {@link rekeyForkedSessionLines}.
  *
  * The lines come from the fork's in-memory session, not from its file: Pi writes a fork file only
@@ -97,17 +173,6 @@ function remapReferences(
  */
 export async function writeRekeyedForkedSession(sessionFile: string, lines: readonly unknown[]) {
   const rekeyed = rekeyForkedSessionLines(lines)
-  const temporaryFile = `${sessionFile}.${randomUUID()}.rekey`
-  try {
-    await writeFile(
-      temporaryFile,
-      `${rekeyed.lines.map((line) => JSON.stringify(line)).join('\n')}\n`,
-      'utf8',
-    )
-    await rename(temporaryFile, sessionFile)
-  } catch (error) {
-    await rm(temporaryFile, { force: true })
-    throw error
-  }
+  await writeSessionLinesAtomically(sessionFile, rekeyed.lines)
   return rekeyed.sourceIdById
 }

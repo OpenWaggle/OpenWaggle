@@ -8,12 +8,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
-
-interface RunRenderSnapshot {
-  readonly messages: readonly UIMessage[]
-  readonly compactionStatus: AgentCompactionStatus | null
-  readonly updatedAt: number
-}
+import { type RunRenderSnapshot, UNNAMED_RUN_SEED } from './background-run-render-state'
 
 interface RunRenderState {
   readonly renderSnapshotsBySessionId: ReadonlyMap<SessionId, RunRenderSnapshot>
@@ -59,6 +54,11 @@ export function isActiveCompaction(activity: ActiveRunInfo): activity is ActiveC
   return activity.activity === 'compaction'
 }
 
+/**
+ * Snapshots for activities in progress when the renderer started: empty, holding only the activity's
+ * compaction status, and seeded for the Run whose start the renderer never saw. Opening the Session
+ * then places that status after its persisted history.
+ */
 export function restoreCompactionSnapshots(
   state: RunRenderState,
   compactions: readonly ActiveCompactionInfo[],
@@ -80,6 +80,7 @@ export function restoreCompactionSnapshots(
         messages,
       ),
       updatedAt: Date.now(),
+      seededByRunId: UNNAMED_RUN_SEED,
     })
   }
   for (const run of runs) {
@@ -95,18 +96,37 @@ export function restoreCompactionSnapshots(
       messages,
       compactionStatus,
       updatedAt: activityEvents.at(-1)?.timestamp ?? run.startedAt,
+      seededByRunId: UNNAMED_RUN_SEED,
     })
   }
   return snapshots
 }
 
+/** The Run each Session had in progress when this renderer last restored activity, by its id. */
+const restoredRunIds = new Map<SessionId, string>()
+
+/**
+ * The Run a Session had in progress when the renderer started, whose start it never saw; taken
+ * once, by the next start or settlement of a Run in that Session.
+ */
+export function takeRestoredRunId(sessionId: SessionId) {
+  const runId = restoredRunIds.get(sessionId)
+  restoredRunIds.delete(sessionId)
+  return runId
+}
+
 export async function loadActiveActivityState() {
   const activities = await api.listActiveRuns()
   const runs = activities.filter(isAgentRun)
+  const snapshots = await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId)))
+  restoredRunIds.clear()
+  for (const snapshot of snapshots) {
+    if (snapshot?.runId) restoredRunIds.set(snapshot.sessionId, snapshot.runId)
+  }
   return {
     ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
     runs,
     compactions: activities.filter(isActiveCompaction),
-    snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
+    snapshots,
   }
 }

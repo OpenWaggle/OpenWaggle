@@ -250,7 +250,7 @@ function getPiEntryDepth(input: {
 
 /**
  * `nodeIds` maps entry ids to the Session's node ids; a discovered Pi session keys them under a
- * per-Session prefix (ADR 0048). Sessions OpenWaggle created use their entry ids unchanged.
+ * per-Session prefix (ADR 0050). Sessions OpenWaggle created use their entry ids unchanged.
  */
 export function projectPiSessionSnapshot(
   session: PiSessionSnapshotSource,

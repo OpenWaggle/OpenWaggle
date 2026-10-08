@@ -40,3 +40,35 @@ export function consumeUserMessageTextCount(countsByText: Map<string, number>, t
   countsByText.set(text, count - 1)
   return true
 }
+
+function createdAtMs(message: UIMessage) {
+  const time = message.createdAt instanceof Date ? message.createdAt.getTime() : Number.NaN
+  return Number.isFinite(time) ? time : null
+}
+
+/**
+ * The sent messages (optimistic rows) a saved transcript holds: each matched, in order, with a
+ * saved user message of its text created at or after it was sent, each saved message once. The
+ * Host saves a send after the renderer sent it, so an older one with the same text ("continue",
+ * above a compaction marker) is an earlier send, not this one. A message without a time matches
+ * any.
+ */
+export function savedSendIds(saved: readonly UIMessage[], sent: readonly UIMessage[]) {
+  const savedByText = new Map<string, Array<number | null>>()
+  for (const message of saved) {
+    const text = getNonEmptyUserMessageText(message)
+    if (text) savedByText.set(text, [...(savedByText.get(text) ?? []), createdAtMs(message)])
+  }
+  const matched = new Set<UIMessage['id']>()
+  for (const message of sent) {
+    const text = getNonEmptyUserMessageText(message)
+    const times = text ? savedByText.get(text) : undefined
+    if (!times) continue
+    const sentAt = createdAtMs(message)
+    const index = times.findIndex((time) => sentAt === null || time === null || time >= sentAt)
+    if (index < 0) continue
+    times.splice(index, 1)
+    matched.add(message.id)
+  }
+  return matched
+}

@@ -19,7 +19,7 @@ import { McpServerRuntimeService } from '../ports/mcp-server-runtime-service'
 import { WorkspaceProjectAuthorization } from '../ports/workspace-project-authorization'
 
 /**
- * Settings > MCP and `openwaggle mcp` operations over Pi's MCP files (ADR 0048). The Session Host
+ * Settings > MCP and `openwaggle mcp` operations over Pi's MCP files (ADR 0050). The Session Host
  * runs them for both the GUI and the CLI; every input is decoded here, at the Host boundary.
  * Writes answer with the configuration as it is afterwards, so a client never shows a stale list.
  */

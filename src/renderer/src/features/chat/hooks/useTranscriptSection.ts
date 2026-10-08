@@ -176,7 +176,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   })
   const persistedAgentLoopEvents = activeWorkspace
     ? readAgentLoopEventsFromWorkspace(activeWorkspace)
-    : { customMessages: [], interactionEvents: [] }
+    : { customMessages: [], interactionEvents: [], anchorMessageIdByEventKey: undefined }
   const mergedCustomMessages = mergeCustomMessages(
     persistedAgentLoopEvents.customMessages,
     customMessages,
@@ -206,6 +206,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     messages: transcriptMessages,
     customMessages: mergedCustomMessages,
     interactionEvents: mergedInteractionEvents,
+    agentLoopAnchorMessageIds: persistedAgentLoopEvents.anchorMessageIdByEventKey,
     isLoading: transcriptLoading,
     isFinishing,
     error,

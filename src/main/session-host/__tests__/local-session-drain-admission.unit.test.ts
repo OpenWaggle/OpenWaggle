@@ -158,6 +158,8 @@ describe('commands a draining Session Host still accepts', () => {
       'mcp:preview-imports',
       'mcp:search-registry',
       'mcp:get-registry-server',
+      // A Session's MCP switch is Session state; reading it touches no server.
+      'mcp:get-session-enabled',
       'docs:discover',
       'skills:list',
       'skills:get-preview',
@@ -168,6 +170,8 @@ describe('commands a draining Session Host still accepts', () => {
       'agent:get-context-usage',
       'providers:get-models',
       'mcp:inspect-server',
+      // Lists an App server's resources and prompts over a pooled connection, opening one.
+      'mcp:list-app-catalog',
     ])
 
     expect(new Set([...admitted, ...refused])).toEqual(READ_ONLY_HOST_UI_CHANNELS)

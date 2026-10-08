@@ -63,4 +63,60 @@ describe('decodeActiveRunSnapshots', () => {
   ])('rejects a user message with %s', (_case, invalid) => {
     expect(() => decodeActiveRunSnapshots([{ ...snapshot, userMessages: [invalid] }])).toThrow()
   })
+
+  /*
+   * A newer Host keeps the Run's finished assistant messages (and when the streaming one started);
+   * an older Host sends neither, and fields a later Host adds to a message are not read.
+   */
+  it('keeps the earlier assistant messages of the active Run, from any Host', () => {
+    const earlier = {
+      messageId: 'assistant-1',
+      timestamp: 4,
+      parts: [{ type: 'text', text: 'Earlier answer' }],
+      laterField: true,
+    }
+    expect(
+      decodeActiveRunSnapshots([
+        { ...snapshot, messageStartedAt: 9, assistantMessages: [earlier] },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        messageStartedAt: 9,
+        assistantMessages: [
+          {
+            messageId: 'assistant-1',
+            timestamp: 4,
+            parts: [{ type: 'text', text: 'Earlier answer' }],
+          },
+        ],
+      }),
+    ])
+    const [older] = decodeActiveRunSnapshots([snapshot])
+    expect(older).not.toHaveProperty('assistantMessages')
+    expect(older).not.toHaveProperty('messageStartedAt')
+    expect(() =>
+      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }]),
+    ).toThrow()
+  })
+
+  // A newer Host keeps each text and reasoning part's content block; an older one sends none.
+  it('keeps the content block of the text and reasoning parts', () => {
+    const parts = [
+      { type: 'reasoning', text: '', contentIndex: 0 },
+      { type: 'text', text: 'Final answer', contentIndex: 1 },
+    ]
+    const [decoded] = decodeActiveRunSnapshots([{ ...snapshot, parts }])
+    expect(decoded?.parts).toEqual(parts)
+    expect(decodeActiveRunSnapshots([snapshot])[0]?.parts).toEqual(snapshot.parts)
+  })
+
+  it('keeps whether the caps cut the streaming message', () => {
+    const degraded = { reason: 'content-limit', omittedBytes: 10, messageCutShort: false }
+    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded }])[0]?.degraded).toEqual(degraded)
+    const unsaid = { reason: 'content-limit', omittedBytes: 10 }
+    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded: unsaid }])[0]?.degraded).toEqual({
+      ...unsaid,
+      messageCutShort: true,
+    })
+  })
 })

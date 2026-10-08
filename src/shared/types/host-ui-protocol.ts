@@ -2,11 +2,11 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
- * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0048),
+ * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0050),
  * including MCP Registry search and install, MCP App resource and prompt listing, and the
- * per-Session MCP switch, ship with revision 22.
+ * per-Session MCP switch, ship with revision 23.
  */
-export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
+export const HOST_UI_REVISION_23_REQUIRED_CHANNELS = [
   'mcp:get-configuration',
   'mcp:set-server-enabled',
   'mcp:set-server-exposure',
@@ -26,15 +26,15 @@ export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
   'mcp:get-session-enabled',
   'mcp:set-session-enabled',
 ] as const satisfies readonly IpcInvokeChannel[]
-/** Pausing Pi session discovery for a project removal ships with revision 22 (ADR 0048). */
-export const HOST_UI_REVISION_22_SESSION_CHANNELS = [
+/** Pausing Pi session discovery for a project removal ships with revision 23 (ADR 0050). */
+export const HOST_UI_REVISION_23_SESSION_CHANNELS = [
   'sessions:begin-project-removal',
 ] as const satisfies readonly IpcInvokeChannel[]
 /**
- * Arguments existing channels gained in revision 22: `sessions:delete`'s second argument says the
+ * Arguments existing channels gained in revision 23: `sessions:delete`'s second argument says the
  * Session is deleted as part of removing its project, which keeps a discovered Pi file listable.
  */
-export const HOST_UI_REVISION_22_ARGUMENT_COUNTS = {
+export const HOST_UI_REVISION_23_ARGUMENT_COUNTS = {
   'sessions:delete': 2,
 } as const satisfies Partial<Record<IpcInvokeChannel, number>>
 /** Session settings channels (thinking level as Session state) ship with revision 21. */
@@ -111,11 +111,11 @@ export const HOST_UI_REVISION_7_NEW_CHANNELS = [
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**
- * MCP operations the Session Host owns after ADR 0048: the secret vault and the MCP App resource
- * read and tool call (revision 6), and the MCP configuration operations (revision 22).
+ * MCP operations the Session Host owns after ADR 0050: the secret vault and the MCP App resource
+ * read and tool call (revision 6), and the MCP configuration operations (revision 23).
  */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_22_REQUIRED_CHANNELS,
+  ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   'mcp:list-secrets',
   'mcp:set-secret',
   'mcp:remove-secret',
@@ -128,7 +128,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_22_SESSION_CHANNELS,
+  ...HOST_UI_REVISION_23_SESSION_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_17_REQUIRED_CHANNELS,

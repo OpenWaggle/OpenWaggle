@@ -9,6 +9,7 @@ import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { useBackgroundRunStore } from './background-run-store'
 import {
   handleStoreError,
   isSameSessionId,
@@ -254,6 +255,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
   try {
     await api.deleteSession(id)
+    useBackgroundRunStore.getState().clearRunRenderSnapshot(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
     await deleteWorkspaceOwner(String(id))

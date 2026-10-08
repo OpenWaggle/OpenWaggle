@@ -19,7 +19,7 @@ describe('Local Session launch-steps revision', () => {
         accepted: false,
         protocol: 'openwaggle-local-session',
         code: 'incompatible_protocol',
-        supportedRevisions: [22],
+        supportedRevisions: [23],
       })
     },
   )

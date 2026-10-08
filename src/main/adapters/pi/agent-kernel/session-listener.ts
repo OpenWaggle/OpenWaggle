@@ -23,6 +23,7 @@ import type {
   QueueUpdateSessionEvent,
   SessionListenerInput,
   SessionListenerState,
+  ToolCallStreamState,
   ToolExecutionEndSessionEvent,
   ToolExecutionStartSessionEvent,
   ToolExecutionUpdateSessionEvent,
@@ -301,6 +302,7 @@ export function createSessionListener(input: SessionListenerInput, runId: string
     thinkingSteps: new Set<string>(),
     startedToolCalls: new Set<string>(),
     toolCallInputs: new Map<string, JsonValue>(),
+    toolCallStreams: new Map<string, ToolCallStreamState>(),
   }
 
   return (event: AgentSessionEvent) => handleSessionEvent(state, event)

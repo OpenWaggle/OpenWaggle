@@ -4,6 +4,9 @@ import { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
+import { piEntryNodeIds } from '../agent-kernel/pi-entry-node-ids'
+import { projectPiSessionSnapshot } from '../agent-kernel/session-projection'
+import { repairForeignSnapshotEntryIds } from '../agent-kernel/snapshot-entry-id-repair'
 import {
   continuePiCliSession,
   createPiCliSession,
@@ -20,7 +23,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * A discovered Pi session stays the user's file in the program that made it (ADR 0048): removing
+ * A discovered Pi session stays the user's file in the program that made it (ADR 0050): removing
  * it from OpenWaggle keeps the file, and a `pi` CLI fork, which copies its source's entry ids, is
  * projected and continued without colliding with the source's nodes (ADR 0041).
  */
@@ -149,6 +152,98 @@ describe('Discovered Pi session ownership', () => {
     } finally {
       writer.release()
     }
+  })
+
+  it('never renames the entries of a discovered file whose ids another Session holds (ADR 0049)', async () => {
+    await registerProjects([fixture.project])
+    const own = createPiCliSession(fixture.project, 'Shared start')
+    const { SessionRepository } = await import('../../../ports/session-repository')
+    const { SessionProjectionRepository } = await import(
+      '../../../ports/session-projection-repository'
+    )
+    const created = await run(
+      Effect.flatMap(SessionProjectionRepository, (repository) =>
+        repository.create({
+          projectPath: fixture.project,
+          piSessionId: own.id,
+          piSessionFile: own.file,
+        }),
+      ),
+    )
+    const ownManager = SessionManager.open(own.file)
+    const ownSnapshot = projectPiSessionSnapshot({ sessionManager: ownManager })
+    await run(
+      Effect.flatMap(SessionRepository, (repository) =>
+        repository.persistSnapshot({
+          sessionId: created.id,
+          nodes: ownSnapshot.nodes,
+          activeNodeId: ownSnapshot.activeNodeId,
+          piSessionId: own.id,
+          piSessionFile: own.file,
+        }),
+      ),
+    )
+    // `pi /fork` copies the source's entry ids, which the OpenWaggle Session already holds.
+    const fork = forkPiCliSession(own.file, fixture.project)
+    continuePiCliSession(fork.file, 'Only in the fork')
+    const forkContent = await fs.readFile(fork.file, 'utf8')
+    const ownContent = await fs.readFile(own.file, 'utf8')
+    const forkSessionId = await discoverOne()
+    expect(await openSession(forkSessionId)).toBe('projected')
+
+    // A later save of the discovered Session, as a Run makes, goes through the collision check.
+    const detail = await sessionDetail(forkSessionId)
+    if (!detail) throw new Error('expected the discovered Session')
+    const forkSnapshot = projectPiSessionSnapshot(
+      { sessionManager: SessionManager.open(fork.file) },
+      piEntryNodeIds(detail),
+    )
+    await run(
+      Effect.flatMap(SessionRepository, (repository) =>
+        repository.persistSnapshot({
+          sessionId: detail.id,
+          nodes: forkSnapshot.nodes,
+          activeNodeId: forkSnapshot.activeNodeId,
+          piSessionId: fork.id,
+          piSessionFile: fork.file,
+        }),
+      ),
+    )
+
+    expect(await fs.readFile(fork.file, 'utf8')).toBe(forkContent)
+    expect(await fs.readFile(own.file, 'utf8')).toBe(ownContent)
+    expect(messageTexts(await sessionDetail(forkSessionId)).at(-1)).toBe(
+      'Answer to: Only in the fork',
+    )
+  })
+
+  it('leaves a discovered file alone even if its prefixed node ids were reported as foreign', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Mine alone')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+    const detail = await sessionDetail(sessionId)
+    if (!detail) throw new Error('expected the discovered Session')
+    const content = await fs.readFile(cli.file, 'utf8')
+    const snapshot = projectPiSessionSnapshot(
+      { sessionManager: SessionManager.open(cli.file) },
+      piEntryNodeIds(detail),
+    )
+
+    const repaired = await repairForeignSnapshotEntryIds(
+      {
+        sessionId: detail.id,
+        nodes: snapshot.nodes,
+        activeNodeId: snapshot.activeNodeId,
+        piSessionId: cli.id,
+        piSessionFile: cli.file,
+      },
+      new Set(snapshot.nodes.map((node) => node.id)),
+    )
+
+    // Its node ids carry the Session's prefix, so none is an entry id of the file to rename.
+    expect(repaired).toBeNull()
+    expect(await fs.readFile(cli.file, 'utf8')).toBe(content)
   })
 
   it("lists a removed project's Pi sessions again when the folder is added back", async () => {

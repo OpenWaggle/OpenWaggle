@@ -16,7 +16,7 @@ import {
 
 /**
  * A discovered Pi session is projected the first time it is opened, and any Session is projected
- * again before it is shown or continued when its Pi file changed outside OpenWaggle (ADR 0048).
+ * again before it is shown or continued when its Pi file changed outside OpenWaggle (ADR 0050).
  */
 
 const { state, getPathMock } = vi.hoisted(() => ({

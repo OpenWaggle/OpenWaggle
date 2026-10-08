@@ -4,7 +4,7 @@ import type {
   SessionTree,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
-import { buildPiWorkingContextPath } from '../session-working-context'
+import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 
 function findBranchById(
   branches: readonly SessionBranch[],
@@ -65,12 +65,11 @@ function resolveWorkspaceNode(
   )
 }
 
+/** The selected branch up to the active node, compacted history included (ADR 0048). */
 function buildTranscriptPath(tree: SessionTree, activeNodeId: SessionNode['id'] | null) {
-  return buildPiWorkingContextPath(activeNodeId ? String(activeNodeId) : null, tree.nodes, {
+  return buildPiTranscriptPath(activeNodeId ? String(activeNodeId) : null, tree.nodes, {
     getId: (node) => String(node.id),
     getParentId: (node) => (node.parentId ? String(node.parentId) : null),
-    getKind: (node) => node.kind,
-    getContentJson: (node) => node.contentJson,
   }).map((node) => ({
     node,
     branchId: node.branchId,

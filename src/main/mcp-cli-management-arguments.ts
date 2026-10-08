@@ -13,7 +13,7 @@ import {
  * They follow
  * `pi mcp` (Pi's `docs/cli.md`, "MCP commands"): `--` or the second positional ends the options of
  * `add`, so a server command keeps its own flags, and `-l`/`--local` selects the project. New
- * servers go to OpenWaggle's file for the scope unless `--file` names another (ADR 0048).
+ * servers go to OpenWaggle's file for the scope unless `--file` names another (ADR 0050).
  */
 
 export const MCP_MANAGEMENT_COMMANDS = [

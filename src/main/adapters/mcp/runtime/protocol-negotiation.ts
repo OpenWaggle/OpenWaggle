@@ -11,7 +11,7 @@ type ProtocolOptions = Pick<ClientOptions, 'supportedProtocolVersions' | 'versio
 /**
  * The fields of a server entry that pick its protocol revisions. Only the hosted
  * `openwaggle mcp serve` tests use this now, to connect a client of each protocol era; Pi's MCP
- * client negotiates its own revisions (ADR 0048).
+ * client negotiates its own revisions (ADR 0050).
  */
 interface McpProtocolSelection {
   readonly definition: {

@@ -70,6 +70,12 @@ export interface AgentAssistantToolCallStartEvent {
   readonly input?: JsonValue
 }
 
+/**
+ * Sent when a streaming tool call's parsed input changed. `delta` is the raw argument text
+ * since the previous `toolcall_delta` of this call, and `input` the whole input so far. Raw
+ * text after the last change is not sent as a delta: `toolcall_end` carries the exact final
+ * input.
+ */
 export interface AgentAssistantToolCallDeltaEvent {
   readonly type: 'toolcall_delta'
   readonly contentIndex: number

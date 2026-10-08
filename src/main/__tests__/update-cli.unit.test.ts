@@ -130,9 +130,11 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
-    expect(createClientMock).toHaveBeenCalledWith(expect.anything(), {
-      supportedRevisions: [14],
-    })
+    // No pinned revision: the command offers those it can be sent at, the Host's current one.
+    expect(createClientMock).toHaveBeenCalledWith(expect.anything())
+    expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ supportedRevisions: expect.anything() }),
+    )
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {

@@ -20,13 +20,14 @@ const WAITING_QUERY_OPERATIONS: ReadonlySet<string> = new Set(['wait', 'exports-
 /**
  * Replay-safe reads that still do work on the Host: context usage builds a Pi session, the
  * model catalog and Agent definition plans load Pi resources, running extensions and installing
- * missing packages, and inspecting an MCP server connects to it (and may start it). Only listing
- * Agent definitions stays admitted.
+ * missing packages, and inspecting an MCP server or listing an MCP App server's catalog connects
+ * to it (and may start it). Only listing Agent definitions stays admitted.
  */
 const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
   'agent:get-context-usage',
   'providers:get-models',
   'mcp:inspect-server',
+  'mcp:list-app-catalog',
 ])
 
 function loadsPiResources(channel: string, args: readonly unknown[]) {

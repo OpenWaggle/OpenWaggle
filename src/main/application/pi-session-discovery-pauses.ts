@@ -1,5 +1,5 @@
 /**
- * Projects whose removal is in progress (ADR 0048). Removing a project deletes its Sessions one
+ * Projects whose removal is in progress (ADR 0050). Removing a project deletes its Sessions one
  * by one before the project leaves the settings; discovery must neither list the discovered ones
  * again in between nor add Sessions to the project while the removal checks what it deletes.
  * The desktop app starts the pause before it reads the Sessions it will delete, and a pass checks

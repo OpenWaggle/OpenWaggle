@@ -1,7 +1,7 @@
 # MCP Runtime
 
 Developer reference for the MCP runtime described by
-[ADR 0048](adr/0048-openwaggle-is-the-gui-for-the-pi-ecosystem.md). User-facing behaviour is
+[ADR 0050](adr/0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md). User-facing behaviour is
 documented under `website/src/content/docs/`; this page explains how the pieces fit.
 
 OpenWaggle does not have its own MCP client. Every Pi session OpenWaggle creates loads Pi's
@@ -41,7 +41,7 @@ Pi AgentSession (one per Run, disposed by withPiSession)
 | `src/main/adapters/mcp/config/` | adapter | File locations, reading, secret resolution, `loadConfig`, the JSON writer, `updateConfig`. |
 | `src/main/adapters/mcp/credentials/` | adapter | The OAuth state backend (vault first, Pi `mcp-auth.json` read-only fallback). |
 | `src/main/adapters/mcp/pool/` | adapter | Pooled connections, leases, handshake cache, id remapping, lifecycle (idle, LRU, archive, Host stop), upstream transports. |
-| `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0048 files. |
+| `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0050 files. |
 | `src/main/adapters/mcp/import/` | adapter | Import from tools that are not read live (Codex, Claude Desktop, Cursor, VS Code, OpenCode, Zed). |
 | `src/main/adapters/mcp/registry/` | adapter | MCP Registry search and install: package launchers, OCI digest pinning, verified MCPB bundles. |
 | `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. They reach the pool only through `pool/mcp-connection-pool-api.ts` and receive it as an argument. |

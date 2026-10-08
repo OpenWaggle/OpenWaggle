@@ -1,3 +1,4 @@
+import type { DesktopNativeRecoveryOutcome } from '@shared/types/openwaggle-desktop-api'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,8 +10,12 @@ const handlers = new Map<string, (...args: unknown[]) => unknown>()
 const mockShellOpenExternal = vi.fn(async (_url: string) => {})
 const mockClipboardReadText = vi.fn(() => 'clipboard text')
 const mockNativeAdmissionIssue = vi.fn<() => string | null>(() => null)
+const mockRecoverNativeAdmission = vi.fn<() => Promise<DesktopNativeRecoveryOutcome>>(async () => ({
+  outcome: 'recovered',
+}))
 vi.mock('../../desktop-native-admission', () => ({
   getDesktopNativeAdmissionIssue: () => mockNativeAdmissionIssue(),
+  recoverDesktopNativeAdmission: () => mockRecoverNativeAdmission(),
 }))
 
 vi.mock('electron', () => ({
@@ -63,10 +68,11 @@ describe('shell-handler', () => {
     mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly seven invoke handlers', () => {
+  it('registers exactly eight invoke handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(7)
+    expect(handlers.size).toBe(8)
+    expect(handlers.has('app:recover-native-admission')).toBe(true)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
     expect(handlers.has('app:get-native-admission-issue')).toBe(true)
@@ -86,6 +92,17 @@ describe('shell-handler', () => {
       expect(mockShellOpenExternal).not.toHaveBeenCalled()
     },
   )
+
+  it('runs the GUI-offered native admission recovery and returns its typed outcome', async () => {
+    registerShellHandlers()
+    expect(await handlers.get('app:recover-native-admission')?.({})).toEqual({
+      outcome: 'recovered',
+    })
+    const failure = { outcome: 'failed', message: 'Host refused', retryable: true } as const
+    mockRecoverNativeAdmission.mockResolvedValueOnce(failure)
+    expect(await handlers.get('app:recover-native-admission')?.({})).toEqual(failure)
+    expect(mockRecoverNativeAdmission).toHaveBeenCalledTimes(2)
+  })
 
   it('reads paste text through Electron clipboard isolation', async () => {
     registerShellHandlers()

@@ -17,7 +17,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * A discovered Pi session continues the way `pi --resume` would (ADR 0048): in the folder the CLI
+ * A discovered Pi session continues the way `pi --resume` would (ADR 0050): in the folder the CLI
  * ran in, with the model and thinking level the session last used.
  */
 

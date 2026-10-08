@@ -248,7 +248,8 @@ function runPreparedWaggle(
       waggleConfig: input.config,
     })
 
-    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
+    const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes, persistedTree?.nodes)
     if (anchorNodeId) {
       yield* sessionProjectionRepo.setTurnCheckpointAnchor(
         input.sessionId,
@@ -257,7 +258,6 @@ function runPreparedWaggle(
       )
     }
 
-    const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
     const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
 
     if (result.aborted || input.signal.aborted) {

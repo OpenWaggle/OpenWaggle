@@ -1,5 +1,5 @@
 /**
- * Local schemas for the pre-ADR-0048 files the migration reads. They are
+ * Local schemas for the pre-ADR-0050 files the migration reads. They are
  * deliberately lenient: the migration reads what it needs and ignores the rest.
  */
 import path from 'node:path'

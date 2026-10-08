@@ -156,6 +156,18 @@ function shouldHandleForegroundStreamPayload(
   )
 }
 
+/**
+ * Whether the route streams this Session's Run in the background. The route reuses one chat hook
+ * across Sessions, so the flag alone may still be the previous Session's: writing this Session's
+ * route transcript then replaced its render snapshot, and the run-start seed with it.
+ */
+function isStreamingInBackground(payload: AgentEventPayload, context: AgentStreamEventContext) {
+  return (
+    context.backgroundStreamingRef.current &&
+    context.backgroundReconnectSessionIdRef.current === payload.sessionId
+  )
+}
+
 export function handleAgentStreamPayload(
   payload: AgentEventPayload,
   context: AgentStreamEventContext,
@@ -170,7 +182,7 @@ export function handleAgentStreamPayload(
 
   handleForegroundAgentStateEvent(payload.event, context)
 
-  if (context.foregroundStreamActiveRef.current || context.backgroundStreamingRef.current) {
+  if (context.foregroundStreamActiveRef.current || isStreamingInBackground(payload, context)) {
     signalStreamChange(context)
     updateMessagesForSession(
       context.messagesBySessionIdRef,

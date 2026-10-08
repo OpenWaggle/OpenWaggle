@@ -17,18 +17,18 @@ function hostUiCommand(channel: string, args: readonly unknown[]) {
   })
 }
 
-/** Project removal and Pi session discovery (ADR 0048) need a revision-22 Host. */
+/** Project removal and Pi session discovery (ADR 0050) need a revision-23 Host. */
 describe('Local Session project removal protocol revision', () => {
-  it('sends the start of a project removal only to a revision-22 Host', () => {
+  it('sends the start of a project removal only to a revision-23 Host', () => {
     const command = hostUiCommand('sessions:begin-project-removal', ['/project'])
-    expect(supportedRevisionsForCommand(command)).toEqual([22])
-    expect(() => decodeLocalSessionCommandPayloadForRevision(command, 21)).toThrow(/revision 22/)
+    expect(supportedRevisionsForCommand(command)).toEqual([23])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(command, 22)).toThrow(/revision 23/)
   })
 
   it('sends a deletion for a project removal only to a Host that keeps the Pi file listable', () => {
     const removal = hostUiCommand('sessions:delete', ['session-1', { removingProject: true }])
-    expect(supportedRevisionsForCommand(removal)).toEqual([22])
-    expect(() => decodeLocalSessionCommandPayloadForRevision(removal, 21)).toThrow(/revision 22/)
+    expect(supportedRevisionsForCommand(removal)).toEqual([23])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(removal, 22)).toThrow(/revision 23/)
 
     const plain = hostUiCommand('sessions:delete', ['session-1'])
     expect(decodeLocalSessionCommandPayloadForRevision(plain, 21)).toEqual(plain)

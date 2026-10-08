@@ -1,5 +1,7 @@
+import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useBackgroundRunStore } from '@/features/chat/state'
 import {
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
@@ -61,5 +63,26 @@ describe('useWorkspaceLifecycle Follow-up queue refresh', () => {
       queryKey: ['sessions', 'follow-up-queue'],
     })
     expect(queuesInvalidated).toBeLessThan(reconciled ?? 0)
+  })
+
+  it('drops the render snapshot of a Session the Host archived', async () => {
+    const workerId = SessionId('worker-session')
+    useBackgroundRunStore
+      .getState()
+      .applyRunRenderEvent(workerId, { type: 'agent_start', runId: 'run-1', timestamp: 1 })
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    const handler = lifecycleMocks.getSessionHostEventHandler()
+    if (!handler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      handler({
+        cursor: { hostInstanceId: 'host-1', sequence: 20 },
+        timestamp: 20,
+        payload: { kind: 'session-list-changed', sessionId: 'worker-session', change: 'archived' },
+      }),
+    )
+
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(workerId)).toBeNull()
   })
 })

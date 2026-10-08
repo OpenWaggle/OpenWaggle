@@ -9,6 +9,7 @@ import {
 import { runStoreEffect } from '../store-runtime'
 import { deriveBranchHints, deriveSessionBranchesForSnapshot } from './branch-derivation'
 import { replaceSnapshotProjection } from './persist-snapshot-projection'
+import { assertNoSessionNodeIdConflicts } from './snapshot-node-ownership'
 import { loadSnapshotPersistenceState } from './snapshot-persistence-state'
 import { preserveVisualizationOwnership } from './visualization-ownership-projection'
 
@@ -20,6 +21,15 @@ export function persistSessionSnapshotWithSql(
   const sortedNodes = [...input.nodes].sort((left, right) => left.createdOrder - right.createdOrder)
   return Effect.gen(function* () {
     const state = yield* loadSnapshotPersistenceState(sql, input)
+    // Fail before any write, naming the ids and their owners rather than SQLite's bare
+    // `UNIQUE constraint failed: session_nodes.id`. Only ids this Session does not hold yet can
+    // belong to another Session.
+    const heldIds = new Set(state.existingNodes.map((node) => node.id))
+    yield* assertNoSessionNodeIdConflicts(
+      sql,
+      input.sessionId,
+      sortedNodes.filter((node) => !heldIds.has(node.id)).map((node) => node.id),
+    )
     const nodes = preserveVisualizationOwnership(
       sortedNodes,
       new Map(state.existingVisualizationMetadata.map((row) => [row.id, row.metadata_json])),
@@ -56,7 +66,7 @@ export function persistSessionSnapshotWithSql(
 }
 
 /**
- * Persists a snapshot with the Pi file state it was read from (ADR 0048). `piFileState` defaults
+ * Persists a snapshot with the Pi file state it was read from (ADR 0050). `piFileState` defaults
  * to the file as it is now, which is right after Pi wrote it in the same process.
  */
 export function persistPiSessionSnapshotWithSql(

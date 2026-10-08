@@ -23,9 +23,9 @@ export interface SessionRow {
   readonly authorization_mode_override: string | null
   readonly execution_model_id: string | null
   readonly execution_thinking_level: string | null
-  /** 1 when the Session uses a discovered Pi session file (ADR 0048). */
+  /** 1 when the Session uses a discovered Pi session file (ADR 0050). */
   readonly pi_adopted?: number
-  /** The working directory a discovered Pi session ran in (ADR 0048). */
+  /** The working directory a discovered Pi session ran in (ADR 0050). */
   readonly pi_cwd?: string | null
 }
 

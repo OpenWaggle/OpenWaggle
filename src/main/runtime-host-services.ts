@@ -34,7 +34,7 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     // `azure-openai-responses` to `azure` without migrating them).
     yield* migrateLegacyProviderReferences
     yield* migrateLegacyProviderCredentialsOnHostStart
-    // Before Settings, the CLI, or a Run reads MCP configuration (ADR 0048 migration).
+    // Before Settings, the CLI, or a Run reads MCP configuration (ADR 0050 migration).
     yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
     yield* installAppSessionToolGateway
     yield* runSessionExportRecoveryBackground

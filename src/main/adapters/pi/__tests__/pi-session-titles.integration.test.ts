@@ -13,7 +13,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * A discovered Session's title follows the Pi session's `/name` (ADR 0048), until the user
+ * A discovered Session's title follows the Pi session's `/name` (ADR 0050), until the user
  * renames the Session in OpenWaggle.
  */
 

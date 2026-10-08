@@ -1,6 +1,7 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { Context, Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Admission from '../desktop-native-admission'
 import { startAppGuiDesktopServices } from '../gui-desktop-services'
 import { BrowserPreviewAutomationService } from '../ports/browser-preview-automation-service'
 import { TerminalService } from '../ports/terminal-service'
@@ -22,7 +23,8 @@ const mocks = vi.hoisted(() => {
     closeBrowsers: vi.fn(),
     disposeRuntime: vi.fn(),
     beginShutdown: vi.fn(),
-    quarantine: vi.fn(),
+    quarantine: vi.fn((..._args: unknown[]) => {}),
+    attachment: vi.fn((): 'attached' | 'reconnecting' | 'stopped' => 'attached'),
   }
 })
 vi.mock('../browser-preview', () => ({
@@ -33,8 +35,11 @@ vi.mock('../browser-preview', () => ({
     closeAll: () => mocks.closeBrowsers(),
   },
 }))
-vi.mock('../desktop-native-admission', () => ({
-  quarantineDesktopNativeAdmission: () => mocks.quarantine(),
+vi.mock('../desktop-native-admission', async () => ({
+  DesktopNativeRecoveryUnavailableError: (
+    await vi.importActual<typeof Admission>('../desktop-native-admission')
+  ).DesktopNativeRecoveryUnavailableError,
+  quarantineDesktopNativeAdmission: (...args: unknown[]) => mocks.quarantine(...args),
 }))
 vi.mock('../session-host/gui-desktop-service-executor', () => ({
   makeGuiDesktopServiceExecutor: (...args: unknown[]) => mocks.makeExecutor(...args),
@@ -79,7 +84,12 @@ beforeEach(() => {
   mocks.beginShutdown.mockImplementation(() => {
     mocks.events.push('admission-closed')
   })
-  mocks.startBridge.mockResolvedValue({ stop: mocks.stop, markClosed: mocks.markClosed })
+  mocks.attachment.mockReturnValue('attached')
+  mocks.startBridge.mockResolvedValue({
+    stop: mocks.stop,
+    markClosed: mocks.markClosed,
+    attachment: mocks.attachment,
+  })
 })
 
 describe('desktop startup ownership wiring', () => {
@@ -101,7 +111,7 @@ describe('desktop startup ownership wiring', () => {
 
   it('cleans the exact acquired lifecycle before surfacing an initial attachment failure', async () => {
     const error = new DesktopServiceAttachmentError(
-      { stop: mocks.stop, markClosed: mocks.markClosed },
+      { stop: mocks.stop, markClosed: mocks.markClosed, attachment: mocks.attachment },
       new Error('initial ready failed'),
     )
     mocks.startBridge.mockRejectedValue(error)
@@ -130,7 +140,7 @@ describe('desktop startup ownership wiring', () => {
 
   it('does not publish clean ownership when initial failure cleanup cannot close native resources', async () => {
     const error = new DesktopServiceAttachmentError(
-      { stop: mocks.stop, markClosed: mocks.markClosed },
+      { stop: mocks.stop, markClosed: mocks.markClosed, attachment: mocks.attachment },
       new Error('initial ready failed'),
     )
     mocks.startBridge.mockRejectedValue(error)

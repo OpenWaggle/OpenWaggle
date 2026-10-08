@@ -123,6 +123,7 @@ function registerInteractionDeadline(input: {
     input.request.sessionId,
     input.execution.model,
     input.request.intent.waggle ? 'waggle' : 'classic',
+    String(input.request.runId),
   )
   return input.request.intent.interactionTimeoutMs === undefined
     ? () => undefined

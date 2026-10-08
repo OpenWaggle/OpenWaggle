@@ -11,7 +11,7 @@ export interface McpCatalogServer {
   readonly entry: McpServerEntryInput
 }
 
-/** Curated first-party catalog: a one-click install of an ordinary entry (ADR 0048). */
+/** Curated first-party catalog: a one-click install of an ordinary entry (ADR 0050). */
 export const MCP_CATALOG_SERVERS: readonly McpCatalogServer[] = [
   {
     name: 'playwright',

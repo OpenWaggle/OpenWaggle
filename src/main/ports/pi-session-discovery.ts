@@ -4,7 +4,7 @@ import type { SessionProjectionRepositoryError } from '../errors'
 import type { AgentKernelSessionSnapshot } from './agent-kernel-service'
 
 /**
- * Pi session discovery (ADR 0048): Pi sessions created outside OpenWaggle inside an OpenWaggle
+ * Pi session discovery (ADR 0050): Pi sessions created outside OpenWaggle inside an OpenWaggle
  * project become ordinary Sessions, and a Pi file that changed outside OpenWaggle is projected
  * again before it is shown or continued.
  */
@@ -82,7 +82,7 @@ export interface PiSessionFilesShape {
   /** Null when the file does not exist (yet). */
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
   /**
-   * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0048).
+   * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0050).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.
    */
   readonly readSnapshot: (input: {

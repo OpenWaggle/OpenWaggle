@@ -32,6 +32,9 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
     reason: 'content-limit',
     omittedBytes: value.omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
+    // One that does not say whether the caps cut the streaming message counts as cut: its parts
+    // must not pass for the whole message over a longer shown copy.
+    messageCutShort: value.messageCutShort !== false,
   }
 }
 
@@ -65,20 +68,69 @@ function decodeUserMessageSnapshots(value: unknown): Pick<BackgroundRunSnapshot,
   return userMessages.length > 0 ? { userMessages } : {}
 }
 
+/**
+ * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
+ * one are not read; a malformed one fails the snapshot as a malformed part does.
+ */
+function decodeAssistantMessageSnapshots(
+  value: unknown,
+): Pick<BackgroundRunSnapshot, 'assistantMessages'> {
+  if (value === undefined) return {}
+  if (!Array.isArray(value))
+    throw new Error('Local Session Host returned invalid assistant messages.')
+  const assistantMessages = value.map((candidate) => {
+    if (
+      !isRecord(candidate) ||
+      typeof candidate.messageId !== 'string' ||
+      typeof candidate.timestamp !== 'number' ||
+      !Array.isArray(candidate.parts)
+    ) {
+      throw new Error('Local Session Host returned an invalid assistant message.')
+    }
+    return {
+      messageId: candidate.messageId,
+      timestamp: candidate.timestamp,
+      parts: candidate.parts.map(decodeMessagePart),
+    }
+  })
+  return assistantMessages.length > 0 ? { assistantMessages } : {}
+}
+
+function isOptionalString(value: unknown) {
+  return value === undefined || typeof value === 'string'
+}
+
+interface ActiveRunSnapshotCandidate extends Record<string, unknown> {
+  readonly activity: 'agent-run'
+  readonly sessionId: string
+  readonly model: string
+  readonly mode: 'classic' | 'waggle'
+  readonly startedAt: number
+  readonly parts: readonly unknown[]
+  readonly messageId?: string
+  readonly runId?: string
+}
+
+function hasActiveRunSnapshotShape(
+  candidate: Record<string, unknown>,
+): candidate is ActiveRunSnapshotCandidate {
+  return (
+    candidate.activity === 'agent-run' &&
+    typeof candidate.sessionId === 'string' &&
+    typeof candidate.model === 'string' &&
+    (candidate.mode === 'classic' || candidate.mode === 'waggle') &&
+    typeof candidate.startedAt === 'number' &&
+    Array.isArray(candidate.parts) &&
+    isOptionalString(candidate.messageId) &&
+    isOptionalString(candidate.runId)
+  )
+}
+
 /** Decodes the active Run snapshots a Local Session Host subscription opens with. */
 export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate) => {
-    if (
-      !isRecord(candidate) ||
-      candidate.activity !== 'agent-run' ||
-      typeof candidate.sessionId !== 'string' ||
-      typeof candidate.model !== 'string' ||
-      (candidate.mode !== 'classic' && candidate.mode !== 'waggle') ||
-      typeof candidate.startedAt !== 'number' ||
-      !Array.isArray(candidate.parts) ||
-      (candidate.messageId !== undefined && typeof candidate.messageId !== 'string')
-    ) {
+    if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
       throw new Error('Local Session Host returned an invalid active Run snapshot.')
     }
     const degraded = decodeDegradedSnapshot(candidate.degraded)
@@ -90,12 +142,17 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
         candidate.activityEvents,
       ),
       sessionId: SessionId(candidate.sessionId),
+      ...(typeof candidate.runId === 'string' ? { runId: candidate.runId } : {}),
       model: SupportedModelId(candidate.model),
       mode: candidate.mode,
       startedAt: candidate.startedAt,
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
+      ...(typeof candidate.messageStartedAt === 'number'
+        ? { messageStartedAt: candidate.messageStartedAt }
+        : {}),
       parts: candidate.parts.map(decodeMessagePart),
       ...decodeUserMessageSnapshots(candidate.userMessages),
+      ...decodeAssistantMessageSnapshots(candidate.assistantMessages),
       ...(degraded ? { degraded } : {}),
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }
@@ -104,7 +161,11 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
 
 const jsonObjectSchema = Schema.Record({ key: Schema.String, value: jsonValueSchema })
 const messagePartSchema = Schema.Union(
-  Schema.Struct({ type: Schema.Literal('text', 'reasoning'), text: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('text', 'reasoning'),
+    text: Schema.String,
+    contentIndex: Schema.optional(Schema.Number),
+  }),
   Schema.Struct({
     type: Schema.Literal('attachment'),
     attachment: Schema.Struct({

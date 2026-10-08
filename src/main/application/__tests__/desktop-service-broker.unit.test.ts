@@ -48,6 +48,102 @@ describe('desktop service broker lease and command lifecycle', () => {
     await expect(instance.poll('wrong-lease')).rejects.toThrow('stale')
   })
 
+  it('recovers a stale unclean owner and registers in one step, only when asked', async () => {
+    const instance = brokerHarness([], {
+      guiInstanceId: 'gui-crashed',
+      hostInstanceId: 'host-old',
+      state: 'active',
+    })
+    cleanups.push(() => instance.broker.close())
+    expect(
+      await Effect.runPromise(
+        instance.broker.handleGuiRequest({ operation: 'register', guiInstanceId: 'gui-two' }),
+      ),
+    ).toEqual({ operation: 'quarantined', reason: 'previous-owner-unclean' })
+    expect(instance.ownerRecord()?.guiInstanceId).toBe('gui-crashed')
+
+    const recovered = await Effect.runPromise(
+      instance.broker.handleGuiRequest({ operation: 'recoverOwner', guiInstanceId: 'gui-two' }),
+    )
+    expect(recovered).toMatchObject({ operation: 'register', hostInstanceId: 'host-one' })
+    expect(instance.ownerRecord()).toEqual({
+      guiInstanceId: 'gui-two',
+      hostInstanceId: 'host-one',
+      state: 'active',
+    })
+    if (recovered.operation !== 'register') throw new Error('Expected registration')
+    await instance.ready(recovered.leaseId)
+  })
+
+  it('never recovers ownership while another desktop lease is fresh', async () => {
+    const instance = harness()
+    await instance.connect('gui-one')
+    expect(
+      exitMessage(
+        await Effect.runPromiseExit(
+          instance.broker.handleGuiRequest({ operation: 'recoverOwner', guiInstanceId: 'gui-two' }),
+        ),
+      ),
+    ).toContain('has not timed out yet')
+    expect(instance.ownerRecord()).toMatchObject({ guiInstanceId: 'gui-one', state: 'active' })
+  })
+
+  it('recovers once the previous lease has timed out', async () => {
+    vi.useFakeTimers()
+    const instance = harness()
+    await instance.connect('gui-one')
+    vi.advanceTimersByTime(DESKTOP_SERVICE_LIMITS.leaseTimeoutMs + 1)
+    const recovered = await Effect.runPromise(
+      instance.broker.handleGuiRequest({ operation: 'recoverOwner', guiInstanceId: 'gui-two' }),
+    )
+    expect(recovered.operation).toBe('register')
+    expect(instance.ownerRecord()).toMatchObject({ guiInstanceId: 'gui-two', state: 'active' })
+  })
+
+  it('releases orphan fences of earlier Hosts under the attestation and keeps live ones', async () => {
+    const orphan = {
+      token: 'orphan',
+      hostInstanceId: 'host-old',
+      scope: { kind: 'owner' as const, ownerKey: 'session-one' },
+      state: 'active' as const,
+    }
+    const live = { ...orphan, token: 'live', hostInstanceId: 'host-one' }
+    const instance = brokerHarness([orphan, live], {
+      guiInstanceId: 'gui-crashed',
+      hostInstanceId: 'host-old',
+      state: 'active',
+    })
+    cleanups.push(() => instance.broker.close())
+    const recovered = await Effect.runPromise(
+      instance.broker.handleGuiRequest({ operation: 'recoverOwner', guiInstanceId: 'gui-two' }),
+    )
+    if (recovered.operation !== 'register') throw new Error('Expected registration')
+    expect(recovered.fences).toEqual(
+      expect.arrayContaining([
+        { ...orphan, state: 'released' },
+        { ...live, state: 'active' },
+      ]),
+    )
+    await Effect.runPromise(
+      instance.broker.handleGuiRequest({
+        operation: 'acknowledgeReleased',
+        leaseId: recovered.leaseId,
+        token: 'orphan',
+        hostInstanceId: 'host-old',
+      }),
+    )
+    expect(instance.records.has('orphan')).toBe(false)
+  })
+
+  it('treats recovery with no stale owner as an ordinary registration', async () => {
+    const instance = harness()
+    const recovered = await Effect.runPromise(
+      instance.broker.handleGuiRequest({ operation: 'recoverOwner', guiInstanceId: 'gui-one' }),
+    )
+    expect(recovered.operation).toBe('register')
+    expect(instance.ownerRecord()).toMatchObject({ guiInstanceId: 'gui-one', state: 'active' })
+  })
+
   it('delivers a command only once and accepts only the matching completion', async () => {
     const instance = harness()
     const lease = await instance.connect()

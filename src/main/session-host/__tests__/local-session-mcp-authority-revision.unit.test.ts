@@ -4,10 +4,10 @@ import {
   decodeLocalSessionCommandPayloadForRevision,
   decodeLocalSessionNegotiationResult,
 } from '../../../shared/schemas/local-session-protocol'
-import { HOST_UI_REVISION_22_REQUIRED_CHANNELS } from '../../../shared/types/host-ui-protocol'
+import { HOST_UI_REVISION_23_REQUIRED_CHANNELS } from '../../../shared/types/host-ui-protocol'
 import {
-  LOCAL_SESSION_REVISION_21_CAPABILITIES,
   LOCAL_SESSION_REVISION_22_CAPABILITIES,
+  LOCAL_SESSION_REVISION_23_CAPABILITIES,
 } from '../../../shared/types/local-session-protocol-revisions'
 import { supportedRevisionsForCommand } from '../local-session-client'
 
@@ -62,22 +62,22 @@ describe('Local Session MCP authority protocol revision', () => {
     for (const channel of ['mcp:list-secrets', 'mcp:read-resource', 'mcp:call-app-tool']) {
       const command = hostUiCommand(channel)
       expect(decodeLocalSessionCommandPayloadForRevision(command, 6)).toEqual(command)
-      expect(supportedRevisionsForCommand(command)).toEqual([22])
+      expect(supportedRevisionsForCommand(command)).toEqual([23])
     }
   })
 
-  it.each([...HOST_UI_REVISION_22_REQUIRED_CHANNELS])(
-    'requires a revision-22 Host for the MCP configuration channel %s',
+  it.each([...HOST_UI_REVISION_23_REQUIRED_CHANNELS])(
+    'requires a revision-23 Host for the MCP configuration channel %s',
     (channel) => {
       const command = hostUiCommand(channel)
-      expect(supportedRevisionsForCommand(command)).toEqual([22])
-      expect(() => decodeLocalSessionCommandPayloadForRevision(command, 21)).toThrow(/revision 22/)
-      expect(decodeLocalSessionCommandPayloadForRevision(command, 22)).toEqual(command)
+      expect(supportedRevisionsForCommand(command)).toEqual([23])
+      expect(() => decodeLocalSessionCommandPayloadForRevision(command, 22)).toThrow(/revision 23/)
+      expect(decodeLocalSessionCommandPayloadForRevision(command, 23)).toEqual(command)
     },
   )
 
-  it('ships MCP Registry search and install with the revision-22 configuration channels', () => {
-    expect(HOST_UI_REVISION_22_REQUIRED_CHANNELS).toEqual(
+  it('ships MCP Registry search and install with the revision-23 configuration channels', () => {
+    expect(HOST_UI_REVISION_23_REQUIRED_CHANNELS).toEqual(
       expect.arrayContaining([
         'mcp:search-registry',
         'mcp:get-registry-server',
@@ -86,15 +86,15 @@ describe('Local Session MCP authority protocol revision', () => {
     )
   })
 
-  it('ships the per-Session MCP switch with the revision-22 configuration channels', () => {
-    expect(HOST_UI_REVISION_22_REQUIRED_CHANNELS).toEqual(
+  it('ships the per-Session MCP switch with the revision-23 configuration channels', () => {
+    expect(HOST_UI_REVISION_23_REQUIRED_CHANNELS).toEqual(
       expect.arrayContaining(['mcp:get-session-enabled', 'mcp:set-session-enabled']),
     )
   })
 
-  it('advertises the MCP configuration capability at revision 22 only', () => {
-    expect(LOCAL_SESSION_REVISION_21_CAPABILITIES).not.toContain('host-ui:mcp-configuration-v1')
-    expect(LOCAL_SESSION_REVISION_22_CAPABILITIES).toContain('host-ui:mcp-configuration-v1')
+  it('advertises the MCP configuration capability at revision 23 only', () => {
+    expect(LOCAL_SESSION_REVISION_22_CAPABILITIES).not.toContain('host-ui:mcp-configuration-v1')
+    expect(LOCAL_SESSION_REVISION_23_CAPABILITIES).toContain('host-ui:mcp-configuration-v1')
   })
 
   it.each([

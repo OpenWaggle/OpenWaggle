@@ -52,7 +52,7 @@ export const sessionResourceCatalogViewSchema = Schema.Literal(
 
 /**
  * A Session node or branch id: an opaque id, or one under a discovered Pi session's prefix,
- * `<sessionId>/<entryId>` (ADR 0048). Each part is an opaque id, so `..` and empty parts stay out.
+ * `<sessionId>/<entryId>` (ADR 0050). Each part is an opaque id, so `..` and empty parts stay out.
  */
 function isSessionNodeOrBranchId(value: string) {
   const parts = value.split('/')

@@ -2,7 +2,7 @@ import type { AppMigration } from './database-migrations'
 import { PI_SESSION_FILE_STATE_MIGRATION_ID } from './session-host-schema-identity'
 
 /**
- * Persists the Pi file state each Session's projection was read from (ADR 0048), so a Host
+ * Persists the Pi file state each Session's projection was read from (ADR 0050), so a Host
  * restart can tell in one `stat` whether a file changed outside OpenWaggle instead of parsing
  * every file again, and records the working directory a discovered Pi session ran in. Additive
  * only: nothing existing is changed.

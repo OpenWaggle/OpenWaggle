@@ -1,5 +1,5 @@
 /**
- * Session-level MCP off (ADR 0048). It is Session state in the Host database, not configuration:
+ * Session-level MCP off (ADR 0050). It is Session state in the Host database, not configuration:
  * it changes no MCP file, survives a Host restart, and a Session is on unless switched off.
  * Deleting a Session drops its row by foreign key cascade; archiving keeps it, so an unarchived
  * Session still has MCP off.

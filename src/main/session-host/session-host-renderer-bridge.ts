@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/session-host-event'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
+import { startEventLoopStallMonitor } from '../utils/event-loop-stall-monitor'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -15,6 +16,7 @@ import {
   emitWaggleTurnEvent,
   emitWorktreeLaunchFailure,
   emitWorktreeLaunchProgress,
+  getStreamBuffer,
   replaceStreamBufferSnapshots,
   startStreamBufferFromAgentStart,
   upsertStreamBufferRunIdentity,
@@ -24,6 +26,11 @@ import { ensureLocalSessionHost } from './local-session-host-launcher'
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import {
+  missedSettlement,
+  namesAnotherRun,
+  noteRelayedSettlement,
+} from './session-host-relayed-runs'
+import {
   type RemoteSessionHostRendererBridgeDependencies,
   runRemoteSessionHostRendererPump,
 } from './session-host-renderer-recovery'
@@ -32,29 +39,48 @@ const logger = createLogger('session-host/renderer-bridge')
 
 export type { RemoteSessionHostRendererBridgeDependencies }
 
+function announceRemoteRun(snapshot: BackgroundRunSnapshot) {
+  emitTransportEvent(snapshot.sessionId, {
+    type: 'agent_start',
+    // An older Host's snapshot names no Run; the renderer takes the next named start for it.
+    runId: snapshot.runId ?? `remote-snapshot:${snapshot.sessionId}`,
+    model: snapshot.model,
+    timestamp: snapshot.startedAt,
+  })
+}
+
+/**
+ * A resync's snapshot of the Host's active Runs replaces the stream buffers. A Run the bridge last
+ * relayed (the one its buffer held) and the Host no longer runs settled while the subscription was
+ * down: its settlement is relayed now, naming it, before the Run the Host went on to is announced
+ * (`continues`: the Session is still running). A settlement already relayed is not repeated.
+ */
 export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSnapshot[]) {
   const previous = replaceStreamBufferSnapshots(snapshots)
-  const next = new Set(snapshots.map((snapshot) => snapshot.sessionId))
-  for (const sessionId of previous) {
-    if (!next.has(sessionId)) {
-      clearAgentPhase(sessionId)
-      emitRunCompleted(sessionId)
-    }
+  const current = new Set(snapshots.map((snapshot) => snapshot.sessionId))
+  for (const [sessionId, runId] of previous) {
+    if (current.has(sessionId)) continue
+    clearAgentPhase(sessionId)
+    emitRunCompleted(sessionId, missedSettlement(sessionId, runId, false) ?? {})
   }
-  const previousSet = new Set(previous)
   for (const snapshot of snapshots) {
+    const { sessionId } = snapshot
     broadcastToWindows('agent:worktree-launch', {
-      sessionId: snapshot.sessionId,
+      sessionId,
       launch: snapshot.worktreeLaunch ?? null,
     })
-    if (previousSet.has(snapshot.sessionId)) continue
-    emitTransportEvent(snapshot.sessionId, {
-      type: 'agent_start',
-      runId: `remote-snapshot:${snapshot.sessionId}`,
-      model: snapshot.model,
-      timestamp: snapshot.startedAt,
-    })
+    const relayed = previous.get(sessionId)
+    const anotherRun = namesAnotherRun(relayed, snapshot.runId)
+    if (previous.has(sessionId) && !anotherRun) continue
+    relayMissedHandOff(sessionId, anotherRun ? relayed : undefined)
+    announceRemoteRun(snapshot)
   }
+}
+
+/** The hand-off of the Run the buffer held to the next, unless relayed already. */
+function relayMissedHandOff(sessionId: SessionId, runId: string | undefined) {
+  const settlement = missedSettlement(sessionId, runId, true)
+  if (settlement) emitRunCompleted(sessionId, settlement)
 }
 
 function settledRunDetails(
@@ -78,12 +104,14 @@ function relaySettlement(
 ) {
   const sessionId = SessionId(payload.sessionId)
   if (payload.operation === 'run-settled') {
+    if (payload.runId) noteRelayedSettlement(sessionId, payload.runId, false)
     clearAgentPhase(sessionId)
     if (!options.streamBufferAlreadyProjected) clearStreamBuffer(sessionId)
     emitRunCompleted(sessionId, settledRunDetails(payload))
     return
   }
   if (payload.operation === 'follow-up-started' && payload.runId) {
+    noteRelayedSettlement(sessionId, payload.runId, true)
     emitRunCompleted(sessionId, { ...settledRunDetails(payload), continues: true })
   }
 }
@@ -110,6 +138,12 @@ export function relaySessionHostEvent(
   if (delivery.payload.kind === 'session-transport') {
     const sessionId = SessionId(delivery.payload.sessionId)
     if (!options.streamBufferAlreadyProjected && delivery.payload.event.type === 'agent_start') {
+      // The Host went on to another Run while the buffer holds the one before: the hand-off was
+      // lost (a resync whose snapshot still held that Run), so it is relayed first.
+      const buffered = getStreamBuffer(sessionId)?.runId
+      if (namesAnotherRun(buffered, delivery.payload.event.runId)) {
+        relayMissedHandOff(sessionId, buffered)
+      }
       startStreamBufferFromAgentStart(sessionId, delivery.payload.event)
     }
     emitTransportEvent(sessionId, delivery.payload.event, {
@@ -207,6 +241,11 @@ export function startRemoteSessionHostRendererBridge(
     ...dependencyOverrides,
   }
   const abortController = new AbortController()
+  // The same timeouts follow a stall in this process as in the Host; this tells them apart.
+  const stopStallMonitor = startEventLoopStallMonitor({
+    logger,
+    message: 'Desktop main process event loop stalled; Session Host requests may have timed out.',
+  })
   const pumpPromise = runRemoteSessionHostRendererPump({
     paths: input.paths,
     clientVersion: input.clientVersion,
@@ -219,6 +258,7 @@ export function startRemoteSessionHostRendererBridge(
     },
   })
   return async () => {
+    stopStallMonitor()
     abortController.abort()
     await pumpPromise
   }

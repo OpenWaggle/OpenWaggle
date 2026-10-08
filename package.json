@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "1.0.0-beta.10",
+  "version": "1.0.0-beta.11",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {

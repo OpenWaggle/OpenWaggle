@@ -15,7 +15,7 @@ export interface PersistExternalPiSnapshotInput extends PersistSessionSnapshotIn
 }
 
 /**
- * Replaces a Session's projection with its Pi file as another application left it (ADR 0048).
+ * Replaces a Session's projection with its Pi file as another application left it (ADR 0050).
  *
  * Refused when a snapshot was persisted after the file was read: that snapshot is newer, and this
  * one would put back the projection it replaced. Unlike a Run's snapshot this does not make the

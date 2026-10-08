@@ -1,20 +1,29 @@
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
 
-function createAssistantMessage(messageId: string): UIMessage {
+function createAssistantMessage(messageId: string, startedAt?: number): UIMessage {
   return {
     id: messageId,
     role: 'assistant',
     parts: [],
-    createdAt: new Date(),
+    createdAt: new Date(startedAt ?? Date.now()),
   }
 }
 
-export function ensureAssistantMessage(messages: readonly UIMessage[], messageId: string) {
+/**
+ * The messages with the assistant message `messageId`, created if missing. `startedAt` is the Host
+ * timestamp of the event that started it: a reconnect orders a steer it alone holds against this
+ * renderer's answers by Host time, which a late delivery does not move.
+ */
+export function ensureAssistantMessage(
+  messages: readonly UIMessage[],
+  messageId: string,
+  startedAt?: number,
+) {
   const existing = messages.find((message) => message.id === messageId)
   if (existing) {
     return [...messages]
   }
-  return [...messages, createAssistantMessage(messageId)]
+  return [...messages, createAssistantMessage(messageId, startedAt)]
 }
 
 function replaceMessage(
@@ -94,7 +103,7 @@ export function appendTextDelta(messages: readonly UIMessage[], messageId: strin
   })
 }
 
-function makeThinkingStepId(messageId: string, contentIndex: number) {
+export function makeThinkingStepId(messageId: string, contentIndex: number) {
   return `${messageId}:thinking:${String(contentIndex)}`
 }
 

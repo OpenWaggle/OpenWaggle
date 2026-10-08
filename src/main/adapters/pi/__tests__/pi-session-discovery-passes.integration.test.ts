@@ -14,7 +14,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * One discovery pass (ADR 0048): how many Sessions it lists, how it announces them, and how it
+ * One discovery pass (ADR 0050): how many Sessions it lists, how it announces them, and how it
  * stays out of a project whose removal starts while it runs.
  */
 

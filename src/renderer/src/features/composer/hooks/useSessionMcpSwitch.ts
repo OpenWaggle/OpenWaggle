@@ -5,7 +5,7 @@ import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { useUIStore } from '@/shell/ui-store'
 
 /**
- * A Session's MCP switch (ADR 0048). Every Session uses the configured MCP servers until it is
+ * A Session's MCP switch (ADR 0050). Every Session uses the configured MCP servers until it is
  * switched off; its next Run reads the switch, and switching off closes its servers.
  */
 export function useSessionMcpSwitch(sessionId: string) {

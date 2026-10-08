@@ -18,6 +18,7 @@ import { getAgentContextUsage } from '../application/agent-session-service'
 import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { interruptSessionRun } from '../application/session-run-interruption'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -34,8 +35,12 @@ function clearSessionTransportState(sessionId: SessionId) {
 }
 
 function emitCancelledCompletion(sessionId: SessionId) {
+  // Named by the Run the stream buffer held (the classic Run behind a requested Waggle), so the
+  // renderer credits it to that Run.
+  const buffered = getStreamBuffer(sessionId)?.runId
+  const runId = buffered === undefined ? undefined : durableSessionRunId(buffered)
   clearSessionTransportState(sessionId)
-  emitRunCompleted(sessionId)
+  emitRunCompleted(sessionId, runId ? { runId } : {})
 }
 
 /**

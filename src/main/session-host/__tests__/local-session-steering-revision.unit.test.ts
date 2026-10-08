@@ -25,7 +25,7 @@ describe('Local Session steering receipt revision', () => {
           },
         },
       })
-      expect(supportedRevisionsForCommand(payload)).toEqual([22])
+      expect(supportedRevisionsForCommand(payload)).toEqual([23])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 7)).toThrow(/revision 8/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 8)).toEqual(payload)
     },

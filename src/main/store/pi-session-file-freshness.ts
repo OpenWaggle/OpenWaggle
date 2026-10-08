@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { runStoreEffect } from './store-runtime'
 
 /**
- * The Pi file state each Session's projection was read from (ADR 0048), kept with the projection.
+ * The Pi file state each Session's projection was read from (ADR 0050), kept with the projection.
  *
  * Every persisted snapshot advances the Session's revision and records the file's size and
  * modification time, so a later read tells in one `stat`, even after a Host restart, whether the

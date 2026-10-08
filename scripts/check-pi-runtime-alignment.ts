@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
+import { EXPECTED_PATCH_PATHS } from './pi-runtime-patch-paths'
 const PI_CATALOG = 'pi-runtime'
 const PI_PACKAGES = [
   'pi-agent-core',
@@ -19,37 +20,6 @@ const PATCHED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent'] as const
 const ROOT_PINNED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent', 'pi-mcp'] as const
 const BEFORE_PATCH_PATH_CAPTURE = 1
 const AFTER_PATCH_PATH_CAPTURE = 2
-const EXPECTED_PATCH_PATHS = {
-  'pi-ai': [
-    'dist/api/openai-responses-shared.js',
-    'dist/api/openai-responses.d.ts',
-    'dist/api/openai-responses.js',
-    'dist/providers/openai-codex.models.js',
-    'dist/providers/openai.models.js',
-    'dist/types.d.ts',
-    'dist/utils/provider-retry.d.ts',
-    'dist/utils/provider-retry.js',
-    'dist/utils/retry.d.ts',
-    'dist/utils/retry.js',
-  ],
-  'pi-coding-agent': [
-    'dist/core/agent-session.d.ts',
-    'dist/core/agent-session.js',
-    'dist/core/compaction/compaction.d.ts',
-    'dist/core/compaction/compaction.js',
-    'dist/core/messages.d.ts',
-    'dist/core/messages.js',
-    'dist/core/model-runtime.d.ts',
-    'dist/core/model-runtime.js',
-    'dist/core/sdk.js',
-    'dist/core/session-manager.d.ts',
-    'dist/core/session-manager.js',
-    'dist/core/settings-manager.d.ts',
-    'dist/core/settings-manager.js',
-    'dist/index.d.ts',
-    'dist/index.js',
-  ],
-} as const
 
 export interface PiRuntimeAlignmentInput {
   readonly lockfile: string

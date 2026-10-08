@@ -1,4 +1,3 @@
-import { LOCAL_SESSION_UPDATE_REVISION } from '@shared/types/local-session-protocol'
 import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import {
   UPDATE_CHANNELS,
@@ -243,9 +242,9 @@ async function readAndUpdateChannel(
   parsed: ReturnType<typeof parseMcpCliArguments>,
   requested: UpdateChannel | undefined,
 ) {
-  const client = await createLocalSessionCliClientInput(parsed, {
-    supportedRevisions: [LOCAL_SESSION_UPDATE_REVISION],
-  })
+  // The command offers the revisions it can be sent at (`supportedRevisionsForCommand`): a Host
+  // accepts only its current one, so pinning the revision that introduced it failed the handshake.
+  const client = await createLocalSessionCliClientInput(parsed)
   const result = await executeLocalSessionCommand({
     ...client,
     payload: requested

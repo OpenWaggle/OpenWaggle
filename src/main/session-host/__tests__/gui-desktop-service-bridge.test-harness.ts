@@ -18,6 +18,7 @@ export function bridgeHarness() {
     rejectReceipt: false,
     rejectPreparation: false,
     rejectResume: false,
+    rejectRecovery: false,
   }
   const reconcile = vi.fn(async () => ({ released: [], activeTokens: [] }))
   const executor: GuiDesktopServiceExecutor = fromPartial({
@@ -31,7 +32,11 @@ export function bridgeHarness() {
   })
   const request = async (request: DesktopServiceRequest): Promise<DesktopServiceResponse> => {
     calls.push(request)
-    if (request.operation === 'register') {
+    if (request.operation === 'recoverOwner') {
+      if (state.rejectRecovery) throw new Error('Desktop operations are still settling.')
+      state.quarantined = false
+    }
+    if (request.operation === 'register' || request.operation === 'recoverOwner') {
       if (state.quarantined) return { operation: 'quarantined', reason: 'previous-owner-unclean' }
       return {
         operation: 'register',

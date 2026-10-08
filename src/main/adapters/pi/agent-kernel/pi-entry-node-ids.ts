@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
  * A Session's nodes normally use its Pi entry ids unchanged. OpenWaggle stores every Session's
  * nodes under one global key (ADR 0041), and a Pi session created outside OpenWaggle may have
  * copied its entry ids from another one: the `pi` CLI's `/fork` keeps the source's ids. A
- * discovered Pi session therefore projects its entries under a per-Session prefix (ADR 0048), so
+ * discovered Pi session therefore projects its entries under a per-Session prefix (ADR 0050), so
  * its nodes can never collide with another Session's, and OpenWaggle never rewrites the file. Every
  * id that crosses between the projection and Pi passes through this mapping.
  */

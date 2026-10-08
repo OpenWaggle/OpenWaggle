@@ -1,5 +1,5 @@
 /**
- * Merges the MCP configuration file set of ADR 0048 into the server list Pi's MCP extension
+ * Merges the MCP configuration file set of ADR 0050 into the server list Pi's MCP extension
  * receives.
  *
  * Files are folded in order (Pi global, OpenWaggle global, `.mcp.json`, `.pi/mcp.json`,

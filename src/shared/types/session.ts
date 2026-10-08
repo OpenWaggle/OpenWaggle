@@ -148,14 +148,14 @@ export interface SessionDetail {
   /** Conversation position the Session resumes from; see {@link SessionResumePosition}. */
   readonly resumePosition?: SessionResumePosition
   /**
-   * Set for a Pi session OpenWaggle discovered rather than created (ADR 0048): its node ids are
+   * Set for a Pi session OpenWaggle discovered rather than created (ADR 0050): its node ids are
    * its Pi entry ids under this prefix, because such a file may share entry ids with another
    * Session's (a `pi` CLI fork copies them) and OpenWaggle never rewrites it.
    */
   readonly piEntryNodeIdPrefix?: string
   /**
    * The working directory a discovered Pi session ran in, when it is a folder inside the project.
-   * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0048).
+   * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0050).
    */
   readonly piSessionCwd?: string
 }

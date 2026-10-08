@@ -1,5 +1,5 @@
 /**
- * Settings > MCP and the MCP CLI read and change the ADR 0048 file set through these shapes. They
+ * Settings > MCP and the MCP CLI read and change the ADR 0050 file set through these shapes. They
  * describe Pi's configuration as OpenWaggle merges it; nothing here is OpenWaggle-only state
  * except a Session's MCP switch.
  */

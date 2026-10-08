@@ -1,5 +1,7 @@
 export interface GuiDesktopServiceLifecycle {
   readonly stop: () => Promise<void>
+  /** `stopped` never reattaches; `reconnecting` is the pump still retrying in the background. */
+  readonly attachment: () => 'attached' | 'reconnecting' | 'stopped'
   /** Invoke only after actual native PTY/browser disposal has succeeded. */
   readonly markClosed: () => Promise<void>
 }
@@ -13,6 +15,20 @@ export class DesktopNativeQuarantinedError extends Error {
       'Desktop tools are paused because a previous GUI did not confirm native resource cleanup. Sessions remain available.',
     )
     this.name = 'DesktopNativeQuarantinedError'
+  }
+}
+
+const HOST_RESTART_HINT =
+  'If this keeps happening, quit OpenWaggle, run openwaggle host stop --wait in a terminal, and reopen it.'
+
+/** The Host did not accept a user-attested recovery; the bridge stops instead of retrying it. */
+export class DesktopNativeRecoveryError extends Error {
+  constructor(cause: unknown) {
+    const reason =
+      cause instanceof Error ? cause.message : 'the Session Host did not accept the request.'
+    // The advice leads: a Host that predates recovery answers with a long schema decode error.
+    super(`Desktop tools could not be recovered. ${HOST_RESTART_HINT} Reason: ${reason}`, { cause })
+    this.name = 'DesktopNativeRecoveryError'
   }
 }
 
@@ -73,4 +89,38 @@ export interface GuiDesktopBridgeInput {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly executor: GuiDesktopServiceExecutor
   readonly request?: (request: DesktopServiceRequest) => Promise<DesktopServiceResponse>
+  /** The user attested that the previous unclean desktop left nothing running. Sent once. */
+  readonly recoverPreviousOwner?: boolean
+}
+
+/**
+ * Register, or for a recovering bridge send the user's attestation in its place (ADR 0049). Any
+ * failure before the Host accepts that attestation is terminal, so a retry never replays it.
+ */
+export async function registerGuiDesktop(input: {
+  readonly request: (request: DesktopServiceRequest) => Promise<DesktopServiceResponse>
+  readonly refresh: () => Promise<void>
+  readonly guiInstanceId: string
+  readonly recovering: boolean
+}) {
+  let registered: DesktopServiceResponse
+  try {
+    await input.refresh()
+    registered = await input.request({
+      operation: input.recovering ? 'recoverOwner' : 'register',
+      guiInstanceId: input.guiInstanceId,
+    })
+  } catch (error) {
+    throw input.recovering ? new DesktopNativeRecoveryError(error) : error
+  }
+  if (registered.operation === 'quarantined') {
+    throw input.recovering
+      ? new DesktopNativeRecoveryError(undefined)
+      : new DesktopNativeQuarantinedError()
+  }
+  if (registered.operation !== 'register') {
+    const unacknowledged = new Error('Desktop registration was not acknowledged.')
+    throw input.recovering ? new DesktopNativeRecoveryError(unacknowledged) : unacknowledged
+  }
+  return registered
 }

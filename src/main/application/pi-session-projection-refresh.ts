@@ -29,7 +29,7 @@ import { validateSessionId } from './host-ui-session-operation-validation'
 /**
  * A Session discovered from the `pi` CLI is projected the first time it is opened, and any Session
  * is projected again before it is shown or continued when its Pi file changed outside OpenWaggle
- * (ADR 0048). Nothing locks the file against the CLI; the last writer's entries are read next time.
+ * (ADR 0050). Nothing locks the file against the CLI; the last writer's entries are read next time.
  */
 
 const logger = createLogger('pi-session-projection-refresh')
@@ -83,7 +83,7 @@ function continuationModel(snapshot: PiSessionFileSnapshot, projectPath: string)
 }
 
 /**
- * A discovered Pi session continues the way `pi --resume` would (ADR 0048): with the model and
+ * A discovered Pi session continues the way `pi --resume` would (ADR 0050): with the model and
  * thinking level its branch last used, not OpenWaggle's default, and with Pi's default thinking
  * level when the branch never changed it. Applied when OpenWaggle takes in what another program
  * wrote, and only while no Run is active; a model OpenWaggle cannot run keeps the Session's
@@ -122,7 +122,7 @@ function continueWithPiSessionSettings(
 const FOLLOWED_TITLE_SOURCES = ['default', 'provisional', 'generated'] as const
 
 /**
- * A discovered Session's title follows its Pi session's latest `/name` (ADR 0048), unless the user
+ * A discovered Session's title follows its Pi session's latest `/name` (ADR 0050), unless the user
  * renamed the Session in OpenWaggle: that title is `manual`, and stays.
  */
 function followPiSessionName(
@@ -265,7 +265,7 @@ export function refreshPiSessionProjectionSafely(
   })
 }
 
-/** A Session read: the Session is shown as its Pi file is now (ADR 0048). */
+/** A Session read: the Session is shown as its Pi file is now (ADR 0050). */
 export function openedSessionId(value: unknown) {
   return Effect.tap(validateSessionId(value), (sessionId) =>
     refreshPiSessionProjectionSafely(sessionId, 'reader'),
@@ -282,7 +282,7 @@ export function loadSessionForRun(sessionId: SessionId) {
 
 /**
  * A Session read through the Sessions tool or `openwaggle sessions` shows the Pi file as it is
- * now, like the sidebar does (ADR 0048). It runs once the caller is resolved; projecting a file
+ * now, like the sidebar does (ADR 0050). It runs once the caller is resolved; projecting a file
  * only refreshes what the query would read anyway and returns nothing to the caller.
  */
 export function refreshBeforeSessionQuery(query: SessionQuery) {
