@@ -149,6 +149,8 @@ Every MCP tool call, including calls made from a script, asks for your approval 
 
 Remote servers that use OAuth, such as Sentry or Figma, need no credentials in the file. When one needs sign-in, its row in **Settings > MCP** says so; choose **Sign in** and finish in your browser. Sign-ins are stored in OpenWaggle's encrypted store. A server you already signed in to with the `pi` command is signed in in OpenWaggle too. Signing out in OpenWaggle does not change Pi's sign-in file.
 
+A server that a Pi extension adds signs in the same way, when a Run first uses it: the sign-in page opens in your browser. Such servers are not in **Settings > MCP**, so they cannot be signed in from there.
+
 OAuth options such as a registered client id, a fixed callback port, or scopes go under `oauth`, as described in Pi's MCP documentation.
 
 ## Connections

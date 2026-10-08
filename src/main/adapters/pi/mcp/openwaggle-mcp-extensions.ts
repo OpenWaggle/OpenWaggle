@@ -20,6 +20,7 @@ import {
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
+import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
@@ -128,11 +129,16 @@ function withMcpApp(
   }
 }
 
-function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntimeConfig) {
+function companionExtension(
+  input: OpenWaggleMcpSessionInput,
+  config: McpRuntimeConfig,
+  extensionServers: ReturnType<typeof createMcpExtensionServers>,
+) {
   const servers = serverIdentities(config)
   return (pi: ExtensionAPI) => {
     let detach: (() => void) | undefined
     pi.on('session_start', (_event, ctx) => {
+      extensionServers.capture(pi)
       detach?.()
       detach = attachSessionMcpContext(input.sessionId, {
         interactions: createPiMcpRuntimeInteractions(ctx),
@@ -229,12 +235,14 @@ export async function createOpenWaggleMcpExtensions(
       : { sessionMcpEnabled: input.sessionMcpEnabled }),
     ...(input.serverAllowlist ? { serverAllowlist: input.serverAllowlist } : {}),
   })
+  const extensionServers = createMcpExtensionServers()
   const mcp = createMcpExtension({
     loadConfig: () => withShellResolvedClientSecrets(config.loaded),
     createTransport: openWaggleMcpTransport(input, config),
     credentials: getOpenWaggleMcpCredentials(),
     logPath: openWaggleMcpLogPath(),
-    openUrl: createRunSignInOpener(() => config.loaded.servers),
+    // Servers Pi extensions registered sign in too; the companion reads them at session start.
+    openUrl: createRunSignInOpener(() => [...config.loaded.servers, ...extensionServers.entries()]),
     updateConfig: createMcpUpdateConfig(
       (filePath) => input.onConfigChanged?.(filePath),
       (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
@@ -243,6 +251,6 @@ export async function createOpenWaggleMcpExtensions(
   })
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },
-    companionExtension(input, config),
+    companionExtension(input, config, extensionServers),
   ]
 }

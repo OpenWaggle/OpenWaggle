@@ -230,6 +230,10 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
 
 Interactive sign-in stays Host-owned: Settings and the CLI ask the Host, which runs Pi's
 `signInMcpServer` against the same store. A Run's `/mcp` sign-in goes through Pi's `openUrl`.
+A Run's opener matches the page to the configured servers and to the servers Pi extensions
+registered (`pi.getMcpServers()`, read on `session_start`, `mcp-extension-servers.ts`). Settings
+lists only configured servers, so an extension's server signs in during a Run only.
+
 Both open a page only after `checkMcpAuthorizationUrl` (`adapters/mcp/credentials/`) accepts it:
 `https:` or `http:` (the transport reaches these hosts over plain http too; any other scheme is
 refused), no credentials, and the host of the server, of the
