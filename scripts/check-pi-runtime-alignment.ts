@@ -150,9 +150,9 @@ function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
 }
 
 /**
- * Temporary Pi entries in `minimumReleaseAgeExclude` must name the day the excluded release
- * passes pnpm's seven-day minimum release age, and the check fails from that day on, so the
- * exceptions cannot linger after they stop being needed.
+ * Temporary Pi entries in `minimumReleaseAgeExclude` must name when the last-published package of
+ * the excluded release passes pnpm's seven-day minimum release age, and the check fails from then
+ * on, so the exceptions cannot linger after they stop being needed.
  */
 const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
 
@@ -188,19 +188,31 @@ function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: st
   return [...problems, ...releaseAgeExclusionExpiryProblems(input, version)]
 }
 
+/** `YYYY-MM-DD` (midnight UTC) or a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`. */
+function releaseAgeExpiryTime(expiry: string) {
+  const time = Date.parse(expiry.length === 10 ? `${expiry}T00:00:00Z` : expiry)
+  if (Number.isNaN(time)) return undefined
+  const canonical = new Date(time).toISOString()
+  return canonical.startsWith(expiry.length === 10 ? expiry : expiry.replace(/Z$/, '')) ? time : undefined
+}
+
 function releaseAgeExclusionExpiryProblems(input: PiRuntimeAlignmentInput, version: string) {
   const match = input.workspace.match(
-    new RegExp(`^\\s*# ${RELEASE_AGE_EXPIRY_MARKER}: (\\d{4}-\\d{2}-\\d{2})$`, 'm'),
+    new RegExp(
+      `^\\s*# ${RELEASE_AGE_EXPIRY_MARKER}: (\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}Z)?)$`,
+      'm',
+    ),
   )
   const expiry = match?.[1]
-  if (!expiry) {
+  const expiryTime = expiry === undefined ? undefined : releaseAgeExpiryTime(expiry)
+  if (expiry === undefined || expiryTime === undefined) {
     return [
-      `Temporary Pi minimumReleaseAgeExclude entries need a "# ${RELEASE_AGE_EXPIRY_MARKER}: YYYY-MM-DD" line naming the day ${version} is seven days old.`,
+      `Temporary Pi minimumReleaseAgeExclude entries need a "# ${RELEASE_AGE_EXPIRY_MARKER}: YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SSZ" line naming when every ${version} package is seven days old.`,
     ]
   }
-  if (input.now.getTime() >= Date.parse(`${expiry}T00:00:00Z`)) {
+  if (input.now.getTime() >= expiryTime) {
     return [
-      `Remove the temporary Pi minimumReleaseAgeExclude entries and their ${RELEASE_AGE_EXPIRY_MARKER} line: Pi ${version} passed pnpm's seven-day minimum release age on ${expiry}.`,
+      `Remove the temporary Pi minimumReleaseAgeExclude entries and their ${RELEASE_AGE_EXPIRY_MARKER} line: Pi ${version} passed pnpm's seven-day minimum release age at ${expiry}.`,
     ]
   }
   return []

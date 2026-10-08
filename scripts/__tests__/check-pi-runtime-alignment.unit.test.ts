@@ -37,7 +37,7 @@ function alignedInput(): PiRuntimeAlignmentInput {
   pi-runtime:
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
 minimumReleaseAgeExclude:
-  # pi-runtime-release-age-exclusions-expire: 2026-10-12
+  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z
 ${installedPackages.map((name) => `  - ${packageRef(name)}@${version}`).join('\n')}
 patchedDependencies:
   '${packageRef('pi-ai')}@${version}': patches/@earendil-works__pi-ai@${version}.patch
@@ -84,17 +84,49 @@ describe('Pi runtime alignment', () => {
   })
 
   it('fails once the temporary release-age exclusions are no longer needed', () => {
-    expect(
-      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-12T00:00:00Z') }),
-    ).toContainEqual(
-      expect.stringContaining('Remove the temporary Pi minimumReleaseAgeExclude entries'),
+    const removeEntries = expect.stringContaining(
+      'Remove the temporary Pi minimumReleaseAgeExclude entries',
     )
+    // The last 1.0.4 package was published at 21:51:59Z, so the exclusions stay until 22:00Z.
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-12T21:59:59Z') }),
+    ).not.toContainEqual(removeEntries)
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-12T22:00:00Z') }),
+    ).toContainEqual(removeEntries)
   })
+
+  it('reads a date-only expiry as midnight UTC', () => {
+    const input = alignedInput()
+    const workspace = input.workspace.replace('2026-10-12T22:00:00Z', '2026-10-13')
+    const removeEntries = expect.stringContaining(
+      'Remove the temporary Pi minimumReleaseAgeExclude entries',
+    )
+
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...input, workspace, now: new Date('2026-10-12T23:59:59Z') }),
+    ).not.toContainEqual(removeEntries)
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...input, workspace, now: new Date('2026-10-13T00:00:00Z') }),
+    ).toContainEqual(removeEntries)
+  })
+
+  it.each(['2026-10-12T22:00', '2026-10-12 22:00:00Z', '2026-13-12', 'soon'])(
+    'rejects the expiry %s',
+    (expiry) => {
+      const input = alignedInput()
+      const workspace = input.workspace.replace('2026-10-12T22:00:00Z', expiry)
+
+      expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
+        expect.stringContaining('pi-runtime-release-age-exclusions-expire'),
+      )
+    },
+  )
 
   it('requires temporary release-age exclusions to say when they expire', () => {
     const input = alignedInput()
     const workspace = input.workspace.replace(
-      '  # pi-runtime-release-age-exclusions-expire: 2026-10-12\n',
+      '  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z\n',
       '',
     )
 

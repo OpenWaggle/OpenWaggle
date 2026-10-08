@@ -67,11 +67,12 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/nested-clients@3.997.34"
   - "@aws-sdk/token-providers@3.1092.0"
   # TEMPORARY, for the Pi 1.0 upgrade PR only. Pi publishes its runtime packages
-  # as a matched set; 1.0.4 (2026-10-05) is younger than the seven-day minimum
-  # release age. Remove these exact entries once 1.0.4 is older than seven days
-  # (2026-10-12); trustPolicy still applies to them.
-  # check:pi-runtime fails from this day on until the entries are removed.
-  # pi-runtime-release-age-exclusions-expire: 2026-10-12
+  # as a matched set; 1.0.4 (published 2026-10-05, the last package at
+  # 21:51:59Z) is younger than the seven-day minimum release age. Remove these
+  # exact entries once every 1.0.4 package is older than seven days
+  # (2026-10-12T21:52Z); trustPolicy still applies to them.
+  # check:pi-runtime fails from the time below until the entries are removed.
+  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z
   - "@earendil-works/chord@1.0.4"
   - "@earendil-works/pi-agent-core@1.0.4"
   - "@earendil-works/pi-ai@1.0.4"
