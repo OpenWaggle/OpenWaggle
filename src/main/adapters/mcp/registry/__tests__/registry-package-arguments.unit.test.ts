@@ -70,4 +70,41 @@ describe('Registry package arguments', () => {
       ),
     ).rejects.toThrow('unsupported runtime argument "--registry=-y"')
   })
+
+  function withArguments(packageArguments: readonly object[]) {
+    return server('npm', '@example/weather', { version: '1.2.3', packageArguments })
+  }
+
+  it('uses an argument default and fills {variables} from their values or defaults', async () => {
+    const result = await createRegistryEntry(
+      withArguments([
+        { type: 'named', name: '--port', default: '8080' },
+        {
+          type: 'positional',
+          value: '--root={root}/data',
+          variables: { root: { default: '/srv' } },
+        },
+      ]),
+      options,
+    )
+
+    expect(result.entry).toMatchObject({
+      args: ['--yes', '@example/weather@1.2.3', '--port=8080', '--root=/srv/data'],
+    })
+  })
+
+  it('leaves out an optional argument it cannot fill, and refuses a required one', async () => {
+    const optional = await createRegistryEntry(
+      withArguments([{ type: 'positional', value: '{workspace}', variables: { workspace: {} } }]),
+      options,
+    )
+
+    expect(optional.entry).toMatchObject({ args: ['--yes', '@example/weather@1.2.3'] })
+    await expect(
+      createRegistryEntry(
+        withArguments([{ type: 'named', name: '--api-url', isRequired: true, valueHint: 'url' }]),
+        options,
+      ),
+    ).rejects.toThrow('needs a value for --api-url')
+  })
 })

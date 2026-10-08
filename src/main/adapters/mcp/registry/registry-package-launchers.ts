@@ -26,17 +26,54 @@ export interface RegistryPackageLauncher {
 
 type PackageEntry = Readonly<Record<string, unknown>>
 
+const VARIABLE_PATTERN = /\{([^{}]+)\}/g
+
+function field(value: object, key: string): unknown {
+  return Reflect.get(value, key)
+}
+
+/**
+ * An `Input`'s value (server.json `InputWithVariables`): its `value`, else its `default`, with each
+ * `{name}` filled from `variables.name`'s value or default. Undefined when something is missing.
+ */
+function inputValue(input: object): { readonly value?: string; readonly missing: boolean } {
+  const raw = stringValue(field(input, 'value')) ?? stringValue(field(input, 'default'))
+  if (raw === undefined) return { missing: false }
+  const variables = field(input, 'variables')
+  let missing = false
+  const filled = raw.replace(VARIABLE_PATTERN, (placeholder, name: string) => {
+    const variable =
+      typeof variables === 'object' && variables !== null ? field(variables, name) : undefined
+    const value =
+      typeof variable === 'object' && variable !== null
+        ? (stringValue(field(variable, 'value')) ?? stringValue(field(variable, 'default')))
+        : undefined
+    if (value === undefined) missing = true
+    return value ?? placeholder
+  })
+  return missing ? { missing: true } : { value: filled, missing: false }
+}
+
 /**
  * Registry arguments as command-line words (server.json `Argument`): a positional argument is its
  * value, and a named one is the `--flag={value}` the schema describes, or the bare flag when it
- * has no value. An argument without what it needs is left out.
+ * has no value. An optional argument without a value is left out; a required one stops the install,
+ * since the server would not start without it.
  */
 function commandLineArguments(value: unknown) {
   return arrayValue(value).flatMap((argument: unknown) => {
     if (typeof argument !== 'object' || argument === null) return []
-    const resolved = stringValue(Reflect.get(argument, 'value'))
-    if (Reflect.get(argument, 'type') !== 'named') return resolved ? [resolved] : []
-    const name = stringValue(Reflect.get(argument, 'name'))
+    const { value: resolved, missing } = inputValue(argument)
+    const named = field(argument, 'type') === 'named'
+    const name = stringValue(field(argument, 'name'))
+    if (resolved === undefined && field(argument, 'isRequired') === true) {
+      throw new Error(
+        `The Registry server needs a value for ${name ?? 'a positional argument'}, which it does not provide. Add the server by hand with that value.`,
+      )
+    }
+    // A value whose {variables} could not all be filled is left out, not passed half-filled.
+    if (missing) return []
+    if (!named) return resolved ? [resolved] : []
     if (!name) return []
     return [resolved ? `${name}=${resolved}` : name]
   })
