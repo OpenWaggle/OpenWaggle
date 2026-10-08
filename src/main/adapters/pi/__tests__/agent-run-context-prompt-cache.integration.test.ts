@@ -132,7 +132,7 @@ async function createSessionHarness() {
     }
   }
 
-  return { run, requests }
+  return { run, requests, sessionManager }
 }
 
 function leadingSystemPrompt(context: Pick<TranscriptContext, 'messages'>) {
@@ -200,5 +200,26 @@ describe('Agent run context and the provider prompt cache', () => {
     const last = harness.requests.at(-1)
     if (!last) throw new Error('Expected provider requests')
     expect(nonSystemText(last).split('"runId": "run-only"')).toHaveLength(2)
+  })
+
+  it("keeps the Run identity out of the context Pi builds from the Session's file", async () => {
+    const harness = await createSessionHarness()
+
+    await harness.run('run-first', 'Audit the adapter')
+    await harness.run('run-second', 'Now audit the projection')
+
+    // `pi --resume` sends what the file holds; the Run identity is OpenWaggle's alone.
+    const piContext = { messages: harness.sessionManager.buildSessionContext().messages }
+    expect(piContext.messages.some((message) => message.role === 'custom')).toBe(false)
+    expect(JSON.stringify(piContext.messages)).not.toContain(
+      'OpenWaggle Host-authored Run identity',
+    )
+    // OpenWaggle's Runs still send each Run's identity where it was first sent, so the
+    // provider prompt cache keeps the earlier Run's prefix.
+    const [first, second] = harness.requests
+    if (!first || !second) throw new Error('Expected one provider request per Run')
+    expect(nonSystemText(second).startsWith(nonSystemText(first))).toBe(true)
+    expect(nonSystemText(second)).toContain('"runId": "run-first"')
+    expect(nonSystemText(second)).toContain('"runId": "run-second"')
   })
 })

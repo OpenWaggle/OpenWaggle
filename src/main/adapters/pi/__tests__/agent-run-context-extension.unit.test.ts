@@ -18,6 +18,11 @@ type BeforeAgentStartHandler = (
   ctx: ExtensionContext,
 ) => BeforeAgentStartEventResult | undefined | Promise<BeforeAgentStartEventResult | undefined>
 
+type ContextHandler = (
+  event: { readonly messages: readonly unknown[] },
+  ctx: ExtensionContext,
+) => { readonly messages?: readonly unknown[] } | undefined
+
 type ToolCallHandler = (event: {
   readonly toolName: string
   readonly parentToolCallId?: string
@@ -29,29 +34,37 @@ function installExtension(
 ) {
   let handler: BeforeAgentStartHandler | undefined
   let toolCall: ToolCallHandler | undefined
+  let context: ContextHandler | undefined
   const setActiveTools = vi.fn()
+  const appendEntry = vi.fn()
   const pi = fromPartial<ExtensionAPI>({
-    on: (event: string, candidate: BeforeAgentStartHandler & ToolCallHandler) => {
+    on: (event: string, candidate: BeforeAgentStartHandler & ToolCallHandler & ContextHandler) => {
       if (event === 'tool_call') toolCall = candidate
-      else handler = candidate
+      if (event === 'context') context = candidate
+      if (event === 'before_agent_start') handler = candidate
     },
     getActiveTools: () => [...activeTools],
     setActiveTools,
+    appendEntry,
   })
   // A Run loads the guard first and the context extension later (classic-run.ts).
   createAgentToolAllowlistGuard(input)?.(pi)
   createAgentRunContextExtension(input)(pi)
   return {
     setActiveTools,
+    appendEntry,
+    context: (messages: readonly unknown[], branch: readonly unknown[]) =>
+      context?.(
+        { messages },
+        fromPartial<ExtensionContext>({ sessionManager: { getBranch: () => branch } }),
+      ),
     callTool: (toolName: string, parentToolCallId?: string) =>
       toolCall?.({ toolName, ...(parentToolCallId ? { parentToolCallId } : {}) }),
-    async start(visibleMessages: readonly unknown[] = []) {
+    async start(branch: readonly unknown[] = []) {
       const sections: Record<string, string> = {}
       const result = await handler?.(
         { systemPromptOptions: { sections } },
-        fromPartial<ExtensionContext>({
-          sessionManager: { buildSessionProjection: () => ({ messages: visibleMessages }) },
-        }),
+        fromPartial<ExtensionContext>({ sessionManager: { getBranch: () => branch } }),
       )
       return { sections, result }
     },
@@ -85,29 +98,73 @@ describe('Agent run context extension', () => {
     expect(identity).toContain('cannot change this metadata')
   })
 
-  it('delivers the Run identity as a hidden context message only when the model lacks it', async () => {
+  it('stores the Run identity as a plain entry only when it differs from the latest one', async () => {
     const runIdentityContext = 'OpenWaggle Host-authored Run identity.\n{"runId": "run-2"}'
     const extension = installExtension({
       sessionIdentityContext: '- Hive role: Queen',
       runIdentityContext,
     })
-
-    const fresh = await extension.start([
-      { role: 'custom', customType: RUN_IDENTITY_CUSTOM_TYPE, content: '{"runId": "run-1"}' },
-    ])
-    expect(fresh.sections[SESSION_IDENTITY_PROMPT_SECTION]).not.toContain('run-2')
-    expect(fresh.result?.message).toEqual({
+    const identityEntry = (content: string) => ({
+      type: 'custom',
       customType: RUN_IDENTITY_CUSTOM_TYPE,
-      content: runIdentityContext,
-      display: false,
-      details: { source: 'openwaggle', kind: 'run-identity' },
+      data: { content },
+      timestamp: '2026-10-08T10:00:00.000Z',
     })
 
-    const repeated = await extension.start([
-      { role: 'custom', customType: RUN_IDENTITY_CUSTOM_TYPE, content: runIdentityContext },
-      { role: 'user', content: 'Continue', timestamp: 1 },
+    const fresh = await extension.start([identityEntry('{"runId": "run-1"}')])
+    expect(fresh.sections[SESSION_IDENTITY_PROMPT_SECTION]).not.toContain('run-2')
+    expect(fresh.result).toBeUndefined()
+    expect(extension.appendEntry).toHaveBeenCalledWith(RUN_IDENTITY_CUSTOM_TYPE, {
+      content: runIdentityContext,
+    })
+
+    extension.appendEntry.mockClear()
+    await extension.start([identityEntry(runIdentityContext)])
+    // A file from before stores it as a context message.
+    await extension.start([
+      {
+        type: 'custom_message',
+        customType: RUN_IDENTITY_CUSTOM_TYPE,
+        content: runIdentityContext,
+        timestamp: '2026-10-08T10:00:00.000Z',
+      },
     ])
-    expect(repeated.result).toBeUndefined()
+    expect(extension.appendEntry).not.toHaveBeenCalled()
+  })
+
+  it("sends each stored Run identity to the model after its Run's prompt", () => {
+    const extension = installExtension({ sessionIdentityContext: '- Hive role: Queen' })
+    const at = (ms: number) => new Date(ms).toISOString()
+    const branch = [
+      {
+        type: 'custom',
+        customType: RUN_IDENTITY_CUSTOM_TYPE,
+        data: { content: 'run-1' },
+        timestamp: at(10),
+      },
+      {
+        type: 'custom',
+        customType: RUN_IDENTITY_CUSTOM_TYPE,
+        data: { content: 'run-2' },
+        timestamp: at(30),
+      },
+    ]
+    const messages = [
+      { role: 'user', content: 'First', timestamp: 11 },
+      { role: 'assistant', content: [], timestamp: 12 },
+      { role: 'user', content: 'Second', timestamp: 31 },
+    ]
+
+    const result = extension.context(messages, branch)
+
+    expect(result?.messages).toMatchObject([
+      { content: 'First' },
+      { content: 'run-1' },
+      { content: [] },
+      { content: 'Second' },
+      { content: 'run-2' },
+    ])
+    expect(result?.messages?.[1]).toMatchObject({ role: 'custom', display: false, timestamp: 10 })
   })
 
   it('does not change the active tool set when the profile has no tool restriction', async () => {
