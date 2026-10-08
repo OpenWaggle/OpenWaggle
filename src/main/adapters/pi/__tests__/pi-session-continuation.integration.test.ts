@@ -39,8 +39,14 @@ vi.mock('electron', () => ({
 
 const fixture = setUpPiDiscoveryFixture(state)
 
-/** A provider Pi knows from `models.json`, as a `pi` user configures a compatible endpoint. */
-async function configurePiProvider(models: readonly string[]) {
+/**
+ * A provider Pi knows from `models.json`, as a `pi` user configures a compatible endpoint. Its
+ * models reason unless named in `withoutReasoning`, so they offer every thinking level.
+ */
+async function configurePiProvider(
+  models: readonly string[],
+  withoutReasoning: readonly string[] = [],
+) {
   const agentDir = path.join(fixture.root, 'pi-agent')
   await fs.mkdir(agentDir, { recursive: true })
   await fs.writeFile(
@@ -51,7 +57,7 @@ async function configurePiProvider(models: readonly string[]) {
           baseUrl: 'http://127.0.0.1:9/v1',
           api: 'openai-completions',
           apiKey: 'local-key',
-          models: models.map((id) => ({ id })),
+          models: models.map((id) => ({ id, reasoning: !withoutReasoning.includes(id) })),
         },
       },
     }),
@@ -113,6 +119,38 @@ describe('Continuing a discovered Pi session', () => {
     await openSession(sessionId)
 
     expect((await sessionDetail(sessionId))?.executionThinkingLevel).toBe('minimal')
+  })
+
+  it("prefers the project's default thinking level over the global one, as pi does", async () => {
+    await configurePiProvider(['only-model'])
+    await setPiDefaultThinkingLevel('minimal')
+    await fs.mkdir(path.join(fixture.project, '.pi'), { recursive: true })
+    await fs.writeFile(
+      path.join(fixture.project, '.pi', 'settings.json'),
+      JSON.stringify({ defaultThinkingLevel: 'high' }),
+    )
+    await registerProjects([fixture.project])
+    createPiCliSession(fixture.project, 'Project default')
+    const sessionId = await discoverOne()
+
+    await openSession(sessionId)
+
+    expect((await sessionDetail(sessionId))?.executionThinkingLevel).toBe('high')
+  })
+
+  it('clamps the thinking level to what the model offers', async () => {
+    await configurePiProvider(['plain-model'], ['plain-model'])
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Model without reasoning')
+    switchPiSettings(cli.file, 'plain-model', 'high')
+    const sessionId = await discoverOne()
+
+    await openSession(sessionId)
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      executionModel: 'local/plain-model',
+      executionThinkingLevel: 'off',
+    })
   })
 
   it('keeps a virtual model the session switched to, though its responses name physical ones', async () => {

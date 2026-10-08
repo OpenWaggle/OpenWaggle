@@ -48,7 +48,7 @@ It is the same session, not a copy. Open it to read the conversation, then send 
 A few things to know:
 
 - The title is the name you gave it with `/name` in Pi, or its first message. A later `/name` changes it too, unless you renamed the session in OpenWaggle; then your title stays.
-- When you continue it, the agent works in the folder you started the `pi` session in, with the model and thinking level the session last used, the same way `pi --resume` would. If the session never changed its thinking level, it uses Pi's default.
+- When you continue it, the agent works in the folder you started the `pi` session in, with the model and thinking level the session last used, the same way `pi --resume` would. If the session never changed its thinking level, it uses Pi's default thinking level, and a project's `.pi/settings.json` wins over your global Pi settings. A model that offers fewer levels gets the nearest one it has.
 - If you keep Pi's sessions somewhere else with `PI_CODING_AGENT_SESSION_DIR` or the `sessionDir` setting, OpenWaggle looks there too, and stores its own new sessions there so `pi --resume` finds them.
 - Sessions from folders that aren't an OpenWaggle project stay hidden. Add the folder as a project and its `pi` sessions appear.
 - Deleting the session in OpenWaggle removes it from OpenWaggle only. The Pi session file stays, so `pi --resume` still has it, and OpenWaggle doesn't list it again. Sessions you started in OpenWaggle are deleted completely, as before.

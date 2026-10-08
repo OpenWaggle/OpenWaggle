@@ -1,8 +1,11 @@
 import { readFile, stat } from 'node:fs/promises'
 import {
+  type FileEntry,
+  getAgentDir,
   parseSessionEntries,
   type SessionEntry,
   SessionManager,
+  SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { Effect, Layer } from 'effect'
 import {
@@ -83,6 +86,19 @@ function branchModelSelection(branch: readonly SessionEntry[]) {
   return {}
 }
 
+/** Pi's default thinking level where the session ran: project settings over global ones. */
+function folderDefaultThinkingLevel(fileEntries: readonly FileEntry[], fallbackCwd: string) {
+  const header = fileEntries.find((entry) => entry.type === 'session')
+  const cwd = header?.type === 'session' && header.cwd ? header.cwd : fallbackCwd
+  try {
+    const level = SettingsManager.create(cwd, getAgentDir()).getDefaultThinkingLevel()
+    return level ? { defaultThinkingLevel: level } : {}
+  } catch {
+    // Pi starts with its defaults when a settings file cannot be read.
+    return {}
+  }
+}
+
 /** The branch's last thinking level change, which `pi --resume` continues with. */
 function branchThinkingLevel(branch: readonly SessionEntry[]) {
   const change = branch.findLast((entry) => entry.type === 'thinking_level_change')
@@ -125,6 +141,7 @@ async function readSnapshot(
     ),
     ...branchModelSelection(branch),
     ...branchThinkingLevel(branch),
+    ...folderDefaultThinkingLevel(fileEntries, input.cwd),
     ...(name ? { name } : {}),
   }
 }
