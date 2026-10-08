@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +40,7 @@ vi.mock('../../pi-provider-catalog', () => ({
 }))
 
 const { createPiRunSessionRuntime } = await import('../run-lifecycle')
+const { idleCacheWarming } = await import('../pi-idle-cache-warming')
 
 const SCRATCH = '/tmp/ow-scratch-501/37a8eec1/0123456789ab'
 
@@ -131,5 +135,31 @@ describe('Pi run session scratch environment', () => {
       mocks.createIsolatedPiProjectRuntime.mock.calls[call]?.[0]?.options
     expect(optionsOf(0)).not.toHaveProperty('fallbackModelReference')
     expect(optionsOf(1)).toMatchObject({ fallbackModelReference: 'other/agent-model' })
+  })
+
+  it("warms between runs once the user's Pi settings say so, though OpenWaggle's never changed", async () => {
+    // The Host last applied OpenWaggle's mode, before the user edited their Pi settings.
+    idleCacheWarming.applyMode('streaming')
+    const agentDir = mkdtempSync(path.join(tmpdir(), 'openwaggle-pi-agent-'))
+    writeFileSync(path.join(agentDir, 'settings.json'), '{"cacheWarming":"idle"}\n')
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+
+    try {
+      await createPiRunSessionRuntime(runtimeInput())
+    } finally {
+      vi.unstubAllEnvs()
+      rmSync(agentDir, { recursive: true, force: true })
+    }
+
+    const warming = fromPartial<Parameters<typeof idleCacheWarming.settle>[1]>({
+      cacheWarmingStatus: { state: 'scheduled', nextWarmAt: Date.now() + 60_000 },
+      extensionRunner: { emit: vi.fn(async () => undefined) },
+      dispose: vi.fn(),
+      sessionManager: { appendUsage: vi.fn() },
+    })
+    await expect(idleCacheWarming.settle('session', warming, { aborted: false })).resolves.toBe(
+      'warming',
+    )
+    await idleCacheWarming.releaseAll()
   })
 })

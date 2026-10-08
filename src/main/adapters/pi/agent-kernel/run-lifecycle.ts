@@ -110,8 +110,8 @@ function resolvePiRuntimeThinkingLevel(
 export async function createPiRunSessionRuntime(
   input: CreatePiRunSessionRuntimeInput,
 ): Promise<PiRunSessionRuntime> {
-  // Before this Run opens the Session's Pi file, so the warming session never writes beside it.
-  await idleCacheWarming.release(input.session.id)
+  // Before the Pi file opens; with the mode this Run's runtime resolves, Pi's settings included.
+  await idleCacheWarming.prepareRun(input.session.id)
   // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
   // repository, so this is the Session's project, not the run cwd.
   void notePiRunProjectDefaultForUsageStatistics(input.runId, input.session.projectPath)

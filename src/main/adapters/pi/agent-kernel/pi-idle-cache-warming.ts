@@ -2,6 +2,7 @@ import { statSync } from 'node:fs'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { PiCacheWarmingMode } from '@shared/types/settings'
 import type { PromptCacheWarming } from '../../../ports/prompt-cache-warming'
+import { currentOpenWagglePiAppSettings } from '../openwaggle-pi-app-settings'
 import {
   disposeOpenWagglePiSession,
   emitOpenWagglePiSessionShutdown,
@@ -135,6 +136,16 @@ export class IdleCacheWarming implements PromptCacheWarming {
   /** Ends the Session's warming session. Call before opening the Session's Pi file. */
   async release(sessionId: string) {
     this.#end(sessionId)
+  }
+
+  /**
+   * A Run starts: its warming session ends before the Run opens the Pi file, and the mode its
+   * runtime resolves applies. The user's Pi settings may have turned warming between runs on or
+   * off while OpenWaggle's settings, the only ones the Host applies on change, stayed the same.
+   */
+  async prepareRun(sessionId: string) {
+    this.#end(sessionId)
+    this.applyMode(currentOpenWagglePiAppSettings().cacheWarming)
   }
 
   /** The warming session, for reads that would otherwise open the Session's Pi file again. */
