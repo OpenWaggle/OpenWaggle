@@ -193,4 +193,47 @@ describe('Pi session resume position', () => {
     expect(reopened.getEntry(next)?.parentId).toBe(mainHead)
     expect(readOnly.getLeafId()).toBe(mainHead)
   })
+
+  it('continues after a warming refresh on the same branch without leaving a second branch', async () => {
+    const pi = SessionManager.create(projectPath, projectPath)
+    pi.appendModelChange('provider', 'model')
+    const head = appendTurn(pi, 'first', 1)
+    const piSessionFile = pi.getSessionFile() ?? ''
+    const session = await createSession({
+      projectPath,
+      piSessionId: pi.getSessionId(),
+      piSessionFile,
+    })
+    const sessionId = SessionId(String(session.id))
+    const persistFrom = async (manager: SessionManager) => {
+      const snapshot = projectPiSessionSnapshot({ sessionManager: manager })
+      await persistSessionSnapshot({
+        sessionId,
+        piSessionId: pi.getSessionId(),
+        piSessionFile,
+        activeNodeId: snapshot.activeNodeId,
+        nodes: snapshot.nodes,
+      })
+    }
+    await persistFrom(pi)
+    // The warming session records a refresh after the Run, parented on the head.
+    const refresh = SessionManager.open(piSessionFile, undefined, projectPath).appendUsage(
+      'cache_warm',
+      'provider',
+      'model',
+      USAGE,
+    )
+    const detail = await getSessionDetail(sessionId)
+    if (!detail) throw new Error('Session detail is missing')
+    expect(detail.resumePosition?.nodeId).toBe(head)
+
+    // The next Run on the same branch.
+    const reopened = createSessionManagerForSession(detail, projectPath)
+    const next = reopened.appendMessage({ role: 'user', content: 'next', timestamp: 30 })
+    await persistFrom(reopened)
+
+    expect(reopened.getEntry(next)?.parentId).toBe(refresh.id)
+    const tree = await getSessionTree(sessionId)
+    expect(tree?.branches.filter((branch) => !branch.archived)).toHaveLength(1)
+  })
 })

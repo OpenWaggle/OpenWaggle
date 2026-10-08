@@ -1,5 +1,5 @@
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
-import { isAgentLoopAuditNode } from './agent-loop-audit-node'
+import { branchActiveNodeId, branchDerivationNodes } from './branch-derivation-nodes'
 import { deriveBranchForHead } from './branch-head'
 import {
   claimSavedBranchesByHead,
@@ -18,10 +18,6 @@ import {
 } from './branch-utils'
 import { EMPTY_INDEX, MAIN_BRANCH_NAME } from './constants'
 import type { DerivedSessionBranch, SessionBranchRow } from './types'
-
-function branchDerivationNodes(nodes: readonly ProjectedSessionNodeInput[]) {
-  return nodes.filter((node) => !isAgentLoopAuditNode(node))
-}
 
 function resolveMainHeadId(input: {
   readonly activeHeadId: string | null
@@ -260,8 +256,13 @@ export function deriveSessionBranchesForSnapshot(input: {
   readonly activeNodeId: string | null
   readonly existingBranches: readonly SessionBranchRow[]
 }) {
+  const nodes = branchDerivationNodes(input.nodes)
   return normalizeDerivedBranches({
-    ...deriveSessionBranches({ ...input, nodes: branchDerivationNodes(input.nodes) }),
+    ...deriveSessionBranches({
+      ...input,
+      nodes,
+      activeNodeId: branchActiveNodeId(input.nodes, nodes, input.activeNodeId),
+    }),
     sessionId: input.sessionId,
   })
 }

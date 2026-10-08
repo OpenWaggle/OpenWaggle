@@ -119,8 +119,25 @@ function resumeSelectedPosition(sessionManager: SessionManager, session: Session
   // Only warming refreshes may have been appended since the projection, or it is stale.
   if (!onlyUsageAppendedAfter(sessionManager.getEntries(), position.piEntryCount)) return
   const entryId = piEntryNodeIds(session).toEntryId(String(position.nodeId))
-  if (sessionManager.getLeafId() === entryId || !sessionManager.getEntry(entryId)) return
+  if (!sessionManager.getEntry(entryId)) return
+  if (leafContinuesThrough(sessionManager, entryId)) return
   sessionManager.branch(entryId)
+}
+
+/**
+ * Whether the leaf is the selected entry, or follows it through warming refreshes only. Pi then
+ * chains the next message onto the refreshes; branching back to the entry would leave them as a
+ * sibling branch.
+ */
+function leafContinuesThrough(sessionManager: SessionManager, entryId: string) {
+  let current = sessionManager.getLeafId()
+  while (current) {
+    if (current === entryId) return true
+    const entry = sessionManager.getEntry(current)
+    if (entry?.type !== 'usage') return false
+    current = entry.parentId
+  }
+  return false
 }
 
 function piSessionFilesIn(directory: string, piSessionId: string) {
