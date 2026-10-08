@@ -56,7 +56,13 @@ export class McpSessionConnectionPool {
     if (this.sessions.get(sessionId)?.closedServers.has(spec.name)) {
       throw new Error(`The MCP server "${spec.name}" was turned off or removed.`)
     }
-    return this.connectionFor(sessionId, spec).attach()
+    const connection = this.connectionFor(sessionId, spec)
+    this.sessions.get(sessionId)?.leased.set(spec.name, {
+      identity: spec.identity,
+      projectPath: spec.projectPath ?? null,
+      fromExtension: spec.fromExtension === true,
+    })
+    return connection.attach()
   }
 
   /** The Session's open connection to a server, for OpenWaggle's own requests. */
@@ -118,6 +124,7 @@ export class McpSessionConnectionPool {
     session.activeRuns += 1
     // A new Run reads the configuration afresh, so a server turned on again may connect.
     session.closedServers.clear()
+    session.leased.clear()
     this.closedSessions.delete(sessionId)
     if (this.closedAll) this.reopenedSessions.add(sessionId)
     this.cancelIdleClose(session)
@@ -175,19 +182,20 @@ export class McpSessionConnectionPool {
     await session.servers.get(serverName)?.connection.close()
   }
 
-  /** Every warm connection, without touching recency. */
+  /**
+   * Every warm connection, and every server a running Run leased whose connection is gone (it
+   * crashed or retired), without touching recency: a configuration change judges both.
+   */
   serverConnections(): McpPoolServerConnection[] {
-    return [...this.sessions].flatMap(([sessionId, session]) =>
-      [...session.servers]
-        .filter(([, server]) => !server.connection.isClosed)
-        .map(([name, server]) => ({
-          sessionId,
-          name,
-          identity: server.identity,
-          projectPath: server.projectPath,
-          fromExtension: server.fromExtension,
-        })),
-    )
+    return [...this.sessions].flatMap(([sessionId, session]) => {
+      const servers = new Map(session.leased)
+      for (const [name, server] of session.servers) {
+        if (server.connection.isClosed) continue
+        const { identity, projectPath, fromExtension } = server
+        servers.set(name, { identity, projectPath, fromExtension })
+      }
+      return [...servers].map(([name, server]) => ({ sessionId, name, ...server }))
+    })
   }
 
   /** Closes everything, waiting a bounded time for servers to exit. */
@@ -242,6 +250,7 @@ export class McpSessionConnectionPool {
     const session = this.sessions.get(sessionId) ?? {
       servers: new Map<string, PooledServer>(),
       closedServers: new Set<string>(),
+      leased: new Map(),
       activeRuns: 0,
       idleTimer: undefined,
     }

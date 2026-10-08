@@ -271,4 +271,28 @@ describe('MCP Session connection pool', () => {
     expect(() => pool.lease('s1', docs)).toThrow('closed')
     expect(() => pool.lease('s2', docs)).toThrow('closed')
   })
+
+  it('keeps judging a server the Run leased after its connection crashed, so it can be turned off', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool()
+    const docs = { ...server('docs', upstreams), identity: 'id-docs', projectPath: '/p' }
+    pool.beginRun('s1')
+    await useServer(pool, 's1', docs)
+    upstreams[0]?.crash()
+    await flush()
+
+    // Not warm any more, but the Run's Pi client would reopen it on its next call.
+    expect(pool.serverConnections()).toEqual([
+      {
+        sessionId: 's1',
+        name: 'docs',
+        identity: 'id-docs',
+        projectPath: '/p',
+        fromExtension: false,
+      },
+    ])
+    await pool.closeServer('s1', 'docs')
+
+    expect(() => pool.lease('s1', docs)).toThrow('turned off')
+  })
 })

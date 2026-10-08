@@ -69,6 +69,11 @@ export interface SessionConnections {
   readonly servers: Map<string, PooledServer>
   /** Servers closed because they were turned off or removed: no Run lease until the next Run. */
   readonly closedServers: Set<string>
+  /**
+   * Servers the Session's running Runs leased since the last `beginRun`, connected or not: a crashed
+   * or retired connection is gone from `servers`, but the Run's Pi client would reopen it.
+   */
+  readonly leased: Map<string, Omit<McpPoolServerConnection, 'sessionId' | 'name'>>
   activeRuns: number
   idleTimer: McpPoolTimer | undefined
 }
