@@ -20,9 +20,10 @@ export type McpConnectionPool = Pick<
   | 'noteActivity'
 >
 
+export { MCP_MAX_MESSAGE_BYTES } from '../runtime/mcp-message-limit'
 export type { McpUpstream } from './mcp-connection-support'
 export { DeferredTransport } from './mcp-deferred-transport'
 export { McpSdkTransportAdapter } from './mcp-sdk-transport-adapter'
-export { createMcpServerFetch, MCP_MAX_MESSAGE_BYTES } from './mcp-server-fetch'
+export { createMcpServerFetch } from './mcp-server-fetch'
 export { mcpConnectionFingerprint, mcpServerIdentity } from './mcp-server-identity'
 export type { McpConnectionHooks } from './mcp-session-connection-pool-types'

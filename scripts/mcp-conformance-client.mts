@@ -9,7 +9,8 @@
 import { McpClient, StreamableHttpTransport } from '@earendil-works/pi-mcp'
 import { McpSessionConnectionPool } from '../src/main/adapters/mcp/pool/mcp-session-connection-pool'
 import { withOpenWaggleClientCapabilities } from '../src/main/adapters/pi/mcp/mcp-session-context'
-import { createMcpServerFetch, MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/pool/mcp-server-fetch'
+import { createMcpServerFetch } from '../src/main/adapters/mcp/pool/mcp-server-fetch'
+import { MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/runtime/mcp-message-limit'
 
 const SUPPORTED_PROTOCOL_VERSION = '2025-11-25'
 const SCENARIO = process.env.MCP_CONFORMANCE_SCENARIO

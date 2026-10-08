@@ -1,7 +1,7 @@
 import type { JSONRPCMessage, Transport, TransportSendOptions } from '@modelcontextprotocol/client'
 import { parseJSONRPCMessage } from '@modelcontextprotocol/client'
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import WebSocket from 'ws'
+import { MCP_MAX_MESSAGE_BYTES } from './mcp-message-limit'
 import { normalizeMcpAllowedHosts } from './mcp-network-hosts'
 import {
   createPinnedMcpLookup,
@@ -61,7 +61,7 @@ export class LegacyWebSocketClientTransport implements Transport {
         headers: { ...this.headers, Host: this.url.host },
         followRedirects: false,
         lookup: createPinnedMcpLookup(target),
-        maxPayload: MCP_CONFIG.MAX_RESULT_BYTES,
+        maxPayload: MCP_MAX_MESSAGE_BYTES,
         rejectUnauthorized: true,
       })
       this.socket = socket

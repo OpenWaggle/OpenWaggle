@@ -1,7 +1,5 @@
+import { MCP_MAX_MESSAGE_BYTES } from '../runtime/mcp-message-limit'
 import { createSecureMcpFetch, type SecureMcpFetch } from '../runtime/secure-fetch'
-
-/** pi-mcp's limit for one message; HTTP bodies and each SSE event are bounded the same way. */
-export const MCP_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 
 export type McpServerFetch = ((
   input: string | URL | Request,

@@ -49,5 +49,4 @@ export const MCP_CONFIG = {
   GLOBAL_VAULT_FILE_NAME: 'vault.json',
   STATE_VERSION: 1,
   PROBE_TIMEOUT_MS: 3_000,
-  MAX_RESULT_BYTES: 1_000_000,
 } as const

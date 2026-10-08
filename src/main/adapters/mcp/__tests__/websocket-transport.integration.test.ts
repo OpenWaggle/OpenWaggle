@@ -46,4 +46,28 @@ describe('the legacy WebSocket transport to a server the user configured', () =>
 
     await expect(transport.start()).rejects.toThrow()
   })
+
+  it('receives a message as large as the other transports allow, above 1 MB', async () => {
+    const port = await listen()
+    const large = 'x'.repeat(2 * 1024 * 1024)
+    servers[0]?.on('connection', (socket) => {
+      socket.send(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { text: large } }))
+    })
+    const transport = new LegacyWebSocketClientTransport({
+      url: new URL(`ws://lan.example:${String(port)}/mcp`),
+      headers: {},
+      allowInsecurePrivateNetwork: true,
+      allowPlainWebSocket: true,
+      resolveHostname: lanResolver,
+    })
+    const received = new Promise<unknown>((resolve, reject) => {
+      transport.onmessage = resolve
+      transport.onerror = reject
+    })
+
+    await transport.start()
+
+    await expect(received).resolves.toMatchObject({ id: 1, result: { text: large } })
+    await transport.close()
+  })
 })
