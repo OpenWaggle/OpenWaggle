@@ -108,6 +108,31 @@ function imageMimeType(filePath: string) {
   return null
 }
 
+/**
+ * Resolve a Markdown image destination to a local file path, or null when it cannot name one.
+ *
+ * Agents reference screenshots as plain absolute paths (`![QA](/tmp/.../shot.png)`), the same
+ * convention the evidence-directory docs prescribe, and those are not URLs: `new URL` rejects
+ * them. `file:` URIs stay supported for transcripts that quote one, and drive-letter and UNC
+ * forms stay recognizable so a transcript written on one platform still resolves on another.
+ * Whatever comes out is still gated by the capture roots when the bytes are read.
+ */
+function localImageFilePath(url: string): string | null {
+  if (url.includes('\0')) return null
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/u.test(url)) {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'file:' || parsed.username || parsed.password) return null
+      const filePath = fileURLToPath(parsed)
+      return filePath.includes('\0') ? null : filePath
+    } catch {
+      return null
+    }
+  }
+  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || /^\\\\/u.test(url)
+  return isAbsolute ? url : null
+}
+
 function localImage(
   candidate: Readonly<Record<string, unknown>>,
   knownDefinitions: ReadonlyMap<string, string>,
@@ -115,17 +140,11 @@ function localImage(
   if (candidate.type !== 'image' && candidate.type !== 'imageReference') return null
   const url = markdownUrl(candidate, knownDefinitions)
   if (!url || url.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== 'file:' || parsed.username || parsed.password) return null
-    const filePath = fileURLToPath(parsed)
-    if (filePath.includes('\0')) return null
-    const mimeType = imageMimeType(filePath)
-    if (!mimeType) return null
-    return { filePath, mimeType, title: label(candidate) || path.basename(filePath) }
-  } catch {
-    return null
-  }
+  const filePath = localImageFilePath(url)
+  if (!filePath) return null
+  const mimeType = imageMimeType(filePath)
+  if (!mimeType) return null
+  return { filePath, mimeType, title: label(candidate) || path.basename(filePath) }
 }
 
 function httpLink(

@@ -20,12 +20,23 @@ import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 const LOCAL_IMAGE_PATH = '/tmp/electron-qa-evidence/evidence.png'
 const LOCAL_IMAGE_MARKDOWN = `![QA evidence](file://${LOCAL_IMAGE_PATH})`
+const PLAIN_IMAGE_PATH = '/tmp/electron-qa-evidence/plain-path.png'
+const PLAIN_IMAGE_MARKDOWN = `![QA evidence](${PLAIN_IMAGE_PATH})`
 
 function assistantLocalImageMessage() {
   return {
     id: MessageId('assistant-local-image'),
     role: 'assistant' as const,
     parts: [{ type: 'text' as const, text: LOCAL_IMAGE_MARKDOWN }],
+    createdAt: 1000,
+  }
+}
+
+function assistantPlainPathImageMessage() {
+  return {
+    id: MessageId('assistant-plain-path-image'),
+    role: 'assistant' as const,
+    parts: [{ type: 'text' as const, text: PLAIN_IMAGE_MARKDOWN }],
     createdAt: 1000,
   }
 }
@@ -100,6 +111,24 @@ ${LOCAL_IMAGE_MARKDOWN}
     expect(extracted.order).toEqual([{ kind: 'image', index: 0 }])
   })
 
+  it('extracts images referenced as plain absolute paths, the evidence convention', () => {
+    const extracted = collectExplicitResources(`
+${PLAIN_IMAGE_MARKDOWN}
+![Not an image](/tmp/electron-qa-evidence/notes.txt)
+![Relative](./relative.png)
+![Scheme-less but not absolute](electron-qa-evidence/shot.png)
+`)
+
+    expect(extracted.images).toEqual([
+      {
+        filePath: PLAIN_IMAGE_PATH,
+        mimeType: 'image/png',
+        title: 'QA evidence',
+      },
+    ])
+    expect(extracted.order).toEqual([{ kind: 'image', index: 0 }])
+  })
+
   it('reports aggregate byte-budget exhaustion separately from missing files', async () => {
     const result = await Effect.runPromise(
       prepareLocalImageForCapture(
@@ -131,6 +160,43 @@ ${LOCAL_IMAGE_MARKDOWN}
 
     expect(storedByteFiles).toEqual(['QA evidence.png'])
     expectCapturedLocalImage(upserts)
+  })
+
+  it('captures a plain-path evidence image from a run and from backfill', async () => {
+    const runUpserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-plain-path-image',
+        payload: { text: '', attachments: [] },
+        messages: [assistantPlainPathImageMessage()],
+      }).pipe(Effect.provide(sessionResourceTestLayer(runUpserts))),
+    )
+    expect(runUpserts).toContainEqual(
+      expect.objectContaining({
+        kind: 'image',
+        available: true,
+        occurrence: expect.objectContaining({
+          actor: 'agent',
+          activity: 'created',
+          locator: PLAIN_IMAGE_PATH,
+        }),
+      }),
+    )
+
+    const backfillUpserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [assistantPlainPathImageMessage()],
+      }).pipe(Effect.provide(sessionResourceTestLayer(backfillUpserts))),
+    )
+    expect(backfillUpserts).toContainEqual(
+      expect.objectContaining({
+        kind: 'image',
+        occurrence: expect.objectContaining({ locator: PLAIN_IMAGE_PATH }),
+      }),
+    )
   })
 
   it('backfills images from persisted assistant messages', async () => {
