@@ -43,6 +43,21 @@ async function sessionCount() {
   return rows[0]?.count
 }
 
+/** The Sessions announced as updated or deleted while recording. */
+async function recordSessionListChanges() {
+  const { installSessionHostEventPublisher } = await import(
+    '../../../session-host/session-host-events'
+  )
+  const updated: string[] = []
+  const deleted: string[] = []
+  const stop = installSessionHostEventPublisher((payload: SessionHostEventPayload) => {
+    if (payload.kind !== 'session-list-changed') return
+    if (payload.change === 'updated') updated.push(payload.sessionId)
+    if (payload.change === 'deleted') deleted.push(payload.sessionId)
+  })
+  return { updated, deleted, stop }
+}
+
 async function discoverWith(createSession: DiscoveredSessionCreator<AppServices>) {
   const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
   return run(discoverPiSessions({ createSession }))
@@ -78,24 +93,12 @@ describe('A Pi session discovery pass', () => {
     await registerProjects([fixture.project])
     createPiCliSession(fixture.project, 'Announced first')
     createPiCliSession(fixture.project, 'Announced second')
-    const { installSessionHostEventPublisher } = await import(
-      '../../../session-host/session-host-events'
-    )
-    const updated: string[] = []
-    const uninstall = installSessionHostEventPublisher((payload: SessionHostEventPayload) => {
-      if (payload.kind === 'session-list-changed' && payload.change === 'updated') {
-        updated.push(payload.sessionId)
-      }
-    })
+    const changes = await recordSessionListChanges()
 
-    try {
-      const listed = await discoverWith(await lifecycleCreate())
+    const listed = await discoverWith(await lifecycleCreate()).finally(changes.stop)
 
-      expect(listed).toHaveLength(2)
-      expect(updated).toEqual(expect.arrayContaining(listed.map(String)))
-    } finally {
-      uninstall()
-    }
+    expect(listed).toHaveLength(2)
+    expect(changes.updated).toEqual(expect.arrayContaining(listed.map(String)))
   })
 
   it('lists at most 100 Sessions per pass and the rest in the next', async () => {
@@ -115,7 +118,15 @@ describe('A Pi session discovery pass', () => {
     createPiCliSession(fixture.project, 'Attach fails')
     const { PiSessionDiscoveryRepository } = await import('../../../ports/pi-session-discovery')
     const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
-    const createSession = await lifecycleCreate()
+    const lifecycle = await lifecycleCreate()
+    const created: string[] = []
+    const createSession: typeof lifecycle = (input) =>
+      lifecycle(input).pipe(
+        Effect.tap((result) => {
+          if (result) created.push(result.sessionId)
+        }),
+      )
+    const changes = await recordSessionListChanges()
 
     const listed = await run(
       Effect.gen(function* () {
@@ -127,9 +138,12 @@ describe('A Pi session discovery pass', () => {
           }),
         )
       }),
-    )
+    ).finally(changes.stop)
 
     expect(listed).toEqual([])
     expect(await sessionCount()).toBe(0)
+    // The sidebar drops the "New session" the lifecycle announced.
+    expect(created).toHaveLength(1)
+    expect(changes.deleted).toEqual(created)
   })
 })

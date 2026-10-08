@@ -17,6 +17,7 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
+import { runSessionRemovalHooks } from './session-removal-hooks'
 
 /**
  * Pi session discovery (ADR 0050). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -71,7 +72,10 @@ function removeUnadoptedSession(sessionId: SessionId) {
   return Effect.gen(function* () {
     const state = yield* (yield* PiSessionDiscoveryRepository).getProjectionState(sessionId)
     if (!state || state.piEntryNodeIdPrefix || state.projectedPiEntryCount > 0) return
+    // As any deletion does: its removal hooks first, then the sidebar drops the Session.
+    yield* runSessionRemovalHooks(sessionId)
     yield* (yield* SessionProjectionRepository).delete(sessionId)
+    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'deleted' })
   })
 }
 
