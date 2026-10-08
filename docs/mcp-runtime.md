@@ -397,7 +397,10 @@ requests exactly as before (full access answers without emitting anything).
 records what it did in `~/.openwaggle/mcp/migration.json`. The global file's backup sits next to
 it; a project file's goes to `~/.openwaggle/mcp/backups/<project>-<hash of its path>/`, never
 into the repository, where it could be committed (`migrationBackupPath`). A backup an earlier
-build left next to a project file is still read as the old content. Unchanged copies of Pi entries are
+build left next to a project file is still read as the old content. An OpenWaggle file whose migration failed is
+not loaded for a Run or an MCP App until a later run migrates it (`migration-health.ts`): it still
+has the old format, without the `enabled` overrides that keep old-off servers off. The error is
+shown in Settings > MCP and in the Run's MCP notice. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
 or dropped. It also keeps every server as on or off as it was (`legacy-enablement.ts`): the old
 code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwaggle/mcp.json`, and

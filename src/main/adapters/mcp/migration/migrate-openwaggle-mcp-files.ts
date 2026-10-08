@@ -29,6 +29,7 @@ import {
   parseLegacyState,
 } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
+import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
   globalMcpPaths,
@@ -109,6 +110,12 @@ class McpFileMigrator {
   ) {}
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
+    const report = await this.migrate(job)
+    recordMcpFileMigrationOutcome(job.path, report.status === 'failed' ? report.error : undefined)
+    return report
+  }
+
+  private async migrate(job: FileJob): Promise<McpFileMigrationReport> {
     if (this.record.isFileMigrated(job.path)) {
       return { path: job.path, status: 'already-migrated', changes: [] }
     }
@@ -208,6 +215,13 @@ export async function migrateOpenWaggleMcpFiles(
       homeDir: input.homeDir,
       error: describeError(error),
     })
+    // Nothing was migrated, so none of OpenWaggle's files for these scopes may be loaded yet.
+    for (const filePath of [
+      globalMcpPaths(input.homeDir).openwaggleGlobal,
+      ...input.projectPaths.map((projectPath) => projectMcpPaths(projectPath).openwaggle),
+    ]) {
+      recordMcpFileMigrationOutcome(filePath, describeError(error))
+    }
     return { files: [], oauth: [], droppedSessionStates: 0, error: describeError(error) }
   }
   const { record, state } = start

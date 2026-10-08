@@ -10,6 +10,7 @@ import type {
   McpServerConfig,
   McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
+import { mcpFileMigrationFailure } from '../migration/migration-health'
 import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
@@ -147,13 +148,32 @@ export function loadMcpMergedConfig(
 }
 
 /**
+ * The merge a Run connects with. An OpenWaggle file whose one-time migration failed is left out,
+ * with an error saying so: it still has the old format, without the overrides that keep servers
+ * the old OpenWaggle had off turned off, so loading it could connect them.
+ */
+function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigFileReader) {
+  const skipped: string[] = []
+  const files = mcpConfigFileLocations(roots).filter((file) => {
+    const failure = mcpFileMigrationFailure(file.path)
+    if (failure === undefined) return true
+    skipped.push(
+      `${file.path} was not loaded: its one-time migration failed (${failure}). It is tried again shortly; until then its servers stay off.`,
+    )
+    return false
+  })
+  const merged = mergeMcpConfigLayers(readMcpConfigLayers(files, reader))
+  return skipped.length === 0 ? merged : { ...merged, errors: [...skipped, ...merged.errors] }
+}
+
+/**
  * The configuration one Pi session receives: the merged file set with vault references resolved,
  * narrowed by the Session's MCP switch and an Agent definition's allowlist.
  */
 export async function loadMcpRuntimeConfig(
   input: LoadMcpRuntimeConfigInput,
 ): Promise<McpRuntimeConfig> {
-  const merged = loadMcpMergedConfig(input.roots, input.reader)
+  const merged = loadConnectableMcpConfig(input.roots, input.reader)
   // A project at the home folder has no project file of its own: its path is the global file's,
   // and Pi's /mcp "in this project" must not write that.
   const projectConfig = mcpConfigFileLocations(input.roots).some(
