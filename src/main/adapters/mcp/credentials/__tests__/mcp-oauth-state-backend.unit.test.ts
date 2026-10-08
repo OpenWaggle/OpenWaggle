@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -142,5 +150,39 @@ describe('MCP OAuth state backend', () => {
     await Promise.all([add('a'), add('b')])
 
     expect(read(backend)).toEqual({ a: true, b: true })
+  })
+
+  it('moves an undecryptable store aside, starts fresh, and says so once', () => {
+    writePi({ 'mcp__docs|https://docs.example/mcp': { serverUrl: 'https://docs.example/mcp' } })
+    mkdirSync(path.dirname(storePath), { recursive: true })
+    // Sealed by another key (a reinstalled OS keychain, a copied home folder).
+    writeFileSync(storePath, JSON.stringify({ version: 1, encrypted: 'bm90LXNlYWxlZA==' }))
+    const warnings: string[] = []
+    const backend = createMcpOAuthStateBackend({
+      piAuthPath,
+      storePath,
+      encryption: {
+        ...encryption,
+        decryptString: () => {
+          throw new Error(
+            'Error while decrypting the ciphertext provided to safeStorage.decryptString.',
+          )
+        },
+      },
+      onWarning: (message) => warnings.push(message),
+    })
+
+    expect(read(backend)).toEqual({
+      'mcp__docs|https://docs.example/mcp': { serverUrl: 'https://docs.example/mcp' },
+    })
+    expect(read(backend)).toEqual({
+      'mcp__docs|https://docs.example/mcp': { serverUrl: 'https://docs.example/mcp' },
+    })
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('could not be read')
+    const kept = readdirSync(path.dirname(storePath)).filter((name) => name.includes('unreadable'))
+    expect(kept).toHaveLength(1)
+    expect(existsSync(storePath)).toBe(false)
   })
 })

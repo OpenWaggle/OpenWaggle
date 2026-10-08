@@ -88,6 +88,44 @@ function readPiStates(
   }
 }
 
+function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer {
+  const file: unknown = JSON.parse(text)
+  if (!isRecord(file) || file.version !== STORE_VERSION || typeof file.encrypted !== 'string') {
+    throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
+  }
+  const layer: unknown = JSON.parse(encryption.decryptString(Buffer.from(file.encrypted, 'base64')))
+  if (!isRecord(layer)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
+  return {
+    states: isRecord(layer.states) ? { ...layer.states } : {},
+    tombstones: stringRecord(layer.tombstones),
+  }
+}
+
+/**
+ * A store that cannot be decrypted (another OS keychain, a copied home folder) or parsed would
+ * make every sign-in read fail. It is moved aside, kept for recovery, and the store starts empty;
+ * Pi's own sign-ins still show. Logged once: the next read finds no file.
+ */
+function setAsideUnreadableStore(
+  storePath: string,
+  error: unknown,
+  warn: (message: string, context: Record<string, unknown>) => void,
+): OwnLayer {
+  const asidePath = `${storePath}.unreadable-${Date.now()}`
+  try {
+    renameSync(storePath, asidePath)
+  } catch (renameError) {
+    throw new Error('OpenWaggle MCP sign-in storage could not be read or moved aside.', {
+      cause: renameError,
+    })
+  }
+  warn('OpenWaggle MCP sign-ins could not be read; they were moved aside and start empty', {
+    error: error instanceof Error ? error.message : String(error),
+    movedTo: asidePath,
+  })
+  return { states: {}, tombstones: {} }
+}
+
 export function createMcpOAuthStateBackend(
   options: McpOAuthStateBackendOptions,
 ): McpOAuthStorageBackend {
@@ -109,17 +147,10 @@ export function createMcpOAuthStateBackend(
       if (isMissing(error)) return { states: {}, tombstones: {} }
       throw error
     }
-    const file: unknown = JSON.parse(text)
-    if (!isRecord(file) || file.version !== STORE_VERSION || typeof file.encrypted !== 'string') {
-      throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
-    }
-    const layer: unknown = JSON.parse(
-      options.encryption.decryptString(Buffer.from(file.encrypted, 'base64')),
-    )
-    if (!isRecord(layer)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
-    return {
-      states: isRecord(layer.states) ? { ...layer.states } : {},
-      tombstones: stringRecord(layer.tombstones),
+    try {
+      return decodeOwnLayer(text, options.encryption)
+    } catch (error) {
+      return setAsideUnreadableStore(options.storePath, error, warn)
     }
   }
 

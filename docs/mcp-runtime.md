@@ -196,7 +196,9 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
 
 - **Reads** merge two layers: Pi's `~/.pi/agent/mcp-auth.json` (read-only fallback) and
   OpenWaggle's encrypted store (`~/.openwaggle/mcp/oauth-states.json`, OS encryption, synchronous
-  I/O because Pi's backend contract is synchronous). The encrypted layer wins per key.
+  I/O because Pi's backend contract is synchronous). The encrypted layer wins per key. A store
+  that cannot be decrypted or parsed (another OS keychain, a copied home folder) is renamed to
+  `oauth-states.json.unreadable-<time>`, logged once, and the store starts empty.
 - **Writes** go to the encrypted layer only. Removing a key that exists only in Pi's file writes
   a tombstone holding the hash of Pi's value; the tombstone hides that value until Pi's file
   changes it (a sign-in in the `pi` CLI), so signing out in OpenWaggle never edits Pi's file and
