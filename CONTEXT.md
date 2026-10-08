@@ -55,7 +55,7 @@ The Pi-defined way a server's tools reach the model: `codemode`, `deferred`, `di
 _Avoid_: MCP direct exposure as a separate opt-in, MCP capability handle
 
 **Session MCP switch**:
-Session state that turns MCP off for one Session: its Runs start no MCP servers and its open servers close. Every Session is on until switched off, including after the one-time migration carried an old off switch over; the composer's + menu shows it as "Use MCP servers" and turns it back on. It changes no MCP file.
+Session state that turns MCP off for one Session: its Runs start no MCP servers and its open servers close. A new Session is on unless it comes from a Session that is off: a fork or copy, a Worker, and a root a Session's agent launches start with that Session's switch, while a Session the user creates or launches starts on. The one-time migration carried an old off switch over; the composer's + menu shows it as "Use MCP servers" and turns it back on. It changes no MCP file.
 _Avoid_: global MCP switch, MCP off, per-Session MCP file
 
 **MCP compatibility module**:

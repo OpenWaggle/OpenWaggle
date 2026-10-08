@@ -18,6 +18,7 @@ import {
 } from '../store/session-details/constants'
 import { persistSessionSnapshotWithSql } from '../store/session-details/persist-snapshot'
 import { copySessionMcpSwitch } from '../store/session-details/session-creation'
+import { sessionAgentSourceId } from './session-lifecycle-execution-profile'
 import type { LifecycleWorkspaceRow } from './sqlite-session-lifecycle-support'
 import { persistSessionReportReferences } from './sqlite-session-report-reference-catalog'
 
@@ -57,6 +58,18 @@ function initialRunIntent(input: ExecuteInput) {
     acceptedAt: input.now,
     idempotencyKey: input.request.idempotencyKey,
   }
+}
+
+/**
+ * The Session whose MCP switch a new Session starts with: a fork's source, as a desktop fork or
+ * clone does, a Worker's parent, and the Session whose agent launched a root. A root the user
+ * creates or launches starts with MCP on.
+ */
+function mcpSwitchSourceSessionId(command: ExecuteInput['request']['command'], callerId: string) {
+  if (command.operation === 'fork') return command.sourceSessionId
+  if (command.operation === 'spawn') return command.parentSessionId
+  if (command.operation === 'launch') return sessionAgentSourceId(callerId)
+  return undefined
 }
 
 function persistSessionMetadata(
@@ -147,9 +160,9 @@ function persistSessionMetadata(
         ${input.executionSnapshot.authorizationCeiling}, ${input.now}, ${input.now}
       )
     `
-    // A fork of a Session with MCP switched off keeps it off, as a desktop fork or clone does.
-    if (command.operation === 'fork') {
-      yield* copySessionMcpSwitch(sql, command.sourceSessionId, input.session.sessionId, input.now)
+    const mcpSwitchSource = mcpSwitchSourceSessionId(command, input.callerId)
+    if (mcpSwitchSource) {
+      yield* copySessionMcpSwitch(sql, mcpSwitchSource, input.session.sessionId, input.now)
     }
     const selectedAgentDefinitionName = agentDefinitionName(input.executionSnapshot.profile)
     yield* persistSessionReportReferences(sql, {
