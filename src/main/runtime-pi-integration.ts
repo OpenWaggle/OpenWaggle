@@ -10,6 +10,7 @@ import {
   setOpenWagglePiAppSettingsSource,
 } from './adapters/pi/openwaggle-pi-app-settings'
 import { installPromptCacheWarming, promptCacheWarming } from './application/prompt-cache-warming'
+import { onSessionRemoved } from './application/session-removal-hooks'
 import { onAuthoritativeSettingsChange } from './store/authoritative-settings'
 import { configurePiUserRuntimeSettingsReader } from './store/settings/pi-runtime-settings'
 
@@ -21,6 +22,11 @@ export function installPiRuntimeIntegration() {
   // Settings OpenWaggle shares with Pi fall back to the user's own Pi values until chosen here.
   const removeFallback = configurePiUserRuntimeSettingsReader(readPiUserAppSettingsFile)
   const removeWarming = installPromptCacheWarming(idleCacheWarming)
+  // Archiving or deleting a Session, Hive cleanup of a Worker included, ends its cache warming.
+  // Removal hooks run before the Pi file is archived or deleted, so no warming session writes it.
+  const removeHook = onSessionRemoved(async (sessionId) => {
+    promptCacheWarming().closeSession(sessionId)
+  })
   const unsubscribe = onAuthoritativeSettingsChange((settings) => {
     setOpenWagglePiAppSettingsSource(settings)
     // A Pi session reads `cacheWarming` once, when it is built, so the Host applies a change.
@@ -28,6 +34,7 @@ export function installPiRuntimeIntegration() {
   })
   installed = () => {
     unsubscribe()
+    removeHook()
     removeWarming()
     removeFallback()
     setOpenWagglePiAppSettingsSource(undefined)

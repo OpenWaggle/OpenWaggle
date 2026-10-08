@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import { idleCacheWarming } from '../adapters/pi/agent-kernel/pi-idle-cache-warming'
+import { promptCacheWarming } from '../application/prompt-cache-warming'
 import { runSessionRemovalHooks } from '../application/session-removal-hooks'
 import { installSettingsStoreTestLifecycle } from '../store/__tests__/settings-test-harness'
 
@@ -20,6 +21,20 @@ function warmingPiSession() {
 /** The Host ends a Session's warming session before anything removes or outlives its Pi file. */
 describe('the Host and warming sessions', () => {
   installSettingsStoreTestLifecycle()
+
+  it('wires warming into the Host when the runtime initializes, not when it is imported', async () => {
+    await import('../runtime')
+    const session = warmingPiSession()
+    await idleCacheWarming.settle('imported-only', session, { aborted: false })
+
+    promptCacheWarming().closeSession('imported-only')
+    expect(idleCacheWarming.borrow('imported-only')).toBe(session)
+
+    const { initializeAppRuntime } = await import('../runtime')
+    await initializeAppRuntime()
+    promptCacheWarming().closeSession('imported-only')
+    expect(idleCacheWarming.borrow('imported-only')).toBeUndefined()
+  })
 
   it('ends the warming session before an archived or deleted Session is removed', async () => {
     const { initializeAppRuntime } = await import('../runtime')

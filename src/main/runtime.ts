@@ -51,7 +51,6 @@ import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorde
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { promptCacheWarming } from './application/prompt-cache-warming'
-import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { startMcpHostServices } from './mcp-host-start'
 import {
@@ -274,21 +273,10 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
-installPiRuntimeIntegration()
-
-let sessionRemovalHooksInstalled = false
-
 export async function initializeAppRuntime(): Promise<void> {
+  // Settings shared with Pi, and prompt cache warming, before anything loads Settings or runs.
+  installPiRuntimeIntegration()
   startMcpHostServices()
-  // Archiving or deleting a Session, including Hive cleanup of a Worker, ends its cache warming.
-  if (!sessionRemovalHooksInstalled) {
-    sessionRemovalHooksInstalled = true
-    // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
-    onSessionRemoved((sessionId) => {
-      promptCacheWarming().closeSession(sessionId)
-      return Promise.resolve()
-    })
-  }
   await getAppRuntime().runPromise(Effect.void)
 }
 
