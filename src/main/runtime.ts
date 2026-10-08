@@ -239,7 +239,7 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  SqlitePiSessionDiscoveryRepositoryLive,
+  SqlitePiSessionDiscoveryRepositoryLive.pipe(Layer.provide(PiSessionTranscriptRepairLive)),
   PiSessionFilesLive,
   SessionTitleServicesLive,
   FilesystemStandardsLive,

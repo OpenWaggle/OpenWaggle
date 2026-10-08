@@ -5,8 +5,15 @@ import {
   PiSessionDiscoveryRepository,
   type PiSessionDiscoveryRepositoryShape,
 } from '../ports/pi-session-discovery'
+import {
+  SessionTranscriptRepair,
+  type SessionTranscriptRepairShape,
+} from '../ports/session-transcript-repair'
 import { recordUnchangedPiProjection } from '../store/pi-session-file-freshness'
-import { persistExternalPiSnapshot } from '../store/session-details/persist-external-pi-snapshot'
+import {
+  type ExternalSnapshotEntryIdRepair,
+  persistExternalPiSnapshot,
+} from '../store/session-details/persist-external-pi-snapshot'
 import {
   adoptDiscoveredPiSession,
   getPiSessionProjectionState,
@@ -20,28 +27,47 @@ function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
   })
 }
 
-export const SqlitePiSessionDiscoveryRepositoryLive = Layer.succeed(PiSessionDiscoveryRepository, {
-  readScope: () => repositoryOperation('readPiSessionDiscoveryScope', readPiSessionDiscoveryScope),
-  adoptDiscovered: (input) =>
-    repositoryOperation('adoptDiscoveredPiSession', () => adoptDiscoveredPiSession(input)),
-  getProjectionState: (sessionId) =>
-    repositoryOperation('getPiSessionProjectionState', () =>
-      getPiSessionProjectionState(sessionId),
-    ),
-  recordUnchanged: ({ sessionId, expectedRevision, fingerprint }) =>
-    repositoryOperation('recordUnchangedPiProjection', () =>
-      recordUnchangedPiProjection(sessionId, expectedRevision, fingerprint),
-    ),
-  persistExternal: (input) =>
-    repositoryOperation('persistExternalPiSnapshot', () =>
-      persistExternalPiSnapshot({
-        sessionId: SessionId(String(input.sessionId)),
-        nodes: input.sessionSnapshot.nodes,
-        activeNodeId: input.sessionSnapshot.activeNodeId,
-        piSessionId: input.piSessionId,
-        piSessionFile: input.piSessionFile,
-        expectedRevision: input.expectedRevision,
-        fingerprint: input.fingerprint,
-      }),
-    ),
-} satisfies PiSessionDiscoveryRepositoryShape)
+/**
+ * The discovery repository. An external projection renames Pi entries whose ids another Session
+ * holds through the transcript repair, as a Run's snapshot does (ADR 0049).
+ */
+function createPiSessionDiscoveryRepository(
+  transcriptRepair: SessionTranscriptRepairShape,
+): PiSessionDiscoveryRepositoryShape {
+  const repairEntryIds: ExternalSnapshotEntryIdRepair = (input, foreignNodeIds) =>
+    Effect.runPromise(transcriptRepair.renameForeignEntryIds(input, foreignNodeIds))
+  return {
+    readScope: () =>
+      repositoryOperation('readPiSessionDiscoveryScope', readPiSessionDiscoveryScope),
+    adoptDiscovered: (input) =>
+      repositoryOperation('adoptDiscoveredPiSession', () => adoptDiscoveredPiSession(input)),
+    getProjectionState: (sessionId) =>
+      repositoryOperation('getPiSessionProjectionState', () =>
+        getPiSessionProjectionState(sessionId),
+      ),
+    recordUnchanged: ({ sessionId, expectedRevision, fingerprint }) =>
+      repositoryOperation('recordUnchangedPiProjection', () =>
+        recordUnchangedPiProjection(sessionId, expectedRevision, fingerprint),
+      ),
+    persistExternal: (input) =>
+      repositoryOperation('persistExternalPiSnapshot', () =>
+        persistExternalPiSnapshot(
+          {
+            sessionId: SessionId(String(input.sessionId)),
+            nodes: input.sessionSnapshot.nodes,
+            activeNodeId: input.sessionSnapshot.activeNodeId,
+            piSessionId: input.piSessionId,
+            piSessionFile: input.piSessionFile,
+            expectedRevision: input.expectedRevision,
+            fingerprint: input.fingerprint,
+          },
+          repairEntryIds,
+        ),
+      ),
+  }
+}
+
+export const SqlitePiSessionDiscoveryRepositoryLive = Layer.effect(
+  PiSessionDiscoveryRepository,
+  Effect.map(SessionTranscriptRepair, createPiSessionDiscoveryRepository),
+)
