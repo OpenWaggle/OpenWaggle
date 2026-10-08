@@ -28,6 +28,17 @@ require('node:child_process').spawn(process.execPath, ['-e', process.env.MCP_FIX
 process.exit(0)
 `
 
+/**
+ * A launcher that starts a helper in its process group without sharing its pipes, then exits:
+ * its pipes close at once, so pi-mcp forgets the process before OpenWaggle stops the group.
+ */
+const DETACHING_LAUNCHER = `
+require('node:child_process').spawn(process.execPath, ['-e', process.env.MCP_FIXTURE_SERVER], { stdio: 'ignore' })
+setInterval(() => {
+  if (require('node:fs').existsSync(process.env.MCP_FIXTURE_PID_FILE)) process.exit(0)
+}, 20)
+`
+
 const pools: McpSessionConnectionPool[] = []
 
 afterEach(async () => {
@@ -69,6 +80,47 @@ describe.skipIf(process.platform === 'win32')('stdio servers in a process group'
     const client = new McpClient({ name: 'pi', version: '1' })
     try {
       // The launcher's exit ends the connection; the server it started must not outlive it.
+      await client
+        .connect(
+          pool.lease('s1', {
+            name: 'fixture',
+            fingerprint: 'v1',
+            open: () =>
+              openPiMcpUpstream({
+                entry,
+                transport: 'stdio',
+                cwd: directory,
+                authProvider: undefined,
+              }),
+          }),
+        )
+        .catch(() => undefined)
+      await waitUntil(() => existsSync(pidFile) && readFileSync(pidFile, 'utf8').length > 0)
+      const pid = Number(readFileSync(pidFile, 'utf8'))
+      await pool.closeSession('s1')
+
+      await waitUntil(() => !isRunning(pid))
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('stops the group of a launcher whose pipes closed before the connection did', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ow-mcp-group-'))
+    const pidFile = path.join(directory, 'helper.pid')
+    const pool = new McpSessionConnectionPool()
+    pools.push(pool)
+    const entry = {
+      name: 'fixture',
+      config: {
+        command: process.execPath,
+        args: ['-e', DETACHING_LAUNCHER],
+        env: { MCP_FIXTURE_SERVER: SERVER, MCP_FIXTURE_PID_FILE: pidFile },
+      },
+      source: 'test',
+    }
+    const client = new McpClient({ name: 'pi', version: '1' })
+    try {
       await client
         .connect(
           pool.lease('s1', {

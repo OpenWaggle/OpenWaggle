@@ -62,10 +62,18 @@ function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
     inheritEnv: false,
     stderr: 'pipe',
   })
+  // pi-mcp forgets the process once its pipes close, which can be before this connection closes;
+  // the group is stopped by the pid the server started with.
+  let pid: number | undefined
+  const start = transport.start.bind(transport)
+  transport.start = async () => {
+    await start()
+    pid = transport.pid
+  }
   return {
     transport,
     stderrTail: () => transport.stderr.trim().slice(-STDERR_TAIL_CHARS),
-    close: () => stopProcessGroup(transport.pid),
+    close: () => stopProcessGroup(pid ?? transport.pid),
   }
 }
 
