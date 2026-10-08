@@ -3,7 +3,11 @@ import { hostMcpConnectionPool } from './mcp-runtime-layers'
 import { installMcpSessionRemoval } from './mcp-session-removal'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
 
-/** The MCP work the Host starts once, when its runtime is initialized. */
+/**
+ * The MCP work the Session Host starts once, with its owned services. Never in the desktop app,
+ * whose MCP channels are all Host-backed: it would read the login shell's environment, tokens
+ * included, and install connection pool hooks for nothing.
+ */
 export function startMcpHostServices() {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
   installMcpSessionRemoval(hostMcpConnectionPool)

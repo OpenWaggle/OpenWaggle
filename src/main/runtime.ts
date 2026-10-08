@@ -283,7 +283,6 @@ function installStoreEffectRunner() {
 export async function initializeAppRuntime(): Promise<void> {
   // Settings shared with Pi, and prompt cache warming, before anything loads Settings or runs.
   installPiRuntimeIntegration()
-  startMcpHostServices()
   await getAppRuntime().runPromise(
     Effect.gen(function* () {
       const settings = yield* SettingsService
@@ -305,6 +304,8 @@ export const startSessionHostServicesAfterListening = startHostServicesAfterList
 
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
+  // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0050).
+  startMcpHostServices()
   promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
   let didStart = false
