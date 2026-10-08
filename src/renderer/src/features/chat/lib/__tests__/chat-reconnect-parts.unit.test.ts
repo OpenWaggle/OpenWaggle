@@ -181,7 +181,11 @@ describe('reconnect merge of the streaming answer parts', () => {
 
   it('takes a nested call the buffer saw finish over the shown copy that still runs it', () => {
     const withCall = (status: 'ok' | 'unfinished'): UIMessagePart => ({
-      ...codemode(0),
+      type: 'tool-call',
+      id: 'code-1',
+      name: 'codemode',
+      arguments: '{}',
+      state: 'executing',
       nestedCalls: {
         calls: [{ id: 'code-1/1', name: 'read', args: {}, status }],
         complete: status === 'ok',
