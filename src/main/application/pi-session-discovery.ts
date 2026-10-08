@@ -16,7 +16,7 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { unpausedProjects } from './pi-session-discovery-pauses'
+import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
 
 /**
  * Pi session discovery (ADR 0048). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -61,15 +61,17 @@ function discoveredTitle(session: DiscoveredPiSession) {
 }
 
 /**
- * A Session the lifecycle created for a file another writer claimed meanwhile, such as a fork or
- * copy whose preparation recorded the file after discovery read its scope. It is still empty and
- * was never shown with a transcript, so it is deleted rather than left as a stray "New session".
+ * A Session the lifecycle created for a file discovery then could not attach: another writer
+ * claimed the file meanwhile (a fork or copy whose preparation recorded it after discovery read
+ * its scope), the project's removal started, or attaching failed. While it is still unattached and
+ * empty it was never shown with a transcript, so it is deleted rather than left as a stray
+ * "New session".
  */
 function removeUnadoptedSession(sessionId: SessionId) {
   return Effect.gen(function* () {
-    const projection = yield* SessionProjectionRepository
-    if (!(yield* projection.getOptional(sessionId))) return
-    yield* projection.delete(sessionId)
+    const state = yield* (yield* PiSessionDiscoveryRepository).getProjectionState(sessionId)
+    if (!state || state.piEntryNodeIdPrefix || state.projectedPiEntryCount > 0) return
+    yield* (yield* SessionProjectionRepository).delete(sessionId)
   })
 }
 
@@ -111,13 +113,8 @@ function createSessionForFile<R>(
   })
 }
 
-function createDiscoveredSession<R>(
-  session: DiscoveredPiSession,
-  create: DiscoveredSessionCreator<R>,
-) {
+function attachFile(session: DiscoveredPiSession, sessionId: SessionId) {
   return Effect.gen(function* () {
-    const sessionId = yield* createSessionForFile(session, create)
-    if (!sessionId) return null
     const adopted = yield* (yield* PiSessionDiscoveryRepository).adoptDiscovered({
       sessionId,
       piSessionId: session.piSessionId,
@@ -125,10 +122,35 @@ function createDiscoveredSession<R>(
       cwd: session.cwd,
       createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
       updatedAt: Math.floor(session.updatedAt),
+      isStillWanted: () => !isPiSessionDiscoveryPaused(session.projectPath),
     })
     if (adopted) return sessionId
     yield* removeUnadoptedSession(sessionId)
     return null
+  })
+}
+
+function createDiscoveredSession<R>(
+  session: DiscoveredPiSession,
+  create: DiscoveredSessionCreator<R>,
+) {
+  return Effect.gen(function* () {
+    const sessionId = yield* createSessionForFile(session, create)
+    if (!sessionId) return null
+    return yield* attachFile(session, sessionId).pipe(
+      Effect.onError(() => removeUnadoptedSession(sessionId).pipe(Effect.ignore)),
+    )
+  })
+}
+
+/**
+ * Asked right before each Session is created: a removal of the project may have started, or
+ * finished, since the pass read the projects.
+ */
+function isStillListed(projectPath: string, sessionProjectPaths: readonly string[]) {
+  return Effect.gen(function* () {
+    if (isPiSessionDiscoveryPaused(projectPath)) return false
+    return (yield* openWaggleProjectPaths(sessionProjectPaths)).includes(projectPath)
   })
 }
 
@@ -212,6 +234,7 @@ export function discoverPiSessions<R>(options: {
     // Only Sessions actually listed count against the cap, so failing files cannot use it up.
     for (const session of pending) {
       if (listed.length >= MAX_SESSIONS_LISTED_PER_PASS) break
+      if (!(yield* isStillListed(session.projectPath, scope.sessionProjectPaths))) continue
       const sessionId = yield* createDiscoveredSession(session, options.createSession).pipe(
         Effect.catchAllCause((cause) =>
           Effect.sync(() => {
@@ -226,9 +249,10 @@ export function discoverPiSessions<R>(options: {
       if (sessionId) {
         failedFiles.delete(session.piSessionFile)
         listed.push(sessionId)
-      } else {
-        recordListingFailure(session, now)
+        continue
       }
+      // A project removal refused it; the file is fine if the folder is added back.
+      if (!isPiSessionDiscoveryPaused(session.projectPath)) recordListingFailure(session, now)
     }
     const last = listed.at(-1)
     // One notice per pass: the lifecycle announced each new Session, and this one makes the

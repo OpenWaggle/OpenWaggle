@@ -54,6 +54,11 @@ export interface IpcSessionInvokeChannelMap {
     args: [id: SessionId, options?: { readonly removingProject?: boolean }]
     return: undefined
   }
+  /**
+   * The desktop app is about to remove a project and read the Sessions it deletes: Pi session
+   * discovery stops listing the project's `pi` sessions until the removal is done (ADR 0048).
+   */
+  'sessions:begin-project-removal': { args: [projectPath: string]; return: undefined }
   'sessions:archive': { args: [id: SessionId]; return: undefined }
   'sessions:unarchive': { args: [id: SessionId]; return: undefined }
   'sessions:update-title': { args: [id: SessionId, title: string]; return: undefined }

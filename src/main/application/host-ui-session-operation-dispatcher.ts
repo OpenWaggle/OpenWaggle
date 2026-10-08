@@ -25,6 +25,7 @@ import {
   listSessionsByIds,
 } from './host-ui-session-catalog-operations'
 import {
+  beginProjectRemoval,
   createSession,
   deleteSession,
   dismissInterruptedRun,
@@ -101,6 +102,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:clone-to-new', () => forkSession(args, 'at'))
     .with('sessions:dismiss-interrupted-run', () => dismissInterruptedRun(args))
     .with('sessions:delete', () => deleteSession(args))
+    .with('sessions:begin-project-removal', () => beginProjectRemoval(args))
     .with('sessions:archive', () => organizeFromArgs(args, 'archive'))
     .with('sessions:unarchive', () => organizeFromArgs(args, 'unarchive'))
     .with('sessions:update-title', () => updateSessionTitle(args))

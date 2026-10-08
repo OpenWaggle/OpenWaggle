@@ -5,6 +5,15 @@ import { PiSessionDiscoveryRepository } from '../ports/pi-session-discovery'
 import { pausePiSessionDiscovery } from './pi-session-discovery-pauses'
 
 /**
+ * `sessions:begin-project-removal`: the desktop app is about to read the Sessions of a project it
+ * removes. Discovery stops listing the project's Pi sessions first, so the list it reads, and
+ * deletes, stays complete.
+ */
+export function beginPiSessionProjectRemoval(projectPath: string) {
+  pausePiSessionDiscovery(projectPath)
+}
+
+/**
  * Deletes one Session as part of removing its project (ADR 0048). Unlike deleting a single
  * discovered Session, this does not dismiss its Pi file: the file stays for the `pi` CLI, and the
  * session is listed again if the folder is added back as a project. Discovery pauses for the

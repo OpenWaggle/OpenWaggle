@@ -22,7 +22,10 @@ import {
   validateWorktreePlan,
 } from './host-ui-session-operation-validation'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
-import { deleteSessionForProjectRemoval } from './pi-session-project-removal'
+import {
+  beginPiSessionProjectRemoval,
+  deleteSessionForProjectRemoval,
+} from './pi-session-project-removal'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -219,6 +222,15 @@ export function dismissInterruptedRun(args: readonly unknown[]) {
     const sessionId = yield* validateSessionId(args[0])
     const runId = yield* requiredString(args[1], 'Run ID')
     yield* mutateLocalUiSession({ operation: 'dismiss-interrupted-run', sessionId, runId })
+  })
+}
+
+/** `sessions:begin-project-removal`: discovery leaves the project alone while it is removed. */
+export function beginProjectRemoval(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, 1)
+    const projectPath = (yield* requiredString(args[0], 'Project path')).trim()
+    yield* Effect.sync(() => beginPiSessionProjectRemoval(projectPath))
   })
 }
 

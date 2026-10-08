@@ -106,6 +106,11 @@ export interface AdoptDiscoveredPiSessionInput {
   readonly cwd: string
   readonly createdAt: number
   readonly updatedAt: number
+  /**
+   * Asked inside the adoption's transaction; false refuses it. Discovery uses it to stay out of a
+   * project whose removal started after the Session was created.
+   */
+  readonly isStillWanted: () => boolean
 }
 
 export interface PiSessionProjectionState {
@@ -137,7 +142,8 @@ export interface PiSessionDiscoveryRepositoryShape {
   readonly readScope: () => Effect.Effect<PiSessionDiscoveryScope, SessionProjectionRepositoryError>
   /**
    * Points a newly created, still empty Session at the discovered Pi file. False when another
-   * Session already has the file or its id, or the Session already has a transcript.
+   * Session already has the file or its id, the Session already has a transcript, or
+   * `isStillWanted` says no.
    */
   readonly adoptDiscovered: (
     input: AdoptDiscoveredPiSessionInput,

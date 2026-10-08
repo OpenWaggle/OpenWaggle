@@ -197,6 +197,8 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   try {
+    // Discovery stops listing the project's `pi` sessions before the Sessions to delete are read.
+    await api.beginProjectRemoval(path)
     const currentSessions = await listProjectSessionSummaries(path)
     if (
       currentSessions.length !== projectSessionIds.size ||
@@ -216,6 +218,12 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       clearComposerDraftForSession(id)
       await deleteWorkspaceOwner(String(id))
     })
+    // A Session created in the project meanwhile was not confirmed for deletion; keep the project.
+    if ((await listProjectSessionSummaries(path)).length > 0) {
+      throw new Error(
+        'Sessions were added to the project while removing it. Review them and try again.',
+      )
+    }
   } catch (error) {
     await Promise.allSettled([
       deps.loadChatSessions(),

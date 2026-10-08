@@ -24,6 +24,17 @@ export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
   'mcp:install-registry-server',
   'mcp:list-app-catalog',
 ] as const satisfies readonly IpcInvokeChannel[]
+/** Pausing Pi session discovery for a project removal ships with revision 22 (ADR 0048). */
+export const HOST_UI_REVISION_22_SESSION_CHANNELS = [
+  'sessions:begin-project-removal',
+] as const satisfies readonly IpcInvokeChannel[]
+/**
+ * Arguments existing channels gained in revision 22: `sessions:delete`'s second argument says the
+ * Session is deleted as part of removing its project, which keeps a discovered Pi file listable.
+ */
+export const HOST_UI_REVISION_22_ARGUMENT_COUNTS = {
+  'sessions:delete': 2,
+} as const satisfies Partial<Record<IpcInvokeChannel, number>>
 /** Session settings channels (thinking level as Session state) ship with revision 21. */
 export const HOST_UI_REVISION_21_REQUIRED_CHANNELS = [
   'sessions:set-thinking-level',
@@ -115,6 +126,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_22_SESSION_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_17_REQUIRED_CHANNELS,

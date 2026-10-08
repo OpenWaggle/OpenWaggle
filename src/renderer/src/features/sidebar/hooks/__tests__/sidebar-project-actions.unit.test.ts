@@ -11,6 +11,7 @@ import {
 
 const apiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
+  beginProjectRemoval: vi.fn(),
   cancelAgent: vi.fn(),
   closeBrowserPreview: vi.fn(),
   deleteSession: vi.fn(),
@@ -62,6 +63,7 @@ describe('sidebar project actions over paged catalogs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiMocks.archiveSession.mockResolvedValue(undefined)
+    apiMocks.beginProjectRemoval.mockResolvedValue(undefined)
     apiMocks.cancelAgent.mockResolvedValue(undefined)
     apiMocks.closeBrowserPreview.mockResolvedValue(undefined)
     apiMocks.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
@@ -163,6 +165,10 @@ describe('sidebar project actions over paged catalogs', () => {
   it('hydrates active and archived pages before ordered project removal', async () => {
     const queenId = SessionId('queen')
     const workerId = SessionId('worker')
+    const deleted = new Set<SessionId>()
+    apiMocks.deleteSession.mockImplementation(async (id: SessionId) => {
+      deleted.add(id)
+    })
     apiMocks.querySessionControl.mockImplementation(
       async (request: { query: { archived?: boolean } }) => ({
         contractVersion: 2,
@@ -180,7 +186,7 @@ describe('sidebar project actions over paged catalogs', () => {
               lineageRole: request.query.archived ? 'worker' : 'queen',
               directWorkerCount: request.query.archived ? 0 : 1,
             },
-          ],
+          ].filter((listed) => !deleted.has(listed.sessionId)),
         },
       }),
     )

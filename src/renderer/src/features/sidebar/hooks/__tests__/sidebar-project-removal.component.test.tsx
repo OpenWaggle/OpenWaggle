@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   listActiveRuns: vi.fn(),
   cancelAgent: vi.fn(),
   deleteSession: vi.fn(),
+  beginProjectRemoval: vi.fn(),
   showConfirm: vi.fn(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api }))
@@ -71,8 +72,39 @@ describe('project removal preflight and failure recovery', () => {
     listedIds = ['first', 'second', 'third']
     installSessionCatalog()
     api.listActiveRuns.mockResolvedValue([])
-    api.deleteSession.mockResolvedValue(undefined)
+    api.deleteSession.mockImplementation(async (id: SessionId) => {
+      listedIds = listedIds.filter((listed) => listed !== String(id))
+    })
+    api.beginProjectRemoval.mockResolvedValue(undefined)
     api.showConfirm.mockResolvedValue(true)
+  })
+
+  it('stops Pi session discovery for the project before reading the Sessions it deletes', async () => {
+    const { deps, actions } = setup()
+    actions.remove('/project')
+    await vi.waitFor(() => expect(deps.removeProjectReferences).toHaveBeenCalledWith('/project'))
+
+    expect(api.beginProjectRemoval).toHaveBeenCalledWith('/project')
+    // The first listing (active, then archived) counts the Sessions for the confirmation; the
+    // second picks what to delete.
+    const deletionListing = api.querySessionControl.mock.invocationCallOrder[2]
+    expect(api.beginProjectRemoval.mock.invocationCallOrder[0]).toBeLessThan(deletionListing ?? 0)
+  })
+
+  it('keeps the project when a Session was added to it during the removal', async () => {
+    const { deps, actions } = setup()
+    api.deleteSession.mockImplementation(async (id: SessionId) => {
+      listedIds = [...listedIds.filter((listed) => listed !== String(id)), 'added']
+      listedIds = [...new Set(listedIds)]
+    })
+    actions.remove('/project')
+    await vi.waitFor(() =>
+      expect(deps.showToast).toHaveBeenCalledWith(
+        expect.stringContaining('Sessions were added to the project'),
+      ),
+    )
+    expect(api.deleteSession).not.toHaveBeenCalledWith(SessionId('added'), REMOVING_PROJECT)
+    expect(deps.removeProjectReferences).not.toHaveBeenCalled()
   })
 
   it('requires new confirmation when the project session set changes', async () => {
@@ -117,6 +149,7 @@ describe('project removal preflight and failure recovery', () => {
 
   it('stops on a late rejection and refreshes stores before reporting it', async () => {
     const { deps, actions } = setup()
+    api.deleteSession.mockReset()
     api.deleteSession
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('Now active'))

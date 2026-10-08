@@ -120,6 +120,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'forkSessionToNew',
   'cloneSessionToNew',
   'deleteSession',
+  'beginProjectRemoval',
   'archiveSession',
   'unarchiveSession',
   'updateSessionTitle',

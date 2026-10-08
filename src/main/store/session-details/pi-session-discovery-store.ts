@@ -110,6 +110,9 @@ export async function adoptDiscoveredPiSession(
             ) AS blocked
           `
           if (blocked[0]?.blocked !== 0) return false
+          // Last, inside the transaction: a project removal that started after this check sees
+          // the adopted Session when it reads the project's Sessions again.
+          if (!input.isStillWanted()) return false
           yield* sql`
             UPDATE sessions
             SET pi_session_id = ${input.piSessionId}, pi_session_file = ${input.piSessionFile},

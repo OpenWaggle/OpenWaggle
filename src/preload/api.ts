@@ -135,6 +135,7 @@ export const api: OpenWaggleApi = {
   forkSessionToNew: invoke('sessions:fork-to-new'),
   cloneSessionToNew: invoke('sessions:clone-to-new'),
   deleteSession: invoke('sessions:delete'),
+  beginProjectRemoval: invoke('sessions:begin-project-removal'),
   archiveSession: invoke('sessions:archive'),
   unarchiveSession: invoke('sessions:unarchive'),
   updateSessionTitle: invoke('sessions:update-title'),

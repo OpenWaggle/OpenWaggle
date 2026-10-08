@@ -16,6 +16,7 @@ import { Sidebar } from '../Sidebar'
 const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
   apiMock: {
     archiveSession: vi.fn(),
+    beginProjectRemoval: vi.fn().mockResolvedValue(undefined),
     cancelAgent: vi.fn(),
     closeBrowserPreview: vi.fn(),
     deleteSession: vi.fn(),
@@ -45,9 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
   }) => options.select({ location: { pathname: routerState.pathname } }),
 }))
 
-vi.mock('@/shell/useFullscreen', () => ({
-  useFullscreen: () => false,
-}))
+vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
@@ -55,13 +54,8 @@ const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
 const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
 function makeSession(): SessionSummary {
-  return {
-    id: SESSION_ID,
-    title: 'Existing project session',
-    projectPath: PROJECT_PATH,
-    createdAt: 10,
-    updatedAt: 20,
-  }
+  const title = 'Existing project session'
+  return { id: SESSION_ID, title, projectPath: PROJECT_PATH, createdAt: 10, updatedAt: 20 }
 }
 
 function makeArchivedSession(): SessionSummary {
@@ -82,7 +76,8 @@ function mockProjectSessions(sessions: readonly SessionSummary[]) {
           .filter(
             (session) =>
               !request.query.interrupted &&
-              Boolean(session.archived) === Boolean(request.query.archived),
+              Boolean(session.archived) === Boolean(request.query.archived) &&
+              !apiMock.deleteSession.mock.calls.some(([id]) => id === session.id),
           )
           .map((session) => ({
             sessionId: session.id,
