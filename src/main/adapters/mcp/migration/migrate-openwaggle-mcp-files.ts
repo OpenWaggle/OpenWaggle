@@ -33,6 +33,8 @@ import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
   globalMcpPaths,
+  isInside,
+  managedWorktreesRoot,
   migrationBackupPath,
   projectMcpPaths,
 } from './migration-paths'
@@ -192,10 +194,17 @@ async function legacyProjects(
   return unique
 }
 
+/**
+ * The projects whose files are migrated. A managed worktree (`~/.openwaggle/worktrees/…`) is never
+ * one, even when the old state names it: a new `.openwaggle/mcp.json` there would be an untracked
+ * file in the Session's checkout, and Git would then refuse to remove it when the Session is deleted.
+ */
 function knownProjects(input: MigrateOpenWaggleMcpFilesInput, state: LegacyStateFile) {
+  const worktrees = managedWorktreesRoot(input.homeDir)
   const projects = [...input.projectPaths, ...legacyStateProjects(state)]
     .filter((projectPath) => projectPath.trim().length > 0)
     .map(normalizeLegacyProjectPath)
+    .filter((projectPath) => !isInside(projectPath, worktrees))
   return [...new Set(projects)]
 }
 

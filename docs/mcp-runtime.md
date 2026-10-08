@@ -410,7 +410,8 @@ differ, the migration writes `enabled` into OpenWaggle's global file (a project 
 everything) and into each project's file. This covers projects OpenWaggle knew on the first run:
 settings, every Session's project and workspace root, and the old state. Projects added later,
 and users with no old state and no global file, get the new behaviour. Files are migrated only
-in project roots (settings and Sessions' project paths), never in a managed worktree, where a
+in project roots (settings and Sessions' project paths), never in a managed worktree (also when
+the old state names one), where a
 new `.openwaggle/mcp.json` would be an untracked file in the user's checkout.
 
 The old code also named each server by an instance ID (`servers[*].instanceId` in

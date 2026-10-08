@@ -60,3 +60,13 @@ export function migrationBackupPath(filePath: string, homeDir: string) {
     `${path.basename(resolved)}${MCP_MIGRATION_BACKUP_SUFFIX}`,
   )
 }
+
+/** Where OpenWaggle keeps managed Session worktrees (`session-worktree-path.ts`). */
+export function managedWorktreesRoot(homeDir: string) {
+  return path.join(homeDir, '.openwaggle', 'worktrees')
+}
+
+export function isInside(child: string, parent: string) {
+  const relative = path.relative(path.resolve(parent), path.resolve(child))
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
