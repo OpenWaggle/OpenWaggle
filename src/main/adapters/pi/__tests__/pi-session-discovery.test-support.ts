@@ -39,13 +39,21 @@ export function setUpPiDiscoveryFixture(state: { userDataDir: string }): PiDisco
   return fixture
 }
 
-function assistantReply(text: string): AssistantMessage {
+/** The model that answered a CLI exchange. */
+export interface PiCliResponder {
+  readonly provider: string
+  readonly model: string
+}
+
+const TEST_RESPONDER: PiCliResponder = { provider: 'test', model: 'test-model' }
+
+function assistantReply(text: string, responder = TEST_RESPONDER): AssistantMessage {
   return {
     role: 'assistant',
     content: [{ type: 'text', text }],
     api: 'openai-completions',
-    provider: 'test',
-    model: 'test-model',
+    provider: responder.provider,
+    model: responder.model,
     usage: {
       input: 1,
       output: 1,
@@ -91,14 +99,14 @@ export function createPiCliSession(cwd: string, prompt: string) {
 }
 
 /** The CLI continuing the same session, as `pi --resume` would. */
-export function continuePiCliSession(file: string, prompt: string) {
+export function continuePiCliSession(file: string, prompt: string, responder?: PiCliResponder) {
   const sessionManager = SessionManager.open(file)
   sessionManager.appendMessage({
     role: 'user',
     content: [{ type: 'text', text: prompt }],
     timestamp: Date.now(),
   })
-  sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`))
+  sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`, responder))
   agePiFile(file)
 }
 

@@ -47,9 +47,17 @@ export interface PiSessionFileSnapshot {
   /** Taken before the file was read, so a write during the read is seen next time. */
   readonly fingerprint: PiSessionFileFingerprint
   readonly sessionSnapshot: AgentKernelSessionSnapshot
-  /** The model the session last used, as `provider/model`, which `pi --resume` continues with. */
+  /**
+   * The model the branch last used, as `provider/model`: its last model change, or the model
+   * that gave the latest response after it.
+   */
   readonly lastModel?: string
-  /** The thinking level the session last used, which `pi --resume` continues with. */
+  /**
+   * The model change before the latest response. `pi --resume` keeps it instead of `lastModel`
+   * when it names a virtual model, which routes each request to a physical one.
+   */
+  readonly lastModelChange?: string
+  /** The branch's last thinking level change; without one `pi --resume` uses Pi's default. */
   readonly lastThinkingLevel?: string
 }
 

@@ -1,14 +1,17 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
+import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveSessionWorkingPath } from '../agent-kernel/session-manager'
 import {
   agePiFile,
+  continuePiCliSession,
   createPiCliSession,
   discoverOne,
   openSession,
   registerProjects,
+  run,
   sessionDetail,
   setUpPiDiscoveryFixture,
 } from './pi-session-discovery.test-support'
@@ -98,4 +101,88 @@ describe('Continuing a discovered Pi session', () => {
     expect(detail?.executionModel).toBe(before)
     expect(detail?.executionThinkingLevel).toBe('low')
   })
+
+  it("uses Pi's default thinking level when the session never changed it, as pi --resume does", async () => {
+    await configurePiProvider(['only-model'])
+    await setPiDefaultThinkingLevel('high')
+    await registerProjects([fixture.project])
+    createPiCliSession(fixture.project, 'No thinking level recorded')
+    const sessionId = await discoverOne()
+    await setPiDefaultThinkingLevel('minimal')
+
+    await openSession(sessionId)
+
+    expect((await sessionDetail(sessionId))?.executionThinkingLevel).toBe('minimal')
+  })
+
+  it('keeps a virtual model the session switched to, though its responses name physical ones', async () => {
+    await configurePiProvider(['router', 'physical-model'])
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Routed session')
+    switchPiSettings(cli.file, 'router', 'medium')
+    continuePiCliSession(cli.file, 'Routed question', {
+      provider: 'local',
+      model: 'physical-model',
+    })
+    const sessionId = await discoverOne()
+
+    await openWithVirtualModels(sessionId, ['local/router'])
+
+    expect((await sessionDetail(sessionId))?.executionModel).toBe('local/router')
+  })
+
+  it('continues with the answering model after a switch to a physical model', async () => {
+    await configurePiProvider(['router', 'physical-model'])
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Physical session')
+    switchPiSettings(cli.file, 'router', 'medium')
+    continuePiCliSession(cli.file, 'Answered by another', {
+      provider: 'local',
+      model: 'physical-model',
+    })
+    const sessionId = await discoverOne()
+
+    await openWithVirtualModels(sessionId, [])
+
+    expect((await sessionDetail(sessionId))?.executionModel).toBe('local/physical-model')
+  })
 })
+
+/** Pi's global `defaultThinkingLevel`, which a new session and `pi --resume` start from. */
+async function setPiDefaultThinkingLevel(level: string) {
+  const file = path.join(fixture.root, 'pi-agent', 'settings.json')
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify({ defaultThinkingLevel: level }))
+}
+
+/**
+ * Opens the Session with a catalog that reports `virtualModels` as virtual: a router extension
+ * registers them in a real `pi`, which this test does not load.
+ */
+async function openWithVirtualModels(sessionId: string, virtualModels: readonly string[]) {
+  const { ProviderService } = await import('../../../ports/provider-service')
+  const { refreshPiSessionProjection } = await import(
+    '../../../application/pi-session-projection-refresh'
+  )
+  const { SessionId } = await import('@shared/types/brand')
+  await run(
+    Effect.gen(function* () {
+      const providers = yield* ProviderService
+      return yield* refreshPiSessionProjection(SessionId(sessionId), 'reader').pipe(
+        Effect.provideService(ProviderService, {
+          ...providers,
+          getProviderForModel: (modelId, projectPath) =>
+            providers.getProviderForModel(modelId, projectPath).pipe(
+              Effect.map((provider) => ({
+                ...provider,
+                models: provider.models.map((model) => ({
+                  ...model,
+                  virtual: virtualModels.includes(model.id),
+                })),
+              })),
+            ),
+        }),
+      )
+    }),
+  )
+}

@@ -14,6 +14,7 @@ import {
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
+import { isPiVirtualModel } from './pi-virtual-models'
 
 function toError(cause: unknown) {
   return cause instanceof Error ? cause : new Error(String(cause))
@@ -50,6 +51,45 @@ function holdsOnlyProjectedEntries(
   )
 }
 
+function modelReference(entry: { readonly provider: string; readonly modelId: string }) {
+  return `${entry.provider}/${entry.modelId}`
+}
+
+function lastModelChangeBefore(branch: readonly SessionEntry[], index: number) {
+  for (let candidate = index - 1; candidate >= 0; candidate--) {
+    const entry = branch[candidate]
+    if (entry?.type === 'model_change') return modelReference(entry)
+  }
+  return undefined
+}
+
+/**
+ * The model selection the branch records, as Pi's `getBranchSelection` reads it for
+ * `pi --resume`: a model change holds until the next response, whose physical model then wins,
+ * unless the change named a virtual model, which only the catalog can tell.
+ */
+function branchModelSelection(branch: readonly SessionEntry[]) {
+  for (let index = branch.length - 1; index >= 0; index--) {
+    const entry = branch[index]
+    if (entry?.type === 'model_change') return { lastModel: modelReference(entry) }
+    if (entry?.type !== 'message' || entry.message.role !== 'assistant') continue
+    if (isPiVirtualModel(entry.message)) continue
+    const response = modelReference({
+      provider: entry.message.provider,
+      modelId: entry.message.model,
+    })
+    const change = lastModelChangeBefore(branch, index)
+    return { lastModel: response, ...(change ? { lastModelChange: change } : {}) }
+  }
+  return {}
+}
+
+/** The branch's last thinking level change, which `pi --resume` continues with. */
+function branchThinkingLevel(branch: readonly SessionEntry[]) {
+  const change = branch.findLast((entry) => entry.type === 'thinking_level_change')
+  return change?.type === 'thinking_level_change' ? { lastThinkingLevel: change.thinkingLevel } : {}
+}
+
 /**
  * Reads a Pi session file for viewing, without changing it. `SessionManager.open` upgrades a file
  * in an older Pi format by rewriting it; the file is parsed and loaded into an in-memory manager
@@ -72,7 +112,7 @@ async function readSnapshot(
   if (holdsOnlyProjectedEntries(entries, input)) {
     return { kind: 'unchanged', fingerprint }
   }
-  const context = sessionManager.buildSessionContext()
+  const branch = sessionManager.getBranch()
   return {
     kind: 'changed',
     piSessionId: sessionManager.getSessionId(),
@@ -83,8 +123,8 @@ async function readSnapshot(
       { sessionManager },
       piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix),
     ),
-    ...(context.model ? { lastModel: `${context.model.provider}/${context.model.modelId}` } : {}),
-    ...(context.thinkingLevel ? { lastThinkingLevel: context.thinkingLevel } : {}),
+    ...branchModelSelection(branch),
+    ...branchThinkingLevel(branch),
   }
 }
 

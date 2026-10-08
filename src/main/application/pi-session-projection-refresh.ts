@@ -18,6 +18,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SessionSettingsRepository } from '../ports/session-settings-repository'
+import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { appendDurableAgentLoopEvents } from './agent-run/agent-loop-events'
@@ -58,10 +59,33 @@ function sameFingerprint(left: PiSessionFileFingerprint, right: PiSessionFileFin
 }
 
 /**
+ * The model `pi --resume` would continue with, when OpenWaggle can run it: the model change
+ * before the latest response if it names a virtual model, otherwise the branch's last model.
+ */
+function continuationModel(snapshot: PiSessionFileSnapshot, projectPath: string) {
+  return Effect.gen(function* () {
+    const providers = yield* Effect.serviceOption(ProviderService)
+    if (Option.isNone(providers)) return undefined
+    const lookUp = (reference: string) =>
+      providers.value.getProviderForModel(reference, projectPath).pipe(
+        Effect.map((provider) => provider.models.find((model) => model.id === reference)),
+        Effect.orElseSucceed(() => undefined),
+      )
+    const change = snapshot.lastModelChange
+    const changed = change ? yield* lookUp(change) : undefined
+    if (change && changed?.virtual) return changed.available ? change : undefined
+    const model = snapshot.lastModel
+    if (!model) return undefined
+    return (yield* lookUp(model))?.available ? model : undefined
+  })
+}
+
+/**
  * A discovered Pi session continues the way `pi --resume` would (ADR 0048): with the model and
- * thinking level its file last used, not OpenWaggle's default. Applied when OpenWaggle takes in
- * what another program wrote, and only while no Run is active; a model OpenWaggle cannot reach
- * keeps the Session's current one rather than leaving it unable to run.
+ * thinking level its branch last used, not OpenWaggle's default, and with Pi's default thinking
+ * level when the branch never changed it. Applied when OpenWaggle takes in what another program
+ * wrote, and only while no Run is active; a model OpenWaggle cannot run keeps the Session's
+ * current one rather than leaving it unable to run.
  */
 function continueWithPiSessionSettings(
   sessionId: SessionId,
@@ -73,16 +97,12 @@ function continueWithPiSessionSettings(
   return Effect.gen(function* () {
     const settings = yield* Effect.serviceOption(SessionSettingsRepository)
     if (Option.isNone(settings)) return
-    const providers = yield* Effect.serviceOption(ProviderService)
-    const model = snapshot.lastModel
-    if (
-      model &&
-      Option.isSome(providers) &&
-      (yield* providers.value.isKnownModel(model, projectPath))
-    ) {
-      yield* settings.value.setModel(sessionId, SupportedModelId(model))
-    }
-    const thinkingLevel = THINKING_LEVELS.find((level) => level === snapshot.lastThinkingLevel)
+    const model = yield* continuationModel(snapshot, projectPath)
+    if (model) yield* settings.value.setModel(sessionId, SupportedModelId(model))
+    const recorded = THINKING_LEVELS.find((level) => level === snapshot.lastThinkingLevel)
+    const defaults = yield* Effect.serviceOption(ThinkingLevelDefaultService)
+    const thinkingLevel =
+      recorded ?? (Option.isSome(defaults) ? yield* defaults.value.getDefault() : undefined)
     if (thinkingLevel) yield* settings.value.setThinkingLevel(sessionId, thinkingLevel)
   }).pipe(
     Effect.catchAllCause((cause) =>
