@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import type { DiscoveredSessionCreator } from '../../../application/pi-session-discovery'
@@ -71,6 +72,30 @@ describe('A Pi session discovery pass', () => {
     expect(listed).toEqual([])
     expect(creates).toBe(1)
     expect(await sessionCount()).toBe(0)
+  })
+
+  it('announces every Session it lists, so the sidebar reads each adopted title', async () => {
+    await registerProjects([fixture.project])
+    createPiCliSession(fixture.project, 'Announced first')
+    createPiCliSession(fixture.project, 'Announced second')
+    const { installSessionHostEventPublisher } = await import(
+      '../../../session-host/session-host-events'
+    )
+    const updated: string[] = []
+    const uninstall = installSessionHostEventPublisher((payload: SessionHostEventPayload) => {
+      if (payload.kind === 'session-list-changed' && payload.change === 'updated') {
+        updated.push(payload.sessionId)
+      }
+    })
+
+    try {
+      const listed = await discoverWith(await lifecycleCreate())
+
+      expect(listed).toHaveLength(2)
+      expect(updated).toEqual(expect.arrayContaining(listed.map(String)))
+    } finally {
+      uninstall()
+    }
   })
 
   it('lists at most 100 Sessions per pass and the rest in the next', async () => {

@@ -254,13 +254,12 @@ export function discoverPiSessions<R>(options: {
       // A project removal refused it; the file is fine if the folder is added back.
       if (!isPiSessionDiscoveryPaused(session.projectPath)) recordListingFailure(session, now)
     }
-    const last = listed.at(-1)
-    // One notice per pass: the lifecycle announced each new Session, and this one makes the
-    // sidebar read the adopted titles and times once.
-    if (last) {
-      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: last, change: 'updated' })
-      logger.info('Listed Pi sessions', { count: listed.length })
+    // The lifecycle announced each new Session before its file was attached. Each listed Session
+    // is announced again once the pass is done, so the sidebar reads its adopted title and times.
+    for (const sessionId of listed) {
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     }
+    if (listed.length > 0) logger.info('Listed Pi sessions', { count: listed.length })
     return listed
   })
 }
