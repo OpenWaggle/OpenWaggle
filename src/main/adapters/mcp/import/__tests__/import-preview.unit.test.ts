@@ -227,6 +227,30 @@ describe('previewing MCP imports as Pi entries', () => {
     expect(JSON.stringify(result)).not.toContain('sk-plaintext')
   })
 
+  it('withholds a credential written as --flag=value and keeps the next argument', async () => {
+    const source = files({
+      [`${HOME}/.cursor/mcp.json`]: {
+        mcpServers: {
+          api: {
+            command: 'api-mcp',
+            args: ['--api-key=sk-inline', '--port', '8080', '--token=!pass show api'],
+          },
+        },
+      },
+    })
+
+    const result = await preview(source)
+
+    expect(result.candidates[0]).toMatchObject({
+      // A value resolved when the server starts is not a plaintext credential.
+      entry: { command: 'api-mcp', args: ['--port', '8080', '--token=!pass show api'] },
+      warnings: [
+        'A command-line credential in --api-key=… was not imported. Move it to the encrypted vault or an environment variable.',
+      ],
+    })
+    expect(JSON.stringify(result)).not.toContain('sk-inline')
+  })
+
   it('reports an unreadable source and still previews the others', async () => {
     const source = files({
       [`${HOME}/.cursor/mcp.json`]: '{ broken',

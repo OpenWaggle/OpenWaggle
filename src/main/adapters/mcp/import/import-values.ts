@@ -154,7 +154,15 @@ export function credentialMap(value: unknown, mapName: string, context: ImportVa
   return Object.keys(result).length > 0 ? result : undefined
 }
 
-/** Arguments, without the value that follows a credential flag such as `--api-key`. */
+function isCredentialFlag(value: string) {
+  return value.startsWith('-') && SENSITIVE_NAME_PATTERN.test(value)
+}
+
+/**
+ * Arguments, without the value of a credential flag: the argument after `--api-key`, or all of
+ * `--api-key=VALUE` (Pi passes arguments as written, so no vault reference can stand there). The
+ * value is never repeated in a warning.
+ */
 export function portableArgs(values: readonly string[], context: ImportValueContext) {
   const result: string[] = []
   let credentialFlag: string | undefined
@@ -167,9 +175,21 @@ export function portableArgs(values: readonly string[], context: ImportValueCont
       continue
     }
     credentialFlag = undefined
+    const separator = value.indexOf('=')
+    const flag = separator > 0 ? value.slice(0, separator) : value
+    if (separator > 0 && isCredentialFlag(flag)) {
+      if (!isResolvedLater(value.slice(separator + 1))) {
+        context.warnings.push(
+          `A command-line credential in ${flag}=… was not imported. Move it to the encrypted vault or an environment variable.`,
+        )
+        continue
+      }
+      result.push(literalString(value, 'args', context))
+      continue
+    }
     const portable = literalString(value, 'args', context)
     result.push(portable)
-    if (portable.startsWith('-') && SENSITIVE_NAME_PATTERN.test(portable)) credentialFlag = portable
+    if (isCredentialFlag(portable)) credentialFlag = portable
   }
   return result
 }
