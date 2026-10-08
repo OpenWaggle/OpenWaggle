@@ -21,6 +21,7 @@ import {
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { notifyModelFallback } from './interaction-ui-context'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { createPiRunControl } from './pi-run-control'
@@ -57,6 +58,8 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  /** Continue on the last answering model if the selection is gone (never for a Waggle agent). */
+  readonly modelFallback?: 'last-answering-model'
   readonly runAuthorizationOverride?: AgentKernelRunInput['runAuthorizationOverride']
   readonly authorityCallerId?: AgentKernelRunInput['authorityCallerId']
   readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
@@ -115,7 +118,7 @@ export async function createPiRunSessionRuntime(
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
-    ...sessionFallbackModelReference(input.session),
+    ...(input.modelFallback ? sessionFallbackModelReference(input.session) : {}),
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
@@ -168,6 +171,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
+    notifyModelFallback(openWaggleUi, selectedRuntime.runtime.modelFallbackMessage)
     return exposePiRunControl(input, selectedRuntime.runtime.model, session)
   } catch (error) {
     if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
@@ -192,6 +196,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
+    notifyModelFallback(openWaggleUi, fallbackRuntime.modelFallbackMessage)
     return exposePiRunControl(input, fallbackRuntime.model, session)
   }
 }

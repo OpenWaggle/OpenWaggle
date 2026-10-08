@@ -30,5 +30,5 @@ Hover the context meter to see the session's total tokens and cost, split by the
 ## Things to know
 
 - Switching real models between turns loses the provider's prompt cache, which can make the next request slower and more expensive. Good routers keep follow-up requests on the model that started the turn.
-- If the extension that provides the virtual model is removed, a session that used it falls back to the real model that answered last.
+- If the extension that provides the virtual model is removed, a session that used it falls back to the real model that answered last. The run says so in the transcript ("Could not restore model … Using …"), and the model picker shows the model that answered. A Waggle agent's pinned model never falls back: its run stops and names the missing model.
 - Waggle agents can pin a virtual model like any other model.

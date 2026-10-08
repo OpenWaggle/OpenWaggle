@@ -46,4 +46,6 @@ export interface PiModelRuntime {
 
 export interface PiProjectModelRuntime extends PiModelRuntime {
   readonly services: AgentSessionServices
+  /** Set when the selected model did not resolve and the fallback model is used, in Pi's words. */
+  readonly modelFallbackMessage?: string
 }

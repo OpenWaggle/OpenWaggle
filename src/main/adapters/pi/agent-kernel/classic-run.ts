@@ -112,6 +112,8 @@ export async function runPiSession(
       : []),
   ].filter((factory): factory is InlineExtension => factory !== undefined)
   const { model, session } = await createPiRunSessionRuntime({
+    // The Session's own selection may continue on its last answering model (as Pi resumes).
+    modelFallback: 'last-answering-model',
     session: input.session,
     projectPath,
     runId: input.runId,

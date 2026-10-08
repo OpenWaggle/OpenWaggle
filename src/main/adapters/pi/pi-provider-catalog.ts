@@ -265,13 +265,11 @@ function fallbackModel(
 ) {
   if (!input.fallbackModelReference) return undefined
   const model = findPiToolCapableModel(modelRuntime, input.fallbackModelReference)
-  if (model) {
-    logger.warn('Selected model is unavailable; continuing on the model that answered last', {
-      modelReference: input.modelReference,
-      fallbackModelReference: input.fallbackModelReference,
-    })
-  }
-  return model
+  if (!model) return undefined
+  // Pi's own wording when it resumes a session whose model is gone.
+  const modelFallbackMessage = `Could not restore model ${input.modelReference} (model no longer exists). Using ${model.provider}/${model.id}.`
+  logger.warn(modelFallbackMessage)
+  return { model, modelFallbackMessage }
 }
 
 export async function createPiProjectModelRuntime(input: {
@@ -312,15 +310,11 @@ export async function createPiProjectModelRuntime(input: {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
   })
-  const model =
-    findPiToolCapableModel(services.modelRuntime, input.modelReference) ??
-    fallbackModel(services.modelRuntime, input)
-  if (!model) {
+  const selected = findPiToolCapableModel(services.modelRuntime, input.modelReference)
+  if (selected) return { model: selected, services }
+  const fallback = fallbackModel(services.modelRuntime, input)
+  if (!fallback) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }
-
-  return {
-    model,
-    services,
-  }
+  return { model: fallback.model, services, modelFallbackMessage: fallback.modelFallbackMessage }
 }

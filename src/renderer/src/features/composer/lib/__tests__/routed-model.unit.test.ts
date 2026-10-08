@@ -1,7 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { describe, expect, it } from 'vitest'
-import { lastAnsweringModel, routedModelName } from '../routed-model'
+import { answeringModel, lastAnsweringModel, routedModelName } from '../routed-model'
 
 const providers: ProviderInfo[] = [
   {
@@ -131,5 +131,29 @@ describe('lastAnsweringModel', () => {
         AUTO,
       ),
     ).toBeUndefined()
+  })
+})
+
+describe('a selection that is no longer available', () => {
+  const GONE = SupportedModelId('router/removed')
+  const LUNA = SupportedModelId('openai/gpt-6-luna')
+
+  it('names the model that answered instead, whatever selection Pi recorded for it', () => {
+    const answeredBy = answeringModel({
+      messages: [{ role: 'assistant', model: LUNA, metadata: { selectedModel: LUNA } }],
+      selected: GONE,
+      providerModels: providers,
+    })
+
+    expect(answeredBy).toBe(LUNA)
+    expect(routedModelName({ selected: GONE, answeredBy, providerModels: providers })).toBe(
+      'GPT-6 Luna',
+    )
+  })
+
+  it('still names nothing for an available physical selection', () => {
+    expect(routedModelName({ selected: LUNA, answeredBy: LUNA, providerModels: providers })).toBe(
+      null,
+    )
   })
 })

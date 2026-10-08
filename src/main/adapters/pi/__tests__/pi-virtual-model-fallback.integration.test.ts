@@ -6,6 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withPiSession } from '../agent-kernel/session-runtime'
+import { createPiProjectModelRuntime } from '../pi-provider-catalog'
 import { writeProviderExtension } from './pi-provider-catalog.test-utils'
 
 /**
@@ -63,5 +64,19 @@ describe('a Session whose virtual model is gone', () => {
         () => undefined,
       ),
     ).rejects.toThrow('could not resolve model router/auto')
+  })
+
+  it("says so in Pi's words", async () => {
+    const projectPath = await projectWithPhysicalModel()
+
+    const runtime = await createPiProjectModelRuntime({
+      projectPath,
+      modelReference: REMOVED_VIRTUAL_MODEL,
+      fallbackModelReference: PHYSICAL_MODEL,
+    })
+
+    expect(runtime.modelFallbackMessage).toBe(
+      `Could not restore model router/auto (model no longer exists). Using ${PHYSICAL_MODEL}.`,
+    )
   })
 })

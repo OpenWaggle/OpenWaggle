@@ -4,15 +4,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const extensionPackagePaths: string[] = []
-  return { createPiSessionForRun: vi.fn(), extensionPackagePaths }
+  const runtime: { model: { id: string }; services: object; modelFallbackMessage?: string } = {
+    model: { id: 'model' },
+    services: {},
+  }
+  return {
+    createPiSessionForRun: vi.fn(),
+    createIsolatedPiProjectRuntime: vi.fn(async (_input: { readonly options: object }) => ({
+      runtime,
+      enabledOpenWaggleExtensionPackagePaths: extensionPackagePaths,
+    })),
+    extensionPackagePaths,
+    runtime,
+  }
 })
 
 vi.mock('../pi-run-session', () => ({ createPiSessionForRun: mocks.createPiSessionForRun }))
 vi.mock('../runtime-extension-isolation', () => ({
-  createIsolatedPiProjectRuntime: vi.fn(async () => ({
-    runtime: { model: { id: 'model' }, services: {} },
-    enabledOpenWaggleExtensionPackagePaths: mocks.extensionPackagePaths,
-  })),
+  createIsolatedPiProjectRuntime: mocks.createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions: vi.fn(async () => ({
     model: { id: 'model' },
     services: {},
@@ -48,6 +57,8 @@ describe('Pi run session scratch environment', () => {
   beforeEach(() => {
     mocks.createPiSessionForRun.mockReset().mockResolvedValue({ session: {} })
     mocks.extensionPackagePaths.splice(0)
+    mocks.createIsolatedPiProjectRuntime.mockClear()
+    delete mocks.runtime.modelFallbackMessage
   })
 
   it("hands the Session's scratch directory to the tools' environment", async () => {
@@ -88,5 +99,37 @@ describe('Pi run session scratch environment', () => {
     await createPiRunSessionRuntime(runtimeInput())
 
     expect(mocks.createPiSessionForRun.mock.calls[0]?.[0]).not.toHaveProperty('thinkingLevel')
+  })
+
+  it("warns in the Run, in Pi's words, when the selected model fell back", async () => {
+    const message =
+      'Could not restore model router/auto (model no longer exists). Using provider/model.'
+    mocks.runtime.modelFallbackMessage = message
+    const input = runtimeInput()
+
+    await createPiRunSessionRuntime({ ...input, modelFallback: 'last-answering-model' })
+
+    expect(input.onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent_interaction_request',
+        interaction: expect.objectContaining({ kind: 'notify', level: 'warning', message }),
+      }),
+    )
+  })
+
+  it("falls back to the last answering model only when the Run asks to, never for a Waggle agent's pinned model", async () => {
+    const input = runtimeInput()
+    const session = fromPartial<typeof input.session>({
+      ...input.session,
+      messages: [fromPartial({ role: 'assistant', model: SupportedModelId('other/agent-model') })],
+    })
+
+    await createPiRunSessionRuntime({ ...input, session })
+    await createPiRunSessionRuntime({ ...input, session, modelFallback: 'last-answering-model' })
+
+    const optionsOf = (call: number) =>
+      mocks.createIsolatedPiProjectRuntime.mock.calls[call]?.[0]?.options
+    expect(optionsOf(0)).not.toHaveProperty('fallbackModelReference')
+    expect(optionsOf(1)).toMatchObject({ fallbackModelReference: 'other/agent-model' })
   })
 })

@@ -246,6 +246,21 @@ function createDeclaredConfirmChannel(
   }
 }
 
+/** The Run says, in its transcript, that it answers on another model than the one selected. */
+export function notifyModelFallback(
+  context: PiInteractionUiContextInput,
+  message: string | undefined,
+) {
+  if (!message) return
+  const interaction = {
+    ...baseInteraction({ context }),
+    kind: 'notify',
+    message,
+    level: 'warning',
+  } satisfies AgentLoopNotifyInteraction
+  void requestInteraction({ interaction, onEvent: context.onEvent, signal: context.signal })
+}
+
 export function createPiInteractionUiContext(
   context: PiInteractionUiContextInput,
   base: ExtensionUIContext,

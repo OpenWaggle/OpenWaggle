@@ -1,6 +1,6 @@
 import { useChatStore } from '@/features/chat/state'
 import { useProviderStore } from '@/features/providers/state'
-import { lastAnsweringModel, routedModelName } from '../lib/routed-model'
+import { answeringModel, routedModelName } from '../lib/routed-model'
 import { useComposerModel } from './useComposerModel'
 
 /**
@@ -13,7 +13,7 @@ export function useRoutedModelName() {
   const providerModels = useProviderStore((state) => state.providerModels)
   const composerModel = useComposerModel()
   const selected = composerModel.runningModel ?? composerModel.model
-  const answeredBy = lastAnsweringModel(messages ?? [], selected)
+  const answeredBy = answeringModel({ messages: messages ?? [], selected, providerModels })
   const selectedName = providerModels
     .flatMap((group) => group.models)
     .find((model) => model.id === selected)?.name
