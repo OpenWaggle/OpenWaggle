@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createMcpAuthProvider, getMcpToolExposure } from '@earendil-works/pi-coding-agent'
+import { createMcpAuthProvider } from '@earendil-works/pi-coding-agent'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
@@ -28,7 +28,7 @@ import {
   withLegacyAppServer,
 } from './legacy-mcp-app-server'
 import { resolveLegacyMcpServerAllowlist } from './legacy-mcp-server-allowlist'
-import { mcpToolVisibleToApps, recordMcpToolVisibility } from './mcp-app-registry'
+import { assertAppMayCall } from './mcp-app-tool-guards'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
@@ -193,33 +193,6 @@ async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
   return { resources, prompts }
 }
 
-/**
- * Whether an App may call a tool: the server must have advertised it in this Session, its
- * exposure must not be `hidden`, and its MCP Apps visibility must include apps.
- */
-async function assertAppMayCall(
-  pool: McpConnectionPool,
-  opened: Awaited<ReturnType<typeof appConnection>>,
-  input: McpAppServerInput & { readonly toolName: string },
-) {
-  if (getMcpToolExposure(opened.entry.config, input.toolName) === 'hidden') {
-    throw new Error(`The MCP tool "${input.toolName}" is hidden, so MCP Apps cannot call it.`)
-  }
-  let visible = mcpToolVisibleToApps(input.sessionId, input.serverName, input.toolName)
-  if (visible === undefined) {
-    const listed = await requestOver(pool, opened.connection, input, 'tools/list', {})
-    const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
-    if (!tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) {
-      throw new Error('The MCP App requested a tool that its server did not advertise.')
-    }
-    recordMcpToolVisibility(input.sessionId, input.serverName, listed)
-    visible = mcpToolVisibleToApps(input.sessionId, input.serverName, input.toolName)
-  }
-  if (visible === false) {
-    throw new Error(`The MCP tool "${input.toolName}" is not available to apps.`)
-  }
-}
-
 async function callTool(
   pool: McpConnectionPool,
   input: McpAppServerInput & {
@@ -228,7 +201,9 @@ async function callTool(
   },
 ) {
   const opened = await appConnection(pool, input)
-  await assertAppMayCall(pool, opened, input)
+  await assertAppMayCall(opened.entry.config, input, (params) =>
+    requestOver(pool, opened.connection, input, 'tools/list', params),
+  )
   const result = await requestOver(pool, opened.connection, input, 'tools/call', {
     name: input.toolName,
     arguments: input.arguments,

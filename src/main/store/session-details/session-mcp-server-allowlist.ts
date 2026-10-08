@@ -5,12 +5,13 @@ import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 
 /**
- * The MCP servers a Session's Agent definition narrows it to (`mcpServers` in its execution
- * profile), or undefined when it may use every configured server. A profile that cannot be read
- * allows nothing, so a broken profile never widens access.
+ * A list from a Session's execution profile (its Agent definition's `tools` or `mcpServers`), or
+ * undefined when the profile does not restrict it. A profile that cannot be read allows nothing,
+ * so a broken profile never widens access.
  */
-export async function readSessionMcpServerAllowlist(
+async function readProfileList(
   sessionId: string,
+  key: 'tools' | 'mcpServers',
 ): Promise<readonly string[] | undefined> {
   return runStoreEffect(
     Effect.gen(function* () {
@@ -27,11 +28,21 @@ export async function readSessionMcpServerAllowlist(
         return []
       }
       if (!isRecord(parsed)) return []
-      const servers = parsed.mcpServers
-      if (servers === undefined) return undefined
-      return Array.isArray(servers)
-        ? servers.filter((name): name is string => typeof name === 'string')
+      const list = parsed[key]
+      if (list === undefined) return undefined
+      return Array.isArray(list)
+        ? list.filter((name): name is string => typeof name === 'string')
         : []
     }),
   )
+}
+
+/** The MCP servers a Session's Agent definition narrows it to, or undefined for every server. */
+export function readSessionMcpServerAllowlist(sessionId: string) {
+  return readProfileList(sessionId, 'mcpServers')
+}
+
+/** The tools a Session's Agent definition allows, `mcp__…` patterns included, or undefined. */
+export function readSessionToolAllowlist(sessionId: string) {
+  return readProfileList(sessionId, 'tools')
 }

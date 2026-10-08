@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
   const upstreams: FakeUpstream[] = []
   return {
     upstreams,
-    respond: (_method: string): unknown => ({}),
+    respond: (_method: string, _params?: unknown): unknown => ({}),
     open: vi.fn(),
     entry: {
       name: 'figma',
@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../../../store/session-details/session-mcp-server-allowlist', () => ({
   readSessionMcpServerAllowlist: async () => undefined,
+  // An Agent definition that lets the Session read Figma files but nothing else of the server.
+  readSessionToolAllowlist: async (sessionId: string) =>
+    sessionId === 'reader-session' ? ['read', 'mcp__figma__get_*'] : undefined,
 }))
 vi.mock('../../../../store/session-mcp-switch', () => ({ isSessionMcpEnabled: async () => true }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
@@ -43,7 +46,7 @@ vi.mock('../openwaggle-mcp-credentials', () => ({
 vi.mock('../pi-mcp-upstream', () => ({
   openPiMcpUpstream: (input: unknown) => {
     mocks.open(input)
-    const upstream = new FakeUpstream((request) => mocks.respond(request.method))
+    const upstream = new FakeUpstream((request) => mocks.respond(request.method, request.params))
     mocks.upstreams.push(upstream)
     return { transport: upstream }
   },
@@ -130,6 +133,44 @@ describe('MCP App tool calls', () => {
       Effect.runPromise(apps.callTool({ ...APP, toolName: 'model_only', arguments: {} })),
     ).rejects.toThrow('not available to apps')
     expect(mocks.upstreams[0]?.requests('tools/call')).toEqual([])
+  })
+})
+
+describe('MCP App tool calls, continued', () => {
+  it("finds the tool on a later page of the server's tool list", async () => {
+    mocks.respond = (method, params) => {
+      if (method !== 'tools/list') return { content: [] }
+      const cursor = typeof params === 'object' && params !== null && 'cursor' in params
+      return cursor
+        ? { tools: [{ name: 'get_file', inputSchema: {} }] }
+        : { tools: [{ name: 'other', inputSchema: {} }], nextCursor: 'page-2' }
+    }
+    const { apps } = service()
+
+    await Effect.runPromise(apps.callTool({ ...APP, toolName: 'get_file', arguments: {} }))
+
+    expect(mocks.upstreams[0]?.requests('tools/list')).toHaveLength(2)
+    expect(mocks.upstreams[0]?.requests('tools/call')).toHaveLength(1)
+  })
+
+  it("refuses a tool the Session's Agent definition leaves out, even on an allowed server", async () => {
+    mocks.respond = (method) =>
+      method === 'tools/list'
+        ? {
+            tools: [
+              { name: 'get_file', inputSchema: {} },
+              { name: 'delete_comment', inputSchema: {} },
+            ],
+          }
+        : { content: [] }
+    const { apps } = service()
+    const reader = { ...APP, sessionId: 'reader-session' }
+
+    await Effect.runPromise(apps.callTool({ ...reader, toolName: 'get_file', arguments: {} }))
+    await expect(
+      Effect.runPromise(apps.callTool({ ...reader, toolName: 'delete_comment', arguments: {} })),
+    ).rejects.toThrow('does not allow the tool mcp__figma__delete_comment')
+    expect(mocks.upstreams[0]?.requests('tools/call')).toHaveLength(1)
   })
 })
 
