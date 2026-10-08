@@ -89,6 +89,39 @@ describe('A Pi session discovery pass', () => {
     expect(await sessionCount()).toBe(0)
   })
 
+  it("keeps a nested project's sessions out of the enclosing project while it is removed", async () => {
+    const nested = path.join(fixture.project, 'packages', 'core')
+    await registerProjects([fixture.project, nested])
+    createPiCliSession(nested, 'Belongs to the nested project')
+    const create = await lifecycleCreate()
+    const [listed] = await discoverWith(create)
+    if (!listed) throw new Error('Discovery listed no Session.')
+    const { beginPiSessionProjectRemoval, deleteSessionForProjectRemoval } = await import(
+      '../../../application/pi-session-project-removal'
+    )
+    const { SessionProjectionRepository } = await import(
+      '../../../ports/session-projection-repository'
+    )
+
+    beginPiSessionProjectRemoval(nested)
+    await run(
+      deleteSessionForProjectRemoval(
+        listed,
+        Effect.flatMap(SessionProjectionRepository, (repository) => repository.delete(listed)),
+      ),
+    )
+
+    // The nested project is still listed while it is removed, so its session is not the
+    // enclosing project's yet.
+    expect(await discoverWith(create)).toEqual([])
+    // Once it is gone, the enclosing project lists the session, as `pi` would.
+    await registerProjects([fixture.project])
+    const [reassigned] = await discoverWith(create)
+    expect(reassigned).toBeDefined()
+    const { sessionDetail } = await import('./pi-session-discovery.test-support')
+    expect((await sessionDetail(String(reassigned)))?.projectPath).toBe(fixture.project)
+  })
+
   it('announces every Session it lists, so the sidebar reads each adopted title', async () => {
     await registerProjects([fixture.project])
     createPiCliSession(fixture.project, 'Announced first')

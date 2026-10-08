@@ -220,16 +220,17 @@ export function discoverPiSessions<R>(options: {
     const repository = yield* PiSessionDiscoveryRepository
     const files = yield* PiSessionFiles
     const scope = yield* repository.readScope()
-    const projectPaths = unpausedProjects(
-      yield* openWaggleProjectPaths(scope.sessionProjectPaths),
-      options.now,
-    )
+    const projectPaths = yield* openWaggleProjectPaths(scope.sessionProjectPaths)
+    const unpaused = new Set(unpausedProjects(projectPaths, options.now))
+    // A project being removed still owns the sessions in its folders, so a nested project's
+    // sessions do not move to the enclosing project until the removal is done.
     const discovered = yield* files.discover({
       projectPaths,
       isKnownFile: (file) => scope.knownPiSessionFiles.has(file),
     })
     const now = options.now ?? Date.now()
     const pending = discovered
+      .filter((session) => unpaused.has(session.projectPath))
       .filter((session) => !scope.knownPiSessionIds.has(session.piSessionId))
       .filter((session) => session.updatedAt <= now - NEW_FILE_QUIET_PERIOD_MS)
       .filter((session) => !isBackedOff(session, now))

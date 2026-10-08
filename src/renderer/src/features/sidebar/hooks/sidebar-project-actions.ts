@@ -191,7 +191,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
     `Remove ${deps.displayProjectName(path)} and delete its ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
-    `Project: ${deps.displayProjectName(path)}\nSessions started in OpenWaggle are deleted permanently. Sessions from the pi command keep their Pi files and come back if you add the folder again.`,
+    `Project: ${deps.displayProjectName(path)}\nSessions started in OpenWaggle are deleted permanently. Sessions from the pi command keep their Pi files and come back if you add the folder again. If the folder is inside another project, that project lists them instead.`,
   )
   if (!confirmed) return
 
