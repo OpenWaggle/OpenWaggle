@@ -186,10 +186,14 @@ async function migrateOne(
 ): Promise<McpOAuthMigrationResult> {
   try {
     const raw = await input.sink.readOld(`oauth.${candidate.instanceId}`)
-    if (raw === undefined)
-      return { server: candidate.name, key, status: 'skipped', reason: 'not signed in' }
-    const mapping = mapLegacyOAuthState(raw, candidate.url)
     const migratedAt = input.now().toISOString()
+    if (raw === undefined) {
+      // Recorded, so later runs do not read the vault again; a failed read is not recorded.
+      const reason = 'not signed in'
+      await input.record.recordOAuth(key, { migratedAt, status: 'skipped', reason })
+      return { server: candidate.name, key, status: 'skipped', reason }
+    }
+    const mapping = mapLegacyOAuthState(raw, candidate.url)
     if (mapping.kind === 'skip') {
       await input.record.recordOAuth(key, { migratedAt, status: 'skipped', reason: mapping.reason })
       return { server: candidate.name, key, status: 'skipped', reason: mapping.reason }

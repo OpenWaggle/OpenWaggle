@@ -146,20 +146,32 @@ describe('migrating old MCP OAuth sign-ins', () => {
     ])
   })
 
-  it('skips servers that were never signed in without recording them', async () => {
+  it('records a server that was never signed in, so later runs do not read the vault again', async () => {
     const fs = remoteInstall()
-    const { sink } = oauthSink({})
+    const reads: string[] = []
+    const sink: McpOAuthMigrationSink = {
+      readOld: async (name) => {
+        reads.push(name)
+        return undefined
+      },
+      write: () => {},
+    }
+    const migrate = () =>
+      migrateOpenWaggleMcpFiles({
+        homeDir: HOME,
+        projectPaths: [],
+        now: () => NOW,
+        fs,
+        oauth: sink,
+      })
 
-    const report = await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: sink,
-    })
+    const first = await migrate()
+    const second = await migrate()
 
-    expect(report.oauth).toEqual([
+    expect(first.oauth).toEqual([
       expect.objectContaining({ status: 'skipped', reason: 'not signed in' }),
     ])
+    expect(second.oauth).toEqual([expect.objectContaining({ status: 'already-migrated' })])
+    expect(reads).toEqual(['oauth.sentry-id'])
   })
 })
