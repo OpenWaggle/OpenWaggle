@@ -187,6 +187,7 @@ openwaggle mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem 
 openwaggle mcp add docs --url https://example.com/mcp
 openwaggle mcp add --local tools -- uvx tools-mcp
 openwaggle mcp disable docs
+openwaggle mcp disable --in-project docs
 openwaggle mcp login sentry
 openwaggle mcp import --from codex,cursor
 openwaggle mcp import --from codex,cursor --apply
@@ -196,7 +197,7 @@ openwaggle mcp registry add --local io.github.example/weather --package npm --na
 openwaggle mcp doctor --local
 ```
 
-New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
+New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `mcp enable` and `mcp disable` with `--in-project` switch a global server for the current project only, as **Turn off in this project** does in Settings. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
 
 ## OpenWaggle as an MCP server
 

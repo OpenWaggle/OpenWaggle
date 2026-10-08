@@ -30,6 +30,10 @@ _Avoid_: imported session, Pi session import, Session discovery (which is search
 The guarantee that a user or project already configured for Pi's MCP support works unchanged in OpenWaggle: the same configuration files, server and tool names, exposure meanings, and model-facing tools.
 _Avoid_: MCP import, Pi-compatible MCP, partial parity
 
+**MCP migration**:
+The one-time, silent conversion of OpenWaggle's older MCP files to Pi's entry format at upgrade. It keeps every server as on or off as it was, for every project OpenWaggle knew then (settings and Sessions' projects), by writing `enabled` overrides into OpenWaggle's files, and carries an old MCP-off Session switch over to the **Session MCP switch**.
+_Avoid_: MCP import, trust migration
+
 **MCP runtime**:
 Pi's built-in MCP extension running inside each OpenWaggle Pi session, with OpenWaggle supplying its transports, credential store, browser opening, and configuration writes.
 _Avoid_: MCP agent loop, OpenWaggle MCP client, second MCP implementation
