@@ -1,47 +1,27 @@
 import { FileText } from 'lucide-react'
-import { Component, lazy, type ReactNode, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import type { EditDiffData } from '@/features/chat/lib/tool-call-block'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
-import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { RenderErrorBoundary } from '@/shared/ui/RenderErrorBoundary'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { useChatDisplayText, useChatWorkspaceRelativePath } from './ChatDisplayPathContext'
 import { DiffStatLabel } from './DiffStatLabel'
 import { CopyButton } from './ToolCallBlockParts'
 
+// A failed chunk load stays cached by `lazy`, so every edit row then shows its diff as
+// text until the renderer reloads; the row's boundary keeps that failure local.
 const LazyDiffBlock = lazy(() =>
   import('@/shared/ui/DiffBlock').then(({ DiffBlock }) => ({ default: DiffBlock })),
 )
 
-/** Codex caps an inline file diff at 15rem and scrolls the rest (ADR 0050). */
-const EDIT_DIFF_BODY_CLASS = 'max-h-60'
-
-const logger = createRendererLogger('EditDiffCard')
-
 /**
- * A diff that cannot render (a patch Pierre rejects, a failed chunk load) falls back to
- * the diff as text inside its own row instead of taking down the whole transcript.
+ * Codex caps an inline file diff at 15rem and scrolls the rest (ADR 0050). The Pierre
+ * path applies the same cap inside `DiffBlock`'s embedded mode.
  */
-class EditDiffRenderBoundary extends Component<
-  { readonly fallback: ReactNode; readonly children: ReactNode },
-  { readonly failed: boolean }
-> {
-  override state = { failed: false }
-
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-
-  override componentDidCatch(error: Error) {
-    logger.warn('Edit diff failed to render; showing it as text', { message: error.message })
-  }
-
-  override render() {
-    return this.state.failed ? this.props.fallback : this.props.children
-  }
-}
+const EDIT_DIFF_BODY_CLASS = 'max-h-60'
 
 function basename(path: string) {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
@@ -64,7 +44,7 @@ export function EditDiffCard({
 }) {
   return (
     <div className="ml-5 mt-1 overflow-hidden rounded-md border border-border bg-bg-secondary/50">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-text-tertiary">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border px-3 py-1.5 text-xs text-text-tertiary">
         <div className="flex min-w-0 items-center gap-2">
           {path && <EditDiffFileName path={path} line={diff.firstChangedLine} />}
           <DiffStatLabel additions={diff.additions} deletions={diff.deletions} layout="inline" />
@@ -124,7 +104,7 @@ function EditDiffBody({ diff }: { readonly diff: EditDiffData }) {
   }
 
   return (
-    <EditDiffRenderBoundary fallback={text}>
+    <RenderErrorBoundary name="Edit diff" fallback={text}>
       <Suspense
         fallback={
           <div role="status" className="h-24 animate-pulse bg-bg/60 motion-reduce:animate-none">
@@ -134,7 +114,7 @@ function EditDiffBody({ diff }: { readonly diff: EditDiffData }) {
       >
         <LazyDiffBlock patch={diff.patch} view="unified" wrap={wrap} theme={shikiTheme} embedded />
       </Suspense>
-    </EditDiffRenderBoundary>
+    </RenderErrorBoundary>
   )
 }
 

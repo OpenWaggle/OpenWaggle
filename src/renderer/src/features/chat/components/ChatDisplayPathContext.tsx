@@ -19,13 +19,13 @@ function useChatDisplayRoots() {
 export function ChatDisplayPathProvider({
   projectPath,
   worktreePath,
-  workingPath = null,
+  workingPath,
   children,
 }: {
   readonly projectPath: string | null
   readonly worktreePath: string | null
-  /** Defaults to none, so no tool path is openable from the transcript. */
-  readonly workingPath?: string | null
+  /** Tool paths open only under this root; with none, no tool path is openable. */
+  readonly workingPath: string | null
   readonly children: ReactNode
 }) {
   return (

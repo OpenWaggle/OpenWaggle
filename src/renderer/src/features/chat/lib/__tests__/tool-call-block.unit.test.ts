@@ -140,6 +140,11 @@ describe('tool call block view helpers', () => {
       getEditDiff({ details: { patch: '--- a\n+++ a\n', diff: '+1 new' } }, 'edit')?.text,
     ).toBe('+1 new')
     expect(getEditDiff({ details: { patch: '   ', diff: '-1 old' } }, 'edit')?.patch).toBeNull()
+    expect(getEditDiff({ details: { patch: '--- a\n+++ a\n-old\n+new' } }, 'edit')).toMatchObject({
+      patch: null,
+      additions: 1,
+      deletions: 1,
+    })
   })
 
   it('has no diff for other tools or edits without details', () => {

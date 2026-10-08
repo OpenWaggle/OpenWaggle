@@ -123,6 +123,15 @@ describe('workspaceRelativePath', () => {
     expect(workspaceRelativePath('src\\win\\a.ts', root)).toBe('src/win/a.ts')
   })
 
+  it('has no path without a working root, where the file view cannot open one', () => {
+    expect(workspaceRelativePath('src/a.ts', null)).toBeNull()
+  })
+
+  it('has no path for URLs', () => {
+    expect(workspaceRelativePath(`file://${root}/src/a.ts`, root)).toBeNull()
+    expect(workspaceRelativePath('https://example.com/a.ts', root)).toBeNull()
+  })
+
   it('drops the leading @ Pi strips from tool paths', () => {
     expect(workspaceRelativePath('@src/a.ts', root)).toBe('src/a.ts')
   })
@@ -144,7 +153,6 @@ describe('workspaceRelativePath', () => {
     expect(workspaceRelativePath('/Users/me/projects/app/src/a.ts', root)).toBeNull()
     expect(workspaceRelativePath(`${root}/../../../etc/hosts`, root)).toBeNull()
     expect(workspaceRelativePath(root, root)).toBeNull()
-    expect(workspaceRelativePath(`${root}/src/a.ts`, null)).toBeNull()
   })
 
   it('compares Windows drive paths case-insensitively', () => {

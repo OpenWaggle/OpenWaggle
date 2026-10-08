@@ -10,9 +10,16 @@ import { SourceView } from './SourceView'
 /**
  * An embedded diff caps Pierre's own code scroller rather than an outer box: Pierre
  * scrolls long lines horizontally on that element, so an outer vertical cap would hide
- * its horizontal scrollbar below the fold. Pierre's `unsafe` layer wins over its base.
+ * its horizontal scrollbar below the fold. Pierre's base layer hides that element's
+ * vertical scrollbar (the diff panel never scrolls it vertically), so the cap also
+ * shows one; Pierre's `unsafe` layer wins over its base. 15rem matches the edit card's
+ * `max-h-60` and the virtualized fallback's `h-60`.
  */
-const EMBEDDED_DIFF_CSS = '[data-code] { max-height: 15rem; overflow-y: auto; }'
+const EMBEDDED_DIFF_CSS = `
+[data-code] { max-height: 15rem; overflow-y: auto; }
+[data-code]::-webkit-scrollbar { width: 6px; }
+[data-code]::-webkit-scrollbar-thumb { background-color: var(--diffs-bg-context); }
+`
 
 function diffOverflow(wrap: boolean): 'wrap' | 'scroll' {
   return wrap ? 'wrap' : 'scroll'

@@ -35,6 +35,7 @@ export interface EditDiffData {
 }
 
 const UNIFIED_HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u
+const ANY_UNIFIED_HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/mu
 
 function isTextContentBlock(
   value: unknown,
@@ -183,6 +184,10 @@ function countChangedLines(text: string, isPatch: boolean) {
       continue
     }
     if (!inHunk) continue
+    // Text that is not a patch may still carry `---`/`+++` file headers; Pi's display
+    // diff never does, because every changed line there starts with its sign and a
+    // line number.
+    if (!isPatch && (line.startsWith('--- ') || line.startsWith('+++ '))) continue
     if (line.startsWith('+')) additions += 1
     if (line.startsWith('-')) deletions += 1
   }
@@ -214,9 +219,7 @@ function firstChangedLineInPatch(patch: string) {
 function renderablePatch(value: unknown) {
   const patch = nonEmptyString(value)
   if (patch === null) return null
-  return patch.split(LINE_SPLIT_SEPARATOR).some((line) => UNIFIED_HUNK_HEADER.test(line))
-    ? patch
-    : null
+  return ANY_UNIFIED_HUNK_HEADER.test(patch) ? patch : null
 }
 
 function nonEmptyString(value: unknown) {

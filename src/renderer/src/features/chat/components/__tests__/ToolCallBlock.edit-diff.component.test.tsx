@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings'
 import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
@@ -8,6 +8,18 @@ import { ToolCallBlock } from '../ToolCallBlock'
 const mockCopyToClipboard = vi.hoisted(() => vi.fn())
 const mockOpenWorkspaceFile = vi.hoisted(() => vi.fn())
 const UNRENDERABLE_MARKER = 'pierre-rejects-this'
+const SUSPEND_MARKER = 'still-loading'
+const diffLoad = vi.hoisted(() => {
+  let release: () => void = () => undefined
+  const ready = { done: false }
+  const promise = new Promise<void>((resolve) => {
+    release = () => {
+      ready.done = true
+      resolve()
+    }
+  })
+  return { promise, ready, release: () => release() }
+})
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -34,6 +46,7 @@ vi.mock('@/shared/ui/DiffBlock', () => ({
     readonly embedded?: boolean
   }) => {
     if (patch.includes(UNRENDERABLE_MARKER)) throw new Error('must contain exactly 1 file diff')
+    if (patch.includes(SUSPEND_MARKER) && !diffLoad.ready.done) throw diffLoad.promise
     return (
       <pre
         data-testid="patch-diff"
@@ -77,7 +90,7 @@ function editResult(details: { readonly [key: string]: unknown }) {
 function renderEdit({
   path = 'src/geo.ts',
   details = { patch: EDIT_PATCH, firstChangedLine: 11 },
-  workingPath = null,
+  workingPath = WORKTREE,
 }: {
   readonly path?: string
   readonly details?: { readonly [key: string]: unknown }
@@ -163,6 +176,22 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open src/geo.ts' }))
 
     expect(mockOpenWorkspaceFile).toHaveBeenCalledWith('src/geo.ts', 11)
+  })
+
+  it('does not offer to open a file when the Session has no working root', () => {
+    renderEdit({ workingPath: null })
+
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+  })
+
+  it('announces a loading state until the diff renderer is ready', async () => {
+    renderEdit({ details: { patch: `${EDIT_PATCH}${SUSPEND_MARKER}` } })
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading diff…')
+    await act(async () => diffLoad.release())
+
+    expect(await screen.findByTestId('patch-diff')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('opens an absolute path inside the working root relative to it', () => {

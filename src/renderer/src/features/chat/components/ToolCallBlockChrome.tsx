@@ -25,13 +25,14 @@ export function ToolCallHeader({
   onBranchFromMessage,
   onToggleExpanded,
 }: ToolCallHeaderProps) {
+  const actionText = useChatDisplayText(view.actionText)
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={toolHeaderLabel(view, expanded)}
+        aria-label={toolHeaderLabel(actionText, view, expanded)}
         onClick={onToggleExpanded}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
@@ -54,10 +55,13 @@ export function ToolCallHeader({
   )
 }
 
-/** The toggle's label replaces its content, so it carries the diff stat itself. */
-function toolHeaderLabel(view: ToolCallViewModel, expanded: boolean) {
+/**
+ * The toggle's label replaces its content, so it uses the same display text the row
+ * shows (label in name) and carries the diff stat itself.
+ */
+function toolHeaderLabel(actionText: string, view: ToolCallViewModel, expanded: boolean) {
   const stat = view.diff ? `, ${describeDiffStat(view.diff)}` : ''
-  return `${view.actionText}${stat} — ${expanded ? 'collapse' : 'expand'} details`
+  return `${actionText}${stat} — ${expanded ? 'collapse' : 'expand'} details`
 }
 
 function ToolStatusIcon({

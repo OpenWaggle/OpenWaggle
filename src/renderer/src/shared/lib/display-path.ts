@@ -76,6 +76,8 @@ function pathRelativeToRoot(path: string, root: string) {
 }
 
 const WINDOWS_ABSOLUTE_PATH = /^[a-z]:\//iu
+/** `file:`, `https:` and the like; a single letter before the colon is a drive. */
+const URL_SCHEME = /^[a-z][a-z0-9+.-]+:/iu
 
 function isAbsolutePath(path: string) {
   return path.startsWith('/') || WINDOWS_ABSOLUTE_PATH.test(path)
@@ -105,17 +107,17 @@ function collapseDotSegments(path: string) {
  * The path of a tool's `path` argument inside the Session's working root, for opening
  * it in the workspace file view, which resolves relative paths against that root.
  * Mirrors how Pi resolves the argument (a leading `@` is dropped). A path outside the
- * root, one that climbs out of it, or a `~` path (the home directory is not known
- * here) has none.
+ * root, one that climbs out of it, a `~` path (the home directory is not known here),
+ * a URL, or any path when the Session has no working root has none.
  */
 export function workspaceRelativePath(path: string, workingRoot: string | null): string | null {
+  const root = workingRoot ? collapseDotSegments(normalizePath(workingRoot)) : null
+  if (!root) return null
   const argument = path.trim().replace(/^@/u, '')
-  if (argument.startsWith('~')) return null
+  if (argument.startsWith('~') || URL_SCHEME.test(argument)) return null
   const collapsed = collapseDotSegments(normalizePath(argument))
   if (!collapsed) return null
   if (!isAbsolutePath(collapsed)) return collapsed
-  const root = workingRoot ? collapseDotSegments(normalizePath(workingRoot)) : null
-  if (!root) return null
   const relative = pathRelativeToRoot(collapsed, root)
   return relative === null || relative === '.' ? null : relative
 }

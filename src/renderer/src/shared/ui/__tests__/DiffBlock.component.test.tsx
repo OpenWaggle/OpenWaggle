@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { PIERRE_WORKER_POOL_OPTIONS } from '@/shared/lib/syntax/pierre-worker-pool'
@@ -24,6 +24,12 @@ vi.mock('@pierre/diffs/react', () => ({
     pierreMocks.workerProvider({ poolOptions })
     return children
   },
+}))
+
+vi.mock('../SourceView', () => ({
+  SourceView: ({ className }: { readonly className?: string }) => (
+    <section aria-label="Large diff source" className={className} />
+  ),
 }))
 
 vi.mock('@/shared/lib/syntax/pierre-syntax-runtime', () => ({
@@ -58,9 +64,20 @@ describe('DiffBlock', () => {
           hunkSeparators: 'simple',
           diffStyle: 'unified',
           overflow: 'wrap',
+          unsafeCSS: expect.stringContaining(
+            '[data-code] { max-height: 15rem; overflow-y: auto; }',
+          ),
         }),
       }),
     )
+  })
+
+  it('gives an embedded oversized diff a fixed scrolling height', () => {
+    const patch = `@@ -1,2000 +1,2000 @@\n${'+line\n'.repeat(2000)}`
+    render(<DiffBlock patch={patch} view="unified" wrap theme="dark-plus" embedded />)
+
+    expect(screen.getByRole('region', { name: 'Large diff source' })).toHaveClass('h-60')
+    expect(screen.getByRole('region', { name: 'Large diff source' })).not.toHaveClass('max-h-128')
   })
 
   it('keeps the Pierre file header outside a card', () => {
