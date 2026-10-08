@@ -138,7 +138,14 @@ function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: st
       ),
     ].map((match) => match[1]),
   )
-  if (ageEntries.size === 0) return []
+  if (ageEntries.size === 0) {
+    // The marker only dates entries; once they are gone it would claim exclusions that do not exist.
+    return input.workspace.includes(`# ${RELEASE_AGE_EXPIRY_MARKER}`)
+      ? [
+          `The ${RELEASE_AGE_EXPIRY_MARKER} line has no Pi minimumReleaseAgeExclude entries left to date; remove it.`,
+        ]
+      : []
+  }
   const expected = new Set(
     PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
       (packageName) => `${packageRef(packageName)}@${version}`,

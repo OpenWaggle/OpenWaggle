@@ -74,13 +74,29 @@ describe('Pi runtime alignment', () => {
     expect(collectPiRuntimeAlignmentProblems(alignedInput())).toEqual([])
   })
 
-  it('accepts all release-age exclusions being removed after they expire', () => {
-    const input = alignedInput()
-    const workspace = input.workspace.replace(
+  function withoutExclusionEntries(workspace: string) {
+    return workspace.replace(
       installedPackages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
       '',
     )
+  }
+
+  it('accepts all release-age exclusions being removed after they expire', () => {
+    const input = alignedInput()
+    const workspace = withoutExclusionEntries(input.workspace).replace(
+      '  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z\n',
+      '',
+    )
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
+  })
+
+  it('reports an expiry marker left behind after its exclusion entries were removed', () => {
+    const input = alignedInput()
+    const workspace = withoutExclusionEntries(input.workspace)
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([
+      expect.stringContaining('pi-runtime-release-age-exclusions-expire line has no'),
+    ])
   })
 
   it('fails once the temporary release-age exclusions are no longer needed', () => {
