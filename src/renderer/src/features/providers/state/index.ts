@@ -5,6 +5,5 @@ export {
   isSelectableModel,
   latestAnsweringModel,
   modelActionError,
-  modelUnavailableMessage,
   useProviderStore,
 } from './provider-store'
