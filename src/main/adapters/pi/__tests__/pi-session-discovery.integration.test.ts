@@ -2,6 +2,7 @@ import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  agePiFile,
   createPiCliSession,
   discover,
   discoverOne,
@@ -197,5 +198,18 @@ describe('Pi session discovery', () => {
     const later = await discover({ now: startedAt + 10 * 60_000 })
     expect(later).toHaveLength(1)
     expect((await sessionDetail(String(later[0])))?.projectPath).toBe(broken)
+  })
+
+  it('finds a header past the first 64 KiB, as Pi does', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Header after blank lines')
+    const { readFile, writeFile } = await import('node:fs/promises')
+    // Pi skips blank lines before the header for its first megabyte.
+    await writeFile(cli.file, `${'\n'.repeat(70 * 1024)}${await readFile(cli.file, 'utf8')}`)
+    agePiFile(cli.file)
+
+    const sessionId = await discoverOne()
+
+    expect((await sessionDetail(sessionId))?.title).toBe('Header after blank lines')
   })
 })

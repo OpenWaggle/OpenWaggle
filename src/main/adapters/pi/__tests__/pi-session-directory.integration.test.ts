@@ -107,4 +107,38 @@ describe("Pi's session directory", () => {
 
     expect((await sessionDetail(sessionId))?.piSessionFile).toBe(file)
   })
+
+  it('takes a relative sessionDir from the folder pi runs in', async () => {
+    await fs.mkdir(path.join(fixture.project, '.pi'), { recursive: true })
+    await fs.writeFile(
+      path.join(fixture.project, '.pi', 'settings.json'),
+      JSON.stringify({ sessionDir: '.pi-sessions' }),
+    )
+    await registerProjects([fixture.project])
+    const sessionDir = path.join(fixture.project, '.pi-sessions')
+    const file = createPiCliSessionIn(sessionDir, fixture.project, 'Stored relative to the project')
+
+    const sessionId = await discoverOne()
+
+    expect((await sessionDetail(sessionId))?.piSessionFile).toBe(file)
+    expect(path.dirname(String(await newOpenWagglePiSessionFile(fixture.project)))).toBe(sessionDir)
+  })
+
+  it('expands a sessionDir under ~ to the home directory', async () => {
+    const home = path.join(fixture.root, 'home')
+    vi.stubEnv('HOME', home)
+    const agentDir = path.join(fixture.root, 'pi-agent')
+    await fs.mkdir(agentDir, { recursive: true })
+    await fs.writeFile(
+      path.join(agentDir, 'settings.json'),
+      JSON.stringify({ sessionDir: '~/pi-sessions' }),
+    )
+    await registerProjects([fixture.project])
+    const sessionDir = path.join(home, 'pi-sessions')
+    const file = createPiCliSessionIn(sessionDir, fixture.project, 'Stored under home')
+
+    const sessionId = await discoverOne()
+
+    expect((await sessionDetail(sessionId))?.piSessionFile).toBe(file)
+  })
 })
