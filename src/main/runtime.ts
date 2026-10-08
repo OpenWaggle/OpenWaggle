@@ -18,13 +18,13 @@ import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-sessio
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { FilesystemMcpImportServiceLive } from './adapters/mcp/filesystem-mcp-import-service'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
-import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
-import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
-import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
+import {
+  OpenWaggleMcpConfigurationServiceLive,
+  OpenWaggleMcpImportServiceLive,
+} from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { installPiUserAppSettingsFallback } from './adapters/pi/openwaggle-pi-app-settings'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
@@ -62,6 +62,7 @@ import { ActiveProjectChangeServiceLive } from './application/active-project-cha
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { startMcpHostServices } from './mcp-host-start'
+import { PiMcpAppRuntimeServiceLive, PiMcpServerRuntimeServiceLive } from './mcp-runtime-layers'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -240,7 +241,7 @@ const AppLayer = Layer.mergeAll(
   PiAgentKernelWithExtensionSelectionLive,
   EncryptedMcpSecretVaultServiceLive,
   OpenWaggleMcpConfigurationServiceLive,
-  FilesystemMcpImportServiceLive,
+  OpenWaggleMcpImportServiceLive,
   McpRegistryServiceLive,
   PiMcpServerRuntimeServiceLive,
   PiMcpAppRuntimeServiceLive,

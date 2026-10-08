@@ -7,9 +7,7 @@ import type {
 import type { McpConfigurationScopeInput } from '../../../ports/mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
-import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
-import type { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
+import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { knownMcpServerState, type McpKnownServerState } from './mcp-server-status-registry'
 import { mcpSignedIn } from './pi-mcp-server-oauth'
 
@@ -18,7 +16,7 @@ export interface PiMcpServerRuntimeRoots {
   readonly piAgentDir: string
 }
 
-type ConnectionStates = ReturnType<McpSessionConnectionPool['connectionStates']>
+type ConnectionStates = ReturnType<McpConnectionPool['connectionStates']>
 
 function toolViews(entry: McpServerEntry, known: McpKnownServerState | undefined) {
   return (known?.tools ?? []).map(
@@ -56,7 +54,7 @@ function knownInspection(entry: McpServerEntry, known: McpKnownServerState): Mcp
   }
 }
 
-function serverStatus(entry: McpServerEntry, pool: McpSessionConnectionPool): McpServerStatusView {
+function serverStatus(entry: McpServerEntry, pool: McpConnectionPool): McpServerStatusView {
   const signedIn = mcpSignedIn(entry)
   const base = { name: entry.name, ...(signedIn === undefined ? {} : { signedIn }) }
   if (entry.config.enabled === false) return { ...base, source: 'not-checked' }
@@ -85,7 +83,7 @@ function serverStatus(entry: McpServerEntry, pool: McpSessionConnectionPool): Mc
 export async function getMcpServerStatuses(
   input: McpConfigurationScopeInput,
   roots: PiMcpServerRuntimeRoots,
-  pool: McpSessionConnectionPool = mcpSessionConnectionPool,
+  pool: McpConnectionPool,
 ): Promise<McpServerStatusView[]> {
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },

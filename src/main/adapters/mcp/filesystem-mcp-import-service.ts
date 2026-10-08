@@ -1,4 +1,3 @@
-import { homedir } from 'node:os'
 import type {
   McpImportApplyRequest,
   McpImportCandidateView,
@@ -6,14 +5,9 @@ import type {
   McpImportPreviewView,
 } from '@shared/types/mcp-configuration-operations'
 import { isRecord } from '@shared/utils/validation'
-import { Cause, Effect, Exit, Layer } from 'effect'
+import { Cause, Effect, Exit } from 'effect'
 import { McpConfigurationError } from '../../ports/mcp-configuration-service'
-import {
-  type McpImportEntryWriter,
-  McpImportService,
-  type McpImportServiceShape,
-} from '../../ports/mcp-import-service'
-import { getPiAgentDir } from '../pi/pi-provider-catalog'
+import type { McpImportEntryWriter, McpImportServiceShape } from '../../ports/mcp-import-service'
 import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
@@ -151,9 +145,3 @@ export function createFilesystemMcpImportService(
       Effect.tryPromise({ try: () => apply(input, write), catch: toConfigurationError }),
   }
 }
-
-export const FilesystemMcpImportServiceLive = Layer.sync(McpImportService, () =>
-  McpImportService.of(
-    createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
-  ),
-)

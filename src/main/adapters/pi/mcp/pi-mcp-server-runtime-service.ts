@@ -9,20 +9,19 @@ import {
 import { McpClient } from '@earendil-works/pi-mcp'
 import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-configuration'
 import { isRecord } from '@shared/utils/validation'
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
-import {
-  McpServerRuntimeService,
-  type McpServerScopeInput,
-  type McpSignInResult,
+import type {
+  McpServerRuntimeServiceShape,
+  McpServerScopeInput,
+  McpSignInResult,
 } from '../../../ports/mcp-server-runtime-service'
 import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
-import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
+import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
@@ -164,7 +163,10 @@ async function connectAndList(
  * against OpenWaggle's sign-in store and opens the authorization page in the browser. When the
  * page cannot be opened (non-disruptive automation), it gives up at once and returns the URL.
  */
-async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
+async function signIn(
+  pool: McpConnectionPool,
+  input: McpServerScopeInput,
+): Promise<McpSignInResult> {
   const { entry } = await findServer(input, defaultMcpServerRuntimeRoots())
   const url = mcpOAuthUrl(entry)
   if (!url) {
@@ -218,17 +220,17 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
   // Warm connections of this server pick the new sign-in up when they reconnect, and the last
   // check (probably "needs sign-in") no longer says anything true.
   const identity = mcpServerIdentity(entry.name, entry.config)
-  await mcpSessionConnectionPool.closeServerIdentity(identity)
+  await pool.closeServerIdentity(identity)
   forgetKnownMcpServerState(identity)
   return { signedIn: true }
 }
 
-async function signOut(input: McpServerScopeInput) {
+async function signOut(pool: McpConnectionPool, input: McpServerScopeInput) {
   const { entry } = await findServer(input, defaultMcpServerRuntimeRoots())
   const url = mcpOAuthUrl(entry)
   if (url) getOpenWaggleMcpCredentials().remove(entry.name, url)
   const identity = mcpServerIdentity(entry.name, entry.config)
-  await mcpSessionConnectionPool.closeServerIdentity(identity)
+  await pool.closeServerIdentity(identity)
   forgetKnownMcpServerState(identity)
 }
 
@@ -245,20 +247,25 @@ function attempt<A>(operation: () => Promise<A>) {
   return Effect.tryPromise({ try: operation, catch: toConfigurationError })
 }
 
-export const PiMcpServerRuntimeServiceLive = Layer.succeed(McpServerRuntimeService, {
-  inspectServer: (input) => attempt(() => inspectMcpServer(input)),
-  getServerStatuses: (input) =>
-    attempt(async () => {
-      await migrateOpenWaggleMcpFilesOnce(input.projectPath)
-      return getMcpServerStatuses(input, defaultMcpServerRuntimeRoots())
-    }),
-  signIn: (input) => attempt(() => signIn(input)),
-  signOut: (input) => attempt(() => signOut(input)),
-  getSessionMcpEnabled: (sessionId) => Effect.promise(() => isSessionMcpEnabled(sessionId)),
-  setSessionMcpEnabled: (sessionId, enabled) =>
-    Effect.promise(async () => {
-      await setSessionMcpEnabled(sessionId, enabled)
-      // A Session switched off keeps no servers running.
-      if (!enabled) await mcpSessionConnectionPool.closeSession(sessionId)
-    }),
-})
+/** Settings' and the CLI's MCP server operations over the given connection pool. */
+export function createPiMcpServerRuntimeService(
+  pool: McpConnectionPool,
+): McpServerRuntimeServiceShape {
+  return {
+    inspectServer: (input) => attempt(() => inspectMcpServer(input)),
+    getServerStatuses: (input) =>
+      attempt(async () => {
+        await migrateOpenWaggleMcpFilesOnce(input.projectPath)
+        return getMcpServerStatuses(input, defaultMcpServerRuntimeRoots(), pool)
+      }),
+    signIn: (input) => attempt(() => signIn(pool, input)),
+    signOut: (input) => attempt(() => signOut(pool, input)),
+    getSessionMcpEnabled: (sessionId) => Effect.promise(() => isSessionMcpEnabled(sessionId)),
+    setSessionMcpEnabled: (sessionId, enabled) =>
+      Effect.promise(async () => {
+        await setSessionMcpEnabled(sessionId, enabled)
+        // A Session switched off keeps no servers running.
+        if (!enabled) await pool.closeSession(sessionId)
+      }),
+  }
+}

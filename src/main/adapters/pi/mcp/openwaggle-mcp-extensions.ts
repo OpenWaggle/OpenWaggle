@@ -12,15 +12,15 @@ import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import {
-  mcpSessionConnectionPool,
-  setMcpConnectionHooks,
-} from '../../mcp/pool/mcp-connection-pool-instance'
-import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
+  type McpConnectionPool,
+  mcpConnectionFingerprint,
+  mcpServerIdentity,
+} from '../../mcp/pool/mcp-connection-pool-api'
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
-import { attachSessionMcpContext, openWaggleMcpConnectionHooks } from './mcp-session-context'
+import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
 import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
@@ -33,10 +33,10 @@ import { openPiMcpUpstream } from './pi-mcp-upstream'
 /** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0048). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
-setMcpConnectionHooks(openWaggleMcpConnectionHooks)
-
 export interface OpenWaggleMcpSessionInput {
   readonly sessionId: string
+  /** The Host's connection pool, which keeps the Session's connections across Runs. */
+  readonly pool: McpConnectionPool
   /** The durable project root, not the worktree a Run executes in. */
   readonly projectPath: string | null
   /** An Agent definition's MCP allowlist. */
@@ -197,7 +197,7 @@ export async function createOpenWaggleMcpExtensions(
     createTransport: (entry, cwd, authProvider) => {
       const transport =
         config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
-      return mcpSessionConnectionPool.lease(input.sessionId, {
+      return input.pool.lease(input.sessionId, {
         name: entry.name,
         fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
         identity: mcpServerIdentity(entry.name, entry.config),

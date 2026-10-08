@@ -9,10 +9,13 @@ import { type AuthProvider, StdioTransport, StreamableHttpTransport } from '@ear
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { getNpmCompatiblePath } from '../../../env'
 import { mcpValueEnvironment } from '../../../mcp-shell-environment'
-import type { McpUpstream } from '../../mcp/pool/mcp-connection-support'
-import { DeferredTransport } from '../../mcp/pool/mcp-deferred-transport'
-import { McpSdkTransportAdapter } from '../../mcp/pool/mcp-sdk-transport-adapter'
-import { createMcpServerFetch, MCP_MAX_MESSAGE_BYTES } from '../../mcp/pool/mcp-server-fetch'
+import {
+  createMcpServerFetch,
+  DeferredTransport,
+  MCP_MAX_MESSAGE_BYTES,
+  McpSdkTransportAdapter,
+  type McpUpstream,
+} from '../../mcp/pool/mcp-connection-pool-api'
 import { createLegacySseClientTransport } from '../../mcp/runtime/legacy-sse-client-transport'
 import { LegacyWebSocketClientTransport } from '../../mcp/runtime/websocket-transport'
 import { createMcpAuthorizedFetch } from './mcp-authorized-fetch'

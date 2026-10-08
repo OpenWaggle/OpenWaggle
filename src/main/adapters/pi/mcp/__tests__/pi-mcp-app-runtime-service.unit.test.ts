@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeUpstream, flush } from '../../../mcp/pool/__tests__/fake-upstream'
 
@@ -56,12 +56,19 @@ vi.mock('../pi-mcp-upstream', () => ({
 }))
 
 import { McpAppRuntimeService } from '../../../../ports/mcp-app-runtime-service'
-import { mcpSessionConnectionPool } from '../../../mcp/pool/mcp-connection-pool-instance'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
+import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import {
+  createPiMcpAppRuntimeService,
   MCP_APP_REQUEST_TIMEOUT_MS,
-  PiMcpAppRuntimeServiceLive,
 } from '../pi-mcp-app-runtime-service'
+
+// The service gets its pool injected; this test's own pool stands in for the Host's.
+const mcpSessionConnectionPool = new McpSessionConnectionPool()
+const PiMcpAppRuntimeServiceLive = Layer.succeed(
+  McpAppRuntimeService,
+  createPiMcpAppRuntimeService(mcpSessionConnectionPool),
+)
 
 const IDENTITY = mcpServerIdentity(ENTRY.name, ENTRY.config)
 const APP = {

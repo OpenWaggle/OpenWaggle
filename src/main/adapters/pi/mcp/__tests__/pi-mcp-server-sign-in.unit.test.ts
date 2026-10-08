@@ -1,5 +1,6 @@
 import type { McpSignInPrompt } from '@earendil-works/pi-coding-agent'
-import { Effect } from 'effect'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { Effect, Layer } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -45,12 +46,15 @@ vi.mock('../openwaggle-mcp-credentials', () => ({
     tokens: () => undefined,
   }),
 }))
-vi.mock('../../../mcp/pool/mcp-connection-pool-instance', () => ({
-  mcpSessionConnectionPool: { closeServerIdentity: mocks.closeServerIdentity },
-}))
 
 import { McpServerRuntimeService } from '../../../../ports/mcp-server-runtime-service'
-import { PiMcpServerRuntimeServiceLive } from '../pi-mcp-server-runtime-service'
+import { createPiMcpServerRuntimeService } from '../pi-mcp-server-runtime-service'
+
+// The service gets its connection pool injected, so a fake one records what is closed.
+const PiMcpServerRuntimeServiceLive = Layer.succeed(
+  McpServerRuntimeService,
+  createPiMcpServerRuntimeService(fromPartial({ closeServerIdentity: mocks.closeServerIdentity })),
+)
 
 function signIn() {
   return Effect.runPromiseExit(

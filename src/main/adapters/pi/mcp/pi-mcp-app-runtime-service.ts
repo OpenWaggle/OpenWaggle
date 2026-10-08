@@ -6,18 +6,21 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
 import { isRecord } from '@shared/utils/validation'
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
-import {
-  McpAppRuntimeService,
-  type McpAppServerInput,
+import type {
+  McpAppRuntimeServiceShape,
+  McpAppServerInput,
 } from '../../../ports/mcp-app-runtime-service'
 import { readSessionMcpServerAllowlist } from '../../../store/session-details/session-mcp-server-allowlist'
 import { isSessionMcpEnabled } from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
-import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
+import {
+  type McpConnectionPool,
+  mcpConnectionFingerprint,
+  mcpServerIdentity,
+} from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppTool } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
@@ -50,9 +53,9 @@ async function assertSessionMayUse(input: McpAppServerInput) {
   }
 }
 
-async function appConnection(input: McpAppServerInput) {
+async function appConnection(pool: McpConnectionPool, input: McpAppServerInput) {
   await assertSessionMayUse(input)
-  const warm = mcpSessionConnectionPool.connection(input.sessionId, input.serverName)
+  const warm = pool.connection(input.sessionId, input.serverName)
   await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
@@ -83,7 +86,7 @@ async function appConnection(input: McpAppServerInput) {
         })
       : undefined,
   )
-  return mcpSessionConnectionPool.connectionFor(input.sessionId, {
+  return pool.connectionFor(input.sessionId, {
     name: entry.name,
     fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
     identity,
@@ -93,8 +96,13 @@ async function appConnection(input: McpAppServerInput) {
 }
 
 /** One request of an App over the Session's connection, bounded in time. */
-async function appRequest(input: McpAppServerInput, method: string, params: unknown) {
-  const connection = await appConnection(input)
+async function appRequest(
+  pool: McpConnectionPool,
+  input: McpAppServerInput,
+  method: string,
+  params: unknown,
+) {
+  const connection = await appConnection(pool, input)
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), MCP_APP_REQUEST_TIMEOUT_MS)
   try {
@@ -117,16 +125,24 @@ function json(value: unknown): McpJsonValue {
   return decoded.data
 }
 
-async function readResource(input: McpAppServerInput & { readonly uri: string }) {
+async function readResource(
+  pool: McpConnectionPool,
+  input: McpAppServerInput & { readonly uri: string },
+) {
   if (!input.uri.startsWith('ui://')) throw new Error('MCP Apps may only read ui:// resources.')
-  const result = await appRequest(input, 'resources/read', { uri: input.uri })
+  const result = await appRequest(pool, input, 'resources/read', { uri: input.uri })
   return json(isRecord(result) ? result.contents : [])
 }
 
 /** A list the server may not offer at all; a server without the method lists nothing. */
-async function optionalList(input: McpAppServerInput, method: string, key: string) {
+async function optionalList(
+  pool: McpConnectionPool,
+  input: McpAppServerInput,
+  method: string,
+  key: string,
+) {
   try {
-    const result = await appRequest(input, method, {})
+    const result = await appRequest(pool, input, method, {})
     return json(isRecord(result) ? (result[key] ?? []) : [])
   } catch (error) {
     if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
@@ -134,13 +150,15 @@ async function optionalList(input: McpAppServerInput, method: string, key: strin
   }
 }
 
-async function listCatalog(input: McpAppServerInput) {
-  const resources = await optionalList(input, 'resources/list', 'resources')
-  const prompts = await optionalList(input, 'prompts/list', 'prompts')
+async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
+  const resources = await optionalList(pool, input, 'resources/list', 'resources')
+  const prompts = await optionalList(pool, input, 'prompts/list', 'prompts')
   return { resources, prompts }
 }
 
 async function callTool(
+  pool: McpConnectionPool,
+
   input: McpAppServerInput & {
     readonly toolName: string
     readonly arguments: Readonly<Record<string, McpJsonValue>>
@@ -148,13 +166,13 @@ async function callTool(
 ) {
   // An App may call only tools its server advertised in this Session.
   if (!mcpAppTool(input.sessionId, input.serverName, input.toolName)) {
-    const listed = await appRequest(input, 'tools/list', {})
+    const listed = await appRequest(pool, input, 'tools/list', {})
     const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
     if (!tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) {
       throw new Error('The MCP App requested a tool that its server did not advertise.')
     }
   }
-  const result = await appRequest(input, 'tools/call', {
+  const result = await appRequest(pool, input, 'tools/call', {
     name: input.toolName,
     arguments: input.arguments,
   })
@@ -175,8 +193,11 @@ function attempt<A>(operation: () => Promise<A>) {
   })
 }
 
-export const PiMcpAppRuntimeServiceLive = Layer.succeed(McpAppRuntimeService, {
-  readResource: (input) => attempt(() => readResource(input)),
-  listCatalog: (input) => attempt(() => listCatalog(input)),
-  callTool: (input) => attempt(() => callTool(input)),
-})
+/** MCP Apps over the given pool, which holds the Session's warm connections. */
+export function createPiMcpAppRuntimeService(pool: McpConnectionPool): McpAppRuntimeServiceShape {
+  return {
+    readResource: (input) => attempt(() => readResource(pool, input)),
+    listCatalog: (input) => attempt(() => listCatalog(pool, input)),
+    callTool: (input) => attempt(() => callTool(pool, input)),
+  }
+}

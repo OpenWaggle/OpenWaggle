@@ -43,6 +43,7 @@ function prepareMcpExtensions(input: AgentKernelRunInput, projectPath: string) {
     // The migration carries an old MCP-off Session switch over, so it runs before the switch is read.
     await migrateOpenWaggleMcpFilesOnce(projectPath)
     return createOpenWaggleMcpExtensions({
+      pool: mcpSessionConnectionPool,
       sessionId: input.session.id,
       projectPath,
       sessionMcpEnabled: await isSessionMcpEnabled(input.session.id),
