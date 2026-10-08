@@ -11,6 +11,7 @@ import {
   type McpManagementExit,
 } from './mcp-cli-management-context'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
+import { projectOptionOf } from './mcp-cli-management-list'
 
 /**
  * `openwaggle mcp doctor`: which MCP files exist, what Pi could not read in them, and the state
@@ -72,7 +73,7 @@ function stateLabel(server: DoctorServer) {
   return server.state === 'needs-sign-in' ? 'needs sign-in' : server.state
 }
 
-function serverLines(servers: readonly DoctorServer[]) {
+function serverLines(servers: readonly DoctorServer[], projectOption: string) {
   if (servers.length === 0) return ['Servers: none configured.']
   return [
     'Servers:',
@@ -80,7 +81,7 @@ function serverLines(servers: readonly DoctorServer[]) {
       `  ${server.name}: ${stateLabel(server)} (${server.scope}, ${server.source})`,
       ...(server.override ? [`    override: ${server.override}`] : []),
       ...(server.state === 'needs-sign-in'
-        ? [`    sign in with: openwaggle mcp login ${server.name}`]
+        ? [`    sign in with: openwaggle mcp login ${server.name}${projectOption}`]
         : []),
       ...(server.error ? [indent(server.error, '    ')] : []),
       ...(server.stderrTail ? ['    stderr:', indent(server.stderrTail, '      ')] : []),
@@ -111,7 +112,11 @@ export async function doctorCommand({
         ? ['Configuration errors:', ...view.errors.map((error) => indent(error, '  '))]
         : ['Configuration errors: none.']
     context.output.log(
-      [...fileLines(view.files, projectPath), ...errors, ...serverLines(servers)].join('\n'),
+      [
+        ...fileLines(view.files, projectPath),
+        ...errors,
+        ...serverLines(servers, projectOptionOf({ args, projectPath })),
+      ].join('\n'),
     )
     context.output.log(ok ? 'Everything looks fine.' : 'Some MCP servers need attention.')
   }

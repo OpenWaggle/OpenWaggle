@@ -14,6 +14,21 @@ import { inspectEnabledServers } from './mcp-cli-management-inspect'
 
 /** `openwaggle mcp list`: connects to every enabled server and prints what `pi mcp list` prints. */
 
+const SHELL_SAFE_PATH = /^[\w./:@+-]+$/u
+
+/**
+ * The project option a suggested command needs to reach the same project as the one that ran:
+ * ` -l` or ` --project <path>`, or nothing for the global files.
+ */
+export function projectOptionOf(input: Pick<McpManagementCommandInput, 'args' | 'projectPath'>) {
+  if (!input.projectPath) return ''
+  if (!input.args.values.has('project')) return ' -l'
+  const quoted = SHELL_SAFE_PATH.test(input.projectPath)
+    ? input.projectPath
+    : `'${input.projectPath.replaceAll("'", "'\\''")}'`
+  return ` --project ${quoted}`
+}
+
 interface ServerReport {
   readonly name: string
   readonly scope: McpConfigFileScope
@@ -54,7 +69,7 @@ function stateLabel(entry: ServerReport) {
   return entry.state === 'needs-sign-in' ? 'needs sign-in' : entry.state
 }
 
-function reportLines(entry: ServerReport) {
+function reportLines(entry: ServerReport, projectOption: string) {
   const tools = entry.tools.map((tool) => {
     const exposure = entry.toolExposure?.[tool]
     return exposure ? `${tool} [${exposure}]` : tool
@@ -64,7 +79,7 @@ function reportLines(entry: ServerReport) {
     `  ${entry.transport}`,
     ...(entry.override ? [`  override: ${entry.override}`] : []),
     ...(entry.state === 'needs-sign-in'
-      ? [`  sign in with: openwaggle mcp login ${entry.name}`]
+      ? [`  sign in with: openwaggle mcp login ${entry.name}${projectOption}`]
       : []),
     ...(tools.length > 0 ? [`  tools: ${tools.join(', ')}`] : []),
     ...(entry.error ? [`  ${entry.error.split('\n').join('\n  ')}`] : []),
@@ -95,7 +110,8 @@ export async function listCommand({
     if (reports.length === 0 && view.errors.length === 0) {
       context.output.log('No MCP servers configured. Add one with: openwaggle mcp add')
     }
-    for (const entry of reports) context.output.log(reportLines(entry).join('\n'))
+    const projectOption = projectOptionOf({ args, projectPath })
+    for (const entry of reports) context.output.log(reportLines(entry, projectOption).join('\n'))
     for (const error of view.errors) context.output.log(`config error: ${error}`)
   }
   return failed ? MCP_MANAGEMENT_EXIT.FAILURE : MCP_MANAGEMENT_EXIT.SUCCESS

@@ -94,4 +94,26 @@ describe('openwaggle mcp doctor', () => {
     expect(result.exitCode).toBe(2)
     expect(result.errors).toContain('Usage: openwaggle mcp doctor')
   })
+
+  it.each([
+    [[], 'openwaggle mcp login sentry'],
+    [['-l'], 'openwaggle mcp login sentry -l'],
+    [['--project', 'repo'], 'openwaggle mcp login sentry --project /resolved/repo'],
+  ])('gives a sign-in command for the same project (%j)', async (args, command) => {
+    const signInHint = (logs: string) => logs.split('\n').find((line) => line.includes('login'))
+    const needsSignIn = {
+      'mcp:get-configuration': () => view([server({ name: 'sentry', usesOAuth: true })]),
+      'mcp:inspect-server': ({ name }: { readonly name: string }) => ({
+        name,
+        state: 'needs-sign-in' as const,
+        tools: [],
+      }),
+    }
+
+    const doctor = await run('doctor', args, needsSignIn)
+    const list = await run('list', args, needsSignIn)
+
+    expect(signInHint(doctor.logs)?.trim()).toBe(`sign in with: ${command}`)
+    expect(signInHint(list.logs)?.trim()).toBe(`sign in with: ${command}`)
+  })
 })
