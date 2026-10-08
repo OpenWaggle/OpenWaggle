@@ -38,11 +38,13 @@ const operationMocks = vi.hoisted(() => ({
   projectPiSessionSnapshot: vi.fn(),
   withOpenWagglePiSessionLifecycleContext: vi.fn(),
   withPiSession: vi.fn(),
+  withReadOnlyPiSession: vi.fn(),
 }))
 
 vi.mock('../session-runtime', () => ({
   createPiSessionRuntime: operationMocks.createPiSessionRuntime,
   withPiSession: operationMocks.withPiSession,
+  withReadOnlyPiSession: operationMocks.withReadOnlyPiSession,
 }))
 
 vi.mock('../../pi-session-lifecycle', () => ({
@@ -106,8 +108,12 @@ describe('Pi session operations', () => {
     operationMocks.projectPiSessionSnapshot.mockReset()
     operationMocks.withOpenWagglePiSessionLifecycleContext.mockReset()
     operationMocks.withPiSession.mockReset()
+    operationMocks.withReadOnlyPiSession.mockReset()
     operationMocks.projectPiSessionSnapshot.mockReturnValue({ activeNodeId: 'node-2', nodes: [] })
     operationMocks.withPiSession.mockImplementation(
+      async (_input: unknown, operation: SessionOperation) => operation(session),
+    )
+    operationMocks.withReadOnlyPiSession.mockImplementation(
       async (_input: unknown, operation: SessionOperation) => operation(session),
     )
     operationMocks.withOpenWagglePiSessionLifecycleContext.mockImplementation(

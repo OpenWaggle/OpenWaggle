@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { SessionManager } from '@earendil-works/pi-coding-agent'
+import { parseSessionEntries, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { piEntryNodeIds } from './pi-entry-node-ids'
@@ -97,5 +98,24 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
   if (session.piSessionId) {
     sessionManager.newSession({ id: session.piSessionId })
   }
+  return sessionManager
+}
+
+/**
+ * A session manager for reading the Session's Pi file without writing it: an in-memory copy of
+ * the file's entries. Opening the file for a Run migrates an older format in place and records
+ * the thinking level, which would change a discovered session's file, and what `pi --resume`
+ * continues with, just because OpenWaggle showed it (ADR 0048). A missing file has nothing to
+ * protect, so it gets the same fresh manager as a Run, which writes nothing until a reply.
+ */
+export async function createReadOnlySessionManagerForSession(
+  session: SessionDetail,
+  projectPath: string,
+) {
+  const file = session.piSessionFile
+  if (!file || !existsSync(file)) return createSessionManagerForSession(session, projectPath)
+  const entries = parseSessionEntries(await readFile(file, 'utf8'))
+  const sessionManager = SessionManager.inMemory(projectPath, undefined, entries)
+  resumeSelectedPosition(sessionManager, session)
   return sessionManager
 }

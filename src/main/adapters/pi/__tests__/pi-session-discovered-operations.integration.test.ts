@@ -16,6 +16,7 @@ import {
   run,
   sessionDetail,
   setUpPiDiscoveryFixture,
+  writeVersion2PiSession,
 } from './pi-session-discovery.test-support'
 
 /**
@@ -131,6 +132,19 @@ async function userNodeIds(sessionId: SessionId) {
 }
 
 describe('Operations on a discovered Pi session', () => {
+  it('reads the context usage of a discovered session without writing its Pi file', async () => {
+    const old = await writeVersion2PiSession(fixture.root, fixture.project)
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+    const { getAgentContextUsage } = await import('../../../application/agent-session-service')
+
+    await run(getAgentContextUsage({ sessionId, model: MODEL }))
+
+    // Opening the file for a Run would migrate it to the current format and record the thinking
+    // level, which would also change what `pi --resume` continues with.
+    expect(await fs.readFile(old.file, 'utf8')).toBe(old.content)
+  })
+
   it('runs in the same Pi file and keeps its node ids prefixed', async () => {
     const { cli, sessionId, prefix } = await discoveredSession()
     const { executeAgentRun } = await import('../../../application/agent-run-service')

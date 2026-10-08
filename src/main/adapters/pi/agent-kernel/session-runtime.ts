@@ -3,6 +3,7 @@ import {
   type AgentSessionServices,
   type CreateAgentSessionResult,
   type CreateAgentSessionRuntimeFactory,
+  createAgentSessionFromServices,
   createAgentSessionRuntime,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
@@ -22,7 +23,11 @@ import {
   type PiProjectRuntimeIsolationOptions,
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
-import { createSessionManagerForSession, resolveSessionWorkingPath } from './session-manager'
+import {
+  createReadOnlySessionManagerForSession,
+  createSessionManagerForSession,
+  resolveSessionWorkingPath,
+} from './session-manager'
 import { sessionFallbackModelReference } from './session-model-fallback'
 
 export type PiSessionOperation<T> = (session: AgentSession) => T | Promise<T>
@@ -98,6 +103,40 @@ export async function withPiSession<T>(
     return await operation(session)
   } finally {
     await disposeOpenWagglePiSession(session)
+  }
+}
+
+/**
+ * Runs a read, such as context usage or a snapshot, against an in-memory copy of the Session's Pi
+ * file. Nothing it does reaches the file, and extensions are not bound, so they see no session
+ * start or shutdown for a session that is only being looked at. It does not release a warming
+ * session either, since it does not open the file.
+ */
+export async function withReadOnlyPiSession<T>(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  operation: PiSessionOperation<T>,
+) {
+  const projectPath = resolveSessionWorkingPath(input.session)
+  const sessionManager = await createReadOnlySessionManagerForSession(input.session, projectPath)
+  const { session } = await createSessionWithActivationIsolation({
+    operation: 'Pi session read',
+    extensionIsolation: input,
+    runtimeOptions: {
+      projectPath,
+      modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+      ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    },
+    createSession: ({ services, model }) =>
+      createAgentSessionFromServices({ services, model, sessionManager }),
+  })
+
+  try {
+    return await operation(session)
+  } finally {
+    session.dispose()
   }
 }
 

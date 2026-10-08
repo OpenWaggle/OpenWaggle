@@ -1,12 +1,10 @@
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  agePiFile,
   continuePiCliSession,
   createPiCliSession,
   discover,
@@ -18,6 +16,7 @@ import {
   runSql,
   sessionDetail,
   setUpPiDiscoveryFixture,
+  writeVersion2PiSession,
 } from './pi-session-discovery.test-support'
 
 /**
@@ -62,40 +61,10 @@ function forkPiCliSession(sourceFile: string, cwd: string) {
   return { id: fork.getSessionId(), file }
 }
 
-/** A session the `pi` CLI wrote in its previous file format, version 2. */
-async function writeVersion2PiSession(cwd: string) {
-  const directory = path.join(
-    fixture.root,
-    'pi-agent',
-    'sessions',
-    `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`,
-  )
-  await fs.mkdir(directory, { recursive: true })
-  const file = path.join(directory, '2025-01-01T00-00-00-000Z_old-format.jsonl')
-  const lines = [
-    { type: 'session', version: 2, id: 'old-format', timestamp: '2025-01-01T00:00:00.000Z', cwd },
-    {
-      type: 'message',
-      id: 'aaaa0001',
-      parentId: null,
-      timestamp: '2025-01-01T00:00:01.000Z',
-      message: {
-        role: 'user',
-        content: [{ type: 'text', text: 'From an older pi' }],
-        timestamp: 1,
-      },
-    },
-  ]
-  const content = `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
-  await fs.writeFile(file, content)
-  agePiFile(file)
-  return { file, content }
-}
-
 describe('Discovered Pi session ownership', () => {
   it('shows a file in an older Pi format without rewriting it', async () => {
     await registerProjects([fixture.project])
-    const old = await writeVersion2PiSession(fixture.project)
+    const old = await writeVersion2PiSession(fixture.root, fixture.project)
     const sessionId = await discoverOne()
 
     expect(await openSession(sessionId)).toBe('projected')

@@ -162,3 +162,33 @@ export function messageTexts(detail: Awaited<ReturnType<typeof sessionDetail>>) 
     message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])),
   )
 }
+
+/** A session the `pi` CLI wrote in its previous file format, version 2. */
+export async function writeVersion2PiSession(root: string, cwd: string) {
+  const directory = path.join(
+    root,
+    'pi-agent',
+    'sessions',
+    `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`,
+  )
+  await fs.mkdir(directory, { recursive: true })
+  const file = path.join(directory, '2025-01-01T00-00-00-000Z_old-format.jsonl')
+  const lines = [
+    { type: 'session', version: 2, id: 'old-format', timestamp: '2025-01-01T00:00:00.000Z', cwd },
+    {
+      type: 'message',
+      id: 'aaaa0001',
+      parentId: null,
+      timestamp: '2025-01-01T00:00:01.000Z',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'From an older pi' }],
+        timestamp: 1,
+      },
+    },
+  ]
+  const content = `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
+  await fs.writeFile(file, content)
+  agePiFile(file)
+  return { file, content }
+}

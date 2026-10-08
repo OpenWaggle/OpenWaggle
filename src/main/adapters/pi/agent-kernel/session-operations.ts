@@ -24,7 +24,7 @@ import { summarizePiSessionUsage } from './pi-session-usage'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
-import { createPiSessionRuntime, withPiSession } from './session-runtime'
+import { createPiSessionRuntime, withPiSession, withReadOnlyPiSession } from './session-runtime'
 
 function toContextUsageSnapshot(
   usage: ContextUsage | undefined,
@@ -43,8 +43,8 @@ function toContextUsageSnapshot(
 }
 
 /**
- * Reads use the Session's warming session while it has one: it holds the Session's Pi file, and
- * opening that file again would end it.
+ * Reads use the Session's warming session while it has one. Otherwise they read an in-memory
+ * copy of the Pi file, so looking at a Session never writes its file (ADR 0048).
  */
 async function readPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
@@ -52,7 +52,7 @@ async function readPiSession<T>(
 ) {
   const warming = idleCacheWarming.borrow(input.session.id)
   if (warming && warming.sessionFile === input.session.piSessionFile) return read(warming)
-  return withPiSession(input, read)
+  return withReadOnlyPiSession(input, read)
 }
 
 export async function getPiContextUsage(
@@ -68,7 +68,8 @@ export async function getPiSessionSnapshot(
 ) {
   return readPiSession(input, (session) => ({
     piSessionId: session.sessionId,
-    piSessionFile: session.sessionFile,
+    // An in-memory read has no file of its own; it read the Session's.
+    piSessionFile: session.sessionFile ?? input.session.piSessionFile ?? undefined,
     sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
   }))
 }
