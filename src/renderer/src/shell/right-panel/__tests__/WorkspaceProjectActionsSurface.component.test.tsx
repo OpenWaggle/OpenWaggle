@@ -104,18 +104,18 @@ describe('WorkspaceProjectActionsSurface project containment', () => {
     ).toBe(true)
   })
 
-  it("lists a draft Session's chosen project, not the stale preference", async () => {
+  it('lists the preference project for a draft, the project its composer creates the Session in', async () => {
     setPreferredProject(PROJECT_A)
     useChatStore.setState({
       activeSessionId: null,
       activeSession: null,
-      draftSession: { projectPath: PROJECT_B },
+      draftSession: { projectPath: PROJECT_A },
     })
 
     renderSurface()
 
-    expect(await screen.findByText('Only in B')).toBeInTheDocument()
-    expect(screen.queryByText('Only in A')).not.toBeInTheDocument()
+    expect(await screen.findByText('Only in A')).toBeInTheDocument()
+    expect(screen.queryByText('Only in B')).not.toBeInTheDocument()
   })
 
   it('shows no project actions while the selected Session is still loading', async () => {

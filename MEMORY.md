@@ -777,7 +777,24 @@ A read-only action output tab lives in its own store (`features/terminal/state/a
 
 ### Project Actions follow the open Session's project, not the project preference
 
-`settings.projectPath` only mirrors the selected project. Selecting a Session (or starting a draft) updates it through an awaited Host `settings:update` after the chat store has already changed, and a lagging or refused write (Host stall, drain) leaves it naming the previous project until the next switch. Project Actions surfaces that read it listed the previous project's actions inside the new Session, and Add action saved there, so actions appeared to leak between projects. Project-scoped workspace consumers resolve the project through `useSessionProjectPath` (`features/sessions/hooks`, `resolveSessionProjectPath`): the active Session's project, `null` while a selected Session is still loading, a draft's project, and the preference only when neither exists. Its users: the Project Actions right panel surface, background effects, the rail entry and running dot, action shortcuts, the command palette, Settings shortcuts, and the Settings resource-project default. A draft's composer and first send use the draft's project (`useChatPanelEnvironment`), so an action added in a draft lands in the project its Session is created in. Reproduced in hidden Electron QA by delaying or failing the renderer's settings write. The header project label and the extension panel rail still read the preference.
+`settings.projectPath` only mirrors the selected project. When you select a Session, the chat store changes first, then the preference is updated through an awaited Host `settings:update`. If that write lags or is refused (Host stall, drain), the preference keeps naming the previous project until the next switch. Project Actions surfaces read it, so they listed the previous project's actions inside the new Session, and Add action saved there. That made actions look like they leaked between projects.
+
+Project-scoped Session consumers resolve the project through `useSessionProjectPath` (`features/sessions/hooks`, `resolveSessionProjectPath`). With a selected Session it returns, in order:
+- the loaded detail's project;
+- otherwise the catalog summary's project;
+- otherwise `null`, never the previous project.
+
+Without a Session it returns the preference.
+
+Its users:
+- the Project Actions right panel surface, background effects, rail entry and running dot;
+- action shortcuts and the command palette;
+- Settings → Shortcuts (action rows only; extension panels mirror the rail);
+- the Settings resource-project default (Session project, then preference, then recents).
+
+Drafts deliberately stay on the preference. The draft composer (send gate, worktree plan stash, branch row, scoped drafts, preparation choice) and first send all key on it. Moving only some of them to `draftSession.projectPath` split the env/base-ref choice from the created Session. A draft whose sidebar project differs from a stale preference, New Session (⌘N) seeding from the preference, the header label and the extension panel rail are known follow-ups.
+
+Reproduced in hidden Electron QA by delaying or failing the renderer's settings write.
 
 ### Project Action completion is not an activity-change event
 

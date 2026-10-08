@@ -30,11 +30,6 @@ export function useChatPanelEnvironment() {
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
-  // A draft belongs to the project it was started in. The preference follows it only after a Host
-  // write, so reading the preference here created a draft's Session in the previous project.
-  const projectPath = chat.activeSessionId
-    ? project.projectPath
-    : (chat.draftSession?.projectPath ?? project.projectPath)
   const model = chat.activeSessionId
     ? chat.activeSession?.executionModel
     : (chat.draftSession?.selectedModel ?? preferredModel)
@@ -122,7 +117,7 @@ export function useChatPanelEnvironment() {
     openSettings() {
       void navigate({ to: '/settings' })
     },
-    projectPath,
+    projectPath: project.projectPath,
     recentProjects,
     refreshSessionWorkspace,
     setDraftBranch,

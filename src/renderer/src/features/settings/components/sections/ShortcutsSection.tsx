@@ -25,9 +25,10 @@ import {
 import { ShortcutsSectionContent } from './ShortcutsSectionContent'
 
 export function ShortcutsSection() {
-  // The open Session's project: its action shortcuts are the ones that fire in the workspace, and
-  // its extension panels are the ones they can conflict with. The preference can lag behind it.
-  const projectPath = useSessionProjectPath()
+  // Mirror live dispatch (useWorkspaceLifecycle): extension panels follow the project preference,
+  // as the Panel rail does, and project action shortcuts follow the open Session's own project.
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const actionProjectPath = useSessionProjectPath()
   const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
   const setShortcutRules = usePreferencesStore((state) => state.setShortcutRules)
   const extensionPanelBindings = usePreferencesStore(
@@ -38,9 +39,9 @@ export function ShortcutsSection() {
   )
   const panels = extensionSidePanelSurfaces(extensionContributions)
   const showToast = useUIStore((state) => state.showToast)
-  const projectScope = projectPath ? { projectPath } : null
-  const actionsQuery = useProjectActions(projectPath, projectScope)
-  const mutations = useProjectActionMutations(projectPath, projectScope)
+  const projectScope = actionProjectPath ? { projectPath: actionProjectPath } : null
+  const actionsQuery = useProjectActions(actionProjectPath, projectScope)
+  const mutations = useProjectActionMutations(actionProjectPath, projectScope)
   const actions = actionsQuery.data ?? []
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
@@ -94,7 +95,8 @@ export function ShortcutsSection() {
     return persistBuiltInRules(upsertShortcutRule(shortcutRules, rule))
   }
 
-  const canAdd = !builtInAtLimit || (projectPath !== null && actions.length > 0 && !projectAtLimit)
+  const canAdd =
+    !builtInAtLimit || (actionProjectPath !== null && actions.length > 0 && !projectAtLimit)
 
   return (
     <ShortcutsSectionContent
