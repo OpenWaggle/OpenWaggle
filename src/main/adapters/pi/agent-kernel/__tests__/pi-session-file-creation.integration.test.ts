@@ -14,7 +14,12 @@ let home = ''
 let projectPath = ''
 
 function session(fields: Partial<SessionDetail>): SessionDetail {
-  return fromPartial<SessionDetail>({ projectPath, environmentMode: 'local', messages: [], ...fields })
+  return fromPartial<SessionDetail>({
+    projectPath,
+    environmentMode: 'local',
+    messages: [],
+    ...fields,
+  })
 }
 
 function appendUserMessage(manager: SessionManager, text: string) {
