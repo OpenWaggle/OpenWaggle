@@ -95,7 +95,7 @@ export async function runPiSession(
     onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
   })
   const extensionFactories = [
-    // First, so a call the Agent definition refuses never reaches another hook (approval).
+    // First of the Run's inline extensions, so a refused call never reaches OpenWaggle's approval.
     createAgentToolAllowlistGuard(agentRunContextAllowlists(input)),
     createRunAttributionExtension(input.runId),
     peerReports.factory,

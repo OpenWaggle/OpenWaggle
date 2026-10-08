@@ -94,6 +94,8 @@ Older definitions may list `mcp` or `mcp_run`, the names of OpenWaggle's former 
 
 The allowlist also applies to the tools a `codemode` script calls. A script cannot call a tool the definition does not list.
 
+OpenWaggle refuses a call outside the allowlist before it asks for approval. Pi extensions you install from files or packages load before OpenWaggle's own, so their `tool_call` handlers still see a refused call before OpenWaggle blocks it. The call is blocked either way.
+
 Unknown fields, YAML aliases, merge keys, custom tags, duplicate keys, empty instructions, and oversized documents are rejected. Frontmatter is limited to JSON-compatible YAML and is never evaluated as code or interpolated from the environment.
 
 ## Browsing and disabling agents

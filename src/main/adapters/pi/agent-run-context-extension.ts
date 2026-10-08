@@ -40,9 +40,12 @@ function allowlistOf(
 
 /**
  * Refuses every tool call the Agent definition's allowlist leaves out, codemode child calls
- * included (they run outside the active tool set). It must load before every other extension:
- * Pi stops at the first `tool_call` hook that blocks, so a refused call never reaches the MCP
- * approval prompt. Undefined when the profile does not restrict tools.
+ * included (they run outside the active tool set). It goes first among the Run's inline
+ * extensions: Pi stops at the first `tool_call` hook that blocks, so a refused call never reaches
+ * OpenWaggle's own hooks, such as the MCP approval prompt. Pi loads inline extensions after the
+ * ones it discovers from files and packages, so their `tool_call` hooks still see a refused call
+ * before this guard blocks it; it is blocked all the same. Undefined when the profile does not
+ * restrict tools.
  */
 export function createAgentToolAllowlistGuard(
   input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
