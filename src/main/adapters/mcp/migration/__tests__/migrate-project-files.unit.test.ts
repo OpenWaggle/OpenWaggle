@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
   allConnectedState,
@@ -70,6 +70,32 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
       [OPENWAGGLE_GLOBAL, 'unchanged'],
       [PROJECT_FILE, 'migrated'],
     ])
+  })
+
+  it('asks to keep a file it created out of git, and never one that existed', async () => {
+    const fs = memoryFs({
+      [OPENWAGGLE_GLOBAL]: { mcpServers: { lint: LINT } },
+      [PROJECT_PI]: { mcpServers: { lint: LINT } },
+      [LEGACY_STATE]: legacyState({
+        globalState: 'on',
+        projectServerStates: { [PROJECT]: { 'lint-id': 'off' } },
+        servers: {
+          [oldIdentityKey(OPENWAGGLE_GLOBAL, 'lint')]: { instanceId: 'lint-id', enabled: true },
+        },
+      }),
+    })
+    const keepOutOfGit = vi.fn(async () => undefined)
+
+    await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      projectPaths: [],
+      now: () => NOW,
+      fs,
+      keepCreatedFileOutOfGit: keepOutOfGit,
+    })
+
+    expect(fs.files.has(PROJECT_FILE)).toBe(true)
+    expect(keepOutOfGit.mock.calls).toEqual([[PROJECT_FILE]])
   })
 
   it('finds a per-project switch on a global copy that the migration replaced', async () => {

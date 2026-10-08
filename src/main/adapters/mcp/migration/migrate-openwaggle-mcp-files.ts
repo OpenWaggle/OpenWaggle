@@ -70,6 +70,8 @@ export interface MigrateOpenWaggleMcpFilesInput {
   readonly oauth?: McpOAuthMigrationSink
   /** Switches MCP off for a Session in the Host; old per-Session switches are dropped without it. */
   readonly sessionMcpSwitch?: McpSessionSwitchMigrationSink
+  /** Keeps each file the migration creates out of its git work tree; a failure is only logged. */
+  readonly keepCreatedFileOutOfGit?: (filePath: string) => Promise<unknown>
 }
 
 export type McpFileMigrationStatus = 'migrated' | 'unchanged' | 'already-migrated' | 'failed'
@@ -106,9 +108,11 @@ class McpFileMigrator {
   constructor(
     private readonly fs: McpMigrationFs,
     private readonly record: McpMigrationRecord,
-    private readonly now: () => Date,
     private readonly logger: Logger,
-    private readonly homeDir: string,
+    private readonly input: Pick<
+      MigrateOpenWaggleMcpFilesInput,
+      'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
+    >,
   ) {}
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
@@ -128,9 +132,10 @@ class McpFileMigrator {
         await this.recordFile(job.path, 'unchanged', original)
         return { path: job.path, status: 'unchanged', changes: result.changes }
       }
-      const backupPath = migrationBackupPath(job.path, this.homeDir)
+      const backupPath = migrationBackupPath(job.path, this.input.homeDir)
       if (original !== undefined) await this.fs.createTextExclusive(backupPath, original)
       await this.fs.writeTextAtomic(job.path, result.text)
+      if (original === undefined) await this.keepCreatedOutOfGit(job.path)
       await this.recordFile(job.path, 'migrated', result.text)
       this.logger.info('Migrated MCP file to the Pi entry format', {
         path: job.path,
@@ -151,10 +156,17 @@ class McpFileMigrator {
     }
   }
 
+  private async keepCreatedOutOfGit(filePath: string) {
+    await this.input.keepCreatedFileOutOfGit?.(filePath).catch((error: unknown) => {
+      const context = { path: filePath, error: describeError(error) }
+      this.logger.warn('Could not keep a created MCP file out of git', context)
+    })
+  }
+
   private recordFile(filePath: string, status: 'migrated' | 'unchanged', text: string | undefined) {
     return this.record.recordFile(filePath, {
       version: MCP_FILE_MIGRATION_VERSION,
-      migratedAt: this.now().toISOString(),
+      migratedAt: this.input.now().toISOString(),
       status,
       contentHash: contentHash(text),
     })
@@ -234,7 +246,7 @@ export async function migrateOpenWaggleMcpFiles(
     return { files: [], oauth: [], droppedSessionStates: 0, error: describeError(error) }
   }
   const { record, state } = start
-  const migrator = new McpFileMigrator(fs, record, input.now, logger, input.homeDir)
+  const migrator = new McpFileMigrator(fs, record, logger, input)
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)

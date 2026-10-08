@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
 import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
+import { keepMcpFileOutOfGit } from '../../mcp/migration/git-exclude'
 import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
 import {
   type MigrateOpenWaggleMcpFilesInput,
@@ -235,6 +236,7 @@ function migrateOnce(projectPath: string | null, readOld: ReadOldSignIn | undefi
         }
       : {}),
     sessionMcpSwitch: async (sessionId) => carryOverSessionMcpOff(sessionId),
+    keepCreatedFileOutOfGit: keepMcpFileOutOfGit,
   })
 }
 

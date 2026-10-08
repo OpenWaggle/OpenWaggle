@@ -479,7 +479,11 @@ what it is writing gets `MCP_MIGRATION_STOP_WAIT_MS` (5 s) to finish.
 `adapters/mcp/migration/` runs once per file, silently, with one `.pre-adr-0048.bak` backup, and
 records what it did in `~/.openwaggle/mcp/migration.json`. The global file's backup sits next to
 it; a project file's goes to `~/.openwaggle/mcp/backups/<project>-<hash of its path>/`, never
-into the repository, where it could be committed (`migrationBackupPath`). A backup an earlier
+into the repository, where it could be committed (`migrationBackupPath`). A file the migration
+creates (`keepCreatedFileOutOfGit` → `git-exclude.ts`) inside a git work tree gets its path added
+to that repository's `.git/info/exclude` (`git rev-parse --git-path info/exclude`, so linked
+worktrees use the common one), never `.gitignore` or a tracked file, unless git already ignores
+or tracks it; otherwise agent turns would report it as a changed file. A backup an earlier
 build left next to a project file is still read as the old content. An OpenWaggle file whose migration failed is
 not loaded for a Run or an MCP App until a later run migrates it (`migration-health.ts`): it still
 has the old format, without the `enabled` overrides that keep old-off servers off. The error is
