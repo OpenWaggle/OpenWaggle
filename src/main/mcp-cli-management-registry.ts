@@ -123,15 +123,28 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   const request = installRequest(input, requireRegistryName(rest))
   const result = await context.host.invoke('mcp:install-registry-server', request)
   if (args.flags.has('json')) {
-    printJson(input, { name: result.name, filePath: result.filePath, secrets: result.secrets })
+    printJson(input, {
+      name: result.name,
+      filePath: result.filePath,
+      secrets: result.secrets,
+      existingSecrets: result.existingSecrets,
+    })
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
   context.output.log(
     `Installed ${request.scope} MCP server "${result.name}" from the MCP Registry in ${result.filePath}.`,
   )
-  if (result.secrets.length > 0) {
+  const stored = new Set(result.existingSecrets)
+  const missing = result.secrets.filter((secret) => !stored.has(secret))
+  if (missing.length > 0) {
     context.output.log(
-      `It reads the vault secret${result.secrets.length === 1 ? '' : 's'} ${result.secrets.join(', ')}. Add ${result.secrets.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets before using it.`,
+      `It reads the vault secret${missing.length === 1 ? '' : 's'} ${missing.join(', ')}. Add ${missing.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets before using it.`,
+    )
+  }
+  const existing = result.existingSecrets
+  if (existing.length > 0) {
+    context.output.log(
+      `It uses the vault secret${existing.length === 1 ? '' : 's'} ${existing.join(', ')}, which already exist${existing.length === 1 ? 's' : ''}; replace ${existing.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets if ${existing.length === 1 ? 'it holds' : 'they hold'} another value.`,
     )
   }
   const local = request.projectPath ? ' -l' : ''

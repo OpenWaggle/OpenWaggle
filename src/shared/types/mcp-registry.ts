@@ -70,7 +70,12 @@ export interface McpRegistryInstallResultView {
   readonly name: string
   /** OpenWaggle's MCP file the entry was saved to. */
   readonly filePath: string
-  /** Vault secrets the entry reads; the server fails to start until they exist. */
+  /**
+   * Vault secrets the entry reads, named `<SERVER>_<FIELD>`; the server fails to start until they
+   * exist.
+   */
   readonly secrets: readonly string[]
+  /** Those of `secrets` the vault already holds, which the server uses as they are. */
+  readonly existingSecrets: readonly string[]
   readonly view: McpConfigurationView
 }

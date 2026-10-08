@@ -13,8 +13,12 @@ const WEATHER: McpRegistryServerView = {
   ],
 }
 
-function installed(name: string, secrets: readonly string[] = []) {
-  return { name, filePath: '/home/.openwaggle/mcp.json', secrets, view: view([]) }
+function installed(
+  name: string,
+  secrets: readonly string[] = [],
+  existingSecrets: readonly string[] = [],
+) {
+  return { name, filePath: '/home/.openwaggle/mcp.json', secrets, existingSecrets, view: view([]) }
 }
 
 describe('openwaggle mcp registry', () => {
@@ -58,7 +62,8 @@ describe('openwaggle mcp registry', () => {
 
   it("adds a server to OpenWaggle's global file and names the secrets it needs", async () => {
     const result = await run('registry', ['add', 'io.github.example/weather'], {
-      'mcp:install-registry-server': () => installed('weather', ['WEATHER_KEY']),
+      'mcp:install-registry-server': () =>
+        installed('weather', ['WEATHER_KEY', 'WEATHER_TOKEN'], ['WEATHER_TOKEN']),
     })
 
     expect(result.exitCode).toBe(0)
@@ -70,7 +75,10 @@ describe('openwaggle mcp registry', () => {
     expect(result.logs).toContain(
       'Installed global MCP server "weather" from the MCP Registry in /home/.openwaggle/mcp.json.',
     )
-    expect(result.logs).toContain('vault secret WEATHER_KEY')
+    expect(result.logs).toContain('It reads the vault secret WEATHER_KEY. Add it in')
+    expect(result.logs).toContain(
+      'It uses the vault secret WEATHER_TOKEN, which already exists; replace it in Settings > MCP > Secrets if it holds another value.',
+    )
   })
 
   it('installs a chosen package under another name for the current project', async () => {

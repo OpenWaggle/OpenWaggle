@@ -11,7 +11,9 @@ import { McpInlineError } from './McpLabels'
 import { McpRegistryResultRow } from './McpRegistryResultRow'
 
 function InstalledNotice({ result }: { readonly result: McpRegistryInstallResultView }) {
-  const secrets = result.secrets
+  const existing = result.existingSecrets
+  const stored = new Set(existing)
+  const secrets = result.secrets.filter((secret) => !stored.has(secret))
   return (
     <div role="status" className="space-y-0.5 text-xs text-text-secondary">
       <p>
@@ -25,6 +27,14 @@ function InstalledNotice({ result }: { readonly result: McpRegistryInstallResult
         <p className="text-warning">
           It reads the secret{secrets.length === 1 ? '' : 's'} {secrets.join(', ')}. Add{' '}
           {secrets.length === 1 ? 'it' : 'them'} under Secrets before using the server.
+        </p>
+      ) : null}
+      {existing.length > 0 ? (
+        <p>
+          It uses the secret{existing.length === 1 ? '' : 's'} {existing.join(', ')}, which already{' '}
+          {existing.length === 1 ? 'exists' : 'exist'} under Secrets; replace{' '}
+          {existing.length === 1 ? 'it' : 'them'} there if{' '}
+          {existing.length === 1 ? 'it holds' : 'they hold'} another value.
         </p>
       ) : null}
     </div>

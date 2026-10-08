@@ -65,7 +65,8 @@ describe('Settings > MCP: MCP Registry', () => {
     api.installMcpRegistryServer.mockResolvedValue({
       name: 'weather',
       filePath: `${PROJECT}/.openwaggle/mcp.json`,
-      secrets: ['WEATHER_KEY'],
+      secrets: ['WEATHER_KEY', 'WEATHER_TOKEN'],
+      existingSecrets: ['WEATHER_TOKEN'],
       view: mcpView([mcpServer('files'), mcpServer('weather')]),
     })
     const list = await searchFor('weather')
@@ -91,6 +92,9 @@ describe('Settings > MCP: MCP Registry', () => {
     const status = await screen.findByRole('status')
     expect(status).toHaveTextContent(`Installed "weather" in ${PROJECT}/.openwaggle/mcp.json.`)
     expect(status).toHaveTextContent('It reads the secret WEATHER_KEY.')
+    expect(status).toHaveTextContent(
+      'It uses the secret WEATHER_TOKEN, which already exists under Secrets; replace it there if it holds another value.',
+    )
     expect(await within(list).findAllByText('Installed')).toHaveLength(2)
   })
 

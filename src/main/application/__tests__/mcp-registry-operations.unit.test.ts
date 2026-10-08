@@ -7,6 +7,7 @@ import { createFilesystemMcpConfigurationService } from '../../adapters/mcp/conf
 import { createMcpRegistryService } from '../../adapters/mcp/registry/mcp-registry-service'
 import { McpConfigurationService } from '../../ports/mcp-configuration-service'
 import { McpRegistryService } from '../../ports/mcp-registry-service'
+import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-authorization'
 import {
   installMcpRegistryServerOperation,
@@ -39,6 +40,7 @@ let root = ''
 let homeDir = ''
 let projectPath = ''
 const requests: URL[] = []
+const vaultSecrets: string[] = []
 
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-registry-operations-'))
@@ -46,6 +48,7 @@ beforeEach(() => {
   projectPath = path.join(root, 'project')
   mkdirSync(projectPath, { recursive: true })
   requests.length = 0
+  vaultSecrets.length = 0
 })
 
 afterEach(() => {
@@ -68,6 +71,16 @@ function layer() {
     ),
     Layer.succeed(McpRegistryService, createMcpRegistryService({ homeDir, fetchResource })),
     Layer.succeed(
+      McpSecretVaultService,
+      McpSecretVaultService.of({
+        list: () =>
+          Effect.succeed(vaultSecrets.map((name) => ({ name, createdAt: 1, updatedAt: 1 }))),
+        resolve: () => Effect.die('not read'),
+        set: () => Effect.die('not written'),
+        remove: () => Effect.die('not written'),
+      }),
+    ),
+    Layer.succeed(
       WorkspaceProjectAuthorization,
       WorkspaceProjectAuthorization.of({
         authorize: (candidate) =>
@@ -79,7 +92,11 @@ function layer() {
   )
 }
 
-type Services = McpConfigurationService | McpRegistryService | WorkspaceProjectAuthorization
+type Services =
+  | McpConfigurationService
+  | McpRegistryService
+  | McpSecretVaultService
+  | WorkspaceProjectAuthorization
 
 function run<A, E>(effect: Effect.Effect<A, E, Services>) {
   return Effect.runPromise(Effect.provide(effect, layer()))
@@ -129,12 +146,39 @@ describe('MCP Registry operations', () => {
     expect(servers(filePath)).toEqual({
       weather: {
         url: 'https://weather.example/mcp',
-        headers: { Authorization: { secret: 'AUTHORIZATION' } },
+        // Named after the server: another server's Authorization is another secret.
+        headers: { Authorization: { secret: 'WEATHER_AUTHORIZATION' } },
         description: 'Weather forecasts.',
       },
     })
-    expect(result).toMatchObject({ name: 'weather', filePath, secrets: ['AUTHORIZATION'] })
+    expect(result).toMatchObject({
+      name: 'weather',
+      filePath,
+      secrets: ['WEATHER_AUTHORIZATION'],
+      existingSecrets: [],
+    })
     expect(result.view.servers.map((server) => server.name)).toEqual(['weather'])
+  })
+
+  it('names the secrets after the chosen name, and says which ones already exist', async () => {
+    vaultSecrets.push('WORK_WEATHER_AUTHORIZATION')
+
+    const result = await run(
+      installMcpRegistryServerOperation({
+        projectPath: null,
+        registryName: 'io.github.example/weather',
+        scope: 'global',
+        serverName: 'work-weather',
+      }),
+    )
+
+    expect(servers(path.join(homeDir, '.openwaggle', 'mcp.json'))).toMatchObject({
+      'work-weather': { headers: { Authorization: { secret: 'WORK_WEATHER_AUTHORIZATION' } } },
+    })
+    expect(result).toMatchObject({
+      secrets: ['WORK_WEATHER_AUTHORIZATION'],
+      existingSecrets: ['WORK_WEATHER_AUTHORIZATION'],
+    })
   })
 
   it("installs a package for one project into the project's OpenWaggle file", async () => {

@@ -7,8 +7,10 @@ import type { McpWriteDestination } from '@shared/types/mcp-configuration'
 import type { McpRegistryInstallResultView } from '@shared/types/mcp-registry'
 import * as Effect from 'effect/Effect'
 import { mcpNamespace } from '../domain/mcp/config/mcp-server-config'
+import { withServerSecretNames } from '../domain/mcp/config/mcp-server-secret-names'
 import { McpConfigurationError, McpConfigurationService } from '../ports/mcp-configuration-service'
 import { McpRegistryService } from '../ports/mcp-registry-service'
+import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { decodeMcpProjectRequest, decodeMcpRequest } from './mcp-configuration-operations'
 
 /**
@@ -69,6 +71,7 @@ export function installMcpRegistryServerOperation(raw: unknown) {
     if (!input.serverName) yield* assertNameFree(projectPath, name)
     const destination: McpWriteDestination =
       scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
+    const scoped = withServerSecretNames(prepared.entry, name)
     const configuration = yield* McpConfigurationService
     yield* Effect.uninterruptible(
       configuration.addServer({
@@ -76,15 +79,19 @@ export function installMcpRegistryServerOperation(raw: unknown) {
         name,
         scope,
         destination,
-        entry: { ...prepared.entry, ...(input.exposure ? { exposure: input.exposure } : {}) },
+        entry: { ...scoped.entry, ...(input.exposure ? { exposure: input.exposure } : {}) },
       }),
     )
+    // Listing the vault reads no secret; a vault that cannot be listed reports none as existing.
+    const stored = yield* (yield* McpSecretVaultService).list().pipe(Effect.orElseSucceed(() => []))
+    const storedNames = new Set(stored.map((secret) => secret.name))
     const view = yield* configuration.getView({ projectPath })
     const filePath = view.files.find((file) => file.fileId === destination)?.path ?? destination
     return {
       name,
       filePath,
-      secrets: prepared.secrets,
+      secrets: scoped.secrets,
+      existingSecrets: scoped.secrets.filter((secret) => storedNames.has(secret)),
       view,
     } satisfies McpRegistryInstallResultView
   })
