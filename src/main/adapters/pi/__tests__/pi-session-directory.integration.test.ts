@@ -4,6 +4,7 @@ import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, vi } from 'vitest'
 import {
   agePiFile,
+  createPiCliSession,
   discoverOne,
   registerProjects,
   sessionDetail,
@@ -140,5 +141,44 @@ describe("Pi's session directory", () => {
     const sessionId = await discoverOne()
 
     expect((await sessionDetail(sessionId))?.piSessionFile).toBe(file)
+  })
+
+  it("finds a subfolder's sessions in Pi's default folder when the project sets its own", async () => {
+    // `pi` reads `.pi/settings.json` only in the folder it runs in, so in packages/core it uses
+    // the default directory, not the project's sessionDir.
+    await fs.mkdir(path.join(fixture.project, '.pi'), { recursive: true })
+    await fs.writeFile(
+      path.join(fixture.project, '.pi', 'settings.json'),
+      JSON.stringify({ sessionDir: path.join(fixture.root, 'project-sessions') }),
+    )
+    await registerProjects([fixture.project])
+    const cwd = path.join(fixture.project, 'packages', 'core')
+    const cli = createPiCliSession(cwd, 'In the default folder')
+
+    const sessionId = await discoverOne()
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      piSessionFile: cli.file,
+      projectPath: fixture.project,
+    })
+  })
+
+  it('gives a nested project with its own sessionDir the sessions stored there', async () => {
+    const nested = path.join(fixture.project, 'packages', 'core')
+    const nestedSessions = path.join(fixture.root, 'nested-sessions')
+    await fs.mkdir(path.join(nested, '.pi'), { recursive: true })
+    await fs.writeFile(
+      path.join(nested, '.pi', 'settings.json'),
+      JSON.stringify({ sessionDir: nestedSessions }),
+    )
+    await registerProjects([fixture.project, nested])
+    const file = createPiCliSessionIn(nestedSessions, nested, 'Stored by the nested setting')
+
+    const sessionId = await discoverOne()
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      piSessionFile: file,
+      projectPath: nested,
+    })
   })
 })

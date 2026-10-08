@@ -280,37 +280,32 @@ export function createPiSessionDiscoveryScanner(
     listedFiles.clear()
   }
 
+  /**
+   * Pi reads `.pi/settings.json` only in the folder it runs in, so a project's sessions may be in
+   * the project's own session directory or, for `pi` run in a folder inside it, in Pi's default
+   * per-folder directories. Every candidate directory is scanned, and each file goes to the most
+   * specific project its header's cwd is in, among all of them.
+   */
   const scan = async ({ projectPaths, isKnownFile }: PiSessionDiscoveryInput) => {
     if (projectPaths.length === 0) return []
     const resolveDirectory = options.resolveSessionDirectory ?? resolvePiSessionDirectory
-    const defaultProjects: string[] = []
-    const projectsByCustomDirectory = new Map<string, string[]>()
+    const customDirectories = new Set<string>()
     for (const projectPath of projectPaths) {
       const custom = resolveDirectory(projectPath)
-      if (!custom) {
-        defaultProjects.push(projectPath)
-        continue
-      }
-      projectsByCustomDirectory.set(custom, [
-        ...(projectsByCustomDirectory.get(custom) ?? []),
-        projectPath,
-      ])
+      if (custom) customDirectories.add(custom)
     }
-    const discovered: DiscoveredPiSession[] = []
-    for (const [directory, projects] of projectsByCustomDirectory) {
-      discovered.push(...(await scanDirectory(directory, projects, isKnownFile)))
-    }
-    if (defaultProjects.length === 0) return discovered
     const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
-    const prefixes = defaultProjects.map(encodedPathPrefix)
-    const directories = (await readDirectoryNames(sessionsRoot)).filter((name) =>
-      prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)),
-    )
-    for (const directory of directories) {
-      const directoryPath = path.join(sessionsRoot, directory)
-      discovered.push(...(await scanDirectory(directoryPath, defaultProjects, isKnownFile)))
+    const prefixes = projectPaths.map(encodedPathPrefix)
+    const defaultDirectories = (await readDirectoryNames(sessionsRoot))
+      .filter((name) => prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)))
+      .map((name) => path.join(sessionsRoot, name))
+    const discovered = new Map<string, DiscoveredPiSession>()
+    for (const directory of new Set([...customDirectories, ...defaultDirectories])) {
+      for (const session of await scanDirectory(directory, projectPaths, isKnownFile)) {
+        discovered.set(session.piSessionFile, session)
+      }
     }
-    return discovered
+    return [...discovered.values()]
   }
 
   return {
