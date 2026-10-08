@@ -18,10 +18,10 @@ const SETTLING_CONTRACTS: ReadonlySet<string> = new Set([
 ])
 const WAITING_QUERY_OPERATIONS: ReadonlySet<string> = new Set(['wait', 'exports-wait'])
 /**
- * Replay-safe reads that still do work on the Host: context usage builds a Pi session, the
- * model catalog and Agent definition plans load Pi resources, running extensions and installing
- * missing packages, and inspecting an MCP server or listing an MCP App server's catalog connects
- * to it (and may start it). Only listing Agent definitions stays admitted.
+ * Reads that still do work on the Host: context usage builds a Pi session, the model catalog and
+ * Agent definition plans load Pi resources, running extensions and installing missing packages,
+ * and listing an MCP App server's catalog connects to it (and may start it). Inspecting an MCP
+ * server does too, and it is not replay-safe either. Only listing Agent definitions stays admitted.
  */
 const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
   'agent:get-context-usage',

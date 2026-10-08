@@ -30,7 +30,8 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'extensions:list-contributions',
     'mcp:list-secrets',
     'mcp:get-configuration',
-    'mcp:inspect-server',
+    // Not `mcp:inspect-server`: it connects to the server and may start its process, so it is
+    // neither replayed after an ambiguous failure nor answered while the Host drains.
     'mcp:get-server-statuses',
     'mcp:preview-imports',
     'mcp:search-registry',

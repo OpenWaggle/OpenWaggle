@@ -59,6 +59,23 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.refreshPaths).toHaveBeenCalledTimes(1)
   })
 
+  it('replays a read after the Host connection reset, but never a server inspection', async () => {
+    const reset = Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
+    mocks.executeHostUi.mockRejectedValueOnce(reset).mockResolvedValue({ theme: 'dark' })
+
+    await expect(invokeConfiguredHostUiRaw('settings:get', [])).resolves.toMatchObject({
+      result: { theme: 'dark' },
+    })
+    expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
+
+    // Inspecting an MCP server may have started its process before the reply was lost.
+    mocks.executeHostUi.mockReset().mockRejectedValueOnce(reset)
+    await expect(
+      invokeConfiguredHostUiRaw('mcp:inspect-server', [{ projectPath: null, name: 'docs' }]),
+    ).rejects.toBe(reset)
+    expect(mocks.executeHostUi).toHaveBeenCalledTimes(1)
+  })
+
   it('does not dispatch after the GUI route is retired during endpoint refresh', async () => {
     mocks.refreshPaths.mockImplementation(async (paths) => {
       retireGuiSessionCommandClientForUpgrade()

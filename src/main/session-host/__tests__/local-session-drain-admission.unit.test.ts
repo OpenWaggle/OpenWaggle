@@ -169,7 +169,6 @@ describe('commands a draining Session Host still accepts', () => {
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',
       'providers:get-models',
-      'mcp:inspect-server',
       // Lists an App server's resources and prompts over a pooled connection, opening one.
       'mcp:list-app-catalog',
     ])
