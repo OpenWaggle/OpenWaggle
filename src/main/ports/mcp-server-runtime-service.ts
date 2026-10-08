@@ -42,7 +42,10 @@ export interface McpServerRuntimeServiceShape {
   readonly signOut: (input: McpServerScopeInput) => Effect.Effect<void, McpConfigurationError>
   /** Session-level MCP off is Session state only; it changes no file. */
   readonly getSessionMcpEnabled: (sessionId: string) => Effect.Effect<boolean>
-  readonly setSessionMcpEnabled: (sessionId: string, enabled: boolean) => Effect.Effect<void>
+  readonly setSessionMcpEnabled: (
+    sessionId: string,
+    enabled: boolean,
+  ) => Effect.Effect<void, McpConfigurationError>
 }
 
 export class McpServerRuntimeService extends Context.Tag('@openwaggle/McpServerRuntimeService')<

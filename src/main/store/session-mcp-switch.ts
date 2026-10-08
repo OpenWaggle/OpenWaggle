@@ -20,18 +20,32 @@ export async function isSessionMcpEnabled(sessionId: string): Promise<boolean> {
   )
 }
 
-/** Switches MCP off for a Session the Host has; an unknown Session is ignored. */
+/** A switch for a Session the Host does not have. */
+export class UnknownMcpSessionError extends Error {
+  constructor(readonly sessionId: string) {
+    super(`No Session ${sessionId} to switch MCP off for.`)
+    this.name = 'UnknownMcpSessionError'
+  }
+}
+
+/** Switches MCP off for a Session the Host has; refuses one it does not have. */
 export async function disableSessionMcp(sessionId: string): Promise<void> {
-  await runStoreEffect(
+  const known = await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
+      const sessions = yield* sql<{ readonly id: string }>`
+        SELECT id FROM sessions WHERE id = ${sessionId}
+      `
+      if (sessions.length === 0) return false
       yield* sql`
         INSERT INTO session_mcp_disabled (session_id, disabled_at)
-        SELECT id, ${Date.now()} FROM sessions WHERE id = ${sessionId}
+        VALUES (${sessionId}, ${Date.now()})
         ON CONFLICT (session_id) DO NOTHING
       `
+      return true
     }),
   )
+  if (!known) throw new UnknownMcpSessionError(sessionId)
 }
 
 async function forgetSessionMcpSwitch(sessionId: string): Promise<void> {

@@ -7,6 +7,16 @@ vi.unmock('../openwaggle-mcp-migration')
 vi.mock('../../../mcp/migration/migrate-openwaggle-mcp-files', () => ({
   migrateOpenWaggleMcpFiles: migrate,
 }))
+vi.mock('../../../../store/session-mcp-switch', () => {
+  class UnknownMcpSessionError extends Error {}
+  return {
+    UnknownMcpSessionError,
+    disableSessionMcp: async (sessionId: string) => {
+      if (sessionId === 'deleted') throw new UnknownMcpSessionError(sessionId)
+      if (sessionId === 'broken') throw new Error('database is locked')
+    },
+  }
+})
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   resolveMcpVaultSecret: async () => undefined,
 }))
@@ -51,5 +61,14 @@ describe('the MCP file migration within one Host process', () => {
     await migrateOpenWaggleMcpFilesOnce('/projects/flaky')
 
     expect(migrate).toHaveBeenCalledTimes(3)
+  })
+
+  it('carries an old MCP-off switch over, skipping Sessions deleted since then', async () => {
+    migrate.mockResolvedValue(OK)
+    await migrateOpenWaggleMcpFilesOnce('/projects/switches')
+    const sink: (sessionId: string) => Promise<void> = migrate.mock.calls[0]?.[0].sessionMcpSwitch
+
+    await expect(sink('deleted')).resolves.toBeUndefined()
+    await expect(sink('broken')).rejects.toThrow('database is locked')
   })
 })

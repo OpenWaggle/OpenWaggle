@@ -18,7 +18,11 @@ import type {
   McpServerScopeInput,
   McpSignInResult,
 } from '../../../ports/mcp-server-runtime-service'
-import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../../store/session-mcp-switch'
+import {
+  isSessionMcpEnabled,
+  setSessionMcpEnabled,
+  UnknownMcpSessionError,
+} from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
@@ -262,8 +266,11 @@ export function createPiMcpServerRuntimeService(
     signOut: (input) => attempt(() => signOut(pool, input)),
     getSessionMcpEnabled: (sessionId) => Effect.promise(() => isSessionMcpEnabled(sessionId)),
     setSessionMcpEnabled: (sessionId, enabled) =>
-      Effect.promise(async () => {
-        await setSessionMcpEnabled(sessionId, enabled)
+      attempt(async () => {
+        await setSessionMcpEnabled(sessionId, enabled).catch((error: unknown) => {
+          if (!(error instanceof UnknownMcpSessionError)) throw error
+          throw new McpConfigurationError({ reason: 'not-found', message: error.message })
+        })
         // A Session switched off keeps no servers running.
         if (!enabled) await pool.closeSession(sessionId)
       }),

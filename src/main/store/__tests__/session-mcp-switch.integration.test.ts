@@ -9,7 +9,12 @@ import { runSessionRemovalHooks } from '../../application/session-removal-hooks'
 import { installMcpSessionRemoval } from '../../mcp-session-removal'
 import { createSession } from '../session-details'
 import { deleteSession } from '../session-details/session-mutations'
-import { disableSessionMcp, isSessionMcpEnabled, setSessionMcpEnabled } from '../session-mcp-switch'
+import {
+  disableSessionMcp,
+  isSessionMcpEnabled,
+  setSessionMcpEnabled,
+  UnknownMcpSessionError,
+} from '../session-mcp-switch'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -96,8 +101,8 @@ describe('the per-Session MCP switch', () => {
     expect(await isSessionMcpEnabled(deleted)).toBe(true)
   })
 
-  it('ignores a switch for a Session the Host does not have', async () => {
-    await disableSessionMcp('gone')
+  it('refuses a switch for a Session the Host does not have', async () => {
+    await expect(disableSessionMcp('gone')).rejects.toBeInstanceOf(UnknownMcpSessionError)
 
     expect(await isSessionMcpEnabled('gone')).toBe(true)
   })
