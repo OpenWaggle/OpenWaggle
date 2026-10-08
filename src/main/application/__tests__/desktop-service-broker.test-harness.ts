@@ -50,6 +50,19 @@ export function brokerHarness(
         },
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
+    replaceStale: (stale, next) =>
+      Effect.try({
+        try: () => {
+          if (
+            ownerRecord?.state !== 'active' ||
+            ownerRecord.guiInstanceId !== stale.guiInstanceId ||
+            ownerRecord.hostInstanceId !== stale.hostInstanceId
+          )
+            throw new Error('The desktop owner changed before recovery could replace it.')
+          ownerRecord = { ...next, state: 'active' }
+        },
+        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+      }),
     markClosed: (guiInstanceId, hostInstanceId) =>
       Effect.try({
         try: () => {

@@ -76,4 +76,23 @@ describe('durable desktop owner cleanup receipt', () => {
       }),
     )
   })
+
+  it('replaces only the exact stale active owner, in one step', async () => {
+    await withRepository(
+      Effect.gen(function* () {
+        const repository = yield* DesktopOwnerRepository
+        const stale = { guiInstanceId: 'gui-crashed', hostInstanceId: 'host-old' }
+        const next = { guiInstanceId: 'gui-new', hostInstanceId: 'host-new' }
+        expect((yield* Effect.either(repository.replaceStale(stale, next)))._tag).toBe('Left')
+        yield* repository.activate(stale)
+        const wrong = { guiInstanceId: 'gui-crashed', hostInstanceId: 'host-other' }
+        expect((yield* Effect.either(repository.replaceStale(wrong, next)))._tag).toBe('Left')
+        expect(yield* repository.get()).toEqual({ ...stale, state: 'active' })
+        yield* repository.replaceStale(stale, next)
+        expect(yield* repository.get()).toEqual({ ...next, state: 'active' })
+        yield* repository.markClosed('gui-new', 'host-new')
+        expect((yield* Effect.either(repository.replaceStale(next, stale)))._tag).toBe('Left')
+      }),
+    )
+  })
 })

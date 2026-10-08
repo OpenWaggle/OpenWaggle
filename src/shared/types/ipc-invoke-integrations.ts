@@ -13,6 +13,7 @@ import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
+import type { DesktopNativeRecoveryOutcome } from './openwaggle-desktop-api'
 import type { AgentPhaseState } from './phase'
 import type {
   AgentsInstructionStatus,
@@ -100,6 +101,10 @@ export interface IpcIntegrationInvokeChannelMap
   'app:get-native-admission-issue': {
     args: []
     return: string | null
+  }
+  'app:recover-native-admission': {
+    args: []
+    return: DesktopNativeRecoveryOutcome
   }
   // Waggle mode
   'agent:send-waggle-message': {

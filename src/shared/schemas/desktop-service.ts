@@ -61,7 +61,7 @@ export const desktopServiceResultSchema = Schema.Union(
 
 export const desktopServiceRequestSchema = Schema.Union(
   Schema.Struct({ operation: Schema.Literal('markClosed'), guiInstanceId: id, hostInstanceId: id }),
-  Schema.Struct({ operation: Schema.Literal('register'), guiInstanceId: id }),
+  Schema.Struct({ operation: Schema.Literal('register', 'recoverOwner'), guiInstanceId: id }),
   Schema.Struct({
     operation: Schema.Literal('ready'),
     leaseId: id,

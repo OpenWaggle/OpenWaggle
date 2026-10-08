@@ -1,5 +1,5 @@
 import { useRouterState } from '@tanstack/react-router'
-import { lazy, type ReactNode, Suspense } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect } from 'react'
 import {
   useBackgroundRunMonitor,
   useSetupActionTerminalReconciliation,
@@ -11,11 +11,12 @@ import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
+import { DesktopNativeAdmissionNotice } from './DesktopNativeAdmissionNotice'
+import { useDesktopNativeAdmissionStore } from './desktop-native-admission-store'
 import { RightPanelCommandPalette } from './right-panel/RightPanelCommandPalette'
 import { RightPanelHost } from './right-panel/RightPanelHost'
 import { RightPanelMaximizePublisher } from './right-panel/RightPanelMaximizePublisher'
 import { isRightPanelChatPath } from './right-panel/useRightPanelRouteNavigation'
-import { useDesktopNativeAdmissionNotice } from './useDesktopNativeAdmissionNotice'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceRightPanel } from './WorkspaceRightPanel'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
@@ -51,7 +52,8 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useTerminalActivityMonitor()
   useSetupActionTerminalReconciliation()
   useAutoUpdater()
-  useDesktopNativeAdmissionNotice()
+  const loadDesktopNativeAdmission = useDesktopNativeAdmissionStore((state) => state.load)
+  useEffect(loadDesktopNativeAdmission, [loadDesktopNativeAdmission])
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
   const settingsOpen = useRouterState({
@@ -67,6 +69,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!settingsOpen && <Header />}
+        {!settingsOpen && <DesktopNativeAdmissionNotice placement="top" />}
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <ActionPanelLayout>
             <WorkspaceRightPanel hidden={settingsOpen}>
@@ -82,6 +85,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
           {chatRoute ? <RightPanelHost /> : null}
           <RightPanelMaximizePublisher />
         </div>
+        {settingsOpen && <DesktopNativeAdmissionNotice placement="bottom" />}
       </div>
 
       <ToastOverlay />
