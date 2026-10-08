@@ -118,16 +118,24 @@ async function resolveServer(
   return { ok: true, config: { ...rest, ...(resolved.values ? { env: resolved.values } : {}) } }
 }
 
+/**
+ * The entry Pi's MCP extension sees. Pi knows one kind of override, a project file's override of a
+ * global server ("global, project override", "saved to the project mcp.json"), so it hears only of
+ * those. Any other override (a global file's, or one of a project server) is where OpenWaggle's
+ * `updateConfig` saves changes, so Pi is given it as the source, and `/mcp` says "Saved to" the
+ * file that is actually written.
+ */
 function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRuntimeServerEntry {
+  const projectOverrideOfGlobal =
+    server.override !== undefined &&
+    server.scope === 'global' &&
+    mcpConfigFileScope(server.override.fileId) === 'project'
   return {
     name: server.name,
     config,
-    source: server.source.path,
+    source: !projectOverrideOfGlobal && server.override ? server.override.path : server.source.path,
     scope: server.scope,
-    // Pi calls every override a project one, so it hears only of project overrides.
-    ...(server.override && mcpConfigFileScope(server.override.fileId) === 'project'
-      ? { override: server.override.path }
-      : {}),
+    ...(projectOverrideOfGlobal && server.override ? { override: server.override.path } : {}),
   }
 }
 

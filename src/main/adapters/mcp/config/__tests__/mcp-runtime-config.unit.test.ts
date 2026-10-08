@@ -152,5 +152,26 @@ describe('MCP runtime configuration', () => {
     expect(config.merged.servers[0]?.override?.path).toBe(
       path.join(homeDir, '.openwaggle', 'mcp.json'),
     )
+    // Pi's /mcp says changes are "Saved to" the entry's source: that is where they go.
+    expect(config.loaded.servers[0]?.source).toBe(path.join(homeDir, '.openwaggle', 'mcp.json'))
+  })
+
+  it('does not call the override of a project server a project override of a global one', async () => {
+    write(path.join(projectPath, '.mcp.json'), {
+      mcpServers: { lint: { command: 'lint-mcp' } },
+    })
+    write(path.join(projectPath, '.openwaggle', 'mcp.json'), {
+      mcpServers: { lint: { enabled: false } },
+    })
+
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath },
+      resolveSecret,
+    })
+    const lint = config.loaded.servers.find((server) => server.name === 'lint')
+
+    expect(lint?.scope).toBe('project')
+    expect(lint?.override).toBeUndefined()
+    expect(lint?.source).toBe(path.join(projectPath, '.openwaggle', 'mcp.json'))
   })
 })
