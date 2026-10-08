@@ -47,4 +47,41 @@ describe('legacy provider credential migration', () => {
 
     await expect(fs.stat(authPath)).rejects.toThrow()
   })
+
+  it('writes through a symlinked auth.json in place, under the lock Pi takes', async () => {
+    const azure = { type: 'api_key', key: 'secret' }
+    const targetDirectory = path.join(agentDirectory, 'dotfiles')
+    const targetPath = path.join(targetDirectory, 'pi-auth.json')
+    await fs.mkdir(targetDirectory)
+    await fs.writeFile(targetPath, JSON.stringify({ 'azure-openai-responses': azure }), {
+      mode: 0o640,
+    })
+    await fs.symlink(targetPath, authPath)
+
+    await expect(migrateLegacyProviderCredentials(authPath)).resolves.toBe(true)
+
+    expect((await fs.lstat(authPath)).isSymbolicLink()).toBe(true)
+    expect(JSON.parse(await fs.readFile(targetPath, 'utf8'))).toEqual({
+      'azure-openai-responses': azure,
+      azure,
+    })
+    // Like Pi, the file keeps the mode its owner gave it.
+    expect((await fs.stat(targetPath)).mode & 0o777).toBe(0o640)
+    expect(await fs.readdir(targetDirectory)).toEqual(['pi-auth.json'])
+  })
+
+  it('waits for the lock Pi holds on the symlink path, not on its target', async () => {
+    const targetPath = path.join(agentDirectory, 'pi-auth.json')
+    const content = JSON.stringify({ 'azure-openai-responses': { type: 'api_key', key: 'k' } })
+    await fs.writeFile(targetPath, content, { mode: 0o600 })
+    await fs.symlink(targetPath, authPath)
+    // Pi locks with proper-lockfile and `realpath: false`: `<auth.json>.lock`, beside the link.
+    await fs.mkdir(`${authPath}.lock`)
+
+    await expect(migrateLegacyProviderCredentials(authPath)).resolves.toBe(false)
+
+    expect(await fs.readFile(targetPath, 'utf8')).toBe(content)
+    await expect(fs.stat(`${targetPath}.lock`)).rejects.toThrow()
+    await expect(fs.stat(`${authPath}.lock`)).resolves.toBeDefined()
+  })
 })

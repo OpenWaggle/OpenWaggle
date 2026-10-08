@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, rmdir, stat, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { parseJsonUnknown } from '@shared/schema'
 import type { JsonObject, JsonValue } from '@shared/types/json'
@@ -65,12 +65,16 @@ async function readCredentials(authPath: string): Promise<JsonObject | undefined
   return parsed
 }
 
+/**
+ * Writes in place under the lock, as Pi's auth storage does: a symlinked `auth.json` stays a link
+ * and its target is written, and the file keeps its mode and ACLs (the mode applies only if the
+ * file was deleted meanwhile).
+ */
 async function writeCredentials(authPath: string, credentials: Record<string, JsonValue>) {
-  const temporaryPath = `${authPath}.${process.pid}.tmp`
-  await writeFile(temporaryPath, JSON.stringify(credentials, null, JSON_INDENT_SPACES), {
+  await writeFile(authPath, JSON.stringify(credentials, null, JSON_INDENT_SPACES), {
+    encoding: 'utf8',
     mode: OWNER_ONLY_FILE_MODE,
   })
-  await rename(temporaryPath, authPath)
 }
 
 /**
@@ -84,7 +88,8 @@ export async function migrateLegacyProviderCredentials(
 ): Promise<boolean> {
   const current = await readCredentials(authPath)
   if (!current || renameLegacyProviderCredentials(current) === current) return false
-  const lockPath = `${authPath}.lock`
+  // Pi locks with proper-lockfile and `realpath: false`: beside the path, even when it is a link.
+  const lockPath = `${resolve(authPath)}.lock`
   if (!(await acquireAuthLock(lockPath))) {
     logger.warn('Pi credentials are locked; the provider rename will retry at the next Host start')
     return false
