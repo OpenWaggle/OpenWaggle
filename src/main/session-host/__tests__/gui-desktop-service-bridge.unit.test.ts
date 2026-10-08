@@ -6,11 +6,14 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DesktopNativeQuarantinedError,
+  DesktopNativeRecoveryError,
   DesktopServiceAttachmentError,
   startGuiDesktopServiceBridge,
 } from '../gui-desktop-service-bridge'
 import { DESKTOP_SHUTDOWN_DRAIN_MS } from '../gui-desktop-service-lifecycle'
+import { executeLocalSessionCommand } from '../local-session-client'
 import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
+import { refreshLocalSessionHostEndpoint } from '../local-session-paths'
 import {
   bridgeHarness,
   DESKTOP_TEST_GUI_ID,
@@ -69,6 +72,80 @@ describe('GUI desktop bridge lifecycle', () => {
     )
     expect(instance.calls).toEqual([{ operation: 'register', guiInstanceId: DESKTOP_TEST_GUI_ID }])
     expect(instance.reconcile).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('sends the recovery attestation once, in place of the first registration', async () => {
+    const instance = bridgeHarness()
+    instance.state.quarantined = true
+    instance.state.readyFailures = 1
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopServiceAttachmentError)
+    if (!(error instanceof DesktopServiceAttachmentError))
+      throw new Error('Missing attachment cleanup handle')
+    expect(error.lifecycle.attachment()).toBe('reconnecting')
+    // The Host accepted it; the pump reattaches with a plain registration.
+    await vi.advanceTimersByTimeAsync(1500)
+    const operations = instance.calls.map((call) => call.operation)
+    expect(operations.slice(0, 4)).toEqual(['recoverOwner', 'ready', 'register', 'ready'])
+    expect(operations.filter((operation) => operation === 'recoverOwner')).toHaveLength(1)
+    expect(instance.calls[0]).toEqual({
+      operation: 'recoverOwner',
+      guiInstanceId: DESKTOP_TEST_GUI_ID,
+    })
+    expect(error.lifecycle.attachment()).toBe('attached')
+    await stopBridge(error.lifecycle)
+    expect(error.lifecycle.attachment()).toBe('stopped')
+  })
+
+  it('stops instead of retrying a recovery the Host refused', async () => {
+    const instance = bridgeHarness()
+    instance.state.quarantined = true
+    instance.state.rejectRecovery = true
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    expect(error).toHaveProperty('message', expect.stringContaining('still settling'))
+    expect(error).toHaveProperty('message', expect.stringContaining('openwaggle host stop --wait'))
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(instance.calls.map((call) => call.operation)).toEqual(['recoverOwner'])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('ends a recovering bridge on an unexpected registration reply', async () => {
+    const instance = bridgeHarness()
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      request: async (request) => {
+        instance.calls.push(request)
+        return { operation: 'heartbeat', accepted: true }
+      },
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(instance.calls.map((call) => call.operation)).toEqual(['recoverOwner'])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('never replays the attestation after an endpoint refresh failure', async () => {
+    const instance = bridgeHarness()
+    vi.mocked(refreshLocalSessionHostEndpoint).mockRejectedValueOnce(
+      new Error('Capability file missing'),
+    )
+    const { request: _injected, ...transportInput } = instance.input
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...transportInput,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(executeLocalSessionCommand).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
 

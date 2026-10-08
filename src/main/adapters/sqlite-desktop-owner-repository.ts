@@ -44,6 +44,26 @@ export const SqliteDesktopOwnerRepositoryLive = Layer.effect(
           host_instance_id = excluded.host_instance_id, state = excluded.state`
           }),
         ),
+      replaceStale: (stale, next) =>
+        sql.withTransaction(
+          Effect.gen(function* () {
+            const replacement = yield* Effect.try(() =>
+              decodeUnknownExactOrThrow(desktopOwnerRecordSchema, { ...next, state: 'active' }),
+            )
+            const current = yield* readOwner(sql)
+            if (
+              current?.state !== 'active' ||
+              current.guiInstanceId !== stale.guiInstanceId ||
+              current.hostInstanceId !== stale.hostInstanceId
+            ) {
+              return yield* Effect.fail(
+                new Error('The desktop owner changed before recovery could replace it.'),
+              )
+            }
+            yield* sql`UPDATE desktop_native_owner SET gui_instance_id = ${replacement.guiInstanceId},
+              host_instance_id = ${replacement.hostInstanceId}, state = ${'active'} WHERE singleton = 1`
+          }),
+        ),
       markClosed: (guiInstanceId, hostInstanceId) =>
         sql.withTransaction(
           Effect.gen(function* () {
