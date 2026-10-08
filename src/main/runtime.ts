@@ -24,7 +24,6 @@ import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
-import { PiSessionFilesLive } from './adapters/pi/pi-session-files'
 import { PiSessionOrchestrationUpdateDeliveryServiceLive } from './adapters/pi/pi-session-orchestration-update-delivery-service'
 import { PiSessionReportDeliveryServiceLive } from './adapters/pi/pi-session-report-delivery-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
@@ -41,7 +40,6 @@ import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-re
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
-import { SqlitePiSessionDiscoveryRepositoryLive } from './adapters/sqlite-pi-session-discovery-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
 import { SqliteSessionRepositoryLive as SqliteSessionRepositoryWithoutRepairLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
@@ -74,6 +72,7 @@ import {
   stopHostServicesAfterListening,
 } from './runtime-host-services'
 import { installPiRuntimeIntegration } from './runtime-pi-integration'
+import { PiSessionContinuationServicesLive } from './runtime-pi-session-discovery-services'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
@@ -160,6 +159,9 @@ const SessionLifecyclePreparationWithDependenciesLive = SessionLifecyclePreparat
     ),
   ),
 )
+const PiSessionContinuationWithDependenciesLive = PiSessionContinuationServicesLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
 const SessionWaitWithDependenciesLive = SessionWaitServiceLive.pipe(
   Layer.provide(SessionControlPersistenceLive),
 )
@@ -198,6 +200,7 @@ const SessionControlRunExecutorWithDependenciesLive = SessionControlRunExecutorL
       SessionControlAttachmentWithDatabaseLive,
       AppDatabaseLive,
       SessionControlPersistenceLive,
+      PiSessionContinuationWithDependenciesLive,
     ),
   ),
 )
@@ -240,8 +243,7 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  SqlitePiSessionDiscoveryRepositoryLive.pipe(Layer.provide(PiSessionTranscriptRepairLive)),
-  PiSessionFilesLive,
+  PiSessionContinuationWithDependenciesLive,
   SessionTitleServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,

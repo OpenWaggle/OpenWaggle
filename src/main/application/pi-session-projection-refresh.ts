@@ -141,11 +141,28 @@ function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefre
       }),
     })
     if (!persisted) return 'superseded'
-    // A Run already started with its model; a reader can still change the next Run's.
-    if (owner === 'reader') yield* continueWithPiSessionSettings(sessionId, state, snapshot)
+    yield* afterProjection(sessionId, owner, state, snapshot)
+    return 'projected'
+  })
+}
+
+/**
+ * A Run that already started keeps its model, and a reader can still change the next Run's. The
+ * first projection, whoever asks, makes the Session continue as `pi --resume` would: a Run
+ * admitted before anyone opened the Session projects it before reading its profile.
+ */
+function afterProjection(
+  sessionId: SessionId,
+  owner: PiSessionProjectionRefreshOwner,
+  state: PiSessionProjectionState,
+  snapshot: PiSessionFileSnapshot,
+) {
+  return Effect.gen(function* () {
+    if (owner === 'reader' || state.projectedPiEntryCount === 0) {
+      yield* continueWithPiSessionSettings(sessionId, state, snapshot)
+    }
     yield* followPiSessionName(sessionId, state, snapshot)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
-    return 'projected'
   })
 }
 

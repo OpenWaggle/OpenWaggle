@@ -37,17 +37,28 @@ function chunk(delta: object, finishReason: string | null) {
   })}\n\n`
 }
 
-/** Registers the endpoint for each test; `setReply` changes what it answers until the test ends. */
-export function setUpFakePiProvider(fixture: PiDiscoveryFixture) {
+/**
+ * Registers the endpoint for each test; `setReply` changes what it answers until the test ends.
+ * `reasoningModels` are offered too, with every thinking level; `requests` holds the bodies the
+ * endpoint received.
+ */
+export function setUpFakePiProvider(
+  fixture: PiDiscoveryFixture,
+  options: { readonly reasoningModels?: readonly string[] } = {},
+) {
   let server: Server | undefined
   let reply = DEFAULT_REPLY
+  const requests: Record<string, unknown>[] = []
 
   beforeEach(async () => {
     // MCP and skill discovery read the home directory; keep the user's own out of the test.
     vi.stubEnv('HOME', path.join(fixture.root, 'home'))
     server = createServer((request, response) => {
-      request.resume()
+      const body: Buffer[] = []
+      request.on('data', (data: Buffer) => body.push(data))
       request.on('end', () => {
+        const parsed: unknown = JSON.parse(Buffer.concat(body).toString('utf8') || '{}')
+        if (parsed && typeof parsed === 'object') requests.push({ ...parsed })
         response.writeHead(200, { 'content-type': 'text/event-stream' })
         response.write(chunk({ role: 'assistant', content: reply }, null))
         response.write(chunk({}, 'stop'))
@@ -68,7 +79,15 @@ export function setUpFakePiProvider(fixture: PiDiscoveryFixture) {
             baseUrl,
             api: 'openai-completions',
             apiKey: 'local-key',
-            models: [{ id: 'fake-model', contextWindow: 100_000, maxTokens: 1_000 }],
+            models: [
+              { id: 'fake-model', contextWindow: 100_000, maxTokens: 1_000 },
+              ...(options.reasoningModels ?? []).map((id) => ({
+                id,
+                reasoning: true,
+                contextWindow: 100_000,
+                maxTokens: 1_000,
+              })),
+            ],
           },
         },
       }),
@@ -80,9 +99,11 @@ export function setUpFakePiProvider(fixture: PiDiscoveryFixture) {
     await new Promise<void>((resolve) => server?.close(() => resolve()))
     server = undefined
     reply = DEFAULT_REPLY
+    requests.length = 0
   })
 
   return {
+    requests,
     setReply(text: string) {
       reply = text
     },
