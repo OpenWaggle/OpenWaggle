@@ -56,6 +56,14 @@ vi.mock('../session-listener', () => ({
   createSessionListener: operationMocks.createSessionListener,
 }))
 
+vi.mock('../session-manager', () => ({
+  createReadOnlySessionManagerForSession: async () => ({
+    getSessionId: () => 'pi-session-1',
+    getSessionFile: () => undefined,
+  }),
+  resolveSessionWorkingPath: () => '/repo',
+}))
+
 vi.mock('../session-projection', () => ({
   projectPiSessionSnapshot: operationMocks.projectPiSessionSnapshot,
 }))
@@ -127,11 +135,14 @@ describe('Pi session operations', () => {
       contextWindow: 100,
       percent: 40,
     })
+    // A snapshot projects the file's entries without an agent session, which would add a
+    // thinking level change the file does not hold.
     await expect(getPiSessionSnapshot(input())).resolves.toEqual({
       piSessionId: 'pi-session-1',
       piSessionFile: '/repo/session.jsonl',
       sessionSnapshot: { activeNodeId: 'node-2', nodes: [] },
     })
+    expect(operationMocks.withReadOnlyPiSession).toHaveBeenCalledTimes(1)
   })
 
   it("adds the Session's cost per answering model to its context usage", async () => {

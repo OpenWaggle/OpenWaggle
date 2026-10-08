@@ -145,6 +145,24 @@ describe('Operations on a discovered Pi session', () => {
     expect(await fs.readFile(old.file, 'utf8')).toBe(old.content)
   })
 
+  it('reads a snapshot that holds only the entries in the Pi file', async () => {
+    const { cli, sessionId } = await discoveredSession()
+    const detail = await sessionDetail(sessionId)
+    if (!detail) throw new Error('The discovered Session is missing.')
+    const { AgentKernelService } = await import('../../../ports/agent-kernel-service')
+
+    const snapshot = await run(
+      Effect.flatMap(AgentKernelService, (kernel) =>
+        kernel.getSessionSnapshot({ session: detail, model: MODEL }),
+      ),
+    )
+
+    // Opening a session for a Run records a thinking level the file does not hold.
+    const fileEntries = SessionManager.open(cli.file).getEntries()
+    expect(snapshot.sessionSnapshot.nodes).toHaveLength(fileEntries.length)
+    expect(snapshot.piSessionFile).toBe(cli.file)
+  })
+
   it('runs in the same Pi file and keeps its node ids prefixed', async () => {
     const { cli, sessionId, prefix } = await discoveredSession()
     const { executeAgentRun } = await import('../../../application/agent-run-service')

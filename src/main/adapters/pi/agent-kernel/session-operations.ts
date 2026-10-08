@@ -23,6 +23,10 @@ import { piResponseUsageInput } from './pi-response-usage'
 import { summarizePiSessionUsage } from './pi-session-usage'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
+import {
+  createReadOnlySessionManagerForSession,
+  resolveSessionWorkingPath,
+} from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 import { createPiSessionRuntime, withPiSession, withReadOnlyPiSession } from './session-runtime'
 
@@ -63,15 +67,33 @@ export async function getPiContextUsage(
   )
 }
 
+/**
+ * Projects the Session's Pi file as it is. It reads the warming session while there is one;
+ * otherwise only a session manager over the file's entries, with no agent session: creating one
+ * records a thinking level change when the branch has none, which the file does not hold.
+ */
 export async function getPiSessionSnapshot(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return readPiSession(input, (session) => ({
-    piSessionId: session.sessionId,
-    // An in-memory read has no file of its own; it read the Session's.
-    piSessionFile: session.sessionFile ?? input.session.piSessionFile ?? undefined,
-    sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
-  }))
+  const nodeIds = piEntryNodeIds(input.session)
+  const warming = idleCacheWarming.borrow(input.session.id)
+  if (warming && warming.sessionFile === input.session.piSessionFile) {
+    return {
+      piSessionId: warming.sessionId,
+      piSessionFile: warming.sessionFile,
+      sessionSnapshot: projectPiSessionSnapshot(warming, nodeIds),
+    }
+  }
+  const sessionManager = await createReadOnlySessionManagerForSession(
+    input.session,
+    resolveSessionWorkingPath(input.session),
+  )
+  return {
+    piSessionId: sessionManager.getSessionId(),
+    // An in-memory manager has no file of its own; it read the Session's.
+    piSessionFile: sessionManager.getSessionFile() ?? input.session.piSessionFile ?? undefined,
+    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }, nodeIds),
+  }
 }
 export async function compactPiSession(
   input: CompactAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
