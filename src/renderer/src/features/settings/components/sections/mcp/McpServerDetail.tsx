@@ -1,3 +1,4 @@
+import type { McpConfigFileView } from '@shared/types/mcp-configuration'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatRelativeTime } from '@/shared/lib/format'
@@ -62,10 +63,13 @@ function StateSource({ row }: { readonly row: McpServerRow }) {
 export function McpServerDetail({
   projectPath,
   row,
+  files,
   onBack,
 }: {
   readonly projectPath: string | null
   readonly row: McpServerRow
+  /** The view's files, which say where the server can be switched for this project. */
+  readonly files: readonly McpConfigFileView[]
   readonly onBack: () => void
 }) {
   const { server } = row
@@ -126,7 +130,7 @@ export function McpServerDetail({
       ) : null}
       <ServerProblem row={row} />
       <div className="space-y-3 rounded-lg border border-border bg-bg px-4 py-3">
-        <McpServerSwitches projectPath={projectPath} server={server} />
+        <McpServerSwitches projectPath={projectPath} server={server} files={files} />
         <McpServerSignIn
           projectPath={projectPath}
           server={server}

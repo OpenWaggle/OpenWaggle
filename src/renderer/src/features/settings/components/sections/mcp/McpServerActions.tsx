@@ -1,4 +1,4 @@
-import type { McpConfiguredServerView } from '@shared/types/mcp-configuration'
+import type { McpConfigFileView, McpConfiguredServerView } from '@shared/types/mcp-configuration'
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
@@ -17,7 +17,11 @@ interface ServerActionProps {
 }
 
 /** On or off where the server is defined, and for the selected project alone. */
-export function McpServerSwitches({ projectPath, server }: ServerActionProps) {
+export function McpServerSwitches({
+  projectPath,
+  server,
+  files,
+}: ServerActionProps & { readonly files: readonly McpConfigFileView[] }) {
   const actions = useMcpConfigurationActions(projectPath)
   const savedIn = server.override ?? server.source
   return (
@@ -37,7 +41,7 @@ export function McpServerSwitches({ projectPath, server }: ServerActionProps) {
           onCheckedChange={(enabled) => void actions.setEnabled(server.name, enabled)}
         />
       </div>
-      {canSwitchForProject(server, projectPath) ? (
+      {canSwitchForProject(server, projectPath, files) ? (
         <div className="flex items-center justify-between gap-4">
           <p className="text-xs text-text-tertiary">
             {server.enabled

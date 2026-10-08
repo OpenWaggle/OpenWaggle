@@ -55,6 +55,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
       <McpServerDetail
         projectPath={projectPath}
         row={selectedRow}
+        files={view?.files ?? []}
         onBack={() => setSelected(null)}
       />
     )

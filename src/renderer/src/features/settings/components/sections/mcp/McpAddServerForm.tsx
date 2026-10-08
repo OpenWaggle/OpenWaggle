@@ -69,7 +69,7 @@ function DestinationFields({
             onChange={(event) => {
               const scope: McpConfigFileScope =
                 event.target.value === 'project' ? 'project' : 'global'
-              onChange({ ...draft, scope, destination: mcpDefaultDestination(scope) })
+              onChange({ ...draft, scope, destination: mcpDefaultDestination(scope, view.files) })
             }}
           >
             <option value="global">All projects</option>

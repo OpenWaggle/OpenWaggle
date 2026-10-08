@@ -152,8 +152,17 @@ export function mcpToolCountLabel(row: McpServerRow) {
   return `${String(count)} tool${count === 1 ? '' : 's'}`
 }
 
-export function mcpDefaultDestination(scope: McpConfigFileScope): McpWriteDestination {
-  return scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
+/**
+ * OpenWaggle's file for `scope`, or with `files`, the first file of the view a new server can go
+ * to: a project that is the home folder has no project OpenWaggle file (it is the global one).
+ */
+export function mcpDefaultDestination(
+  scope: McpConfigFileScope,
+  files?: readonly McpConfigFileView[],
+): McpWriteDestination {
+  const preferred = scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
+  if (!files) return preferred
+  return mcpDestinationFiles(files, scope)[0]?.fileId ?? preferred
 }
 
 /** The files a new server can go to, OpenWaggle's first, as ADR 0050 orders them. */
@@ -180,8 +189,21 @@ export function hasProjectOverride(server: McpConfiguredServerView) {
 }
 
 /** A global server can be switched for the selected project alone until a project overrides it. */
-export function canSwitchForProject(server: McpConfiguredServerView, projectPath: string | null) {
-  return projectPath !== null && server.scope === 'global' && !hasProjectOverride(server)
+/**
+ * A global server can be switched for the project alone when the project has its own OpenWaggle
+ * file to save that in; a project that is the home folder has none.
+ */
+export function canSwitchForProject(
+  server: McpConfiguredServerView,
+  projectPath: string | null,
+  files: readonly McpConfigFileView[],
+) {
+  return (
+    projectPath !== null &&
+    server.scope === 'global' &&
+    !hasProjectOverride(server) &&
+    files.some((file) => file.fileId === 'project-openwaggle')
+  )
 }
 
 export type McpOverrideNote =
