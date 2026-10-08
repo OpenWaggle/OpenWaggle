@@ -70,7 +70,7 @@ import {
 } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
-import { startHostBackgroundServices } from './runtime-host-services'
+import { type HostServiceOptions, startHostBackgroundServices } from './runtime-host-services'
 import { installPiRuntimeIntegration } from './runtime-pi-integration'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
@@ -304,7 +304,7 @@ export async function disposeAppRuntime(): Promise<void> {
   await getAppRuntime().dispose()
 }
 
-export async function startSessionHostOwnedServices(): Promise<void> {
+export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
   promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
@@ -312,7 +312,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* startHostBackgroundServices
+        yield* startHostBackgroundServices(options)
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()

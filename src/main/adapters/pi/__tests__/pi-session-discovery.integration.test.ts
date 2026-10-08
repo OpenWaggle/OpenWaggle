@@ -5,6 +5,7 @@ import {
   createPiCliSession,
   discover,
   discoverOne,
+  lifecycleCreate,
   registerProjects,
   run,
   runSql,
@@ -144,6 +145,7 @@ describe('Pi session discovery', () => {
     const cli = createPiCliSession(fixture.project, 'Claimed during listing')
     const { PiSessionDiscoveryRepository } = await import('../../../ports/pi-session-discovery')
     const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
+    const createSession = await lifecycleCreate()
     await runSql(
       (sql) => sql`
         INSERT INTO session_lifecycle_preparation_attempts (
@@ -161,7 +163,7 @@ describe('Pi session discovery', () => {
           knownPiSessionFiles: new Set<string>(),
           sessionProjectPaths: [],
         }
-        return yield* discoverPiSessions().pipe(
+        return yield* discoverPiSessions({ createSession }).pipe(
           Effect.provideService(PiSessionDiscoveryRepository, {
             ...repository,
             readScope: () => Effect.succeed(scopeBeforeClaim),
@@ -183,17 +185,16 @@ describe('Pi session discovery', () => {
     await registerProjects([broken, fixture.project])
     createPiCliSession(broken, 'Blocked by broken settings')
     createPiCliSession(fixture.project, 'Healthy project')
-    const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
     const startedAt = Date.now()
 
-    const first = await run(discoverPiSessions({ now: startedAt }))
+    const first = await discover({ now: startedAt })
     expect(first).toHaveLength(1)
     expect((await sessionDetail(String(first[0])))?.projectPath).toBe(fixture.project)
 
     await writeFile(settings, '{}')
     // The file is unchanged, so it waits out its back-off before it is tried again.
-    expect(await run(discoverPiSessions({ now: startedAt + 1_000 }))).toEqual([])
-    const later = await run(discoverPiSessions({ now: startedAt + 10 * 60_000 }))
+    expect(await discover({ now: startedAt + 1_000 })).toEqual([])
+    const later = await discover({ now: startedAt + 10 * 60_000 })
     expect(later).toHaveLength(1)
     expect((await sessionDetail(String(later[0])))?.projectPath).toBe(broken)
   })

@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { boundGeneratedSessionTitle } from '@shared/session-title'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
-import { SessionId } from '@shared/types/brand'
-import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
+import type { SessionId } from '@shared/types/brand'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
@@ -17,7 +16,6 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
 import { unpausedProjects } from './pi-session-discovery-pauses'
 
 /**
@@ -75,66 +73,50 @@ function removeUnadoptedSession(sessionId: SessionId) {
   })
 }
 
-/**
- * A discovered session becomes a Session the way the desktop user creates one, through the Session
- * Host's lifecycle, so it gets the project's Workspace, an execution profile, and its queue. The
- * idempotency key names the version of the file that was read, so a pass interrupted before the
- * file was attached replays the same Session instead of creating another, while a file refused
- * once and written again since gets a fresh attempt.
- */
-function dispatchDiscoveredSessionCreate(session: DiscoveredPiSession, idempotencyKey: string) {
-  return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
-      caller: { callerId: 'gui:local-user', workingDirectory: session.projectPath },
-      payload: {
-        contract: 'session-lifecycle-v2',
-        request: {
-          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
-          requestId: randomUUID(),
-          idempotencyKey,
-          command: {
-            operation: 'create',
-            projectPath: session.projectPath,
-            title: discoveredTitle(session),
-            workspace: { mode: 'local' },
-          },
-        },
-      },
-    })
-    if (
-      result.contract !== 'session-lifecycle-v2' ||
-      result.response.outcome.effect !== 'created-root'
-    ) {
-      return null
-    }
-    return {
-      sessionId: SessionId(result.response.outcome.sessionId),
-      replayed: result.response.replayed,
-    }
-  })
+/** What discovery asks of the Session Host's lifecycle to create a discovered Session. */
+export interface DiscoveredSessionCreateInput {
+  readonly projectPath: string
+  readonly title: string
+  readonly idempotencyKey: string
 }
+
+/**
+ * Creates a root Session for a discovered file, as the desktop user would; null when the
+ * lifecycle refused. The Host passes its lifecycle in, so discovery does not depend on the
+ * command dispatcher, which depends on the Host runtime.
+ */
+export type DiscoveredSessionCreator<R> = (
+  input: DiscoveredSessionCreateInput,
+) => Effect.Effect<{ readonly sessionId: SessionId; readonly replayed: boolean } | null, unknown, R>
 
 /**
  * Creates the Session for a discovered file. A replay names the Session an earlier pass created
  * for this version of the file; if that Session was deleted since, as when the project was
  * removed and added back, a new one is created instead.
  */
-function createSessionForFile(session: DiscoveredPiSession) {
+function createSessionForFile<R>(
+  session: DiscoveredPiSession,
+  create: DiscoveredSessionCreator<R>,
+) {
   return Effect.gen(function* () {
     const key = `pi-session-discovery:${session.piSessionId}:${session.size}:${session.updatedAt}`
-    const created = yield* dispatchDiscoveredSessionCreate(session, key)
+    const input = { projectPath: session.projectPath, title: discoveredTitle(session) }
+    const created = yield* create({ ...input, idempotencyKey: key })
     if (!created?.replayed) return created?.sessionId ?? null
     if (yield* (yield* SessionProjectionRepository).getOptional(created.sessionId)) {
       return created.sessionId
     }
-    const recreated = yield* dispatchDiscoveredSessionCreate(session, `${key}:${randomUUID()}`)
+    const recreated = yield* create({ ...input, idempotencyKey: `${key}:${randomUUID()}` })
     return recreated?.sessionId ?? null
   })
 }
 
-function createDiscoveredSession(session: DiscoveredPiSession) {
+function createDiscoveredSession<R>(
+  session: DiscoveredPiSession,
+  create: DiscoveredSessionCreator<R>,
+) {
   return Effect.gen(function* () {
-    const sessionId = yield* createSessionForFile(session)
+    const sessionId = yield* createSessionForFile(session, create)
     if (!sessionId) return null
     const adopted = yield* (yield* PiSessionDiscoveryRepository).adoptDiscovered({
       sessionId,
@@ -204,7 +186,10 @@ const NEW_FILE_QUIET_PERIOD_MS = 5_000
  * seconds waits for the next pass: a fork or copy OpenWaggle is preparing writes its file before
  * it records it, and the CLI writes a new session in more than one step.
  */
-export function discoverPiSessions(options: { readonly now?: number } = {}) {
+export function discoverPiSessions<R>(options: {
+  readonly now?: number
+  readonly createSession: DiscoveredSessionCreator<R>
+}) {
   return Effect.gen(function* () {
     const repository = yield* PiSessionDiscoveryRepository
     const files = yield* PiSessionFiles
@@ -227,7 +212,7 @@ export function discoverPiSessions(options: { readonly now?: number } = {}) {
     // Only Sessions actually listed count against the cap, so failing files cannot use it up.
     for (const session of pending) {
       if (listed.length >= MAX_SESSIONS_LISTED_PER_PASS) break
-      const sessionId = yield* createDiscoveredSession(session).pipe(
+      const sessionId = yield* createDiscoveredSession(session, options.createSession).pipe(
         Effect.catchAllCause((cause) =>
           Effect.sync(() => {
             logger.warn('Could not list a Pi session', {
@@ -256,14 +241,16 @@ export function discoverPiSessions(options: { readonly now?: number } = {}) {
   })
 }
 
-export const runPiSessionDiscoveryBackground = Effect.forkScoped(
-  discoverPiSessions().pipe(
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        if (Cause.isInterruptedOnly(cause)) return
-        logger.warn('Pi session discovery failed', { cause: Cause.pretty(cause) })
-      }),
+export function runPiSessionDiscoveryBackground<R>(createSession: DiscoveredSessionCreator<R>) {
+  return Effect.forkScoped(
+    discoverPiSessions({ createSession }).pipe(
+      Effect.catchAllCause((cause) =>
+        Effect.sync(() => {
+          if (Cause.isInterruptedOnly(cause)) return
+          logger.warn('Pi session discovery failed', { cause: Cause.pretty(cause) })
+        }),
+      ),
+      Effect.repeat(Schedule.spaced(DISCOVERY_INTERVAL_MS)),
     ),
-    Effect.repeat(Schedule.spaced(DISCOVERY_INTERVAL_MS)),
-  ),
-)
+  )
+}

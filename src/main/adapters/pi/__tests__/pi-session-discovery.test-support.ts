@@ -116,9 +116,18 @@ export async function registerProjects(projectPaths: readonly string[]) {
   )
 }
 
-export async function discover() {
+/** The Session Host's lifecycle create, which the Host entry passes to discovery. */
+export async function lifecycleCreate() {
+  const { createDiscoveredSessionWithLifecycle } = await import(
+    '../../../application/pi-session-discovery-lifecycle'
+  )
+  return createDiscoveredSessionWithLifecycle
+}
+
+export async function discover(options: { readonly now?: number } = {}) {
   const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
-  return run(discoverPiSessions())
+  const createSession = await lifecycleCreate()
+  return run(discoverPiSessions({ ...options, createSession }))
 }
 
 /** The Session one discovery pass listed. */

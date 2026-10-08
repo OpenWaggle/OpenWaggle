@@ -27,7 +27,7 @@ vi.mock('../application/follow-up-edit-hold-expiry', () => ({
   runFollowUpEditHoldExpiryBackground: recorded('follow-up edit hold expiry'),
 }))
 vi.mock('../application/pi-session-discovery', () => ({
-  runPiSessionDiscoveryBackground: recorded('pi session discovery'),
+  runPiSessionDiscoveryBackground: () => recorded('pi session discovery'),
 }))
 vi.mock('../adapters/session-semantic-discovery-background', () => ({
   runSessionSemanticDiscoveryBackground: recorded('semantic discovery'),
@@ -57,9 +57,13 @@ describe('Host background services', () => {
   it('starts the startup scratch sweep with the other Host services', async () => {
     // The mocked services need none of the Host's real dependencies.
     const services = fromPartial<
-      Context.Context<Effect.Effect.Context<typeof startHostBackgroundServices>>
+      Context.Context<Effect.Effect.Context<ReturnType<typeof startHostBackgroundServices>>>
     >(Context.empty())
-    await Effect.runPromise(startHostBackgroundServices.pipe(Effect.provide(services)))
+    await Effect.runPromise(
+      startHostBackgroundServices({
+        createDiscoveredSession: () => Effect.succeed(null),
+      }).pipe(Effect.provide(services)),
+    )
 
     // Removes scratch directories of Sessions deleted or archived while no Host ran (ADR 0042).
     expect(started).toContain('scratch sweep')
