@@ -95,4 +95,29 @@ describe('the MCP sign-in store shared by processes', () => {
     }
     expect(read(host)).toEqual({ a: true })
   })
+
+  it("never writes the shared store's copy over a store another process created meanwhile", () => {
+    const legacyStorePath = path.join(root, 'shared', 'mcp', 'oauth-states.json')
+    const shared = createMcpOAuthStateBackend({
+      piAuthPath: path.join(root, 'pi', 'mcp-auth.json'),
+      storePath: legacyStorePath,
+      encryption,
+    })
+    put(shared, 'old')
+    const taking = createMcpOAuthStateBackend({
+      piAuthPath: path.join(root, 'pi', 'mcp-auth.json'),
+      storePath,
+      legacyStorePath,
+      encryption,
+    })
+    // While this process decrypts the shared store, another one of this build signs in.
+    decrypt.mockImplementationOnce((value: Buffer) => {
+      put(backend(), 'new')
+      return value.toString().replace(/^sealed:/, '')
+    })
+
+    read(taking)
+
+    expect(read(backend())).toEqual({ new: true })
+  })
 })

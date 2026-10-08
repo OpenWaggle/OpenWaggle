@@ -3,7 +3,15 @@
  * writes, the decoded-layer cache, and taking over the store every build shared before.
  */
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import path from 'node:path'
 import { isRecord } from '@shared/utils/validation'
 import type { McpOAuthEncryption, McpOAuthStateBackendOptions } from './mcp-oauth-state-backend'
@@ -96,6 +104,25 @@ function writeStoreText(storePath: string, text: string) {
   }
 }
 
+/**
+ * Creates the store only when it does not exist yet, atomically and without the store's lock (a
+ * read may run under it): false when another process created it first, whose store is kept.
+ */
+function createStoreTextIfMissing(storePath: string, text: string) {
+  mkdirSync(path.dirname(storePath), { recursive: true, mode: DIRECTORY_MODE })
+  const temporaryPath = `${storePath}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporaryPath, text, { mode: FILE_MODE })
+    linkSync(temporaryPath, storePath)
+    return true
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return false
+    throw error
+  } finally {
+    rmSync(temporaryPath, { force: true })
+  }
+}
+
 /** The shared pre-build store, with its decoded layer, when this build can open it. */
 function readLegacyStore(
   legacyStorePath: string,
@@ -167,14 +194,16 @@ export class OwnLayerFile {
   }
 
   /** Checked once per process: a store this build cannot open stays the other build's. */
-  private takeLegacyStore(): OwnLayer {
+  private takeLegacyStore(): OwnLayer | undefined {
     const { legacyStorePath } = this.options
     const legacy =
       this.legacyChecked || !legacyStorePath
         ? undefined
         : readLegacyStore(legacyStorePath, this.options.encryption, this.warn)
     this.legacyChecked = true
-    if (legacy) writeStoreText(this.options.storePath, legacy.text)
-    return legacy?.layer ?? { states: {}, tombstones: {} }
+    if (!legacy) return { states: {}, tombstones: {} }
+    // Another process of this build may have saved a sign-in since this one found no store.
+    if (!createStoreTextIfMissing(this.options.storePath, legacy.text)) return this.read()
+    return legacy.layer
   }
 }
