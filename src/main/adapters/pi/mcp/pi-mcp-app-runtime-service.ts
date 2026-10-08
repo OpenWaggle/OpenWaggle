@@ -22,6 +22,11 @@ import {
   mcpServerIdentity,
 } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import {
+  legacyAppServerMatches,
+  type McpAppServerRequest,
+  withLegacyAppServer,
+} from './legacy-mcp-app-server'
 import { resolveLegacyMcpServerAllowlist } from './legacy-mcp-server-allowlist'
 import { mcpToolVisibleToApps, recordMcpToolVisibility } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
@@ -60,7 +65,7 @@ async function assertSessionMayUse(input: McpAppServerInput) {
   }
 }
 
-async function appConnection(pool: McpConnectionPool, input: McpAppServerInput) {
+async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest) {
   await assertSessionMayUse(input)
   await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
@@ -71,10 +76,13 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerInput) 
   const entry = withShellResolvedClientSecrets(config.loaded).servers.find(
     (server) => server.name === input.serverName,
   )
-  const identity = entry ? mcpServerIdentity(entry.name, entry.config) : undefined
-  if (!entry || identity !== input.serverIdentity) {
+  if (!entry) {
+    throw new Error(`The MCP server "${input.serverName}" this App belongs to was removed.`)
+  }
+  const identity = mcpServerIdentity(entry.name, entry.config)
+  if (identity !== input.serverIdentity && !legacyAppServerMatches(input, identity)) {
     throw new Error(
-      `The MCP server "${input.serverName}" this App belongs to was changed or removed.`,
+      `The MCP server "${input.serverName}" was changed since this App opened, so the App stays closed. Run its tool again to open it with the server's current setup.`,
     )
   }
   // Read after the awaits: a Run may have opened or closed the connection meanwhile.
@@ -243,8 +251,10 @@ function attempt<A>(operation: () => Promise<A>) {
 /** MCP Apps over the given pool, which holds the Session's warm connections. */
 export function createPiMcpAppRuntimeService(pool: McpConnectionPool): McpAppRuntimeServiceShape {
   return {
-    readResource: (input) => attempt(() => readResource(pool, input)),
-    listCatalog: (input) => attempt(() => listCatalog(pool, input)),
-    callTool: (input) => attempt(() => callTool(pool, input)),
+    readResource: (input) =>
+      attempt(async () => readResource(pool, await withLegacyAppServer(input))),
+    listCatalog: (input) =>
+      attempt(async () => listCatalog(pool, await withLegacyAppServer(input))),
+    callTool: (input) => attempt(async () => callTool(pool, await withLegacyAppServer(input))),
   }
 }

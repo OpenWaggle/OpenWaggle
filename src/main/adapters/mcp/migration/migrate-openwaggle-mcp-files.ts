@@ -21,7 +21,7 @@ import {
 } from './file-computation'
 import { reportHomeFolderProjectState } from './home-project-state'
 import { contentHash } from './json-document'
-import { legacyServerNames } from './legacy-server-names'
+import { legacyServerRecords } from './legacy-server-names'
 import {
   type LegacyStateFile,
   legacyStateProjects,
@@ -216,7 +216,9 @@ export async function migrateOpenWaggleMcpFiles(
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
   const projects = knownProjects(input, state)
   // Read before the files are rewritten, and saved with their records.
-  record.noteLegacyServerNames(await legacyServerNames({ sources, state, projects }))
+  const legacy = await legacyServerRecords({ sources, state, projects })
+  record.noteLegacyServerNames(legacy.names)
+  record.noteLegacyServerIdentities(legacy.identities)
   const files: McpFileMigrationReport[] = [
     await migrator.run({
       path: paths.openwaggleGlobal,

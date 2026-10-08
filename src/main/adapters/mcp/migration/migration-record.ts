@@ -26,6 +26,13 @@ const oauthRecordSchema = Schema.Struct({
 
 const sessionSwitchRecordSchema = Schema.Struct({ migratedAt: Schema.String })
 
+const legacyServerIdentitySchema = Schema.Struct({
+  configHash: Schema.optional(Schema.String),
+  identity: Schema.String,
+})
+
+export type McpLegacyServerIdentity = typeof legacyServerIdentitySchema.Type
+
 const migrationRecordSchema = Schema.Struct({
   version: Schema.Number,
   files: Schema.Record({ key: Schema.String, value: fileRecordSchema }),
@@ -50,6 +57,15 @@ const migrationRecordSchema = Schema.Struct({
     Schema.Record({ key: Schema.String, value: Schema.String }),
     { default: () => ({}) },
   ),
+  /**
+   * For MCP Apps in transcripts from before the upgrade, which name their server by instance ID
+   * and old config hash: the hash the user last turned the server on with, and the identity
+   * (`mcpServerIdentity`) of what the old entry ran or connected to.
+   */
+  legacyServerIdentities: Schema.optionalWith(
+    Schema.Record({ key: Schema.String, value: legacyServerIdentitySchema }),
+    { default: () => ({}) },
+  ),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -70,6 +86,7 @@ export class McpMigrationRecord {
     private readonly sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>,
     private legacy: readonly string[] | null | undefined,
     private readonly serverNames: Record<string, string> = {},
+    private readonly serverIdentities: Record<string, McpLegacyServerIdentity> = {},
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
@@ -86,12 +103,22 @@ export class McpMigrationRecord {
       { ...decoded.sessionSwitches },
       decoded.legacyProjects,
       { ...decoded.legacyServerNames },
+      { ...decoded.legacyServerIdentities },
     )
   }
 
   /** Old instance ID to server name; see `legacyServerNames` in the schema. */
   get legacyServerNames(): ReadonlyMap<string, string> {
     return new Map(Object.entries(this.serverNames))
+  }
+
+  /** Old instance ID to what its server was; see `legacyServerIdentities` in the schema. */
+  get legacyServerIdentities(): ReadonlyMap<string, McpLegacyServerIdentity> {
+    return new Map(Object.entries(this.serverIdentities))
+  }
+
+  noteLegacyServerIdentities(identities: ReadonlyMap<string, McpLegacyServerIdentity>) {
+    for (const [instanceId, identity] of identities) this.serverIdentities[instanceId] ??= identity
   }
 
   /**
@@ -152,6 +179,9 @@ export class McpMigrationRecord {
       ...(Object.keys(this.serverNames).length === 0
         ? {}
         : { legacyServerNames: this.serverNames }),
+      ...(Object.keys(this.serverIdentities).length === 0
+        ? {}
+        : { legacyServerIdentities: this.serverIdentities }),
     }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)
   }

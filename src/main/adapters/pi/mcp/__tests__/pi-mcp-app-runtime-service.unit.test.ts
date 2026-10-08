@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
     upstreams,
     respond: (_method: string): unknown => ({}),
     open: vi.fn(),
+    legacyIdentity: '',
     createAuthProvider: vi.fn<(options: { readonly settings: () => unknown }) => void>(),
   }
 })
@@ -35,6 +36,9 @@ vi.mock('../../../../store/session-details/session-mcp-server-allowlist', () => 
 }))
 vi.mock('../../../mcp/migration/legacy-server-names', () => ({
   readLegacyMcpServerNames: async () => new Map([['figma-1', 'figma']]),
+  // As the migration recorded the old figma server: its config hash, and its target's identity.
+  readLegacyMcpServerIdentities: async () =>
+    new Map([['figma-1', { configHash: 'old-config-hash', identity: mocks.legacyIdentity }]]),
 }))
 vi.mock('../../../../store/session-mcp-switch', () => ({
   isSessionMcpEnabled: async (sessionId: string) => sessionId !== 'switched-off',
@@ -93,6 +97,7 @@ beforeEach(() => {
   mocks.open.mockReset()
   mocks.createAuthProvider.mockReset()
   mocks.respond = () => ({})
+  mocks.legacyIdentity = IDENTITY
 })
 
 afterEach(async () => {
@@ -158,6 +163,20 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(off).rejects.toThrow('MCP is turned off for this Session.')
     await expect(narrowed).rejects.toThrow('does not use the MCP server "figma"')
     expect(mocks.open).not.toHaveBeenCalled()
+  })
+
+  it('opens an App from before the upgrade while its server still runs the same thing', async () => {
+    mocks.respond = () => ({ contents: [{ uri: 'ui://app', text: '<p/>' }] })
+    const oldDescriptor = { serverName: 'figma-1', serverIdentity: 'old-config-hash' }
+
+    await run((runtime) => runtime.readResource({ ...APP, ...oldDescriptor, uri: 'ui://app' }))
+    mocks.legacyIdentity = 'mcp-server:somewhere-else'
+    const moved = run((runtime) =>
+      runtime.readResource({ ...APP, ...oldDescriptor, sessionId: 'session-2', uri: 'ui://app' }),
+    )
+
+    expect(mocks.open).toHaveBeenCalledOnce()
+    await expect(moved).rejects.toThrow('changed since this App opened')
   })
 
   it('lets a Session whose profile names the server by its old instance ID use it', async () => {

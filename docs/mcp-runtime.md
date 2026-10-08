@@ -374,6 +374,11 @@ The old code also named each server by an instance ID (`servers[*].instanceId` i
 servers by it. The migration records which server name each ID stood for (`legacyServerNames` in
 `migration.json`, `legacy-server-names.ts`). Agent-definition validation accepts an ID whose server
 is still configured, and a Run's and an MCP App's server allowlist replace IDs with names.
+MCP Apps in transcripts from before the upgrade name their server by that ID and the old config
+hash. The migration also records, per ID, the hash the server was last turned on with and the
+identity (`mcpServerIdentity`) of what its old entry ran or connected to
+(`legacyServerIdentities`). Such an App opens while both still match; otherwise it stays closed
+and says to run its tool again, as an App of a changed server does.
 
 ## Removed
 
