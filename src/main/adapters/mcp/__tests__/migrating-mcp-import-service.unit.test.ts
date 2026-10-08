@@ -29,4 +29,31 @@ describe('MCP imports', () => {
 
     expect(order).toEqual(['migrate /work/app', 'preview /work/app', 'migrate null', 'apply null'])
   })
+
+  it('preview from the current files while the Host drains, and still migrate before applying', async () => {
+    const order: string[] = []
+    const service = migrateBeforeImports(
+      {
+        preview: () =>
+          Effect.sync(() => {
+            order.push('preview')
+            return fromPartial({ candidates: [] })
+          }),
+        apply: () =>
+          Effect.sync(() => {
+            order.push('apply')
+            return fromPartial({ imported: [] })
+          }),
+      },
+      async () => {
+        order.push('migrate')
+      },
+      { skipReadsWhile: () => true },
+    )
+
+    await Effect.runPromise(service.preview(fromPartial({ projectPath: null })))
+    await Effect.runPromise(service.apply(fromPartial({ projectPath: null }), () => Effect.void))
+
+    expect(order).toEqual(['preview', 'migrate', 'apply'])
+  })
 })

@@ -54,6 +54,7 @@ export const OpenWaggleMcpImportServiceLive = Layer.sync(McpImportService, () =>
     migrateBeforeImports(
       createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
       migrateOpenWaggleMcpFilesOnce,
+      { skipReadsWhile: isMcpHostDraining },
     ),
   ),
 )
