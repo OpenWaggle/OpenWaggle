@@ -1,10 +1,15 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
 import { McpVaultError } from '../../../ports/mcp-errors'
-import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
+import {
+  resolveMcpVaultSecret,
+  sharedMcpVaultHasSecret,
+} from '../../mcp/encrypted-mcp-secret-vault-service'
 import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
 import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
+import { SIGN_IN_OF_ANOTHER_BUILD } from '../../mcp/migration/oauth-state-migration'
 import { withProcessFileLock } from '../../mcp/process-file-lock'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
@@ -164,6 +169,7 @@ function migrateOnce(part: MigrationPart, projectPath: string | null) {
     ...(part === 'sign-ins'
       ? {
           oauth: {
+            buildKey: mcpBuildStateDirectory(),
             readOld: readOldSignIn,
             write: (stateKey: string, state: unknown) =>
               writeOpenWaggleMcpOAuthState(stateKey, state),
@@ -175,14 +181,18 @@ function migrateOnce(part: MigrationPart, projectPath: string | null) {
 }
 
 /**
- * An old sign-in from the vault, or undefined when there is none. Any other vault failure (a
+ * An old sign-in from the vault, undefined when no build stored one, or `SIGN_IN_OF_ANOTHER_BUILD`
+ * when the vault every build shared has it under another build's key. Any other vault failure (a
  * keychain that refused, an unreadable vault) is the migration's failure, so it is tried again.
  */
 async function readOldSignIn(name: string) {
   try {
     return await resolveMcpVaultSecret(name)
   } catch (error) {
-    if (error instanceof McpVaultError && error.reason === 'secret-not-found') return undefined
+    if (error instanceof McpVaultError && error.reason === 'secret-not-found') {
+      // This build's vault took only what its key opens; the rest is another build's to move.
+      return (await sharedMcpVaultHasSecret(name)) ? SIGN_IN_OF_ANOTHER_BUILD : undefined
+    }
     logger.warn('Could not read an old MCP sign-in from the vault', {
       name,
       error: describeError(error),

@@ -25,9 +25,20 @@ export interface MigratedMcpOAuthState {
   readonly tokens: Record<string, unknown>
 }
 
+/** The old sign-in is in the vault every build shared, sealed by another build's key. */
+export const SIGN_IN_OF_ANOTHER_BUILD = Symbol('sign-in of another build')
+
 export interface McpOAuthMigrationSink {
-  /** The old vault secret's plaintext, or undefined when it is not stored. */
-  readOld(name: string): Promise<string | undefined>
+  /**
+   * Which build migrates: the record keeps each build's outcomes apart, since each build has its own
+   * sign-in store and only the build whose key sealed an old sign-in can move it.
+   */
+  readonly buildKey?: string
+  /**
+   * The old vault secret's plaintext; undefined when no build stored it; `SIGN_IN_OF_ANOTHER_BUILD`
+   * when it is there but this build cannot decrypt it.
+   */
+  readOld(name: string): Promise<string | undefined | typeof SIGN_IN_OF_ANOTHER_BUILD>
   /** Store a state in OpenWaggle's Pi OAuth store under Pi's key. */
   write(key: string, state: MigratedMcpOAuthState): void | Promise<void>
 }
@@ -170,13 +181,18 @@ export async function migrateLegacyOAuthStates(input: {
     const key = piOAuthStateKey(candidate.name, candidate.url)
     if (seen.has(key)) continue
     seen.add(key)
-    if (input.record.isOAuthHandled(key)) {
+    if (input.record.isOAuthHandled(recordKey(input.sink, key))) {
       results.push({ server: candidate.name, key, status: 'already-migrated' })
       continue
     }
     results.push(await migrateOne(input, candidate, key))
   }
   return results
+}
+
+/** The record's key for one sign-in: Pi's key, under the build that handled it. */
+function recordKey(sink: McpOAuthMigrationSink, key: string) {
+  return sink.buildKey === undefined ? key : `${sink.buildKey}\u0000${key}`
 }
 
 async function migrateOne(
@@ -187,19 +203,33 @@ async function migrateOne(
   try {
     const raw = await input.sink.readOld(`oauth.${candidate.instanceId}`)
     const migratedAt = input.now().toISOString()
+    const recorded = recordKey(input.sink, key)
+    if (raw === SIGN_IN_OF_ANOTHER_BUILD) {
+      // Not recorded: it is the other build's to move, and this one looks again on a later start.
+      return {
+        server: candidate.name,
+        key,
+        status: 'skipped',
+        reason: 'signed in in another build',
+      }
+    }
     if (raw === undefined) {
       // Recorded, so later runs do not read the vault again; a failed read is not recorded.
       const reason = 'not signed in'
-      await input.record.recordOAuth(key, { migratedAt, status: 'skipped', reason })
+      await input.record.recordOAuth(recorded, { migratedAt, status: 'skipped', reason })
       return { server: candidate.name, key, status: 'skipped', reason }
     }
     const mapping = mapLegacyOAuthState(raw, candidate.url)
     if (mapping.kind === 'skip') {
-      await input.record.recordOAuth(key, { migratedAt, status: 'skipped', reason: mapping.reason })
+      await input.record.recordOAuth(recorded, {
+        migratedAt,
+        status: 'skipped',
+        reason: mapping.reason,
+      })
       return { server: candidate.name, key, status: 'skipped', reason: mapping.reason }
     }
     await input.sink.write(key, mapping.state)
-    await input.record.recordOAuth(key, { migratedAt, status: 'migrated' })
+    await input.record.recordOAuth(recorded, { migratedAt, status: 'migrated' })
     return { server: candidate.name, key, status: 'migrated' }
   } catch (error) {
     input.logger.error('MCP OAuth migration failed for a server', {

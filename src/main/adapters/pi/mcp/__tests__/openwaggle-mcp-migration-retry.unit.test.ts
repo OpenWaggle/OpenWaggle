@@ -27,8 +27,13 @@ vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
       const reason = name === 'oauth.locked' ? 'decryption-failed' : 'secret-not-found'
       throw new McpVaultError({ reason, message: `vault: ${reason}` })
     },
+    // The vault every build shared still holds this one, sealed by another build's key.
+    sharedMcpVaultHasSecret: async (name: string) => name === 'oauth.other-build',
   }
 })
+vi.mock('../../../mcp/credentials/mcp-build-state-paths', () => ({
+  mcpBuildStateDirectory: () => '/user-data/OpenWaggle Dev/mcp',
+}))
 
 vi.mock('../../../../store/settings', () => ({
   getSettings: () => ({
@@ -48,6 +53,7 @@ const {
   migrateOpenWaggleMcpSignInsAfterHostStart,
   migrateOpenWaggleMcpSignInsOnce,
 } = await import('../openwaggle-mcp-migration')
+const { SIGN_IN_OF_ANOTHER_BUILD } = await import('../../../mcp/migration/oauth-state-migration')
 
 const OK = { files: [], oauth: [], droppedSessionStates: 0 }
 
@@ -175,6 +181,9 @@ describe('the MCP file migration within one Host process', () => {
     await expect(readOld('oauth.signed-in')).resolves.toBe('{"version":1}')
     await expect(readOld('oauth.never')).resolves.toBeUndefined()
     await expect(readOld('oauth.locked')).rejects.toThrow('decryption-failed')
+    await expect(readOld('oauth.other-build')).resolves.toBe(SIGN_IN_OF_ANOTHER_BUILD)
+    // Outcomes are recorded for this build: each build has its own sign-in store.
+    expect(migrate.mock.calls[0]?.[0].oauth.buildKey).toBe('/user-data/OpenWaggle Dev/mcp')
   })
 
   it('carries an old MCP-off switch over, skipping Sessions deleted since then', async () => {

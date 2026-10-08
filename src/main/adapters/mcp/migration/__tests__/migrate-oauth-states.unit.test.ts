@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import type { McpOAuthMigrationSink } from '../oauth-state-migration'
+import { type McpOAuthMigrationSink, SIGN_IN_OF_ANOTHER_BUILD } from '../oauth-state-migration'
 import {
   HOME,
   LEGACY_STATE,
@@ -173,5 +173,45 @@ describe('migrating old MCP OAuth sign-ins', () => {
     ])
     expect(second.oauth).toEqual([expect.objectContaining({ status: 'already-migrated' })])
     expect(reads).toEqual(['oauth.sentry-id'])
+  })
+
+  it("records sign-ins per build, and never one another build's vault holds", async () => {
+    const fs = remoteInstall()
+    const read = (build: string, result: string | undefined | typeof SIGN_IN_OF_ANOTHER_BUILD) => {
+      const reads: string[] = []
+      const written = new Map<string, unknown>()
+      const sink: McpOAuthMigrationSink = {
+        buildKey: build,
+        readOld: async (name) => {
+          reads.push(name)
+          return result
+        },
+        write: (key, state) => {
+          written.set(key, state)
+        },
+      }
+      return { sink, reads, written }
+    }
+    const migrate = (sink: McpOAuthMigrationSink) =>
+      migrateOpenWaggleMcpFiles({
+        homeDir: HOME,
+        projectPaths: [],
+        now: () => NOW,
+        fs,
+        oauth: sink,
+      })
+
+    // The dev build cannot decrypt the sign-in, which only the release build's key opens.
+    const dev = read('dev', SIGN_IN_OF_ANOTHER_BUILD)
+    const devReport = await migrate(dev.sink)
+    await migrate(dev.sink)
+    const release = read('release', oldOAuthState())
+    const releaseReport = await migrate(release.sink)
+
+    expect(devReport.oauth).toEqual([expect.objectContaining({ status: 'skipped' })])
+    // Not recorded: the next start of the dev build looks again.
+    expect(dev.reads).toHaveLength(2)
+    expect(releaseReport.oauth).toEqual([expect.objectContaining({ status: 'migrated' })])
+    expect(release.written.size).toBe(1)
   })
 })

@@ -214,6 +214,10 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   build's user data the first time that build has no store and can decrypt it. It is never
   changed. The encrypted secret vault (`vault.json`) moved the same way: a build takes the
   shared vault's secrets it can decrypt.
+- The migration of pre-ADR-0050 sign-ins is recorded per build in `migration.json` (keyed by the
+  build's user data): only the build whose key sealed an old sign-in can move it. A build that
+  finds the sign-in in the shared vault but cannot decrypt it records nothing, so the other build
+  still moves it.
 - **Writes** take the store's cross-process lock (`withProcessFileLockSync`, bounded wait), read
   the encrypted layer again, and apply only what the caller changed, so a sign-in the CLI or
   another Host saved meanwhile is kept. The decoded layer is cached while the file's inode, size,

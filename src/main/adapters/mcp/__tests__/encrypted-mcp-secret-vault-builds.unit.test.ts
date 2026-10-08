@@ -1,8 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createEncryptedMcpSecretVault } from '../encrypted-mcp-secret-vault-service'
+import {
+  createEncryptedMcpSecretVault,
+  sharedMcpVaultHasSecret,
+} from '../encrypted-mcp-secret-vault-service'
 
 function keyed(key: string) {
   return {
@@ -67,5 +70,21 @@ describe('the MCP secret vault per build', () => {
     await expect(vaultFor('dev', DEV).resolve('OTHER')).resolves.toBe('dev-only')
     // The shared vault is left for every build.
     expect(await readFile(legacyPath, 'utf8')).toBe(before)
+  })
+
+  it('tells whether the shared vault holds a secret, whichever build sealed it', async () => {
+    const shared = path.join(homedir(), '.openwaggle', 'mcp', 'vault.json')
+    await mkdir(path.dirname(shared), { recursive: true })
+    await writeFile(
+      shared,
+      JSON.stringify({
+        version: 1,
+        secrets: { 'oauth.a': { encryptedValue: 'eA==', createdAt: 1, updatedAt: 1 } },
+      }),
+    )
+
+    await expect(sharedMcpVaultHasSecret('oauth.a')).resolves.toBe(true)
+    await expect(sharedMcpVaultHasSecret('oauth.b')).resolves.toBe(false)
+    await rm(shared, { force: true })
   })
 })

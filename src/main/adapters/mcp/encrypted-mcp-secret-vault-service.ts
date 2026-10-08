@@ -276,6 +276,14 @@ function getLiveVault() {
   return liveVault
 }
 
+/** Whether the vault every build shared before still holds `name`, whatever key sealed it. */
+export async function sharedMcpVaultHasSecret(name: string) {
+  const shared = await readVaultFile(
+    path.join(sharedMcpStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
+  ).catch(() => undefined)
+  return shared?.secrets[name] !== undefined
+}
+
 /** Resolves a `{ "secret": name }` reference in OpenWaggle's MCP files before Pi sees them. */
 export function resolveMcpVaultSecret(name: string) {
   return getLiveVault().resolve(name)
