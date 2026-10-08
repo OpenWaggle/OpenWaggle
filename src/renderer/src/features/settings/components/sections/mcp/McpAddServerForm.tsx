@@ -37,6 +37,16 @@ function Field({
   )
 }
 
+/**
+ * The configured server a new name collides with: the Host refuses a name used in any MCP file,
+ * also as a `-`/`_` variant, because their tools would share one namespace.
+ */
+function takenServerName(view: McpConfigurationView, name: string) {
+  const namespace = (value: string) => value.trim().replace(/-/g, '_')
+  if (!name.trim()) return undefined
+  return view.servers.find((server) => namespace(server.name) === namespace(name))?.name
+}
+
 function DestinationFields({
   view,
   draft,
@@ -47,9 +57,7 @@ function DestinationFields({
   readonly onChange: (draft: McpAddServerDraft) => void
 }) {
   const files = mcpDestinationFiles(view.files, draft.scope)
-  const replaces = view.servers.some(
-    (server) => server.name === draft.name.trim() && server.source.fileId === draft.destination,
-  )
+  const taken = takenServerName(view, draft.name)
   return (
     <div className="grid grid-cols-2 gap-3">
       <Field label="Use in">
@@ -91,9 +99,9 @@ function DestinationFields({
           </Select>
         )}
       </Field>
-      {replaces ? (
+      {taken ? (
         <p className="col-span-2 text-xs text-warning">
-          A server with this name is already in that file. Adding replaces it.
+          An MCP server named "{taken}" is already configured. Choose another name.
         </p>
       ) : null}
     </div>

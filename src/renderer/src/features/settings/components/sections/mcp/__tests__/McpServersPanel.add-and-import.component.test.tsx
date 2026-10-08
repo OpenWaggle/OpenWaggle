@@ -40,6 +40,23 @@ describe('Settings > MCP: adding servers', () => {
     api.addMcpServer.mockResolvedValue(mcpView([mcpServer('files')]))
   })
 
+  it('says a name already configured in any file, or a - / _ variant of it, cannot be used', async () => {
+    api.getMcpConfiguration.mockResolvedValue(mcpView([mcpServer('dev-radius')]))
+    renderPanel()
+    await screen.findByRole('button', { name: /^Open dev-radius / })
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }))
+    const form = await screen.findByRole('form', { name: 'Add server' })
+
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'dev_radius' } })
+
+    expect(
+      within(form).getByText(
+        'An MCP server named "dev-radius" is already configured. Choose another name.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(form).queryByText(/replaces it/)).not.toBeInTheDocument()
+  })
+
   it("saves a new command server to OpenWaggle's file for all projects by default", async () => {
     const form = await openAddForm()
 
