@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   FakeUpstream,
   flush,
@@ -9,13 +9,6 @@ import {
 import { mcpSessionConnectionPool } from '../adapters/mcp/pool/mcp-connection-pool-instance'
 import { runSessionRemovalHooks } from '../application/session-removal-hooks'
 import { installMcpSessionRemoval } from '../mcp-session-removal'
-
-const { forgetSessionMcpSwitch } = vi.hoisted(() => ({
-  forgetSessionMcpSwitch: vi.fn(async (_sessionId: string) => undefined),
-}))
-
-// The switch is Host database state; `session-mcp-switch.integration.test.ts` covers the store.
-vi.mock('../store/session-mcp-switch', () => ({ forgetSessionMcpSwitch }))
 
 afterEach(async () => {
   await mcpSessionConnectionPool.closeAll()
@@ -36,7 +29,9 @@ async function warmConnection(sessionId: string) {
 }
 
 describe("removing a Session (archive, delete, a Worker's cleanup)", () => {
-  it('closes its MCP connections and forgets that MCP was switched off for it', async () => {
+  // That the Session's MCP switch survives an archive is covered in
+  // `session-mcp-switch.integration.test.ts`, against the Host database.
+  it('closes its MCP connections', async () => {
     installMcpSessionRemoval()
     installMcpSessionRemoval()
     const removed = await warmConnection('removed')
@@ -47,7 +42,5 @@ describe("removing a Session (archive, delete, a Worker's cleanup)", () => {
     expect(removed.closed).toBe(true)
     expect(kept.closed).toBe(false)
     expect(mcpSessionConnectionPool.warmSessions()).toEqual(['kept'])
-    expect(forgetSessionMcpSwitch).toHaveBeenCalledWith('removed')
-    expect(forgetSessionMcpSwitch).not.toHaveBeenCalledWith('kept')
   })
 })

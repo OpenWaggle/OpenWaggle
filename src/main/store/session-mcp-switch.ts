@@ -1,8 +1,8 @@
 /**
  * Session-level MCP off (ADR 0048). It is Session state in the Host database, not configuration:
  * it changes no MCP file, survives a Host restart, and a Session is on unless switched off.
- * Deleting a Session drops its row by foreign key cascade; archiving forgets it through the
- * Session removal hooks (`mcp-session-removal.ts`).
+ * Deleting a Session drops its row by foreign key cascade; archiving keeps it, so an unarchived
+ * Session still has MCP off.
  */
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
@@ -34,8 +34,7 @@ export async function disableSessionMcp(sessionId: string): Promise<void> {
   )
 }
 
-/** A removed Session's switch is not kept. */
-export async function forgetSessionMcpSwitch(sessionId: string): Promise<void> {
+async function forgetSessionMcpSwitch(sessionId: string): Promise<void> {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

@@ -2,15 +2,13 @@ import lifecycleFs from 'node:fs/promises'
 import lifecycleOs from 'node:os'
 import lifecyclePath from 'node:path'
 import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runSessionRemovalHooks } from '../../application/session-removal-hooks'
+import { installMcpSessionRemoval } from '../../mcp-session-removal'
 import { createSession } from '../session-details'
 import { deleteSession } from '../session-details/session-mutations'
-import {
-  disableSessionMcp,
-  forgetSessionMcpSwitch,
-  isSessionMcpEnabled,
-  setSessionMcpEnabled,
-} from '../session-mcp-switch'
+import { disableSessionMcp, isSessionMcpEnabled, setSessionMcpEnabled } from '../session-mcp-switch'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -81,16 +79,19 @@ describe('the per-Session MCP switch', () => {
     expect(await isSessionMcpEnabled(id)).toBe(true)
   })
 
-  it('is cleared when the Session is removed', async () => {
+  it('stays off when the Session is archived, and goes with it when it is deleted', async () => {
     const archived = await makeSession('pi-1')
     const deleted = await makeSession('pi-2')
     await setSessionMcpEnabled(archived, false)
     await setSessionMcpEnabled(deleted, false)
+    installMcpSessionRemoval()
 
-    await forgetSessionMcpSwitch(archived)
+    // Archiving runs the Session removal hooks (closing its MCP connections); unarchiving later
+    // must find MCP still off.
+    await Effect.runPromise(runSessionRemovalHooks(archived))
     await deleteSession(deleted)
 
-    expect(await isSessionMcpEnabled(archived)).toBe(true)
+    expect(await isSessionMcpEnabled(archived)).toBe(false)
     expect(await isSessionMcpEnabled(deleted)).toBe(true)
   })
 
