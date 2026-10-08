@@ -22,24 +22,19 @@ export interface ToolCallResultPayload {
   readonly error?: string
 }
 
-export interface UnifiedDiffLine {
-  readonly type: 'add' | 'remove' | 'context' | 'meta'
-  readonly content: string
-  /**
-   * 0-based position in the parsed diff. A diff line has no other identity
-   * (content repeats — blank context lines, identical edits), so position IS its
-   * identity; carrying it in the data gives React a stable key without keying on
-   * the render index (react-doctor/no-array-index-as-key).
-   */
-  readonly lineIndex: number
-}
-
-export interface UnifiedDiffData {
+/** What an edit changed, read from Pi's edit tool result details (ADR 0050). */
+export interface EditDiffData {
+  /** Standard unified patch (`details.patch`); null for edits recorded before Pi sent one. */
+  readonly patch: string | null
+  /** The patch, or Pi's line-numbered display diff (`details.diff`) when there is no patch. */
   readonly text: string
-  readonly lines: readonly UnifiedDiffLine[]
   readonly additions: number
   readonly deletions: number
+  /** 1-based line of the first change in the edited file, when known. */
+  readonly firstChangedLine: number | null
 }
+
+const UNIFIED_HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u
 
 function isTextContentBlock(
   value: unknown,
@@ -173,51 +168,73 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
   return null
 }
 
-function parseUnifiedDiff(diffText: string): UnifiedDiffData {
+/**
+ * Counts changed lines. In a unified patch the `---`/`+++` file headers precede the
+ * first hunk, so only lines after a hunk header count; Pi's display diff has no
+ * headers and every changed line starts with its sign.
+ */
+function countChangedLines(text: string, isPatch: boolean) {
   let additions = 0
   let deletions = 0
-  const lines = diffText.split(LINE_SPLIT_SEPARATOR).map((line, lineIndex): UnifiedDiffLine => {
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
-      return { type: 'meta', content: line, lineIndex }
+  let inHunk = !isPatch
+  for (const line of text.split(LINE_SPLIT_SEPARATOR)) {
+    if (line.startsWith('@@')) {
+      inHunk = true
+      continue
     }
-    if (line.startsWith('+')) {
-      additions += 1
-      return { type: 'add', content: line, lineIndex }
-    }
-    if (line.startsWith('-')) {
-      deletions += 1
-      return { type: 'remove', content: line, lineIndex }
-    }
-    return { type: 'context', content: line, lineIndex }
-  })
-
-  return { text: diffText, lines, additions, deletions }
+    if (!inHunk) continue
+    if (line.startsWith('+')) additions += 1
+    if (line.startsWith('-')) deletions += 1
+  }
+  return { additions, deletions }
 }
 
-export function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | null {
+/** New-file line of the first added or removed line in a unified patch. */
+function firstChangedLineInPatch(patch: string) {
+  let line: number | null = null
+  for (const text of patch.split(LINE_SPLIT_SEPARATOR)) {
+    const hunkStart = UNIFIED_HUNK_HEADER.exec(text)?.[1]
+    if (hunkStart !== undefined) {
+      line = Number(hunkStart)
+      continue
+    }
+    if (line === null) continue
+    if (text.startsWith('+') || text.startsWith('-')) return Math.max(1, line)
+    if (text.startsWith(' ')) line += 1
+  }
+  return null
+}
+
+function nonEmptyString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function positiveLine(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+}
+
+export function getEditDiff(content: unknown, name: string): EditDiffData | null {
   if (name !== 'edit') {
     return null
   }
 
   const details = getToolResultDetails(content)
-  const diff = match(details)
-    .with({ diff: P.select('diff', P.string) }, ({ diff }) => diff)
-    .otherwise(() => null)
-  if (diff?.trim()) {
-    return parseUnifiedDiff(diff)
+  if (!isRecord(details)) {
+    return null
   }
-
-  const parsed = parseResultPayload(content)
-  if (
-    isRecord(parsed) &&
-    typeof parsed.beforeContent === 'string' &&
-    typeof parsed.afterContent === 'string' &&
-    parsed.beforeContent !== parsed.afterContent
-  ) {
+  const patch = nonEmptyString(details.patch)
+  const text = patch ?? nonEmptyString(details.diff)
+  if (text === null) {
     return null
   }
 
-  return null
+  return {
+    patch,
+    text,
+    ...countChangedLines(text, patch !== null),
+    firstChangedLine:
+      positiveLine(details.firstChangedLine) ?? (patch ? firstChangedLineInPatch(patch) : null),
+  }
 }
 
 export function buildTailPreview(text: string) {

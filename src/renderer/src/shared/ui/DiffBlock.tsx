@@ -35,20 +35,24 @@ export function DiffBlock({
   view,
   wrap,
   theme,
+  embedded = false,
 }: {
   readonly patch: string
   readonly className?: string
   readonly view: DiffView
   readonly wrap: boolean
   readonly theme: string
+  /** Inside a card that already names the file: no Pierre file header, quiet hunk separators. */
+  readonly embedded?: boolean
 }) {
   const options = useMemo(
     () => ({
       theme,
       diffStyle: view,
       overflow: diffOverflow(wrap),
+      ...(embedded ? { disableFileHeader: true, hunkSeparators: 'simple' as const } : {}),
     }),
-    [theme, view, wrap],
+    [theme, view, wrap, embedded],
   )
   if (shouldVirtualizeSyntaxSource(patch)) {
     return (

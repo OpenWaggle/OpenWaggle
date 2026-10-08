@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildFencedCodeMarkdown,
   buildTailPreview,
-  getEditUnifiedDiff,
+  getEditDiff,
   getResultError,
   getStringArg,
   getToolResultText,
@@ -69,22 +69,60 @@ describe('tool call block view helpers', () => {
     )
   })
 
-  it('parses edit diffs from normalized tool result details', () => {
-    const diff = getEditUnifiedDiff(
-      {
-        kind: 'json',
-        data: {
-          details: {
-            diff: '@@ -1 +1 @@\n-old\n+new',
-          },
-        },
-      },
+  it('reads the unified patch Pi records for an edit', () => {
+    const patch = [
+      '--- src/a.ts',
+      '+++ src/a.ts',
+      '@@ -10,4 +10,4 @@',
+      ' const one = 1',
+      ' const two = 2',
+      '-const old = 3',
+      '+const next = 3',
+      ' export {}',
+      '',
+    ].join('\n')
+    const diff = getEditDiff(
+      { kind: 'json', data: { details: { diff: 'display diff', patch } } },
       'edit',
     )
 
-    expect(diff?.additions).toBe(1)
-    expect(diff?.deletions).toBe(1)
-    expect(diff?.lines.map((line) => line.type)).toEqual(['meta', 'remove', 'add'])
+    expect(diff).toEqual({
+      patch,
+      text: patch,
+      additions: 1,
+      deletions: 1,
+      firstChangedLine: 12,
+    })
+  })
+
+  it('prefers the first changed line Pi reports', () => {
+    const diff = getEditDiff(
+      { details: { patch: '--- a\n+++ a\n@@ -1 +1 @@\n-x\n+y', firstChangedLine: 7 } },
+      'edit',
+    )
+
+    expect(diff?.firstChangedLine).toBe(7)
+  })
+
+  it('falls back to the display diff for edits recorded without a patch', () => {
+    const diff = getEditDiff(
+      { kind: 'json', data: { details: { diff: ' 1 keep\n-2 old\n+2 new\n+3 added' } } },
+      'edit',
+    )
+
+    expect(diff).toEqual({
+      patch: null,
+      text: ' 1 keep\n-2 old\n+2 new\n+3 added',
+      additions: 2,
+      deletions: 1,
+      firstChangedLine: null,
+    })
+  })
+
+  it('has no diff for other tools or edits without details', () => {
+    expect(getEditDiff({ details: { patch: '@@ -1 +1 @@\n-a\n+b' } }, 'write')).toBeNull()
+    expect(getEditDiff('Successfully replaced 1 block(s).', 'edit')).toBeNull()
+    expect(getEditDiff({ details: { diff: '  ' } }, 'edit')).toBeNull()
   })
 
   it('returns the last visible output lines for long command output', () => {

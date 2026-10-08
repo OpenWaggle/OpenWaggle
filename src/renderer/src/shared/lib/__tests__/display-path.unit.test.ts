@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDisplayPath, formatDisplayPathsInText } from '../display-path'
+import { formatDisplayPath, formatDisplayPathsInText, workspaceRelativePath } from '../display-path'
 
 const PROJECT_ROOT = '/Users/diego/Projects/OpenWaggle'
 const WORKTREE_ROOT =
@@ -110,5 +110,27 @@ describe('formatDisplayPathsInText', () => {
     expect(formatDisplayPathsInText(`Could not read ${root}/src/main.ts`, [])).toBe(
       'Could not read src/main.ts',
     )
+  })
+})
+
+describe('workspaceRelativePath', () => {
+  const roots = ['/Users/me/.openwaggle/worktrees/app/abc', '/Users/me/projects/app']
+
+  it('keeps relative paths that stay inside the workspace', () => {
+    expect(workspaceRelativePath('src/a.ts', roots)).toBe('src/a.ts')
+    expect(workspaceRelativePath('./src/a.ts', roots)).toBe('src/a.ts')
+    expect(workspaceRelativePath('../other/a.ts', roots)).toBeNull()
+  })
+
+  it('resolves absolute paths against the worktree or project root', () => {
+    expect(workspaceRelativePath('/Users/me/.openwaggle/worktrees/app/abc/src/a.ts', roots)).toBe(
+      'src/a.ts',
+    )
+    expect(workspaceRelativePath('/Users/me/projects/app/README.md', roots)).toBe('README.md')
+  })
+
+  it('has no workspace path for files outside every root', () => {
+    expect(workspaceRelativePath('/etc/hosts', roots)).toBeNull()
+    expect(workspaceRelativePath('/Users/me/projects/app', roots)).toBeNull()
   })
 })

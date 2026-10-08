@@ -75,6 +75,30 @@ function pathRelativeToRoot(path: string, root: string) {
   return normalizedPath.slice(normalizedRoot.length + 1)
 }
 
+const WINDOWS_ABSOLUTE_PATH = /^[a-z]:\//iu
+
+/**
+ * The path of `path` inside one of `roots`, for opening it in the workspace file view.
+ * A relative path is already workspace-relative; a path outside every root, or one
+ * that climbs out of the workspace, has none.
+ */
+export function workspaceRelativePath(
+  path: string,
+  roots: readonly (string | null | undefined)[],
+): string | null {
+  const normalized = normalizePath(path)
+  if (!normalized || normalized === '.') return null
+  if (!normalized.startsWith('/') && !WINDOWS_ABSOLUTE_PATH.test(normalized)) {
+    const relative = normalized.replace(/^(?:\.\/)+/u, '')
+    return relative === '..' || relative.startsWith('../') ? null : relative
+  }
+  for (const root of displayRoots(roots)) {
+    const relative = pathRelativeToRoot(normalized, root)
+    if (relative !== null && relative !== '.') return relative
+  }
+  return null
+}
+
 /**
  * Format a filesystem path for UI without changing the path used for file operations.
  * Paths inside an active project or Session worktree are shown from that root.

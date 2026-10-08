@@ -1,5 +1,9 @@
 import { createContext, type ReactNode, useContext } from 'react'
-import { formatDisplayPathsInMarkdown, formatDisplayPathsInText } from '@/shared/lib/display-path'
+import {
+  formatDisplayPathsInMarkdown,
+  formatDisplayPathsInText,
+  workspaceRelativePath,
+} from '@/shared/lib/display-path'
 
 const ChatProjectPathContext = createContext<string | null>(null)
 const ChatWorktreePathContext = createContext<string | null>(null)
@@ -32,6 +36,11 @@ export function useChatDisplayText(text: string) {
 
 export function useChatDisplayMarkdown(markdown: string) {
   return formatDisplayPathsInMarkdown(markdown, useChatDisplayRoots())
+}
+
+/** The workspace-relative path of a tool's file path, or null when it is outside the workspace. */
+export function useChatWorkspaceRelativePath(path: string) {
+  return workspaceRelativePath(path, useChatDisplayRoots())
 }
 
 export function useChatDisplayMarkdownFormatter() {
