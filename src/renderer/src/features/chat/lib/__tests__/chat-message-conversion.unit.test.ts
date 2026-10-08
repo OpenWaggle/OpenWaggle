@@ -28,11 +28,14 @@ describe('messagePartToUIParts', () => {
         name: 'codemode',
         arguments: '{}',
         state: 'input-complete',
-        nestedCalls: [
-          { id: 'code-1/1', name: 'read', arguments: '{"path":"a.ts"}', state: 'complete' },
-          // Still running when the renderer reconnected.
-          { id: 'code-1/2', name: 'bash', state: 'executing' },
-        ],
+        // The active Run buffer's bounded record, completeness and omitted arguments included.
+        nestedCalls: {
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok' },
+            { id: 'code-1/2', name: 'bash', argsBytes: 9000, status: 'unfinished' },
+          ],
+          complete: false,
+        },
       },
     ])
   })
@@ -70,11 +73,14 @@ describe('messagePartToUIParts', () => {
         toolCallId: 'code-1',
         content: 'done',
         state: 'complete',
-        nestedCalls: [
-          { id: 'code-1/1', name: 'read', arguments: '{"path":"a.ts"}', state: 'complete' },
-          { id: 'code-1/2', name: 'write', state: 'error', error: 'denied' },
-          { id: 'code-1/3', name: 'bash', arguments: '{}', state: 'unfinished' },
-        ],
+        nestedCalls: {
+          complete: false,
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok' },
+            { id: 'code-1/2', name: 'write', argsBytes: 90_000, status: 'error', error: 'denied' },
+            { id: 'code-1/3', name: 'bash', args: {}, status: 'unfinished' },
+          ],
+        },
       },
     ])
   })

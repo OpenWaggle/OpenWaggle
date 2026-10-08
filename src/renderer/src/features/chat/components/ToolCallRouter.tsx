@@ -1,8 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
-import type { ChatNestedToolCall, UIMessage } from '@shared/types/chat-ui'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { NestedToolCalls } from '@shared/types/tools'
 import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
-import { resolveNestedToolCalls } from '@/features/chat/lib/nested-tool-call-view'
+import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
@@ -23,7 +24,7 @@ interface ToolCallRouterProps {
       state: string
       sourceMessageId?: string
       error?: string
-      nestedCalls?: readonly ChatNestedToolCall[]
+      nestedCalls?: NestedToolCalls
     }
   >
   sessionId: SessionId | null
@@ -71,7 +72,11 @@ export function ToolCallRouter({
       ? undefined
       : { content: part.partialOutput, state: 'partial' })
 
-  const nestedCalls = resolveNestedToolCalls(part.nestedCalls, finalResult?.nestedCalls)
+  const nestedCalls = nestedToolCallsView(
+    part.nestedCalls,
+    finalResult?.nestedCalls,
+    finalResult !== undefined || !isStreaming,
+  )
   // A codemode card shows the script, its output, images and model calls; the tool calls the
   // script made come from Pi's nested call events and record, like any other tool's.
   const ownCard =
@@ -81,7 +86,7 @@ export function ToolCallRouter({
         state={part.state}
         result={visibleResult}
         isStreaming={isStreaming}
-        nestedCallsShown={nestedCalls.length > 0}
+        nestedCallsShown={nestedCalls.calls.length > 0}
       />
     ) : (
       <ToolCallBlock
@@ -94,7 +99,7 @@ export function ToolCallRouter({
       />
     )
   const toolCallBlock = (
-    <WithNestedToolCalls parentName={part.name} calls={nestedCalls} isStreaming={isStreaming}>
+    <WithNestedToolCalls parentName={part.name} nestedCalls={nestedCalls} isStreaming={isStreaming}>
       {ownCard}
     </WithNestedToolCalls>
   )

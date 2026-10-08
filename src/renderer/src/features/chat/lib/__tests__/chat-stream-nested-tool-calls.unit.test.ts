@@ -1,5 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import { describe, expect, it } from 'vitest'
 import { applyAgentTransportEvent } from '../chat-stream-state'
 
@@ -85,22 +86,20 @@ describe('applyAgentTransportEvent nested tool calls', () => {
         name: 'codemode',
         arguments: '{"code":"read()"}',
         state: 'executing',
-        nestedCalls: [
-          {
-            id: 'code-1/1',
-            name: 'read',
-            arguments: '{"path":"a.ts"}',
-            state: 'complete',
-            output: readResult,
-          },
-          {
-            id: 'code-1/1/1',
-            name: 'bash',
-            arguments: '{"command":"ls"}',
-            state: 'error',
-            output: 'boom',
-          },
-        ],
+        // Pi's bounded record: no results, so a long script cannot fill renderer state.
+        nestedCalls: {
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok' },
+            {
+              id: 'code-1/1/1',
+              name: 'bash',
+              args: { command: 'ls' },
+              status: 'error',
+              error: 'boom',
+            },
+          ],
+          complete: true,
+        },
       },
     ])
   })
@@ -129,5 +128,38 @@ describe('applyAgentTransportEvent nested tool calls', () => {
     ])
 
     expect(messages.map((message) => message.parts)).toEqual(before.map((message) => message.parts))
+  })
+
+  it('keeps as many nested calls as Pi does and counts the ones past the cap', () => {
+    const calls = NESTED_TOOL_CALL_LIMITS.maxCalls + 5
+    const events: AgentTransportEvent[] = [...codemodeStart()]
+    for (let index = 1; index <= calls; index += 1) {
+      const toolCallId = `code-1/${String(index)}`
+      events.push(
+        {
+          type: 'tool_execution_start',
+          toolCallId,
+          toolName: 'read',
+          args: { path: `${String(index)}.ts` },
+          parentToolCallId: 'code-1',
+          timestamp: 3,
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId,
+          toolName: 'read',
+          result: readResult,
+          isError: false,
+          parentToolCallId: 'code-1',
+          timestamp: 4,
+        },
+      )
+    }
+
+    const part = applyEvents(events)[0]?.parts[0]
+    const nestedCalls = part?.type === 'tool-call' ? part.nestedCalls : undefined
+    expect(nestedCalls?.calls).toHaveLength(NESTED_TOOL_CALL_LIMITS.maxCalls)
+    expect(nestedCalls?.droppedCalls).toBe(5)
+    expect(nestedCalls?.complete).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 import { SessionId, ToolCallId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { messagePartToUIParts } from '@/features/chat/lib/chat-message-conversion'
@@ -123,6 +124,51 @@ describe('nested tool calls', () => {
     const nested = screen.getByRole('list', { name: 'Tool calls made by codemode' })
     expect(within(nested).getAllByRole('listitem')).toHaveLength(2)
     expect(within(nested).getByRole('button', { name: /^Read src\/a\.ts/ })).toBeInTheDocument()
+    // Pi left the write call's arguments out of its record for size.
+    expect(within(nested).getByText('Arguments not recorded')).toBeInTheDocument()
     expect(toolCards().filter((card) => !nested.contains(card))).toHaveLength(1)
+  })
+
+  it('caps a long live list the way Pi caps its record and says how many calls it left out', () => {
+    const events: AgentTransportEvent[] = [
+      { type: 'message_start', messageId: 'assistant-1', role: 'assistant', timestamp: 1 },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'code-1',
+        toolName: 'codemode',
+        args: { code: 'loop()' },
+        parentMessageId: 'assistant-1',
+        timestamp: 2,
+      },
+    ]
+    for (let index = 1; index <= NESTED_TOOL_CALL_LIMITS.maxCalls + 4; index += 1) {
+      const toolCallId = `code-1/${String(index)}`
+      events.push(
+        {
+          type: 'tool_execution_start',
+          toolCallId,
+          toolName: 'read',
+          args: { path: `src/${String(index)}.ts` },
+          parentToolCallId: 'code-1',
+          timestamp: 3,
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId,
+          toolName: 'read',
+          result: 'contents',
+          isError: false,
+          parentToolCallId: 'code-1',
+          timestamp: 4,
+        },
+      )
+    }
+    const [message] = events.reduce<UIMessage[]>(applyAgentTransportEvent, [])
+    if (!message) throw new Error('expected the assistant message')
+    renderAssistant(message, true)
+
+    const nested = screen.getByRole('list', { name: 'Tool calls made by codemode' })
+    expect(within(nested).getAllByRole('listitem')).toHaveLength(NESTED_TOOL_CALL_LIMITS.maxCalls)
+    expect(screen.getByText('4 more tool calls not shown')).toBeInTheDocument()
   })
 })

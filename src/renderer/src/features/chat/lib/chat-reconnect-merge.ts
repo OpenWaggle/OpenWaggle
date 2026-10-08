@@ -98,34 +98,31 @@ function findMergeablePartIndex(parts: readonly UIMessagePart[], part: UIMessage
     .exhaustive()
 }
 
+/**
+ * Plain narrowing rather than a ts-match pattern: a pattern over both parts makes TypeScript expand
+ * the recursive JSON arguments of nested tool calls until it gives up.
+ */
 function mergeMessagePart(snapshotPart: UIMessagePart, currentPart: UIMessagePart): UIMessagePart {
-  return match({ snapshotPart, currentPart })
-    .with(
-      { snapshotPart: { type: 'text' }, currentPart: { type: 'text' } },
-      (value): UIMessagePart => ({
-        type: 'text',
-        content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
-      }),
-    )
-    .with(
-      { snapshotPart: { type: 'thinking' }, currentPart: { type: 'thinking' } },
-      (value): UIMessagePart => {
-        const stepId = value.currentPart.stepId ?? value.snapshotPart.stepId
-        return {
-          type: 'thinking',
-          content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
-          ...(stepId ? { stepId } : {}),
-        }
-      },
-    )
-    .with(
-      { snapshotPart: { type: 'tool-call' }, currentPart: { type: 'tool-call' } },
-      (value): UIMessagePart =>
-        toolStateRank(value.currentPart.state) >= toolStateRank(value.snapshotPart.state)
-          ? value.currentPart
-          : value.snapshotPart,
-    )
-    .otherwise((value) => value.currentPart)
+  if (snapshotPart.type === 'text' && currentPart.type === 'text') {
+    return {
+      type: 'text',
+      content: mergeTextContent(snapshotPart.content, currentPart.content),
+    }
+  }
+  if (snapshotPart.type === 'thinking' && currentPart.type === 'thinking') {
+    const stepId = currentPart.stepId ?? snapshotPart.stepId
+    return {
+      type: 'thinking',
+      content: mergeTextContent(snapshotPart.content, currentPart.content),
+      ...(stepId ? { stepId } : {}),
+    }
+  }
+  if (snapshotPart.type === 'tool-call' && currentPart.type === 'tool-call') {
+    return toolStateRank(currentPart.state) >= toolStateRank(snapshotPart.state)
+      ? currentPart
+      : snapshotPart
+  }
+  return currentPart
 }
 
 function mergeAssistantParts(

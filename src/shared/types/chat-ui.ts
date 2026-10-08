@@ -1,4 +1,5 @@
 import type { SessionId } from './brand'
+import type { NestedToolCalls } from './tools'
 import type { WaggleInvocationMetadata } from './waggle'
 
 export type ChatMessageRole = 'system' | 'user' | 'assistant'
@@ -14,25 +15,6 @@ export interface ChatThinkingPart {
   readonly stepId?: string
 }
 
-/**
- * A call another tool made through Pi `ctx.executeTool()`, for example from codemode. It has no
- * transcript entry of its own and renders under the model-issued tool call that made it, directly
- * or through another nested call.
- */
-export interface ChatNestedToolCall {
-  readonly id: string
-  readonly name: string
-  /** JSON arguments; omitted when Pi left them out of its record for size. */
-  readonly arguments?: string
-  /** `unfinished`: the call was still running when the calling tool finished. */
-  readonly state: 'executing' | 'complete' | 'error' | 'unfinished'
-  /** The live result; Pi does not keep nested results in the Session. */
-  readonly output?: unknown
-  readonly partialOutput?: unknown
-  /** Truncated error text Pi recorded for a failed call. */
-  readonly error?: string
-}
-
 export interface ChatToolCallPart {
   readonly type: 'tool-call'
   readonly id: string
@@ -41,8 +23,11 @@ export interface ChatToolCallPart {
   readonly state: string
   readonly output?: unknown
   readonly partialOutput?: unknown
-  /** Nested calls seen live while this call ran. */
-  readonly nestedCalls?: readonly ChatNestedToolCall[]
+  /**
+   * Calls this tool made through Pi `ctx.executeTool()`, seen live while it ran, in a record with
+   * Pi's limits. They have no transcript entry of their own and render under this call's card.
+   */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 export interface ChatToolResultPart {
@@ -54,7 +39,7 @@ export interface ChatToolResultPart {
   readonly error?: string
   readonly output?: unknown
   /** Nested calls Pi recorded on the persisted tool result. */
-  readonly nestedCalls?: readonly ChatNestedToolCall[]
+  readonly nestedCalls?: NestedToolCalls
 }
 
 interface ChatBinarySource {

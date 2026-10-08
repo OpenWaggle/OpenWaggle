@@ -1,41 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessageMetadata, MessagePart } from '@shared/types/agent'
-import type { ChatNestedToolCall, UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
+import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
-import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
+import type { NestedToolCalls } from '@shared/types/tools'
 import { formatAttachmentPreview } from './chat-attachment-preview'
 
-const NESTED_CALL_STATE = {
-  ok: 'complete',
-  error: 'error',
-  unfinished: 'unfinished',
-} as const satisfies Record<NestedToolCallRecord['status'], ChatNestedToolCall['state']>
-
-function nestedCallToUI(record: NestedToolCallRecord): ChatNestedToolCall {
-  return {
-    id: record.id,
-    name: record.name,
-    ...(record.args !== undefined ? { arguments: JSON.stringify(record.args) } : {}),
-    state: NESTED_CALL_STATE[record.status],
-    ...(record.error !== undefined ? { error: record.error } : {}),
-  }
-}
-
+/** Pi's record, or the active Run buffer's record of a call still running, as it is. */
 function nestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
-  return nestedCalls && nestedCalls.calls.length > 0
-    ? { nestedCalls: nestedCalls.calls.map(nestedCallToUI) }
-    : {}
-}
-
-/** The active Run buffer's record of a call still running: an unfinished nested call is live. */
-function liveNestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
-  return nestedCalls && nestedCalls.calls.length > 0
-    ? {
-        nestedCalls: nestedCalls.calls.map((record) => {
-          const call = nestedCallToUI(record)
-          return call.state === 'unfinished' ? { ...call, state: 'executing' as const } : call
-        }),
-      }
+  return nestedCalls && (nestedCalls.calls.length > 0 || nestedCalls.droppedCalls)
+    ? { nestedCalls }
     : {}
 }
 
@@ -53,7 +26,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         name: value.toolCall.name,
         arguments: JSON.stringify(value.toolCall.args),
         state: value.toolCall.state ?? 'input-complete',
-        ...liveNestedCallsToUI(value.toolCall.nestedCalls),
+        ...nestedCallsToUI(value.toolCall.nestedCalls),
       },
     ])
     .with('tool-result', (value): UIMessage['parts'] => [

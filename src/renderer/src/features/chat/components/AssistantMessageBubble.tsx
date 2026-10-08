@@ -1,8 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type { ChatNestedToolCall, UIMessage } from '@shared/types/chat-ui'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { NestedToolCalls } from '@shared/types/tools'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
@@ -118,7 +119,7 @@ type ToolResultEntry = {
   state: string
   sourceMessageId?: string
   error?: string
-  nestedCalls?: readonly ChatNestedToolCall[]
+  nestedCalls?: NestedToolCalls
 }
 
 function collectMessageToolState(message: UIMessage) {

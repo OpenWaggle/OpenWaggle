@@ -1,36 +1,47 @@
-import type { ChatNestedToolCall } from '@shared/types/chat-ui'
 import type { ReactNode } from 'react'
-import { nestedToolCallCard } from '@/features/chat/lib/nested-tool-call-view'
+import {
+  type NestedToolCallsView,
+  nestedToolCallCard,
+} from '@/features/chat/lib/nested-tool-call-view'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface NestedToolCallListProps {
   readonly parentName: string
-  readonly calls: readonly ChatNestedToolCall[]
+  readonly nestedCalls: NestedToolCallsView
   readonly isStreaming: boolean
 }
 
+const NOTE_CLASS = 'ml-5 text-xs text-text-muted'
+
 /** The calls a tool made through Pi `ctx.executeTool()`, rendered under the calling tool's card. */
-export function NestedToolCallList({ parentName, calls, isStreaming }: NestedToolCallListProps) {
+export function NestedToolCallList({
+  parentName,
+  nestedCalls,
+  isStreaming,
+}: NestedToolCallListProps) {
   return (
-    <ul
-      aria-label={`Tool calls made by ${parentName}`}
-      className="ml-5 mt-1 space-y-1 border-l border-border pl-3"
-    >
-      {calls.map((call) => {
-        const card = nestedToolCallCard(call)
-        return (
-          <li key={call.id}>
-            <ToolCallBlock
-              name={card.name}
-              args={card.args}
-              state={card.state}
-              result={card.result}
-              isStreaming={isStreaming}
-            />
-          </li>
-        )
-      })}
-    </ul>
+    <div className="ml-5 mt-1 border-l border-border pl-3">
+      <ul aria-label={`Tool calls made by ${parentName}`} className="space-y-1">
+        {nestedCalls.calls.map((call) => {
+          const card = nestedToolCallCard(call)
+          return (
+            <li key={call.id}>
+              <ToolCallBlock
+                name={card.name}
+                args={card.args}
+                state={card.state}
+                result={card.result}
+                isStreaming={isStreaming}
+              />
+              {call.argumentsOmitted && <p className={NOTE_CLASS}>Arguments not recorded</p>}
+            </li>
+          )
+        })}
+      </ul>
+      {nestedCalls.omittedCalls !== null && (
+        <p className="mt-1 text-xs text-text-muted">{nestedCalls.omittedCalls}</p>
+      )}
+    </div>
   )
 }
 
@@ -41,15 +52,19 @@ interface WithNestedToolCallsProps extends NestedToolCallListProps {
 /** A tool card followed by the nested calls it made, when it made any. */
 export function WithNestedToolCalls({
   parentName,
-  calls,
+  nestedCalls,
   isStreaming,
   children,
 }: WithNestedToolCallsProps) {
-  if (calls.length === 0) return children
+  if (nestedCalls.calls.length === 0 && nestedCalls.omittedCalls === null) return children
   return (
     <div>
       {children}
-      <NestedToolCallList parentName={parentName} calls={calls} isStreaming={isStreaming} />
+      <NestedToolCallList
+        parentName={parentName}
+        nestedCalls={nestedCalls}
+        isStreaming={isStreaming}
+      />
     </div>
   )
 }
