@@ -22,7 +22,7 @@ function listOAuthProviders(modelRuntime: ModelRuntime) {
 
 function notifyOAuthHandlers(event: AuthEvent, handlers: OAuthLoginHandlers) {
   return matchBy(event, 'type')
-    .with('auth_url', (event) => handlers.onAuthUrl(event.url, false, event.instructions))
+    .with('auth_url', (event) => handlers.onAuthUrl(event.url, event.instructions))
     .with('device_code', (event) =>
       handlers.onDeviceCode({
         userCode: event.userCode,

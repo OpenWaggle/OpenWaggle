@@ -9,7 +9,8 @@ import { Context, type Effect } from 'effect'
 
 export interface OAuthLoginHandlers {
   /** `instructions` is the provider's own text, such as how to finish a copy-code sign-in. */
-  readonly onAuthUrl: (url: string, usesCallbackServer: boolean, instructions?: string) => void
+  /** The sign-in link to open, and what the provider says to do with it. */
+  readonly onAuthUrl: (url: string, instructions?: string) => void
   readonly onDeviceCode: (params: OAuthDeviceCode) => void
   readonly onSelect: (params: OAuthSelectPrompt) => Promise<string | undefined>
   readonly onPrompt: (prompt: OAuthInputPrompt) => Promise<string>

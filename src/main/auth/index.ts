@@ -125,7 +125,7 @@ async function runOAuthFlow(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
-          onAuthUrl: (url, usesCallbackServer, instructions) => {
+          onAuthUrl: (url, instructions) => {
             link = { authUrl: url, ...(instructions ? { instructions } : {}) }
             void openExternal(url).catch((error) => {
               logger.warn('Failed to open OAuth URL', {
@@ -133,9 +133,9 @@ async function runOAuthFlow(
                 error: error instanceof Error ? error.message : String(error),
               })
             })
-            if (usesCallbackServer) {
-              emitStatus(awaitingInput())
-            }
+            // A sign-in that finishes in the browser asks nothing more, so its instructions and
+            // link are all there is to show while it waits.
+            emitStatus(awaitingInput())
           },
           onDeviceCode: (deviceCode) => {
             void openExternal(deviceCode.verificationUri).catch((error) => {

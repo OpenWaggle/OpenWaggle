@@ -68,7 +68,6 @@ describe('Pi provider sign-in', () => {
 
     expect(loginHandlers.onAuthUrl).toHaveBeenCalledWith(
       'https://claude.ai/oauth/authorize?code=true',
-      false,
       'Open the link in any browser, then paste the code it shows.',
     )
     expect(loginHandlers.onManualCodeInput).toHaveBeenCalledWith({

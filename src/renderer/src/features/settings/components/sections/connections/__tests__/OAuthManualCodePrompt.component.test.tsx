@@ -49,16 +49,28 @@ describe('OAuthManualCodePrompt', () => {
     expect(submitAuthCode).not.toHaveBeenCalled()
   })
 
-  it('explains the browser callback while the sign-in link is open and nothing is asked', () => {
+  it("shows Radius's instructions and its sign-in link while the browser finishes signing in", () => {
+    renderPrompt({
+      type: 'awaiting-code',
+      provider: 'radius',
+      authUrl: 'https://radius.test/oauth/authorize',
+      instructions: 'Continue in your browser.',
+    })
+
+    expect(screen.getByText('Continue in your browser.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Copy sign-in link' })).toBeInTheDocument()
+    // Nothing was asked, so there is nothing to paste.
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('says it waits for the browser when a sign-in link has no instructions', () => {
     renderPrompt({
       type: 'awaiting-code',
       provider: 'openai-codex',
       authUrl: 'https://example.test/authorize',
     })
 
-    expect(screen.getByText(/Waiting for the browser callback/)).toBeVisible()
-    expect(
-      screen.getByRole('textbox', { name: 'Paste OAuth code or callback URL' }),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Waiting for the browser/u)).toBeVisible()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 })

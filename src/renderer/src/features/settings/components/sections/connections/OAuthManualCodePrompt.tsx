@@ -7,9 +7,7 @@ import { TextInput } from '@/shared/ui/TextInput'
 
 type OAuthAwaitingStatus = Extract<OAuthFlowStatus, { readonly type: 'awaiting-code' }>
 
-const DEFAULT_CODE_PROMPT = 'Paste OAuth code or callback URL'
-const CALLBACK_HINT =
-  'Waiting for the browser callback. If it does not finish automatically, paste the OAuth code or callback URL here.'
+const BROWSER_HINT = 'Waiting for the browser to finish signing in.'
 
 function OAuthDeviceCodeCard({ deviceCode }: { readonly deviceCode: OAuthDeviceCode }) {
   return (
@@ -39,22 +37,22 @@ function OAuthAwaitingGuidance({ awaiting }: { readonly awaiting: OAuthAwaitingS
   if (awaiting.deviceCode) return <OAuthDeviceCodeCard deviceCode={awaiting.deviceCode} />
   // The callback hint only applies while the browser sign-in runs and nothing else is asked.
   const hint =
-    awaiting.instructions ?? (awaiting.authUrl && !awaiting.prompt ? CALLBACK_HINT : undefined)
+    awaiting.instructions ?? (awaiting.authUrl && !awaiting.prompt ? BROWSER_HINT : undefined)
   return hint ? <p className="text-xs text-text-tertiary">{hint}</p> : null
 }
 
-/** The answer field, labelled with the provider's own question when it asked one. */
+/** The answer field, labelled with the question the provider asked. */
 function OAuthAnswerField({
   prompt,
   onSubmit,
 }: {
-  readonly prompt: OAuthInputPrompt | undefined
+  readonly prompt: OAuthInputPrompt
   readonly onSubmit: (answer: string) => void
 }) {
   const [value, setValue] = useState('')
   const inputId = useId()
   // A text question may be answered with nothing; a code or secret may not.
-  const canSubmit = value.trim().length > 0 || prompt?.allowEmpty === true
+  const canSubmit = value.trim().length > 0 || prompt.allowEmpty === true
 
   function submit() {
     if (!canSubmit) return
@@ -64,22 +62,19 @@ function OAuthAnswerField({
 
   return (
     <>
-      {prompt && (
-        <label htmlFor={inputId} className="block text-xs font-medium text-text-secondary">
-          {prompt.message}
-        </label>
-      )}
+      <label htmlFor={inputId} className="block text-xs font-medium text-text-secondary">
+        {prompt.message}
+      </label>
       <div className="flex items-center gap-2">
         <TextInput
           id={inputId}
-          type={prompt?.secret ? 'password' : 'text'}
-          {...(prompt ? {} : { 'aria-label': DEFAULT_CODE_PROMPT })}
+          type={prompt.secret ? 'password' : 'text'}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit()
           }}
-          placeholder={prompt ? prompt.placeholder : DEFAULT_CODE_PROMPT}
+          placeholder={prompt.placeholder}
           monospace
           className="flex-1 rounded-lg border-border-light text-xs placeholder:text-text-muted focus:border-border-light"
         />
@@ -112,12 +107,15 @@ export function OAuthManualCodePrompt({
     <div className="mx-5 mb-3 space-y-2">
       {awaiting && <OAuthAwaitingGuidance awaiting={awaiting} />}
       {awaiting?.authUrl && <OAuthSignInLink authUrl={awaiting.authUrl} />}
-      <OAuthAnswerField
-        prompt={awaiting?.prompt}
-        onSubmit={(answer) => {
-          void submitAuthCode(provider, answer)
-        }}
-      />
+      {/* Only a question has an answer to send; a sign-in that finishes in the browser has none. */}
+      {awaiting?.prompt && (
+        <OAuthAnswerField
+          prompt={awaiting.prompt}
+          onSubmit={(answer) => {
+            void submitAuthCode(provider, answer)
+          }}
+        />
+      )}
     </div>
   )
 }
