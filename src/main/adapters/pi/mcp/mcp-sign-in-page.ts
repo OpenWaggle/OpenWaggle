@@ -38,6 +38,25 @@ export async function mcpAuthorizationOrigin(
 }
 
 /**
+ * The authorization servers configured or discovered for `entry`: requests to them (discovery,
+ * token refresh) may go to a private network or plain HTTP, as requests to the server may.
+ */
+export async function mcpAuthorizationServerUrls(entry: McpServerEntry): Promise<string[]> {
+  const origin = await mcpAuthorizationOrigin(entry).catch(() => undefined)
+  if (!origin) return []
+  const discovery = origin.discovery
+  const metadata = discovery?.authorizationServerMetadata
+  return [
+    origin.authServerMetadataUrl,
+    discovery?.authorizationServerUrl,
+    metadata?.issuer,
+    metadata?.authorization_endpoint,
+    metadata?.token_endpoint,
+    metadata?.registration_endpoint,
+  ].filter((value): value is string => typeof value === 'string')
+}
+
+/**
  * The server a sign-in page belongs to: the one whose pending sign-in issued the page's `state`.
  * Pi saves that state before it asks to open the page.
  */

@@ -19,6 +19,7 @@ import {
 import { createLegacySseClientTransport } from '../../mcp/runtime/legacy-sse-client-transport'
 import { LegacyWebSocketClientTransport } from '../../mcp/runtime/websocket-transport'
 import { createMcpAuthorizedFetch } from './mcp-authorized-fetch'
+import { mcpAuthorizationServerUrls } from './mcp-sign-in-page'
 
 /** Characters of a failed stdio server's stderr shown with its error, as in Pi. */
 const STDERR_TAIL_CHARS = 2_000
@@ -96,12 +97,20 @@ function urlOf(entry: McpServerEntry) {
   return entry.config
 }
 
+/** The fetch of a URL server, which may also reach the server's own authorization servers. */
+function serverFetch(entry: McpServerEntry, url: string) {
+  return createMcpServerFetch(url, {
+    authorizationServers: () => mcpAuthorizationServerUrls(entry),
+  })
+}
+
 function openSse(
+  entry: McpServerEntry,
   config: { readonly url: string },
   headers: Record<string, string>,
   authProvider: AuthProvider | undefined,
 ): McpUpstream {
-  const fetch = createMcpServerFetch(config.url)
+  const fetch = serverFetch(entry, config.url)
   const authorized = authProvider
     ? createMcpAuthorizedFetch({ fetch, authProvider, serverUrl: new URL(config.url) })
     : undefined
@@ -143,8 +152,8 @@ function openHttp(
       ),
     }
   }
-  if (kind === 'sse') return openSse(config, headers, authProvider)
-  const fetch = createMcpServerFetch(config.url)
+  if (kind === 'sse') return openSse(entry, config, headers, authProvider)
+  const fetch = serverFetch(entry, config.url)
   return {
     transport: new StreamableHttpTransport({
       url: config.url,

@@ -26,6 +26,8 @@ export interface McpAuthorizationOrigin {
           | {
               readonly issuer?: string | undefined
               readonly authorization_endpoint?: string | undefined
+              readonly token_endpoint?: string | undefined
+              readonly registration_endpoint?: string | undefined
             }
           | undefined
       }

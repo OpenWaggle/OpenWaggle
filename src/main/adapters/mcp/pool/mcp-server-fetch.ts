@@ -14,14 +14,30 @@ function requestUrl(input: string | URL | Request) {
   return new URL(input.url)
 }
 
+export interface McpServerFetchOptions {
+  /**
+   * URLs of the authorization servers configured or discovered for this server (Pi's
+   * `oauth.authServerMetadataUrl`, the saved discovery). Read on every request, since a sign-in
+   * can discover them after the transport was created.
+   */
+  readonly authorizationServers?: () => readonly string[] | Promise<readonly string[]>
+}
+
+function hostOf(value: string) {
+  return URL.canParse(value) ? new URL(value).host : undefined
+}
+
 /**
  * The fetch an HTTP MCP transport uses. Every request resolves its host once and connects to
  * that address (no DNS rebinding between check and connect), and bodies and SSE events are
- * bounded. The server the user configured may be plain HTTP or on a private network, as in Pi;
- * any other host (an OAuth authorization server, for example) must be public HTTPS, and a
- * redirect may not move a request to another host.
+ * bounded. The server the user configured, and the authorization servers configured or
+ * discovered for it, may be plain HTTP or on a private network, as in Pi; any other host must be
+ * public HTTPS, and a redirect may not move a request to another host.
  */
-export function createMcpServerFetch(serverUrl: string): McpServerFetch {
+export function createMcpServerFetch(
+  serverUrl: string,
+  options: McpServerFetchOptions = {},
+): McpServerFetch {
   const base = new URL(serverUrl)
   const own = createSecureMcpFetch({
     baseUrl: base,
@@ -30,18 +46,26 @@ export function createMcpServerFetch(serverUrl: string): McpServerFetch {
     maxResponseBytes: MCP_MAX_MESSAGE_BYTES,
   })
   const others = new Map<string, SecureMcpFetch>()
-  const fetchFor = (url: URL) => {
+  const isAuthorizationServer = async (url: URL) =>
+    (await (options.authorizationServers?.() ?? [])).some((value) => hostOf(value) === url.host)
+  const fetchFor = async (url: URL) => {
     if (url.host === base.host) return own
-    const existing = others.get(url.origin)
+    const trusted = await isAuthorizationServer(url)
+    const key = `${trusted ? 'trusted' : 'public'} ${url.origin}`
+    const existing = others.get(key)
     if (existing) return existing
-    const created = createSecureMcpFetch({ baseUrl: url, maxResponseBytes: MCP_MAX_MESSAGE_BYTES })
-    others.set(url.origin, created)
+    const created = createSecureMcpFetch({
+      baseUrl: url,
+      maxResponseBytes: MCP_MAX_MESSAGE_BYTES,
+      ...(trusted ? { allowInsecurePrivateNetwork: true, allowPlainHttp: true } : {}),
+    })
+    others.set(key, created)
     return created
   }
   return Object.assign(
-    (input: string | URL | Request, init?: RequestInit) => {
+    async (input: string | URL | Request, init?: RequestInit) => {
       const url = requestUrl(input)
-      return fetchFor(url)(url, {
+      return (await fetchFor(url))(url, {
         ...(input instanceof Request
           ? { method: input.method, headers: input.headers, body: input.body }
           : {}),
