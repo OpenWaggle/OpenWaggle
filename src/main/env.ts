@@ -264,6 +264,13 @@ export function getSourceControlCliEnv(): Record<string, string | undefined> {
   return env
 }
 
+/** Named environment values for modules that may not read `process.env` themselves. */
+export function readEnvironmentVariables<N extends string>(names: readonly N[]) {
+  const values: Partial<Record<N, string>> = {}
+  for (const name of names) if (process.env[name]) values[name] = process.env[name]
+  return values
+}
+
 /**
  * The current environment plus explicit overrides, for child git invocations that
  * need extra variables (e.g. `GIT_INDEX_FILE` for a scratch index) while still

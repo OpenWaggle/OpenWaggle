@@ -2,6 +2,7 @@ import type { RepositoryPath, SessionId, WorkingPath } from './brand'
 import type {
   ChangeRequestCheckoutResult,
   ChangeRequestListResult,
+  ChangeRequestMergeCandidateResult,
   ChangeRequestPanelResult,
   ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
@@ -25,8 +26,18 @@ import type {
   MergeChangeRequestPayload,
   MergeChangeRequestResult,
   RemoteVcsStatusResult,
+  SessionGitOutputsPayload,
+  SessionGitOutputsRecording,
+  SessionGitWorkingPathVerification,
   SessionWorktreeCheck,
 } from './git'
+import type {
+  ChangeRequestOpenDestinationResolution,
+  SourceControlConfigureRequest,
+  SourceControlConfigureResult,
+  SourceControlHostsOverview,
+  SourceControlSettingsPatch,
+} from './source-control'
 
 /**
  * How a selected change request should be adopted.
@@ -139,5 +150,47 @@ export interface IpcGitInvokeChannelMap {
   'git:change-request:merge': {
     args: [sessionId: SessionId, workingPath: WorkingPath, payload: MergeChangeRequestPayload]
     return: MergeChangeRequestResult
+  }
+  /** Host-side merge validation the window confirms before `merge-confirmed` (ADR 0048). */
+  'git:change-request:merge-candidate': {
+    args: [sessionId: SessionId, workingPath: WorkingPath, payload: MergeChangeRequestPayload]
+    return: ChangeRequestMergeCandidateResult
+  }
+  /** Host-side revalidation and merge after the window's confirmation. */
+  'git:change-request:merge-confirmed': {
+    args: [sessionId: SessionId, workingPath: WorkingPath, payload: MergeChangeRequestPayload]
+    return: MergeChangeRequestResult
+  }
+  /** Whether a working path belongs to a Session, answered by the Session Host. */
+  'git:session:verify-working-path': {
+    args: [sessionId: SessionId, workingPath: WorkingPath]
+    return: SessionGitWorkingPathVerification
+  }
+  /** Record a Session-scoped commit or change request as Session Outputs in the Session Host. */
+  'git:session:record-outputs': {
+    args: [sessionId: SessionId, outputs: SessionGitOutputsPayload]
+    return: SessionGitOutputsRecording
+  }
+  'source-control:hosts': {
+    args: []
+    return: SourceControlHostsOverview
+  }
+  'source-control:open-destination': {
+    args: [projectPath: string | null]
+    return: ChangeRequestOpenDestinationResolution
+  }
+  /** Host-only: apply an atomic source-control Settings patch in the process that owns them. */
+  'source-control:patch-settings': {
+    args: [patch: SourceControlSettingsPatch]
+    return: { readonly ok: true } | { readonly ok: false; readonly error: string }
+  }
+  /** Drop cached VCS status for a working path so the next read asks the CLI again. */
+  'source-control:refresh-status': {
+    args: [workingPath: string]
+    return: undefined
+  }
+  'source-control:configure': {
+    args: [request: SourceControlConfigureRequest]
+    return: SourceControlConfigureResult
   }
 }

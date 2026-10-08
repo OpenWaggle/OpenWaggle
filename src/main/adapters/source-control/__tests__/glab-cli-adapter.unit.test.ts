@@ -58,8 +58,10 @@ describe('gitlab adapter defaults', () => {
     }
     runCliMock
       .mockResolvedValueOnce(cli({ stdout: JSON.stringify(details) }))
+      .mockResolvedValueOnce(cli({ stdout: '[]' }))
       .mockResolvedValueOnce(cli({ stdout: '' }))
       .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ ...details, state: 'merged' }) }))
+      .mockResolvedValueOnce(cli({ stdout: '[]' }))
     const provider = gitlabProvider()
 
     await expect(provider?.getChangeRequestDetails('/repo', '4')).resolves.toMatchObject({
@@ -71,7 +73,7 @@ describe('gitlab adapter defaults', () => {
     ).resolves.toMatchObject({ ok: true, changeRequest: { state: 'merged' } })
 
     expect(runCliMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       'glab',
       [
         'mr',

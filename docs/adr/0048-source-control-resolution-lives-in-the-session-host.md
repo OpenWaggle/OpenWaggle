@@ -1,0 +1,31 @@
+---
+status: accepted
+---
+
+# Source-control resolution lives in the Session Host
+
+The **Change request inspector** failed every time it opened. The desktop window's main process runs with an isolated, empty database (`configureAppDatabaseAccess('client-isolated')`), and `git:change-request:panel` and `git:change-request:merge` were handled there. They looked the Session up locally, never found it, and returned "This change request does not belong to the opened Session." before any provider was asked. GitHub and GitLab failed alike.
+
+The same isolated database broke every Session-scoped Git action from the window: **Commit**, **Push**, and **Create PR/MR** in the Session Summary verify the Session's working path with the same lookup and failed with "The requested working tree does not belong to the originating session.", and their Outputs were recorded into the isolated database, where they were lost.
+
+Everything that needs a Session now runs in the Session Host, which owns Sessions, Session resources, settings, and the agent runtime. Protocol revision 23 adds Host-backed channels for the inspector snapshot (`git:change-request:panel`), merge validation and the confirmed merge, the Session working-path check, and Git Output recording. A revision-23 window refuses an older Host at the handshake. Merge keeps its confirmation in the window, because the Host has no window: the Host validates the candidate, the window confirms, and the Host revalidates against the exact head commit before the CLI merges.
+
+Source-control resolution has one implementation in `src/main/services/source-control/`. It decides which **Source control host** and provider a remote belongs to, which **Provider account** and repository to use, and which change request the current branch has. Its durable inputs are Settings, which the Host owns: the window reads them through the Host's `settings:get` and changes them only with `source-control:patch-settings`, an atomic per-entry patch the Host applies itself, never through its own database. Whole-record read-modify-write across processes would drop concurrent changes. So the inspector, the Session Summary row, and the agent's `source_control` tool give the same answer wherever they run.
+
+Provider access stays CLI-only (ADR 0012). The provider of a host is decided offline wherever possible, in this order: SSH host aliases resolved to their real HostName; the user's own choice; an approved project declaration; github.com, gitlab.com, and `*.ghe.com`; hosts the user is signed in to in `gh` or `glab`; git's own hints (a per-host `gh`/`glab` credential helper, or a path deeper than owner/repo, which only GitLab allows); a hostname containing "github" or "gitlab"; `git ls-remote` for `refs/pull/*` or `refs/merge-requests/*` on the Session's own remote, cached per host; and otherwise one question to the user, which also offers "neither". Known public hosts of other forges (Bitbucket, Azure DevOps, Codeberg, gitea.com) and their path shapes are never asked about, and a host the user marks as neither stops being resolved. A self-hosted Gitea or Forgejo server advertises `refs/pull/*` too and can be detected as GitHub until the user changes it. OpenWaggle never probes an unconfirmed server's API to identify it. `ls-remote` talks only to the remote the user already fetches from, with git's own credentials.
+
+On a host where `gh` holds several accounts, such as personal and Enterprise Cloud accounts on github.com, a read that comes back "not found" or "forbidden" is retried with each held account's own token (`gh auth token --user`) for that one command, the remembered account first. An account other than the active one that can see the repository is remembered per repository. Writes (create, merge, checkout) are never retried as another account: they run once, as the account that last read the repository or the remembered one, and the merge confirmation names it. OpenWaggle never runs `gh auth switch`. Inherited token variables are still stripped. For a fork, the current branch's change request is also looked up in the repository `origin` was forked from and in an `upstream` remote.
+
+The user's choice beats an approved project declaration, which beats detection. A project may declare its hosts' providers and an open-destination override in its shared `.openwaggle/settings.json`. A declaration takes effect only after the user approves it locally, judged per host, and approving it also records it in the project's private local storage, so every Session of the project sees it at once. Per-project settings are keyed by the repository's main checkout (`git rev-parse --git-common-dir`; a worktree of a bare repository uses its own work tree), so every folder, worktree, and path spelling of a project shares them, and the shared file is only written at a work-tree root. Accounts are always private. None of this is Session state: it is keyed by host, project root, or repository identity, so it survives new Sessions and worktrees.
+
+## Considered options
+
+- **Look the Session up through the Host but keep provider logic in the window.** A smaller first fix, but it leaves a second copy of host detection that the agent's tool cannot share, and the two would drift.
+- **Open change requests only in the browser.** It removes the failing panel, but loses in-app checks and merge, and the glossary already rejects a browser-only request row. The **Change request open destination** setting offers it to users who prefer the provider's own page.
+- **Identify unknown hosts by probing `/api/v4/version` or `/api/v3/meta`.** Usually right, but it contacts a server the user has not confirmed. The offline signals, `ls-remote`, and one question cover the real cases.
+- **Switch the active `gh` account.** That changes the user's terminal identity behind their back.
+
+## Consequences
+
+- Any window-side code that reads Sessions, Session resources, or Settings from the window's own database is the same bug. Route it through a revisioned Host UI channel.
+- Signing in stays the CLI's job. OpenWaggle runs `gh auth login` or `glab auth login --hostname` in the in-app terminal and re-checks when it exits. An agent can read and configure source control, but cannot sign in.

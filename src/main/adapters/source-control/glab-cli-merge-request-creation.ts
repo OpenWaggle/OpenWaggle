@@ -26,7 +26,7 @@ function numberProperty(raw: unknown, property: string): number | null {
   return typeof value === 'number' ? value : null
 }
 
-async function findForkMergeRequest(
+export async function findForkMergeRequest(
   repository: SourceControlRepositoryIdentity,
   projectPath: string,
   payload: OpenChangeRequestPayload,

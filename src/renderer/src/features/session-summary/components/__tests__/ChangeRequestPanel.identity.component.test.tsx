@@ -79,6 +79,7 @@ describe('ChangeRequestPanel identity', () => {
       snapshot: {
         provider: { id: 'github', host: 'github.com' },
         currentRef: details(url).headRef,
+        account: null,
         selected: details(url),
         changeRequests: [details(url)],
       },

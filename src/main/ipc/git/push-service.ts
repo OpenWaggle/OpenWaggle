@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { pullCurrentBranchFastForward } from '../../adapters/git/remote-sync'
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { runWithGitNetworkLock } from '../../services/git/mutation-lock'
-import { resolvePrimaryRemoteResult } from './primary-remote'
+import { resolvePrimaryRemoteResult } from '../../services/git/primary-remote'
 import { isGitRepository, runGit } from './shared'
 import {
   type GitPushRefReadResult,

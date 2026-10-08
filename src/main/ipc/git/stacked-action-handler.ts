@@ -3,39 +3,39 @@ import { SessionId } from '@shared/types/brand'
 import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
-import { typedHandle } from '../typed-ipc'
-import { listGitBranchNames } from './branch-list'
-import { createGitBranch } from './branch-mutations'
+import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
+import { resolveRepositoryRoot } from '../../services/git/repository-root'
 import {
   buildChangeRequestFallbackUrl,
   resolveSourceControlProvider,
   sourceControlProviderForRepository,
-} from './change-request-provider'
+} from '../../services/source-control/change-request-provider'
+import { sourceControlSettingsAccess } from '../../services/source-control/source-control-runtime'
+import { resolveLiveRemoteUrlRepository } from '../../services/source-control/working-tree-source-control'
+import { typedHandle } from '../typed-ipc'
+import { listGitBranchNames } from './branch-list'
+import { createGitBranch } from './branch-mutations'
 import { commitGit } from './commit-handler'
 import { selectedGitPathsSchema } from './commit-path-contract'
 import { resolveDefaultRef } from './default-ref'
 import { withGitMutationLock } from './mutation-lock'
-import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 import {
   type GitPinnedPushTarget,
   type GitPushDestination,
   pullCurrentBranch,
   pushCurrentBranch,
 } from './push-service'
-import { verifySessionWorkingPath } from './session-working-path'
+import { recordStackedActionOutputsWhereOwned, verifySessionGitContext } from './session-git-host'
 import { projectPathSchema, runGit } from './shared'
 import {
   confirmDefaultBranchAction,
   resolvePlannedFeatureRef,
   revalidateGitTarget,
 } from './stacked-action-default-branch-gate'
-import { recordStackedActionOutputs } from './stacked-action-output-recording'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus } from './vcs-status-cache'
-import { resolveRepositoryRoot } from './working-tree-service'
 
 interface ActiveGitOperation {
   readonly senderId: number
@@ -121,7 +121,7 @@ function createStackedActionDeps(): StackedActionDeps {
     pull: (projectPath) => pullCurrentBranch(projectPath),
     openChangeRequest: async (projectPath, payload) => {
       const sourceControl = payload.targetRepository
-        ? sourceControlProviderForRepository(payload.targetRepository)
+        ? await sourceControlProviderForRepository(payload.targetRepository)
         : await resolveSourceControlProvider(projectPath)
       if (!sourceControl) {
         return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
@@ -155,6 +155,8 @@ function createStackedActionDeps(): StackedActionDeps {
       return resolveDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
     },
     resolvePrimaryRemoteUrl,
+    resolveRemoteRepository: (path, url) =>
+      resolveLiveRemoteUrlRepository(path, url, sourceControlSettingsAccess()),
     buildChangeRequestFallbackUrl,
   }
 }
@@ -197,10 +199,10 @@ export function registerGitStackedActionHandlers(): void {
       return yield* withGitMutationLock(
         projectPath,
         Effect.gen(function* () {
-          if (
-            options.sessionId &&
-            !(yield* verifySessionWorkingPath(options.sessionId, projectPath))
-          ) {
+          const verification = options.sessionId
+            ? yield* verifySessionGitContext(options.sessionId, projectPath)
+            : null
+          if (verification && !verification.owned) {
             return {
               ok: false,
               phase: 'commit',
@@ -247,13 +249,6 @@ export function registerGitStackedActionHandlers(): void {
               message: 'The current branch or push destination changed. Review the action again.',
             } satisfies GitRunStackedActionResult
           }
-          const occurrenceContext = options.sessionId
-            ? yield* resolveSessionOutputOccurrenceContext(options.sessionId).pipe(
-                Effect.catchAll(() =>
-                  Effect.succeed({ nodeId: null, branchId: null, createdAt: Date.now() }),
-                ),
-              )
-            : null
           const pinnedPushTarget = targetRevalidation.pinnedPushTarget
           const actionDeps: StackedActionDeps = {
             ...deps,
@@ -288,8 +283,12 @@ export function registerGitStackedActionHandlers(): void {
           // Stacked actions commit and push, so the working tree's status changed too.
           invalidateGitStatusCache(projectPath)
           invalidateVcsStatus(projectPath)
-          return options.sessionId && occurrenceContext
-            ? yield* recordStackedActionOutputs(result, options.sessionId, occurrenceContext)
+          return options.sessionId && verification?.owned
+            ? yield* recordStackedActionOutputsWhereOwned(
+                result,
+                options.sessionId,
+                verification.occurrence,
+              )
             : result
         }),
       ).pipe(

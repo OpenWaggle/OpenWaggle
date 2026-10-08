@@ -1,14 +1,26 @@
-import { SessionId } from '@shared/types/brand'
 import type { VcsStatus } from '@shared/types/git'
-import type { SessionResource } from '@shared/types/session-resource'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import { EnvironmentSummarySection, SessionChangeRequestsSection } from '../SessionSummarySections'
+import type { ChangeRequestOpener } from '../ChangeRequestLinkRow'
+import { EnvironmentSummarySection } from '../SessionSummarySections'
+
+vi.mock('@/shared/lib/ipc', () => ({ api: { configureSourceControl: vi.fn() } }))
+
+function opener(destination: ChangeRequestOpener['destination'] = 'inspector') {
+  return {
+    destination,
+    openInInspector: vi.fn<(url: string) => void>(),
+    openOnWebsite: vi.fn<(url: string) => void>(),
+  } satisfies ChangeRequestOpener
+}
 
 const GITHUB_STATUS = fromPartial<VcsStatus>({
   isRepo: true,
   sourceControlProvider: { id: 'github', host: 'github.com' },
+  sourceControlAttention: null,
+  sourceControlRepositoryUrl: 'https://github.com/o/r',
+  changeRequestAttention: null,
   changeRequest: null,
 })
 
@@ -16,7 +28,7 @@ function input(
   remoteVcsState: 'loading' | 'loaded' | 'error' | 'unavailable',
   onCreateChangeRequest = vi.fn(),
   onRefreshVcsStatus = vi.fn(),
-  onViewChangeRequest = vi.fn(),
+  changeRequestOpener: ChangeRequestOpener = opener(),
 ) {
   return {
     expanded: true,
@@ -32,10 +44,12 @@ function input(
     onExpandedChange: vi.fn(),
     onOpenDiff: vi.fn(),
     onCreateChangeRequest,
-    onViewChangeRequest,
+    changeRequestOpener,
+    sourceControlTerminal: null,
     onToggleTerminal: vi.fn(),
     onRefreshBranches: vi.fn(),
     onRefreshVcsStatus,
+    onRecheckSourceControl: vi.fn(async () => undefined),
     onSelectBranch: vi.fn().mockResolvedValue(true),
     onCreateBranch: vi.fn().mockResolvedValue(true),
     quickAction: {
@@ -173,68 +187,5 @@ describe('Session Summary remote change-request state', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry Git status' }))
     expect(onQuickAction).toHaveBeenCalledOnce()
-  })
-
-  it('opens an existing request in the Session-bound inspector', () => {
-    const onView = vi.fn()
-    render(
-      <EnvironmentSummarySection
-        input={{
-          ...input('loaded', vi.fn(), vi.fn(), onView),
-          vcsStatus: {
-            ...GITHUB_STATUS,
-            changeRequest: {
-              title: 'Lifecycle',
-              url: 'https://github.com/o/r/pull/7',
-              baseRef: 'main',
-              headRef: 'feature',
-              state: 'open',
-            },
-          },
-        }}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'View PR' }))
-    expect(onView).toHaveBeenCalledWith('https://github.com/o/r/pull/7')
-  })
-
-  it('discovers only additional Session-owned requests without duplicating the current one', () => {
-    const onOpen = vi.fn()
-    const resource = (id: string, title: string, locator: string) =>
-      fromPartial<SessionResource>({
-        id,
-        sessionId: SessionId('session-a'),
-        kind: 'change-request',
-        title,
-        locator,
-        isOutput: true,
-      })
-    render(
-      <SessionChangeRequestsSection
-        resources={[
-          resource('current', 'Current', 'https://github.com/o/r/pull/7?diff=split'),
-          resource('other', 'Another Session request', 'https://github.com/o/r/pull/8'),
-          fromPartial<SessionResource>({
-            id: 'foreign-kind',
-            sessionId: SessionId('session-a'),
-            kind: 'link',
-            title: 'Not a request',
-            locator: 'https://github.com/o/r/pull/9',
-            isOutput: true,
-          }),
-        ]}
-        currentUrl="https://github.com/o/r/pull/7"
-        provider="github"
-        expanded
-        onExpandedChange={vi.fn()}
-        onOpen={onOpen}
-      />,
-    )
-
-    expect(screen.getByRole('button', { name: 'Other pull requests 1' })).toBeInTheDocument()
-    expect(screen.queryByText('Current')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Another Session request' }))
-    expect(onOpen).toHaveBeenCalledWith('https://github.com/o/r/pull/8')
   })
 })

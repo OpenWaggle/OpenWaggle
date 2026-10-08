@@ -1,12 +1,16 @@
-import type { GitStatusSummary, SourceControlProviderId, VcsStatus } from '@shared/types/git'
+import type { GitStatusSummary, SourceControlProviderInfo, VcsStatus } from '@shared/types/git'
 import type { SessionResource } from '@shared/types/session-resource'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
 import { GitPullRequest } from 'lucide-react'
+import { effectiveChangeRequestAttention } from '../model/change-request-attention'
+import { ChangeRequestLinkRow, type ChangeRequestOpener } from './ChangeRequestLinkRow'
 import {
   SessionSummaryPaginatedList,
   SessionSummaryRow,
   SessionSummarySection,
 } from './SessionSummaryPrimitives'
+import { SourceControlAttentionNotice } from './SourceControlAttentionNotice'
+import type { SourceControlSessionTerminal } from './use-source-control-attention-actions'
 
 type RemoteVcsState = 'loading' | 'loaded' | 'error' | 'unavailable'
 
@@ -32,29 +36,74 @@ export function ChangeRequestSummaryRow({
   gitStatus,
   vcsStatus,
   remoteVcsState,
+  opener,
+  terminal,
   onCreate,
-  onView,
   onRefresh,
+  onRecheckSourceControl,
 }: {
   readonly gitStatus: GitStatusSummary | null
   readonly vcsStatus: VcsStatus | null
   readonly remoteVcsState: RemoteVcsState
+  readonly opener: ChangeRequestOpener
+  readonly terminal: SourceControlSessionTerminal | null
   readonly onCreate: () => void
-  readonly onView: (url: string) => void
   readonly onRefresh: () => void
+  /** Drops the Host's cached source-control answers, then re-reads VCS status. */
+  readonly onRecheckSourceControl: () => Promise<void>
 }) {
-  const terminology = getChangeRequestTerminology(vcsStatus?.sourceControlProvider?.id)
+  const provider = vcsStatus?.sourceControlProvider?.id ?? null
+  const terminology = getChangeRequestTerminology(provider)
   const existing = vcsStatus?.changeRequest
   if (existing) {
     return (
-      <SessionSummaryRow
-        icon={<GitPullRequest className="size-4" />}
+      <ChangeRequestLinkRow
         label={`View ${terminology.shortLabel}`}
-        onClick={() => onView(existing.url)}
+        url={existing.url}
+        remote={vcsStatus?.sourceControlProvider ?? null}
+        opener={opener}
+      />
+    )
+  }
+  const attention = effectiveChangeRequestAttention(vcsStatus ?? null)
+  if (attention) {
+    return (
+      <SourceControlAttentionNotice
+        label="Change request setup"
+        attention={attention}
+        terminal={terminal}
+        websiteUrl={vcsStatus?.sourceControlRepositoryUrl ?? null}
+        onRecheck={onRecheckSourceControl}
       />
     )
   }
   if (!vcsStatus?.sourceControlProvider) return null
+  return (
+    <ChangeRequestStatusRow
+      gitStatus={gitStatus}
+      vcsStatus={vcsStatus}
+      remoteVcsState={remoteVcsState}
+      onCreate={onCreate}
+      onRefresh={onRefresh}
+    />
+  )
+}
+
+/** Create, retry, or still-checking: the row once no request and no attention is known. */
+function ChangeRequestStatusRow({
+  gitStatus,
+  vcsStatus,
+  remoteVcsState,
+  onCreate,
+  onRefresh,
+}: {
+  readonly gitStatus: GitStatusSummary | null
+  readonly vcsStatus: VcsStatus
+  readonly remoteVcsState: RemoteVcsState
+  readonly onCreate: () => void
+  readonly onRefresh: () => void
+}) {
+  const terminology = getChangeRequestTerminology(vcsStatus.sourceControlProvider?.id)
   if (remoteVcsState === 'loaded') {
     return (
       <SessionSummaryRow
@@ -108,31 +157,33 @@ function normalizedRequestUrl(value: string | null | undefined) {
 export function SessionChangeRequestsSection({
   resources,
   currentUrl,
-  provider,
+  remote,
   expanded,
   onExpandedChange,
-  onOpen,
+  opener,
 }: {
   readonly resources: readonly SessionResource[]
   readonly currentUrl: string | null
-  readonly provider: SourceControlProviderId | null
+  /** The Session remote's provider and host. */
+  readonly remote: SourceControlProviderInfo | null
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
-  readonly onOpen: (url: string) => void
+  readonly opener: ChangeRequestOpener
 }) {
   const normalizedCurrent = normalizedRequestUrl(currentUrl)
   const requests = [
     ...new Map(
       resources.flatMap((resource) => {
-        if (resource.kind !== 'change-request' || !resource.isOutput || !resource.locator) return []
-        const normalized = normalizedRequestUrl(resource.locator)
+        const locator = resource.locator
+        if (resource.kind !== 'change-request' || !resource.isOutput || !locator) return []
+        const normalized = normalizedRequestUrl(locator)
         if (!normalized || normalized === normalizedCurrent) return []
-        return [[normalized, resource] as const]
+        return [[normalized, { resource, locator }] as const]
       }),
     ).values(),
   ]
   if (requests.length === 0) return null
-  const terminology = getChangeRequestTerminology(provider)
+  const terminology = getChangeRequestTerminology(remote?.id)
   const title = `${currentUrl ? 'Other ' : ''}${terminology.plural}`
   return (
     <SessionSummarySection
@@ -144,12 +195,13 @@ export function SessionChangeRequestsSection({
     >
       <SessionSummaryPaginatedList
         items={requests}
-        getKey={(resource) => resource.id}
-        renderItem={(resource) => (
-          <SessionSummaryRow
-            icon={<GitPullRequest className="size-4" />}
-            label={resource.title}
-            onClick={() => resource.locator && onOpen(resource.locator)}
+        getKey={(request) => request.resource.id}
+        renderItem={(request) => (
+          <ChangeRequestLinkRow
+            label={request.resource.title}
+            url={request.locator}
+            remote={remote}
+            opener={opener}
           />
         )}
       />

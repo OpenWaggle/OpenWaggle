@@ -39,6 +39,9 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'skills:get-preview',
     'agent-definitions:list-display',
     'agent-definitions:get-preview',
+    'git:change-request:panel',
+    'git:change-request:merge-candidate',
+    'git:session:verify-working-path',
   ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {

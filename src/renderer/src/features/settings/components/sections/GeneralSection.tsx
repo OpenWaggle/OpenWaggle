@@ -3,11 +3,11 @@ import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
-import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
+import { SegmentedRadioGroup } from '@/shared/ui/SegmentedRadioGroup'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
 import { UpdateChannelSetting } from './UpdateChannelSetting'
 import { UsageStatisticsSetting } from './UsageStatisticsSetting'
@@ -53,6 +53,11 @@ function useUpdateStatus() {
   return status
 }
 
+const BROWSER_LINK_TARGET_OPTIONS = [
+  { value: 'system', label: 'System browser' },
+  { value: 'app', label: 'OpenWaggle' },
+] as const
+
 function BrowserLinkTargetSettings() {
   const target = usePreferencesStore((state) => state.settings.browserLinkTarget)
   const setTarget = usePreferencesStore((state) => state.setBrowserLinkTarget)
@@ -78,35 +83,13 @@ function BrowserLinkTargetSettings() {
             Terminal links and detected local ports use this destination.
           </div>
         </div>
-        <div
-          role="radiogroup"
-          aria-label="Open web links in"
-          className="flex shrink-0 rounded-md border border-border bg-bg-secondary p-0.5"
-        >
-          {(
-            [
-              ['system', 'System browser'],
-              ['app', 'OpenWaggle'],
-            ] as const
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={target === value}
-              size="xs"
-              variant="ghost"
-              disabled={saving}
-              className={cn(
-                'h-7 px-2.5 text-xs',
-                target === value && 'bg-bg-hover text-text-primary shadow-sm',
-              )}
-              onClick={() => choose(value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
+        <SegmentedRadioGroup
+          label="Open web links in"
+          options={BROWSER_LINK_TARGET_OPTIONS}
+          value={target}
+          pending={saving}
+          onSelect={choose}
+        />
       </div>
     </div>
   )

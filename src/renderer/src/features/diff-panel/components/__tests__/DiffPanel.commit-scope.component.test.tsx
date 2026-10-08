@@ -87,6 +87,9 @@ describe('commit scope', () => {
       status: {
         isRepo: true,
         sourceControlProvider: null,
+        sourceControlHost: null,
+        sourceControlAttention: null,
+        sourceControlRepositoryUrl: null,
         hasPrimaryRemote: false,
         isDefaultRef: false,
         pushTargetRef: 'feature/x',

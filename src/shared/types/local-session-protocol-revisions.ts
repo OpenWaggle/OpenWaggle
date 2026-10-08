@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 22 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 23 as const
+export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 23 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
 export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 21 as const
 export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
@@ -37,6 +38,9 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * content block (`contentIndex`), which a revision-21 client decodes exactly and would reject
  * mid-stream, so older clients must upgrade; and `degraded.messageCutShort` says whether the caps
  * cut the streaming message, since the omitted bytes count over the Run.
+ * Revision 23 moves Session-coupled source-control work to the Host (ADR 0048): the Change request
+ * inspector, merge validation and the confirmed merge, Session working-path checks, and Git Output
+ * recording, because the desktop window's database is isolated and cannot see Sessions.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -152,4 +156,9 @@ export const LOCAL_SESSION_REVISION_22_CAPABILITIES = [
   'events:run-snapshot-content-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_22_CAPABILITIES
+export const LOCAL_SESSION_REVISION_23_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_22_CAPABILITIES,
+  'host-ui:source-control-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_23_CAPABILITIES

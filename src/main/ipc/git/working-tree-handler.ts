@@ -3,16 +3,13 @@ import type { GitWorkingTreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import { resolveRepositoryRoot } from '../../services/git/repository-root'
 import { typedHandle } from '../typed-ipc'
 import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
 import { invalidateVcsStatus } from './vcs-status-cache'
-import {
-  resolveRepositoryRoot,
-  revertAllGitChanges,
-  stageAllGitChanges,
-} from './working-tree-service'
+import { revertAllGitChanges, stageAllGitChanges } from './working-tree-service'
 
 const REVERT_ALL_CONFIRMATION_DETAIL =
   'This resets all tracked and staged changes to HEAD and permanently deletes untracked files and folders. Ignored files and nested Git repositories are kept. If either would obstruct restoring HEAD, nothing is changed. This cannot be undone.'
