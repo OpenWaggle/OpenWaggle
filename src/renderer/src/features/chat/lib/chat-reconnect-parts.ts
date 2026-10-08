@@ -63,10 +63,29 @@ function identityIndex(parts: readonly UIMessagePart[], part: UIMessagePart) {
     .exhaustive()
 }
 
+type ToolCallPart = Extract<UIMessagePart, { readonly type: 'tool-call' }>
+
+/** How many nested calls a record saw, kept or dropped past its cap. */
+function nestedCallsSeen(part: ToolCallPart) {
+  const record = part.nestedCalls
+  return record ? record.calls.length + (record.droppedCalls ?? 0) : 0
+}
+
+/**
+ * Two copies of one tool call: the later state, with the nested-call record that saw more calls.
+ * Each copy's record only grows, so the fuller one is newer, whichever side saw the calls a stall
+ * kept from the other.
+ */
+function mergeToolCalls(existing: ToolCallPart, incoming: ToolCallPart): ToolCallPart {
+  const later = toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
+  const fuller = nestedCallsSeen(existing) > nestedCallsSeen(incoming) ? existing : incoming
+  return fuller.nestedCalls ? { ...later, nestedCalls: fuller.nestedCalls } : later
+}
+
 /** Two copies of one part: a tool call in its later state, a thought with the longer text. */
 function mergeIdentical(existing: UIMessagePart, incoming: UIMessagePart): UIMessagePart {
   if (existing.type === 'tool-call' && incoming.type === 'tool-call') {
-    return toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
+    return mergeToolCalls(existing, incoming)
   }
   if (existing.type === 'thinking' && incoming.type === 'thinking') {
     const longer = incoming.content.includes(existing.content) ? incoming : existing

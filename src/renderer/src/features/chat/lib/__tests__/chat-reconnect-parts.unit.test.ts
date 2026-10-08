@@ -129,4 +129,53 @@ describe('reconnect merge of the streaming answer parts', () => {
     })
     expect(merged[0]?.parts).toEqual([text('A'), thought('early later end', 1)])
   })
+
+  /** A running codemode call that made `count` nested calls. */
+  function codemode(count: number): UIMessagePart {
+    return {
+      type: 'tool-call',
+      id: 'code-1',
+      name: 'codemode',
+      arguments: '{}',
+      state: 'executing',
+      nestedCalls: {
+        calls: Array.from({ length: count }, (_, index) => ({
+          id: `code-1/${String(index + 1)}`,
+          name: 'read',
+          args: {},
+          status: 'ok' as const,
+        })),
+        complete: true,
+      },
+    }
+  }
+
+  function nestedCallCount(parts: readonly UIMessagePart[] | undefined) {
+    const call = parts?.find((part) => part.type === 'tool-call')
+    return call?.type === 'tool-call' ? call.nestedCalls?.calls.length : undefined
+  }
+
+  it('keeps the nested calls a running tool call made while the renderer was away', () => {
+    // Both copies are still executing; the buffer saw the calls the stalled renderer missed.
+    const merged = merge({ buffer: [codemode(5)], shown: [codemode(2)], baseline: [codemode(2)] })
+
+    expect(nestedCallCount(merged[0]?.parts)).toBe(5)
+  })
+
+  it('keeps nested calls the shown copy received after the read', () => {
+    const merged = merge({ buffer: [codemode(2)], shown: [codemode(4)], baseline: [codemode(2)] })
+
+    expect(nestedCallCount(merged[0]?.parts)).toBe(4)
+  })
+
+  it('keeps the fuller nested-call record when the buffer was cut at its byte caps', () => {
+    const merged = merge({
+      buffer: [codemode(6)],
+      shown: [codemode(3)],
+      baseline: [codemode(3)],
+      degraded: true,
+    })
+
+    expect(nestedCallCount(merged[0]?.parts)).toBe(6)
+  })
 })
