@@ -39,6 +39,7 @@ import {
   removeMcpServerEntry,
   updateMcpServerSettings,
 } from './mcp-config-writer'
+import { duplicateMcpServerErrors } from './mcp-duplicate-servers'
 import { removeEmptyOpenWaggleProjectFile } from './mcp-empty-project-file'
 import { writeMcpServerSwitch } from './mcp-inherited-settings'
 import { removeOrphanedOverride, removeOrphanedOverrides } from './mcp-orphaned-overrides'
@@ -145,7 +146,8 @@ function buildView(
 ): McpConfigurationView {
   const roots = context.roots(input)
   const merged = loadMcpMergedConfig(roots, context.reader)
-  const files: McpConfigFileView[] = mcpConfigFileLocations(roots).map((file) => ({
+  const locations = mcpConfigFileLocations(roots)
+  const files: McpConfigFileView[] = locations.map((file) => ({
     fileId: file.fileId,
     path: file.path,
     scope: file.scope,
@@ -156,7 +158,7 @@ function buildView(
     projectPath: input.projectPath,
     files,
     servers: merged.servers.map(serverView),
-    errors: merged.errors,
+    errors: [...merged.errors, ...duplicateMcpServerErrors(locations, context.reader)],
     ...(merged.warnings ? { warnings: merged.warnings } : {}),
     ...(merged.orphanedOverrides ? { orphanedOverrides: merged.orphanedOverrides } : {}),
   }
