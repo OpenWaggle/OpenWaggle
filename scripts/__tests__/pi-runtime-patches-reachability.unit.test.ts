@@ -3,8 +3,9 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const PATCHES_DIRECTORY = path.join(import.meta.dirname, '..', '..', 'patches')
-const RETURN_STATEMENT = /^(\s*)return\b.*;\s*$/
-/** What may follow a `return` at the same indentation and still be reachable. */
+/** A statement that leaves its block: `return`, `throw`, `break`, or `continue`. */
+const RETURN_STATEMENT = /^(\s*)(return|throw|break|continue)\b.*;\s*$/
+/** What may follow such a statement at the same indentation and still be reachable. */
 const REACHABLE_AFTER_RETURN = /^\s*(case\b|default\b|\})/
 
 function indentationOf(line: string) {
@@ -12,7 +13,7 @@ function indentationOf(line: string) {
 }
 
 /**
- * Statements that follow a `return` in the same block of a patched file. Each hunk is read as it
+ * Statements that follow a `return`, `throw`, `break`, or `continue` in the same block of a patched file. Each hunk is read as it
  * leaves the file, context lines included, so a hunk that adds a `return` above an original one
  * shows the original as unreachable.
  */
@@ -55,7 +56,7 @@ describe('Pi runtime patches', () => {
     expect(patches.length).toBeGreaterThan(0)
   })
 
-  it.each(patches)('%s leaves no statement unreachable after a return', (name) => {
+  it.each(patches)('%s leaves no statement unreachable after a return, throw, break, or continue', (name) => {
     expect(unreachableAfterReturn(readFileSync(path.join(PATCHES_DIRECTORY, name), 'utf8'))).toEqual(
       [],
     )
@@ -73,4 +74,21 @@ describe('Pi runtime patches', () => {
 
     expect(unreachableAfterReturn(patch)).toEqual(['b/dist/core/example.js: return { value };'])
   })
+
+  it.each(['throw error;', 'break;', 'continue;'])(
+    'reports a statement left after %s',
+    (exit) => {
+      const patch = [
+        '+++ b/dist/core/example.js',
+        '@@ -1,4 +1,5 @@',
+        ' for (const item of items) {',
+        `+    ${exit}`,
+        '     handle(item);',
+        ' }',
+      ].join('\n')
+
+      expect(unreachableAfterReturn(patch)).toEqual(['b/dist/core/example.js: handle(item);'])
+    },
+  )
 })
+
