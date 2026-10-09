@@ -3,6 +3,13 @@ import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type { DiscoveredPiSession, PiSessionDiscoveryInput } from '../../ports/pi-session-discovery'
 import { resolvePiSessionDirectory } from './pi-session-directory'
+import {
+  encodedPathPrefix,
+  owningProject,
+  type ProjectLocation,
+  projectLocations,
+  sessionDirectoryMayBelongTo,
+} from './pi-session-project-paths'
 
 /**
  * Pi session discovery (ADR 0050): finds Pi sessions the `pi` CLI created inside an OpenWaggle
@@ -27,33 +34,6 @@ const MAX_REMEMBERED_MESSAGE_LENGTH = 1024
 
 export interface PiSessionDiscoveryScanner {
   readonly scan: (input: PiSessionDiscoveryInput) => Promise<readonly DiscoveredPiSession[]>
-}
-
-/** Pi's directory-name encoding of a working directory, without the closing `--`. */
-function encodedPathPrefix(directory: string) {
-  return `--${path
-    .resolve(directory)
-    .replace(/^[/\\]/, '')
-    .replace(/[/\\:]/g, '-')}`
-}
-
-function sessionDirectoryMayBelongTo(directoryName: string, projectPrefix: string) {
-  return directoryName === `${projectPrefix}--` || directoryName.startsWith(`${projectPrefix}-`)
-}
-
-function isPathInsideProject(candidate: string, projectPath: string) {
-  const relative = path.relative(path.resolve(projectPath), path.resolve(candidate))
-  if (path.isAbsolute(relative)) return false
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`)
-}
-
-function owningProject(cwd: string, projectPaths: readonly string[]) {
-  let owner: string | null = null
-  for (const projectPath of projectPaths) {
-    if (!isPathInsideProject(cwd, projectPath)) continue
-    if (owner === null || projectPath.length > owner.length) owner = projectPath
-  }
-  return owner
 }
 
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
@@ -236,7 +216,7 @@ export function createPiSessionDiscoveryScanner(
 
   const discoveredSession = async (
     file: string,
-    projectPaths: readonly string[],
+    projectPaths: readonly ProjectLocation[],
   ): Promise<DiscoveredPiSession | null> => {
     const state = await fileState(file)
     if (state === null) return null
@@ -258,7 +238,7 @@ export function createPiSessionDiscoveryScanner(
 
   const scanDirectory = async (
     directory: string,
-    projectPaths: readonly string[],
+    projectPaths: readonly ProjectLocation[],
     isKnownFile: (file: string) => boolean,
   ) => {
     const discovered: DiscoveredPiSession[] = []
@@ -295,13 +275,16 @@ export function createPiSessionDiscoveryScanner(
       if (custom) customDirectories.add(custom)
     }
     const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
-    const prefixes = projectPaths.map(encodedPathPrefix)
+    const projects = await projectLocations(projectPaths)
+    const prefixes = [
+      ...new Set(projects.flatMap((project) => [project.projectPath, project.physicalPath])),
+    ].map(encodedPathPrefix)
     const defaultDirectories = (await readDirectoryNames(sessionsRoot))
       .filter((name) => prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)))
       .map((name) => path.join(sessionsRoot, name))
     const discovered = new Map<string, DiscoveredPiSession>()
     for (const directory of new Set([...customDirectories, ...defaultDirectories])) {
-      for (const session of await scanDirectory(directory, projectPaths, isKnownFile)) {
+      for (const session of await scanDirectory(directory, projects, isKnownFile)) {
         discovered.set(session.piSessionFile, session)
       }
     }

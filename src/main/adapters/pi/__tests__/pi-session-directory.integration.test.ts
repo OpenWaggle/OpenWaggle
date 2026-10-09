@@ -152,6 +152,22 @@ describe("Pi's session directory", () => {
     expect(manager.getCwd()).toBe(worktree)
   })
 
+  it('finds the sessions of a project opened through a symbolic link', async () => {
+    // Pi records the physical folder it ran in; the project is open under the link's path,
+    // as one under /tmp is on macOS, where /tmp links to /private/tmp.
+    const linked = path.join(fixture.root, 'linked-app')
+    await fs.symlink(fixture.project, linked)
+    await registerProjects([linked])
+    const cli = createPiCliSession(path.join(fixture.project, 'packages', 'core'), 'Through a link')
+
+    const sessionId = await discoverOne()
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      projectPath: linked,
+      piSessionFile: cli.file,
+    })
+  })
+
   it('expands a sessionDir under ~ to the home directory', async () => {
     const home = path.join(fixture.root, 'home')
     vi.stubEnv('HOME', home)
