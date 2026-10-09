@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { lstatSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import {
   type McpConfigFileId,
@@ -81,11 +81,24 @@ export interface McpConfigFileReader {
   readonly readText: (filePath: string) => string | undefined
 }
 
+/** A path that is a symbolic link whose target does not exist (a dotfiles checkout not mounted). */
+function isDanglingLink(filePath: string) {
+  try {
+    return lstatSync(filePath).isSymbolicLink()
+  } catch {
+    return false
+  }
+}
+
 export const nodeMcpConfigFileReader: McpConfigFileReader = {
   readText(filePath) {
     try {
       return readFileSync(filePath, 'utf8')
     } catch (error) {
+      // Not missing: read as missing, its overrides elsewhere would count as removable orphans.
+      if (isMissingFile(error) && isDanglingLink(filePath)) {
+        throw new Error('links to a missing file', { cause: error })
+      }
       if (isMissingFile(error)) return undefined
       throw error
     }

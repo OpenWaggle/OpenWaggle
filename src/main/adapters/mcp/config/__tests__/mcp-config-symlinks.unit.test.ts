@@ -9,8 +9,10 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nodeMcpMigrationFs } from '../../migration/migration-fs'
+import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
 import { addMcpServerEntry } from '../mcp-config-writer'
 
 let root: string
@@ -53,5 +55,29 @@ describe.skipIf(process.platform === 'win32')('MCP files that are symbolic links
 
     expect(lstatSync(link).isSymbolicLink()).toBe(true)
     expect(readFileSync(real, 'utf8')).toBe('{"mcpServers":{"a":{"command":"a"}}}\n')
+  })
+
+  it('read a link to a missing file as unreadable, so its overrides are never orphans', async () => {
+    const home = path.join(root, 'home')
+    const global = path.join(home, '.openwaggle', 'mcp.json')
+    const project = path.join(root, 'project')
+    mkdirSync(path.dirname(global), { recursive: true })
+    // The dotfiles checkout is not mounted right now.
+    symlinkSync(path.join(root, 'dotfiles', 'gone.json'), global)
+    mkdirSync(path.join(project, '.openwaggle'), { recursive: true })
+    writeFileSync(
+      path.join(project, '.openwaggle', 'mcp.json'),
+      '{"mcpServers":{"docs":{"enabled":false}}}\n',
+    )
+    const service = createFilesystemMcpConfigurationService({
+      homeDir: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+    })
+
+    const view = await Effect.runPromise(service.getView({ projectPath: project }))
+
+    expect(view.errors).toEqual([`${global}: links to a missing file`])
+    expect(view.orphanedOverrides).toBeUndefined()
+    expect(view.files.find((file) => file.fileId === 'openwaggle-global')?.exists).toBe(true)
   })
 })

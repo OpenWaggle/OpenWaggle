@@ -72,6 +72,15 @@ function vaultSecretsOf(config: McpMergedServer['config']) {
   return [...names].sort()
 }
 
+/** A file that cannot be read (a link to a missing file, no permission) is still there. */
+function fileExists(reader: McpConfigFileReader, filePath: string) {
+  try {
+    return reader.readText(filePath) !== undefined
+  } catch {
+    return true
+  }
+}
+
 function serverView(server: McpMergedServer): McpConfiguredServerView {
   const { config } = server
   const isUrl = 'url' in config
@@ -140,7 +149,7 @@ function buildView(
     fileId: file.fileId,
     path: file.path,
     scope: file.scope,
-    exists: context.reader.readText(file.path) !== undefined,
+    exists: fileExists(context.reader, file.path),
     openWaggleOwned: isOpenWaggleMcpConfigFile(file.fileId),
   }))
   return {
