@@ -35,6 +35,9 @@ export class DeletedPiSessionFileError extends Error {
   }
 }
 
+/** OpenWaggle-created Sessions already warned about a deleted file, by Session and file. */
+const warnedDeletedFiles = new Set<string>()
+
 /** Sessions kept because others depend on them, reported once per Host rather than every pass. */
 const keptSessions = new Set<string>()
 
@@ -117,13 +120,21 @@ export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
     const state = yield* repository.value
       .getProjectionState(sessionId)
       .pipe(Effect.orElseSucceed(() => null))
-    if (!state?.piSessionFile || !(yield* files.value.isDeleted(state.piSessionFile))) return
+    if (!state?.piSessionFile) return
+    // A Session OpenWaggle created records its file before Pi writes it: one whose projection
+    // holds no Pi entry yet was never written, not deleted.
+    if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return
+    if (!(yield* files.value.isDeleted(state.piSessionFile))) return
     if (state.piEntryNodeIdPrefix) {
       const refusal = yield* repository.value
         .deletionRefusal(sessionId)
         .pipe(Effect.orElseSucceed(() => undefined))
       return yield* Effect.fail(new DeletedPiSessionFileError(state.piSessionFile, refusal))
     }
+    // Once per Session and file: each Run checks before it reads the Session, and again before Pi.
+    const key = `${sessionId}:${state.piSessionFile}`
+    if (warnedDeletedFiles.has(key)) return
+    warnedDeletedFiles.add(key)
     logger.warn(
       "A Session's Pi session file was deleted outside OpenWaggle; the Run starts a new one without the earlier context",
       { sessionId, piSessionFile: state.piSessionFile },
