@@ -19,7 +19,10 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
-import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
+import {
+  PI_WAGGLE_TURN_CUSTOM_TYPE,
+  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+} from '@openwaggle/pi-waggle/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   resolveSessionRunExecution,
@@ -80,7 +83,10 @@ async function createSessionHarness() {
   modelRuntime.registerNativeProvider(faux.provider)
   await modelRuntime.setRuntimeApiKey(faux.provider.id, 'cache-key')
   const settingsManager = SettingsManager.inMemory({ retry: { enabled: false } })
-  const sessionManager = SessionManager.inMemory(directory)
+  // File-backed, and opened again by each Run, as OpenWaggle's Runs do.
+  const sessionFile = SessionManager.create(directory, directory).getSessionFile()
+  if (!sessionFile) throw new Error('Expected a file-backed Pi session')
+  const openSession = () => SessionManager.open(sessionFile, directory)
   const requests: TranscriptContext[] = []
 
   /** One OpenWaggle Run: a fresh Pi runtime over the same Session transcript. */
@@ -116,7 +122,7 @@ async function createSessionHarness() {
       model: faux.getModel(),
       modelRuntime,
       resourceLoader,
-      sessionManager,
+      sessionManager: openSession(),
       settingsManager,
       noTools: 'all',
     })
@@ -129,10 +135,14 @@ async function createSessionHarness() {
     )
     try {
       for (const prompt of runPrompts) {
-        // A Waggle Run is prompted with custom messages (`waggle-run-messages.ts`).
+        // A Waggle Run starts with its user request and first turn (`waggle-run-messages.ts`).
         if (options.waggle) {
           await session.sendCustomMessage(
-            { customType: PI_WAGGLE_TURN_CUSTOM_TYPE, content: prompt, display: false },
+            { customType: PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE, content: prompt, display: true },
+            { triggerTurn: false },
+          )
+          await session.sendCustomMessage(
+            { customType: PI_WAGGLE_TURN_CUSTOM_TYPE, content: `Turn: ${prompt}`, display: false },
             { triggerTurn: true },
           )
         } else {
@@ -144,7 +154,7 @@ async function createSessionHarness() {
     }
   }
 
-  return { run, requests, sessionManager }
+  return { run, requests, openSession }
 }
 
 function leadingSystemPrompt(context: Pick<TranscriptContext, 'messages'>) {
@@ -221,7 +231,7 @@ describe('Agent run context and the provider prompt cache', () => {
     await harness.run('run-second', 'Now audit the projection')
 
     // `pi --resume` sends what the file holds; the Run identity is OpenWaggle's alone.
-    const piContext = { messages: harness.sessionManager.buildSessionContext().messages }
+    const piContext = { messages: harness.openSession().buildSessionContext().messages }
     expect(piContext.messages.some((message) => message.role === 'custom')).toBe(false)
     expect(JSON.stringify(piContext.messages)).not.toContain(
       'OpenWaggle Host-authored Run identity',

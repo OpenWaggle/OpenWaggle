@@ -77,8 +77,8 @@ describe('the Run identity of a Waggle Run', () => {
     expect(branch).toHaveLength(1)
     expect(first).toMatchObject([
       { content: 'Debate it' },
-      { content: [{ text: 'Turn 0' }] },
       { content: 'run-waggle' },
+      { content: [{ text: 'Turn 0' }] },
     ])
     // Each later request of the Run keeps the earlier one as its prefix.
     expect(second.slice(0, first.length)).toEqual(first)
@@ -94,10 +94,12 @@ describe('the Run identity of a Waggle Run', () => {
     const first = send([...history, waggleRequest('Debate it', 10), waggleTurn('Turn 0', 10)])
 
     expect(first.slice(0, history.length)).toEqual(history)
-    expect(first.at(-1)).toMatchObject({
-      customType: RUN_IDENTITY_CUSTOM_TYPE,
-      content: 'run-waggle',
-    })
+    // After the Run's user request, not the older classic prompt.
+    expect(first.slice(history.length)).toMatchObject([
+      { content: 'Debate it' },
+      { customType: RUN_IDENTITY_CUSTOM_TYPE, content: 'run-waggle' },
+      { content: [{ text: 'Turn 0' }] },
+    ])
 
     // The next classic Run sends the Waggle Run's identity where it was, after its prompt.
     const next = waggleRun(

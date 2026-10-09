@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { ContextEvent, SessionEntry } from '@earendil-works/pi-coding-agent'
-import {
-  PI_WAGGLE_TURN_CUSTOM_TYPE,
-  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
-} from '@openwaggle/pi-waggle/protocol'
+import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
 import { isRecord } from '@shared/utils/validation'
 
@@ -11,16 +8,13 @@ type ContextMessage = ContextEvent['messages'][number]
 type CustomMessage = Extract<ContextMessage, { role: 'custom' }>
 type PromptMessage = Extract<ContextMessage, { role: 'user' | 'custom' }>
 
-/** The custom messages a Waggle Run is prompted with (`waggle-run-messages.ts`). */
-const WAGGLE_PROMPT_CUSTOM_TYPES = new Set([
-  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
-  PI_WAGGLE_TURN_CUSTOM_TYPE,
-])
-
-/** A Run's prompt: a user message, or the custom message that starts a Waggle Run. */
+/**
+ * A Run's start message: a user message, or the user request a Waggle Run starts with
+ * (`waggle-run-messages.ts`). A Waggle turn message is not one: every turn adds another.
+ */
 function isPromptMessage(message: ContextMessage): message is PromptMessage {
   if (message.role === 'user') return true
-  return message.role === 'custom' && WAGGLE_PROMPT_CUSTOM_TYPES.has(message.customType)
+  return message.role === 'custom' && message.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE
 }
 
 const RUN_IDENTITY_DETAILS = { source: 'openwaggle', kind: 'run-identity' } as const
