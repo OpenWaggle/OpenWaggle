@@ -180,5 +180,28 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     expect(failure).not.toMatch(/removes the Session|delete the Session/)
     expect(failure).toMatch(/Restore the file to continue it/)
     expect(failure).toMatch(/fork \S+ still depends on it/)
+    // Opened, it says so before any send.
+    const { dispatchHostBackedSessionGuiOperation } = await import(
+      '../../../application/host-ui-session-operation-dispatcher'
+    )
+    const opened = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [forked.sessionId]),
+    )
+    expect(opened?.piSessionFileDeleted).toMatch(/^This Session's Pi session file was deleted/)
+    expect(opened?.piSessionFileDeleted).toMatch(/fork \S+ still depends on it/)
+  })
+
+  it('is opened without a notice while its file is there', async () => {
+    const { sessionId } = await discoveredSession(fixture)
+    const { dispatchHostBackedSessionGuiOperation } = await import(
+      '../../../application/host-ui-session-operation-dispatcher'
+    )
+
+    const opened = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
+    )
+
+    expect(opened?.id).toBe(sessionId)
+    expect(opened?.piSessionFileDeleted).toBeUndefined()
   })
 })

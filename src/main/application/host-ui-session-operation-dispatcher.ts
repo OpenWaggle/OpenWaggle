@@ -59,6 +59,7 @@ import {
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
+import { withDeletedPiSessionFileNotice } from './pi-session-deleted-files'
 import { openedSessionId } from './pi-session-projection-refresh'
 
 const TWO_ARGUMENTS = 2
@@ -139,7 +140,8 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
 function getSessionDetail(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    return yield* (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
+    const detail = (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
+    return yield* withDeletedPiSessionFileNotice(yield* detail)
   })
 }
 

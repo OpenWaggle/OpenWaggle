@@ -158,6 +158,11 @@ export interface SessionDetail {
    * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0050).
    */
   readonly piSessionCwd?: string
+  /**
+   * Set when an opened discovered Session's Pi file was deleted outside OpenWaggle: why it cannot
+   * be continued, as its Runs are refused. Only a Session read for the chat view carries it.
+   */
+  readonly piSessionFileDeleted?: string
 }
 
 /**

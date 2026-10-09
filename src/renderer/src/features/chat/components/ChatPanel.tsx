@@ -22,6 +22,7 @@ import { ArchivedSessionNotice } from './ArchivedSessionNotice'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
+import { DeletedPiSessionFileNotice } from './DeletedPiSessionFileNotice'
 
 const SESSION_SUMMARY_WIDTH_PX = 300
 const SESSION_SUMMARY_RIGHT_INSET_PX = 16
@@ -223,6 +224,7 @@ export function ChatPanelContent({
           </PanelErrorBoundary>
 
           <ArchivedSessionNotice />
+          <DeletedPiSessionFileNotice />
           <PanelErrorBoundary name="Composer">
             <ChatComposerStack
               agentInteractions={sections.agentInteractions}
