@@ -128,7 +128,12 @@ vi.mock('../store/settings', () => ({
   initializeSettingsStore: mocks.initializeSettings,
 }))
 
-import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
+import {
+  startSessionHostCliIfRequested,
+  stopSessionHostOnQuit,
+  UNADOPTABLE_HOST_SWEEP_INTERVAL_MS,
+  watchUnadoptableSessionHostEndpoint,
+} from '../session-host-cli-entry'
 
 describe('detached Session Host quit and orphan stop', () => {
   afterEach(() => {
@@ -200,6 +205,75 @@ describe('detached Session Host quit and orphan stop', () => {
       expect(mocks.exit).toHaveBeenCalledWith(0)
     } finally {
       liveness.close()
+      stopped.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
+})
+
+// A stage of the Host's stop can fail; nothing awaits these stops, so the failure must be logged
+// rather than become an unhandled rejection.
+describe('a Session Host stop that fails', () => {
+  const failure = new Error('MCP pool did not close')
+
+  beforeEach(() => {
+    mocks.hostLogError.mockClear()
+    mocks.endpointExists.mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
+  function expectLoggedStopFailure() {
+    expect(mocks.hostLogError).toHaveBeenCalledWith('Session Host stop failed', {
+      error: expect.stringContaining('MCP pool did not close'),
+    })
+  }
+
+  it('is logged when a quit stops the Host', async () => {
+    const release = stopSessionHostOnQuit(() => Promise.reject(failure))
+    try {
+      for (const handler of mocks.quitHandlers) handler({ preventDefault: vi.fn() })
+      await vi.waitFor(expectLoggedStopFailure)
+    } finally {
+      release()
+    }
+  })
+
+  it('is logged when the endpoint watch stops an unadoptable Host', async () => {
+    vi.useFakeTimers()
+    const stopWatching = watchUnadoptableSessionHostEndpoint({
+      endpoint: '/tmp/openwaggle-profile/session-host.sock',
+      endpointDirectory: '/tmp/openwaggle-profile',
+      stop: () => Promise.reject(failure),
+    })
+    try {
+      mocks.endpointExists.mockReturnValue(false)
+      await vi.advanceTimersByTimeAsync(UNADOPTABLE_HOST_SWEEP_INTERVAL_MS)
+      expectLoggedStopFailure()
+    } finally {
+      stopWatching()
+    }
+  })
+
+  it('is logged when the orphan deadline stops a never-adopted Host', async () => {
+    vi.useFakeTimers()
+    const stopped = Promise.withResolvers<void>()
+    const stop = vi.fn(() => Promise.reject(failure))
+    mocks.startHost.mockResolvedValueOnce({
+      liveness: { ownerCount: () => 0, hasAcceptedClient: () => false },
+      stop,
+      waitUntilStopped: vi.fn(() => stopped.promise),
+    })
+
+    try {
+      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(stop).toHaveBeenCalledOnce()
+      expectLoggedStopFailure()
+    } finally {
       stopped.resolve()
       await vi.advanceTimersByTimeAsync(0)
     }

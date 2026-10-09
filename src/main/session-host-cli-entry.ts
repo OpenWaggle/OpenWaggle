@@ -35,6 +35,18 @@ const ORPHAN_HOST_GRACE_MS = 10_000
 export const UNADOPTABLE_HOST_SWEEP_INTERVAL_MS = 60_000
 
 /**
+ * Stops the Host from a timer or an event, where nothing awaits the stop: a stage that fails is
+ * logged instead of becoming an unhandled rejection.
+ */
+function stopUnawaited(stop: () => Promise<void> | void) {
+  void Promise.resolve()
+    .then(stop)
+    .catch((error: unknown) => {
+      logger.error('Session Host stop failed', { error: describeError(error) })
+    })
+}
+
+/**
  * QA leases and temporary userData roots delete the endpoint socket while the detached
  * Host outlives them. Such a Host can never be adopted again, so stop it instead of
  * leaking until reboot. Unix sockets only: Windows named pipes have no filesystem path.
@@ -47,7 +59,7 @@ export function watchUnadoptableSessionHostEndpoint(input: {
 }): () => void {
   if (!input.endpoint || !input.endpointDirectory) return () => undefined
   const timer = setInterval(() => {
-    if (!existsSync(input.endpoint)) void input.stop()
+    if (!existsSync(input.endpoint)) stopUnawaited(input.stop)
   }, input.intervalMs ?? UNADOPTABLE_HOST_SWEEP_INTERVAL_MS)
   timer.unref()
   return () => clearInterval(timer)
@@ -77,7 +89,7 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
 export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
   const holdQuit = (event: { preventDefault(): void }) => {
     event.preventDefault()
-    void stop()
+    stopUnawaited(stop)
   }
   app.on('before-quit', holdQuit)
   return () => {
@@ -161,7 +173,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
           const orphanTimer = setTimeout(() => {
             // Once an authenticated client adopts this Host, normal idle grace owns its lifetime.
             if (!host.liveness.hasAcceptedClient() && host.liveness.ownerCount() === 0) {
-              void host.stop()
+              stopUnawaited(() => host.stop())
             }
           }, ORPHAN_HOST_GRACE_MS)
           const stopWatchingEndpoint = watchUnadoptableSessionHostEndpoint({
