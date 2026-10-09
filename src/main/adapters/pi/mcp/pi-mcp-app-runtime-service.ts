@@ -79,11 +79,17 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
     secretStamp: mcpVaultSecretStamps(),
+    // Only the App's server: other servers' vault secrets are not decrypted for it.
+    serverAllowlist: [input.serverName],
   })
   // The entry exactly as a Run gives it to Pi, so both make the same connection.
   const entry = withShellResolvedClientSecrets(config.loaded).servers.find(
     (server) => server.name === input.serverName,
   )
+  const unavailable = config.unavailable.get(input.serverName)
+  if (!entry && unavailable) {
+    throw new Error(`The MCP server "${input.serverName}" cannot be used: ${unavailable}`)
+  }
   if (!entry) {
     throw new Error(`The MCP server "${input.serverName}" this App belongs to was removed.`)
   }

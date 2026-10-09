@@ -1,15 +1,18 @@
 import { Effect, Layer } from 'effect'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { FakeUpstream, flush } from '../../../mcp/pool/__tests__/fake-upstream'
 
 const mocks = vi.hoisted(() => {
   const upstreams: FakeUpstream[] = []
+  const loads: unknown[] = []
   return {
+    loads,
     upstreams,
     respond: (_method: string): unknown => ({}),
     open: vi.fn(),
     legacyIdentity: '',
     enabled: true,
+    unavailable: new Map<string, string>(),
     createAuthProvider: vi.fn<(options: { readonly settings: () => unknown }) => void>(),
   }
 })
@@ -48,15 +51,21 @@ vi.mock('../../../../store/session-mcp-switch', () => ({
 }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
-  loadMcpRuntimeConfig: async () => ({
-    loaded: {
-      servers: [{ ...ENTRY, config: { ...ENTRY.config, enabled: mocks.enabled } }],
-      errors: [],
-    },
-    transports: new Map(),
-    // As a Run stamps it: a vault value by its name and save time, never its value.
-    connectionConfigs: new Map([['figma', STAMPED]]),
-  }),
+  loadMcpRuntimeConfig: async (input: unknown) => {
+    mocks.loads.push(input)
+    return {
+      loaded: {
+        servers: mocks.unavailable.has('figma')
+          ? []
+          : [{ ...ENTRY, config: { ...ENTRY.config, enabled: mocks.enabled } }],
+        errors: [],
+      },
+      unavailable: mocks.unavailable,
+      transports: new Map(),
+      // As a Run stamps it: a vault value by its name and save time, never its value.
+      connectionConfigs: new Map([['figma', STAMPED]]),
+    }
+  },
 }))
 vi.mock('../openwaggle-mcp-credentials', () => ({
   getOpenWaggleMcpCredentials: () => ({ forServer: () => ({ load: () => undefined }) }),
@@ -182,6 +191,18 @@ describe("MCP Apps over the Session's connection", () => {
     await vi.advanceTimersByTimeAsync(MCP_APP_REQUEST_TIMEOUT_MS)
 
     await expect(reading).resolves.toMatchObject({ message: expect.stringMatching(/in time/) })
+  })
+
+  it("loads only the App's server, and says why when its secret cannot be read", async () => {
+    mocks.unavailable.set('figma', 'vault secret "FIGMA_TOKEN" could not be read: locked')
+    onTestFinished(() => mocks.unavailable.clear())
+
+    const reading = run((runtime) => runtime.readResource({ ...APP, uri: 'ui://app' }))
+
+    await expect(reading).rejects.toThrow('vault secret "FIGMA_TOKEN" could not be read: locked')
+    await expect(reading).rejects.not.toThrow('was removed')
+    // Other servers' secrets are not read for it.
+    expect(mocks.loads.at(-1)).toMatchObject({ serverAllowlist: ['figma'] })
   })
 
   it("refuses a server the Session's MCP switch or Agent definition rules out", async () => {
