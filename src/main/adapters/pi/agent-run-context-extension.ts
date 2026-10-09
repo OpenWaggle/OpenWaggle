@@ -121,8 +121,9 @@ export function createAgentRunContextExtension(
   const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
   return (pi) => {
-    // A Waggle Run starts with `sendCustomMessage`, which fires no `before_agent_start`, so
-    // the identity is stored on the Run's first model request.
+    // Stored on the Run's first model request, whose messages hold the message that started the
+    // Run (a prompt, a Waggle user request, or an extension command's custom message), so the
+    // identity can name it; once per Run, though `before_agent_start` fires on every turn.
     let runIdentityStored = !runIdentity
     pi.on('before_agent_start', (event) => {
       if (allows) pi.setActiveTools(pi.getActiveTools().filter(allows))
