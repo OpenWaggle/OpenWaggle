@@ -23,7 +23,7 @@ const SESSION_ID = 'conformance'
 function requireServerUrl() {
   if (!SCENARIO || !SERVER_URL) {
     throw new Error(
-      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.ts <server-url>',
+      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.mts <server-url>',
     )
   }
   if (PROTOCOL_VERSION !== SUPPORTED_PROTOCOL_VERSION) {
