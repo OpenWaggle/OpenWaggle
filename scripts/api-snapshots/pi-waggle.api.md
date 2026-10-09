@@ -122,6 +122,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {
@@ -427,6 +429,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {
@@ -506,6 +510,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {

@@ -99,6 +99,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
   readonly factory: ExtensionFactory
   readonly done: Promise<void>
+  /** Ends the loop with `error`, such as a turn the host could not start. */
+  readonly fail: (error: unknown) => void
 }
 
 function createDeferred() {
@@ -291,6 +293,24 @@ export function registerPiWaggleLoop<TMeta>(
   api.onAgentEnd(createPiWaggleLoopHandler(input, api))
 }
 
+/**
+ * Runs `handler` with a turn's last `agent_end` once Pi has settled it. Pi emits `agent_end` for
+ * a failed request it is about to retry, and only `agent_settled` means no automatic retry,
+ * compaction, or queued continuation follows; advancing earlier would steer the next turn into
+ * the retry and judge the turn by its failed attempt.
+ */
+function onSettledAgentEnd(pi: ExtensionAPI, handler: PiWaggleAgentEndHandler) {
+  let lastEnd: AgentEndEvent | undefined
+  pi.on('agent_end', (event) => {
+    lastEnd = event
+  })
+  pi.on('agent_settled', (_event, ctx) => {
+    const event = lastEnd
+    lastEnd = undefined
+    return event ? handler(event, ctx) : undefined
+  })
+}
+
 export function createPiWaggleExtension<TMeta>(
   input: PiWaggleExtensionInput<TMeta>,
 ): PiWaggleExtensionController {
@@ -298,6 +318,7 @@ export function createPiWaggleExtension<TMeta>(
 
   return {
     done: completion.promise,
+    fail: completion.reject,
     factory: (pi) => {
       registerPiWaggleLoop(
         {
@@ -306,7 +327,7 @@ export function createPiWaggleExtension<TMeta>(
           onError: completion.reject,
         },
         {
-          onAgentEnd: (handler) => pi.on('agent_end', handler),
+          onAgentEnd: (handler) => onSettledAgentEnd(pi, handler),
           sendMessage: (message, options) => pi.sendMessage(message, options),
           setModel: (model) => pi.setModel(model),
         },
