@@ -18,17 +18,20 @@ export function sessionModelActionError(
   return modelActionError(model, latestAnsweringModel(session?.messages ?? []))
 }
 
+function loadedSession(sessionId: SessionId) {
+  const { sessionById, activeSession } = useChatStore.getState()
+  return sessionById.get(sessionId) ?? (activeSession?.id === sessionId ? activeSession : null)
+}
+
 /**
  * Whether a Session can act on `model`: send, switch branches, fork, clone, navigate or compact.
  * Like a send, each falls back on the Host to the model that answered last when `model` is gone.
+ * Takes the Session itself, such as a detail just fetched, or its id to read the loaded one.
  */
 export function isSessionModelActionable(
-  sessionId: SessionId | null | undefined,
+  session: SessionId | Pick<SessionDetail, 'messages'> | null | undefined,
   model: SupportedModelId | undefined,
 ): model is SupportedModelId {
-  const { sessionById, activeSession } = useChatStore.getState()
-  const session = sessionId
-    ? (sessionById.get(sessionId) ?? (activeSession?.id === sessionId ? activeSession : null))
-    : null
-  return isModelActionable(model, latestAnsweringModel(session?.messages ?? []))
+  const detail = typeof session === 'string' ? loadedSession(session) : session
+  return isModelActionable(model, latestAnsweringModel(detail?.messages ?? []))
 }

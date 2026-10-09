@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiMock = vi.hoisted(() => ({
   navigateSessionTree: vi.fn(async () => undefined),
-  getSessionDetail: vi.fn(async () => null),
+  getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
@@ -36,11 +36,15 @@ function sessionAnsweredBy(model: SupportedModelId | undefined) {
 describe('switching the branch of a Session whose model is gone', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useChatStore.setState({ activeSession: null, activeSessionId: null })
     useProviderStore.setState({ providerModels: [OPENAI], catalogHydrated: true })
   })
 
-  function switchBranch(session: SessionDetail) {
-    useChatStore.setState({ sessionById: new Map([[SESSION_ID, session]]) })
+  function switchBranch(session: SessionDetail, options: { readonly cached?: boolean } = {}) {
+    useChatStore.setState({
+      sessionById: new Map(options.cached === false ? [] : [[SESSION_ID, session]]),
+    })
+    apiMock.getSessionDetail.mockResolvedValue(session)
     const showToast = vi.fn()
     const actions = createSidebarBranchActions(
       fromPartial({
@@ -76,5 +80,12 @@ describe('switching the branch of a Session whose model is gone', () => {
       expect(showToast).toHaveBeenCalledWith('Select a model before switching branches.'),
     )
     expect(apiMock.navigateSessionTree).not.toHaveBeenCalled()
+  })
+
+  it('switches a Session the chat store has not loaded, using the detail it fetched', async () => {
+    const showToast = switchBranch(sessionAnsweredBy(MINI), { cached: false })
+
+    await vi.waitFor(() => expect(apiMock.navigateSessionTree).toHaveBeenCalled())
+    expect(showToast).not.toHaveBeenCalled()
   })
 })

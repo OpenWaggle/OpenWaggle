@@ -73,12 +73,11 @@ async function switchSessionBranch(
 ) {
   const targetSessionId = SessionId(sessionId)
   try {
-    const cached = useChatStore.getState().sessionById.get(targetSessionId)
-    const targetModel =
-      cached?.executionModel ??
-      (await api.getSessionDetail(targetSessionId))?.executionModel ??
-      deps.defaultModel
-    if (!isSessionModelActionable(targetSessionId, targetModel)) {
+    const detail =
+      useChatStore.getState().sessionById.get(targetSessionId) ??
+      (await api.getSessionDetail(targetSessionId))
+    const targetModel = detail?.executionModel ?? deps.defaultModel
+    if (!isSessionModelActionable(detail, targetModel)) {
       deps.showToast('Select a model before switching branches.')
       return
     }

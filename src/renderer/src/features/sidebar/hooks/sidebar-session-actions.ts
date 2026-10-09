@@ -3,11 +3,10 @@ import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
-import { resolveCurrentConversationNode } from '@/features/chat/lib'
+import { isSessionModelActionable, resolveCurrentConversationNode } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
@@ -151,7 +150,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
     deps.showToast('Open this session before cloning it.')
     return
   }
-  if (!isModelActionable(deps.selectedModel)) {
+  if (!isSessionModelActionable(sessionId, deps.selectedModel)) {
     deps.showToast('Select a model before cloning.')
     return
   }
