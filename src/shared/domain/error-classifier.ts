@@ -1,10 +1,18 @@
 import type { AgentErrorCode, AgentErrorInfo } from '../types/errors'
 import { extractInnerErrorMessage } from './error-message-extraction'
 
+/** How `DeletedPiSessionFileError`'s message starts. */
+const PI_SESSION_FILE_DELETED = "This Session's Pi session file was deleted outside OpenWaggle"
+
 interface ErrorCodeMeta {
   readonly userMessage: string
   readonly suggestion?: string
   readonly retryable: boolean
+  /**
+   * The error's own message says what happened and what to do, so it is shown from this text on,
+   * without the `Error:` or wrapper text before it.
+   */
+  readonly messageFrom?: string
 }
 
 interface ErrorClassificationRule {
@@ -76,6 +84,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     suggestion: 'OpenWaggle could not run npm while loading Pi extensions. Check the app logs.',
     retryable: false,
   },
+  'pi-session-file-deleted': {
+    userMessage: "This Session's Pi session file was deleted",
+    retryable: false,
+    messageFrom: PI_SESSION_FILE_DELETED,
+  },
   unknown: {
     userMessage: 'Something went wrong',
     retryable: true,
@@ -87,6 +100,11 @@ export function isAgentErrorCode(code: string): code is AgentErrorCode {
   return code in ERROR_CODE_META
 }
 
+function shownMessage(meta: ErrorCodeMeta, message: string) {
+  const start = meta.messageFrom ? message.indexOf(meta.messageFrom) : -1
+  return start < 0 ? meta.userMessage : message.slice(start)
+}
+
 /**
  * Build an `AgentErrorInfo` from a known error code and raw message.
  */
@@ -95,7 +113,7 @@ export function makeErrorInfo(code: AgentErrorCode, message: string): AgentError
   return {
     code,
     message,
-    userMessage: meta.userMessage,
+    userMessage: shownMessage(meta, message),
     ...(meta.suggestion ? { suggestion: meta.suggestion } : {}),
     retryable: meta.retryable,
   }
@@ -192,6 +210,11 @@ function isProviderUnavailableError(lower: string) {
 }
 
 const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [
+  {
+    // First: the message names the file, whose path could read as any other error.
+    code: 'pi-session-file-deleted',
+    matches: (lower) => lower.includes(PI_SESSION_FILE_DELETED.toLowerCase()),
+  },
   {
     code: 'insufficient-credits',
     matches: isInsufficientCreditsError,

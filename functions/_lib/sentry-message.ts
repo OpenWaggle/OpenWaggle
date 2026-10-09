@@ -29,6 +29,7 @@ export const AGENT_ERROR_CODES: ReadonlySet<string> = new Set([
   'persist-failed',
   'context-overflow',
   'runtime-package-manager-unavailable',
+  'pi-session-file-deleted',
   'unknown',
 ])
 
