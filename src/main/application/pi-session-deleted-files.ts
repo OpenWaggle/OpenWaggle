@@ -9,6 +9,7 @@ import {
   type PiSessionDiscoveryRepositoryShape,
   PiSessionFiles,
 } from '../ports/pi-session-discovery'
+import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { deleteSessionWithVisualizations } from './session-visualization-deletion'
@@ -46,6 +47,12 @@ const warnedDeletedFiles = new Set<string>()
 /** Sessions kept because others depend on them, reported once per Host rather than every pass. */
 const keptSessions = new Set<string>()
 
+/** A kept Session whose file is back: an open view refetches it, without its notice. */
+function forgetKeptSession(sessionId: SessionId) {
+  if (!keptSessions.delete(sessionId)) return
+  publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+}
+
 /**
  * Removes one Session whose Pi file was deleted, the way deleting it in the sidebar does: its
  * Runs, terminals, preview tabs, project actions, and visualizations go too, under the removal
@@ -59,6 +66,8 @@ function removeSessionWithDeletedFile(sessionId: SessionId, piSessionFile: strin
     if (refusal) {
       if (keptSessions.has(sessionId)) return
       keptSessions.add(sessionId)
+      // An open view refetches it, and shows why it cannot be continued.
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
       logger.info('Kept a Session whose Pi session file was deleted, because others depend on it', {
         sessionId,
         piSessionFile,
@@ -98,7 +107,10 @@ export function removeSessionsWithDeletedPiFiles() {
     const files = yield* PiSessionFiles
     for (const { sessionId, piSessionFile } of yield* repository.listAdoptedPiSessionFiles()) {
       if (hasAnyActiveRun(sessionId) || isSessionRemovalFenced(sessionId)) continue
-      if (!(yield* files.isDeleted(piSessionFile))) continue
+      if (!(yield* files.isDeleted(piSessionFile))) {
+        forgetKeptSession(sessionId)
+        continue
+      }
       yield* removeSessionWithDeletedFile(sessionId, piSessionFile)
     }
   }).pipe(

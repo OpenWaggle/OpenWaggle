@@ -161,6 +161,7 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     )
     await run(forkSession([forked.sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
     const plain = await discoveredSession(fixture, { cwd: path.join(fixture.project, 'other') })
+    const forkedContent = await fs.readFile(forked.cli.file)
     await fs.rm(forked.cli.file)
     await fs.rm(plain.cli.file)
     events.length = 0
@@ -173,6 +174,10 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     expect(events.filter((event) => event.change === 'deleted')).toEqual([
       expect.objectContaining({ sessionId: plain.sessionId }),
     ])
+    // Announced once, so an open view shows its notice without being opened again.
+    const keptUpdates = () =>
+      events.filter((event) => event.sessionId === forked.sessionId && event.change === 'updated')
+    expect(keptUpdates()).toHaveLength(1)
     // Its Run is still refused, with a message that does not promise a removal.
     const refused = await runOnce(forked.sessionId)
     const failure = refused._tag === 'Left' ? String(refused.left) : JSON.stringify(refused.right)
@@ -189,6 +194,14 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     )
     expect(opened?.piSessionFileDeleted).toMatch(/^This Session's Pi session file was deleted/)
     expect(opened?.piSessionFileDeleted).toMatch(/fork \S+ still depends on it/)
+    // Put back, it is announced again, and opens without the notice.
+    await fs.writeFile(forked.cli.file, forkedContent)
+    await discover()
+    expect(keptUpdates()).toHaveLength(2)
+    const restored = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [forked.sessionId]),
+    )
+    expect(restored?.piSessionFileDeleted).toBeUndefined()
   })
 
   it('is opened without a notice while its file is there', async () => {
