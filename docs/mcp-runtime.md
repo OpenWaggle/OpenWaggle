@@ -386,8 +386,10 @@ Run with a server turned on waits for the scope's sign-in migration and for the 
 environment the Host reads once at start (`mcpShellEnvironmentReady`, at most 5 s per shell it
 tries): both are done after the first such Run in a Host process. A Run with no server turned on
 waits for neither and reads no keychain; it still awaits `migrateOpenWaggleMcpFilesOnce`, which
-is done for the projects Host start knows, and for a project it has not seen can take the
-migration lock (at most 30 s) and the git calls of `keepMcpFileOutOfGit`. The vault secrets of
+is done for the projects Host start knows. For a project not yet migrated, or one retrying after
+a failure, it can take the migration lock (at most 30 s), wait behind a sign-in pass in the shared
+queue, and make the git calls of `keepMcpFileOutOfGit`. A separate queue would not help: both
+parts take the same cross-process migration lock. The vault secrets of
 servers that are off are deferred markers (`deferSecretsOfServersOff`, `mcp-deferred-secrets.ts`), read when Pi connects one, for
 example after `/mcp` turns it on during the Run. A server a Pi extension registers in such a Run
 starts with whatever environment the Host has read by then. Connections are

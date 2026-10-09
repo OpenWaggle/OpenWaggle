@@ -116,6 +116,8 @@ In OpenWaggle's own files you can store a value in OpenWaggle's encrypted secret
 
 Secret references only work in `~/.openwaggle/mcp.json` and `.openwaggle/mcp.json`, because Pi and other tools read the other files and do not understand them.
 
+On Linux, unlock your keyring before you first save a secret in a new OpenWaggle version. Secrets an older version saved that cannot be read while the keyring is locked are left behind when the new version saves its first secret.
+
 ## Change a server
 
 Select a server in **Settings > MCP** to see where it is defined, whether it is connected, its tools, and any error, including the last lines a local server printed. From there you can:
@@ -168,7 +170,7 @@ OAuth options such as a registered client id, a fixed callback port, or scopes g
 
 ## Connections
 
-A server connects in the background when a session sends a message, and only servers with direct tools can delay a message, by at most 1.5 seconds. A session with no server turned on waits for MCP only the first time OpenWaggle sees a project, while it converts that project's older MCP files. After OpenWaggle starts, the first message that uses MCP servers can also wait a few seconds while OpenWaggle reads your login shell's environment (so servers find the commands on your `PATH`) and, after an upgrade, moves your old sign-ins. The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
+A server connects in the background when a session sends a message, and only servers with direct tools can delay a message, by at most 1.5 seconds. A session with no server turned on waits for MCP only while OpenWaggle converts a project's older MCP files: the first time it sees the project, or again after a conversion that failed. After OpenWaggle starts, the first message that uses MCP servers can also wait a few seconds while OpenWaggle reads your login shell's environment (so servers find the commands on your `PATH`) and, after an upgrade, moves your old sign-ins. The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
 
 Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
 
