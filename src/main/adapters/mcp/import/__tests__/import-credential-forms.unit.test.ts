@@ -79,12 +79,38 @@ describe('credentials in other command-line forms', () => {
         'mcp-remote@latest',
         'https://x/mcp',
         '--header',
-        'Authorization:${AUTHORIZATION}',
+        'Authorization:Bearer ${AUTHORIZATION}',
       ],
       env: { AUTHORIZATION: { secret: 'AUTHORIZATION' } },
     })
     expect(result.warnings.join('\n')).toContain('AUTHORIZATION')
     expectNoValue(result, 'sk-h2')
+  })
+
+  it('rewrites the header of an mcp-remote installed globally, which is the command itself', () => {
+    const result = imported({
+      command: 'mcp-remote',
+      args: ['https://x/mcp', '--header', 'X-Api-Key: k-global'],
+    })
+
+    expect(result.entry).toMatchObject({
+      command: 'mcp-remote',
+      args: ['https://x/mcp', '--header', 'X-Api-Key:${X_API_KEY}'],
+      env: { X_API_KEY: { secret: 'X_API_KEY' } },
+    })
+    expect(result.warnings.join('\n')).toContain("holds the header's full value")
+    expectNoValue(result, 'k-global')
+  })
+
+  it('says a vault secret replaces a header, and that it holds the full value', () => {
+    const result = imported({ url: 'https://x/mcp', headers: { Authorization: 'Bearer sk-hdr' } })
+
+    expect(result.entry.headers).toEqual({ Authorization: { secret: 'Authorization' } })
+    expect(result.warnings).toEqual([
+      expect.stringContaining('was replaced by a reference to vault secret SVC_AUTHORIZATION'),
+    ])
+    expect(result.warnings[0]).toContain('the full value, such as "Bearer <token>"')
+    expect(result.warnings[0]).not.toMatch(/moved/)
   })
 
   it.each([

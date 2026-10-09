@@ -116,8 +116,11 @@ function credentialValue(
   if (pi.references || !credential) return pi.value
   // Named after the field until the import places the server: the vault secret is then named
   // `<SERVER>_<FIELD>` after the name it is saved as, which a rename can change.
+  const holds = location.startsWith('headers.')
+    ? ' The secret holds the full value, such as "Bearer <token>".'
+    : ''
   context.warnings.push(
-    `${location} contains a plaintext credential. Its value was not imported; it becomes ${importedSecretName(context, fieldName)}, which you fill in after importing.`,
+    `${location} contains a plaintext credential. Its value was not imported: it was replaced by a reference to ${importedSecretName(context, fieldName)}, which you add after importing.${holds}`,
   )
   return { secret: fieldName }
 }

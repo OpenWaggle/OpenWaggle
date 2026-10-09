@@ -165,6 +165,9 @@ function flagValueAt(values: readonly string[], index: number, state: ArgumentSt
 /** A flag and the value after it. */
 const FLAG_AND_VALUE = 2
 const HEADER_FLAGS = new Set(['--header', '-H'])
+const BEARER_SCHEME = /^Bearer\s+/i
+/** The value's capture group in `HEADER_LINE`. */
+const HEADER_VALUE_GROUP = 2
 const VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g
 
 /** Handles a flag's value if it carries a credential; returns whether it did. */
@@ -208,10 +211,14 @@ const credentialHeader: ArgumentRule = (argument, state) => {
     return true
   }
   const variable = environmentName(header)
-  state.args.push(...argument.emit(`${header}:\${${variable}}`))
+  // mcp-remote replaces each `${NAME}` in a header value, so a Bearer scheme stays written out
+  // and the secret holds only the token.
+  const bearer = BEARER_SCHEME.test(HEADER_LINE.exec(argument.value)?.[HEADER_VALUE_GROUP] ?? '')
+  const reference = `\${${variable}}`
+  state.args.push(...argument.emit(`${header}:${bearer ? `Bearer ${reference}` : reference}`))
   state.env[variable] = { secret: variable }
   state.context.warnings.push(
-    `The ${header} header in args was not imported; mcp-remote reads it from ${state.secretName(variable)}, which you fill in after importing.`,
+    `The ${header} header in args was not imported: it was replaced by a reference to ${state.secretName(variable)}, which you add after importing. The secret holds ${bearer ? 'only the token, without "Bearer"' : "the header's full value"}.`,
   )
   return true
 }
@@ -253,7 +260,8 @@ export function portableArguments(
     args: [],
     env: {},
     container: CONTAINER_COMMANDS.has(commandName(command)),
-    remote: values.some(isMcpRemote),
+    // `npx mcp-remote …`, or mcp-remote installed globally and run as the command itself.
+    remote: isMcpRemote(command ?? '') || values.some(isMcpRemote),
     context,
     literal,
     envValue,

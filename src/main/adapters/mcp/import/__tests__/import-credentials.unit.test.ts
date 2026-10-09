@@ -110,10 +110,12 @@ describe('credentials in an imported server entry', () => {
         'mcp-remote',
         'https://mcp.example/sse',
         '--header',
-        'Authorization:${AUTHORIZATION}',
+        // The scheme stays, so the secret holds only the token; mcp-remote fills in ${NAME}.
+        'Authorization:Bearer ${AUTHORIZATION}',
       ],
       env: { AUTHORIZATION: { secret: 'AUTHORIZATION' } },
     })
+    expect(result.warnings.join('\n')).toContain('holds only the token')
     expectNoValue(result, 'abc123')
   })
 
