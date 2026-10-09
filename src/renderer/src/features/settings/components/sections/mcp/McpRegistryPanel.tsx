@@ -13,6 +13,7 @@ import { McpSecretLines } from './McpSecretLines'
 
 function InstalledNotice({ result }: { readonly result: McpRegistryInstallResultView }) {
   const optional = result.optionalSecrets
+  const flags = result.optionalSecretArguments
   return (
     <div role="status" className="space-y-0.5 text-xs text-text-secondary">
       <p>
@@ -32,7 +33,18 @@ function InstalledNotice({ result }: { readonly result: McpRegistryInstallResult
           It can also use the optional secret{optional.length === 1 ? '' : 's'}{' '}
           {optional.join(', ')}, which {optional.length === 1 ? 'was' : 'were'} left out so it
           starts without {optional.length === 1 ? 'it' : 'them'}. To use one, add it to the entry
-          with a secret.
+          with a secret
+          {result.optionalSecretsNeedContainerEnv
+            ? ', and add -e NAME to its args before the image so the container receives it.'
+            : '.'}
+        </p>
+      ) : null}
+      {flags.length > 0 ? (
+        <p>
+          It also takes the optional argument{flags.length === 1 ? '' : 's'} {flags.join(', ')},
+          which {flags.length === 1 ? 'was' : 'were'} left out:{' '}
+          {flags.length === 1 ? 'it needs' : 'they need'} a literal value in args, since a command
+          line cannot read a secret.
         </p>
       ) : null}
     </div>

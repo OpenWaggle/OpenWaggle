@@ -156,7 +156,9 @@ describe('Registry package arguments', () => {
     )
 
     expect(result.entry).toMatchObject({ args: ['--yes', '@example/weather@1.2.3', '--port=8080'] })
-    expect(result.optionalSecrets).toEqual(['--api-key', '--token'])
+    // A command line cannot read a vault secret, so these are listed apart from env secrets.
+    expect(result.optionalSecretArguments).toEqual(['--api-key', '--token'])
+    expect(result.optionalSecrets).toEqual([])
     expect(result.secrets).toEqual([])
   })
 

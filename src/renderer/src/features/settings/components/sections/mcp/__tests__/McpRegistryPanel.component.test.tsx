@@ -67,7 +67,9 @@ describe('Settings > MCP: MCP Registry', () => {
       filePath: `${PROJECT}/.openwaggle/mcp.json`,
       secrets: ['WEATHER_KEY', 'WEATHER_TOKEN'],
       existingSecrets: ['WEATHER_TOKEN'],
-      optionalSecrets: ['--api-key'],
+      optionalSecrets: ['PREMIUM_TOKEN'],
+      optionalSecretArguments: ['--license-key'],
+      optionalSecretsNeedContainerEnv: false,
       view: mcpView([mcpServer('files'), mcpServer('weather')]),
     })
     const list = await searchFor('weather')
@@ -97,7 +99,10 @@ describe('Settings > MCP: MCP Registry', () => {
       'It uses the secret WEATHER_TOKEN, which already exists under Secrets; replace it there if it holds another value.',
     )
     expect(status).toHaveTextContent(
-      'It can also use the optional secret --api-key, which was left out so it starts without it.',
+      'It can also use the optional secret PREMIUM_TOKEN, which was left out so it starts without it.',
+    )
+    expect(status).toHaveTextContent(
+      'It also takes the optional argument --license-key, which was left out: it needs a literal value in args, since a command line cannot read a secret.',
     )
     expect(await within(list).findAllByText('Installed')).toHaveLength(2)
   })

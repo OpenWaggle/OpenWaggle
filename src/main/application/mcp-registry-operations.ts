@@ -93,6 +93,8 @@ export function installMcpRegistryServerOperation(raw: unknown) {
       secrets: scoped.secrets,
       existingSecrets: scoped.secrets.filter((secret) => storedNames.has(secret)),
       optionalSecrets: prepared.optionalSecrets,
+      optionalSecretArguments: prepared.optionalSecretArguments,
+      optionalSecretsNeedContainerEnv: prepared.optionalSecretsNeedContainerEnv,
       view,
     } satisfies McpRegistryInstallResultView
   })

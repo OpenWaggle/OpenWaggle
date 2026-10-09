@@ -98,6 +98,8 @@ function remoteEntry(remote: RegistryRemote) {
     },
     secrets: referencedSecrets(headers),
     optionalSecrets: optionalRegistrySecrets(remote.headers),
+    optionalSecretArguments: [],
+    optionalSecretsNeedContainerEnv: false,
   }
 }
 
@@ -136,11 +138,14 @@ async function packageEntry(server: RegistryServerRecord, options: RegistryEntry
       ...(launcher.env ? { env: { ...launcher.env } } : {}),
     },
     secrets: referencedSecrets(launcher.env),
-    optionalSecrets: optionalRegistrySecrets(
-      selected.entry.environmentVariables,
+    optionalSecrets: optionalRegistrySecrets(selected.entry.environmentVariables),
+    // A command line cannot read a vault secret, so these need a literal value to be used.
+    optionalSecretArguments: optionalRegistrySecrets(
       selected.entry.runtimeArguments,
       selected.entry.packageArguments,
     ),
+    // Docker passes a variable into the container only with `-e NAME` in its arguments.
+    optionalSecretsNeedContainerEnv: selected.type === 'oci',
   }
 }
 
@@ -167,6 +172,8 @@ export async function createRegistryEntry(
     },
     secrets: built.secrets,
     optionalSecrets: built.optionalSecrets,
+    optionalSecretArguments: built.optionalSecretArguments,
+    optionalSecretsNeedContainerEnv: built.optionalSecretsNeedContainerEnv,
   }
 }
 

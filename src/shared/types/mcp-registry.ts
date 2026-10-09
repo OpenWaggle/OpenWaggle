@@ -82,5 +82,12 @@ export interface McpRegistryInstallResultView {
    * the entry, so the server starts without them; add one to the entry to use it.
    */
   readonly optionalSecrets: readonly string[]
+  /**
+   * Optional secret command-line arguments, by flag name, also left out. A command line cannot
+   * read a vault secret, so one is used by adding it to `args` with its literal value.
+   */
+  readonly optionalSecretArguments: readonly string[]
+  /** The server runs in a container: an optional secret added to `env` also needs `-e NAME`. */
+  readonly optionalSecretsNeedContainerEnv: boolean
   readonly view: McpConfigurationView
 }

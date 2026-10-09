@@ -20,6 +20,10 @@ export interface McpRegistryEntry {
   readonly secrets: readonly string[]
   /** Optional secrets the server can use, left out of the entry (variable, header, or flag names). */
   readonly optionalSecrets: readonly string[]
+  /** Optional secret command-line arguments, left out; they need a literal value in `args`. */
+  readonly optionalSecretArguments: readonly string[]
+  /** The entry runs a container, which receives an added env secret only with `-e NAME`. */
+  readonly optionalSecretsNeedContainerEnv: boolean
 }
 
 /**

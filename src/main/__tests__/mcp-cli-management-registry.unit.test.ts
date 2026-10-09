@@ -18,6 +18,10 @@ function installed(
   secrets: readonly string[] = [],
   existingSecrets: readonly string[] = [],
   optionalSecrets: readonly string[] = [],
+  extra: {
+    optionalSecretArguments?: readonly string[]
+    optionalSecretsNeedContainerEnv?: boolean
+  } = {},
 ) {
   return {
     name,
@@ -25,6 +29,8 @@ function installed(
     secrets,
     existingSecrets,
     optionalSecrets,
+    optionalSecretArguments: extra.optionalSecretArguments ?? [],
+    optionalSecretsNeedContainerEnv: extra.optionalSecretsNeedContainerEnv ?? false,
     view: view([]),
   }
 }
@@ -91,11 +97,18 @@ describe('openwaggle mcp registry', () => {
 
   it('names the optional secrets it left out of the entry', async () => {
     const result = await run('registry', ['add', 'io.github.example/weather'], {
-      'mcp:install-registry-server': () => installed('weather', [], [], ['--api-key', 'API_KEY']),
+      'mcp:install-registry-server': () =>
+        installed('weather', [], [], ['API_KEY', 'PREMIUM_TOKEN'], {
+          optionalSecretArguments: ['--license-key'],
+          optionalSecretsNeedContainerEnv: true,
+        }),
     })
 
     expect(result.logs).toContain(
-      'It can also use the optional secrets --api-key, API_KEY, which were left out so it starts without them. To use one, add it to the entry in /home/.openwaggle/mcp.json with a vault secret.',
+      'It can also use the optional secrets API_KEY, PREMIUM_TOKEN, which were left out so it starts without them. To use one, add it to env in /home/.openwaggle/mcp.json with a vault secret, and add -e NAME to args before the image so the container receives it.',
+    )
+    expect(result.logs).toContain(
+      'It also takes the optional argument --license-key, which was left out: it needs a literal value in args, since a command line cannot read a vault secret.',
     )
   })
 

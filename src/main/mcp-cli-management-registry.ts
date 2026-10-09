@@ -3,6 +3,7 @@ import { MCP_EXPOSURE_VALUES, type McpConfigFileScope } from '@shared/types/mcp-
 import {
   MCP_REGISTRY_PACKAGE_TYPES,
   type McpRegistryInstallRequest,
+  type McpRegistryInstallResultView,
   type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
 import { McpCliUsageError, type McpManagementArguments } from './mcp-cli-management-arguments'
@@ -119,6 +120,29 @@ function installRequest(input: McpManagementCommandInput, registryName: string) 
   } satisfies McpRegistryInstallRequest
 }
 
+/** The optional secrets an install left out, and how to add one. */
+function optionalSecretLines(result: McpRegistryInstallResultView) {
+  const lines: string[] = []
+  const optional = result.optionalSecrets
+  if (optional.length > 0) {
+    const one = optional.length === 1
+    const how = result.optionalSecretsNeedContainerEnv
+      ? `add it to env in ${result.filePath} with a vault secret, and add -e NAME to args before the image so the container receives it.`
+      : `add it to the entry in ${result.filePath} with a vault secret.`
+    lines.push(
+      `It can also use the optional secret${one ? '' : 's'} ${optional.join(', ')}, which ${one ? 'was' : 'were'} left out so it starts without ${one ? 'it' : 'them'}. To use one, ${how}`,
+    )
+  }
+  const flags = result.optionalSecretArguments
+  if (flags.length > 0) {
+    const one = flags.length === 1
+    lines.push(
+      `It also takes the optional argument${one ? '' : 's'} ${flags.join(', ')}, which ${one ? 'was' : 'were'} left out: ${one ? 'it needs' : 'they need'} a literal value in args, since a command line cannot read a vault secret.`,
+    )
+  }
+  return lines
+}
+
 /** What to tell the user about the vault secrets an installed or imported server reads. */
 export function vaultSecretLines(secrets: readonly string[], existingSecrets: readonly string[]) {
   const stored = new Set(existingSecrets)
@@ -149,6 +173,8 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
       secrets: result.secrets,
       existingSecrets: result.existingSecrets,
       optionalSecrets: result.optionalSecrets,
+      optionalSecretArguments: result.optionalSecretArguments,
+      optionalSecretsNeedContainerEnv: result.optionalSecretsNeedContainerEnv,
     })
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
@@ -158,13 +184,7 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) {
     context.output.log(line)
   }
-  const optional = result.optionalSecrets
-  if (optional.length > 0) {
-    const one = optional.length === 1
-    context.output.log(
-      `It can also use the optional secret${one ? '' : 's'} ${optional.join(', ')}, which ${one ? 'was' : 'were'} left out so it starts without ${one ? 'it' : 'them'}. To use one, add it to the entry in ${result.filePath} with a vault secret.`,
-    )
-  }
+  for (const line of optionalSecretLines(result)) context.output.log(line)
   const project = request.projectPath
     ? projectOptionOf({ args, projectPath: request.projectPath })
     : ''

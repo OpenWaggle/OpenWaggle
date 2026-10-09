@@ -91,6 +91,8 @@ describe('Registry server to Pi entry', () => {
       },
       secrets: ['WEATHER_KEY'],
       optionalSecrets: [],
+      optionalSecretArguments: [],
+      optionalSecretsNeedContainerEnv: false,
     })
   })
 
@@ -238,6 +240,8 @@ describe('Registry server to Pi entry', () => {
       },
       secrets: ['X-WEATHER-KEY'],
       optionalSecrets: [],
+      optionalSecretArguments: [],
+      optionalSecretsNeedContainerEnv: false,
     })
   })
 
