@@ -159,9 +159,6 @@ const SessionLifecyclePreparationWithDependenciesLive = SessionLifecyclePreparat
     ),
   ),
 )
-const PiSessionContinuationWithDependenciesLive = PiSessionContinuationServicesLive.pipe(
-  Layer.provide(ExtensionRuntimeSelectionLive),
-)
 const SessionWaitWithDependenciesLive = SessionWaitServiceLive.pipe(
   Layer.provide(SessionControlPersistenceLive),
 )
@@ -200,7 +197,7 @@ const SessionControlRunExecutorWithDependenciesLive = SessionControlRunExecutorL
       SessionControlAttachmentWithDatabaseLive,
       AppDatabaseLive,
       SessionControlPersistenceLive,
-      PiSessionContinuationWithDependenciesLive,
+      PiSessionContinuationServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
     ),
   ),
 )
@@ -243,7 +240,7 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  PiSessionContinuationWithDependenciesLive,
+  PiSessionContinuationServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   SessionTitleServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
