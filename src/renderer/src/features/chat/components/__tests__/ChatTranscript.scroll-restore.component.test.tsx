@@ -49,6 +49,7 @@ function createSection(): ChatTranscriptSectionState {
     isLoading: false,
     projectPath: '/repo',
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: SessionId(SESSION),
     turnsByAnchorNodeId: new Map(),
