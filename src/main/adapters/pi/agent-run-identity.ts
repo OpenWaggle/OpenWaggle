@@ -17,16 +17,28 @@ function isPromptMessage(message: ContextMessage): message is PromptMessage {
   return message.role === 'custom' && message.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE
 }
 
+/** A message an identity can follow: any user or custom message but a Run identity itself. */
+function isAnchorMessage(message: ContextMessage): message is PromptMessage {
+  if (message.role === 'user') return true
+  return message.role === 'custom' && message.customType !== OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE
+}
+
 const RUN_IDENTITY_DETAILS = { source: 'openwaggle', kind: 'run-identity' } as const
 
 /**
- * A Run identity and the prompt it follows. The prompt is named by its timestamp and a digest of
- * its content, not by entry order or time: Pi's entries, prompts, and identities can share one
- * millisecond, and a request is built from copies of the messages.
+ * A Run identity and the message that started its Run. That message is named by a digest of its
+ * content, not by entry order or time: Pi's entries, prompts, and identities can share one
+ * millisecond, and a request is built from copies of the messages. A user message also keeps
+ * its timestamp, which Pi stores with it. A custom message is named by its custom type instead:
+ * reloaded from the file it carries its entry's time, not the time it was sent.
  */
 export interface RunIdentityEntryData {
   readonly content: string
-  readonly prompt: { readonly timestamp: number; readonly digest: string }
+  readonly prompt: {
+    readonly timestamp: number
+    readonly digest: string
+    readonly customType?: string
+  }
 }
 
 function promptDigest(message: PromptMessage) {
@@ -34,21 +46,35 @@ function promptDigest(message: PromptMessage) {
 }
 
 function isPrompt(message: ContextMessage, prompt: RunIdentityEntryData['prompt']) {
-  return (
-    isPromptMessage(message) &&
-    message.timestamp === prompt.timestamp &&
-    promptDigest(message) === prompt.digest
-  )
+  if (!isAnchorMessage(message)) return false
+  const sameMessage =
+    prompt.customType === undefined
+      ? message.timestamp === prompt.timestamp
+      : message.role === 'custom' && message.customType === prompt.customType
+  return sameMessage && promptDigest(message) === prompt.digest
 }
 
-/** The entry for a Run's identity, placed after its prompt: the latest prompt message. */
+/**
+ * The entry for a Run's identity, placed after the message that started the Run: its prompt
+ * after the last answer, or else the first message after it, such as the custom message an
+ * extension command starts a turn with (`pi.sendMessage(..., { triggerTurn: true })`). Never an
+ * earlier Run's prompt, whose request would then change.
+ */
 export function runIdentityEntryData(
   content: string,
   messages: readonly ContextMessage[],
 ): RunIdentityEntryData | undefined {
-  const prompt = messages.findLast(isPromptMessage)
+  const turn = messages.slice(messages.findLastIndex((message) => message.role === 'assistant') + 1)
+  const prompt = turn.findLast(isPromptMessage) ?? turn.find(isAnchorMessage)
   if (!prompt) return undefined
-  return { content, prompt: { timestamp: prompt.timestamp, digest: promptDigest(prompt) } }
+  const digest = promptDigest(prompt)
+  return {
+    content,
+    prompt:
+      prompt.role === 'custom'
+        ? { timestamp: prompt.timestamp, digest, customType: prompt.customType }
+        : { timestamp: prompt.timestamp, digest },
+  }
 }
 
 function storedRunIdentity(entry: SessionEntry): RunIdentityEntryData | undefined {
@@ -59,9 +85,13 @@ function storedRunIdentity(entry: SessionEntry): RunIdentityEntryData | undefine
   if (!isRecord(data) || typeof data.content !== 'string' || !isRecord(data.prompt)) {
     return undefined
   }
-  const { timestamp, digest } = data.prompt
+  const { timestamp, digest, customType } = data.prompt
   if (typeof timestamp !== 'number' || typeof digest !== 'string') return undefined
-  return { content: data.content, prompt: { timestamp, digest } }
+  if (customType !== undefined && typeof customType !== 'string') return undefined
+  return {
+    content: data.content,
+    prompt: customType === undefined ? { timestamp, digest } : { timestamp, digest, customType },
+  }
 }
 
 function runIdentityContent(entry: SessionEntry) {
@@ -97,6 +127,8 @@ function runIdentityMessage(identity: RunIdentityEntryData): CustomMessage {
  * The model's messages with each stored Run identity right after its Run's prompt. That is where
  * Pi put the context message it used to be, so an earlier Run's request stays a prefix of the
  * next one and keeps its prompt cache. A Run whose prompt was compacted away sends no identity.
+ * Each Run started after the one before, so a prompt is looked for after the previous one: a
+ * command sent twice with the same text has each identity after its own message.
  */
 export function withRunIdentities(
   messages: readonly ContextMessage[],
@@ -105,10 +137,14 @@ export function withRunIdentities(
   const identities = branch.flatMap((entry) => storedRunIdentity(entry) ?? [])
   if (identities.length === 0) return undefined
   const placed = new Map<number, CustomMessage[]>()
+  let searchFrom = 0
   for (const identity of identities) {
-    const prompt = messages.findIndex((message) => isPrompt(message, identity.prompt))
+    const prompt = messages.findIndex(
+      (message, index) => index >= searchFrom && isPrompt(message, identity.prompt),
+    )
     if (prompt < 0) continue
     placed.set(prompt, [...(placed.get(prompt) ?? []), runIdentityMessage(identity)])
+    searchFrom = prompt + 1
   }
   if (placed.size === 0) return undefined
   return messages.flatMap((message, index) => [message, ...(placed.get(index) ?? [])])
