@@ -11,6 +11,7 @@ import type { McpImportEntryWriter, McpImportServiceShape } from '../../ports/mc
 import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
+  mcpConfigFileLocations,
   nodeMcpConfigFileReader,
   openWaggleMcpConfigPath,
 } from './config/mcp-config-files'
@@ -116,6 +117,17 @@ export function createFilesystemMcpImportService(
       throw new McpConfigurationError({
         reason: 'validation',
         message: 'Choose a project to import servers into it.',
+      })
+    }
+    // A project at the home folder has no file of its own: its .openwaggle/mcp.json is the global one.
+    const hasProjectFile = mcpConfigFileLocations(roots(input.projectPath)).some(
+      (file) => file.fileId === 'project-openwaggle',
+    )
+    if (input.target === 'project' && !hasProjectFile) {
+      throw new McpConfigurationError({
+        reason: 'validation',
+        message:
+          'This project is your home folder, so its .openwaggle/mcp.json is the global file. Import into All projects instead.',
       })
     }
     const current = await preview(input)
