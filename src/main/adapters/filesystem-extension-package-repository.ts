@@ -35,7 +35,13 @@ export function makeFilesystemExtensionPackageRepository(
   })
 }
 
-export const FilesystemExtensionPackageRepositoryLive = Layer.succeed(
+/**
+ * Resolves userData when the layer is built, never when the module loads: Electron creates the
+ * default userData folder on its first lookup, which would precede OPENWAGGLE_USER_DATA_DIR.
+ */
+export const FilesystemExtensionPackageRepositoryLive = Layer.effect(
   ExtensionPackageRepository,
-  makeFilesystemExtensionPackageRepository(getGlobalExtensionRoot(app.getPath('userData'))),
+  Effect.sync(() =>
+    makeFilesystemExtensionPackageRepository(getGlobalExtensionRoot(app.getPath('userData'))),
+  ),
 )
