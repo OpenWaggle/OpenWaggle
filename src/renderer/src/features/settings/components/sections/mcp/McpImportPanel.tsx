@@ -11,6 +11,7 @@ import { Select } from '@/shared/ui/Select'
 import { useMcpImports } from '../../../hooks/useMcpImports'
 import { MCP_IMPORT_SOURCE_LABELS, MCP_IMPORT_STATUS_LABELS } from '../../../lib/mcp-server-model'
 import { McpInlineError } from './McpLabels'
+import { McpSecretLines } from './McpSecretLines'
 
 function selectable(candidate: McpImportCandidateView) {
   return candidate.status !== 'imported'
@@ -169,12 +170,19 @@ export function McpImportPanel({
         onConflictPolicy={setConflictPolicy}
       />
       {imports.result ? (
-        <p role="status" className="text-xs text-text-secondary">
-          Imported {String(imports.result.imported.length)}
-          {imports.result.skipped.length > 0
-            ? `, skipped ${String(imports.result.skipped.length)}: ${imports.result.skipped.map((item) => item.reason).join(' ')}`
-            : '.'}
-        </p>
+        <div role="status" className="space-y-0.5 text-xs text-text-secondary">
+          <p>
+            Imported {String(imports.result.imported.length)}
+            {imports.result.skipped.length > 0
+              ? `, skipped ${String(imports.result.skipped.length)}: ${imports.result.skipped.map((item) => item.reason).join(' ')}`
+              : '.'}
+          </p>
+          <McpSecretLines
+            secrets={imports.result.secrets ?? []}
+            existingSecrets={imports.result.existingSecrets ?? []}
+            subject="many"
+          />
+        </div>
       ) : null}
       <McpInlineError message={imports.error} />
       <div className="flex justify-end gap-1.5">

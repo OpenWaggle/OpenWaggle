@@ -5,6 +5,7 @@
  */
 import { isRecord } from '@shared/utils/validation'
 import { urlWithoutCredentials } from './import-credentials'
+import { piServerName } from './import-identity'
 import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
 import {
   credentialMap,
@@ -224,6 +225,7 @@ export function normalizeImportedEntry(
   const context: ImportValueContext = {
     source,
     serverName: name,
+    targetName: piServerName(name),
     warnings: [],
     argumentEnv: {},
     credentialEnvNames: new Set(),

@@ -106,6 +106,7 @@ interface ArgumentState {
   readonly context: ImportValueContext
   readonly literal: (value: string) => string
   readonly envValue: ImportedEnvValue
+  readonly secretName: (field: string) => string
 }
 
 /**
@@ -210,7 +211,7 @@ const credentialHeader: ArgumentRule = (argument, state) => {
   state.args.push(...argument.emit(`${header}:\${${variable}}`))
   state.env[variable] = { secret: variable }
   state.context.warnings.push(
-    `The ${header} header in args was not imported; mcp-remote reads it from a vault secret named after the server and ${variable}, which you fill in after importing.`,
+    `The ${header} header in args was not imported; mcp-remote reads it from ${state.secretName(variable)}, which you fill in after importing.`,
   )
   return true
 }
@@ -246,6 +247,7 @@ export function portableArguments(
   context: ImportValueContext,
   literal: (value: string) => string,
   envValue: ImportedEnvValue,
+  secretName: (field: string) => string,
 ) {
   const state: ArgumentState = {
     args: [],
@@ -255,6 +257,7 @@ export function portableArguments(
     context,
     literal,
     envValue,
+    secretName,
   }
   let index = 0
   while (index < values.length) {

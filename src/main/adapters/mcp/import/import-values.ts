@@ -6,6 +6,7 @@
  */
 import { isRecord } from '@shared/utils/validation'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
+import { mcpServerSecretName } from '../../../domain/mcp/config/mcp-server-secret-names'
 import { isCredentialName, portableArguments } from './import-credentials'
 import type { ExternalMcpImportSource } from './import-types'
 import { sourceVariablePattern } from './import-variables'
@@ -13,6 +14,8 @@ import { sourceVariablePattern } from './import-variables'
 export interface ImportValueContext {
   readonly source: ExternalMcpImportSource
   readonly serverName: string
+  /** The name the server is saved as unless the import renames it; secrets are named after it. */
+  readonly targetName: string
   readonly warnings: string[]
   /** Vault-backed variables that replace credentials found in the arguments. */
   readonly argumentEnv: Record<string, ImportedCredential>
@@ -114,9 +117,14 @@ function credentialValue(
   // Named after the field until the import places the server: the vault secret is then named
   // `<SERVER>_<FIELD>` after the name it is saved as, which a rename can change.
   context.warnings.push(
-    `${location} contains a plaintext credential. Its value was not imported; it becomes a vault secret named after the server and ${fieldName}, which you fill in after importing.`,
+    `${location} contains a plaintext credential. Its value was not imported; it becomes ${importedSecretName(context, fieldName)}, which you fill in after importing.`,
   )
   return { secret: fieldName }
+}
+
+/** How a warning names the vault secret a field becomes, by the name the server is saved as. */
+export function importedSecretName(context: ImportValueContext, fieldName: string) {
+  return `vault secret ${mcpServerSecretName(context.targetName, fieldName)} (named after the server's new name if the import renames it)`
 }
 
 /** An `env` or `headers` map. */
@@ -145,6 +153,7 @@ export function portableArgs(
     context,
     (value) => literalString(value, 'args', context),
     (name, value) => credentialValue(name, value, `args ${name}`, context),
+    (field) => importedSecretName(context, field),
   )
   Object.assign(context.argumentEnv, portable.env)
   return portable.args

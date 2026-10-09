@@ -221,7 +221,7 @@ describe('previewing MCP imports as Pi entries', () => {
       },
       warnings: [
         'A command-line credential in --api-key was not imported, with its flag. Move it to the encrypted vault or an environment variable.',
-        'env.API_TOKEN contains a plaintext credential. Its value was not imported; it becomes a vault secret named after the server and API_TOKEN, which you fill in after importing.',
+        "env.API_TOKEN contains a plaintext credential. Its value was not imported; it becomes vault secret API_API_TOKEN (named after the server's new name if the import renames it), which you fill in after importing.",
       ],
     })
     expect(JSON.stringify(result)).not.toContain('sk-plaintext')

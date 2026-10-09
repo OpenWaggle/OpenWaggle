@@ -222,4 +222,35 @@ describe('Settings > MCP: importing from other apps', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Imported 1.')
     expect(await screen.findByRole('button', { name: /^Open linear / })).toBeInTheDocument()
   })
+
+  it('names the secrets the imported servers read, and those that already exist', async () => {
+    api.applyMcpImports.mockResolvedValue({
+      imported: [
+        {
+          source: 'cursor',
+          sourceName: 'linear',
+          targetName: 'linear',
+          fingerprint: 'fp-linear',
+          secrets: ['LINEAR_AUTHORIZATION', 'LINEAR_TOKEN'],
+        },
+      ],
+      skipped: [],
+      secrets: ['LINEAR_AUTHORIZATION', 'LINEAR_TOKEN'],
+      existingSecrets: ['LINEAR_TOKEN'],
+      view: mcpView([mcpServer('linear')]),
+    })
+    renderPanel()
+    fireEvent.click(await screen.findByRole('button', { name: 'Import' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import linear from Cursor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 selected' }))
+
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent('Imported 1.')
+    expect(status).toHaveTextContent(
+      'The imported servers read the secret LINEAR_AUTHORIZATION. Add it under Secrets before using them.',
+    )
+    expect(status).toHaveTextContent(
+      'They use the secret LINEAR_TOKEN, which already exists under Secrets; replace it there if it holds another value.',
+    )
+  })
 })
