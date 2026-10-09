@@ -85,6 +85,14 @@ export interface EncryptedMcpSecretVaultOptions {
   readonly legacyFilePath?: string
 }
 
+function secretNotFound(name: string) {
+  return new McpVaultError({
+    reason: 'secret-not-found',
+    secretName: name,
+    message: `MCP secret ${JSON.stringify(name)} was not found.`,
+  })
+}
+
 export function createEncryptedMcpSecretVault(
   filePath: string,
   encryption: McpVaultEncryption = safeStorage,
@@ -143,17 +151,12 @@ export function createEncryptedMcpSecretVault(
       return (await readVault()).vault.secrets[validateSecretName(name)] !== undefined
     },
     async resolve(name: string) {
-      await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
       const { vault, shared } = await readVault()
       const entry = vault.secrets[normalized]
-      const notFound = () =>
-        new McpVaultError({
-          reason: 'secret-not-found',
-          secretName: normalized,
-          message: `MCP secret ${JSON.stringify(normalized)} was not found.`,
-        })
-      if (!entry) throw notFound()
+      // A missing secret is known from the file: the keychain is not asked.
+      if (!entry) throw secretNotFound(normalized)
+      await assertEncryptionAvailable(encryption)
       try {
         return await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
       } catch {
