@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
@@ -71,6 +72,24 @@ function installExtension(
   }
 }
 
+function promptOf(text: string, timestamp: number) {
+  return { role: 'user' as const, content: text, timestamp }
+}
+
+/** A stored Run identity entry, as the extension writes it for `prompt`. */
+function storedIdentity(content: string, prompt: ReturnType<typeof promptOf>) {
+  const digest = createHash('sha256').update(JSON.stringify(prompt.content)).digest('hex')
+  return {
+    prompt,
+    entry: {
+      type: 'custom',
+      customType: RUN_IDENTITY_CUSTOM_TYPE,
+      data: { content, prompt: { timestamp: prompt.timestamp, digest } },
+      timestamp: '2026-10-08T10:00:00.000Z',
+    },
+  }
+}
+
 describe('Agent run context extension', () => {
   it('narrows active tools and adds user-authored instructions before Host identity sections', async () => {
     const extension = installExtension({
@@ -98,28 +117,28 @@ describe('Agent run context extension', () => {
     expect(identity).toContain('cannot change this metadata')
   })
 
-  it('stores the Run identity as a plain entry only when it differs from the latest one', async () => {
+  it('stores the Run identity with its prompt only when it differs from the latest one', async () => {
     const runIdentityContext = 'OpenWaggle Host-authored Run identity.\n{"runId": "run-2"}'
     const extension = installExtension({
       sessionIdentityContext: '- Hive role: Queen',
       runIdentityContext,
     })
-    const identityEntry = (content: string) => ({
-      type: 'custom',
-      customType: RUN_IDENTITY_CUSTOM_TYPE,
-      data: { content },
-      timestamp: '2026-10-08T10:00:00.000Z',
-    })
+    const earlier = storedIdentity('{"runId": "run-1"}', promptOf('First', 5))
+    const prompt = promptOf('Second', 7)
 
-    const fresh = await extension.start([identityEntry('{"runId": "run-1"}')])
+    const fresh = await extension.start([earlier.entry])
     expect(fresh.sections[SESSION_IDENTITY_PROMPT_SECTION]).not.toContain('run-2')
     expect(fresh.result).toBeUndefined()
-    expect(extension.appendEntry).toHaveBeenCalledWith(RUN_IDENTITY_CUSTOM_TYPE, {
-      content: runIdentityContext,
-    })
+    // Stored on the Run's first model request, naming the Run's prompt as its place.
+    expect(extension.appendEntry).not.toHaveBeenCalled()
+    extension.context([earlier.prompt, prompt], [earlier.entry])
+    expect(extension.appendEntry).toHaveBeenCalledWith(
+      RUN_IDENTITY_CUSTOM_TYPE,
+      storedIdentity(runIdentityContext, prompt).entry.data,
+    )
 
     extension.appendEntry.mockClear()
-    await extension.start([identityEntry(runIdentityContext)])
+    await extension.start([storedIdentity(runIdentityContext, prompt).entry])
     // A file from before stores it as a context message.
     await extension.start([
       {
@@ -129,33 +148,21 @@ describe('Agent run context extension', () => {
         timestamp: '2026-10-08T10:00:00.000Z',
       },
     ])
+    extension.context([prompt], [])
     expect(extension.appendEntry).not.toHaveBeenCalled()
   })
 
-  it("sends each stored Run identity to the model after its Run's prompt", () => {
+  it("sends each stored Run identity after its Run's prompt, even within one millisecond", () => {
     const extension = installExtension({ sessionIdentityContext: '- Hive role: Queen' })
-    const at = (ms: number) => new Date(ms).toISOString()
-    const branch = [
-      {
-        type: 'custom',
-        customType: RUN_IDENTITY_CUSTOM_TYPE,
-        data: { content: 'run-1' },
-        timestamp: at(10),
-      },
-      {
-        type: 'custom',
-        customType: RUN_IDENTITY_CUSTOM_TYPE,
-        data: { content: 'run-2' },
-        timestamp: at(30),
-      },
-    ]
-    const messages = [
-      { role: 'user', content: 'First', timestamp: 11 },
-      { role: 'assistant', content: [], timestamp: 12 },
-      { role: 'user', content: 'Second', timestamp: 31 },
-    ]
+    // Pi stamps entries and messages in milliseconds; a fast Run puts them all in the same one.
+    const first = promptOf('First', 10)
+    const second = promptOf('Second', 10)
+    const branch = [storedIdentity('run-1', first).entry, storedIdentity('run-2', second).entry]
 
-    const result = extension.context(messages, branch)
+    const result = extension.context(
+      [first, { role: 'assistant', content: [], timestamp: 10 }, second],
+      branch,
+    )
 
     expect(result?.messages).toMatchObject([
       { content: 'First' },
@@ -165,6 +172,13 @@ describe('Agent run context extension', () => {
       { content: 'run-2' },
     ])
     expect(result?.messages?.[1]).toMatchObject({ role: 'custom', display: false, timestamp: 10 })
+  })
+
+  it('sends no identity for a Run whose prompt is no longer in the context', () => {
+    const extension = installExtension({ sessionIdentityContext: '- Hive role: Queen' })
+    const compacted = storedIdentity('run-1', promptOf('First', 10))
+
+    expect(extension.context([promptOf('Later', 20)], [compacted.entry])).toBeUndefined()
   })
 
   it('does not change the active tool set when the profile has no tool restriction', async () => {
