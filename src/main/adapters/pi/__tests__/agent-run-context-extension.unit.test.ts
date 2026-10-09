@@ -117,6 +117,29 @@ describe('Agent run context extension', () => {
     expect(identity).toContain('cannot change this metadata')
   })
 
+  it('keeps every prompt section byte-identical when only the Run changes', async () => {
+    const session = {
+      agentInstructions: 'Review carefully.',
+      sessionIdentityContext: '- Session ID: queen-1\n- Hive role: Queen',
+    }
+    const first = await installExtension({
+      ...session,
+      runIdentityContext: '{"runId": "run-1"}',
+    }).start()
+    const second = await installExtension({
+      ...session,
+      runIdentityContext: '{"runId": "run-2"}',
+    }).start()
+
+    // The Run identity is no prompt section at all, so a new Run changes nothing Pi sends first.
+    expect(second.sections).toEqual(first.sections)
+    expect(Object.keys(first.sections)).toEqual([
+      AGENT_DEFINITION_PROMPT_SECTION,
+      SESSION_IDENTITY_PROMPT_SECTION,
+    ])
+    expect(JSON.stringify(first.sections)).not.toContain('run-1')
+  })
+
   it('stores the Run identity with its prompt only when it differs from the latest one', async () => {
     const runIdentityContext = 'OpenWaggle Host-authored Run identity.\n{"runId": "run-2"}'
     const extension = installExtension({
