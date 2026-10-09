@@ -20,6 +20,7 @@ import {
   getPiSessionProjectionState,
   listAdoptedPiSessionFiles,
   listUnattachedDiscoveredPiSessions,
+  piSessionDeletionRefusal,
   readPiSessionDiscoveryScope,
   recordPiSessionDiscoveryCreate,
 } from '../store/session-details/pi-session-discovery-store'
@@ -55,6 +56,8 @@ function createPiSessionDiscoveryRepository(
       repositoryOperation('forgetPiSessionDiscoveryCreates', () =>
         forgetPiSessionDiscoveryCreates(keys),
       ),
+    deletionRefusal: (sessionId) =>
+      repositoryOperation('piSessionDeletionRefusal', () => piSessionDeletionRefusal(sessionId)),
     listAdoptedPiSessionFiles: () =>
       repositoryOperation('listAdoptedPiSessionFiles', listAdoptedPiSessionFiles),
     getProjectionState: (sessionId) =>

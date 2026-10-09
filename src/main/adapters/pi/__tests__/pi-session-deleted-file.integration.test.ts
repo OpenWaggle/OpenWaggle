@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   discover,
   run,
@@ -51,6 +51,24 @@ vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
 
 const fixture = setUpPiDiscoveryFixture(state)
 setUpFakePiProvider(fixture)
+
+// The deletion path takes the Host's removal fence, which a running Session Host provides.
+let releaseEventRuntime: (() => void) | undefined
+beforeEach(async () => {
+  const { installSessionHostEventRuntime } = await import(
+    '../../../session-host/session-host-events'
+  )
+  const { SessionHostEventHub } = await import('../../../application/session-host-event-hub')
+  const { SessionHostLiveness } = await import('../../../application/session-host-liveness')
+  releaseEventRuntime = installSessionHostEventRuntime({
+    eventHub: new SessionHostEventHub(),
+    liveness: new SessionHostLiveness({ idleGracePeriodMs: 60_000, requestShutdown: vi.fn() }),
+  })
+})
+afterEach(() => {
+  releaseEventRuntime?.()
+  releaseEventRuntime = undefined
+})
 
 async function runOnce(sessionId: string) {
   const { executeAgentRun } = await import('../../../application/agent-run-service')
@@ -111,5 +129,54 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
 
     expect(await sessionDetail(sessionId)).not.toBeNull()
     await fs.rename(`${folder}-away`, folder)
+  })
+
+  it('goes through the deletion path, which removes its visualizations', async () => {
+    const { cli, sessionId } = await discoveredSession(fixture)
+    const visualizations = path.join(state.userDataDir, 'visualizations', sessionId)
+    await fs.mkdir(visualizations, { recursive: true })
+    await fs.writeFile(path.join(visualizations, 'chart.html'), '<p>chart</p>')
+    await fs.rm(cli.file)
+
+    await discover()
+
+    expect(await sessionDetail(sessionId)).toBeNull()
+    expect(await exists(visualizations)).toBe(false)
+  })
+
+  it('stays, without blocking the others, while a fork depends on it', async () => {
+    const { SettingsService } = await import('../../../services/settings-service')
+    await run(
+      Effect.flatMap(SettingsService, (settings) =>
+        settings.update({
+          enabledModels: [FAKE_PROVIDER_MODEL],
+          selectedModel: FAKE_PROVIDER_MODEL,
+        }),
+      ),
+    )
+    const forked = await discoveredSession(fixture)
+    const lastNode = (await sessionDetail(forked.sessionId))?.messages.at(-1)?.id
+    const { forkSession } = await import(
+      '../../../application/host-ui-session-lifecycle-operations'
+    )
+    await run(forkSession([forked.sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
+    const plain = await discoveredSession(fixture, { cwd: path.join(fixture.project, 'other') })
+    await fs.rm(forked.cli.file)
+    await fs.rm(plain.cli.file)
+    events.length = 0
+
+    await discover()
+    await discover()
+
+    expect(await sessionDetail(forked.sessionId)).not.toBeNull()
+    expect(await sessionDetail(plain.sessionId)).toBeNull()
+    expect(events.filter((event) => event.change === 'deleted')).toEqual([
+      expect.objectContaining({ sessionId: plain.sessionId }),
+    ])
+    // Its Run is still refused, with a message that does not promise a removal.
+    const refused = await runOnce(forked.sessionId)
+    const failure = refused._tag === 'Left' ? String(refused.left) : JSON.stringify(refused.right)
+    expect(failure).toMatch(/Pi session file was deleted/)
+    expect(failure).not.toMatch(/removes the Session/)
   })
 })

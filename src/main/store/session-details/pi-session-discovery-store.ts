@@ -1,12 +1,15 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
 import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
+import { assertSessionDeletable } from './session-deletion-preflight'
 
 export interface PiSessionDiscoveryScopeRows {
   readonly knownPiSessionIds: ReadonlySet<string>
@@ -149,6 +152,20 @@ export async function listUnattachedDiscoveredPiSessions(): Promise<readonly Ses
           AND NOT EXISTS (SELECT 1 FROM session_nodes WHERE session_id = sessions.id)
       `
       return rows.map((row) => SessionId(row.session_id))
+    }),
+  )
+}
+
+/** See `PiSessionDiscoveryRepositoryShape.deletionRefusal`. */
+export async function piSessionDeletionRefusal(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      // The check throws, as the deletion it guards does; its rollback leaves nothing changed.
+      const exit = yield* Effect.exit(assertSessionDeletable(sql, sessionId))
+      if (Exit.isSuccess(exit)) return undefined
+      const error = Cause.squash(exit.cause)
+      return error instanceof Error ? error.message : String(error)
     }),
   )
 }

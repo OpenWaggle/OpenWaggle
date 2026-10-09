@@ -191,6 +191,13 @@ export interface PiSessionDiscoveryRepositoryShape {
   readonly forgetDiscoveryCreates: (
     idempotencyKeys?: readonly string[],
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /**
+   * Why the Session cannot be deleted, such as a fork or Worker that depends on it; undefined
+   * when it can. Nothing is changed.
+   */
+  readonly deletionRefusal: (
+    sessionId: SessionId,
+  ) => Effect.Effect<string | undefined, SessionProjectionRepositoryError>
   /** Every discovered Session that has its Pi file attached, with the file. */
   readonly listAdoptedPiSessionFiles: () => Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],
