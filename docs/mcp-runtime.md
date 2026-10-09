@@ -389,9 +389,12 @@ waits for neither and reads no keychain; it still awaits `migrateOpenWaggleMcpFi
 is done for the projects Host start knows. For a project not yet migrated, or one retrying after
 a failure, it can take the migration lock (at most 30 s), wait behind a sign-in pass in the shared
 queue, and make the git calls of `keepMcpFileOutOfGit`. A separate queue would not help: both
-parts take the same cross-process migration lock. The vault secrets of
-servers that are off are deferred markers (`deferSecretsOfServersOff`, `mcp-deferred-secrets.ts`), read when Pi connects one, for
-example after `/mcp` turns it on during the Run. A server a Pi extension registers in such a Run
+parts take the same cross-process migration lock. Loading the configuration to connect (a Run,
+Check connection, an MCP App) never reads the keychain: it loads with `deferredMcpVaultSecret`,
+so a present secret becomes a deferred marker (`mcp-deferred-secrets.ts`) and a missing one
+leaves its server out. A marker is read from the keychain when that server's connection opens,
+including a server that was off when the Run started and `/mcp` turns on. Check connection and
+MCP Apps load only their own server. A server a Pi extension registers in such a Run
 starts with whatever environment the Host has read by then. Connections are
 pooled per Session (below), so the next Run reuses them instead of starting the servers again.
 Hidden QA's process snapshots show exactly this: every enabled server of a Session that had run
@@ -483,7 +486,12 @@ it.
 The vault, the old sign-ins' source, uses `safeStorage`'s asynchronous API (Electron 43's
 `isAsyncEncryptionAvailable`, `encryptStringAsync`, `decryptStringAsync`), which reads the
 keychain off the main thread and opens values the synchronous `encryptString` sealed (same `v10`
-format; checked with `--use-mock-keychain`). The sign-in part runs in two queued passes, each
+format; checked with `--use-mock-keychain`). `resolve` looks the entry up before it asks the
+keychain, so a missing secret never touches it. Each of these calls fails after
+`MCP_KEYCHAIN_TIMEOUT_MS` (20 s) with "The system keychain did not answer": without a login
+keychain, or with a prompt nobody answers, macOS never returns, which hung a Run at "Starting
+session", Check connection, and Save in Secrets (round-8 QA). The Host's quit hold for SIGTERM or
+SIGINT ends after `SESSION_HOST_QUIT_HOLD_MS` (30 s) whatever is still pending. The sign-in part runs in two queued passes, each
 under the migration lock: the first migrates the files and asks for the old sign-ins it still
 needs (`SIGN_IN_NOT_READ_YET`, not recorded), the vault is read outside the queue and lock, and
 the second pass moves them. Once every sign-in is recorded, the first pass asks for none and no
