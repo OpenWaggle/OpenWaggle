@@ -128,7 +128,7 @@ type LegacyStoreRead =
   /** No shared store, or one this build cannot open (another build's): nothing to take. */
   | { readonly kind: 'none' }
   /** The file could not be read right now: try again on the next read. */
-  | { readonly kind: 'retry' }
+  | { readonly kind: 'retry'; readonly error: string }
 
 /** The shared pre-build store, with its decoded layer, when this build can open it. */
 function readLegacyStore(
@@ -141,10 +141,7 @@ function readLegacyStore(
     text = readFileSync(legacyStorePath, 'utf8')
   } catch (error) {
     if (isMissing(error)) return { kind: 'none' }
-    warn('The shared MCP sign-in store could not be read; it is tried again', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return { kind: 'retry' }
+    return { kind: 'retry', error: error instanceof Error ? error.message : String(error) }
   }
   try {
     return { kind: 'taken', text, layer: decodeOwnLayer(text, encryption) }
@@ -169,6 +166,8 @@ function fileVersion(filePath: string) {
 export class OwnLayerFile {
   private cached: { readonly version: string; readonly layer: OwnLayer } | undefined
   private legacyChecked = false
+  /** The last read failure warned about: Pi reads the token on every request. */
+  private legacyRetryWarning: string | undefined
 
   constructor(
     private readonly options: McpOAuthStateBackendOptions,
@@ -218,7 +217,15 @@ export class OwnLayerFile {
         ? { kind: 'none' as const }
         : readLegacyStore(legacyStorePath, this.options.encryption, this.warn)
     // Undefined, like a store that cannot be decrypted: nothing is read, and no write is saved.
-    if (legacy.kind === 'retry') return undefined
+    if (legacy.kind === 'retry') {
+      if (this.legacyRetryWarning !== legacy.error) {
+        this.legacyRetryWarning = legacy.error
+        this.warn('The shared MCP sign-in store could not be read; it is tried again', {
+          error: legacy.error,
+        })
+      }
+      return undefined
+    }
     this.legacyChecked = true
     if (legacy.kind !== 'taken') return { states: {}, tombstones: {} }
     // Another process of this build may have saved a sign-in since this one found no store.

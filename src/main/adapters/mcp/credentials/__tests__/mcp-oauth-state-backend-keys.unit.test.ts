@@ -116,11 +116,15 @@ describe('MCP sign-ins per build', () => {
   it('tries the shared store again after a read that could not finish', () => {
     mkdirSync(path.dirname(legacyStorePath), { recursive: true })
     writeFileSync(legacyStorePath, sealedStore(RELEASE, SIGN_IN))
-    const backend = backendFor('release', RELEASE)
+    const warnings: string[] = []
+    const backend = backendFor('release', RELEASE, warnings)
     // Unreadable for now, for example while a backup tool holds it.
     chmodSync(legacyStorePath, 0o000)
 
     expect(read(backend)).toEqual({})
+    // Pi reads the token on every request: the warning is written once, not on every read.
+    read(backend)
+    expect(warnings.filter((message) => message.includes('could not be read'))).toHaveLength(1)
     // A sign-in saved now would create this build's store and hide the old ones for good.
     expect(() => signIn(backend)).toThrow('cannot be decrypted')
     chmodSync(legacyStorePath, 0o600)
