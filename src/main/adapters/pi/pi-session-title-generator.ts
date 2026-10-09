@@ -1,5 +1,9 @@
 import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
-import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import {
+  createAgentSessionFromServices,
+  ModelRuntime,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { SESSION_TITLE_MODEL_AUTOMATIC } from '@shared/session-title-model'
 import { SupportedModelId } from '@shared/types/brand'
 import { createModelRef, parseModelRef } from '@shared/types/llm'
@@ -136,14 +140,31 @@ async function requestTitle(
   return responseText(response)
 }
 
+/** The model registry title requests resolve against, and what releases it afterwards. */
+interface TitleModelRegistry {
+  readonly modelRuntime: ModelRuntime
+  readonly release: () => void
+}
+
 /** The model registry title requests resolve against for a Session's project. */
-type TitleModelRuntime = (projectPath: string | null) => Promise<ModelRuntime>
+type TitleModelRuntime = (projectPath: string | null) => Promise<TitleModelRegistry>
 
 async function generateTitle(
   request: SessionTitleGenerationRequest,
   modelRuntime: TitleModelRuntime,
 ) {
-  const runtime = await modelRuntime(request.projectPath)
+  const registry = await modelRuntime(request.projectPath)
+  try {
+    return await requestFromCandidates(registry.modelRuntime, request)
+  } finally {
+    registry.release()
+  }
+}
+
+async function requestFromCandidates(
+  runtime: ModelRuntime,
+  request: SessionTitleGenerationRequest,
+) {
   const candidates = await candidateModels(runtime, request)
   if (candidates.length === 0) {
     throw new SessionTitleGenerationError({
@@ -193,7 +214,7 @@ export function createPiSessionTitleGenerator(deps: { readonly modelRuntime: Tit
 /**
  * The project's own model registry, built like a Run's: Pi's extensions and the OpenWaggle
  * extensions the project runs register their providers, virtual models included, so Automatic
- * and a picked extension Title model resolve as the Session's model does.
+ * and a picked extension Title model resolve and route as the Session's model does.
  */
 export function projectTitleModelRuntime(
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
@@ -201,7 +222,7 @@ export function projectTitleModelRuntime(
   return async (projectPath) => {
     if (!projectPath) {
       registerPiBundledBedrockProvider()
-      return ModelRuntime.create()
+      return { modelRuntime: await ModelRuntime.create(), release: () => undefined }
     }
     const services = await Effect.runPromise(
       loadWithProjectExtensions({
@@ -212,7 +233,14 @@ export function projectTitleModelRuntime(
         loadErrors: getPiRuntimeExtensionLoadErrors,
       }),
     )
-    return services.modelRuntime
+    // A virtual model routes each request with an extension context, which Pi creates only once
+    // an agent session binds the extension runner. This session binds it and nothing else: it is
+    // never started, so extensions see no session_start, and it is disposed after the request.
+    const { session } = await createAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(projectPath),
+    })
+    return { modelRuntime: services.modelRuntime, release: () => session.dispose() }
   }
 }
 

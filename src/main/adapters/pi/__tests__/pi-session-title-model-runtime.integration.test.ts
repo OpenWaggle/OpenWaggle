@@ -26,7 +26,9 @@ describe('the Title model registry', () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-title-model-'))
     await writeProviderExtension(projectPath, 'qa-router')
 
-    const runtime = await projectTitleModelRuntime(NO_OPENWAGGLE_EXTENSIONS)(projectPath)
+    const { modelRuntime: runtime, release } =
+      await projectTitleModelRuntime(NO_OPENWAGGLE_EXTENSIONS)(projectPath)
+    release()
 
     expect(runtime.getModel('qa-router', 'offline-model')).toMatchObject({
       provider: 'qa-router',

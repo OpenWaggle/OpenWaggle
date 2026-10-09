@@ -115,7 +115,12 @@ describe('the Title model of a Session on an extension model', () => {
   const ROUTER = model('auto', 0, 0, { provider: 'router' })
 
   function generatorWith(runtimeFor: (projectPath: string | null) => Promise<ModelRuntime>) {
-    return createPiSessionTitleGenerator({ modelRuntime: runtimeFor })
+    return createPiSessionTitleGenerator({
+      modelRuntime: async (projectPath) => ({
+        modelRuntime: await runtimeFor(projectPath),
+        release: () => undefined,
+      }),
+    })
   }
 
   function fakeRuntime() {
@@ -176,7 +181,9 @@ describe('the Title model of a Session whose model is gone', () => {
     })
 
     const response = await Effect.runPromise(
-      createPiSessionTitleGenerator({ modelRuntime: async () => runtime }).generate({
+      createPiSessionTitleGenerator({
+        modelRuntime: async () => ({ modelRuntime: runtime, release: () => undefined }),
+      }).generate({
         projectPath: '/repo',
         sessionModel: SupportedModelId('qa-router/auto'),
         fallbackModel: SupportedModelId('openai/gpt-5-mini'),
