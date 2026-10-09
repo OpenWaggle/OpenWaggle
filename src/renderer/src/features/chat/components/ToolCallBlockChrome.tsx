@@ -5,7 +5,7 @@ import { formatDuration } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
-import { DiffStatLabel } from './DiffStatLabel'
+import { DiffStatLabel, describeDiffStat } from './DiffStatLabel'
 import type { ToolCallViewModel } from './ToolCallBlock'
 
 interface ToolCallHeaderProps {
@@ -25,13 +25,14 @@ export function ToolCallHeader({
   onBranchFromMessage,
   onToggleExpanded,
 }: ToolCallHeaderProps) {
+  const actionText = useChatDisplayText(view.actionText)
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={`${view.actionText} — ${expanded ? 'collapse' : 'expand'} details`}
+        aria-label={toolHeaderLabel(actionText, view, expanded)}
         onClick={onToggleExpanded}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
@@ -52,6 +53,15 @@ export function ToolCallHeader({
       <BranchFromToolButton view={view} onBranchFromMessage={onBranchFromMessage} />
     </div>
   )
+}
+
+/**
+ * The toggle's label replaces its content, so it uses the same display text the row
+ * shows (label in name) and carries the diff stat itself.
+ */
+function toolHeaderLabel(actionText: string, view: ToolCallViewModel, expanded: boolean) {
+  const stat = view.diff ? `, ${describeDiffStat(view.diff)}` : ''
+  return `${actionText}${stat} — ${expanded ? 'collapse' : 'expand'} details`
 }
 
 function ToolStatusIcon({

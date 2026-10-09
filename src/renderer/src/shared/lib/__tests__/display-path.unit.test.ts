@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDisplayPath, formatDisplayPathsInText } from '../display-path'
+import { formatDisplayPath, formatDisplayPathsInText, workspaceRelativePath } from '../display-path'
 
 const PROJECT_ROOT = '/Users/diego/Projects/OpenWaggle'
 const WORKTREE_ROOT =
@@ -110,5 +110,52 @@ describe('formatDisplayPathsInText', () => {
     expect(formatDisplayPathsInText(`Could not read ${root}/src/main.ts`, [])).toBe(
       'Could not read src/main.ts',
     )
+  })
+})
+
+describe('workspaceRelativePath', () => {
+  const root = '/Users/me/.openwaggle/worktrees/app/abc'
+
+  it('keeps relative paths that stay inside the working root', () => {
+    expect(workspaceRelativePath('src/a.ts', root)).toBe('src/a.ts')
+    expect(workspaceRelativePath('./src/a.ts', root)).toBe('src/a.ts')
+    expect(workspaceRelativePath('src/x/../a.ts', root)).toBe('src/a.ts')
+    expect(workspaceRelativePath('src\\win\\a.ts', root)).toBe('src/win/a.ts')
+  })
+
+  it('has no path without a working root, where the file view cannot open one', () => {
+    expect(workspaceRelativePath('src/a.ts', null)).toBeNull()
+  })
+
+  it('has no path for URLs', () => {
+    expect(workspaceRelativePath(`file://${root}/src/a.ts`, root)).toBeNull()
+    expect(workspaceRelativePath('https://example.com/a.ts', root)).toBeNull()
+  })
+
+  it('drops the leading @ Pi strips from tool paths', () => {
+    expect(workspaceRelativePath('@src/a.ts', root)).toBe('src/a.ts')
+  })
+
+  it('has no path for relative paths that climb out of the working root', () => {
+    expect(workspaceRelativePath('../other/a.ts', root)).toBeNull()
+    expect(workspaceRelativePath('src/../../etc/hosts', root)).toBeNull()
+    expect(workspaceRelativePath('.', root)).toBeNull()
+    expect(workspaceRelativePath('', root)).toBeNull()
+  })
+
+  it('has no path for home-relative paths, which only Pi can expand', () => {
+    expect(workspaceRelativePath('~/.ssh/config', root)).toBeNull()
+  })
+
+  it('resolves absolute paths against the working root only', () => {
+    expect(workspaceRelativePath(`${root}/src/a.ts`, root)).toBe('src/a.ts')
+    expect(workspaceRelativePath(`${root}/src/../README.md`, root)).toBe('README.md')
+    expect(workspaceRelativePath('/Users/me/projects/app/src/a.ts', root)).toBeNull()
+    expect(workspaceRelativePath(`${root}/../../../etc/hosts`, root)).toBeNull()
+    expect(workspaceRelativePath(root, root)).toBeNull()
+  })
+
+  it('compares Windows drive paths case-insensitively', () => {
+    expect(workspaceRelativePath('c:\\Repo\\src\\A.ts', 'C:\\repo')).toBe('src/A.ts')
   })
 })

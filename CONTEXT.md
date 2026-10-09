@@ -1395,8 +1395,12 @@ The card under a settled turn's terminal message listing that Turn diff's change
 _Avoid_: diff button (the hover affordance it replaces), diff card
 
 **Turn diff view**:
-The diff panel opened at Turn diff scope, optionally focused on one changed file — the only surface where OpenWaggle renders file diffs. Its transcript entry point is the Changed files card.
-_Avoid_: inline tool diff (deleted; tool rows never embed diff fragments), transcript diff
+The diff panel opened at Turn diff scope, optionally focused on one changed file — the only surface for a turn's aggregated file diffs. Its transcript entry point is the Changed files card.
+_Avoid_: transcript diff
+
+**Edit row diff**:
+The diff of one file that an expanded, successful edit tool row shows in place of its raw arguments. It covers only that edit; rows stay collapsed until the reader expands them.
+_Avoid_: diff card (that name is avoided for the Changed files card), inline tool diff
 
 ### Sidebar row vocabulary
 

@@ -42,6 +42,7 @@ export function createSections(
     isLoading: false,
     projectPath: PROJECT_PATH,
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
     chatRows: [],
