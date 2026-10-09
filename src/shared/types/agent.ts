@@ -160,6 +160,8 @@ export interface MessageMetadata {
    * from `Message.model`, the physical model the router sent the request to.
    */
   readonly selectedModel?: SupportedModelId
+  /** The provider error this response ended with (Pi's `errorMessage` of a failed response). */
+  readonly error?: string
 }
 
 export interface Message {

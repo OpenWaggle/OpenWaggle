@@ -29,4 +29,18 @@ describe('assistant message hydration', () => {
     expect(message.model).toBe('openai/gpt-6-luna')
     expect(message.metadata?.selectedModel).toBe('router/auto')
   })
+
+  it('keeps the error a failed response ended with', () => {
+    const message = hydrateSessionMessage(
+      assistantRow({ stopReason: 'error', errorMessage: '401 Unauthorized' }),
+    )
+
+    expect(message.metadata?.error).toBe('401 Unauthorized')
+  })
+
+  it('has no error for a response that finished', () => {
+    const message = hydrateSessionMessage(assistantRow({ stopReason: 'stop', errorMessage: null }))
+
+    expect(message.metadata?.error).toBeUndefined()
+  })
 })

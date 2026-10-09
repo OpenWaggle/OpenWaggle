@@ -54,17 +54,20 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
     .exhaustive()
 }
 
-function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
-  if (!metadata) return undefined
-  if (
+function hasUIMetadata(metadata: MessageMetadata) {
+  return !(
     metadata.sessionNodeCreatedOrder === undefined &&
     !metadata.durableTextSha256 &&
     !metadata.branchSummary &&
     !metadata.compactionSummary &&
     !metadata.waggleInvocation &&
-    !metadata.visualizationSessionId
+    !metadata.visualizationSessionId &&
+    !metadata.error
   )
-    return undefined
+}
+
+function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
+  if (!metadata || !hasUIMetadata(metadata)) return undefined
   return {
     ...(metadata.sessionNodeCreatedOrder !== undefined
       ? { sessionNodeCreatedOrder: metadata.sessionNodeCreatedOrder }
@@ -76,6 +79,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
     ...(metadata.branchSummary ? { branchSummary: metadata.branchSummary } : {}),
     ...(metadata.compactionSummary ? { compactionSummary: metadata.compactionSummary } : {}),
     ...(metadata.waggleInvocation ? { waggleInvocation: metadata.waggleInvocation } : {}),
+    ...(metadata.error ? { error: metadata.error } : {}),
   }
 }
 

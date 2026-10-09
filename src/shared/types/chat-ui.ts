@@ -97,6 +97,8 @@ export interface UIMessageMetadata {
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
+  /** The provider error this response ended with. */
+  readonly error?: string
   readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
   /**
    * A user row the Run published when it incorporated the message, before its node was persisted:

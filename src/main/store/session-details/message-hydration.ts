@@ -81,6 +81,8 @@ const messageMetadataSchema = Schema.Struct({
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
   selectedModel: Schema.optional(Schema.String),
+  stopReason: Schema.optional(Schema.String),
+  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
 })
 
 const messageNodeContentSchema = Schema.Struct({
@@ -127,8 +129,10 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
+  const { stopReason, errorMessage, ...metadata } = parsedMetadata.data
   return {
-    ...parsedMetadata.data,
+    ...metadata,
+    ...(stopReason === 'error' && errorMessage ? { error: errorMessage } : {}),
     visualizationSessionId: parsedMetadata.data.visualizationSessionId
       ? SessionId(parsedMetadata.data.visualizationSessionId)
       : undefined,

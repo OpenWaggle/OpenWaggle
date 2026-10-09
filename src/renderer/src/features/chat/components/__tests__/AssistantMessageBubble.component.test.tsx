@@ -134,6 +134,24 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
   })
 
+  it("shows a failed Waggle turn's error instead of an empty turn", () => {
+    const message: UIMessage = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [],
+      metadata: { error: '401 Unauthorized: Incorrect API key provided' },
+    }
+    renderAssistantMessage({
+      message,
+      waggle: { agentLabel: 'Critic', agentColor: 'amber' },
+      hideAgentLabel: true,
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This turn failed: 401 Unauthorized: Incorrect API key provided',
+    )
+  })
+
   it('renders AgentLabel when assistantModel provided', () => {
     const message = createMessage('m1', [textPart('Hello')])
     renderAssistantMessage({
