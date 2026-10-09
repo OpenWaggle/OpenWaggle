@@ -182,6 +182,10 @@ export function refreshPiSessionProjection(
     const key = `${owner}:${sessionId}`
     const pending = refreshesInFlight.get(key)
     if (pending) return yield* Effect.promise(() => pending)
+    // A reader's projection, with the Pi settings it applies, finishes before a Run reads the
+    // Session: otherwise the Run could find the file projected and start with its old settings.
+    const reading = owner === 'run' ? refreshesInFlight.get(`reader:${sessionId}`) : undefined
+    if (reading) yield* Effect.promise(() => reading.catch(() => undefined))
     const runtime = yield* Effect.runtime<
       PiSessionDiscoveryRepository | PiSessionFiles | SessionRepository
     >()

@@ -92,4 +92,50 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     expect(models.every((model) => model === 'file-model')).toBe(true)
     expect(levels.every((level) => level === 'high')).toBe(true)
   })
+
+  it("waits for a reader's first projection, so a Run starting meanwhile reads its settings", async () => {
+    await selectDefaultModel()
+    const cli = createPiCliSession(fixture.project, 'First question')
+    const cliManager = SessionManager.open(cli.file)
+    cliManager.appendModelChange('local', 'file-model')
+    agePiFile(cli.file)
+    const sessionId = SessionId(await discoverOne())
+    const { refreshPiSessionProjection } = await import(
+      '../../../application/pi-session-projection-refresh'
+    )
+    const { SessionSettingsRepository } = await import('../../../ports/session-settings-repository')
+    let releaseReader: () => void = () => undefined
+    const readerHolds = new Promise<void>((resolve) => {
+      releaseReader = resolve
+    })
+    let projected: () => void = () => undefined
+    const readerProjected = new Promise<void>((resolve) => {
+      projected = resolve
+    })
+
+    // The reader stops after persisting its projection, before it applies the Pi settings.
+    const reader = run(
+      Effect.gen(function* () {
+        const settings = yield* SessionSettingsRepository
+        return yield* refreshPiSessionProjection(sessionId, 'reader').pipe(
+          Effect.provideService(SessionSettingsRepository, {
+            ...settings,
+            setModel: (...args: Parameters<typeof settings.setModel>) =>
+              Effect.promise(async () => {
+                projected()
+                await readerHolds
+              }).pipe(Effect.zipRight(settings.setModel(...args))),
+          }),
+        )
+      }),
+    )
+    await readerProjected
+    const runRefresh = run(refreshPiSessionProjection(sessionId, 'run')).then(
+      async () => (await sessionDetail(sessionId))?.executionModel,
+    )
+    setTimeout(releaseReader, 200)
+
+    expect(await runRefresh).toBe('local/file-model')
+    await reader
+  })
 })
