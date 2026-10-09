@@ -91,6 +91,10 @@ interface MergeState {
   readonly orphanedOverrides: McpOrphanedOverride[]
   /** OpenWaggle overrides no earlier file had a server for, classified after the merge. */
   readonly unappliedOverrides: McpOrphanedOverride[]
+  /** Names some file defines with an error: invalid, clashing, or not allowed in that file. */
+  readonly rejectedNames: Set<string>
+  /** A file that could not be read, or is not an MCP file, may define any server. */
+  unreadLayer: boolean
   autoEnableCodemode?: boolean
 }
 
@@ -104,6 +108,13 @@ function applyOverride(
   const extra = Object.keys(value).filter(
     (key) => !MCP_OVERRIDE_KEYS.some((overrideKey) => overrideKey === key),
   )
+  // Keys an override cannot set make it a full entry missing its command or URL, such as one
+  // with `comand`: a definition with an error, never an override, and never an orphan.
+  if (!base && extra.length > 0) {
+    state.rejectedNames.add(name)
+    state.errors.push(`${layer.path}: server "${name}" needs "command" or "url"`)
+    return
+  }
   if (!base && isOpenWaggleMcpConfigFile(layer.fileId)) {
     // Ignored; whether it is an orphan is known once every file is read (`classifyUnapplied`).
     state.unappliedOverrides.push({ name, fileId: layer.fileId, path: layer.path })
@@ -148,6 +159,7 @@ function defineServer(state: MergeState, layer: McpConfigLayer, name: string, va
     allowSecretReferences: isOpenWaggleMcpConfigFile(layer.fileId),
   })
   if (!validated.ok) {
+    state.rejectedNames.add(name)
     state.errors.push(`${layer.path}: ${validated.error}`)
     return
   }
@@ -156,11 +168,13 @@ function defineServer(state: MergeState, layer: McpConfigLayer, name: string, va
     (other) => other !== name && mcpNamespace(other) === mcpNamespace(name),
   )
   if (clash) {
+    state.rejectedNames.add(name)
     state.errors.push(`${layer.path}: server "${name}" conflicts with "${clash}"`)
     return
   }
   const { config, transport } = validated.server
   if (scope === 'project' && 'url' in config && config.auth) {
+    state.rejectedNames.add(name)
     state.errors.push(`${layer.path}: server "${name}": auth is only allowed in a global mcp.json`)
     return
   }
@@ -177,6 +191,7 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
   const { content } = layer
   if (content.kind === 'missing') return
   if (content.kind === 'unreadable') {
+    state.unreadLayer = true
     state.errors.push(`${layer.path}: ${content.error}`)
     return
   }
@@ -185,6 +200,7 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
     !isJsonRecord(parsed) ||
     (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
   ) {
+    state.unreadLayer = true
     state.errors.push(`${layer.path}: expected an object with an "mcpServers" object`)
     return
   }
@@ -219,6 +235,14 @@ function classifyUnapplied(state: MergeState) {
       )
       continue
     }
+    // A file that was not read, or one that defines the server with an error, may define it
+    // once fixed; removing the override then would change what the server does.
+    if (state.unreadLayer || state.rejectedNames.has(override.name)) {
+      state.warnings.push(
+        `${override.path}: server "${override.name}" only changes a server no file defines; it is ignored while another file could not be read or defines it with an error`,
+      )
+      continue
+    }
     state.warnings.push(
       `${override.path}: server "${override.name}" only changes a server no file defines any more; it is ignored`,
     )
@@ -234,6 +258,8 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     warnings: [],
     orphanedOverrides: [],
     unappliedOverrides: [],
+    rejectedNames: new Set(),
+    unreadLayer: false,
   }
   layers.forEach((layer, index) => {
     readLayer(state, layer, index === 0)

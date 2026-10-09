@@ -1,5 +1,4 @@
-import { isOpenWaggleMcpConfigFile } from '../../../domain/mcp/config/mcp-config-merge'
-import { isJsonRecord, isMcpOverrideEntry } from '../../../domain/mcp/config/mcp-server-config'
+import { isJsonRecord, MCP_OVERRIDE_KEYS } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import {
   type McpConfigFileReader,
@@ -15,31 +14,41 @@ interface OrphanContext {
   readonly reader: McpConfigFileReader
 }
 
+/** The entry for `name` in `filePath` as read, if it only sets keys an override can set. */
+function overrideOnlyEntry(context: OrphanContext, filePath: string, name: string) {
+  const layer = readMcpConfigLayers(mcpConfigFileLocations(context.roots), context.reader).find(
+    (candidate) => candidate.path === filePath,
+  )
+  if (layer?.content.kind !== 'parsed') return undefined
+  const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
+  const entry = isJsonRecord(servers) ? servers[name] : undefined
+  if (!isJsonRecord(entry)) return undefined
+  const overrideKeys: readonly string[] = MCP_OVERRIDE_KEYS
+  return Object.keys(entry).every((key) => overrideKeys.includes(key)) ? entry : undefined
+}
+
 /**
- * Once no file defines the server, its override-only entries are orphans. Those in OpenWaggle's
- * files are removed with it (in every known project for a global server; one left behind is only a
- * warning); those in Pi's and shared files are left as they are and show up in the view's errors.
- * While any file still defines the server, they stay.
+ * Once no file defines the server, its override-only entries in OpenWaggle's files are orphans,
+ * which are removed with it (in every known project for a global server; one left behind is only
+ * a warning). Those in Pi's and shared files are left as they are and show up in the view's
+ * errors. While any file still defines the server, could not be read, or defines it with an
+ * error, they stay: the merge reports no orphan then.
  */
 export function removeOrphanedOverrides(context: OrphanContext, name: string) {
-  const merged = loadMcpMergedConfig(context.roots, context.reader)
-  if (merged.servers.some((server) => server.name === name)) return []
+  const orphans = loadMcpMergedConfig(context.roots, context.reader).orphanedOverrides ?? []
   const removed: string[] = []
-  for (const layer of readMcpConfigLayers(mcpConfigFileLocations(context.roots), context.reader)) {
-    if (!isOpenWaggleMcpConfigFile(layer.fileId) || layer.content.kind !== 'parsed') continue
-    const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
-    const entry = isJsonRecord(servers) ? servers[name] : undefined
-    if (!isJsonRecord(entry) || !isMcpOverrideEntry(entry)) continue
-    removeMcpServerEntry(layer.path, name)
-    removed.push(layer.path)
+  for (const orphan of orphans) {
+    if (orphan.name !== name || !overrideOnlyEntry(context, orphan.path, name)) continue
+    removeMcpServerEntry(orphan.path, name)
+    removed.push(orphan.path)
   }
   return removed
 }
 
 /**
  * Removes exactly the orphaned override the view reported: the override-only entry for `name` in
- * the OpenWaggle file `fileId`, while no file defines the server. Anything else is refused, so
- * the action can never remove a server's definition, in that file or any other.
+ * the OpenWaggle file `fileId`, while no file defines the server and every file was read. Anything
+ * else is refused, so the action can never remove a server's definition, in that file or another.
  */
 export function removeOrphanedOverride(
   context: OrphanContext,
@@ -48,10 +57,10 @@ export function removeOrphanedOverride(
   const orphan = loadMcpMergedConfig(context.roots, context.reader).orphanedOverrides?.find(
     (candidate) => candidate.name === input.name && candidate.fileId === input.fileId,
   )
-  if (!orphan) {
+  if (!orphan || !overrideOnlyEntry(context, orphan.path, input.name)) {
     throw new McpConfigurationError({
       reason: 'validation',
-      message: `${input.fileId} has no orphaned override for "${input.name}" to remove: a file still defines the server, or the entry is gone.`,
+      message: `${input.fileId} has no orphaned override for "${input.name}" to remove: a file still defines the server, could not be read, or the entry is not an override.`,
     })
   }
   removeMcpServerEntry(orphan.path, input.name)

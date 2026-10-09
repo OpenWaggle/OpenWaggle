@@ -174,4 +174,32 @@ describe('MCP overrides', () => {
     expect(Exit.isFailure(refused)).toBe(true)
     expect(json(projectOw)).toEqual({ mcpServers: { real: { command: 'real-mcp' } } })
   })
+
+  it('refuses to remove an override while the project file that may define it cannot be read', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    const mcpJson = path.join(projectPath, '.mcp.json')
+    write(projectOw, { mcpServers: { db: { enabled: false } } })
+    mkdirSync(projectPath, { recursive: true })
+    writeFileSync(mcpJson, '{ "mcpServers": { "db": { "command": "db-mcp" } ')
+
+    const view = await Effect.runPromise(service().getView({ projectPath }))
+    const refused = await Effect.runPromiseExit(
+      service().removeOrphanedOverride({ projectPath, name: 'db', fileId: 'project-openwaggle' }),
+    )
+
+    expect(view.orphanedOverrides ?? []).toEqual([])
+    expect(Exit.isFailure(refused)).toBe(true)
+    // Once .mcp.json is fixed, the project still has the server off.
+    expect(json(projectOw)).toEqual({ mcpServers: { db: { enabled: false } } })
+  })
+
+  it('never removes a misspelled full entry as an override when its server is removed', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(piGlobal(), { mcpServers: { db: { command: 'db-mcp' } } })
+    write(projectOw, { mcpServers: { db: { comand: 'other-db', args: ['--x'] } } })
+
+    await Effect.runPromise(service().removeServer({ projectPath, name: 'db' }))
+
+    expect(json(projectOw)).toEqual({ mcpServers: { db: { comand: 'other-db', args: ['--x'] } } })
+  })
 })
