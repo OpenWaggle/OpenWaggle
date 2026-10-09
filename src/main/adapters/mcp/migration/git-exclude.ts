@@ -31,6 +31,17 @@ function excludeLine(gitPath: string) {
   return `/${escaped.replace(/ +$/, (spaces) => spaces.replace(/ /g, '\\ '))}`
 }
 
+/** Whether the ignore rules match the path itself, whatever the index holds. */
+async function isIgnored(root: string, gitPath: string) {
+  const result = await runGit(
+    root,
+    // check-ignore takes paths, not pathspecs; --no-index judges the rules alone.
+    ['check-ignore', '--no-index', '-q', '--', gitPath],
+    GIT_OPTIONS,
+  )
+  return result.code === 0
+}
+
 /** True when the path was added to `.git/info/exclude`, and git now ignores it. */
 export async function keepMcpFileOutOfGit(filePath: string) {
   // Git reports real paths (macOS /tmp is /private/tmp).
@@ -43,10 +54,15 @@ export async function keepMcpFileOutOfGit(filePath: string) {
   const gitPath = relative.split(path.sep).join('/')
   // An exclude file has one pattern per line; such a path cannot be written as one.
   if (/[\r\n]/.test(gitPath)) return false
-  const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', gitPath], GIT_OPTIONS)
+  // The path literally, not as a pathspec glob a sibling such as `x a/` could match.
+  const tracked = await runGit(
+    root,
+    ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', gitPath],
+    GIT_OPTIONS,
+  )
   if (tracked.code === 0) return false
-  const ignored = await runGit(root, ['check-ignore', '-q', '--', gitPath], GIT_OPTIONS)
-  if (ignored.code === 0) return false
+  const ignored = await isIgnored(root, gitPath)
+  if (ignored) return false
   const location = await runGit(root, ['rev-parse', '--git-path', 'info/exclude'], GIT_OPTIONS)
   if (location.code !== 0) return false
   const excludePath = path.resolve(root, location.stdout.trim())
@@ -60,7 +76,7 @@ export async function keepMcpFileOutOfGit(filePath: string) {
     `${separator}# OpenWaggle created this MCP file while upgrading; it stays out of git.\n${line}\n`,
   )
   // The line must match the file: confirmed by git itself.
-  const confirmed = await runGit(root, ['check-ignore', '-q', '--', gitPath], GIT_OPTIONS)
-  if (confirmed.code !== 0) throw new Error(`git does not ignore ${gitPath} after excluding it`)
+  if (!(await isIgnored(root, gitPath)))
+    throw new Error(`git does not ignore ${gitPath} after excluding it`)
   return true
 }
