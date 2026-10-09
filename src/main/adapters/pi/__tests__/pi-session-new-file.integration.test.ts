@@ -1,12 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { SessionId } from '@shared/types/brand'
-import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
-import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
+import { type CreatedSessionWorkspace, createSession } from './pi-session-created.test-support'
 import { run, sessionDetail, setUpPiDiscoveryFixture } from './pi-session-discovery.test-support'
 import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-provider.test-support'
 
@@ -53,42 +50,7 @@ vi.mock('../../../logger', async (importOriginal) => {
 const fixture = setUpPiDiscoveryFixture(state)
 setUpFakePiProvider(fixture)
 
-async function createdSession(
-  workspace: { readonly mode: 'local' } | { readonly mode: 'new-worktree' } = { mode: 'local' },
-) {
-  const { SettingsService } = await import('../../../services/settings-service')
-  await run(
-    Effect.flatMap(SettingsService, (settings) =>
-      settings.update({ enabledModels: [FAKE_PROVIDER_MODEL], selectedModel: FAKE_PROVIDER_MODEL }),
-    ),
-  )
-  const { dispatchLocalSessionCommand } = await import(
-    '../../../application/local-session-command-dispatcher'
-  )
-  const result = await run(
-    dispatchLocalSessionCommand({
-      caller: { callerId: 'gui:local-user', workingDirectory: fixture.project },
-      payload: {
-        contract: 'session-lifecycle-v2',
-        request: {
-          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
-          requestId: randomUUID(),
-          idempotencyKey: randomUUID(),
-          command: {
-            operation: 'create',
-            projectPath: fixture.project,
-            title: 'New Session',
-            workspace,
-          },
-        },
-      },
-    }),
-  )
-  if (result.contract !== 'session-lifecycle-v2') throw new Error('Not a lifecycle response.')
-  const outcome = result.response.outcome
-  if (outcome.effect !== 'created-root') throw new Error(`Not created: ${outcome.effect}`)
-  return SessionId(outcome.sessionId)
-}
+const createdSession = (workspace?: CreatedSessionWorkspace) => createSession(fixture, workspace)
 
 describe("A new Session's first Run", () => {
   it('writes the Pi file recorded at creation, and reports no deleted file', async () => {

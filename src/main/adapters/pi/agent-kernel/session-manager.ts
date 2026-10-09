@@ -296,15 +296,22 @@ function openSessionManager(session: SessionDetail, file: string, projectPath: s
  * and records the thinking level, which would change a discovered session's file, and what
  * `pi --resume` continues with, just because OpenWaggle showed it (ADR 0051). Pi writes nothing
  * for a manager that does not persist, and extensions still see the file, as `getSessionFile()`
- * and a fork's `previousSessionFile`. A missing file has nothing to protect, so it gets the same
- * fresh manager as a Run, which writes nothing until a reply.
+ * and a fork's `previousSessionFile`. A missing file (a Session never run, or one whose file was
+ * deleted) gets an empty manager that does not persist either, under the Session's Pi session id:
+ * only a Run starts the recorded file, and a read must not leave one with nothing but settings,
+ * which `pi --resume` would list.
  */
 export async function createReadOnlySessionManagerForSession(
   session: SessionDetail,
   projectPath: string,
 ) {
   const file = findExistingPiSessionFile(session, projectPath)
-  if (!file) return createSessionManagerForSession(session, projectPath)
+  if (!file) {
+    return SessionManager.inMemory(
+      physicalPath(projectPath),
+      session.piSessionId ? { id: session.piSessionId } : undefined,
+    )
+  }
   // Pi reads the file when the manager is pointed at it; with persistence off it writes nothing,
   // not even the migration of an older format.
   const sessionManager = SessionManager.inMemory(projectPath)
