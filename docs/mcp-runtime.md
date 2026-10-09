@@ -484,7 +484,8 @@ into the repository, where it could be committed (`migrationBackupPath`). A file
 creates (`keepCreatedFileOutOfGit` → `git-exclude.ts`) inside a git work tree gets its path added
 to that repository's `.git/info/exclude` (`git rev-parse --git-path info/exclude`, so linked
 worktrees use the common one), never `.gitignore` or a tracked file, unless git already ignores
-or tracks it; otherwise agent turns would report it as a changed file. A backup an earlier
+or tracks it. The line is anchored and escapes git's pattern characters (`\ * ? [`, trailing
+spaces), and `git check-ignore` confirms it afterwards; otherwise agent turns would report it as a changed file. A backup an earlier
 build left next to a project file is still read as the old content. An OpenWaggle file whose migration failed is
 not loaded for a Run or an MCP App until a later run migrates it (`migration-health.ts`): it still
 has the old format, without the `enabled` overrides that keep old-off servers off. The error is

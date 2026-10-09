@@ -21,7 +21,17 @@ async function readOptional(filePath: string) {
   }
 }
 
-/** True when the path was added to `.git/info/exclude`. */
+/**
+ * An exclude line that matches exactly this path: git reads `\`, `*`, `?` and `[` as pattern
+ * characters, and drops trailing spaces, unless escaped. Anchored with `/`, so a leading `!` or `#`
+ * is literal.
+ */
+function excludeLine(gitPath: string) {
+  const escaped = gitPath.replace(/[\\*?[]/g, (character) => `\\${character}`)
+  return `/${escaped.replace(/ +$/, (spaces) => spaces.replace(/ /g, '\\ '))}`
+}
+
+/** True when the path was added to `.git/info/exclude`, and git now ignores it. */
 export async function keepMcpFileOutOfGit(filePath: string) {
   // Git reports real paths (macOS /tmp is /private/tmp).
   const directory = await realpath(path.dirname(filePath))
@@ -31,6 +41,8 @@ export async function keepMcpFileOutOfGit(filePath: string) {
   const relative = path.relative(root, path.join(directory, path.basename(filePath)))
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false
   const gitPath = relative.split(path.sep).join('/')
+  // An exclude file has one pattern per line; such a path cannot be written as one.
+  if (/[\r\n]/.test(gitPath)) return false
   const tracked = await runGit(root, ['ls-files', '--error-unmatch', '--', gitPath], GIT_OPTIONS)
   if (tracked.code === 0) return false
   const ignored = await runGit(root, ['check-ignore', '-q', '--', gitPath], GIT_OPTIONS)
@@ -39,7 +51,7 @@ export async function keepMcpFileOutOfGit(filePath: string) {
   if (location.code !== 0) return false
   const excludePath = path.resolve(root, location.stdout.trim())
   const current = await readOptional(excludePath)
-  const line = `/${gitPath}`
+  const line = excludeLine(gitPath)
   if (current.split(/\r?\n/).includes(line)) return false
   await mkdir(path.dirname(excludePath), { recursive: true })
   const separator = current === '' || current.endsWith('\n') ? '' : '\n'
@@ -47,5 +59,8 @@ export async function keepMcpFileOutOfGit(filePath: string) {
     excludePath,
     `${separator}# OpenWaggle created this MCP file while upgrading; it stays out of git.\n${line}\n`,
   )
+  // The line must match the file: confirmed by git itself.
+  const confirmed = await runGit(root, ['check-ignore', '-q', '--', gitPath], GIT_OPTIONS)
+  if (confirmed.code !== 0) throw new Error(`git does not ignore ${gitPath} after excluding it`)
   return true
 }

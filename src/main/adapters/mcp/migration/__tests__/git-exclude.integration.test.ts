@@ -61,4 +61,20 @@ describe("keeping a file the MCP migration created out of the user's git", () =>
 
     await expect(keepMcpFileOutOfGit(outside)).resolves.toBe(false)
   })
+
+  it('escapes a path git would read as a pattern, such as a [x] folder', async () => {
+    const odd = path.join(repo, 'apps', '[x] *?', '.openwaggle', 'mcp.json')
+    const sibling = path.join(repo, 'apps', 'x *?', '.openwaggle', 'mcp.json')
+    for (const filePath of [odd, sibling]) {
+      mkdirSync(path.dirname(filePath), { recursive: true })
+      writeFileSync(filePath, '{}\n')
+    }
+
+    await expect(keepMcpFileOutOfGit(odd)).resolves.toBe(true)
+
+    // Exactly that file is excluded, not one a glob would also match.
+    expect(git('status', '--porcelain', '--untracked-files=all')).toBe(
+      '?? .openwaggle/mcp.json\n?? "apps/x *?/.openwaggle/mcp.json"\n',
+    )
+  })
 })
