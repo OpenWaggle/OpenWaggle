@@ -113,16 +113,18 @@ export class McpPooledConnection {
     await this.releaseUpstream()
   }
 
-  /** Closes the transport, then what the upstream holds beside it; once. */
+  /**
+   * Closes the transport, then what the upstream holds beside it; once. Nothing is recorded while
+   * the upstream is still opening, so the open that finds the connection closed releases it.
+   */
   private releaseUpstream() {
     const upstream = this.upstream
-    this.released ??= upstream
-      ? upstream.transport
-          .close()
-          .catch(() => undefined)
-          .then(() => upstream.close?.())
-          .catch(() => undefined)
-      : Promise.resolve()
+    if (!upstream) return Promise.resolve()
+    this.released ??= upstream.transport
+      .close()
+      .catch(() => undefined)
+      .then(() => upstream.close?.())
+      .catch(() => undefined)
     return this.released
   }
 
