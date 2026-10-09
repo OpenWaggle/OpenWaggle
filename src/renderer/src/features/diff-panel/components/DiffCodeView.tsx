@@ -18,6 +18,7 @@ import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-vi
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
+import { PIERRE_WORKER_POOL_OPTIONS } from '@/shared/lib/syntax/pierre-worker-pool'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffLoadError } from './DiffLoadError'
 import { InlineComment } from './InlineComment'
@@ -82,11 +83,6 @@ function DiffWorkerPoolTheme({ theme }: { readonly theme: string }) {
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
-const DIFF_AST_CACHE_ENTRIES = 64
-
-function createPierreWorker() {
-  return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
-}
 
 /**
  * Which non-diff state to show, if any.
@@ -301,11 +297,7 @@ export function DiffCodeView({
   return (
     <DiffCodeViewReadiness complete={preparationComplete}>
       <WorkerPoolContextProvider
-        poolOptions={{
-          workerFactory: createPierreWorker,
-          poolSize: 1,
-          totalASTLRUCacheSize: DIFF_AST_CACHE_ENTRIES,
-        }}
+        poolOptions={PIERRE_WORKER_POOL_OPTIONS}
         highlighterOptions={{ theme: viewOptions.syntaxTheme }}
       >
         <DiffWorkerPoolTheme theme={viewOptions.syntaxTheme} />

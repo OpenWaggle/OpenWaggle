@@ -55,6 +55,7 @@ function createSection(
     isLoading: false,
     projectPath: PROJECT_PATH,
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
     activeBranchId: SessionBranchId('session-1:main'),

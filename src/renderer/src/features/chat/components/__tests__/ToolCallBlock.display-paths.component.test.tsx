@@ -19,7 +19,11 @@ describe('ToolCallBlock display paths', () => {
     const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-1'
     const sourceLine = `const skill = '${worktreePath}/.agents/skills/code-review/SKILL.md'`
     const { container } = render(
-      <ChatDisplayPathProvider projectPath="/Users/diego/OpenWaggle" worktreePath={worktreePath}>
+      <ChatDisplayPathProvider
+        projectPath="/Users/diego/OpenWaggle"
+        worktreePath={worktreePath}
+        workingPath={worktreePath}
+      >
         <ToolCallBlock
           name="read"
           args='{"path":"src/app.ts"}'
