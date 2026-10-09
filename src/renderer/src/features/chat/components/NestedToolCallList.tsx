@@ -32,6 +32,7 @@ export function NestedToolCallList({
                 state={card.state}
                 result={card.result}
                 isStreaming={isStreaming}
+                resultNotRecorded={card.state === 'complete'}
               />
               {call.argumentsOmitted && <p className={NOTE_CLASS}>Arguments not recorded</p>}
             </li>

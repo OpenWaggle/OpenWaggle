@@ -2,7 +2,7 @@ import { SessionId, ToolCallId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { messagePartToUIParts } from '@/features/chat/lib/chat-message-conversion'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
@@ -127,6 +127,47 @@ describe('nested tool calls', () => {
     // Pi left the write call's arguments out of its record for size.
     expect(within(nested).getByText('Arguments not recorded')).toBeInTheDocument()
     expect(toolCards().filter((card) => !nested.contains(card))).toHaveLength(1)
+  })
+
+  it('says a nested call result was not recorded instead of showing an empty Result', () => {
+    const message: UIMessage = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'code-1',
+          name: 'codemode',
+          arguments: '{}',
+          state: 'input-complete',
+        },
+        ...messagePartToUIParts({
+          type: 'tool-result',
+          toolResult: {
+            id: ToolCallId('code-1'),
+            name: 'codemode',
+            args: {},
+            result: 'done',
+            isError: false,
+            duration: 0,
+            nestedCalls: {
+              complete: true,
+              calls: [
+                { id: 'code-1/1', name: 'mcp__docs__search', args: { query: 'pi' }, status: 'ok' },
+              ],
+            },
+          },
+        }),
+      ],
+    }
+    renderAssistant(message, false)
+    const nested = screen.getByRole('list', { name: 'Tool calls made by codemode' })
+
+    fireEvent.click(within(nested).getByRole('button', { name: /details$/ }))
+
+    // Pi keeps no result for a nested call.
+    expect(within(nested).getByText('Result not recorded')).toBeInTheDocument()
+    expect(within(nested).queryByText('Result', { exact: true })).not.toBeInTheDocument()
   })
 
   it('caps a long live list the way Pi caps its record and says how many calls it left out', () => {
