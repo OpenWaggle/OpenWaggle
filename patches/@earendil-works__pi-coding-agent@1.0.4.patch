@@ -1995,7 +1995,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..e8f960e44454431f06b4feca49218e8f7709676c 100644
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..243c0209531172e0078290f636dd8d37c19b7d6f 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,5 +1,5 @@
@@ -2300,19 +2300,20 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..e8f960e44454431f06b4feca49218e8f
      return {
          entries: projectedEntries,
          messages: projectedEntries.flatMap((entry) => entry.messages),
-@@ -279,8 +489,9 @@ export function buildSessionProjection(entries, leafId, byId) {
+@@ -279,9 +489,9 @@ export function buildSessionProjection(entries, leafId, byId) {
      };
  }
  /** Build the finalized model context from the canonical session projection. */
 -export function buildSessionContext(entries, leafId, byId) {
 -    const { messages, thinkingLevel, model } = buildSessionProjection(entries, leafId, byId);
+-    return { messages, thinkingLevel, model };
 +export function buildSessionContext(entries, leafId, byId, targetModel, options = {}) {
 +    const { messages, thinkingLevel, model, reconstruction } = buildSessionProjection(entries, leafId, byId, targetModel, options);
 +    return { messages, thinkingLevel, model, ...(reconstruction ? { reconstruction } : {}) };
-     return { messages, thinkingLevel, model };
  }
  /**
-@@ -877,7 +1088,7 @@ export class SessionManager {
+  * Compute the default session directory for a cwd.
+@@ -877,7 +1087,7 @@ export class SessionManager {
          return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2321,7 +2322,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..e8f960e44454431f06b4feca49218e8f
          const timestamp = new Date().toISOString();
          const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
          const id = generateId(this.byId);
-@@ -892,6 +1103,7 @@ export class SessionManager {
+@@ -892,6 +1102,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -2329,7 +2330,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..e8f960e44454431f06b4feca49218e8f
              ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-@@ -1074,19 +1286,37 @@ export class SessionManager {
+@@ -1074,19 +1285,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
