@@ -129,6 +129,7 @@ vi.mock('../store/settings', () => ({
 }))
 
 import {
+  SESSION_HOST_QUIT_HOLD_MS,
   startSessionHostCliIfRequested,
   stopSessionHostOnQuit,
   UNADOPTABLE_HOST_SWEEP_INTERVAL_MS,
@@ -237,6 +238,27 @@ describe('a Session Host stop that fails', () => {
     try {
       for (const handler of mocks.quitHandlers) handler({ preventDefault: vi.fn() })
       await vi.waitFor(expectLoggedStopFailure)
+    } finally {
+      release()
+    }
+  })
+
+  it('exits once the quit hold times out, even while a stop waits on the keychain', async () => {
+    vi.useFakeTimers()
+    mocks.exit.mockClear()
+    // A Run still waits on a keychain prompt nobody answers, so the stop never ends.
+    const release = stopSessionHostOnQuit(() => new Promise<void>(() => {}))
+    try {
+      for (const handler of mocks.quitHandlers) handler({ preventDefault: vi.fn() })
+      await vi.advanceTimersByTimeAsync(SESSION_HOST_QUIT_HOLD_MS - 1)
+      expect(mocks.exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(mocks.exit).toHaveBeenCalledWith(1)
+      expect(mocks.hostLogError).toHaveBeenCalledWith(
+        expect.stringContaining('did not stop in time'),
+        expect.anything(),
+      )
     } finally {
       release()
     }

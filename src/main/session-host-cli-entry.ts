@@ -32,6 +32,8 @@ import { describeError } from './utils/describe-error'
 const FAILURE_EXIT_CODE = 1
 const logger = createLogger('session-host-cli')
 const ORPHAN_HOST_GRACE_MS = 10_000
+/** How long a quit signal waits for the Host to stop and be disposed before it exits anyway. */
+export const SESSION_HOST_QUIT_HOLD_MS = 30_000
 export const UNADOPTABLE_HOST_SWEEP_INTERVAL_MS = 60_000
 
 /**
@@ -87,12 +89,22 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
  * quit events.
  */
 export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
+  let deadline: ReturnType<typeof setTimeout> | undefined
   const holdQuit = (event: { preventDefault(): void }) => {
     event.preventDefault()
     stopUnawaited(stop)
+    // A stop that waits on something that never answers, such as a keychain prompt nobody
+    // sees, must not keep the Host from exiting: the hold ends after a bounded time.
+    deadline ??= setTimeout(() => {
+      logger.error('Session Host did not stop in time after a quit signal; exiting', {
+        holdMs: SESSION_HOST_QUIT_HOLD_MS,
+      })
+      app.exit(FAILURE_EXIT_CODE)
+    }, SESSION_HOST_QUIT_HOLD_MS)
   }
   app.on('before-quit', holdQuit)
   return () => {
+    clearTimeout(deadline)
     app.off('before-quit', holdQuit)
   }
 }
