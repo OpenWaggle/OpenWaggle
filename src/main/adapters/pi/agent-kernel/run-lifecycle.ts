@@ -278,7 +278,7 @@ export async function runSubscribedPiOperation(input: {
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
 
   try {
-    const operationOutcome = await runPiOperation(input.operation, input.session)
+    const operationOutcome = await runPiOperation(input.operation)
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)

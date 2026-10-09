@@ -14,6 +14,7 @@ import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { onExtensionTurnStartFailure } from './extension-turn-start-failure'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import { piResponseUsageInput } from './pi-response-usage'
@@ -236,6 +237,9 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     signal: input.signal,
     routeThroughInputHook: true,
   })
+  // A turn the Waggle loop asked for that could not start ends the Run with its error, so its
+  // finally (restoring the initial model) runs and nothing waits for the turn.
+  const stopFailingOnTurnStart = onExtensionTurnStartFailure(session, waggleExtension.fail)
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
@@ -267,6 +271,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
   }).finally(() => {
+    stopFailingOnTurnStart()
     extensions.close()
     unregisterLiveRun()
   })
