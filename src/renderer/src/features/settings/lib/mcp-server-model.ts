@@ -225,3 +225,12 @@ export function mcpOverrideNote(server: McpConfiguredServerView): McpOverrideNot
     !isOpenWaggleMcpFile(server.source.fileId)
   return { kind: offInOpenWaggle ? 'off-in-openwaggle' : 'overridden', path: override.path }
 }
+
+/** The vault secrets a server reads that the vault does not hold: it is left out of Runs. */
+export function mcpMissingSecrets(
+  server: Pick<McpConfiguredServerView, 'vaultSecrets'>,
+  stored: readonly { readonly name: string }[],
+) {
+  const names = new Set(stored.map((secret) => secret.name))
+  return (server.vaultSecrets ?? []).filter((secret) => !names.has(secret))
+}

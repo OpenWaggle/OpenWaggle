@@ -422,6 +422,12 @@ against the login-shell environment as above).
 
 ## Settings state without connecting
 
+Each configured server in the view names the vault secrets its `env` or `headers` read
+(`McpConfiguredServerView.vaultSecrets`, names only). Settings compares them with the vault's
+list, which needs no decryption, and shows "Needs secret X" on the row and in the detail, with
+"Add in Secrets", which opens Secrets with the name filled in. A server with a missing secret is
+left out of Runs (`loadMcpRuntimeConfig`'s `unavailable`) until the secret is added.
+
 Opening Settings > MCP calls `mcp:get-server-statuses` (`McpServerRuntimeService.getServerStatuses`),
 which starts no server and sends no request. For each configured server it reports, in order:
 

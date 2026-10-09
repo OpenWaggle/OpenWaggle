@@ -62,9 +62,19 @@ function hasAuthorizationHeader(headers: Readonly<Record<string, unknown>> | und
   return Object.keys(headers ?? {}).some((header) => header.toLowerCase() === 'authorization')
 }
 
+/** The vault secrets the server's `env` or `headers` name. */
+function vaultSecretsOf(config: McpMergedServer['config']) {
+  const values = Object.values(('url' in config ? config.headers : config.env) ?? {})
+  const names = new Set(
+    values.flatMap((value) => (typeof value === 'string' ? [] : [value.secret])),
+  )
+  return [...names].sort()
+}
+
 function serverView(server: McpMergedServer): McpConfiguredServerView {
   const { config } = server
   const isUrl = 'url' in config
+  const vaultSecrets = vaultSecretsOf(config)
   return {
     name: server.name,
     transport: server.transport,
@@ -78,6 +88,7 @@ function serverView(server: McpMergedServer): McpConfiguredServerView {
     exposure: config.exposure ?? 'codemode',
     toolExposure: config.toolExposure ?? {},
     usesOAuth: isUrl && !config.auth && !hasAuthorizationHeader(config.headers),
+    ...(vaultSecrets.length > 0 ? { vaultSecrets } : {}),
   }
 }
 

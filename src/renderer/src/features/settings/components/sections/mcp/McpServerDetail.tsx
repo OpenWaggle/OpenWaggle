@@ -9,6 +9,7 @@ import type { McpServerRow } from '../../../lib/mcp-server-model'
 import { mcpOverrideNote } from '../../../lib/mcp-server-model'
 import { McpExposureEditor } from './McpExposureEditor'
 import { McpFileLabel, McpInlineError, McpStatusPill } from './McpLabels'
+import { McpMissingSecretNotice } from './McpMissingSecrets'
 import { McpRemoveServer, McpServerSignIn, McpServerSwitches } from './McpServerActions'
 
 function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }) {
@@ -64,10 +65,15 @@ export function McpServerDetail({
   projectPath,
   row,
   files,
+  missingSecrets,
+  onAddSecret,
   onBack,
 }: {
   readonly projectPath: string | null
   readonly row: McpServerRow
+  /** The vault secrets it reads that the vault lacks, and the way to add one. */
+  readonly missingSecrets: readonly string[]
+  readonly onAddSecret: (name: string) => void
   /** The view's files, which say where the server can be switched for this project. */
   readonly files: readonly McpConfigFileView[]
   readonly onBack: () => void
@@ -128,6 +134,7 @@ export function McpServerDetail({
           here. Turn it on to use it.
         </p>
       ) : null}
+      <McpMissingSecretNotice missing={missingSecrets} onAddSecret={onAddSecret} />
       <ServerProblem row={row} />
       <div className="space-y-3 rounded-lg border border-border bg-bg px-4 py-3">
         <McpServerSwitches projectPath={projectPath} server={server} files={files} />

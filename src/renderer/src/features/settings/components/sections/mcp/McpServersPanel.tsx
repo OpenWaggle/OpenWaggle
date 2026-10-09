@@ -6,6 +6,7 @@ import { mcpQueryKeys } from '@/queries/mcp-configuration'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useMcpConfiguration, useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
+import { useMcpMissingSecrets } from '../../../hooks/useMcpImports'
 import { McpAddServerForm } from './McpAddServerForm'
 import { McpCatalogPanel } from './McpCatalogPanel'
 import { McpImportPanel } from './McpImportPanel'
@@ -93,6 +94,9 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
   const configuration = useMcpConfiguration(projectPath)
   const [selected, setSelected] = useState<string | null>(null)
   const [panel, setPanel] = useState<OpenPanel>(null)
+  // A secret a server needs, chosen from its detail: Secrets opens with its name filled in.
+  const [requestedSecret, setRequestedSecret] = useState<string | undefined>(undefined)
+  const missingSecrets = useMcpMissingSecrets()
   const selectedRow = configuration.rows.find((row) => row.server.name === selected)
   const { view } = configuration
 
@@ -102,6 +106,11 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
         projectPath={projectPath}
         row={selectedRow}
         files={view?.files ?? []}
+        missingSecrets={missingSecrets(selectedRow.server)}
+        onAddSecret={(name) => {
+          setSelected(null)
+          setRequestedSecret(name)
+        }}
         onBack={() => setSelected(null)}
       />
     )
@@ -171,12 +180,17 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
         {configuration.isLoading ? (
           <p className="text-xs text-text-tertiary">Loading servers…</p>
         ) : (
-          <McpServerList rows={configuration.rows} onOpen={setSelected} />
+          <McpServerList
+            rows={configuration.rows}
+            missingSecrets={missingSecrets}
+            onOpen={setSelected}
+          />
         )}
       </section>
       {view ? <McpCatalogPanel view={view} /> : null}
       <McpRegistryPanel projectPath={projectPath} />
-      <McpSecretsPanel />
+      {/* A new requested secret remounts the panel with its name filled in. */}
+      <McpSecretsPanel key={requestedSecret} requestedName={requestedSecret} />
     </div>
   )
 }

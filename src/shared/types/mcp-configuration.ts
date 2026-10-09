@@ -53,6 +53,11 @@ export interface McpConfiguredServerView {
   readonly toolExposure: Readonly<Record<string, McpServerExposure>>
   /** HTTP servers without an Authorization header or provider auth sign in with OAuth. */
   readonly usesOAuth: boolean
+  /**
+   * The vault secrets its `env` or `headers` read, by name (never a value), sorted; absent when
+   * none. A server whose secret is missing is left out of Runs until the secret is added.
+   */
+  readonly vaultSecrets?: readonly string[]
 }
 
 export interface McpConfigurationView {

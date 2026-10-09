@@ -1,4 +1,4 @@
-import type { McpConfigFileScope } from '@shared/types/mcp-configuration'
+import type { McpConfigFileScope, McpConfiguredServerView } from '@shared/types/mcp-configuration'
 import type {
   McpImportApplyResultView,
   McpImportNameConflictPolicy,
@@ -12,6 +12,7 @@ import {
 } from '@/queries/mcp-configuration'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { mcpMissingSecrets } from '../lib/mcp-server-model'
 
 /** Servers found in other tools' files; read only while the import panel is open. */
 export function useMcpImports(projectPath: string | null, open: boolean) {
@@ -48,6 +49,13 @@ export function useMcpImports(projectPath: string | null, open: boolean) {
 }
 
 /** The encrypted vault behind `{ "secret": "<name>" }` values in OpenWaggle's MCP files. */
+/** The vault secrets a server reads that the vault lacks; none until the vault's list arrives. */
+export function useMcpMissingSecrets() {
+  const vault = useMcpSecrets()
+  return (server: McpConfiguredServerView) =>
+    vault.loaded ? mcpMissingSecrets(server, vault.secrets) : []
+}
+
 export function useMcpSecrets() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +68,8 @@ export function useMcpSecrets() {
   })
   return {
     secrets: secrets.data ?? [],
+    /** False until the list arrives, so nothing is called missing before it is known. */
+    loaded: secrets.data !== undefined,
     loadError: secrets.error ? ipcErrorMessage(secrets.error) : null,
     error,
     pending: change.isPending,

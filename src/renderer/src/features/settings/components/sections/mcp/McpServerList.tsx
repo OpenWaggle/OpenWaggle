@@ -9,6 +9,7 @@ import {
   mcpToolCountLabel,
 } from '../../../lib/mcp-server-model'
 import { McpFileLabel, McpStatusPill } from './McpLabels'
+import { McpMissingSecretMarker } from './McpMissingSecrets'
 
 /** Which file overrides the server, so the list shows why a Pi server is off or changed. */
 function McpOverrideMarker({ server }: { readonly server: McpConfiguredServerView }) {
@@ -42,9 +43,11 @@ function McpOverrideMarker({ server }: { readonly server: McpConfiguredServerVie
 
 function McpServerListRow({
   row,
+  missingSecrets,
   onOpen,
 }: {
   readonly row: McpServerRow
+  readonly missingSecrets: readonly string[]
   readonly onOpen: (name: string) => void
 }) {
   const { server } = row
@@ -78,6 +81,7 @@ function McpServerListRow({
           <span className="flex min-w-0 flex-wrap gap-x-1.5 text-xs text-text-tertiary">
             <McpFileLabel file={server.source} />
             <McpOverrideMarker server={server} />
+            <McpMissingSecretMarker missing={missingSecrets} />
           </span>
         </span>
         <ChevronRight className="size-4 shrink-0 text-text-muted" />
@@ -88,9 +92,12 @@ function McpServerListRow({
 
 export function McpServerList({
   rows,
+  missingSecrets = () => [],
   onOpen,
 }: {
   readonly rows: readonly McpServerRow[]
+  /** The vault secrets each server reads that the vault lacks. */
+  readonly missingSecrets?: (server: McpConfiguredServerView) => readonly string[]
   readonly onOpen: (name: string) => void
 }) {
   if (rows.length === 0) {
@@ -103,7 +110,12 @@ export function McpServerList({
   return (
     <ul aria-label="MCP servers" className="overflow-hidden rounded-lg border border-border bg-bg">
       {rows.map((row) => (
-        <McpServerListRow key={row.server.name} row={row} onOpen={onOpen} />
+        <McpServerListRow
+          key={row.server.name}
+          row={row}
+          missingSecrets={missingSecrets(row.server)}
+          onOpen={onOpen}
+        />
       ))}
     </ul>
   )

@@ -6,9 +6,14 @@ import { useMcpSecrets } from '../../../hooks/useMcpImports'
 import { McpInlineError } from './McpLabels'
 
 /** The encrypted vault: a server saved in OpenWaggle's files can read a value from it. */
-export function McpSecretsPanel() {
+export function McpSecretsPanel({
+  requestedName,
+}: {
+  /** A secret a server needs, from its "Add in Secrets": filled in, with its value to type. */
+  readonly requestedName?: string | undefined
+} = {}) {
   const vault = useMcpSecrets()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(requestedName ?? '')
   const [value, setValue] = useState('')
   return (
     <section aria-labelledby="mcp-secrets-heading" className="space-y-3">
@@ -65,6 +70,7 @@ export function McpSecretsPanel() {
           inputSize="sm"
           type="password"
           aria-label="Secret value"
+          autoFocus={requestedName !== undefined}
           placeholder="value"
           value={value}
           onChange={(event) => setValue(event.target.value)}

@@ -83,6 +83,27 @@ describe('filesystem MCP configuration service', () => {
     ])
   })
 
+  it('names the vault secrets a server reads, never their values', async () => {
+    write(owGlobal(), {
+      mcpServers: {
+        api: { command: 'api-mcp', env: { TOKEN: { secret: 'API_TOKEN' }, MODE: 'fast' } },
+        web: {
+          url: 'https://w.example/mcp',
+          headers: { Authorization: { secret: 'WEB_AUTH' }, 'X-Key': { secret: 'API_TOKEN' } },
+        },
+        plain: { command: 'plain-mcp' },
+      },
+    })
+
+    const view = await Effect.runPromise(service().getView({ projectPath: null }))
+
+    expect(view.servers.map((server) => [server.name, server.vaultSecrets])).toEqual([
+      ['api', ['API_TOKEN']],
+      ['web', ['API_TOKEN', 'WEB_AUTH']],
+      ['plain', undefined],
+    ])
+  })
+
   it("switches a global server for one project in OpenWaggle's project file", async () => {
     write(piGlobal(), { mcpServers: { fs: { command: 'fs' } } })
     const changed: string[] = []
