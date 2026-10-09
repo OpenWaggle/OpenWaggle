@@ -188,10 +188,10 @@ export function hasProjectOverride(server: McpConfiguredServerView) {
   return server.override !== undefined && mcpFileScope(server.override.fileId) === 'project'
 }
 
-/** A global server can be switched for the selected project alone until a project overrides it. */
 /**
- * A global server can be switched for the project alone when the project has its own OpenWaggle
- * file to save that in; a project that is the home folder has none.
+ * A global server can be switched for the project alone until a project file overrides it, and
+ * only when the project has its own OpenWaggle file to save that in; a project that is the home
+ * folder has none.
  */
 export function canSwitchForProject(
   server: McpConfiguredServerView,
