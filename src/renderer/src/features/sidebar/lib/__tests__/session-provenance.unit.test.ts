@@ -132,25 +132,28 @@ describe('buildSessionProvenance', () => {
     })
   })
 
-  it('identifies the persisted source of a fork without confusing it with Hive lineage', () => {
-    const indicators = buildSessionProvenance({
-      session: session({
-        derivation: {
-          sourceSessionId: SessionId('session-source'),
-          sourceTitle: 'Original investigation',
-          sourceNodeId: SessionNodeId('node-source'),
-          position: 'at',
-        },
-      }),
-      gitBranch: 'main',
-      terminalCount: 0,
-    })
+  it.each([
+    ['clone', 'at', 'Cloned from Original investigation'],
+    ['fork', 'before', 'Forked from Original investigation'],
+  ] as const)(
+    'identifies the persisted source of a %s without confusing it with Hive lineage',
+    (_, position, description) => {
+      const indicators = buildSessionProvenance({
+        session: session({
+          derivation: {
+            sourceSessionId: SessionId('session-source'),
+            sourceTitle: 'Original investigation',
+            sourceNodeId: SessionNodeId('node-source'),
+            position,
+          },
+        }),
+        gitBranch: 'main',
+        terminalCount: 0,
+      })
 
-    expect(indicators).toContainEqual({
-      kind: 'cloned-from',
-      description: 'Cloned from Original investigation',
-    })
-  })
+      expect(indicators).toContainEqual({ kind: 'cloned-from', description })
+    },
+  )
 
   /** Fixed order, so a row's second line does not reshuffle as facts arrive. */
   it('orders indicators branch, worktree, branches, terminals', () => {
