@@ -15,6 +15,7 @@ import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
 } from '../pi-session-lifecycle'
+import { physicalPath } from '../pi-session-project-paths'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import {
   createIsolatedPiProjectRuntime,
@@ -220,7 +221,11 @@ export async function createPiSessionRuntime(
 
 export async function createPiSession(projectPath: string) {
   // Where `pi --resume` looks for this folder's sessions, so it can continue this one too.
-  const sessionManager = SessionManager.create(projectPath, resolvePiSessionDirectory(projectPath))
+  // Headed and filed under the physical folder, as `pi` run there would be.
+  const sessionManager = SessionManager.create(
+    physicalPath(projectPath),
+    resolvePiSessionDirectory(projectPath),
+  )
   return {
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: sessionManager.getSessionFile(),

@@ -4,6 +4,7 @@ import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
+import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger } from './constants'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
@@ -21,11 +22,6 @@ export function requireSessionProjectPath(session: SessionDetail): string {
     throw new Error('No project path set on the session - cannot run Pi agent')
   }
   return projectPath
-}
-
-function isInsideProject(candidate: string, projectPath: string) {
-  const relative = path.relative(path.resolve(projectPath), path.resolve(candidate))
-  return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)
 }
 
 /** Enough of a Pi file for its header line. */
@@ -73,7 +69,8 @@ function piFileCwd(piSessionFile: string | undefined) {
  */
 export function resolveLocalWorkingPath(session: SessionDetail, projectPath: string) {
   const cwd = session.piSessionCwd ?? piFileCwd(session.piSessionFile)
-  if (!cwd || !isInsideProject(cwd, projectPath) || !existsSync(cwd)) return projectPath
+  // Pi records the physical folder, so a project opened through a link is matched by both.
+  if (!cwd || !isInsideProjectLocation(cwd, projectPath) || !existsSync(cwd)) return projectPath
   return path.resolve(cwd)
 }
 
@@ -212,11 +209,17 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
   const piSessionId = session.piSessionId
   if (!piSessionId) return []
   const directories = new Set<string>()
-  if (runDirectory) directories.add(piSessionDirectoryFor(runDirectory))
+  // A folder's files may be under its path or, as `pi` and new Sessions file them, the folder it
+  // resolves to.
+  const addFolder = (folder: string) => {
+    directories.add(piSessionDirectoryFor(folder))
+    directories.add(piSessionDirectoryFor(physicalPath(folder)))
+  }
+  if (runDirectory) addFolder(runDirectory)
   if (session.piSessionFile) directories.add(dirname(session.piSessionFile))
-  if (session.projectPath) directories.add(piSessionDirectoryFor(session.projectPath))
+  if (session.projectPath) addFolder(session.projectPath)
   const worktreePath = session.worktreePath?.trim()
-  if (worktreePath) directories.add(piSessionDirectoryFor(worktreePath))
+  if (worktreePath) addFolder(worktreePath)
   const candidates = [...directories].flatMap((directory) =>
     piSessionFilesIn(directory, piSessionId),
   )
@@ -280,7 +283,11 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
   if (existingFile) return openSessionManager(session, existingFile, projectPath)
 
   warnIfTranscriptLost(session)
-  const fresh = SessionManager.create(projectPath, newPiSessionDirectory(session, projectPath))
+  // Headed and filed under the physical folder, as `pi` run there would be.
+  const fresh = SessionManager.create(
+    physicalPath(projectPath),
+    newPiSessionDirectory(session, projectPath),
+  )
   if (session.piSessionId) {
     fresh.newSession({ id: session.piSessionId })
   }

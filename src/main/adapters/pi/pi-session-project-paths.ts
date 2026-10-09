@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -17,7 +18,7 @@ export function sessionDirectoryMayBelongTo(directoryName: string, projectPrefix
   return directoryName === `${projectPrefix}--` || directoryName.startsWith(`${projectPrefix}-`)
 }
 
-function isPathInsideProject(candidate: string, projectPath: string) {
+export function isPathInsideProject(candidate: string, projectPath: string) {
   const relative = path.relative(path.resolve(projectPath), path.resolve(candidate))
   if (path.isAbsolute(relative)) return false
   return relative !== '..' && !relative.startsWith(`..${path.sep}`)
@@ -56,4 +57,24 @@ export function owningProject(cwd: string, projects: readonly ProjectLocation[])
     }
   }
   return owner?.projectPath ?? null
+}
+
+/**
+ * The physical folder a path resolves to, as Pi's `process.cwd()` reports it when `pi` runs there;
+ * the path as written when it cannot be resolved.
+ */
+export function physicalPath(directory: string) {
+  try {
+    return realpathSync(directory)
+  } catch {
+    return directory
+  }
+}
+
+/** Whether `candidate` is inside the project, by its path or the folder it resolves to. */
+export function isInsideProjectLocation(candidate: string, projectPath: string) {
+  return (
+    isPathInsideProject(candidate, projectPath) ||
+    isPathInsideProject(candidate, physicalPath(projectPath))
+  )
 }

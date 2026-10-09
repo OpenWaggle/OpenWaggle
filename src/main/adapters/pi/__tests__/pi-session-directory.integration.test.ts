@@ -162,10 +162,23 @@ describe("Pi's session directory", () => {
 
     const sessionId = await discoverOne()
 
-    expect(await sessionDetail(sessionId)).toMatchObject({
-      projectPath: linked,
-      piSessionFile: cli.file,
-    })
+    const detail = await sessionDetail(sessionId)
+    expect(detail).toMatchObject({ projectPath: linked, piSessionFile: cli.file })
+    if (!detail) throw new Error('The discovered Session is missing.')
+    // It continues in the folder pi ran in, though that is under the link's physical path.
+    const { resolveSessionWorkingPath } = await import('../agent-kernel/session-manager')
+    expect(resolveSessionWorkingPath(detail)).toBe(path.join(fixture.project, 'packages', 'core'))
+  })
+
+  it('keeps a new Session of a project opened through a link where pi run there would', async () => {
+    const linked = path.join(fixture.root, 'linked-app')
+    await fs.symlink(fixture.project, linked)
+
+    const file = await newOpenWagglePiSessionFile(linked)
+
+    // pi records the physical folder (process.cwd()), and names its default folder after it.
+    const encoded = `--${fixture.project.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
+    expect(path.basename(path.dirname(String(file)))).toBe(encoded)
   })
 
   it('expands a sessionDir under ~ to the home directory', async () => {
