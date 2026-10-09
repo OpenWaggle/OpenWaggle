@@ -23,6 +23,11 @@ import { appendDurableAgentLoopEvents } from './agent-run/agent-loop-events'
 import { validateSessionId } from './host-ui-session-operation-validation'
 import { continueWithPiSessionSettings } from './pi-session-continuation'
 import { refuseRunWithDeletedPiFile } from './pi-session-deleted-files'
+import {
+  forgetRefusedContinuation,
+  recordRefusedContinuation,
+  refusedContinuationFor,
+} from './pi-session-refused-continuations'
 
 /**
  * A Session discovered from the `pi` CLI is projected the first time it is opened, and any Session
@@ -169,30 +174,26 @@ function afterProjection(
         ...(runId ? { forRun: runId } : {}),
       })
       // A Run admitted meanwhile holds the Session; it applies these before reading its profile.
-      if (outcome === 'refused-by-run') refusedContinuations.set(sessionId, { state, snapshot })
-      else refusedContinuations.delete(sessionId)
+      // Without a known holder (a stopping Run), no later Run may apply them.
+      if (outcome.kind === 'refused-by-run' && outcome.runId) {
+        recordRefusedContinuation(sessionId, { runId: outcome.runId, state, snapshot })
+      } else forgetRefusedContinuation(sessionId)
     }
     yield* followPiSessionName(sessionId, state, snapshot)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
   })
 }
 
-/** Pi settings a reader could not apply because a Run held the Session, for that Run to apply. */
-const refusedContinuations = new Map<
-  string,
-  { readonly state: PiSessionProjectionState; readonly snapshot: PiSessionFileSnapshot }
->()
-
 /** The Run applies the Pi settings a reader's projection could not, for its own Session. */
 function applyRefusedContinuation(sessionId: SessionId, runId: RunId | undefined) {
-  const refused = runId ? refusedContinuations.get(sessionId) : undefined
+  const refused = runId ? refusedContinuationFor(sessionId, runId) : undefined
   if (!refused || !runId) return Effect.void
   return continueWithPiSessionSettings(sessionId, refused.state, refused.snapshot, {
     forRun: runId,
   }).pipe(
     Effect.tap((outcome) =>
       Effect.sync(() => {
-        if (outcome === 'applied') refusedContinuations.delete(sessionId)
+        if (outcome.kind === 'applied') forgetRefusedContinuation(sessionId)
       }),
     ),
   )

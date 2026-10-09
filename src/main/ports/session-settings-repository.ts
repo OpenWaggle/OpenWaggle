@@ -1,5 +1,4 @@
 import type { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionThinkingLevelChange } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Context, type Effect } from 'effect'
 import type { SessionControlRepositoryError } from '../errors'
@@ -9,7 +8,15 @@ import type { SessionControlRepositoryError } from '../errors'
  * while the Session has no starting, active, or stopping Run (`canChangeSessionSettings`); a
  * Session whose Follow-ups wait in its queue is not active.
  */
-export type SessionSettingChange = SessionThinkingLevelChange
+export type SessionSettingChange =
+  | { readonly changed: true }
+  | { readonly changed: false; readonly code: 'session_profile_not_found' }
+  | {
+      readonly changed: false
+      readonly code: 'session_run_active'
+      /** The Run that holds the Session, when it has one (a stopping Run may not). */
+      readonly activeRunId?: RunId
+    }
 
 /**
  * `forRun`: the Run that is starting may change its own Session's settings before it reads its

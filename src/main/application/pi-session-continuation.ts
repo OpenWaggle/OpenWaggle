@@ -1,4 +1,4 @@
-import { type SessionId, SupportedModelId } from '@shared/types/brand'
+import { type RunId, type SessionId, SupportedModelId } from '@shared/types/brand'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -80,13 +80,19 @@ export function continueWithPiSessionSettings(
   options: SessionSettingChangeOptions = {},
 ): Effect.Effect<ContinuationOutcome, never, never> {
   const { projectPath, piEntryNodeIdPrefix } = state
-  if (!piEntryNodeIdPrefix || !projectPath) return Effect.succeed<ContinuationOutcome>('applied')
+  if (!piEntryNodeIdPrefix || !projectPath) {
+    return Effect.succeed<ContinuationOutcome>({ kind: 'applied' })
+  }
   return Effect.gen(function* () {
     const settings = yield* Effect.serviceOption(SessionSettingsRepository)
-    if (Option.isNone(settings)) return 'applied' satisfies ContinuationOutcome
-    let refused = false
+    if (Option.isNone(settings)) return { kind: 'applied' } satisfies ContinuationOutcome
+    let outcome: ContinuationOutcome = { kind: 'applied' }
     const note = (change: SessionSettingChange) => {
-      if (!change.changed && change.code === 'session_run_active') refused = true
+      if (change.changed || change.code !== 'session_run_active') return
+      outcome = {
+        kind: 'refused-by-run',
+        ...(change.activeRunId ? { runId: change.activeRunId } : {}),
+      }
     }
     const continued = yield* continuationModel(snapshot, projectPath)
     if (continued) {
@@ -102,7 +108,6 @@ export function continueWithPiSessionSettings(
     if (thinkingLevel) {
       note(yield* settings.value.setThinkingLevel(sessionId, thinkingLevel, options))
     }
-    const outcome: ContinuationOutcome = refused ? 'refused-by-run' : 'applied'
     return outcome
   }).pipe(
     Effect.catchAllCause((cause) =>
@@ -111,11 +116,16 @@ export function continueWithPiSessionSettings(
           sessionId,
           error: formatErrorMessage(Cause.squash(cause)),
         })
-        return 'applied'
+        return { kind: 'applied' }
       }),
     ),
   )
 }
 
-/** `refused-by-run`: a Run already holds the Session, so it applies them itself before it reads them. */
-export type ContinuationOutcome = 'applied' | 'refused-by-run'
+/**
+ * `refused-by-run`: a Run already holds the Session, so it applies them itself before it reads
+ * them. `runId` is that Run; a stopping Run's may be unknown.
+ */
+export type ContinuationOutcome =
+  | { readonly kind: 'applied' }
+  | { readonly kind: 'refused-by-run'; readonly runId?: RunId }

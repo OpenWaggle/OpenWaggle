@@ -114,8 +114,10 @@ describe('SQLite Session settings', () => {
       }).pipe(Effect.provide(layer(path.join(temporaryRoot, 'active.sqlite')))),
     )
 
-    expect(result.thinking).toEqual({ changed: false, code: 'session_run_active' })
-    expect(result.model).toEqual({ changed: false, code: 'session_run_active' })
+    // It names the Run that holds the Session, whose own changes are allowed (`forRun`).
+    const refused = { changed: false, code: 'session_run_active', activeRunId: 'run-next' }
+    expect(result.thinking).toEqual(refused)
+    expect(result.model).toEqual(refused)
     expect(result.target).toEqual(PROFILE)
   })
 

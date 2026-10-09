@@ -1,5 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionId } from '@shared/types/brand'
+import { RunId, type SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { SessionRunAvailability } from '../domain/session-control/message-submission'
@@ -45,7 +45,12 @@ function setProfileField(
           runs[0]?.run_id === options.forRun &&
           status !== 'stopping'
         if (!ownRun && !canChangeSessionSettings({ state: runState(status) })) {
-          return { changed: false, code: 'session_run_active' } satisfies SessionSettingChange
+          const holder = runs[0]?.run_id
+          return {
+            changed: false,
+            code: 'session_run_active',
+            ...(holder ? { activeRunId: RunId(holder) } : {}),
+          } satisfies SessionSettingChange
         }
         const rows = yield* sql<{ readonly session_id: string }>`
           UPDATE session_execution_profiles
