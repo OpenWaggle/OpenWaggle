@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
+import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createPiCliSession,
+  lifecycleCreate,
   registerProjects,
   run,
   runSql,
@@ -61,6 +64,14 @@ async function externalCreate(idempotencyKey: string) {
   return result.response.outcome
 }
 
+async function recordedCreates() {
+  return runSql(
+    (sql) => sql<{ readonly key: string }>`
+      SELECT idempotency_key AS key FROM pi_session_discovery_creates
+    `,
+  )
+}
+
 async function sessionIds() {
   const rows = await runSql((sql) => sql<{ readonly id: string }>`SELECT id FROM sessions`)
   return rows.map((row) => row.id)
@@ -94,5 +105,35 @@ describe("Pi session discovery's lifecycle keys", () => {
     await run(removeUnattachedDiscoveredSessions())
 
     expect(await sessionIds()).toEqual([outcome.sessionId])
+  })
+
+  it('keeps the record of a create a Host stop interrupted, so its next start cleans up', async () => {
+    await registerProjects([fixture.project])
+    createPiCliSession(fixture.project, 'Interrupted attach')
+    const { PiSessionDiscoveryRepository } = await import('../../../ports/pi-session-discovery')
+    const { discoverPiSessions, removeUnattachedDiscoveredSessions } = await import(
+      '../../../application/pi-session-discovery'
+    )
+    const createSession = await lifecycleCreate()
+
+    // The Host stops while the pass attaches the file to the Session it just created.
+    await run(
+      Effect.gen(function* () {
+        const repository = yield* PiSessionDiscoveryRepository
+        return yield* discoverPiSessions({ createSession }).pipe(
+          Effect.provideService(PiSessionDiscoveryRepository, {
+            ...repository,
+            adoptDiscovered: () => Effect.interrupt,
+          }),
+        )
+      }),
+    )
+    // A stop may end the process before the Session it created is removed, so the record stays.
+    expect(await recordedCreates()).toHaveLength(1)
+
+    await run(removeUnattachedDiscoveredSessions())
+
+    expect(await sessionIds()).toEqual([])
+    expect(await recordedCreates()).toEqual([])
   })
 })

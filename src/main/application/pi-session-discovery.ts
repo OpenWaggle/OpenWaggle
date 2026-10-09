@@ -137,20 +137,28 @@ function createDiscoveredSession<R>(
   create: DiscoveredSessionCreator<R>,
 ) {
   const keys: string[] = []
+  // Once the Session is attached or removed, the Host start no longer needs to know of it. A
+  // create that failed, or one a Host stop interrupted, keeps its record for that start.
+  const forget = Effect.flatMap(PiSessionDiscoveryRepository, (repository) =>
+    repository.forgetDiscoveryCreates(keys),
+  ).pipe(Effect.ignore)
   return Effect.gen(function* () {
     const sessionId = yield* createSessionForFile(session, create, keys)
-    if (!sessionId) return null
-    return yield* attachFile(session, sessionId).pipe(
-      Effect.onError(() => removeUnadoptedSession(sessionId).pipe(Effect.ignore)),
+    if (!sessionId) {
+      yield* forget
+      return null
+    }
+    const attached = yield* attachFile(session, sessionId).pipe(
+      Effect.onError((cause) =>
+        removeUnadoptedSession(sessionId).pipe(
+          Effect.zipRight(Cause.isInterrupted(cause) ? Effect.void : forget),
+          Effect.ignore,
+        ),
+      ),
     )
-  }).pipe(
-    // The Session was attached or removed; the Host start no longer needs to know of it.
-    Effect.ensuring(
-      Effect.flatMap(PiSessionDiscoveryRepository, (repository) =>
-        repository.forgetDiscoveryCreates(keys),
-      ).pipe(Effect.ignore),
-    ),
-  )
+    yield* forget
+    return attached
+  })
 }
 
 /**
