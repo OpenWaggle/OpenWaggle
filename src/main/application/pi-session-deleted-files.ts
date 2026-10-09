@@ -17,10 +17,19 @@ import { deleteSessionWithVisualizations } from './session-visualization-deletio
 
 const logger = createLogger('pi-session-deleted-files')
 
+/** What a deletion refusal names as depending on the Session, such as `fork <id> still depends on it`. */
+function dependency(refusal: string) {
+  return /because (.+?)\.?$/.exec(refusal)?.[1] ?? refusal
+}
+
 export class DeletedPiSessionFileError extends Error {
-  constructor(piSessionFile: string) {
+  /** `refusal`: why the Session cannot be deleted either, as `deletionRefusal` says. */
+  constructor(piSessionFile: string, refusal?: string) {
+    const lost = `This Session's Pi session file was deleted outside OpenWaggle (${piSessionFile}), so its history is gone and it cannot be continued.`
     super(
-      `This Session's Pi session file was deleted outside OpenWaggle (${piSessionFile}), so its history is gone and it cannot be continued. Restore the file to continue it, or delete the Session.`,
+      refusal
+        ? `${lost} Restore the file to continue it. The Session stays, to read, because ${dependency(refusal)}.`
+        : `${lost} Restore the file to continue it, or delete the Session.`,
     )
     this.name = 'DeletedPiSessionFileError'
   }
@@ -110,7 +119,10 @@ export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
       .pipe(Effect.orElseSucceed(() => null))
     if (!state?.piSessionFile || !(yield* files.value.isDeleted(state.piSessionFile))) return
     if (state.piEntryNodeIdPrefix) {
-      return yield* Effect.fail(new DeletedPiSessionFileError(state.piSessionFile))
+      const refusal = yield* repository.value
+        .deletionRefusal(sessionId)
+        .pipe(Effect.orElseSucceed(() => undefined))
+      return yield* Effect.fail(new DeletedPiSessionFileError(state.piSessionFile, refusal))
     }
     logger.warn(
       "A Session's Pi session file was deleted outside OpenWaggle; the Run starts a new one without the earlier context",
