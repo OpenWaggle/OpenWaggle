@@ -171,6 +171,7 @@ const AgentRequestedWaggleWithDependenciesLive = AgentRequestedWaggleServiceLive
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
+      ProviderServiceWithExtensionSelectionLive,
       PiAgentKernelWithExtensionSelectionLive,
       SqliteSessionProjectionRepositoryLive,
       SqliteSessionRepositoryLive,
