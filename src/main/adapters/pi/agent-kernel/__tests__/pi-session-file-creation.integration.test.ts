@@ -102,4 +102,45 @@ describe('Pi session file creation (Pi 0.99+ writes the file at the first user m
     const sessionFile = manager.getSessionFile()
     expect(sessionFile && fileHeaderId(sessionFile)).toBe(PRE_CREATED_PI_SESSION_ID)
   })
+
+  it('starts the file recorded when the Session was created, under its recorded name', () => {
+    // What preparation records: the name Pi gave the file it had not written yet.
+    const recorded = path.join(
+      home,
+      'project',
+      '.pi',
+      'sessions',
+      `2026-10-09T10-41-32-337Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
+    )
+
+    const manager = createSessionManagerForSession(
+      session({ piSessionId: PRE_CREATED_PI_SESSION_ID, piSessionFile: recorded }),
+      projectPath,
+    )
+    appendUserMessage(manager, 'First message')
+
+    expect(manager.getSessionFile()).toBe(recorded)
+    expect(manager.getSessionId()).toBe(PRE_CREATED_PI_SESSION_ID)
+    expect(fileHeaderId(recorded)).toBe(PRE_CREATED_PI_SESSION_ID)
+    expect(readFileSync(recorded, 'utf8')).toContain('First message')
+  })
+
+  it("keeps a worktree Session's new file in the project's sessionDir before its worktree is known", async () => {
+    // The first send creates the worktree, so the Session the Run gets has no worktree path yet.
+    const worktree = path.join(home, '.openwaggle', 'worktrees', 'project', 'w1')
+    for (const checkout of [projectPath, worktree]) {
+      await fs.mkdir(path.join(checkout, '.pi'), { recursive: true })
+      await fs.writeFile(
+        path.join(checkout, '.pi', 'settings.json'),
+        JSON.stringify({ sessionDir: '.pi/sessions' }),
+      )
+    }
+
+    const manager = createSessionManagerForSession(
+      session({ piSessionId: PRE_CREATED_PI_SESSION_ID, environmentMode: 'worktree' }),
+      worktree,
+    )
+
+    expect(manager.getSessionDir()).toBe(path.join(projectPath, '.pi', 'sessions'))
+  })
 })
