@@ -6,6 +6,7 @@ import {
   mcpImportApplyRequestSchema,
   mcpImportPreviewRequestSchema,
   mcpInstallCatalogServerRequestSchema,
+  mcpRemoveServerRequestSchema,
   mcpServerNameRequestSchema,
   mcpSetServerEnabledRequestSchema,
   mcpSetServerExposureRequestSchema,
@@ -119,9 +120,15 @@ export function addMcpServerOperation(raw: unknown) {
 
 export function removeMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerNameRequestSchema, raw, 'remove server')
+    const input = yield* decode(mcpRemoveServerRequestSchema, raw, 'remove server')
     const service = yield* McpConfigurationService
-    return yield* writeThenView(input.projectPath, service.removeServer(input))
+    const { orphanedOverride, ...server } = input
+    return yield* writeThenView(
+      input.projectPath,
+      orphanedOverride
+        ? service.removeOrphanedOverride({ ...server, fileId: orphanedOverride.fileId })
+        : service.removeServer(server),
+    )
   })
 }
 

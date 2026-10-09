@@ -2,6 +2,7 @@ import type {
   McpConfigFileScope,
   McpConfigurationView,
   McpServerExposure,
+  McpWriteDestination,
 } from '@shared/types/mcp-configuration'
 import type {
   McpAddServerRequest,
@@ -104,6 +105,11 @@ export function useMcpConfigurationActions(projectPath: string | null) {
       apply({ run: () => api.addMcpServer({ projectPath, ...request }) }),
     removeServer: (name: string) =>
       apply({ run: () => api.removeMcpServer({ projectPath, name }) }),
+    /** Removes only the orphaned override the view reported in `fileId`. */
+    removeOrphanedOverride: (name: string, fileId: McpWriteDestination) =>
+      apply({
+        run: () => api.removeMcpServer({ projectPath, name, orphanedOverride: { fileId } }),
+      }),
     installCatalogServer: (catalogName: string, scope: McpConfigFileScope) =>
       apply({ run: () => api.installMcpCatalogServer({ projectPath, catalogName, scope }) }),
     /** "Check connection": connects to the server, lists its tools, and disconnects. */

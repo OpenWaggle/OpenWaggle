@@ -40,6 +40,7 @@ export function migrateBeforeEachCall(
     setServerExposure: (input) => first(input, () => service.setServerExposure(input)),
     addServer: (input) => first(input, () => service.addServer(input)),
     removeServer: (input) => first(input, () => service.removeServer(input)),
+    removeOrphanedOverride: (input) => first(input, () => service.removeOrphanedOverride(input)),
     changed: (filePath) => service.changed(filePath),
     onChange: (listener) => service.onChange(listener),
   }

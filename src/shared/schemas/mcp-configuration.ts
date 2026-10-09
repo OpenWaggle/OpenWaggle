@@ -7,6 +7,7 @@ import {
   type McpImportApplyRequest,
   type McpImportPreviewRequest,
   type McpInstallCatalogServerRequest,
+  type McpRemoveServerRequest,
   type McpServerNameRequest,
   type McpSessionRequest,
   type McpSetServerEnabledRequest,
@@ -42,6 +43,12 @@ export const mcpConfigurationScopeRequestSchema: Schema.Schema<McpConfigurationS
 export const mcpServerNameRequestSchema: Schema.Schema<McpServerNameRequest> = Schema.Struct({
   projectPath,
   name: serverName,
+})
+
+export const mcpRemoveServerRequestSchema: Schema.Schema<McpRemoveServerRequest> = Schema.Struct({
+  projectPath,
+  name: serverName,
+  orphanedOverride: Schema.optional(Schema.Struct({ fileId: destination })),
 })
 
 export const mcpSetServerEnabledRequestSchema: Schema.Schema<McpSetServerEnabledRequest> =

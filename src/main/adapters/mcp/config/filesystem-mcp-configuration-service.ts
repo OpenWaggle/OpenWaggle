@@ -11,7 +11,6 @@ import {
   type McpMergedServer,
   mcpConfigFileScope,
 } from '../../../domain/mcp/config/mcp-config-merge'
-import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
 import { validateMcpServerEntry } from '../../../domain/mcp/config/mcp-server-entry-validation'
 import {
   type McpAddServerInput,
@@ -27,7 +26,6 @@ import {
   type McpConfigFileRoots,
   mcpConfigFileLocations,
   nodeMcpConfigFileReader,
-  readMcpConfigLayers,
 } from './mcp-config-files'
 import {
   assertDestinationInScope,
@@ -42,6 +40,7 @@ import {
   updateMcpServerSettings,
 } from './mcp-config-writer'
 import { writeMcpServerSwitch } from './mcp-inherited-settings'
+import { removeOrphanedOverride, removeOrphanedOverrides } from './mcp-orphaned-overrides'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
 
 export interface FilesystemMcpConfigurationOptions {
@@ -202,50 +201,27 @@ function addServer(context: ServiceContext, input: McpAddServerInput) {
   return filePath
 }
 
+function orphanContext(context: ServiceContext, input: McpConfigurationScopeInput) {
+  return { roots: context.roots(input), reader: context.reader }
+}
+
 function removeServer(
   context: ServiceContext,
   input: McpRemoveServerInput,
   knownProjects: readonly string[],
 ) {
-  // A name no file defines may still have orphaned overrides in OpenWaggle's files to remove.
-  const orphans = removeOrphanedOverrides(context, input, input.name)
-  if (orphans.length > 0) return orphans
   const server = findServer(context, input, input.name)
   removeMcpServerEntry(server.source.path, input.name)
-  const changed = [server.source.path, ...removeOrphanedOverrides(context, input, input.name)]
+  const changed = [
+    server.source.path,
+    ...removeOrphanedOverrides(orphanContext(context, input), input.name),
+  ]
   if (server.scope !== 'global') return changed
   for (const projectPath of new Set(knownProjects)) {
     if (projectPath === input.projectPath) continue
-    changed.push(...removeOrphanedOverrides(context, { projectPath }, input.name))
+    changed.push(...removeOrphanedOverrides(orphanContext(context, { projectPath }), input.name))
   }
   return [...new Set(changed)]
-}
-
-/**
- * Once no file defines the server, its override-only entries are orphans. Those in OpenWaggle's
- * files are removed with it (in every known project for a global server; one left behind is only a
- * warning); those in Pi's and shared files are left as they are and show up in the view's errors.
- * While an earlier file still defines the server, they stay.
- */
-function removeOrphanedOverrides(
-  context: ServiceContext,
-  input: McpConfigurationScopeInput,
-  name: string,
-) {
-  const roots = context.roots(input)
-  if (loadMcpMergedConfig(roots, context.reader).servers.some((server) => server.name === name)) {
-    return []
-  }
-  const removed: string[] = []
-  for (const layer of readMcpConfigLayers(mcpConfigFileLocations(roots), context.reader)) {
-    if (!isOpenWaggleMcpConfigFile(layer.fileId) || layer.content.kind !== 'parsed') continue
-    const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
-    const entry = isJsonRecord(servers) ? servers[name] : undefined
-    if (!isJsonRecord(entry) || 'command' in entry || 'url' in entry) continue
-    removeMcpServerEntry(layer.path, name)
-    removed.push(layer.path)
-  }
-  return removed
 }
 
 export function createFilesystemMcpConfigurationService(
@@ -288,6 +264,8 @@ export function createFilesystemMcpConfigurationService(
       Effect.promise(async () => (await options.knownProjectPaths?.().catch(() => [])) ?? []).pipe(
         Effect.flatMap((projects) => write(() => removeServer(context, input, projects))),
       ),
+    removeOrphanedOverride: (input) =>
+      write(() => removeOrphanedOverride(orphanContext(context, input), input)),
     changed: notify,
     onChange: (listener) => {
       listeners.add(listener)

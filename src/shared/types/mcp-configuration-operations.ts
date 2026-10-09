@@ -20,6 +20,14 @@ export interface McpServerNameRequest extends McpConfigurationScopeRequest {
   readonly name: string
 }
 
+/**
+ * Removes a server, or with `orphanedOverride` only the orphaned override-only entry the view
+ * reported in that OpenWaggle file, refusing anything else.
+ */
+export interface McpRemoveServerRequest extends McpServerNameRequest {
+  readonly orphanedOverride?: { readonly fileId: McpWriteDestination }
+}
+
 export interface McpSetServerEnabledRequest extends McpServerNameRequest {
   readonly enabled: boolean
   /** `project` switches a global server for this project only. */

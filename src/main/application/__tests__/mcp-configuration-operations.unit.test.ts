@@ -211,6 +211,29 @@ describe('MCP configuration operations', () => {
     expect(view.servers.map((server) => server.name)).toEqual(['keep'])
   })
 
+  it('removes only an orphaned override when the request names its file', async () => {
+    writeJson(owGlobal(), { mcpServers: { gone: { enabled: false }, keep: { command: 'keep' } } })
+
+    const view = await run(
+      removeMcpServerOperation({
+        projectPath: null,
+        name: 'gone',
+        orphanedOverride: { fileId: 'openwaggle-global' },
+      }),
+    )
+    const refused = await failureMessage(
+      removeMcpServerOperation({
+        projectPath: null,
+        name: 'keep',
+        orphanedOverride: { fileId: 'openwaggle-global' },
+      }),
+    )
+
+    expect(servers(owGlobal())).toEqual({ keep: { command: 'keep' } })
+    expect(view.orphanedOverrides ?? []).toEqual([])
+    expect(refused).toMatch(/no orphaned override/)
+  })
+
   it('installs a catalog server as an ordinary entry', async () => {
     const view = await run(
       installMcpCatalogServerOperation({

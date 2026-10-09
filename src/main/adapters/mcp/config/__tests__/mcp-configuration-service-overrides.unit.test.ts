@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { Effect } from 'effect'
+import { Effect, Exit } from 'effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
 
@@ -126,12 +126,14 @@ describe('MCP overrides', () => {
     expect(json(projectOw)).toEqual({ mcpServers: { fs: { exposure: 'direct' } } })
   })
 
-  it('removes an orphaned override from an OpenWaggle file', async () => {
+  it('removes an orphaned override from an OpenWaggle file, and only that entry', async () => {
     const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
     write(projectOw, { mcpServers: { gone: { enabled: false }, kept: { command: 'k' } } })
 
     const before = await Effect.runPromise(service().getView({ projectPath }))
-    await Effect.runPromise(service().removeServer({ projectPath, name: 'gone' }))
+    await Effect.runPromise(
+      service().removeOrphanedOverride({ projectPath, name: 'gone', fileId: 'project-openwaggle' }),
+    )
     const view = await Effect.runPromise(service().getView({ projectPath }))
 
     expect(before.orphanedOverrides).toEqual([
@@ -140,5 +142,36 @@ describe('MCP overrides', () => {
     expect(json(projectOw)).toEqual({ mcpServers: { kept: { command: 'k' } } })
     expect(view.warnings ?? []).toEqual([])
     expect(view.orphanedOverrides ?? []).toEqual([])
+  })
+
+  it('does not take a global override for a server a later project file defines as orphaned', async () => {
+    // R3's orphan.mts: the override comes before the file that defines the server.
+    const mcpJson = path.join(projectPath, '.mcp.json')
+    write(owGlobal(), { mcpServers: { db: { enabled: false } } })
+    write(mcpJson, { mcpServers: { db: { command: 'db-mcp' } } })
+
+    const view = await Effect.runPromise(service().getView({ projectPath }))
+    const refused = await Effect.runPromiseExit(
+      service().removeOrphanedOverride({ projectPath, name: 'db', fileId: 'openwaggle-global' }),
+    )
+
+    expect(view.servers.map((server) => server.name)).toEqual(['db'])
+    expect(view.orphanedOverrides ?? []).toEqual([])
+    expect(view.warnings?.join('\n')).toContain(`defined in ${mcpJson}`)
+    expect(Exit.isFailure(refused)).toBe(true)
+    expect(json(mcpJson)).toEqual({ mcpServers: { db: { command: 'db-mcp' } } })
+    expect(json(owGlobal())).toEqual({ mcpServers: { db: { enabled: false } } })
+  })
+
+  it('refuses to remove a full entry as an orphaned override', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(projectOw, { mcpServers: { real: { command: 'real-mcp' } } })
+
+    const refused = await Effect.runPromiseExit(
+      service().removeOrphanedOverride({ projectPath, name: 'real', fileId: 'project-openwaggle' }),
+    )
+
+    expect(Exit.isFailure(refused)).toBe(true)
+    expect(json(projectOw)).toEqual({ mcpServers: { real: { command: 'real-mcp' } } })
   })
 })

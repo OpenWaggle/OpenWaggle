@@ -76,7 +76,12 @@ describe('Settings > MCP switches and overrides', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove override for gone' }))
 
     await waitFor(() =>
-      expect(api.removeMcpServer).toHaveBeenCalledWith({ projectPath: PROJECT, name: 'gone' }),
+      expect(api.removeMcpServer).toHaveBeenCalledWith({
+        projectPath: PROJECT,
+        name: 'gone',
+        // Only that entry: never the server's definition in another file.
+        orphanedOverride: { fileId: 'project-openwaggle' },
+      }),
     )
     await waitFor(() =>
       expect(screen.queryByLabelText('Ignored MCP configuration')).not.toBeInTheDocument(),

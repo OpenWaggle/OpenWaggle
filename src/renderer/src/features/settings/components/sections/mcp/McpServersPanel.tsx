@@ -52,7 +52,7 @@ function OrphanedOverrideAction({
         size="xs"
         disabled={actions.pending}
         aria-label={`Remove override for ${orphan.name}`}
-        onClick={() => void actions.removeServer(orphan.name)}
+        onClick={() => void actions.removeOrphanedOverride(orphan.name, orphan.fileId)}
       >
         Remove override
       </Button>

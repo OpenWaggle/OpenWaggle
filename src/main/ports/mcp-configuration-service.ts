@@ -48,6 +48,11 @@ export interface McpRemoveServerInput extends McpConfigurationScopeInput {
   readonly name: string
 }
 
+/** An orphaned override the view reported, by the OpenWaggle file that holds it. */
+export interface McpRemoveOrphanedOverrideInput extends McpRemoveServerInput {
+  readonly fileId: McpWriteDestination
+}
+
 /** The ADR 0050 MCP file set: the merged view and the writes Settings and the CLI make. */
 export interface McpConfigurationServiceShape {
   readonly getView: (
@@ -61,6 +66,13 @@ export interface McpConfigurationServiceShape {
   ) => Effect.Effect<void, McpConfigurationError>
   readonly addServer: (input: McpAddServerInput) => Effect.Effect<void, McpConfigurationError>
   readonly removeServer: (input: McpRemoveServerInput) => Effect.Effect<void, McpConfigurationError>
+  /**
+   * Removes only the override-only entry an orphan names, while no file defines the server;
+   * refuses anything else.
+   */
+  readonly removeOrphanedOverride: (
+    input: McpRemoveOrphanedOverrideInput,
+  ) => Effect.Effect<void, McpConfigurationError>
   /** Records a write made elsewhere, such as Pi's `/mcp` inside a Run, for `onChange` listeners. */
   readonly changed: (filePath: string) => void
   /** Called after every write made here or by Pi's `/mcp`, with the file that changed. */

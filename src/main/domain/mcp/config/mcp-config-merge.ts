@@ -89,6 +89,8 @@ interface MergeState {
   readonly errors: string[]
   readonly warnings: string[]
   readonly orphanedOverrides: McpOrphanedOverride[]
+  /** OpenWaggle overrides no earlier file had a server for, classified after the merge. */
+  readonly unappliedOverrides: McpOrphanedOverride[]
   autoEnableCodemode?: boolean
 }
 
@@ -103,11 +105,8 @@ function applyOverride(
     (key) => !MCP_OVERRIDE_KEYS.some((overrideKey) => overrideKey === key),
   )
   if (!base && isOpenWaggleMcpConfigFile(layer.fileId)) {
-    // OpenWaggle wrote it for a server since removed from the file that defined it.
-    state.warnings.push(
-      `${layer.path}: server "${name}" only changes a server no file defines any more; it is ignored`,
-    )
-    state.orphanedOverrides.push({ name, fileId: layer.fileId, path: layer.path })
+    // Ignored; whether it is an orphan is known once every file is read (`classifyUnapplied`).
+    state.unappliedOverrides.push({ name, fileId: layer.fileId, path: layer.path })
     return
   }
   if (!base) {
@@ -205,12 +204,41 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
   }
 }
 
+/**
+ * An OpenWaggle override no earlier file had a server for is ignored. It is an orphan, which can
+ * be removed, only when no file defines the server at all: OpenWaggle wrote it for a server since
+ * removed. One that comes before the file that defines the server, such as a global override
+ * for a server a project's `.mcp.json` defines, is only reported.
+ */
+function classifyUnapplied(state: MergeState) {
+  for (const override of state.unappliedOverrides) {
+    const defined = state.servers.get(override.name)
+    if (defined) {
+      state.warnings.push(
+        `${override.path}: server "${override.name}" is defined in ${defined.source.path}, a file read after this one, so this change to it is ignored`,
+      )
+      continue
+    }
+    state.warnings.push(
+      `${override.path}: server "${override.name}" only changes a server no file defines any more; it is ignored`,
+    )
+    state.orphanedOverrides.push(override)
+  }
+}
+
 /** Merge the file layers, given in precedence order from lowest to highest. */
 export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMergedConfig {
-  const state: MergeState = { servers: new Map(), errors: [], warnings: [], orphanedOverrides: [] }
+  const state: MergeState = {
+    servers: new Map(),
+    errors: [],
+    warnings: [],
+    orphanedOverrides: [],
+    unappliedOverrides: [],
+  }
   layers.forEach((layer, index) => {
     readLayer(state, layer, index === 0)
   })
+  classifyUnapplied(state)
   return {
     servers: [...state.servers.values()],
     errors: state.errors,

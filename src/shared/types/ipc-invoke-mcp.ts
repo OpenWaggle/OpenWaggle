@@ -22,6 +22,7 @@ import type {
   McpImportPreviewRequest,
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
+  McpRemoveServerRequest,
   McpServerNameRequest,
   McpSessionRequest,
   McpSetServerEnabledRequest,
@@ -52,7 +53,7 @@ export interface IpcMcpInvokeChannelMap {
     return: McpConfigurationView
   }
   'mcp:add-server': { args: [input: McpAddServerRequest]; return: McpConfigurationView }
-  'mcp:remove-server': { args: [input: McpServerNameRequest]; return: McpConfigurationView }
+  'mcp:remove-server': { args: [input: McpRemoveServerRequest]; return: McpConfigurationView }
   'mcp:install-catalog-server': {
     args: [input: McpInstallCatalogServerRequest]
     return: McpConfigurationView

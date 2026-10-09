@@ -22,6 +22,7 @@ import type {
   McpImportPreviewRequest,
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
+  McpRemoveServerRequest,
   McpServerNameRequest,
   McpSessionRequest,
   McpSetServerEnabledRequest,
@@ -43,7 +44,7 @@ export interface OpenWaggleMcpApi {
   setMcpServerEnabled(input: McpSetServerEnabledRequest): Promise<McpConfigurationView>
   setMcpServerExposure(input: McpSetServerExposureRequest): Promise<McpConfigurationView>
   addMcpServer(input: McpAddServerRequest): Promise<McpConfigurationView>
-  removeMcpServer(input: McpServerNameRequest): Promise<McpConfigurationView>
+  removeMcpServer(input: McpRemoveServerRequest): Promise<McpConfigurationView>
   installMcpCatalogServer(input: McpInstallCatalogServerRequest): Promise<McpConfigurationView>
   inspectMcpServer(input: McpServerNameRequest): Promise<McpServerInspection>
   getMcpServerStatuses(input: McpConfigurationScopeRequest): Promise<readonly McpServerStatusView[]>
