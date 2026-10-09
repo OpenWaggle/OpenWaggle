@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
+import { mcpConfigFileLocations } from '../mcp-config-files'
+import { removeEmptyOpenWaggleProjectFile } from '../mcp-empty-project-file'
 
 /**
  * A change that leaves OpenWaggle's project file with nothing in it removes the file, so turning a
@@ -91,4 +101,40 @@ describe("OpenWaggle's emptied project MCP file", () => {
     expect(JSON.parse(readFileSync(piProject, 'utf8'))).toEqual({ mcpServers: {} })
     expect(JSON.parse(readFileSync(owGlobal(), 'utf8'))).toEqual({ mcpServers: {} })
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'is never removed through a symlinked .openwaggle folder',
+    () => {
+      // Dotfiles: the project's folder links to the global one, or to a dotfiles checkout.
+      const dotfiles = path.join(root, 'dotfiles', '.openwaggle')
+      write(owGlobal(), {})
+      write(path.join(dotfiles, 'mcp.json'), {})
+      symlinkSync(path.dirname(owGlobal()), path.join(projectPath, '.openwaggle'))
+      const other = path.join(root, 'other')
+      mkdirSync(other, { recursive: true })
+      symlinkSync(dotfiles, path.join(other, '.openwaggle'))
+
+      removeEmptyOpenWaggleProjectFile(owProject(), homeDir)
+      removeEmptyOpenWaggleProjectFile(path.join(other, '.openwaggle', 'mcp.json'), homeDir)
+
+      expect(existsSync(owGlobal())).toBe(true)
+      expect(existsSync(path.join(dotfiles, 'mcp.json'))).toBe(true)
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'is read once when the project folder links to the global one',
+    () => {
+      write(owGlobal(), {})
+      symlinkSync(path.dirname(owGlobal()), path.join(projectPath, '.openwaggle'))
+
+      const files = mcpConfigFileLocations({
+        homeDir,
+        piAgentDir: path.join(homeDir, '.pi', 'agent'),
+        projectPath,
+      })
+
+      expect(files.map((file) => file.fileId)).not.toContain('project-openwaggle')
+    },
+  )
 })

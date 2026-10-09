@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync } from 'node:fs'
+import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import {
   type McpConfigFileId,
@@ -36,11 +36,25 @@ function location(fileId: McpConfigFileId, filePath: string): McpConfigFileLocat
 export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
   const seen = new Set<string>()
   return allLocations(roots).filter((file) => {
-    const key = path.resolve(file.path)
+    // By real path: a project folder that links to `~/.openwaggle` reaches the global file too.
+    const key = realLocation(file.path)
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
+}
+
+/** The file's real path, or its folder's real path joined with its name when it does not exist. */
+function realLocation(filePath: string) {
+  try {
+    return realpathSync(filePath)
+  } catch {
+    try {
+      return path.join(realpathSync(path.dirname(filePath)), path.basename(filePath))
+    } catch {
+      return path.resolve(filePath)
+    }
+  }
 }
 
 function allLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {

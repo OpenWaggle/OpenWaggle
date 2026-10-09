@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, rmdirSync, rmSync } from 'node:fs'
+import { lstatSync, readFileSync, realpathSync, rmdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
 
@@ -27,11 +27,33 @@ function holdsNothing(text: string) {
  * file, and only a plain file: Pi's and shared files, the global file (also the project file of a
  * project that is the home folder), and a symlinked file are never removed.
  */
+function isPlainDirectory(directory: string, homeDir: string) {
+  try {
+    const real = realpathSync(directory)
+    if (real !== realpathSync(path.resolve(directory, '..')) + path.sep + OPENWAGGLE_DIRECTORY) {
+      return false
+    }
+    return real !== safeRealpath(path.join(homeDir, OPENWAGGLE_DIRECTORY))
+  } catch {
+    return false
+  }
+}
+
+function safeRealpath(filePath: string) {
+  try {
+    return realpathSync(filePath)
+  } catch {
+    return path.resolve(filePath)
+  }
+}
+
 export function removeEmptyOpenWaggleProjectFile(filePath: string, homeDir: string) {
   const directory = path.dirname(filePath)
   if (path.basename(filePath) !== MCP_FILE_NAME) return
   if (path.basename(directory) !== OPENWAGGLE_DIRECTORY) return
   if (path.resolve(directory) === path.resolve(homeDir, OPENWAGGLE_DIRECTORY)) return
+  // A symlinked folder may be the global one, or a dotfiles checkout: never removed through.
+  if (!isPlainDirectory(directory, homeDir)) return
   try {
     if (!lstatSync(filePath).isFile() || !holdsNothing(readFileSync(filePath, 'utf8'))) return
     rmSync(filePath)
