@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Exit } from 'effect'
@@ -77,7 +77,8 @@ describe('MCP overrides', () => {
 
     expect(json(piGlobal())).toEqual({ mcpServers: { keep: { command: 'k' } } })
     expect(json(owGlobal())).toEqual({ mcpServers: { keep: { enabled: false } } })
-    expect(json(projectOw)).toEqual({ mcpServers: {} })
+    // Emptied, OpenWaggle's project file is removed.
+    expect(existsSync(projectOw)).toBe(false)
     // Pi's own project file is left as it is; its now-orphaned override is reported.
     expect(json(projectPi)).toEqual({ mcpServers: { fs: { exposure: 'direct' } } })
     expect(view.errors.join('\n')).toContain(`${projectPi}: server "fs" needs "command" or "url"`)
@@ -106,7 +107,8 @@ describe('MCP overrides', () => {
     )
     const view = await Effect.runPromise(service().getView({ projectPath }))
 
-    expect(json(projectOw)).toEqual({ mcpServers: {} })
+    // Emptied, OpenWaggle's project file is removed.
+    expect(existsSync(projectOw)).toBe(false)
     expect(view.servers[0]).not.toHaveProperty('override')
     // Turning the server off for every project in Pi now reaches this project too.
     write(piGlobal(), { mcpServers: { fs: { command: 'fs-mcp', enabled: false } } })

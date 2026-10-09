@@ -39,6 +39,7 @@ import {
   removeMcpServerEntry,
   updateMcpServerSettings,
 } from './mcp-config-writer'
+import { removeEmptyOpenWaggleProjectFile } from './mcp-empty-project-file'
 import { writeMcpServerSwitch } from './mcp-inherited-settings'
 import { removeOrphanedOverride, removeOrphanedOverrides } from './mcp-orphaned-overrides'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
@@ -254,7 +255,10 @@ export function createFilesystemMcpConfigurationService(
     Effect.try({
       try: () => {
         const changed = operation()
-        for (const filePath of typeof changed === 'string' ? [changed] : changed) notify(filePath)
+        for (const filePath of typeof changed === 'string' ? [changed] : changed) {
+          removeEmptyOpenWaggleProjectFile(filePath, options.homeDir)
+          notify(filePath)
+        }
       },
       catch: (error) =>
         error instanceof McpConfigurationError

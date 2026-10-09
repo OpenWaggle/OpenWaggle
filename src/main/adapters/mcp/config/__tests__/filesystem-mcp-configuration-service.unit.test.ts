@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Exit } from 'effect'
@@ -184,7 +184,8 @@ describe('filesystem MCP configuration service', () => {
     await Effect.runPromise(service().removeServer({ projectPath, name: 'fs' }))
 
     expect(json(piGlobal())).toEqual({ mcpServers: { keep: { command: 'k' } } })
-    expect(json(owProject())).toEqual({ mcpServers: {} })
+    // Emptied, OpenWaggle's project file is removed.
+    expect(existsSync(owProject())).toBe(false)
   })
 
   it("removes a global server's overrides from every project OpenWaggle knows", async () => {
