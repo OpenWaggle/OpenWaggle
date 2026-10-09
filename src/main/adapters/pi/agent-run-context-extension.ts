@@ -121,8 +121,10 @@ export function createAgentRunContextExtension(
   const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
   return (pi) => {
-    let pendingRunIdentity: string | undefined
-    pi.on('before_agent_start', (event, ctx) => {
+    // A Waggle Run starts with `sendCustomMessage`, which fires no `before_agent_start`, so
+    // the identity is stored on the Run's first model request.
+    let runIdentityStored = !runIdentity
+    pi.on('before_agent_start', (event) => {
       if (allows) pi.setActiveTools(pi.getActiveTools().filter(allows))
 
       setSection(
@@ -137,22 +139,16 @@ export function createAgentRunContextExtension(
         'OpenWaggle Session identity (Host-authored)',
         `${input.sessionIdentityContext.trim()}\n\n${SESSION_IDENTITY_AUTHORITY}`,
       )
-
-      // Stored with the prompt it follows on the Run's first model request, below.
-      if (runIdentity && latestRunIdentityContent(ctx.sessionManager.getBranch()) !== runIdentity) {
-        pendingRunIdentity = runIdentity
-      }
       return undefined
     })
     pi.on('context', (event, ctx) => {
-      if (pendingRunIdentity) {
+      if (runIdentity && !runIdentityStored) {
         // A plain entry, never a context message: `pi --resume` must not send OpenWaggle's Run
-        // metadata. It names the Run's prompt, the latest user message, as its place.
-        const data = runIdentityEntryData(pendingRunIdentity, event.messages)
-        if (data) {
-          pi.appendEntry<RunIdentityEntryData>(RUN_IDENTITY_CUSTOM_TYPE, data)
-          pendingRunIdentity = undefined
-        }
+        // metadata. It names the Run's prompt as its place, and only a changed identity is kept.
+        const unchanged = latestRunIdentityContent(ctx.sessionManager.getBranch()) === runIdentity
+        const data = unchanged ? undefined : runIdentityEntryData(runIdentity, event.messages)
+        if (data) pi.appendEntry<RunIdentityEntryData>(RUN_IDENTITY_CUSTOM_TYPE, data)
+        runIdentityStored = unchanged || data !== undefined
       }
       const messages = withRunIdentities(event.messages, ctx.sessionManager.getBranch())
       return messages ? { messages } : undefined

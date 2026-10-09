@@ -19,6 +19,7 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
+import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   resolveSessionRunExecution,
@@ -87,6 +88,7 @@ async function createSessionHarness() {
     runId: string,
     prompts: string | readonly string[],
     rowOverrides: Partial<SessionRunExecutionProfileRow> = {},
+    options: { readonly waggle?: boolean } = {},
   ) {
     const execution = resolveSessionRunExecution(workerRow(rowOverrides), runId)
     const resourceLoader = new DefaultResourceLoader({
@@ -126,7 +128,17 @@ async function createSessionHarness() {
       }),
     )
     try {
-      for (const prompt of runPrompts) await session.prompt(prompt)
+      for (const prompt of runPrompts) {
+        // A Waggle Run is prompted with custom messages (`waggle-run-messages.ts`).
+        if (options.waggle) {
+          await session.sendCustomMessage(
+            { customType: PI_WAGGLE_TURN_CUSTOM_TYPE, content: prompt, display: false },
+            { triggerTurn: true },
+          )
+        } else {
+          await session.prompt(prompt)
+        }
+      }
     } finally {
       session.dispose()
     }
@@ -222,4 +234,26 @@ describe('Agent run context and the provider prompt cache', () => {
     expect(nonSystemText(second)).toContain('"runId": "run-first"')
     expect(nonSystemText(second)).toContain('"runId": "run-second"')
   })
+
+  it.each([
+    ['a Waggle-only Session', ['waggle', 'waggle']],
+    ['a mixed Session', ['classic', 'waggle', 'classic']],
+  ] as const)(
+    'sends a Waggle Run its identity after its own prompt in %s',
+    async (_label, kinds) => {
+      const harness = await createSessionHarness()
+
+      for (const [index, kind] of kinds.entries()) {
+        await harness.run(`run-${index}`, `Prompt ${index}`, {}, { waggle: kind === 'waggle' })
+      }
+
+      const texts = harness.requests.map(nonSystemText)
+      texts.forEach((text, index) => {
+        expect(text).toContain(`Prompt ${index}\n\nOpenWaggle Host-authored Run identity`)
+        expect(text).toContain(`"runId": "run-${index}"`)
+        // Each request keeps the one before it as its prefix, so its prompt cache holds.
+        if (index > 0) expect(text.startsWith(texts[index - 1] ?? '')).toBe(true)
+      })
+    },
+  )
 })

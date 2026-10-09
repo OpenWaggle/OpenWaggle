@@ -1,11 +1,27 @@
 import { createHash } from 'node:crypto'
 import type { ContextEvent, SessionEntry } from '@earendil-works/pi-coding-agent'
+import {
+  PI_WAGGLE_TURN_CUSTOM_TYPE,
+  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+} from '@openwaggle/pi-waggle/protocol'
 import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
 import { isRecord } from '@shared/utils/validation'
 
 type ContextMessage = ContextEvent['messages'][number]
 type CustomMessage = Extract<ContextMessage, { role: 'custom' }>
-type UserMessage = Extract<ContextMessage, { role: 'user' }>
+type PromptMessage = Extract<ContextMessage, { role: 'user' | 'custom' }>
+
+/** The custom messages a Waggle Run is prompted with (`waggle-run-messages.ts`). */
+const WAGGLE_PROMPT_CUSTOM_TYPES = new Set([
+  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+  PI_WAGGLE_TURN_CUSTOM_TYPE,
+])
+
+/** A Run's prompt: a user message, or the custom message that starts a Waggle Run. */
+function isPromptMessage(message: ContextMessage): message is PromptMessage {
+  if (message.role === 'user') return true
+  return message.role === 'custom' && WAGGLE_PROMPT_CUSTOM_TYPES.has(message.customType)
+}
 
 const RUN_IDENTITY_DETAILS = { source: 'openwaggle', kind: 'run-identity' } as const
 
@@ -19,25 +35,25 @@ export interface RunIdentityEntryData {
   readonly prompt: { readonly timestamp: number; readonly digest: string }
 }
 
-function promptDigest(message: UserMessage) {
+function promptDigest(message: PromptMessage) {
   return createHash('sha256').update(JSON.stringify(message.content)).digest('hex')
 }
 
 function isPrompt(message: ContextMessage, prompt: RunIdentityEntryData['prompt']) {
   return (
-    message.role === 'user' &&
+    isPromptMessage(message) &&
     message.timestamp === prompt.timestamp &&
     promptDigest(message) === prompt.digest
   )
 }
 
-/** The entry for a Run's identity, placed after its prompt: the latest user message. */
+/** The entry for a Run's identity, placed after its prompt: the latest prompt message. */
 export function runIdentityEntryData(
   content: string,
   messages: readonly ContextMessage[],
 ): RunIdentityEntryData | undefined {
-  const prompt = messages.findLast((message) => message.role === 'user')
-  if (prompt?.role !== 'user') return undefined
+  const prompt = messages.findLast(isPromptMessage)
+  if (!prompt) return undefined
   return { content, prompt: { timestamp: prompt.timestamp, digest: promptDigest(prompt) } }
 }
 
