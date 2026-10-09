@@ -11,15 +11,27 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionResourceRepositoryError({ operation, cause })
 }
 
-function occurrenceRole(activity: UpsertSessionResourceInput['occurrence']['activity']) {
+/**
+ * Where a resource is discoverable, derived from its occurrence.
+ *
+ * A resource the conversation read or was handed is a source; one that was produced or changed is
+ * an output. An image the agent embedded in its own message is both: the agent created it, and it
+ * is evidence the agent presented, so it must also be findable under Sources where a person looks
+ * for the images of a conversation.
+ */
+function occurrenceRole(input: UpsertSessionResourceInput) {
+  const { activity, actor } = input.occurrence
   return {
-    isSource: activity === 'provided' || activity === 'read',
+    isSource:
+      activity === 'provided' ||
+      activity === 'read' ||
+      (input.kind === 'image' && actor === 'agent'),
     isOutput: activity === 'created' || activity === 'updated',
   }
 }
 
 function upsertResourceMetadata(sql: SqlClient.SqlClient, input: UpsertSessionResourceInput) {
-  const role = occurrenceRole(input.occurrence.activity)
+  const role = occurrenceRole(input)
   return sql`
     INSERT INTO session_resources (
       id, session_id, canonical_key, kind, title, mime_type, locator, managed_path,
