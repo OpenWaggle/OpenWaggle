@@ -34,6 +34,12 @@ Viewing a listed session never changes its file. The projection, the context met
 
 A `pi` CLI fork copies the entry ids of the session it came from, and OpenWaggle stores every Session's nodes under one key. The projection therefore stores a listed session's entries under ids prefixed with its Session id, and translates them back whenever it hands an entry to Pi. Deleting a listed session removes it from OpenWaggle and records the file as dismissed, so it is not listed again; the file stays. Removing the project deletes its sessions from OpenWaggle without dismissing their files, so they are listed again if the folder is added back.
 
+Forking a listed session never opens its file for writing. Pi branches from an in-memory copy of it, and OpenWaggle writes the fork next to the source before the fork's session starts. Extensions see the files this way:
+
+- `session_before_fork`: `ctx.sessionManager.getSessionFile()` is the source.
+- `session_shutdown` of the source session: `targetSessionFile` is also the source, not the fork. Pi reports the file the in-memory copy names, and the fork has no file of its own yet at that point.
+- The fork's `session_start` (`reason: "fork"`): `previousSessionFile` is the source, and `ctx.sessionManager.getSessionFile()` and `getSessionId()` are the fork's own. What the fork's session appends from then on, such as `appendEntry`, goes to the fork's file.
+
 ## Tool surface
 
 The default built-in coding tools are:

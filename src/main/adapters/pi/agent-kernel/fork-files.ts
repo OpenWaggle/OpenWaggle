@@ -56,7 +56,9 @@ function forkFileFor(sessionManager: SessionManager, sourceFile: string) {
 /**
  * Writes the fork before its session starts and opens it: the fork's session runs on a manager
  * that persists to the fork's own file, so its extensions see that file and id, what they and Pi
- * append at its start is kept, and `previousSessionFile` names the source. The file is recorded
+ * append at its start is kept, and `previousSessionFile` names the source. The source's
+ * `session_shutdown` still reports the source as `targetSessionFile`: Pi names the file the copy
+ * names, before the fork exists, and OpenWaggle does not work around it. The file is recorded
  * first (`beforeWritingFork`), so a stop between the two never leaves an unknown file.
  */
 export async function writeForkBeforeItStarts(
