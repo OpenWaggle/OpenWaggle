@@ -46,6 +46,22 @@ describe('openwaggle mcp import', () => {
     expect(result.logs).toContain('cursor: linear (https://mcp.linear.app/mcp) new')
   })
 
+  it.each([
+    [
+      ['--from', 'cursor,codex'],
+      'openwaggle mcp import --from cursor,codex --apply [--server <name>]',
+    ],
+    [['-l'], 'openwaggle mcp import -l --apply [--server <name>]'],
+    [
+      ['--project', 'repo', '--from', 'cursor'],
+      'openwaggle mcp import --project /resolved/repo --from cursor --apply [--server <name>]',
+    ],
+  ])('keeps %j in the apply hint it prints', async (args, hint) => {
+    const result = await run('import', args, { 'mcp:preview-imports': () => preview })
+
+    expect(result.logs).toContain(`Import them with: ${hint}`)
+  })
+
   it('applies only new servers unless --server names them', async () => {
     const result = await run('import', ['--apply', '-l', '--conflict', 'rename'], {
       'mcp:preview-imports': () => preview,

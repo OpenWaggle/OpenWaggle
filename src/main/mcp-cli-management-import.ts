@@ -10,6 +10,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { projectOptionOf } from './mcp-cli-management-list'
 import { vaultSecretLines } from './mcp-cli-management-registry'
 
 /** `openwaggle mcp import`: previews other tools' servers, and with `--apply` imports them. */
@@ -57,7 +58,12 @@ export async function importCommand({
         : previewLines(preview).join('\n'),
     )
     if (!json && preview.candidates.length > 0) {
-      context.output.log('Import them with: openwaggle mcp import --apply [--server <name>]')
+      // The same project and tools, so applying imports what this preview listed.
+      const project = projectOptionOf({ args, projectPath })
+      const from = sources ? ` --from ${sources.join(',')}` : ''
+      context.output.log(
+        `Import them with: openwaggle mcp import${project}${from} --apply [--server <name>]`,
+      )
     }
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
