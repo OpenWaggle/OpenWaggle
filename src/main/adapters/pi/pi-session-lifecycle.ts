@@ -25,6 +25,15 @@ async function bindSessionExtensions(
 ) {
   const baseUiContext = session.extensionRunner.getUIContext()
   await session.bindExtensions({
+    // Pi reports extension failures only to this listener, such as a `pi.sendMessage` turn that
+    // could not start; a Run fails on those itself (`runPiOperation`).
+    onError: (error) => {
+      logger.warn('Pi extension failed', {
+        extensionPath: error.extensionPath,
+        event: error.event,
+        error: error.error,
+      })
+    },
     ...(input.openWaggleUi
       ? { uiContext: createPiInteractionUiContext(input.openWaggleUi, baseUiContext) }
       : {}),

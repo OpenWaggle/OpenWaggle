@@ -81,6 +81,7 @@ export interface FakeRunSession {
     readonly hasQueuedMessages: () => boolean
   }
   readonly isCompacting: boolean
+  readonly extensionRunner: { readonly onError: () => () => void }
   readonly isStreaming: boolean
   readonly sessionManager: {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
@@ -187,6 +188,7 @@ export function createFakeSession(
     },
     isCompacting: false,
     isStreaming: false,
+    extensionRunner: { onError: vi.fn(() => () => undefined) },
     sessionManager: {
       appendCustomEntry: vi.fn(() => 'mode-state-entry'),
       buildSessionContext: () => ({ messages: [] }),

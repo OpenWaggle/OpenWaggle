@@ -21,12 +21,33 @@ export function describePiRunError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function runPiOperation(operation: () => Promise<void>): Promise<PiOperationOutcome> {
+/** Extension calls that start a turn and only report their failure to Pi's error listeners. */
+const TURN_START_EVENTS = new Set(['send_message', 'send_user_message'])
+
+/**
+ * Runs a Run's operation. It also fails when an extension could not start the turn it asked for
+ * (`pi.sendMessage(..., { triggerTurn: true })` does not wait for it), such as a Waggle Run's next
+ * turn: nothing would end the Run otherwise.
+ */
+export async function runPiOperation(
+  operation: () => Promise<void>,
+  session?: Pick<AgentSession, 'extensionRunner'>,
+): Promise<PiOperationOutcome> {
+  let stopListening = () => {}
+  const turnStartFailed = new Promise<never>((_resolve, reject) => {
+    const unsubscribe = session?.extensionRunner.onError((error) => {
+      if (!TURN_START_EVENTS.has(error.event)) return
+      reject(new Error(`An extension could not start the next turn: ${error.error}`))
+    })
+    if (unsubscribe) stopListening = () => void unsubscribe()
+  })
   try {
-    await operation()
+    await Promise.race([operation(), turnStartFailed])
     return { status: 'completed' }
   } catch (error) {
     return { status: 'failed', error }
+  } finally {
+    stopListening()
   }
 }
 
