@@ -3,9 +3,14 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   type AssistantMessage,
+  collapseSystemMessages,
   fauxAssistantMessage,
   fauxProvider,
+  fauxToolCall,
+  getInitialSystemMessage,
+  getSystemMessageText,
   InMemoryCredentialStore,
+  type TranscriptContext,
 } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
@@ -17,6 +22,7 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
+import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const cleanups: Array<() => void> = []
@@ -28,7 +34,14 @@ afterEach(() => {
  * Two turns the way pi-waggle runs them: the first ends, and its `agent_end` handler starts the
  * next with `pi.sendMessage(..., { triggerTurn: true })` on a timer, and never waits for that turn.
  */
-async function twoTurnSession(failSecondTurnAuth: boolean) {
+async function twoTurnSession(
+  failSecondTurnAuth: boolean,
+  options: {
+    readonly authError?: string
+    readonly retry?: boolean
+    readonly toolCallAfterRetry?: boolean
+  } = {},
+) {
   const directory = mkdtempSync(path.join(tmpdir(), 'openwaggle-custom-turn-failure-'))
   cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
   const faux = fauxProvider({
@@ -47,12 +60,23 @@ async function twoTurnSession(failSecondTurnAuth: boolean) {
   vi.spyOn(modelRuntime, 'prepareModelRequest').mockImplementation(async (...args) => {
     if (failNextAuth) {
       failNextAuth = false
-      throw new Error('Sign-in expired for turn-provider')
+      throw new Error(options.authError ?? 'Sign-in expired for turn-provider')
     }
     return prepareModelRequest(...args)
   })
   let continued = false
   const continueOnce: ExtensionFactory = (pi) => {
+    // A turn's own prompt section, as OpenWaggle's and Pi's handlers set them.
+    pi.on('before_agent_start', (event) => {
+      event.systemPromptOptions.sections.turn_prompt = `For ${event.prompt}`
+    })
+    pi.registerTool({
+      name: 'ping',
+      label: 'ping',
+      description: 'Answers pong.',
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [{ type: 'text', text: 'pong' }], details: {} }),
+    })
     pi.on('agent_end', () => {
       if (continued) return
       continued = true
@@ -66,7 +90,9 @@ async function twoTurnSession(failSecondTurnAuth: boolean) {
       }, 0)
     })
   }
-  const settingsManager = SettingsManager.inMemory({ retry: { enabled: false } })
+  const settingsManager = SettingsManager.inMemory({
+    retry: options.retry ? { enabled: true, maxRetries: 2, baseDelayMs: 1 } : { enabled: false },
+  })
   const resourceLoader = new DefaultResourceLoader({
     cwd: directory,
     agentDir: directory,
@@ -86,10 +112,28 @@ async function twoTurnSession(failSecondTurnAuth: boolean) {
     resourceLoader,
     sessionManager: SessionManager.create(directory, directory),
     settingsManager,
-    noTools: 'all',
+    tools: ['ping'],
   })
   cleanups.push(() => session.dispose())
-  faux.setResponses([fauxAssistantMessage('Turn 0 answer'), fauxAssistantMessage('Turn 1 answer')])
+  const requests: TranscriptContext[] = []
+  const answer = (text: string) => (context: TranscriptContext) => {
+    requests.push(context)
+    return fauxAssistantMessage(text)
+  }
+  faux.setResponses([
+    answer('Turn 0 answer'),
+    ...(options.toolCallAfterRetry
+      ? [
+          (context: TranscriptContext) => {
+            requests.push(context)
+            return fauxAssistantMessage(fauxToolCall('ping', {}, { id: 'ping-1' }), {
+              stopReason: 'toolUse',
+            })
+          },
+        ]
+      : []),
+    answer('Turn 1 answer'),
+  ])
   const extensionErrors: ExtensionError[] = []
   await session.bindExtensions({ onError: (error) => extensionErrors.push(error) })
   const agentEnds: AssistantMessage[][] = []
@@ -99,7 +143,7 @@ async function twoTurnSession(failSecondTurnAuth: boolean) {
       event.messages.filter((message): message is AssistantMessage => message.role === 'assistant'),
     )
   })
-  return { session, agentEnds, extensionErrors }
+  return { session, agentEnds, extensionErrors, requests }
 }
 
 describe('a turn started with a custom message', () => {
@@ -129,5 +173,35 @@ describe('a turn started with a custom message', () => {
     await vi.waitFor(() => expect(agentEnds).toHaveLength(2))
 
     expect(agentEnds[1]).toMatchObject([{ stopReason: 'stop' }])
+  })
+
+  it("retries a turn whose preparation failed retryably with the turn's own prompt", async () => {
+    const { session, agentEnds, requests } = await twoTurnSession(true, {
+      authError: 'fetch failed',
+      retry: true,
+      toolCallAfterRetry: true,
+    })
+
+    await session.sendCustomMessage(
+      { customType: 'pi-waggle.turn', content: 'Turn 0', display: false },
+      { triggerTurn: true },
+    )
+    await vi.waitFor(() => expect(requests).toHaveLength(3))
+    await session.waitForIdle()
+
+    // Pi retried the failed turn, which then called a tool: both requests have the section the
+    // turn's handlers set.
+    for (const request of requests.slice(1)) {
+      const prompt = getSystemMessageText(
+        getInitialSystemMessage(collapseSystemMessages(request).messages) ?? {
+          role: 'system',
+          content: '',
+          timestamp: 0,
+        },
+      )
+      expect(prompt).toContain('For Turn 1')
+      expect(prompt).not.toContain('For Turn 0')
+    }
+    expect(agentEnds.at(-1)?.at(-1)).toMatchObject({ stopReason: 'stop' })
   })
 })
