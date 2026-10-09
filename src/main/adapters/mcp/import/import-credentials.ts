@@ -38,7 +38,6 @@ export function isCredentialName(name: string) {
 const CONTAINER_COMMANDS = new Set(['docker', 'podman'])
 const MCP_REMOTE = 'mcp-remote'
 const ENV_FLAGS = new Set(['-e', '--env'])
-const HEADER_FLAG = '--header'
 const HEADER_LINE = /^([^:\s]+)\s*:\s*(.+)$/
 
 function environmentName(name: string) {
@@ -96,6 +95,9 @@ export function urlWithoutCredentials(
   return url.toString()
 }
 
+/** The vault-backed or converted value an argument's credential gets in the entry's `env`. */
+export type ImportedEnvValue = (name: string, value: string) => ImportedCredential | undefined
+
 interface ArgumentState {
   readonly args: string[]
   readonly env: Record<string, ImportedCredential>
@@ -103,98 +105,166 @@ interface ArgumentState {
   readonly remote: boolean
   readonly context: ImportValueContext
   readonly literal: (value: string) => string
+  readonly envValue: ImportedEnvValue
 }
 
-/** Handles the argument at the cursor if it carries a credential; returns how many it consumed. */
+/**
+ * A flag and its value as written: `--flag value`, `--flag=value`, or attached to a short flag
+ * (`-eNAME=VALUE`, `-HName: value`). `emit` writes a value back the same way.
+ */
+interface FlagValue {
+  readonly flag: string
+  readonly value: string
+  readonly consumed: number
+  readonly emit: (value: string) => readonly string[]
+}
+
+/** Short flags whose value can follow them directly. */
+const ATTACHED_SHORT_FLAGS: Readonly<
+  Record<string, (value: string, state: ArgumentState) => boolean>
+> = {
+  '-e': (value, state) => state.container && value.includes('='),
+  '-H': (value) => HEADER_LINE.test(value),
+}
+const SHORT_FLAG_LENGTH = 2
+
+function attachedShortFlag(token: string, state: ArgumentState): FlagValue | undefined {
+  const flag = token.slice(0, SHORT_FLAG_LENGTH)
+  const value = token.slice(SHORT_FLAG_LENGTH)
+  const accepts = token.startsWith('--') ? undefined : ATTACHED_SHORT_FLAGS[flag]
+  if (!accepts || !value || !accepts(value, state)) return undefined
+  return { flag, value, consumed: 1, emit: (next) => [`${flag}${next}`] }
+}
+
+function flagValueAt(values: readonly string[], index: number, state: ArgumentState) {
+  const token = values[index] ?? ''
+  if (!token.startsWith('-') || token === '-' || token === '--') return undefined
+  const attached = attachedShortFlag(token, state)
+  if (attached) return attached
+  const separator = token.indexOf('=')
+  if (separator > 1) {
+    const flag = token.slice(0, separator)
+    return {
+      flag,
+      value: token.slice(separator + 1),
+      consumed: 1,
+      emit: (next: string) => [`${flag}=${next}`],
+    } satisfies FlagValue
+  }
+  const next = values[index + 1]
+  if (next === undefined || next.startsWith('-')) return undefined
+  return {
+    flag: token,
+    value: next,
+    consumed: FLAG_AND_VALUE,
+    emit: (value: string) => [token, value],
+  } satisfies FlagValue
+}
+
 /** A flag and the value after it. */
 const FLAG_AND_VALUE = 2
+const HEADER_FLAGS = new Set(['--header', '-H'])
+const VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g
 
-type ArgumentRule = (value: string, next: string | undefined, state: ArgumentState) => number
+/** Handles a flag's value if it carries a credential; returns whether it did. */
+type ArgumentRule = (argument: FlagValue, state: ArgumentState) => boolean
 
 function headerName(value: string) {
   return HEADER_LINE.exec(value)?.[1]
 }
 
-/** Docker's `-e NAME=VALUE` with a credential: `-e NAME`, reading NAME from a vault secret. */
-const containerEnvironment: ArgumentRule = (value, next, state) => {
-  if (!state.container || !ENV_FLAGS.has(value) || next === undefined) return 0
-  const separator = next.indexOf('=')
-  const name = next.slice(0, separator)
-  if (separator <= 0 || !isCredentialName(name)) return 0
-  state.args.push(value, name)
-  state.env[name] = { secret: name }
-  return FLAG_AND_VALUE
+/**
+ * Docker's `-e NAME=VALUE` with a credential, in any form: `-e NAME`, with NAME in the entry's
+ * `env` as a vault secret, or as the variable the source tool would have filled in.
+ */
+const containerEnvironment: ArgumentRule = (argument, state) => {
+  if (!state.container || !ENV_FLAGS.has(argument.flag)) return false
+  const separator = argument.value.indexOf('=')
+  const name = argument.value.slice(0, separator)
+  if (separator <= 0 || !isCredentialName(name)) return false
+  const value = state.envValue(name, argument.value.slice(separator + 1))
+  state.args.push(...argument.emit(name))
+  if (value !== undefined) state.env[name] = value
+  return true
 }
 
 /**
- * `--header 'Name: value'` with a credential. mcp-remote expands `${VAR}` in a header, so it reads
- * a vault secret as `Name:${NAME}`; for other commands the header is dropped.
+ * A credential header (`--header`, `-H`). mcp-remote expands `${VAR}` in a header: one that
+ * already reads a variable is kept, and the variable is a credential; a plaintext one reads a new
+ * vault secret as `Name:${NAME}`. For other commands the header is dropped.
  */
-const credentialHeader: ArgumentRule = (value, next, state) => {
-  const header = value === HEADER_FLAG && next !== undefined ? headerName(next) : undefined
-  if (!header || !isCredentialName(header)) return 0
+const credentialHeader: ArgumentRule = (argument, state) => {
+  const header = HEADER_FLAGS.has(argument.flag) ? headerName(argument.value) : undefined
+  if (!header || !isCredentialName(header)) return false
   if (!state.remote) {
-    warnDropped(HEADER_FLAG, state.context)
-    return FLAG_AND_VALUE
+    warnDropped(argument.flag, state.context)
+    return true
+  }
+  const variables = [...argument.value.matchAll(VARIABLE_REFERENCE)].map((match) => match[1] ?? '')
+  if (variables.length > 0) {
+    for (const variable of variables) state.context.credentialEnvNames.add(variable)
+    state.args.push(...argument.emit(argument.value))
+    return true
   }
   const variable = environmentName(header)
-  state.args.push(HEADER_FLAG, `${header}:\${${variable}}`)
+  state.args.push(...argument.emit(`${header}:\${${variable}}`))
   state.env[variable] = { secret: variable }
-  return FLAG_AND_VALUE
+  state.context.warnings.push(
+    `The ${header} header in args was not imported; mcp-remote reads it from a vault secret named after the server and ${variable}, which you fill in after importing.`,
+  )
+  return true
 }
 
-/** `--api-key=value`, kept only as a variable the source tool expands. */
-const inlineCredentialFlag: ArgumentRule = (value, _next, state) => {
-  const separator = value.indexOf('=')
-  const flag = value.slice(0, separator)
-  if (!value.startsWith('-') || separator <= 0 || !isCredentialName(flag)) return 0
-  if (isSourceVariable(value.slice(separator + 1), state.context)) {
-    state.args.push(state.literal(value))
-  } else warnDropped(`${flag}=…`, state.context)
-  return 1
-}
-
-/** `--api-key value`, dropped with its flag unless the value is a variable the source expands. */
-const credentialFlag: ArgumentRule = (value, next, state) => {
-  if (!value.startsWith('-') || !isCredentialName(value) || !next || next.startsWith('-')) return 0
-  if (isSourceVariable(next, state.context)) {
-    state.args.push(state.literal(value), state.literal(next))
-  } else warnDropped(value, state.context)
-  return FLAG_AND_VALUE
+/** `--api-key value` or `--api-key=value`, dropped with its flag unless the source expands it. */
+const credentialFlag: ArgumentRule = (argument, state) => {
+  if (!isCredentialName(argument.flag)) return false
+  if (isSourceVariable(argument.value, state.context)) {
+    state.args.push(...argument.emit(argument.value).map(state.literal))
+  } else warnDropped(argument.consumed === 1 ? `${argument.flag}=…` : argument.flag, state.context)
+  return true
 }
 
 const ARGUMENT_RULES: readonly ArgumentRule[] = [
   containerEnvironment,
   credentialHeader,
-  inlineCredentialFlag,
   credentialFlag,
 ]
 
+/** `mcp-remote`, also as `mcp-remote@latest` or a path to it. */
+function isMcpRemote(value: string) {
+  return commandName(value).replace(/@[^@/]*$/, '') === MCP_REMOTE
+}
+
 /**
  * Arguments as Pi will pass them, without a credential flag's value or the flag itself, plus the
- * vault-backed environment that replaces a credential where the server reads one.
+ * environment that replaces a credential where the server reads one. The variables a kept
+ * mcp-remote header reads are added to `context.credentialEnvNames`.
  */
 export function portableArguments(
   values: readonly string[],
   command: string | undefined,
   context: ImportValueContext,
   literal: (value: string) => string,
+  envValue: ImportedEnvValue,
 ) {
   const state: ArgumentState = {
     args: [],
     env: {},
     container: CONTAINER_COMMANDS.has(commandName(command)),
-    remote: values.some((value) => commandName(value) === MCP_REMOTE),
+    remote: values.some(isMcpRemote),
     context,
     literal,
+    envValue,
   }
   let index = 0
   while (index < values.length) {
-    const value = values[index] ?? ''
-    const next = values[index + 1]
-    const consumed = ARGUMENT_RULES.reduce((taken, rule) => taken || rule(value, next, state), 0)
-    if (consumed === 0) state.args.push(urlWithoutCredentials(literal(value), 'args', context))
-    index += Math.max(consumed, 1)
+    const argument = flagValueAt(values, index, state)
+    if (argument && ARGUMENT_RULES.some((rule) => rule(argument, state))) {
+      index += argument.consumed
+      continue
+    }
+    state.args.push(urlWithoutCredentials(literal(values[index] ?? ''), 'args', context))
+    index += 1
   }
   return { args: state.args, env: state.env }
 }

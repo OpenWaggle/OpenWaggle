@@ -35,15 +35,17 @@ To bring servers over from another app, choose **Import**. OpenWaggle reads Code
 
 Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}` in `env`, `headers`, and an OAuth client secret, the places Pi fills variables in. Elsewhere, in arguments, the command, the working directory, and the URL, a value is kept as written and the import warns that Pi does not expand it there. VS Code's own variables, such as `${workspaceFolder}` or `${userHome}`, are kept as written everywhere, with a warning to put the real value there. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command.
 
-Passwords, tokens, and API keys written out in the other app are never copied. What happens instead depends on where they were:
+OpenWaggle looks for passwords, tokens, and API keys written out in the other app. The ones it recognizes are moved into the vault or left out, each with a warning, depending on where they were:
 
 - In `env` or `headers`, under a name such as `API_KEY`, `OPENAI_KEY`, `GITHUB_TOKEN`, `DB_PASSWORD`, or `Authorization`: the entry refers to a secret named after the imported server and the field, such as `GITHUB_AUTHORIZATION` (see [Secrets](#secrets)). If the import renames the server, for example to `github-2`, the secret is named after the new name, `GITHUB_2_AUTHORIZATION`. OpenWaggle tells you which secrets to add and which already exist.
-- In Docker's `-e NAME=value`: the argument becomes `-e NAME`, and `NAME` is read from a secret, the same way.
-- In mcp-remote's `--header "Authorization: Bearer …"`: the argument becomes `Authorization:${AUTHORIZATION}`, which mcp-remote fills in from a secret.
-- In any other argument, such as `--api-key value`, `--token=value`, or `--header "X-Api-Key: …"`: the flag and its value are left out, with a warning. Only a variable the other app fills in, such as `${env:NAME}` from Cursor, is kept. Codex, Claude's desktop app, and Zed fill in nothing there, so their values are left out too.
+- In Docker's `-e NAME=value`, also written `--env NAME=value`, `--env=NAME=value`, or `-eNAME=value`: the argument becomes `-e NAME`, and `NAME` is read from a secret, the same way.
+- In mcp-remote's `--header "Authorization: Bearer …"`: the argument becomes `Authorization:${AUTHORIZATION}`, which mcp-remote fills in from a secret. A header that already reads a variable, such as `Authorization: Bearer ${AUTH_TOKEN}`, is kept as it is, and that variable in `env` is moved into the vault instead.
+- In any other argument, such as `--api-key value`, `--token=value`, `--header "X-Api-Key: …"`, or `-H "Authorization: …"`: the flag and its value are left out, with a warning. Only a variable the other app fills in, such as `${env:NAME}` from Cursor, is kept. Codex, Claude's desktop app, and Zed fill in nothing there, so their values are left out too.
 - In a URL, as a user name and password or as a query parameter such as `?api_key=…`: that part of the URL is removed, with a warning. If the server needs it, add it as a header that refers to a secret.
 
 A name counts as a credential by its last word: `--api-key` and `DD_APP_KEY` do; `--max-tokens`, `--token-limit`, and `--credentials-file` do not, so their values are copied. The warnings name the field or flag but never the value.
+
+This is a heuristic, and it cannot recognize every way a credential can be written, such as a token under a name like `--auth` or inside a longer argument. Check the entries the import added in `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`, and move any credential still written out there into a secret.
 
 ## Where servers are configured
 

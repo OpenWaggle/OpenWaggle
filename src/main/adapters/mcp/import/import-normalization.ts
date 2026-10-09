@@ -221,7 +221,13 @@ export function normalizeImportedEntry(
   value: unknown,
 ): NormalizedImport | undefined {
   if (!isRecord(value)) return undefined
-  const context: ImportValueContext = { source, serverName: name, warnings: [], argumentEnv: {} }
+  const context: ImportValueContext = {
+    source,
+    serverName: name,
+    warnings: [],
+    argumentEnv: {},
+    credentialEnvNames: new Set(),
+  }
   const shaped = reshape(source, value)
   const entry: PiMcpEntry = {
     ...endpointFields(shaped, context),

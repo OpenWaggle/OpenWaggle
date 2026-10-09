@@ -16,6 +16,8 @@ export interface ImportValueContext {
   readonly warnings: string[]
   /** Vault-backed variables that replace credentials found in the arguments. */
   readonly argumentEnv: Record<string, ImportedCredential>
+  /** Variables an argument reads a credential from, such as an mcp-remote header's `${VAR}`. */
+  readonly credentialEnvNames: Set<string>
 }
 
 export type ImportedCredential = string | { readonly secret: string }
@@ -107,7 +109,8 @@ function credentialValue(
     return undefined
   }
   const pi = piValueFrom(value, location, context)
-  if (pi.references || !isCredentialName(fieldName)) return pi.value
+  const credential = isCredentialName(fieldName) || context.credentialEnvNames.has(fieldName)
+  if (pi.references || !credential) return pi.value
   // Named after the field until the import places the server: the vault secret is then named
   // `<SERVER>_<FIELD>` after the name it is saved as, which a rename can change.
   context.warnings.push(
@@ -136,8 +139,12 @@ export function portableArgs(
   command: string | undefined,
   context: ImportValueContext,
 ) {
-  const portable = portableArguments(values, command, context, (value) =>
-    literalString(value, 'args', context),
+  const portable = portableArguments(
+    values,
+    command,
+    context,
+    (value) => literalString(value, 'args', context),
+    (name, value) => credentialValue(name, value, `args ${name}`, context),
   )
   Object.assign(context.argumentEnv, portable.env)
   return portable.args
