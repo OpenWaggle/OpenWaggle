@@ -1,5 +1,6 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
@@ -64,7 +65,65 @@ async function sessionControlRun(sessionId: SessionId, text: string) {
   )
 }
 
+/** A message admitted and activated by Session Control, as the Run coordinator does. */
+async function admitSessionControlRun(sessionId: SessionId, text: string) {
+  const { submitSessionMessage } = await import('../../../application/session-control-service')
+  const { SessionControlRunLifecycleRepository } = await import(
+    '../../../ports/session-control-run-lifecycle-repository'
+  )
+  return run(
+    Effect.gen(function* () {
+      const admitted = yield* submitSessionMessage({
+        callerId: 'gui:local-user',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-admit',
+          idempotencyKey: 'idempotency-admit',
+          command: { operation: 'message', sessionId, input: { text, attachmentIds: [] } },
+        },
+      })
+      const outcome = admitted.outcome
+      if (outcome.effect !== 'started-run') throw new Error(`Not started: ${outcome.effect}`)
+      const runId = RunId(outcome.runId)
+      yield* (yield* SessionControlRunLifecycleRepository).activate({ sessionId, runId })
+      return runId
+    }),
+  )
+}
+
+/** A message admitted and activated by Session Control, as the Run coordinator does, then run. */
+async function admittedSessionControlRun(sessionId: SessionId, text: string) {
+  const runId = await admitSessionControlRun(sessionId, text)
+  const { SessionControlRunExecutor } = await import('../../../ports/session-control-run-executor')
+  return run(
+    Effect.flatMap(SessionControlRunExecutor, (executor) =>
+      executor.execute({
+        sessionId,
+        runId,
+        intent: fromPartial({ callerId: 'gui:local-user', text, attachmentIds: [] }),
+        controller: new AbortController(),
+      }),
+    ),
+  )
+}
+
 describe('A Session Control Run in a discovered Pi session nobody opened', () => {
+  it("runs an admitted, active Run with the Pi file's model and thinking level", async () => {
+    await selectDefaultModel()
+    const cli = createPiCliSession(fixture.project, 'First question')
+    const cliManager = SessionManager.open(cli.file)
+    cliManager.appendModelChange('local', 'file-model')
+    cliManager.appendThinkingLevelChange('high')
+    agePiFile(cli.file)
+    const sessionId = SessionId(await discoverOne())
+
+    const result = await admittedSessionControlRun(sessionId, 'Go on')
+
+    expect(result.terminalStatus).toBe('completed')
+    expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
+    expect(provider.requests[0]).toMatchObject({ reasoning_effort: 'high' })
+  })
+
   it("runs with the Pi file's model and thinking level, and writes no others into it", async () => {
     await selectDefaultModel()
     const cli = createPiCliSession(fixture.project, 'First question')
@@ -137,5 +196,29 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
 
     expect(await runRefresh).toBe('local/file-model')
     await reader
+  })
+
+  it('applies, for its own Run, the Pi settings a reader could not while the Run held the Session', async () => {
+    await selectDefaultModel()
+    const cli = createPiCliSession(fixture.project, 'First question')
+    const cliManager = SessionManager.open(cli.file)
+    cliManager.appendModelChange('local', 'file-model')
+    cliManager.appendThinkingLevelChange('high')
+    agePiFile(cli.file)
+    const sessionId = SessionId(await discoverOne())
+    const runId = await admitSessionControlRun(sessionId, 'Go on')
+    const { refreshPiSessionProjection } = await import(
+      '../../../application/pi-session-projection-refresh'
+    )
+
+    // The sidebar opens it first; the admitted Run refuses the reader's change of its settings.
+    await run(refreshPiSessionProjection(sessionId, 'reader'))
+    expect((await sessionDetail(sessionId))?.executionModel).toBe(FAKE_PROVIDER_MODEL)
+    await run(refreshPiSessionProjection(sessionId, 'run', runId))
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      executionModel: 'local/file-model',
+      executionThinkingLevel: 'high',
+    })
   })
 })

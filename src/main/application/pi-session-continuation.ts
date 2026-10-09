@@ -9,7 +9,11 @@ import { createLogger } from '../logger'
 import type { PiSessionFileSnapshot, PiSessionProjectionState } from '../ports/pi-session-discovery'
 import { type ProviderModelCapabilities, ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionSettingsRepository } from '../ports/session-settings-repository'
+import {
+  type SessionSettingChange,
+  type SessionSettingChangeOptions,
+  SessionSettingsRepository,
+} from '../ports/session-settings-repository'
 import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 
 const logger = createLogger('pi-session-continuation')
@@ -73,14 +77,21 @@ export function continueWithPiSessionSettings(
   sessionId: SessionId,
   state: PiSessionProjectionState,
   snapshot: PiSessionFileSnapshot,
-) {
+  options: SessionSettingChangeOptions = {},
+): Effect.Effect<ContinuationOutcome, never, never> {
   const { projectPath, piEntryNodeIdPrefix } = state
-  if (!piEntryNodeIdPrefix || !projectPath) return Effect.void
+  if (!piEntryNodeIdPrefix || !projectPath) return Effect.succeed<ContinuationOutcome>('applied')
   return Effect.gen(function* () {
     const settings = yield* Effect.serviceOption(SessionSettingsRepository)
-    if (Option.isNone(settings)) return
+    if (Option.isNone(settings)) return 'applied' satisfies ContinuationOutcome
+    let refused = false
+    const note = (change: SessionSettingChange) => {
+      if (!change.changed && change.code === 'session_run_active') refused = true
+    }
     const continued = yield* continuationModel(snapshot, projectPath)
-    if (continued) yield* settings.value.setModel(sessionId, SupportedModelId(continued.id))
+    if (continued) {
+      note(yield* settings.value.setModel(sessionId, SupportedModelId(continued.id), options))
+    }
     const projections = yield* Effect.serviceOption(SessionProjectionRepository)
     const current =
       continued || Option.isNone(projections)
@@ -88,15 +99,23 @@ export function continueWithPiSessionSettings(
         : (yield* projections.value.getOptional(sessionId))?.executionModel
     const model = continued ?? (current ? yield* lookUpModel(current, projectPath) : undefined)
     const thinkingLevel = yield* continuationThinkingLevel(snapshot, model)
-    if (thinkingLevel) yield* settings.value.setThinkingLevel(sessionId, thinkingLevel)
+    if (thinkingLevel) {
+      note(yield* settings.value.setThinkingLevel(sessionId, thinkingLevel, options))
+    }
+    const outcome: ContinuationOutcome = refused ? 'refused-by-run' : 'applied'
+    return outcome
   }).pipe(
     Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
+      Effect.sync((): ContinuationOutcome => {
         logger.warn('Could not continue a Pi session with its own model settings', {
           sessionId,
           error: formatErrorMessage(Cause.squash(cause)),
         })
+        return 'applied'
       }),
     ),
   )
 }
+
+/** `refused-by-run`: a Run already holds the Session, so it applies them itself before it reads them. */
+export type ContinuationOutcome = 'applied' | 'refused-by-run'
