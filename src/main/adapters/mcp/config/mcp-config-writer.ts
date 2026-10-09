@@ -90,6 +90,20 @@ export function updateMcpServerSettings(
   })
 }
 
+/**
+ * Takes a switch back out of an override-only entry, so the files below it apply again; the entry
+ * goes too when nothing else is left in it. A full entry is left as it is.
+ */
+export function clearMcpServerOverrideEnabled(filePath: string, name: string) {
+  editMcpServers(filePath, (servers) => {
+    const server = servers[name]
+    if (!isJsonRecord(server) || !isMcpOverrideEntry(server) || !('enabled' in server)) return false
+    delete server.enabled
+    if (Object.keys(server).length === 0) delete servers[name]
+    return true
+  })
+}
+
 /** Adds a server, creating the file when missing. Returns true when an entry was replaced. */
 export function addMcpServerEntry(
   filePath: string,

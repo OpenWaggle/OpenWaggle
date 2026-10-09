@@ -123,11 +123,11 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 - sign in or sign out;
 - remove it.
 
-A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`.
+A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`. Turning it back to what the other files give removes the switch from that entry, and the entry itself if nothing else is left in it, so later changes for every project apply to the project again.
 
 To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. Its MCP servers stop at once, even during a reply, and its later replies start none. Turning it back on applies from your next message. Every Session uses MCP servers until you do this, and the change touches no file.
 
-Removing a server also removes the entries in OpenWaggle's files that only changed it, in every project OpenWaggle knows for a server of all projects. One left behind, for example in a project OpenWaggle no longer lists, is shown as ignored and changes nothing. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
+Removing a server also removes the entries in OpenWaggle's files that only changed it, in every project OpenWaggle knows for a server of all projects. One left behind, for example in a project OpenWaggle no longer lists, is shown as ignored and changes nothing; choose **Remove override** next to it to delete it from OpenWaggle's file. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
 
 ### After upgrading from an older OpenWaggle
 

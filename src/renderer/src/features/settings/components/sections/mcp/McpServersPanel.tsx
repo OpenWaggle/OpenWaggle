@@ -1,14 +1,15 @@
+import type { McpConfigurationView } from '@shared/types/mcp-configuration'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, Plus, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { mcpQueryKeys } from '@/queries/mcp-configuration'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
-import { useMcpConfiguration } from '../../../hooks/useMcpConfiguration'
+import { useMcpConfiguration, useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
 import { McpAddServerForm } from './McpAddServerForm'
 import { McpCatalogPanel } from './McpCatalogPanel'
 import { McpImportPanel } from './McpImportPanel'
-import { McpInlineError } from './McpLabels'
+import { McpFileName, McpInlineError } from './McpLabels'
 import { McpRegistryPanel } from './McpRegistryPanel'
 import { McpSecretsPanel } from './McpSecretsPanel'
 import { McpServerDetail } from './McpServerDetail'
@@ -30,7 +31,45 @@ function ConfigErrors({ errors }: { readonly errors: readonly string[] }) {
   )
 }
 
-function ConfigWarnings({ warnings }: { readonly warnings: readonly string[] }) {
+type OrphanedOverride = NonNullable<McpConfigurationView['orphanedOverrides']>[number]
+
+/** An override OpenWaggle wrote for a server no file defines any more, which can be removed. */
+function OrphanedOverrideAction({
+  projectPath,
+  orphan,
+}: {
+  readonly projectPath: string | null
+  readonly orphan: OrphanedOverride
+}) {
+  const actions = useMcpConfigurationActions(projectPath)
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p className="min-w-0 truncate text-xs text-text-secondary" title={orphan.path}>
+        &quot;{orphan.name}&quot; in <McpFileName fileId={orphan.fileId} />
+      </p>
+      <Button
+        variant="secondary"
+        size="xs"
+        disabled={actions.pending}
+        aria-label={`Remove override for ${orphan.name}`}
+        onClick={() => void actions.removeServer(orphan.name)}
+      >
+        Remove override
+      </Button>
+      <McpInlineError message={actions.error} />
+    </div>
+  )
+}
+
+function ConfigWarnings({
+  projectPath,
+  warnings,
+  orphans,
+}: {
+  readonly projectPath: string | null
+  readonly warnings: readonly string[]
+  readonly orphans: readonly OrphanedOverride[]
+}) {
   if (warnings.length === 0) return null
   return (
     <div className="space-y-1.5">
@@ -38,6 +77,13 @@ function ConfigWarnings({ warnings }: { readonly warnings: readonly string[] }) 
       <PlainTextBlock reason="log" ariaLabel="Ignored MCP configuration">
         {warnings.join('\n')}
       </PlainTextBlock>
+      {orphans.map((orphan) => (
+        <OrphanedOverrideAction
+          key={`${orphan.path}:${orphan.name}`}
+          projectPath={projectPath}
+          orphan={orphan}
+        />
+      ))}
     </div>
   )
 }
@@ -117,7 +163,11 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
         ) : null}
         <McpInlineError message={configuration.loadError} />
         <ConfigErrors errors={view?.errors ?? []} />
-        <ConfigWarnings warnings={view?.warnings ?? []} />
+        <ConfigWarnings
+          projectPath={projectPath}
+          warnings={view?.warnings ?? []}
+          orphans={view?.orphanedOverrides ?? []}
+        />
         {configuration.isLoading ? (
           <p className="text-xs text-text-tertiary">Loading servers…</p>
         ) : (

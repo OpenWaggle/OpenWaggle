@@ -28,7 +28,7 @@ export function McpServerSwitches({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-text-primary">On</p>
+          <p className="text-xs font-medium text-text-primary">{server.enabled ? 'On' : 'Off'}</p>
           <p className="text-xs text-text-tertiary">
             {hasProjectOverride(server) ? 'Applies to this project. ' : null}
             Saved to <McpFileName fileId={savedIn.fileId} />.

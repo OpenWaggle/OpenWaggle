@@ -63,6 +63,15 @@ export interface McpConfigurationView {
   readonly errors: readonly string[]
   /** Entries that are ignored without breaking anything, such as an orphaned OpenWaggle override. */
   readonly warnings?: readonly string[]
+  /**
+   * OpenWaggle's override-only entries for a server no file defines any more. Removing the
+   * server by its name removes them.
+   */
+  readonly orphanedOverrides?: readonly {
+    readonly name: string
+    readonly fileId: McpConfigFileKind
+    readonly path: string
+  }[]
 }
 
 export type McpServerConnectionStateView =

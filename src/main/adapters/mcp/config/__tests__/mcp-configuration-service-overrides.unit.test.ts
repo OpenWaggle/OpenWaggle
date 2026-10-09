@@ -93,4 +93,52 @@ describe('MCP overrides', () => {
 
     expect(json(projectOw)).toEqual({ mcpServers: { fs: { enabled: false } } })
   })
+
+  it('removes the project switch when it is turned back to what the files below give', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs-mcp' } } })
+    // Off for this project, then on again with the server's own switch, as Settings > MCP does.
+    await Effect.runPromise(
+      service().setServerEnabled({ projectPath, name: 'fs', enabled: false, target: 'project' }),
+    )
+    await Effect.runPromise(
+      service().setServerEnabled({ projectPath, name: 'fs', enabled: true, target: 'server' }),
+    )
+    const view = await Effect.runPromise(service().getView({ projectPath }))
+
+    expect(json(projectOw)).toEqual({ mcpServers: {} })
+    expect(view.servers[0]).not.toHaveProperty('override')
+    // Turning the server off for every project in Pi now reaches this project too.
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs-mcp', enabled: false } } })
+    const later = await Effect.runPromise(service().getView({ projectPath }))
+    expect(later.servers[0]?.enabled).toBe(false)
+  })
+
+  it('keeps the other settings of a project override when only its switch goes back', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs-mcp', enabled: false } } })
+    write(projectOw, { mcpServers: { fs: { enabled: true, exposure: 'direct' } } })
+
+    await Effect.runPromise(
+      service().setServerEnabled({ projectPath, name: 'fs', enabled: false, target: 'project' }),
+    )
+
+    expect(json(projectOw)).toEqual({ mcpServers: { fs: { exposure: 'direct' } } })
+  })
+
+  it('removes an orphaned override from an OpenWaggle file', async () => {
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(projectOw, { mcpServers: { gone: { enabled: false }, kept: { command: 'k' } } })
+
+    const before = await Effect.runPromise(service().getView({ projectPath }))
+    await Effect.runPromise(service().removeServer({ projectPath, name: 'gone' }))
+    const view = await Effect.runPromise(service().getView({ projectPath }))
+
+    expect(before.orphanedOverrides).toEqual([
+      { name: 'gone', fileId: 'project-openwaggle', path: projectOw },
+    ])
+    expect(json(projectOw)).toEqual({ mcpServers: { kept: { command: 'k' } } })
+    expect(view.warnings ?? []).toEqual([])
+    expect(view.orphanedOverrides ?? []).toEqual([])
+  })
 })

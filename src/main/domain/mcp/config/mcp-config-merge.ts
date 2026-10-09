@@ -75,13 +75,20 @@ export interface McpMergedConfig {
   readonly errors: readonly string[]
   /** What is ignored without breaking anything, such as an orphaned override OpenWaggle wrote. */
   readonly warnings?: readonly string[]
+  /** OpenWaggle's override-only entries for a server no file defines, which can be removed. */
+  readonly orphanedOverrides?: readonly McpOrphanedOverride[]
   readonly autoEnableCodemode?: boolean
+}
+
+export interface McpOrphanedOverride extends McpConfigFileReference {
+  readonly name: string
 }
 
 interface MergeState {
   readonly servers: Map<string, McpMergedServer>
   readonly errors: string[]
   readonly warnings: string[]
+  readonly orphanedOverrides: McpOrphanedOverride[]
   autoEnableCodemode?: boolean
 }
 
@@ -100,6 +107,7 @@ function applyOverride(
     state.warnings.push(
       `${layer.path}: server "${name}" only changes a server no file defines any more; it is ignored`,
     )
+    state.orphanedOverrides.push({ name, fileId: layer.fileId, path: layer.path })
     return
   }
   if (!base) {
@@ -199,7 +207,7 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
 
 /** Merge the file layers, given in precedence order from lowest to highest. */
 export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMergedConfig {
-  const state: MergeState = { servers: new Map(), errors: [], warnings: [] }
+  const state: MergeState = { servers: new Map(), errors: [], warnings: [], orphanedOverrides: [] }
   layers.forEach((layer, index) => {
     readLayer(state, layer, index === 0)
   })
@@ -207,6 +215,7 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     servers: [...state.servers.values()],
     errors: state.errors,
     ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),
+    ...(state.orphanedOverrides.length > 0 ? { orphanedOverrides: state.orphanedOverrides } : {}),
     ...(state.autoEnableCodemode === undefined
       ? {}
       : { autoEnableCodemode: state.autoEnableCodemode }),

@@ -41,6 +41,7 @@ import {
   removeMcpServerEntry,
   updateMcpServerSettings,
 } from './mcp-config-writer'
+import { writeMcpServerSwitch } from './mcp-inherited-settings'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
 
 export interface FilesystemMcpConfigurationOptions {
@@ -137,6 +138,7 @@ function buildView(
     servers: merged.servers.map(serverView),
     errors: merged.errors,
     ...(merged.warnings ? { warnings: merged.warnings } : {}),
+    ...(merged.orphanedOverrides ? { orphanedOverrides: merged.orphanedOverrides } : {}),
   }
 }
 
@@ -151,19 +153,16 @@ function setEnabled(context: ServiceContext, input: McpSetServerEnabledInput) {
     const filePath = input.destination
       ? fileFor(context, input, input.destination)
       : (projectOverride ?? fileFor(context, input, 'project-openwaggle'))
-    updateMcpServerSettings(filePath, input.name, { enabled: input.enabled }, { override: true })
+    writeMcpServerSwitch(context.roots(input), context.reader, filePath, input.name, input.enabled)
     return filePath
   }
-  const filePath = server.override?.path ?? server.source.path
-  updateMcpServerSettings(
-    filePath,
-    input.name,
-    { enabled: input.enabled },
-    {
-      override: server.override !== undefined,
-    },
-  )
-  return filePath
+  if (server.override) {
+    const roots = context.roots(input)
+    writeMcpServerSwitch(roots, context.reader, server.override.path, input.name, input.enabled)
+    return server.override.path
+  }
+  updateMcpServerSettings(server.source.path, input.name, { enabled: input.enabled })
+  return server.source.path
 }
 
 function setExposure(context: ServiceContext, input: McpSetServerExposureInput) {
@@ -208,6 +207,9 @@ function removeServer(
   input: McpRemoveServerInput,
   knownProjects: readonly string[],
 ) {
+  // A name no file defines may still have orphaned overrides in OpenWaggle's files to remove.
+  const orphans = removeOrphanedOverrides(context, input, input.name)
+  if (orphans.length > 0) return orphans
   const server = findServer(context, input, input.name)
   removeMcpServerEntry(server.source.path, input.name)
   const changed = [server.source.path, ...removeOrphanedOverrides(context, input, input.name)]
