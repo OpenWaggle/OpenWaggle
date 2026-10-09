@@ -150,19 +150,22 @@ export async function createPiSessionRuntime(
     readonly sessionManager?: SessionManager
     /**
      * Runs once Pi branched a fork in `sessionManager`, before the fork's session starts and its
-     * extensions see it, so the fork can be written and the manager pointed at its own file.
+     * extensions see it, so the fork can be written. The manager it returns, if any, is the one the
+     * fork's session runs on.
      */
-    readonly beforeForkStarts?: (sessionManager: SessionManager) => Promise<void>
+    readonly beforeForkStarts?: (sessionManager: SessionManager) => Promise<SessionManager | void>
   } = {},
 ) {
   await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
   const initialSessionManager =
     hooks.sessionManager ?? createSessionManagerForSession(input.session, projectPath)
-  const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
-    if (options.sessionStartEvent?.reason === 'fork') {
-      await hooks.beforeForkStarts?.(options.sessionManager)
-    }
+  const createRuntime: CreateAgentSessionRuntimeFactory = async (requested) => {
+    const forkManager =
+      requested.sessionStartEvent?.reason === 'fork'
+        ? await hooks.beforeForkStarts?.(requested.sessionManager)
+        : undefined
+    const options = forkManager ? { ...requested, sessionManager: forkManager } : requested
     const runtimeOptions = {
       projectPath: options.cwd,
       modelReference: input.model,

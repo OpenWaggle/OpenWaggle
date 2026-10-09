@@ -54,21 +54,24 @@ function forkFileFor(sessionManager: SessionManager, sourceFile: string) {
 }
 
 /**
- * Writes the fork before its session starts, then points the copy at it: the fork's extensions
- * see its own file and id, and `previousSessionFile` names the source. The file is recorded first
- * (`beforeWritingFork`), so a stop between the two never leaves an unknown file.
+ * Writes the fork before its session starts and opens it: the fork's session runs on a manager
+ * that persists to the fork's own file, so its extensions see that file and id, what they and Pi
+ * append at its start is kept, and `previousSessionFile` names the source. The file is recorded
+ * first (`beforeWritingFork`), so a stop between the two never leaves an unknown file.
  */
 export async function writeForkBeforeItStarts(
   sessionManager: SessionManager,
   sourceFile: string,
   beforeWritingFork: ForkAgentKernelSessionInput['beforeWritingFork'],
-): Promise<WrittenFork> {
+): Promise<WrittenFork & { readonly sessionManager: SessionManager }> {
   const fork = forkFileFor(sessionManager, sourceFile)
   if (beforeWritingFork) await Effect.runPromise(beforeWritingFork(fork.sessionFile))
   const sourceEntryIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
-  // The copy does not persist, so Pi only reads the file it is pointed at.
-  sessionManager.setSessionFile(fork.sessionFile)
-  return { sessionFile: fork.sessionFile, sourceEntryIdByNodeId }
+  return {
+    sessionFile: fork.sessionFile,
+    sourceEntryIdByNodeId,
+    sessionManager: SessionManager.open(fork.sessionFile, undefined, sessionManager.getCwd()),
+  }
 }
 
 /** A fork Pi wrote itself, from a Session whose copy had no file to load: given ids of its own. */

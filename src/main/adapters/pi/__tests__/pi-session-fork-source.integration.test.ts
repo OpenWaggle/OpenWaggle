@@ -112,4 +112,32 @@ describe('Forking a discovered Pi session', () => {
     expect(events).toContain(`before ${cli.file}`)
     expect(events).toContain(`start fork ${cli.file} ${forkFile} ${fork.session.piSessionId}`)
   })
+
+  it("keeps what extensions append at the fork's session start in the fork's file", async () => {
+    await selectFakeModel()
+    const extensions = path.join(fixture.project, '.pi', 'extensions')
+    await fs.mkdir(extensions, { recursive: true })
+    await fs.writeFile(
+      path.join(extensions, 'fork-append.ts'),
+      [
+        'type Api = {',
+        '  on: (event: string, handler: (event: { reason?: string }) => void) => void',
+        '  appendEntry: (customType: string, data?: unknown) => void',
+        '}',
+        'export default function (pi: Api) {',
+        "  pi.on('session_start', (event) => {",
+        "    if (event.reason === 'fork') pi.appendEntry('fork-probe', { seen: true })",
+        '  })',
+        '}',
+      ].join('\n'),
+    )
+    const { cli, sessionId } = await discoveredSession(fixture)
+    const before = await fs.readFile(cli.file, 'utf8')
+
+    const fork = await forkAtLastNode(sessionId)
+
+    const forkText = await fs.readFile(String(fork.session.piSessionFile), 'utf8')
+    expect(forkText).toContain('"customType":"fork-probe"')
+    expect(await fs.readFile(cli.file, 'utf8')).toBe(before)
+  })
 })

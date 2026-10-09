@@ -189,11 +189,13 @@ export async function forkPiSession(
     ...(sourceFile
       ? {
           beforeForkStarts: async (sessionManager: SessionManager) => {
-            written = await writeForkBeforeItStarts(
+            const fork = await writeForkBeforeItStarts(
               sessionManager,
               sourceFile,
               input.beforeWritingFork,
             )
+            written = fork
+            return fork.sessionManager
           },
         }
       : {}),
