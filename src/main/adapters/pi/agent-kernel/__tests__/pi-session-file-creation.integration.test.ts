@@ -6,7 +6,10 @@ import type { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSessionManagerForSession } from '../session-manager'
+import {
+  createReadOnlySessionManagerForSession,
+  createSessionManagerForSession,
+} from '../session-manager'
 
 const PRE_CREATED_PI_SESSION_ID = '0199b1c2-0000-7000-8000-00000000abcd'
 
@@ -142,5 +145,40 @@ describe('Pi session file creation (Pi 0.99+ writes the file at the first user m
     )
 
     expect(manager.getSessionDir()).toBe(path.join(projectPath, '.pi', 'sessions'))
+  })
+})
+
+describe('A recorded Pi file that is missing because it was deleted', () => {
+  const recordedFile = () =>
+    path.join(
+      projectPath,
+      '.pi',
+      'sessions',
+      `2026-10-09T10-41-32-337Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
+    )
+
+  it.each<[string, Partial<SessionDetail>]>([
+    ['a discovered Session', { piEntryNodeIdPrefix: 'pi:discovered:' }],
+    [
+      'a created Session whose file had entries',
+      {
+        resumePosition: fromPartial({ piEntryCount: 2 }),
+        messages: [fromPartial({ id: 'n1', role: 'user', parts: [] })],
+      },
+    ],
+  ])('is never started again for %s, on the Run path or a read', async (_name, fields) => {
+    const deleted = session({
+      piSessionId: PRE_CREATED_PI_SESSION_ID,
+      piSessionFile: recordedFile(),
+      ...fields,
+    })
+
+    const runManager = createSessionManagerForSession(deleted, projectPath)
+    const readManager = await createReadOnlySessionManagerForSession(deleted, projectPath)
+
+    expect(existsSync(recordedFile())).toBe(false)
+    expect(runManager.getSessionFile()).not.toBe(recordedFile())
+    expect(readManager.isPersisted()).toBe(false)
+    expect(existsSync(recordedFile())).toBe(false)
   })
 })

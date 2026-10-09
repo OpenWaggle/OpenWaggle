@@ -15,15 +15,30 @@ function fileNameTimestamp(name: string) {
 }
 
 /**
+ * Whether the Session's Pi file was never written: OpenWaggle created the Session, and its
+ * projection holds no Pi entry and no message. A missing file of any other Session was deleted.
+ */
+function neverWritten(session: SessionDetail) {
+  return (
+    session.piEntryNodeIdPrefix === undefined &&
+    (session.resumePosition?.piEntryCount ?? 0) === 0 &&
+    session.messages.length === 0
+  )
+}
+
+/**
  * Starts the file named for a new Session when it was created, which Pi had not written yet: the
  * first Run writes that same file, so the recorded name and folder stay as they are, and a file
  * that was never written is not taken for one deleted since. Only a file named for the Session's
  * own Pi session id is started; a header is all it holds until the first message.
+ *
+ * A file that was deleted is never started again, on any path: a discovered Session's would come
+ * back in `pi --resume` as a stub without its history, and the deletion stop refusing its Runs.
  */
 export function startRecordedPiSessionFile(session: SessionDetail, cwd: string) {
   const file = session.piSessionFile?.trim()
   const id = session.piSessionId
-  if (!file || !id || existsSync(file)) return undefined
+  if (!file || !id || existsSync(file) || !neverWritten(session)) return undefined
   if (!basename(file).endsWith(`_${id}.jsonl`)) return undefined
   const header = SessionManager.inMemory(cwd, { id }).getHeader()
   if (!header) return undefined
