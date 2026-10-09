@@ -93,4 +93,14 @@ describe("keeping a file the MCP migration created out of the user's git", () =>
       'A  "x a/.openwaggle/mcp.json"\n?? .openwaggle/mcp.json\n',
     )
   })
+
+  it("reads a path that starts with ':' as a path, not as pathspec magic", async () => {
+    const odd = path.join(repo, ':(top)x', '.openwaggle', 'mcp.json')
+    mkdirSync(path.dirname(odd), { recursive: true })
+    writeFileSync(odd, '{}\n')
+
+    await expect(keepMcpFileOutOfGit(odd)).resolves.toBe(true)
+
+    expect(git('status', '--porcelain', '--untracked-files=all')).toBe('?? .openwaggle/mcp.json\n')
+  })
 })

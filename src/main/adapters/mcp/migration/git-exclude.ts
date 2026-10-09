@@ -35,8 +35,9 @@ function excludeLine(gitPath: string) {
 async function isIgnored(root: string, gitPath: string) {
   const result = await runGit(
     root,
-    // check-ignore takes paths, not pathspecs; --no-index judges the rules alone.
-    ['check-ignore', '--no-index', '-q', '--', gitPath],
+    // check-ignore takes no literal pathspecs; --no-index judges the rules alone, and `./` keeps a
+    // path that starts with ':' from being read as pathspec magic.
+    ['check-ignore', '--no-index', '-q', '--', `./${gitPath}`],
     GIT_OPTIONS,
   )
   return result.code === 0
