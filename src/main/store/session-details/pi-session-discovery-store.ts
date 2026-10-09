@@ -166,12 +166,21 @@ export function piSessionDeletionRefusalWithSql(sql: SqlClient.SqlClient, sessio
   return sql.withTransaction(
     Effect.gen(function* () {
       // The check throws, as the deletion it guards does; its rollback leaves nothing changed.
-      const exit = yield* Effect.exit(assertSessionDeletable(sql, sessionId))
-      if (Exit.isSuccess(exit)) return undefined
-      const error = Cause.squash(exit.cause)
-      return error instanceof Error ? error.message : String(error)
+      return yield* deletionRefusalOf(yield* Effect.exit(assertSessionDeletable(sql, sessionId)))
     }),
   )
+}
+
+/**
+ * The refusal a deletion check ended with: the message of what it threw, or undefined when the
+ * Session can be deleted. An interrupted check refused nothing, so its interruption goes on
+ * rather than being reported as the reason the Session stays.
+ */
+export function deletionRefusalOf(exit: Exit.Exit<unknown, unknown>) {
+  if (Exit.isSuccess(exit)) return Effect.succeed(undefined)
+  if (Cause.isInterrupted(exit.cause)) return Effect.failCause(exit.cause)
+  const error = Cause.squash(exit.cause)
+  return Effect.succeed(error instanceof Error ? error.message : String(error))
 }
 
 /** See `PiSessionDiscoveryRepositoryShape.deletionRefusal`. */
