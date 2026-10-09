@@ -156,17 +156,28 @@ export async function listUnattachedDiscoveredPiSessions(): Promise<readonly Ses
   )
 }
 
-/** See `PiSessionDiscoveryRepositoryShape.deletionRefusal`. */
-export async function piSessionDeletionRefusal(sessionId: SessionId) {
-  return runStoreEffect(
+/**
+ * Why the Session cannot be deleted, as an Effect on the store's connection. The check ends with
+ * a trial delete it rolls back to a savepoint; outside a transaction another fiber's statement
+ * could land between the two on the one connection and be rolled back with it, so it holds the
+ * connection in a transaction of its own throughout.
+ */
+export function piSessionDeletionRefusalWithSql(sql: SqlClient.SqlClient, sessionId: SessionId) {
+  return sql.withTransaction(
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
       // The check throws, as the deletion it guards does; its rollback leaves nothing changed.
       const exit = yield* Effect.exit(assertSessionDeletable(sql, sessionId))
       if (Exit.isSuccess(exit)) return undefined
       const error = Cause.squash(exit.cause)
       return error instanceof Error ? error.message : String(error)
     }),
+  )
+}
+
+/** See `PiSessionDiscoveryRepositoryShape.deletionRefusal`. */
+export async function piSessionDeletionRefusal(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.flatMap(SqlClient.SqlClient, (sql) => piSessionDeletionRefusalWithSql(sql, sessionId)),
   )
 }
 
