@@ -158,3 +158,34 @@ describe('the Title model of a Session on an extension model', () => {
     )
   })
 })
+
+describe('the Title model of a Session whose model is gone', () => {
+  const ANSWERED_BY = model('gpt-5-mini', 1, 2, { provider: 'openai' })
+
+  it('resolves Automatic against the model that answered last, as its Runs do', async () => {
+    const runtime = fromPartial<ModelRuntime>({
+      getModel: (provider: string, id: string) =>
+        provider === ANSWERED_BY.provider && id === ANSWERED_BY.id ? ANSWERED_BY : undefined,
+      getAvailable: async () => [ANSWERED_BY],
+      completeSimple: vi.fn(async () =>
+        fromPartial<AssistantMessage>({
+          stopReason: 'stop',
+          content: [{ type: 'text', text: '{"title":"Fallback title"}' }],
+        }),
+      ),
+    })
+
+    const response = await Effect.runPromise(
+      createPiSessionTitleGenerator({ modelRuntime: async () => runtime }).generate({
+        projectPath: '/repo',
+        sessionModel: SupportedModelId('qa-router/auto'),
+        fallbackModel: SupportedModelId('openai/gpt-5-mini'),
+        titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+        systemPrompt: 'Title it.',
+        prompt: 'Hello',
+      }),
+    )
+
+    expect(response.modelRef).toBe('openai/gpt-5-mini')
+  })
+})

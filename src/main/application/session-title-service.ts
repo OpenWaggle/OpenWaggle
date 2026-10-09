@@ -20,6 +20,7 @@ import {
   GENERATABLE_SOURCES,
   generateTitle,
   publishTitleChanged,
+  sessionTitleFallbackModel,
 } from './session-title-generation'
 import { refineSessionTitle } from './session-title-refinement'
 
@@ -192,6 +193,7 @@ function regenerate(
     const generated = yield* generateTitle({
       state,
       sessionModel: null,
+      ...sessionTitleFallbackModel(session),
       message: context.message,
       previousTitle: state.title,
       attachments: context.attachments,

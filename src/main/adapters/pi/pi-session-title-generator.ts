@@ -90,7 +90,8 @@ function findModel(runtime: ModelRuntime, reference: string | null) {
 }
 
 async function candidateModels(runtime: ModelRuntime, request: SessionTitleGenerationRequest) {
-  const sessionModel = findModel(runtime, request.sessionModel)
+  const sessionModel =
+    findModel(runtime, request.sessionModel) ?? findModel(runtime, request.fallbackModel ?? null)
   const preferred =
     request.titleModel === SESSION_TITLE_MODEL_AUTOMATIC
       ? sessionModel
