@@ -37,6 +37,7 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async () => ({
     loaded: { servers: [mocks.entry], errors: [] },
     transports: new Map(),
+    connectionConfigs: new Map(),
     unavailable: new Map(),
   }),
 }))

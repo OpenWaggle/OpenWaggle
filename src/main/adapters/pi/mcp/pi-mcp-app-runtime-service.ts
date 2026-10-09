@@ -15,7 +15,10 @@ import type {
 import { readSessionMcpServerAllowlist } from '../../../store/session-details/session-mcp-server-allowlist'
 import { isSessionMcpEnabled } from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import {
+  mcpVaultSecretStamps,
+  resolveMcpVaultSecret,
+} from '../../mcp/encrypted-mcp-secret-vault-service'
 import {
   type McpConnectionPool,
   mcpConnectionFingerprint,
@@ -33,6 +36,7 @@ import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
 import {
+  mcpConnectionConfig,
   mcpOAuthSettings,
   mcpOAuthUrl,
   withShellResolvedClientSecrets,
@@ -74,6 +78,7 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
+    secretStamp: mcpVaultSecretStamps(),
   })
   // The entry exactly as a Run gives it to Pi, so both make the same connection.
   const entry = withShellResolvedClientSecrets(config.loaded).servers.find(
@@ -111,7 +116,12 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
   )
   const connection = pool.connectionFor(input.sessionId, {
     name: entry.name,
-    fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
+    // Named as a Run names it (vault values by their stamp), so a later Run reuses it.
+    fingerprint: mcpConnectionFingerprint({
+      config: mcpConnectionConfig(config.connectionConfigs, entry),
+      transport,
+      cwd,
+    }),
     identity,
     projectPath: input.projectPath,
     open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),

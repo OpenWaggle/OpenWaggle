@@ -48,6 +48,11 @@ export interface McpRuntimeConfig {
   readonly merged: McpMergedConfig
   /** Servers left out because a vault secret could not be read, with why. */
   readonly unavailable: ReadonlyMap<string, string>
+  /**
+   * Each server's configuration with every vault value replaced by its stamp (`secretStamp`), for
+   * the connection fingerprint: the same whether the Run deferred the secret or read it.
+   */
+  readonly connectionConfigs: ReadonlyMap<string, McpServerConfig>
 }
 
 export type McpSecretResolver = (name: string) => Promise<string>
@@ -64,6 +69,11 @@ export interface LoadMcpRuntimeConfigInput {
    * Pi connects them (`resolveDeferredMcpSecrets`), so a Run with no server on reads no keychain.
    */
   readonly deferSecretsOfServersOff?: boolean
+  /**
+   * What stands for a vault secret in `connectionConfigs`, without decrypting it, such as its
+   * name and when it was saved. Defaults to the name.
+   */
+  readonly secretStamp?: (name: string) => Promise<string>
   readonly reader?: McpConfigFileReader
 }
 
@@ -196,6 +206,8 @@ export async function loadMcpRuntimeConfig(
   const servers: McpRuntimeServerEntry[] = []
   const transports = new Map<string, McpTransportKind>()
   const unavailable = new Map<string, string>()
+  const connectionConfigs = new Map<string, McpServerConfig>()
+  const stamp = input.secretStamp ?? (async (name: string) => name)
   for (const server of selected) {
     const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
     const resolved = await resolveServer(
@@ -210,6 +222,8 @@ export async function loadMcpRuntimeConfig(
     }
     servers.push(runtimeEntry(server, resolved.config))
     transports.set(server.name, server.transport)
+    const stamped = await resolveServer(server, async (name) => `vault-secret:${await stamp(name)}`)
+    if (stamped.ok) connectionConfigs.set(server.name, stamped.config)
   }
   return {
     loaded: {
@@ -223,5 +237,6 @@ export async function loadMcpRuntimeConfig(
     transports,
     merged,
     unavailable,
+    connectionConfigs,
   }
 }

@@ -70,3 +70,22 @@ export function withShellResolvedClientSecrets<
   })
   return { ...loaded, servers }
 }
+
+/**
+ * The configuration a server's connection is named by (`mcpConnectionFingerprint`), the same for
+ * a Run and an MCP App: vault values by their stamp (`connectionConfigs`), so a secret deferred in
+ * one Run and read in the next names the same connection, and the client secret as Runs resolve
+ * it. A server without a stamped configuration, such as one a Pi extension registered, is named
+ * by its entry.
+ */
+export function mcpConnectionConfig(
+  connectionConfigs: ReadonlyMap<string, McpServerEntry['config']> | undefined,
+  entry: McpServerEntry,
+) {
+  const stamped = connectionConfigs?.get(entry.name)
+  if (!stamped) return entry.config
+  const [named] = withShellResolvedClientSecrets({
+    servers: [{ ...entry, config: stamped }],
+  }).servers
+  return named?.config ?? stamped
+}

@@ -12,7 +12,10 @@ import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import {
+  mcpVaultSecretStamps,
+  resolveMcpVaultSecret,
+} from '../../mcp/encrypted-mcp-secret-vault-service'
 import {
   type McpConnectionPool,
   mcpConnectionFingerprint,
@@ -33,7 +36,7 @@ import {
   migrateOpenWaggleMcpFilesOnce,
   migrateOpenWaggleMcpSignInsOnce,
 } from './openwaggle-mcp-migration'
-import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
+import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
 /** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0050). */
@@ -192,7 +195,8 @@ export function registerMcpToolApproval(
  */
 export function openWaggleMcpTransport(
   input: Pick<OpenWaggleMcpSessionInput, 'sessionId' | 'pool' | 'serverAllowlist' | 'projectPath'>,
-  config: Pick<McpRuntimeConfig, 'transports'>,
+  config: Pick<McpRuntimeConfig, 'transports'> &
+    Partial<Pick<McpRuntimeConfig, 'connectionConfigs'>>,
 ): McpTransportFactory {
   return (entry, cwd, authProvider) => {
     if (input.serverAllowlist && !input.serverAllowlist.includes(entry.name)) {
@@ -204,7 +208,13 @@ export function openWaggleMcpTransport(
       config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
     return input.pool.lease(input.sessionId, {
       name: entry.name,
-      fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
+      // Vault values by their stamp: deferred in one Run and read in the next, a server that is
+      // turned on keeps its connection. Servers Pi extensions register are taken as given.
+      fingerprint: mcpConnectionFingerprint({
+        config: mcpConnectionConfig(config.connectionConfigs, entry),
+        transport,
+        cwd,
+      }),
       identity: mcpServerIdentity(entry.name, entry.config),
       projectPath: input.projectPath,
       ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
@@ -244,6 +254,7 @@ export async function createOpenWaggleMcpExtensions(
       : { sessionMcpEnabled: input.sessionMcpEnabled }),
     ...(input.serverAllowlist ? { serverAllowlist: input.serverAllowlist } : {}),
     deferSecretsOfServersOff: true,
+    secretStamp: mcpVaultSecretStamps(),
   })
   // A server that is on connects in the background: its old sign-in first, so it is not reported
   // signed out while the keychain is read, and the login shell's environment for its command and

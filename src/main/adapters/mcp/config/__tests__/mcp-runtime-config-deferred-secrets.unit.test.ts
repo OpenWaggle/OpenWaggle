@@ -66,4 +66,29 @@ describe("a Run's servers that are off", () => {
       }),
     ).rejects.toThrow('names vault secret "OFF_TOKEN", which could not be read: No such secret')
   })
+
+  it('give a server the same connection identity whether its secrets were deferred or read', async () => {
+    const roots = { homeDir, piAgentDir: path.join(homeDir, '.pi', 'agent'), projectPath: null }
+    const secretStamp = async (name: string) => `${name}@1700000000000`
+    const resolveSecret = async (name: string) => vault[name] ?? ''
+
+    // This Run started with it off; /mcp turned it on, and the next Run starts with it on.
+    const deferred = await loadMcpRuntimeConfig({
+      roots,
+      resolveSecret,
+      secretStamp,
+      deferSecretsOfServersOff: true,
+    })
+    const read = await loadMcpRuntimeConfig({ roots, resolveSecret, secretStamp })
+
+    expect(deferred.connectionConfigs.get('off')).toEqual(read.connectionConfigs.get('off'))
+    expect(JSON.stringify(read.connectionConfigs.get('off'))).not.toContain('off-value')
+    // A secret saved again changes it, so the connection restarts with the new value.
+    const saved = await loadMcpRuntimeConfig({
+      roots,
+      resolveSecret,
+      secretStamp: async (name) => `${name}@1700000009999`,
+    })
+    expect(saved.connectionConfigs.get('off')).not.toEqual(read.connectionConfigs.get('off'))
+  })
 })

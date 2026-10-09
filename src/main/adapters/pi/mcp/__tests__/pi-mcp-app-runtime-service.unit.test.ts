@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
+const STAMPED = vi.hoisted(() => ({ url: 'https://figma.example/mcp', stamped: true }))
+
 const ENTRY = {
   name: 'figma',
   config: { url: 'https://figma.example/mcp', oauth: { clientId: 'openwaggle-client' } },
@@ -52,6 +54,8 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
       errors: [],
     },
     transports: new Map(),
+    // As a Run stamps it: a vault value by its name and save time, never its value.
+    connectionConfigs: new Map([['figma', STAMPED]]),
   }),
 }))
 vi.mock('../openwaggle-mcp-credentials', () => ({
@@ -67,7 +71,7 @@ vi.mock('../pi-mcp-upstream', () => ({
 }))
 
 import { McpAppRuntimeService } from '../../../../ports/mcp-app-runtime-service'
-import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
+import { mcpConnectionFingerprint, mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import {
   createPiMcpAppRuntimeService,
@@ -124,6 +128,27 @@ describe("MCP Apps over the Session's connection", () => {
     expect(mcpSessionConnectionPool.connectionStates(IDENTITY)).toEqual([
       expect.objectContaining({ ready: true }),
     ])
+  })
+
+  it("opens the connection a Run of the Session then reuses, named by the Run's stamps", async () => {
+    mocks.respond = () => ({ contents: [{ uri: 'ui://app', text: '<p/>' }] })
+    await run((runtime) => runtime.readResource({ ...APP, uri: 'ui://app' }))
+    const opened = mcpSessionConnectionPool.connection(APP.sessionId, 'figma')
+
+    const fingerprint = mcpConnectionFingerprint({
+      config: STAMPED,
+      transport: 'http',
+      cwd: '/project-worktree',
+    })
+    const lease = mcpSessionConnectionPool.lease(APP.sessionId, {
+      name: 'figma',
+      fingerprint,
+      open: () => ({ transport: new FakeUpstream() }),
+    })
+    await lease.start()
+
+    expect(opened).toBeDefined()
+    expect(mcpSessionConnectionPool.connection(APP.sessionId, 'figma')).toBe(opened)
   })
 
   it("lists the server's resources and prompts, and nothing for what it does not offer", async () => {

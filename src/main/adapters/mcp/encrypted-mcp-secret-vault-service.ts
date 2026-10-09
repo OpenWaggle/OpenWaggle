@@ -222,6 +222,23 @@ export async function listMcpVaultSecretNames() {
   return (await getLiveVault().list()).map((secret) => secret.name)
 }
 
+/**
+ * A stamp per vault secret, read without decrypting: its name and when it was saved, so a
+ * connection restarts once a secret it reads is saved again. A vault that cannot be listed stamps
+ * by name only.
+ */
+export function mcpVaultSecretStamps() {
+  // Listed on the first stamp asked for: a Run whose servers read no secret lists nothing.
+  let saved: Promise<ReadonlyMap<string, number>> | undefined
+  return async (name: string) => {
+    saved ??= getLiveVault()
+      .list()
+      .then((secrets) => new Map(secrets.map((secret) => [secret.name, secret.updatedAt])))
+      .catch(() => new Map())
+    return `${name}@${String((await saved).get(name) ?? '')}`
+  }
+}
+
 /** Whether this build's vault holds `name`, without reading the keychain. */
 export function mcpVaultHasSecret(name: string) {
   return getLiveVault().has(name)
