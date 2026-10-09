@@ -1,17 +1,21 @@
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput } from '@shared/utils/tool-result-state'
 import { useEffect, useRef, useState } from 'react'
+import {
+  type EditDiffData,
+  getEditDiff,
+  getEditExtraOutput,
+} from '@/features/chat/lib/edit-tool-result'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import {
   buildTailPreview,
-  getEditUnifiedDiff,
   getResultError,
   getStringArg,
   getToolResultText,
   type ToolCallResultPayload,
-  type UnifiedDiffData,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
+import { EditRowDiff } from './EditRowDiff'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
 import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
 
@@ -38,7 +42,7 @@ export interface ToolCallViewModel {
   readonly awaitingResult: boolean
   readonly branchSourceMessageId: string | undefined
   readonly command: string | null
-  readonly diff: UnifiedDiffData | null
+  readonly diff: EditDiffData | null
   readonly failedOutputPreview: string
   readonly hasConcreteResult: boolean
   readonly isError: boolean
@@ -99,7 +103,7 @@ function buildToolCallViewModel({
   const isRunning = isToolRunning(state, result, isStreaming)
   const awaitingResult = (!result || !hasConcreteResult) && !isRunning
   const parsedArgs = parseToolArgs(args)
-  const diff = result && !isError ? getEditUnifiedDiff(result.content, name) : null
+  const diff = result && !isError ? getEditDiff(result.content, name) : null
   const resultText = readableResultText(result, expanded, isRunning, isError)
 
   return {
@@ -170,6 +174,16 @@ function ExpandedToolDetails({
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
 }) {
+  if (view.diff) {
+    return (
+      <EditRowDiff
+        diff={view.diff}
+        path={view.path}
+        args={args}
+        output={result ? getEditExtraOutput(result.content, view.path) : ''}
+      />
+    )
+  }
   return (
     <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
       <ExpandedCopyActions args={args} view={view} />

@@ -135,6 +135,7 @@ describe('WorktreeLaunchRow', () => {
       <ChatDisplayPathProvider
         projectPath="/Users/diego/Projects/OpenWaggle"
         worktreePath={worktreePath}
+        workingPath={worktreePath}
       >
         <WorktreeLaunchRow
           sessionId="session-a"

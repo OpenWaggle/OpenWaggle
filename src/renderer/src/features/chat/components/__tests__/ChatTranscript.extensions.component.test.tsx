@@ -89,6 +89,7 @@ function createSection(): ChatTranscriptSectionState {
     isLoading: false,
     projectPath: PROJECT_PATH,
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
     turnsByAnchorNodeId: new Map(),
