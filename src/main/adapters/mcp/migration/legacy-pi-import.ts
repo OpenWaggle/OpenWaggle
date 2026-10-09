@@ -10,6 +10,9 @@ import { isRecord } from '@shared/utils/validation'
 
 type LegacyValue = string | number | boolean | null | LegacyValue[] | { [key: string]: LegacyValue }
 
+// Matches substrings, so `--max-tokens` counts, as the old importer's did. The fingerprints in
+// users' files were computed with it, and only the same rule recognizes the copies it damaged, so
+// the migration can replace them with the Pi entry. The importer's own rule is `isCredentialName`.
 const SENSITIVE_NAME_PATTERN =
   /(api[-_]?key|token|secret|password|credential|authorization|cookie|private[-_]?key)/i
 const ENV_REFERENCE_PATTERN = /^\$\{([A-Z_][A-Z0-9_]*)(?::-.*)?\}$/

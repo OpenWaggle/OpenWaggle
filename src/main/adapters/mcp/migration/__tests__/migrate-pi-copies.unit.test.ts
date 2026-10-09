@@ -163,6 +163,29 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     expect(globalServers(fs)).toEqual({})
   })
 
+  it('replaces a copy the old importer damaged by matching its substring rule exactly', async () => {
+    // The old importer dropped the value after any flag containing "token" or "credential". Only
+    // that same rule recognizes the damaged copy, so the migration replaces it with the Pi entry.
+    const piEntry = {
+      command: 'llm',
+      args: ['--max-tokens', '4096', '--credentials-file', '/etc/llm.json'],
+    }
+    const normalized = legacyNormalizeImportedServer('llm', piEntry)
+    expect(normalized).toMatchObject({ args: ['--max-tokens', '--credentials-file'] })
+    const fs = connectedFs({
+      [PI_GLOBAL]: { mcpServers: { llm: piEntry } },
+      [OPENWAGGLE_GLOBAL]: { mcpServers: { llm: piCopy(PI_GLOBAL, 'llm', normalized ?? {}) } },
+    })
+
+    const report = await migrate(fs)
+
+    expect(globalServers(fs)).toEqual({})
+    expect(report.files[0]?.changes[0]).toMatchObject({
+      server: 'llm',
+      action: 'replaced-by-pi-entry',
+    })
+  })
+
   it("reads Pi's global file from PI_CODING_AGENT_DIR when Pi is set up there", async () => {
     const piAgentDir = '/custom/pi-agent'
     const piGlobal = `${piAgentDir}/mcp.json`
