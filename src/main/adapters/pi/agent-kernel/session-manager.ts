@@ -262,12 +262,25 @@ function warnIfTranscriptLost(session: SessionDetail) {
   })
 }
 
+/**
+ * Where a new Pi file for `session` goes when it runs in `runDirectory`. A Session in a managed
+ * worktree keeps it where the project's Sessions are (ADR 0050): Pi's settings are read, and a
+ * relative `sessionDir` resolved, from the project, not from the worktree, which OpenWaggle
+ * removes with the Session and where `pi --resume` in the project would not look.
+ */
+function newPiSessionDirectory(session: SessionDetail, runDirectory: string) {
+  const worktree = session.worktreePath?.trim()
+  const project = session.projectPath?.trim()
+  const inWorktree = worktree && project && resolve(worktree) === resolve(runDirectory)
+  return resolvePiSessionDirectory(inWorktree ? project : runDirectory)
+}
+
 export function createSessionManagerForSession(session: SessionDetail, projectPath: string) {
   const existingFile = findExistingPiSessionFile(session, projectPath)
   if (existingFile) return openSessionManager(session, existingFile, projectPath)
 
   warnIfTranscriptLost(session)
-  const fresh = SessionManager.create(projectPath, resolvePiSessionDirectory(projectPath))
+  const fresh = SessionManager.create(projectPath, newPiSessionDirectory(session, projectPath))
   if (session.piSessionId) {
     fresh.newSession({ id: session.piSessionId })
   }
