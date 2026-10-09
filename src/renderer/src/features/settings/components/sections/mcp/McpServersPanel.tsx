@@ -96,6 +96,11 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
   const [panel, setPanel] = useState<OpenPanel>(null)
   // A secret a server needs, chosen from its detail: Secrets opens with its name filled in.
   const [requestedSecret, setRequestedSecret] = useState<string | undefined>(undefined)
+  // Filled in once: opening a server, or saving the secret, ends the request.
+  const openServer = (name: string) => {
+    setRequestedSecret(undefined)
+    setSelected(name)
+  }
   const missingSecrets = useMcpMissingSecrets()
   const selectedRow = configuration.rows.find((row) => row.server.name === selected)
   const { view } = configuration
@@ -163,7 +168,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
             view={view}
             onDone={(name) => {
               setPanel(null)
-              if (name) setSelected(name)
+              if (name) openServer(name)
             }}
           />
         ) : null}
@@ -183,14 +188,18 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
           <McpServerList
             rows={configuration.rows}
             missingSecrets={missingSecrets}
-            onOpen={setSelected}
+            onOpen={openServer}
           />
         )}
       </section>
       {view ? <McpCatalogPanel view={view} /> : null}
       <McpRegistryPanel projectPath={projectPath} />
       {/* A new requested secret remounts the panel with its name filled in. */}
-      <McpSecretsPanel key={requestedSecret} requestedName={requestedSecret} />
+      <McpSecretsPanel
+        key={requestedSecret}
+        requestedName={requestedSecret}
+        onSaved={() => setRequestedSecret(undefined)}
+      />
     </div>
   )
 }

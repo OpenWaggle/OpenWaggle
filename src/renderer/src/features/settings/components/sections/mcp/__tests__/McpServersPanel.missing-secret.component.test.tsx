@@ -63,4 +63,24 @@ describe('Settings > MCP for a server whose vault secret is missing', () => {
     )
     await waitFor(() => expect(row('api')).not.toHaveTextContent('Needs secret'))
   })
+
+  it('fills the name in once: opening a server and going back leaves Secrets as it was', async () => {
+    renderWithQueryClient(<McpServersPanel projectPath={PROJECT} />)
+    const row = (name: string) =>
+      within(screen.getByRole('list', { name: 'MCP servers' })).getByRole('button', {
+        name: new RegExp(`Open ${name}`),
+      })
+    await waitFor(() => expect(row('api')).toHaveTextContent('Needs secret API_TOKEN'))
+    fireEvent.click(row('api'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add API_TOKEN in Secrets' }))
+    await screen.findByRole('form', { name: 'Add secret' })
+
+    // Not saved: the user opens another server instead, and comes back.
+    fireEvent.click(row('plain'))
+    fireEvent.click(await screen.findByRole('button', { name: 'All servers' }))
+
+    const form = await screen.findByRole('form', { name: 'Add secret' })
+    expect(within(form).getByLabelText('Secret name')).toHaveValue('')
+    expect(within(form).getByLabelText('Secret value')).not.toHaveFocus()
+  })
 })

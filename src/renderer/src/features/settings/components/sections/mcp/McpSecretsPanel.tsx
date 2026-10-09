@@ -8,9 +8,11 @@ import { McpInlineError } from './McpLabels'
 /** The encrypted vault: a server saved in OpenWaggle's files can read a value from it. */
 export function McpSecretsPanel({
   requestedName,
+  onSaved,
 }: {
   /** A secret a server needs, from its "Add in Secrets": filled in, with its value to type. */
   readonly requestedName?: string | undefined
+  readonly onSaved?: () => void
 } = {}) {
   const vault = useMcpSecrets()
   const [name, setName] = useState(requestedName ?? '')
@@ -53,6 +55,7 @@ export function McpSecretsPanel({
         onSubmit={async (event) => {
           event.preventDefault()
           if (await vault.save(name.trim(), value)) {
+            onSaved?.()
             setName('')
             setValue('')
           }
