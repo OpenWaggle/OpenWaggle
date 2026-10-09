@@ -196,3 +196,48 @@ describe('the Title model of a Session whose model is gone', () => {
     expect(response.modelRef).toBe('openai/gpt-5-mini')
   })
 })
+
+describe('the Title model registry of a request', () => {
+  const MODEL = model('gpt-5-mini', 1, 2, { provider: 'openai' })
+
+  async function generateWith(reply: () => Promise<AssistantMessage>) {
+    const release = vi.fn()
+    const runtime = fromPartial<ModelRuntime>({
+      getModel: () => MODEL,
+      getAvailable: async () => [MODEL],
+      completeSimple: vi.fn(reply),
+    })
+    const outcome = await Effect.runPromise(
+      Effect.either(
+        createPiSessionTitleGenerator({
+          modelRuntime: async () => ({ modelRuntime: runtime, release }),
+        }).generate({
+          projectPath: '/repo',
+          sessionModel: SupportedModelId('openai/gpt-5-mini'),
+          titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+          systemPrompt: 'Title it.',
+          prompt: 'Hello',
+        }),
+      ),
+    )
+    return { outcome, release }
+  }
+
+  it('is released when the request fails', async () => {
+    const { outcome, release } = await generateWith(async () => {
+      throw new Error('503 Service Unavailable')
+    })
+
+    expect(outcome._tag).toBe('Left')
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('is released when the model answers with nothing', async () => {
+    const { outcome, release } = await generateWith(async () =>
+      fromPartial<AssistantMessage>({ stopReason: 'stop', content: [] }),
+    )
+
+    expect(outcome._tag).toBe('Left')
+    expect(release).toHaveBeenCalledOnce()
+  })
+})

@@ -61,13 +61,18 @@ async function projectWithRouter(baseUrl: string) {
   await fs.mkdir(path.dirname(extensionPath), { recursive: true })
   await fs.writeFile(
     extensionPath,
-    `export default function extension(pi) {
+    `import { writeFileSync } from 'node:fs'
+export default function extension(pi) {
   pi.registerProvider('qa-backend', {
     baseUrl: ${JSON.stringify(baseUrl)},
     apiKey: 'qa-backend-key',
     api: 'openai-completions',
     models: [{ id: 'echo', name: 'Echo', reasoning: false, input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8000, maxTokens: 400 }],
+  })
+  // The Title runtime binds extensions but never starts a session.
+  pi.on('session_start', () => {
+    writeFileSync(${JSON.stringify(path.join(projectPath, 'session-started'))}, '1')
   })
   pi.registerVirtualModel({
     provider: 'qarouter',
@@ -108,5 +113,6 @@ describe('a virtual model as the Title model', () => {
       modelRef: SupportedModelId('qarouter/auto'),
     })
     expect(backend.requestedModels).toEqual(['echo'])
+    await expect(fs.access(path.join(projectPath, 'session-started'))).rejects.toThrow()
   })
 })
