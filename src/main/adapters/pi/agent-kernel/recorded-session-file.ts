@@ -42,7 +42,7 @@ export function startRecordedPiSessionFile(session: SessionDetail, cwd: string) 
 
 /**
  * Where a new Pi file for `session` goes when it runs in `runDirectory`. A Session in a managed
- * worktree keeps it where the project's Sessions are (ADR 0050): Pi's settings are read, and a
+ * worktree keeps it where the project's Sessions are (ADR 0051): Pi's settings are read, and a
  * relative `sessionDir` resolved, from the project, not from the worktree, which OpenWaggle
  * removes with the Session and where `pi --resume` in the project would not look.
  */

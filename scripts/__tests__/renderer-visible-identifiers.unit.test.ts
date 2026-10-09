@@ -95,7 +95,7 @@ function visibleLabels(source: string) {
 }
 
 /**
- * OpenWaggle is the GUI for the Pi ecosystem (ADR 0050), so the UI may name Pi where it refers to
+ * OpenWaggle is the GUI for the Pi ecosystem (ADR 0051), so the UI may name Pi where it refers to
  * something Pi owns: Pi's files, sessions, settings, packages, or ecosystem. Each allowed phrase
  * names that resource ("Pi, all projects", "Pi sessions", "Pi's settings"). Pi as the runtime doing
  * something ("Pi did not report…", "Powered by Pi") is still refused. Paths such as

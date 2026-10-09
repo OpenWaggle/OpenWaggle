@@ -3,7 +3,7 @@ import path from 'node:path'
 import { isRecord } from '@shared/utils/validation'
 
 /**
- * The MCP configuration files of ADR 0050, lowest priority first: Pi's and OpenWaggle's global
+ * The MCP configuration files of ADR 0051, lowest priority first: Pi's and OpenWaggle's global
  * files, then the project's `.mcp.json`, Pi and OpenWaggle files.
  */
 export function mcpConfigFilePaths(input: {
@@ -50,7 +50,7 @@ function describe(error: unknown) {
 
 /**
  * Read-only list of the MCP server names configured for a project: the keys of `mcpServers` in
- * every ADR 0050 file, without merging entries or validating them. A file that cannot be read is
+ * every ADR 0051 file, without merging entries or validating them. A file that cannot be read is
  * reported in `errors` and contributes no names, so callers know the list may be incomplete.
  */
 export async function listConfiguredMcpServerNames(input: {

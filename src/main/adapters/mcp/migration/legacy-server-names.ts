@@ -1,7 +1,7 @@
 /**
  * The old MCP client named a server instance by an ID in state.json (`servers[*].instanceId`,
  * keyed by the file that defined the server and its name), and Agent definitions and Session
- * profiles could list servers by that ID. ADR 0050 names servers only by name, so the migration
+ * profiles could list servers by that ID. ADR 0051 names servers only by name, so the migration
  * records which name each ID stood for.
  */
 import { isRecord } from '@shared/utils/validation'

@@ -1,5 +1,5 @@
 /**
- * Pure conversion of pre-ADR-0050 OpenWaggle MCP server entries to Pi's
+ * Pure conversion of pre-ADR-0051 OpenWaggle MCP server entries to Pi's
  * `mcpServers` entry format. No I/O and no hashing: the adapter decides which
  * entries are Pi copies and calls into these rules.
  */

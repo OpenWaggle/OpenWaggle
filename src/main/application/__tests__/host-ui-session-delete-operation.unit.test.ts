@@ -22,7 +22,7 @@ import { isPiSessionDiscoveryPaused } from '../pi-session-discovery-pauses'
 
 /**
  * `sessions:delete` and `sessions:begin-project-removal` as the desktop app calls them: removing
- * a project deletes its Sessions without dismissing a discovered Pi file (ADR 0050).
+ * a project deletes its Sessions without dismissing a discovered Pi file (ADR 0051).
  */
 
 const SESSION_ID = SessionId('session-1')

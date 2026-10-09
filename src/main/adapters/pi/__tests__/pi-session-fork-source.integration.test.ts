@@ -16,7 +16,7 @@ import {
 
 /**
  * A fork of a discovered Pi session is branched from a copy that never writes its source
- * (ADR 0050). The fork is written next to the file the copy loaded, whatever the Session records,
+ * (ADR 0051). The fork is written next to the file the copy loaded, whatever the Session records,
  * and extensions see each file as what it is.
  */
 

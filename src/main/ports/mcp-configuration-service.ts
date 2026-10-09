@@ -53,7 +53,7 @@ export interface McpRemoveOrphanedOverrideInput extends McpRemoveServerInput {
   readonly fileId: McpWriteDestination
 }
 
-/** The ADR 0050 MCP file set: the merged view and the writes Settings and the CLI make. */
+/** The ADR 0051 MCP file set: the merged view and the writes Settings and the CLI make. */
 export interface McpConfigurationServiceShape {
   readonly getView: (
     input: McpConfigurationScopeInput,

@@ -23,7 +23,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * A discovered Pi session stays the user's file in the program that made it (ADR 0050): removing
+ * A discovered Pi session stays the user's file in the program that made it (ADR 0051): removing
  * it from OpenWaggle keeps the file, and a `pi` CLI fork, which copies its source's entry ids, is
  * projected and continued without colliding with the source's nodes (ADR 0041).
  */

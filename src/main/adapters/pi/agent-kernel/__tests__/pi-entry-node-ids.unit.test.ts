@@ -10,7 +10,7 @@ import { createSessionManagerForSession } from '../session-manager'
 import { projectPiSessionSnapshot } from '../session-projection'
 
 /**
- * A discovered Pi session keys its nodes under a per-Session prefix (ADR 0050), so a `pi` CLI fork
+ * A discovered Pi session keys its nodes under a per-Session prefix (ADR 0051), so a `pi` CLI fork
  * that copied another session's entry ids never collides with it, and the file is never rewritten.
  */
 

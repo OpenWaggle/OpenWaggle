@@ -1,5 +1,5 @@
 /**
- * What the Pi adapter uses of the MCP connection pool (ADR 0050): the pool as an injected
+ * What the Pi adapter uses of the MCP connection pool (ADR 0051): the pool as an injected
  * dependency, its connection hooks, server identities, and the parts upstream transports are
  * built from. The pool's own connection and request internals stay behind it.
  */

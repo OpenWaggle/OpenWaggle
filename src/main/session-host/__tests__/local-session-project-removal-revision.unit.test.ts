@@ -17,7 +17,7 @@ function hostUiCommand(channel: string, args: readonly unknown[]) {
   })
 }
 
-/** Project removal and Pi session discovery (ADR 0050) need a revision-24 Host. */
+/** Project removal and Pi session discovery (ADR 0051) need a revision-24 Host. */
 describe('Local Session project removal protocol revision', () => {
   it('sends the start of a project removal only to a revision-24 Host', () => {
     const command = hostUiCommand('sessions:begin-project-removal', ['/project'])

@@ -22,7 +22,7 @@ async function sessionCount() {
 }
 
 /**
- * Pi session discovery (ADR 0050): a session the `pi` CLI created inside an OpenWaggle project is
+ * Pi session discovery (ADR 0051): a session the `pi` CLI created inside an OpenWaggle project is
  * listed once as a Session of that project, created the way the desktop user creates one.
  */
 

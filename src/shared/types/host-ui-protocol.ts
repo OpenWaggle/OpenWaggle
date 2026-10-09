@@ -2,7 +2,7 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
- * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0050),
+ * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0051),
  * including MCP Registry search and install, MCP App resource and prompt listing, and the
  * per-Session MCP switch, ship with revision 24.
  */
@@ -26,7 +26,7 @@ export const HOST_UI_REVISION_24_REQUIRED_CHANNELS = [
   'mcp:get-session-enabled',
   'mcp:set-session-enabled',
 ] as const satisfies readonly IpcInvokeChannel[]
-/** Pausing Pi session discovery for a project removal ships with revision 24 (ADR 0050). */
+/** Pausing Pi session discovery for a project removal ships with revision 24 (ADR 0051). */
 export const HOST_UI_REVISION_24_SESSION_CHANNELS = [
   'sessions:begin-project-removal',
 ] as const satisfies readonly IpcInvokeChannel[]
@@ -124,7 +124,7 @@ export const HOST_UI_REVISION_7_NEW_CHANNELS = [
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**
- * MCP operations the Session Host owns after ADR 0050: the secret vault and the MCP App resource
+ * MCP operations the Session Host owns after ADR 0051: the secret vault and the MCP App resource
  * read and tool call (revision 6), and the MCP configuration operations (revision 24).
  */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [

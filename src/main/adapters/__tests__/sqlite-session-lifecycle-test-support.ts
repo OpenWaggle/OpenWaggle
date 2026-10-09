@@ -49,7 +49,7 @@ export function makeSessionLifecycleTestLayer(filename: string) {
       for (const statement of SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }
-      // A fork reads whether its source is a discovered Pi session (ADR 0050).
+      // A fork reads whether its source is a discovered Pi session (ADR 0051).
       for (const statement of [
         ...PI_SESSION_ADOPTION_MIGRATION.statements,
         ...PI_SESSION_FILE_STATE_MIGRATION.statements,

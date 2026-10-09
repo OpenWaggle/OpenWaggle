@@ -15,7 +15,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * Pi keeps sessions where its settings say (ADR 0050): `PI_CODING_AGENT_SESSION_DIR`, then the
+ * Pi keeps sessions where its settings say (ADR 0051): `PI_CODING_AGENT_SESSION_DIR`, then the
  * `sessionDir` setting of the project or the global Pi settings. OpenWaggle finds `pi` sessions
  * there and stores its own new sessions there too, so `pi --resume` finds them.
  */

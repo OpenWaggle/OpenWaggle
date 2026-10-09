@@ -15,7 +15,7 @@ import { decodeMcpProjectRequest, decodeMcpRequest } from './mcp-configuration-o
 
 /**
  * MCP Registry search and install for Settings > MCP and `openwaggle mcp registry`. An install is
- * an ordinary Pi entry saved to OpenWaggle's MCP file for the chosen scope (ADR 0050); nothing
+ * an ordinary Pi entry saved to OpenWaggle's MCP file for the chosen scope (ADR 0051); nothing
  * else is recorded about where it came from.
  */
 

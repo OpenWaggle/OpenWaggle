@@ -25,7 +25,7 @@ describe('listConfiguredMcpServerNames', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('lists the ADR 0050 files from lowest to highest priority', () => {
+  it('lists the ADR 0051 files from lowest to highest priority', () => {
     expect(mcpConfigFilePaths({ homeDir, projectPath })).toEqual([
       path.join(homeDir, '.pi', 'agent', 'mcp.json'),
       path.join(homeDir, '.openwaggle', 'mcp.json'),

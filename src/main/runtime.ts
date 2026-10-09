@@ -304,7 +304,7 @@ export const startSessionHostServicesAfterListening = startHostServicesAfterList
 
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
-  // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0050).
+  // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
   startMcpHostServices()
   promptCacheWarming().start()
   const started = Promise.withResolvers<void>()

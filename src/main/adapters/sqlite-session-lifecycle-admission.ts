@@ -48,7 +48,7 @@ export type LifecycleTargetResolution =
   | { readonly kind: 'rejected'; readonly response: ReturnType<typeof lifecycleResponse> }
 
 /**
- * Pi session discovery's create keys are its own (ADR 0050): one under its prefix is admitted only
+ * Pi session discovery's create keys are its own (ADR 0051): one under its prefix is admitted only
  * when discovery recorded it before sending, so a key someone chose cannot pass for one and be
  * cleaned up as a Session an interrupted pass left. Nothing is stored, so the key stays free.
  */

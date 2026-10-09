@@ -13,7 +13,7 @@ export interface SessionListenerInput {
   readonly onEvent: (event: AgentTransportEvent) => void
   /** The Run's Session log; null where no user message can arrive, such as manual compaction. */
   readonly sessionEntries: PiUserMessageEntrySource | null
-  /** Maps Pi entry ids reported to the transport to the Session's node ids (ADR 0050). */
+  /** Maps Pi entry ids reported to the transport to the Session's node ids (ADR 0051). */
   readonly nodeIds?: PiEntryNodeIds
 }
 

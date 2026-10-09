@@ -67,7 +67,7 @@ function continuationThinkingLevel(
 }
 
 /**
- * A discovered Pi session continues the way `pi --resume` would (ADR 0050): with the model and
+ * A discovered Pi session continues the way `pi --resume` would (ADR 0051): with the model and
  * thinking level its branch last used, not OpenWaggle's default, and with Pi's default thinking
  * level when the branch never changed it. Applied when OpenWaggle takes in what another program
  * wrote, and only while no Run is active; a model OpenWaggle cannot run keeps the Session's

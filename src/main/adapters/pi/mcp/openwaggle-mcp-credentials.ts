@@ -41,7 +41,7 @@ export function getOpenWaggleMcpCredentials() {
 }
 
 /**
- * Stores one server's state under Pi's key, for the migration of pre-ADR-0050 sign-ins. False,
+ * Stores one server's state under Pi's key, for the migration of pre-ADR-0051 sign-ins. False,
  * writing nothing, when the key already has a sign-in (OpenWaggle's or Pi's CLI's). Throws when
  * it could only be kept in memory, so the migration tries again.
  */

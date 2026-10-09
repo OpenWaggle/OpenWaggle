@@ -1,5 +1,5 @@
 /**
- * MCP Apps in transcripts from before ADR 0050 name their server by its old instance ID and old
+ * MCP Apps in transcripts from before ADR 0051 name their server by its old instance ID and old
  * config hash. The migration recorded what each ID stood for, so such an App keeps working while
  * its server still runs or connects to what it did then.
  */

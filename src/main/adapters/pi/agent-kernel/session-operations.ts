@@ -49,7 +49,7 @@ function toContextUsageSnapshot(
 
 /**
  * Reads use the Session's warming session while it has one. Otherwise they read an in-memory
- * copy of the Pi file, so looking at a Session never writes its file (ADR 0050).
+ * copy of the Pi file, so looking at a Session never writes its file (ADR 0051).
  */
 async function readPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
@@ -173,7 +173,7 @@ export async function forkPiSession(
   const sourceNodeIds = piEntryNodeIds(input.session)
   const targetEntryId = sourceNodeIds.toEntryId(input.targetNodeId)
   // The source is forked from a copy that does not persist: opening it as a Pi session would
-  // record a thinking level in it and migrate an older format in place (ADR 0050). A warming
+  // record a thinking level in it and migrate an older format in place (ADR 0051). A warming
   // session ends first, so the copy holds everything it wrote.
   await idleCacheWarming.release(input.session.id)
   const copy = await createReadOnlySessionManagerForSession(

@@ -174,7 +174,7 @@ describe('Session deletion of transcript copies the runtime would rediscover', (
     expect(mocks.markSessionPiFileCleanupComplete).toHaveBeenCalledWith(SESSION_ID)
   })
 
-  it("keeps every file of a discovered Pi session's transcript, the program's history (ADR 0050)", async () => {
+  it("keeps every file of a discovered Pi session's transcript, the program's history (ADR 0051)", async () => {
     const kept = await writeFile('2026-10-04T18-41-20-000Z_pi-session.jsonl')
     const sibling = await writeFile('2026-10-04T18-41-34-000Z_pi-session.jsonl')
     mocks.commitSessionDeletion.mockResolvedValueOnce(record('durable-delete-complete', kept))
@@ -255,7 +255,7 @@ describe('Session deletion of transcript copies the runtime would rediscover', (
       expect.objectContaining({ transcriptId: 'pi-session' }),
     )
 
-    // Removing the project tells the journal, which then keeps a discovered Pi file (ADR 0050).
+    // Removing the project tells the journal, which then keeps a discovered Pi file (ADR 0051).
     await runRepository((repository) => repository.delete(SESSION_ID, { removingProject: true }))
     expect(mocks.prepareSessionDeletion).toHaveBeenLastCalledWith(SESSION_ID, recorded, {
       removingProject: true,

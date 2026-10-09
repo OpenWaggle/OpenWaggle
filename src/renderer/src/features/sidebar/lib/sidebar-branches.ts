@@ -37,7 +37,7 @@ function getSessionBranches(input: BuildSidebarBranchRowsInput) {
 
 /**
  * The first line of the draft's source message. A node id is no label: a discovered Pi
- * session's carries the Session id before the entry id (ADR 0050).
+ * session's carries the Session id before the entry id (ADR 0051).
  */
 function draftSourceLabel(input: BuildSidebarBranchRowsInput, sourceNodeId: SessionNodeId) {
   const tree = input.activeSessionTree

@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * The one-time ADR 0050 migration of the user's MCP files runs against the real home directory
+ * The one-time ADR 0051 migration of the user's MCP files runs against the real home directory
  * (`homedir()`), and many code paths start it: Run start, Settings and CLI reads and writes, MCP
  * App and sign-in requests. No test may migrate the developer's own `~/.openwaggle/mcp.json`, so
  * that entry point is a no-op in every test; the migration itself is tested through

@@ -1,5 +1,5 @@
 /**
- * Exact reproduction of the pre-ADR-0050 importer's normalization and hashing
+ * Exact reproduction of the pre-ADR-0051 importer's normalization and hashing
  * (the removed `import-normalization.ts`, `config-identity.ts`, and `import-adapters.ts` on the
  * old code), so the migration can tell whether a Pi entry still matches the
  * copy the old importer made. Do not "improve" these rules: the fingerprints

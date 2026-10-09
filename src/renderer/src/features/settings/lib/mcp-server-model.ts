@@ -165,7 +165,7 @@ export function mcpDefaultDestination(
   return mcpDestinationFiles(files, scope)[0]?.fileId ?? preferred
 }
 
-/** The files a new server can go to, OpenWaggle's first, as ADR 0050 orders them. */
+/** The files a new server can go to, OpenWaggle's first, as ADR 0051 orders them. */
 export function mcpDestinationFiles(
   files: readonly McpConfigFileView[],
   scope: McpConfigFileScope,

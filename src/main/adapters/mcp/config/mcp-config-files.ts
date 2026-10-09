@@ -29,7 +29,7 @@ function location(fileId: McpConfigFileId, filePath: string): McpConfigFileLocat
 }
 
 /**
- * The ADR 0050 file set in precedence order, lowest first. A file reached twice (a project that
+ * The ADR 0051 file set in precedence order, lowest first. A file reached twice (a project that
  * is the home folder has `~/.openwaggle/mcp.json` as its project file) is read once, in its first
  * place.
  */

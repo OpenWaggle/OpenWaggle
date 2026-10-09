@@ -64,7 +64,7 @@ function piFileCwd(piSessionFile: string | undefined) {
 /**
  * Where a local-mode Session's agent works: the folder its Pi session runs in when that is inside
  * the opened checkout, otherwise the checkout. For a Pi session discovered from the `pi` CLI that
- * is the folder the CLI ran in, so it continues there as `pi --resume` would (ADR 0050); a fork
+ * is the folder the CLI ran in, so it continues there as `pi --resume` would (ADR 0051); a fork
  * or copy of it records the same folder in its own file's header. A folder that is gone or outside
  * the project falls back to the checkout.
  */
@@ -294,7 +294,7 @@ function openSessionManager(session: SessionDetail, file: string, projectPath: s
  * A session manager for reading the Session's Pi file without writing it: a manager that does
  * not persist, pointed at the file. Opening the file for a Run migrates an older format in place
  * and records the thinking level, which would change a discovered session's file, and what
- * `pi --resume` continues with, just because OpenWaggle showed it (ADR 0050). Pi writes nothing
+ * `pi --resume` continues with, just because OpenWaggle showed it (ADR 0051). Pi writes nothing
  * for a manager that does not persist, and extensions still see the file, as `getSessionFile()`
  * and a fork's `previousSessionFile`. A missing file has nothing to protect, so it gets the same
  * fresh manager as a Run, which writes nothing until a reply.

@@ -7,7 +7,7 @@ import { SessionTitleRepository } from '../ports/session-title-repository'
 import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 
 /**
- * The services a Run's Pi session refresh reads when the runtime has them (ADR 0050): a discovered
+ * The services a Run's Pi session refresh reads when the runtime has them (ADR 0051): a discovered
  * Session's first Run takes in its Pi file and continues with its model, thinking level, and name.
  * A runtime without discovery runs without them, as the refresh skips itself.
  */

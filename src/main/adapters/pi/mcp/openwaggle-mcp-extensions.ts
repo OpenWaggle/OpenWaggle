@@ -39,7 +39,7 @@ import {
 import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
-/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0050). */
+/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
 export interface OpenWaggleMcpSessionInput {
@@ -258,7 +258,7 @@ export async function createOpenWaggleMcpExtensions(
   })
   // A server that is on connects in the background: its old sign-in first, so it is not reported
   // signed out while the keychain is read, and the login shell's environment for its command and
-  // values. With no server on, a Run waits for neither (ADR 0050).
+  // values. With no server on, a Run waits for neither (ADR 0051).
   if (config.loaded.servers.some((server) => server.config.enabled !== false)) {
     await Promise.all([
       migrateOpenWaggleMcpSignInsOnce(input.projectPath),

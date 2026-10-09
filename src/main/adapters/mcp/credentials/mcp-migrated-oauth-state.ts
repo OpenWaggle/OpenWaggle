@@ -1,7 +1,7 @@
 import type { McpOAuthStorageBackend } from './mcp-oauth-state-backend'
 
 /**
- * The merged sign-in states with a migrated pre-ADR-0050 sign-in added under Pi's `key`, or
+ * The merged sign-in states with a migrated pre-ADR-0051 sign-in added under Pi's `key`, or
  * undefined when that key already has one: a sign-in made since (in Settings, or with Pi's CLI,
  * whose `mcp-auth.json` the merged states include) is newer than the old one.
  */

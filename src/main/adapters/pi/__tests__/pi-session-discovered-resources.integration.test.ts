@@ -13,7 +13,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * The Resources panel of a discovered Pi session (ADR 0050), whose node ids carry the Session's
+ * The Resources panel of a discovered Pi session (ADR 0051), whose node ids carry the Session's
  * prefix (`<sessionId>/<entryId>`).
  */
 

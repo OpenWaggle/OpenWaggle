@@ -13,7 +13,7 @@ export type SessionSettingChange = SessionThinkingLevelChange
 
 /**
  * `forRun`: the Run that is starting may change its own Session's settings before it reads its
- * profile, as a discovered Session's first Run does to continue with its Pi file's (ADR 0050).
+ * profile, as a discovered Session's first Run does to continue with its Pi file's (ADR 0051).
  * Any other Run still refuses the change.
  */
 export interface SessionSettingChangeOptions {

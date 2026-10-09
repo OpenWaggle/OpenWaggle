@@ -160,7 +160,7 @@ describe('sidebar library helpers', () => {
       createdAt: 1,
       updatedAt: 2,
     })
-    // A discovered Pi session's node ids carry its Session id (ADR 0050); the label must not.
+    // A discovered Pi session's node ids carry its Session id (ADR 0051); the label must not.
     const sourceNodeId = SessionNodeId('session-a/a1b2c3d4')
     const tree = {
       session: currentSession,

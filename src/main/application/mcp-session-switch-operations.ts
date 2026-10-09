@@ -8,7 +8,7 @@ import { McpConfigurationError } from '../ports/mcp-configuration-service'
 import { McpServerRuntimeService } from '../ports/mcp-server-runtime-service'
 
 /**
- * A Session's MCP switch (ADR 0050): every Session uses the configured MCP servers until it is
+ * A Session's MCP switch (ADR 0051): every Session uses the configured MCP servers until it is
  * switched off, and the switch is Session state, so it changes no file. A Run reads it at start.
  */
 

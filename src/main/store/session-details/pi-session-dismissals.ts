@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { EMPTY_INDEX } from './constants'
 
 /**
- * Deleting a Session discovered from another Pi program removes it from OpenWaggle only (ADR 0050):
+ * Deleting a Session discovered from another Pi program removes it from OpenWaggle only (ADR 0051):
  * its Pi file is the user's history in that program. The dismissal outlives the Session, so
  * discovery does not list the file again, and the Pi file cleanup leaves the file in place.
  */
@@ -22,7 +22,7 @@ export function dismissDiscoveredPiSession(sql: SqlClient.SqlClient, id: Session
 
 /**
  * The Pi file a Session's deletion journals for cleanup. A discovered Pi session's file is never
- * deleted (ADR 0050): deleting the Session on its own dismisses the file, so discovery does not
+ * deleted (ADR 0051): deleting the Session on its own dismisses the file, so discovery does not
  * list it again and the cleanup leaves it. Removing its project journals no file and writes no
  * dismissal, in the same transaction, so the file stays listable for when the folder is added
  * back, whichever step of the deletion a crash interrupts.
@@ -79,7 +79,7 @@ function undoPiSessionDismissal(sql: SqlClient.SqlClient, id: SessionId) {
 
 /**
  * Where Pi file cleanup moves the file before removing it, or null to leave it: a discovered Pi
- * session's file belongs to the program that made it and stays (ADR 0050).
+ * session's file belongs to the program that made it and stays (ADR 0051).
  */
 export function stagedPiSessionFile(sql: SqlClient.SqlClient, piSessionFile: string | null) {
   return Effect.gen(function* () {

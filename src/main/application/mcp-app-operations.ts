@@ -14,7 +14,7 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 
 /**
  * MCP Apps read their `ui://` resources and call their server's tools over the Session's MCP
- * connection (ADR 0050). `serverInstanceId` is the Session's server name and `serverConfigHash`
+ * connection (ADR 0051). `serverInstanceId` is the Session's server name and `serverConfigHash`
  * the server identity the App was opened with.
  */
 const appServerFields = {

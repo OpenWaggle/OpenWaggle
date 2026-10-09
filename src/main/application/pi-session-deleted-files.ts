@@ -14,7 +14,7 @@ import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { deleteSessionWithVisualizations } from './session-visualization-deletion'
 
 /**
- * A discovered Session's history is its Pi file (ADR 0050). When something outside OpenWaggle
+ * A discovered Session's history is its Pi file (ADR 0051). When something outside OpenWaggle
  * deletes it, as Pi's `/resume` picker can, the Session is gone too: continuing it would start a
  * new file under the same Pi session id, which loses the history in OpenWaggle and brings the
  * deleted session back to `pi --resume`.

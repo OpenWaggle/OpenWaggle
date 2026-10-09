@@ -96,7 +96,7 @@ async function journaledTranscriptFile(input: DeletionDependencies, session: Del
  * them as the Session's transcript, and listing them again from the journal makes the removal
  * safe to repeat when recovery resumes an interrupted cleanup.
  *
- * A Pi file the cleanup keeps (no staged path: a discovered Pi session's, ADR 0050) is the user's
+ * A Pi file the cleanup keeps (no staged path: a discovered Pi session's, ADR 0051) is the user's
  * history in the program that made it, and so is every file with its Pi session id, the kept file
  * included, so none is removed.
  */

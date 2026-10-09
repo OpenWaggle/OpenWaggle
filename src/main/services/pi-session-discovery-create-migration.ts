@@ -3,7 +3,7 @@ import { PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID } from './session-host-schema-
 
 /**
  * Records each lifecycle create Pi session discovery sends, by idempotency key, before it is sent
- * (ADR 0050). The Host start removes only the empty Sessions these name, so a Session someone
+ * (ADR 0051). The Host start removes only the empty Sessions these name, so a Session someone
  * created with a key under discovery's prefix is never taken for one an interrupted pass left.
  * Additive only.
  */

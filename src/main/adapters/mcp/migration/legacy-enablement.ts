@@ -1,5 +1,5 @@
 /**
- * Keeps each server's on/off state through the migration (ADR 0050): a server that did not
+ * Keeps each server's on/off state through the migration (ADR 0051): a server that did not
  * connect before must not start connecting after it, and one that did keeps connecting.
  *
  * The old code read only OpenWaggle's global file, `.mcp.json`, and the project's OpenWaggle

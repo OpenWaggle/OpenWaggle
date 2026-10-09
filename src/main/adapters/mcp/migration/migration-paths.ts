@@ -3,7 +3,7 @@ import path from 'node:path'
 
 /**
  * The backup a migrated MCP file keeps. An opaque file name: it says 0048 because the migration
- * shipped under that ADR number before the ADR was renumbered to 0050, and changing it would
+ * shipped under that ADR number before the ADR was renumbered to 0051, and changing it would
  * stop the migration from finding backups it already wrote.
  */
 export const MCP_MIGRATION_BACKUP_SUFFIX = '.pre-adr-0048.bak'

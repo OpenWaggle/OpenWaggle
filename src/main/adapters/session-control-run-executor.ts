@@ -151,7 +151,7 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
     }
     // A discovered Session nobody opened is projected now, so its profile already holds the model
     // and thinking level `pi --resume` would continue with; one whose file was deleted is refused
-    // (ADR 0050).
+    // (ADR 0051).
     yield* prepareSessionForRun(input.sessionId, input.runId)
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)

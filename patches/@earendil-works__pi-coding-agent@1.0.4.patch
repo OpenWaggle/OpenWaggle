@@ -2514,7 +2514,7 @@ index 3cf126878b05d0cbcd7b7f45b19df1673fd5543b..95d24c6f650d2308342ef73067b42049
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 9f9bd7370e5ecc288de58d20e81b2a0aadb6ea4b..4d0770990347de57a2d7c6dc43df0c8d566d4aea 100644
+index 9f9bd7370e5ecc288de58d20e81b2a0aadb6ea4b..1cc2255d2485b176ffb090d222a59bfa1b141766 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2539,7 +2539,7 @@ index 9f9bd7370e5ecc288de58d20e81b2a0aadb6ea4b..4d0770990347de57a2d7c6dc43df0c8d
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.ts";
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.ts";
-+// OpenWaggle: exports only, so OpenWaggle reuses Pi's MCP validation, value resolution, and sign-in code (ADR 0050).
++// OpenWaggle: exports only, so OpenWaggle reuses Pi's MCP validation, value resolution, and sign-in code (ADR 0051).
 +export type { AuthStorageBackend } from "./core/auth-storage.ts";
 +export { createMcpAuthProvider, type McpAuthProvider, McpOAuthCredentialStore, type McpOAuthServerStore, type McpOAuthSettings, McpSignInCancelledError, type McpSignInPrompt, signInMcpServer, } from "./extensions/mcp/oauth.ts";
 +export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.ts";
@@ -2547,7 +2547,7 @@ index 9f9bd7370e5ecc288de58d20e81b2a0aadb6ea4b..4d0770990347de57a2d7c6dc43df0c8d
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..b8ceb37c261f2ecb4c6a67a7d3dad3a8df350f12 100644
+index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..c6083f7634170cb6183a7b04b181046f0ae65cb8 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2573,7 +2573,7 @@ index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..b8ceb37c261f2ecb4c6a67a7d3dad3a8
  // Shell utilities
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";
 +// OpenWaggle: exports only, no behaviour change. OpenWaggle supplies the MCP extension's plug-in
-+// points (ADR 0050) and reuses Pi's own server validation, value resolution, and OAuth sign-in
++// points (ADR 0051) and reuses Pi's own server validation, value resolution, and OAuth sign-in
 +// code instead of reimplementing them.
 +export { createMcpAuthProvider, McpOAuthCredentialStore, McpSignInCancelledError, signInMcpServer } from "./extensions/mcp/oauth.js";
 +export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";

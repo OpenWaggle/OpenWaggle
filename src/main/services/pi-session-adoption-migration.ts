@@ -3,7 +3,7 @@ import { PI_SESSION_ADOPTION_MIGRATION_ID } from './session-host-schema-identity
 
 /**
  * Records which Sessions use a Pi session file OpenWaggle discovered rather than created
- * (ADR 0050), and which discovered files the user removed from OpenWaggle. Removing a discovered
+ * (ADR 0051), and which discovered files the user removed from OpenWaggle. Removing a discovered
  * Session keeps its file for the program that made it, so discovery must not list it again.
  * Additive only: nothing existing is changed.
  */

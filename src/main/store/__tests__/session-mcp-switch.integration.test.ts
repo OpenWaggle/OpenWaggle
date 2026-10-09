@@ -55,7 +55,7 @@ async function makeSession(piSessionId: string) {
   return SessionId(String(session.id))
 }
 
-/** Session-level MCP off is durable Session state in the Host database (ADR 0050). */
+/** Session-level MCP off is durable Session state in the Host database (ADR 0051). */
 describe('the per-Session MCP switch', () => {
   it('is on for a Session nobody switched', async () => {
     const id = await makeSession('pi-1')

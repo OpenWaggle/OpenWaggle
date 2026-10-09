@@ -116,7 +116,7 @@ it("tells the Session's deletion that its project is being removed", async () =>
   await Effect.runPromise(deleteForProjectRemoval)
   await Effect.runPromise(deleteFromHost)
 
-  // A discovered Pi file then stays listable for when the folder is added back (ADR 0050).
+  // A discovered Pi file then stays listable for when the folder is added back (ADR 0051).
   expect(deleteOptions).toEqual([{ removingProject: true }, {}])
 })
 

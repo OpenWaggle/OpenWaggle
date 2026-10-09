@@ -86,10 +86,10 @@ describe('Host background services', () => {
     expect(started.indexOf('provider credentials')).toBeLessThan(started.indexOf('tool gateway'))
     expect(started).toContain('provider references')
     expect(started).toContain('provider credentials')
-    // Migrates pre-ADR-0050 MCP files before Settings, the CLI, or a Run reads them.
+    // Migrates pre-ADR-0051 MCP files before Settings, the CLI, or a Run reads them.
     expect(started.indexOf('mcp files')).toBeGreaterThanOrEqual(0)
     expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
-    // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0050).
+    // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0051).
     expect(started).toContain('pi session discovery')
     // Old MCP sign-ins read the keychain, which can stall for minutes: not part of Host start.
     expect(started).not.toContain('mcp sign-ins')

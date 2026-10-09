@@ -15,7 +15,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * A Session OpenWaggle created and the `pi` CLI continued with `pi --resume` (ADR 0050): Pi's
+ * A Session OpenWaggle created and the `pi` CLI continued with `pi --resume` (ADR 0051): Pi's
  * eight-character entry ids can repeat ids another Session holds, which the projection must
  * rename the way a Run's snapshot does (ADR 0049) instead of failing on every open.
  */

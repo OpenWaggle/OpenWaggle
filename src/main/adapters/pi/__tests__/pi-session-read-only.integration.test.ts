@@ -18,7 +18,7 @@ import {
 } from './pi-session-fake-provider.test-support'
 
 /**
- * Looking at a discovered Pi session never changes it (ADR 0050): reads use an in-memory copy of
+ * Looking at a discovered Pi session never changes it (ADR 0051): reads use an in-memory copy of
  * its Pi file, create no agent session where a projection is enough, and bind no extensions.
  */
 

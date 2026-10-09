@@ -89,7 +89,7 @@ function platformImportPaths(options: McpImportPathOptions) {
 
 /**
  * Project files of other tools. `.mcp.json` and `.pi/mcp.json` are absent on
- * purpose: OpenWaggle reads them live (ADR 0050).
+ * purpose: OpenWaggle reads them live (ADR 0051).
  */
 function projectImportPaths(projectPath: string) {
   return [

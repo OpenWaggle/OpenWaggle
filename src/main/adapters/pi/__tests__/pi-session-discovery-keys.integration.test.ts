@@ -13,7 +13,7 @@ import {
 
 /**
  * Discovery's lifecycle creates carry keys under its own prefix, and the Host start removes the
- * empty Sessions an interrupted pass left (ADR 0050). Only creates discovery itself recorded
+ * empty Sessions an interrupted pass left (ADR 0051). Only creates discovery itself recorded
  * count: anyone can choose an idempotency key, as `openwaggle sessions create
  * --idempotency-key` does.
  */

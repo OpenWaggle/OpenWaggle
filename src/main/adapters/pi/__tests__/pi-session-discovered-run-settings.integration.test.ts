@@ -15,7 +15,7 @@ import {
 import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-provider.test-support'
 
 /**
- * A discovered Pi session continues the way `pi --resume` would (ADR 0050) however its first Run
+ * A discovered Pi session continues the way `pi --resume` would (ADR 0051) however its first Run
  * starts: a Session Control message to a Session nobody opened runs with the model and thinking
  * level the Pi file last used, not the Session lifecycle's defaults.
  */

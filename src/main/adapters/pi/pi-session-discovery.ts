@@ -12,7 +12,7 @@ import {
 } from './pi-session-project-paths'
 
 /**
- * Pi session discovery (ADR 0050): finds Pi sessions the `pi` CLI created inside an OpenWaggle
+ * Pi session discovery (ADR 0051): finds Pi sessions the `pi` CLI created inside an OpenWaggle
  * project without loading their transcripts.
  *
  * Pi keeps one directory per working directory under `<agent dir>/sessions`, named from the path

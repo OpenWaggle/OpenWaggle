@@ -4,7 +4,7 @@ import { readLegacyMcpServerNames } from '../../mcp/migration/legacy-server-name
 
 /**
  * A Session's MCP server allowlist with old instance IDs (from Agent definitions and Session
- * profiles written before ADR 0050) replaced by the server names the migration recorded for them.
+ * profiles written before ADR 0051) replaced by the server names the migration recorded for them.
  */
 export async function resolveLegacyMcpServerAllowlist(
   allowlist: readonly string[] | undefined,

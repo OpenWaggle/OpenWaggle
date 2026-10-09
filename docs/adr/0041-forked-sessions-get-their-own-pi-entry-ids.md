@@ -29,7 +29,7 @@ Forks and clones save, and a forked Session is an ordinary Pi session with ids o
 
 Independent Sessions still share the global node key. Pi's ids are random, so a collision between unrelated Sessions is unlikely but possible, and would fail that Session's snapshot. Keying nodes by Session remains the complete fix if that ever happens.
 
-## Amendment: discovered Pi sessions (ADR 0050)
+## Amendment: discovered Pi sessions (ADR 0051)
 
 Re-keying is only for files OpenWaggle has just written. A Pi session discovered from the `pi` CLI may be a CLI fork that shares its source's entry ids, and its file belongs to another program that may still have it open, so it is never rewritten. Instead its nodes are keyed under a per-Session prefix (`<sessionId>/<entryId>`), which the Pi adapter translates back to entry ids wherever it hands a node to Pi: navigation and fork targets, the resume position, and the entry ids Pi reports. Ids inside projected content get the same prefix, so they name nodes of the same Session: a compaction's `firstKeptEntryId`, a branch summary's `fromId`, and a label's `targetId`.
 

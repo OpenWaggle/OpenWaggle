@@ -5,14 +5,14 @@ import { PiThinkingLevelDefaultLive } from './adapters/pi/pi-thinking-level-defa
 import { SqlitePiSessionDiscoveryRepositoryLive } from './adapters/sqlite-pi-session-discovery-repository'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 
-/** What projects a discovered Pi session's file into its Session (ADR 0050). */
+/** What projects a discovered Pi session's file into its Session (ADR 0051). */
 export const PiSessionDiscoveryServicesLive = Layer.mergeAll(
   SqlitePiSessionDiscoveryRepositoryLive.pipe(Layer.provide(PiSessionTranscriptRepairLive)),
   PiSessionFilesLive,
 )
 
 /**
- * What a Run's refresh of a discovered Session reads before the Run starts (ADR 0050): the file,
+ * What a Run's refresh of a discovered Session reads before the Run starts (ADR 0051): the file,
  * then the model, thinking level, and name the Session continues with.
  */
 export const PiSessionContinuationServicesLive = Layer.mergeAll(

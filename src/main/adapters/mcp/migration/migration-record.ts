@@ -1,5 +1,5 @@
 /**
- * `~/.openwaggle/mcp/migration.json`: which files the one-time ADR 0050
+ * `~/.openwaggle/mcp/migration.json`: which files the one-time ADR 0051
  * migration has handled, so it never runs twice for the same file.
  */
 import path from 'node:path'

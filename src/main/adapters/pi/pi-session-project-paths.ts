@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
- * Which project a Pi session belongs to, from the folder its header records (ADR 0050).
+ * Which project a Pi session belongs to, from the folder its header records (ADR 0051).
  */
 
 /** Pi's directory-name encoding of a working directory, without the closing `--`. */

@@ -1,5 +1,5 @@
 /**
- * A server turned off or removed must stop being used at once (ADR 0050): by MCP Apps, which use
+ * A server turned off or removed must stop being used at once (ADR 0051): by MCP Apps, which use
  * the Session's warm connection, and by a running Run, whose Pi client would otherwise keep or
  * reopen it. After every configuration change, each warm connection is checked against its own
  * project's configuration, so a server still on in another project stays connected there.

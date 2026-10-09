@@ -17,7 +17,7 @@ import {
 
 /**
  * Removing a project deletes its Sessions but keeps a discovered Pi session's file listable, so
- * it comes back when the folder is added again (ADR 0050), whatever step a crash interrupts.
+ * it comes back when the folder is added again (ADR 0051), whatever step a crash interrupts.
  */
 
 const { state, getPathMock } = vi.hoisted(() => ({

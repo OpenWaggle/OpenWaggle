@@ -1,7 +1,7 @@
 # MCP Runtime
 
 Developer reference for the MCP runtime described by
-[ADR 0050](adr/0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md). User-facing behaviour is
+[ADR 0051](adr/0051-openwaggle-is-the-gui-for-the-pi-ecosystem.md). User-facing behaviour is
 documented under `website/src/content/docs/`; this page explains how the pieces fit.
 
 OpenWaggle does not have its own MCP client. Every Pi session OpenWaggle creates loads Pi's
@@ -41,7 +41,7 @@ Pi AgentSession (one per Run, disposed by withPiSession)
 | `src/main/adapters/mcp/config/` | adapter | File locations, reading, secret resolution, `loadConfig`, the JSON writer, `updateConfig`. |
 | `src/main/adapters/mcp/credentials/` | adapter | The OAuth state backend (vault first, Pi `mcp-auth.json` read-only fallback). |
 | `src/main/adapters/mcp/pool/` | adapter | Pooled connections, leases, handshake cache, id remapping, lifecycle (idle, LRU, archive, Host stop), upstream transports. |
-| `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0050 files. |
+| `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0051 files. |
 | `src/main/adapters/mcp/import/` | adapter | Import from tools that are not read live (Codex, Claude Desktop, Cursor, VS Code, OpenCode, Zed). |
 | `src/main/adapters/mcp/registry/` | adapter | MCP Registry search and install: package launchers, OCI digest pinning, verified MCPB bundles. |
 | `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. They reach the pool only through `pool/mcp-connection-pool-api.ts` and receive it as an argument. |
@@ -236,7 +236,7 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   read then fails to decrypt. The first save, or the first sign-in store write, then takes over
   without it, and from then on the build does not see it again. Unlock the keyring before the
   build's first save if old secrets matter.
-- The migration of pre-ADR-0050 sign-ins is recorded per build in `migration.json` (keyed by the
+- The migration of pre-ADR-0051 sign-ins is recorded per build in `migration.json` (keyed by the
   build's user data): only the build whose key sealed an old sign-in can move it. A build that
   finds the sign-in in the shared vault but cannot decrypt it records nothing, so the other build
   still moves it.
@@ -370,7 +370,7 @@ Session uses MCP: a Run, an MCP App request, or **Check connection** in Settings
 
 A Run connects **every enabled server of its Session** when its Pi session starts, whatever the
 exposure: Pi's MCP extension starts all connections on `session_start`, in the background. That
-is Pi's design, and OpenWaggle keeps it (ADR 0050, Pi portability). Pi needs each server's tool
+is Pi's design, and OpenWaggle keeps it (ADR 0051, Pi portability). Pi needs each server's tool
 listing before the model can reach it, whatever the exposure:
 
 - `codemode`: `searchTools()` and the codemode tool's namespaces;
@@ -379,7 +379,7 @@ listing before the model can reach it, whatever the exposure:
 - the resource tools;
 - the MCP App metadata OpenWaggle reads from `tools/list`.
 
-"Lazy" in ADR 0050 means a connection never blocks a message. Only servers with `direct` tools
+"Lazy" in ADR 0051 means a connection never blocks a message. Only servers with `direct` tools
 are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
 `tool_search`, or a resource tool waits for the servers it needs when it runs. Before that, a
 Run with a server turned on waits for the scope's sign-in migration and for the login-shell

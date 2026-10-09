@@ -252,7 +252,7 @@ function validateDeleteOptions(value: unknown) {
 /**
  * Deleting a discovered Pi session on its own removes it from OpenWaggle and keeps it from being
  * listed again; removing its project keeps the file listable for when the folder is added back
- * (ADR 0050). Either way the Pi file stays.
+ * (ADR 0051). Either way the Pi file stays.
  */
 export function deleteSession(args: readonly unknown[]) {
   return Effect.gen(function* () {

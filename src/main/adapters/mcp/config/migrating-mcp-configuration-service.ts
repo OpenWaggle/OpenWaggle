@@ -5,7 +5,7 @@ import type {
 } from '../../../ports/mcp-configuration-service'
 
 /**
- * Runs the one-time ADR 0050 migration (global files plus the requested project) before every
+ * Runs the one-time ADR 0051 migration (global files plus the requested project) before every
  * MCP configuration read or write. Settings and the CLI otherwise read and write files the
  * migration has not handled yet, and the migration a later Run starts would overwrite the user's
  * choices. The migration records each file, so after the first call this costs one record read.

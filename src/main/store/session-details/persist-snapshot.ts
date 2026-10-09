@@ -66,7 +66,7 @@ export function persistSessionSnapshotWithSql(
 }
 
 /**
- * Persists a snapshot with the Pi file state it was read from (ADR 0050). `piFileState` defaults
+ * Persists a snapshot with the Pi file state it was read from (ADR 0051). `piFileState` defaults
  * to the file as it is now, which is right after Pi wrote it in the same process.
  */
 export function persistPiSessionSnapshotWithSql(

@@ -25,7 +25,7 @@ import {
 import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
 
 /**
- * Pi session discovery (ADR 0050). Pi sessions the `pi` CLI created in an OpenWaggle project, or
+ * Pi session discovery (ADR 0051). Pi sessions the `pi` CLI created in an OpenWaggle project, or
  * in a folder inside one, appear in the project's sidebar without importing or copying anything:
  * the Session keeps using the same Pi file, so `pi --resume` and OpenWaggle continue one history.
  *

@@ -81,7 +81,7 @@ export function makeLifecyclePreparationLayer(
           updated_at INTEGER NOT NULL
         )
       `)
-      // A fork reads whether its source is a discovered Pi session (ADR 0050).
+      // A fork reads whether its source is a discovered Pi session (ADR 0051).
       yield* sql.unsafe(`
         CREATE TABLE pi_session_adoptions (
           session_id TEXT PRIMARY KEY,

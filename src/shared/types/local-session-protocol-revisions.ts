@@ -43,7 +43,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * inspector, merge validation and the confirmed merge, Session working-path checks, and Git Output
  * recording, because the desktop window's database is isolated and cannot see Sessions.
  * Revision 24 adds the MCP Host UI channels behind Settings > MCP, the composer and the
- * `openwaggle mcp` management commands (ADR 0050): reading the merged configuration, enabling
+ * `openwaggle mcp` management commands (ADR 0051): reading the merged configuration, enabling
  * and exposure changes, adding, removing, and installing servers (Registry search and install
  * included), inspecting a server, signing in and out, importing from other tools, the MCP App
  * catalog (`mcp:list-app-catalog`), a Session's MCP switch (`mcp:get-session-enabled`,

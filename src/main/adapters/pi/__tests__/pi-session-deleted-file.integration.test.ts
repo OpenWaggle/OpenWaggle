@@ -15,7 +15,7 @@ import {
 } from './pi-session-fake-provider.test-support'
 
 /**
- * A discovered Session's history is its Pi file (ADR 0050). When something outside OpenWaggle
+ * A discovered Session's history is its Pi file (ADR 0051). When something outside OpenWaggle
  * deletes the file, as Pi's `/resume` picker can, the Session goes with it: it is never continued
  * in a new file under the same Pi session id, which would bring the deleted session back.
  */

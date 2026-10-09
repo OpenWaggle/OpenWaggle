@@ -1,7 +1,7 @@
 import path from 'node:path'
 /**
- * The one-time, silent migration of OpenWaggle's pre-ADR-0050 MCP files to
- * Pi's entry format (ADR 0050, "One-time silent migration").
+ * The one-time, silent migration of OpenWaggle's pre-ADR-0051 MCP files to
+ * Pi's entry format (ADR 0051, "One-time silent migration").
  *
  * Handles `~/.openwaggle/mcp.json` and `<project>/.openwaggle/mcp.json` for
  * every known project. Never writes Pi's files or `.mcp.json` (the old code

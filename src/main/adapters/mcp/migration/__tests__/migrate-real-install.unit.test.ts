@@ -4,7 +4,7 @@ import { jsonText, MemoryMigrationFs } from './memory-migration-fs'
 import { allConnectedState } from './migration-fixtures'
 
 /**
- * Sanitized copy of a real pre-ADR-0050 install: servers imported from Pi's
+ * Sanitized copy of a real pre-ADR-0051 install: servers imported from Pi's
  * global file into ~/.openwaggle/mcp.json. The fingerprints are the values the
  * old importer wrote, so these tests pin the exact legacy fingerprint algorithm.
  */
@@ -80,7 +80,7 @@ function realInstall() {
   })
 }
 
-describe('migrateOpenWaggleMcpFiles on a real pre-ADR-0050 install', () => {
+describe('migrateOpenWaggleMcpFiles on a real pre-ADR-0051 install', () => {
   it('replaces unchanged Pi copies with the live Pi entry, keeping direct exposure', async () => {
     const fs = realInstall()
 

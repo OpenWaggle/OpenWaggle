@@ -1,5 +1,5 @@
 /**
- * OpenWaggle Settings with a Pi equivalent: codemode (on by default, ADR 0050) and Pi's prompt
+ * OpenWaggle Settings with a Pi equivalent: codemode (on by default, ADR 0051) and Pi's prompt
  * cache warming. They are stored here and handed to Pi in memory by the Pi adapter
  * (adapters/pi/openwaggle-pi-settings-app-overlay.ts), so Pi's files never record them.
  *

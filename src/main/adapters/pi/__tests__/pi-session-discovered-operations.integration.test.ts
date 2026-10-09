@@ -17,7 +17,7 @@ import {
 } from './pi-session-fake-provider.test-support'
 
 /**
- * A discovered Pi session keys its nodes under a per-Session prefix (ADR 0050). Every operation
+ * A discovered Pi session keys its nodes under a per-Session prefix (ADR 0051). Every operation
  * that hands a node to Pi must translate it back: a real Run, navigation, a fork, and compaction,
  * all against a local OpenAI-compatible endpoint configured the way a `pi` user configures one.
  */
