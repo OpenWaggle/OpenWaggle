@@ -19,10 +19,10 @@ vi.mock('../credentials/mcp-build-state-paths', () => ({
 }))
 
 paths.root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-vault-stamps-'))
-const { EncryptedMcpSecretVaultServiceLive, mcpVaultSecretStamps } = await import(
-  '../encrypted-mcp-secret-vault-service'
-)
+const { EncryptedMcpSecretVaultServiceLive, deferredMcpVaultSecret, mcpVaultSecretStamps } =
+  await import('../encrypted-mcp-secret-vault-service')
 const { McpSecretVaultService } = await import('../../../ports/mcp-secret-vault-service')
+const { deferredMcpSecret } = await import('../config/mcp-deferred-secrets')
 
 const buildVault = () => path.join(paths.root, 'build', 'vault.json')
 const sharedVault = () => path.join(paths.root, 'shared', 'vault.json')
@@ -92,5 +92,14 @@ describe("a vault secret's stamp, which names the connections that read it", () 
     writeFileSync(buildVault(), '{ not json')
 
     await expect(mcpVaultSecretStamps()('TOKEN')).resolves.toBe('TOKEN@')
+  })
+
+  it('defers a present secret to connection time, and refuses a missing one, without decrypting', async () => {
+    writeVault(buildVault(), { PRESENT: 1 })
+
+    await expect(deferredMcpVaultSecret('PRESENT')).resolves.toBe(deferredMcpSecret('PRESENT'))
+    await expect(deferredMcpVaultSecret('ABSENT')).rejects.toMatchObject({
+      reason: 'secret-not-found',
+    })
   })
 })

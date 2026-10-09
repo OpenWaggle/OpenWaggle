@@ -24,8 +24,12 @@ import {
   setSessionMcpEnabled,
   UnknownMcpSessionError,
 } from '../../../store/session-mcp-switch'
+import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import {
+  deferredMcpVaultSecret,
+  resolveMcpVaultSecret,
+} from '../../mcp/encrypted-mcp-secret-vault-service'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
@@ -46,7 +50,15 @@ function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
   return { homeDir: homedir(), piAgentDir: getPiAgentDir() }
 }
 
-async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeRoots) {
+/**
+ * The server, loaded alone. `deferSecrets` (Check connection) reads no keychain while loading:
+ * its secrets are read when it connects; a missing secret still fails the check.
+ */
+async function findServer(
+  input: McpServerScopeInput,
+  roots: PiMcpServerRuntimeRoots,
+  options: { readonly deferSecrets?: boolean } = {},
+) {
   // Inspecting and signing in use the server's sign-in: an old one is migrated first, and a new
   // one is never written over by it.
   await Promise.all([
@@ -55,7 +67,8 @@ async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeR
   ])
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
-    resolveSecret: resolveMcpVaultSecret,
+    resolveSecret: options.deferSecrets ? deferredMcpVaultSecret : resolveMcpVaultSecret,
+    serverAllowlist: [input.name],
   })
   const entry = config.loaded.servers.find((server) => server.name === input.name)
   const unavailable = config.unavailable.get(input.name)
@@ -103,7 +116,7 @@ export async function inspectMcpServer(
 ): Promise<McpServerInspection> {
   let found: Awaited<ReturnType<typeof findServer>>
   try {
-    found = await findServer(input, roots)
+    found = await findServer(input, roots, { deferSecrets: true })
   } catch (error) {
     // A vault secret that cannot be read fails this server's check, not the whole list.
     if (!(error instanceof McpConfigurationError) || error.reason !== 'validation') throw error
@@ -144,7 +157,10 @@ async function connectAndList(
   try {
     // Inside the try: a `${NAME}` that does not resolve fails this server's check.
     upstream = openPiMcpUpstream({
-      entry,
+      entry: {
+        ...entry,
+        config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
+      },
       transport,
       cwd,
       authProvider: hardenedMcpAuthProvider(entry, authProvider),

@@ -8,8 +8,10 @@ interface ConfiguredServer {
 
 const mocks = vi.hoisted(() => {
   const servers: ConfiguredServer[] = []
+  const loads: unknown[] = []
   return {
     servers,
+    loads,
     // A keychain or a login shell that never answers.
     signIns: vi.fn(() => new Promise<void>(() => {})),
     shell: vi.fn(() => new Promise<void>(() => {})),
@@ -26,12 +28,15 @@ vi.mock('../../../../mcp-shell-environment', () => ({
 }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
-  loadMcpRuntimeConfig: async () => ({
-    loaded: { servers: mocks.servers, errors: [] },
-    merged: { servers: [], errors: [] },
-    transports: new Map(),
-    unavailable: new Map(),
-  }),
+  loadMcpRuntimeConfig: async (input: unknown) => {
+    mocks.loads.push(input)
+    return {
+      loaded: { servers: mocks.servers, errors: [] },
+      merged: { servers: [], errors: [] },
+      transports: new Map(),
+      unavailable: new Map(),
+    }
+  },
 }))
 vi.mock('../openwaggle-mcp-credentials', () => ({
   getOpenWaggleMcpCredentials: () => ({}),
@@ -39,6 +44,7 @@ vi.mock('../openwaggle-mcp-credentials', () => ({
 }))
 
 const { createOpenWaggleMcpExtensions } = await import('../openwaggle-mcp-extensions')
+const { deferredMcpVaultSecret } = await import('../../../mcp/encrypted-mcp-secret-vault-service')
 
 const input = fromPartial<Parameters<typeof createOpenWaggleMcpExtensions>[0]>({
   sessionId: 's1',
@@ -73,5 +79,13 @@ describe("a Run's MCP start", () => {
     await expect(settledSoon(createOpenWaggleMcpExtensions(input))).resolves.toBe('waiting')
     expect(mocks.signIns).toHaveBeenCalledWith('/p')
     expect(mocks.shell).toHaveBeenCalled()
+  })
+
+  it('loads the configuration without reading the keychain: secrets are read on connect', async () => {
+    mocks.servers = [{ name: 'off', config: { command: 'x', enabled: false } }]
+
+    await createOpenWaggleMcpExtensions(input)
+
+    expect(mocks.loads.at(-1)).toMatchObject({ resolveSecret: deferredMcpVaultSecret })
   })
 })

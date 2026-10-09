@@ -5,6 +5,7 @@ import { Effect, Layer } from 'effect'
 import { safeStorage } from 'electron'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
+import { deferredMcpSecret } from './config/mcp-deferred-secrets'
 import {
   mcpBuildStateDirectory,
   sharedMcpStateDirectory,
@@ -269,6 +270,17 @@ export async function checkMcpVaultSecret(name: string) {
     secretName: name,
     message: `MCP secret ${JSON.stringify(name)} was not found.`,
   })
+}
+
+/**
+ * A secret resolver for what connects to servers (a Run, Check connection, an MCP App): a present
+ * secret becomes a deferred marker, read from the keychain only when the server is connected
+ * (`resolveDeferredMcpSecrets`); a missing one is not found. Loading the configuration never
+ * reads the keychain, so a keychain that does not answer only fails the connection that needs it.
+ */
+export async function deferredMcpVaultSecret(name: string) {
+  if (!(await mcpVaultHasSecret(name))) throw secretNotFound(name)
+  return deferredMcpSecret(name)
 }
 
 /** Whether the vault every build shared before still holds `name`, whatever key sealed it. */

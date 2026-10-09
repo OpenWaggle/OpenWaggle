@@ -14,8 +14,10 @@ import type {
 } from '../../../ports/mcp-app-runtime-service'
 import { readSessionMcpServerAllowlist } from '../../../store/session-details/session-mcp-server-allowlist'
 import { isSessionMcpEnabled } from '../../../store/session-mcp-switch'
+import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import {
+  deferredMcpVaultSecret,
   mcpVaultSecretStamps,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
@@ -77,7 +79,8 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
   ])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
-    resolveSecret: resolveMcpVaultSecret,
+    // No keychain while loading: the App's server reads its secrets when it connects.
+    resolveSecret: deferredMcpVaultSecret,
     secretStamp: mcpVaultSecretStamps(),
     // Only the App's server: other servers' vault secrets are not decrypted for it.
     serverAllowlist: [input.serverName],
@@ -130,7 +133,16 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
     }),
     identity,
     projectPath: input.projectPath,
-    open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
+    open: async () =>
+      openPiMcpUpstream({
+        entry: {
+          ...entry,
+          config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
+        },
+        transport,
+        cwd,
+        authProvider,
+      }),
     roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
   })
   return { connection, entry }

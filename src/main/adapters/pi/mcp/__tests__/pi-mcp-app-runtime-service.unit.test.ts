@@ -80,6 +80,7 @@ vi.mock('../pi-mcp-upstream', () => ({
 }))
 
 import { McpAppRuntimeService } from '../../../../ports/mcp-app-runtime-service'
+import { deferredMcpVaultSecret } from '../../../mcp/encrypted-mcp-secret-vault-service'
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import {
@@ -202,7 +203,11 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(reading).rejects.toThrow('vault secret "FIGMA_TOKEN" could not be read: locked')
     await expect(reading).rejects.not.toThrow('was removed')
     // Other servers' secrets are not read for it.
-    expect(mocks.loads.at(-1)).toMatchObject({ serverAllowlist: ['figma'] })
+    expect(mocks.loads.at(-1)).toMatchObject({
+      serverAllowlist: ['figma'],
+      // Loading reads no keychain: a secret is read when the App connects.
+      resolveSecret: deferredMcpVaultSecret,
+    })
   })
 
   it("refuses a server the Session's MCP switch or Agent definition rules out", async () => {

@@ -13,6 +13,7 @@ import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import {
+  deferredMcpVaultSecret,
   mcpVaultSecretStamps,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
@@ -248,7 +249,8 @@ export async function createOpenWaggleMcpExtensions(
   await migrateOpenWaggleMcpFilesOnce(input.projectPath)
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
-    resolveSecret: resolveMcpVaultSecret,
+    // No keychain while loading: present secrets are read when Pi connects their server.
+    resolveSecret: deferredMcpVaultSecret,
     ...(input.sessionMcpEnabled === undefined
       ? {}
       : { sessionMcpEnabled: input.sessionMcpEnabled }),
