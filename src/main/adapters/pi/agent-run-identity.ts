@@ -127,8 +127,10 @@ function runIdentityMessage(identity: RunIdentityEntryData): CustomMessage {
  * The model's messages with each stored Run identity right after its Run's prompt. That is where
  * Pi put the context message it used to be, so an earlier Run's request stays a prefix of the
  * next one and keeps its prompt cache. A Run whose prompt was compacted away sends no identity.
- * Each Run started after the one before, so a prompt is looked for after the previous one: a
- * command sent twice with the same text has each identity after its own message.
+ * Each Run started after the one before, so identities are placed newest first, each on the
+ * latest matching message before the next Run's: the current Run's identity takes the current
+ * message even when an earlier one has the same text, and an older identity whose message was
+ * compacted away is dropped instead of taking a later Run's.
  */
 export function withRunIdentities(
   messages: readonly ContextMessage[],
@@ -136,15 +138,15 @@ export function withRunIdentities(
 ) {
   const identities = branch.flatMap((entry) => storedRunIdentity(entry) ?? [])
   if (identities.length === 0) return undefined
-  const placed = new Map<number, CustomMessage[]>()
-  let searchFrom = 0
-  for (const identity of identities) {
-    const prompt = messages.findIndex(
-      (message, index) => index >= searchFrom && isPrompt(message, identity.prompt),
+  const placed = new Map<number, readonly CustomMessage[]>()
+  let searchBelow = messages.length
+  for (const identity of identities.toReversed()) {
+    const prompt = messages.findLastIndex(
+      (message, index) => index < searchBelow && isPrompt(message, identity.prompt),
     )
     if (prompt < 0) continue
-    placed.set(prompt, [...(placed.get(prompt) ?? []), runIdentityMessage(identity)])
-    searchFrom = prompt + 1
+    placed.set(prompt, [runIdentityMessage(identity)])
+    searchBelow = prompt
   }
   if (placed.size === 0) return undefined
   return messages.flatMap((message, index) => [message, ...(placed.get(index) ?? [])])

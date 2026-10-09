@@ -71,4 +71,27 @@ describe('the Run identity of a turn an extension command starts', () => {
 
     expect(contents(result)).toEqual(['Command: go', 'run-1', [], 'Command: go', 'run-2', []])
   })
+
+  it('keeps the current identity on the current command when an earlier one sent the same text without one', () => {
+    // Run 1 (OpenWaggle) prompted; a Run with no identity (the pi CLI) sent the command; Run 3
+    // (OpenWaggle) sent it again.
+    const run3 = [user('U1', 1), answer(2), command(3), answer(4), command(5)]
+
+    const result = withRunIdentities(run3, [stored('r1', [user('U1', 1)]), stored('r3', run3)])
+
+    expect(contents(result)).toEqual(['U1', 'r1', [], 'Command: go', [], 'Command: go', 'r3'])
+  })
+
+  it("drops an identity whose command was compacted away instead of taking a later Run's", () => {
+    const summary = fromPartial<ContextMessage>({
+      role: 'compactionSummary',
+      summary: 'S',
+      timestamp: 50,
+    })
+    const runD = [summary, user('kept', 60), answer(61), command(70)]
+
+    const result = withRunIdentities(runD, [stored('rA', [command(3)]), stored('rD', runD)])
+
+    expect(contents(result)).toEqual([undefined, 'kept', [], 'Command: go', 'rD'])
+  })
 })
