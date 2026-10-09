@@ -129,4 +129,25 @@ describe('openwaggle mcp import', () => {
       'It uses the vault secret GITHUB_2_TOKEN, which already exists; replace it in Settings > MCP > Secrets if it holds another value.',
     ])
   })
+
+  it('suggests --conflict replace when a server whose source changed was skipped', async () => {
+    const changed: McpImportPreviewView = {
+      ...preview,
+      candidates: [{ ...preview.candidates[0], status: 'source-changed' }],
+    }
+    const result = await run('import', ['--apply', '-l'], {
+      'mcp:preview-imports': () => changed,
+      'mcp:apply-imports': () => ({
+        imported: [],
+        skipped: [{ fingerprint: 'fp-linear', reason: 'A server named linear already exists.' }],
+        secrets: [],
+        existingSecrets: [],
+        view: view([]),
+      }),
+    })
+
+    expect(result.logs).toContain(
+      'linear changed in the other app since it was imported. To update it, run: openwaggle mcp import -l --apply --conflict replace --server linear',
+    )
+  })
 })

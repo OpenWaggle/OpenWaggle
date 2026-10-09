@@ -1,5 +1,8 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
-import type { McpImportPreviewView } from '@shared/types/mcp-configuration-operations'
+import type {
+  McpImportApplyResultView,
+  McpImportPreviewView,
+} from '@shared/types/mcp-configuration-operations'
 import {
   McpCliUsageError,
   mcpCliConflictPolicy,
@@ -39,11 +42,52 @@ function chosenFingerprints(preview: McpImportPreviewView, names: readonly strin
   })
 }
 
-export async function importCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+/** Skipped servers that changed in the other app since they were imported, by source name. */
+function skippedSourceChanges(
+  preview: McpImportPreviewView,
+  skipped: readonly { readonly fingerprint: string }[],
+) {
+  const skippedFingerprints = new Set(skipped.map((item) => item.fingerprint))
+  return preview.candidates
+    .filter(
+      (candidate) =>
+        candidate.status === 'source-changed' && skippedFingerprints.has(candidate.fingerprint),
+    )
+    .map((candidate) => candidate.name)
+}
+
+/** The project and tools of this command, as options the hints repeat. */
+function sameImportOptions(
+  input: McpManagementCommandInput,
+  sources: readonly string[] | undefined,
+) {
+  const project = projectOptionOf({ args: input.args, projectPath: input.projectPath })
+  return `${project}${sources ? ` --from ${sources.join(',')}` : ''}`
+}
+
+function printApplied(
+  input: McpManagementCommandInput,
+  preview: McpImportPreviewView,
+  result: McpImportApplyResultView,
+  sources: readonly string[] | undefined,
+) {
+  const { output } = input.context
+  for (const item of result.imported) {
+    output.log(`Imported ${item.source} server "${item.sourceName}" as "${item.targetName}".`)
+  }
+  for (const item of result.skipped) output.log(`Skipped: ${item.reason}`)
+  for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) output.log(line)
+  const changed = skippedSourceChanges(preview, result.skipped)
+  if (changed.length === 0 || mcpCliConflictPolicy(input.args) === 'replace') return
+  const one = changed.length === 1
+  const servers = changed.map((name) => ` --server ${name}`).join('')
+  output.log(
+    `${changed.join(', ')} changed in the other app since ${one ? 'it was' : 'they were'} imported. To update ${one ? 'it' : 'them'}, run: openwaggle mcp import${sameImportOptions(input, sources)} --apply --conflict replace${servers}`,
+  )
+}
+
+export async function importCommand(input: McpManagementCommandInput): Promise<McpManagementExit> {
+  const { args, projectPath, context } = input
   if (args.positional.length > 0) {
     throw new McpCliUsageError('Usage: openwaggle mcp import [--from <tools>] [--apply] [-l]')
   }
@@ -59,10 +103,8 @@ export async function importCommand({
     )
     if (!json && preview.candidates.length > 0) {
       // The same project and tools, so applying imports what this preview listed.
-      const project = projectOptionOf({ args, projectPath })
-      const from = sources ? ` --from ${sources.join(',')}` : ''
       context.output.log(
-        `Import them with: openwaggle mcp import${project}${from} --apply [--server <name>]`,
+        `Import them with: openwaggle mcp import${sameImportOptions(input, sources)} --apply [--server <name>]`,
       )
     }
     return MCP_MANAGEMENT_EXIT.SUCCESS
@@ -78,29 +120,21 @@ export async function importCommand({
     target: projectPath ? 'project' : 'global',
     conflictPolicy: mcpCliConflictPolicy(args),
   })
-  if (json) {
-    context.output.log(
-      JSON.stringify(
-        {
-          imported: result.imported,
-          skipped: result.skipped,
-          secrets: result.secrets,
-          existingSecrets: result.existingSecrets,
-        },
-        null,
-        MCP_CONFIG.JSON_INDENT_SPACES,
-      ),
-    )
-  } else {
-    for (const item of result.imported) {
-      context.output.log(
-        `Imported ${item.source} server "${item.sourceName}" as "${item.targetName}".`,
-      )
-    }
-    for (const item of result.skipped) context.output.log(`Skipped: ${item.reason}`)
-    for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) {
-      context.output.log(line)
-    }
+  if (!json) {
+    printApplied(input, preview, result, sources)
+    return MCP_MANAGEMENT_EXIT.SUCCESS
   }
+  context.output.log(
+    JSON.stringify(
+      {
+        imported: result.imported,
+        skipped: result.skipped,
+        secrets: result.secrets,
+        existingSecrets: result.existingSecrets,
+      },
+      null,
+      MCP_CONFIG.JSON_INDENT_SPACES,
+    ),
+  )
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
