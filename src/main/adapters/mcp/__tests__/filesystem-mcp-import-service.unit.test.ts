@@ -23,7 +23,7 @@ describe('the filesystem MCP import service', () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     expect(JSON.stringify(exit)).toContain(
-      'This project is your home folder, so its .openwaggle/mcp.json is the global file. Import into All projects instead.',
+      'This project is your home folder, so its .openwaggle/mcp.json is the global file. Import for all projects instead: choose All projects in Settings, or leave out -l and --project in the CLI.',
     )
   })
 })

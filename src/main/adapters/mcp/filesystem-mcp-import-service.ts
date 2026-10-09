@@ -127,7 +127,7 @@ export function createFilesystemMcpImportService(
       throw new McpConfigurationError({
         reason: 'validation',
         message:
-          'This project is your home folder, so its .openwaggle/mcp.json is the global file. Import into All projects instead.',
+          'This project is your home folder, so its .openwaggle/mcp.json is the global file. Import for all projects instead: choose All projects in Settings, or leave out -l and --project in the CLI.',
       })
     }
     const current = await preview(input)
