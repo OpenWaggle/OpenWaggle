@@ -1,12 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import path from 'node:path'
-import {
-  type AgentSession,
-  type ContextUsage,
-  SessionManager,
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
-import * as Effect from 'effect/Effect'
 import {
   AgentKernelMissingEntryError,
   type AgentKernelSessionInput,
@@ -18,8 +12,13 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
-import { writeRekeyedForkedSession } from './fork-entry-identity'
-import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
+import {
+  projectWrittenFork,
+  rekeyPiWrittenFork,
+  type WrittenFork,
+  writeForkBeforeItStarts,
+} from './fork-files'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
 import { summarizePiSessionUsage } from './pi-session-usage'
@@ -168,82 +167,38 @@ export async function navigatePiSessionTree(
   })
 }
 
-/**
- * Pi's fork keeps the copied entry ids, so the fork is written again with ids of its own before it
- * is projected, after the runtime that created it is disposed.
- */
-async function projectForkedSession(
-  fork: ForkedPiSession,
-  cwd: string,
-  sourceNodeIds: PiEntryNodeIds,
-) {
-  // The fork is a new file OpenWaggle wrote, so its own nodes use its entry ids unchanged.
-  const sourceEntryIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
-  const sourceNodeIdByNodeId = new Map(
-    [...sourceEntryIdByNodeId].map(
-      ([nodeId, sourceEntryId]) => [nodeId, sourceNodeIds.toNodeId(sourceEntryId)] as const,
-    ),
-  )
-  const sessionManager = SessionManager.open(fork.sessionFile, undefined, cwd)
-  return {
-    piSessionId: sessionManager.getSessionId(),
-    piSessionFile: fork.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
-    sourceNodeIdByNodeId,
-  }
-}
-
-interface ForkedPiSession {
-  readonly sessionFile: string
-  readonly lines: readonly unknown[]
-  readonly editorText?: string
-}
-
-/**
- * The fork Pi branched from an in-memory copy of the source, as the file OpenWaggle writes: next
- * to the source, named and headed as Pi names and heads a fork it writes itself. The path comes
- * from the fork's header: the copy still names the source's file, which must not be written.
- */
-function forkedPiSession(
-  session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
-  sourceFile: string | undefined,
-  selectedText: string | undefined,
-): ForkedPiSession {
-  const header = session.sessionManager.getHeader()
-  if (!header) throw new Error('Pi did not create the forked session.')
-  const sessionFile = sourceFile
-    ? path.join(
-        path.dirname(sourceFile),
-        `${header.timestamp.replace(/[:.]/g, '-')}_${header.id}.jsonl`,
-      )
-    : session.sessionFile
-  if (!sessionFile) throw new Error('Pi did not create the forked session.')
-  return {
-    sessionFile,
-    lines: [
-      sourceFile ? { ...header, parentSession: sourceFile } : header,
-      ...session.sessionManager.getEntries(),
-    ],
-    ...(selectedText ? { editorText: selectedText } : {}),
-  }
-}
-
 export async function forkPiSession(
   input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
   const sourceNodeIds = piEntryNodeIds(input.session)
   const targetEntryId = sourceNodeIds.toEntryId(input.targetNodeId)
-  // The source is forked from an in-memory copy: opening it as a Pi session would record a
-  // thinking level in it and migrate an older format in place (ADR 0050). A warming session ends
-  // first, so the copy holds everything it wrote.
+  // The source is forked from a copy that does not persist: opening it as a Pi session would
+  // record a thinking level in it and migrate an older format in place (ADR 0050). A warming
+  // session ends first, so the copy holds everything it wrote.
   await idleCacheWarming.release(input.session.id)
+  const copy = await createReadOnlySessionManagerForSession(
+    input.session,
+    resolveSessionWorkingPath(input.session),
+  )
+  // The file the copy loaded, found by Pi session id when the recorded path is missing or stale.
+  // A copy that persists loaded none, and Pi writes that fork itself.
+  const sourceFile = copy.isPersisted() ? undefined : copy.getSessionFile()
+  let written: WrittenFork | undefined
   const runtime = await createPiSessionRuntime(input, {
-    sessionManager: await createReadOnlySessionManagerForSession(
-      input.session,
-      resolveSessionWorkingPath(input.session),
-    ),
+    sessionManager: copy,
+    ...(sourceFile
+      ? {
+          beforeForkStarts: async (sessionManager: SessionManager) => {
+            written = await writeForkBeforeItStarts(
+              sessionManager,
+              sourceFile,
+              input.beforeWritingFork,
+            )
+          },
+        }
+      : {}),
   })
-  let forked: ForkedPiSession | undefined
+  let editorText: string | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
       runtime.fork(targetEntryId, { position: input.position }),
@@ -252,15 +207,12 @@ export async function forkPiSession(
       return {
         cancelled: true,
         piSessionId: runtime.session.sessionId,
-        piSessionFile: runtime.session.sessionFile ?? input.session.piSessionFile,
+        piSessionFile: sourceFile ?? input.session.piSessionFile,
         sessionSnapshot: projectPiSessionSnapshot(runtime.session, sourceNodeIds),
       }
     }
-    forked = forkedPiSession(
-      runtime.session,
-      input.session.piSessionFile ?? undefined,
-      result.selectedText,
-    )
+    editorText = result.selectedText
+    written ??= await rekeyPiWrittenFork(runtime.session, input.beforeWritingFork)
   } catch (error) {
     if (
       error instanceof Error &&
@@ -274,10 +226,14 @@ export async function forkPiSession(
     await disposeOpenWagglePiSession(runtime.session)
   }
 
-  if (input.beforeWritingFork) await Effect.runPromise(input.beforeWritingFork(forked.sessionFile))
   return {
     cancelled: false,
-    ...(await projectForkedSession(forked, runtime.cwd, sourceNodeIds)),
-    ...(forked.editorText ? { editorText: forked.editorText } : {}),
+    ...projectWrittenFork(
+      written.sessionFile,
+      written.sourceEntryIdByNodeId,
+      runtime.cwd,
+      sourceNodeIds,
+    ),
+    ...(editorText ? { editorText } : {}),
   }
 }

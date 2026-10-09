@@ -146,13 +146,23 @@ export async function withReadOnlyPiSession<T>(
  */
 export async function createPiSessionRuntime(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
-  options: { readonly sessionManager?: SessionManager } = {},
+  hooks: {
+    readonly sessionManager?: SessionManager
+    /**
+     * Runs once Pi branched a fork in `sessionManager`, before the fork's session starts and its
+     * extensions see it, so the fork can be written and the manager pointed at its own file.
+     */
+    readonly beforeForkStarts?: (sessionManager: SessionManager) => Promise<void>
+  } = {},
 ) {
   await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
   const initialSessionManager =
-    options.sessionManager ?? createSessionManagerForSession(input.session, projectPath)
+    hooks.sessionManager ?? createSessionManagerForSession(input.session, projectPath)
   const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
+    if (options.sessionStartEvent?.reason === 'fork') {
+      await hooks.beforeForkStarts?.(options.sessionManager)
+    }
     const runtimeOptions = {
       projectPath: options.cwd,
       modelReference: input.model,

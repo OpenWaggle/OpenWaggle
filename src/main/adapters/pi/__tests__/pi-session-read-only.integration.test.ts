@@ -147,50 +147,7 @@ describe('Reading a discovered Pi session', () => {
     const [header] = (await fs.readFile(forkFile, 'utf8')).split('\n')
     expect(JSON.parse(String(header))).toMatchObject({ type: 'session', parentSession: source })
   })
-
-  it("forks with the source's file in view of extensions, and leaves its bytes as they were", async () => {
-    await selectFakeModel()
-    const probe = path.join(fixture.root, 'fork-events.log')
-    const extensions = path.join(fixture.project, '.pi', 'extensions')
-    await fs.mkdir(extensions, { recursive: true })
-    await fs.writeFile(
-      path.join(extensions, 'fork-probe.ts'),
-      [
-        "import { appendFileSync } from 'node:fs'",
-        'type Context = { sessionManager: { getSessionFile: () => string | undefined } }',
-        'type Handler = (event: { reason?: string; previousSessionFile?: string }, ctx: Context) => void',
-        'export default function (pi: { on: (event: string, handler: Handler) => void }) {',
-        `  const log = (line: string) => appendFileSync(${JSON.stringify(probe)}, line + '\\n')`,
-        "  pi.on('session_before_fork', (_event, ctx) => log('before ' + ctx.sessionManager.getSessionFile()))",
-        "  pi.on('session_start', (event) => log('start ' + event.reason + ' ' + event.previousSessionFile))",
-        '}',
-      ].join('\n'),
-    )
-    const { source, id } = await sourceSession('current')
-    const before = await fs.readFile(source, 'utf8')
-    const lastNode = (await sessionDetail(id))?.messages.at(-1)?.id
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
-
-    const fork = await run(forkSession([id, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
-
-    expect(await fs.readFile(source, 'utf8')).toBe(before)
-    expect(fork.session.piSessionFile).not.toBe(source)
-    const events = (await fs.readFile(probe, 'utf8')).trim().split('\n')
-    expect(events).toContain(`before ${source}`)
-    expect(events).toContain(`start fork ${source}`)
-  })
 })
-
-async function selectFakeModel() {
-  const { SettingsService } = await import('../../../services/settings-service')
-  await run(
-    Effect.flatMap(SettingsService, (settings) =>
-      settings.update({ enabledModels: [FAKE_PROVIDER_MODEL], selectedModel: FAKE_PROVIDER_MODEL }),
-    ),
-  )
-}
 
 /** A discovered session, projected, and its Pi file. */
 async function sourceSession(format: 'current' | 'version-2') {

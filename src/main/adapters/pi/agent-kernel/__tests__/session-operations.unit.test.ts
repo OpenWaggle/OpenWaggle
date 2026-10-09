@@ -60,6 +60,7 @@ vi.mock('../session-manager', () => ({
   createReadOnlySessionManagerForSession: async () => ({
     getSessionId: () => 'pi-session-1',
     getSessionFile: () => undefined,
+    isPersisted: () => true,
   }),
   resolveSessionWorkingPath: () => '/repo',
 }))
