@@ -230,6 +230,12 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   shared secrets it can decrypt, under the vault's lock; a save that cannot decrypt fails and
   records nothing. Reads keep no takeover state, so nothing is hidden by a concurrent or failed
   attempt, and a dev build next to a release build reads no keychain to list or check secrets.
+- Limit: a shared entry, or a shared sign-in store, that this build's key does not open is taken
+  to be another build's. That cannot be told apart from a transient failure: on Linux, Chromium
+  falls back from its `v11` keyring key to the `v10` one while the keyring is locked, so an entry
+  read then fails to decrypt. The first save, or the first sign-in store write, then takes over
+  without it, and from then on the build does not see it again. Unlock the keyring before the
+  build's first save if old secrets matter.
 - The migration of pre-ADR-0050 sign-ins is recorded per build in `migration.json` (keyed by the
   build's user data): only the build whose key sealed an old sign-in can move it. A build that
   finds the sign-in in the shared vault but cannot decrypt it records nothing, so the other build
@@ -379,8 +385,10 @@ are waited for before the first request, for at most `startupWaitMs` (1.5 s). A 
 Run with a server turned on waits for the scope's sign-in migration and for the login-shell
 environment the Host reads once at start (`mcpShellEnvironmentReady`, at most 5 s per shell it
 tries): both are done after the first such Run in a Host process. A Run with no server turned on
-waits for neither and reads no keychain: the vault secrets of servers that are off are deferred
-markers (`deferSecretsOfServersOff`, `mcp-deferred-secrets.ts`), read when Pi connects one, for
+waits for neither and reads no keychain; it still awaits `migrateOpenWaggleMcpFilesOnce`, which
+is done for the projects Host start knows, and for a project it has not seen can take the
+migration lock (at most 30 s) and the git calls of `keepMcpFileOutOfGit`. The vault secrets of
+servers that are off are deferred markers (`deferSecretsOfServersOff`, `mcp-deferred-secrets.ts`), read when Pi connects one, for
 example after `/mcp` turns it on during the Run. A server a Pi extension registers in such a Run
 starts with whatever environment the Host has read by then. Connections are
 pooled per Session (below), so the next Run reuses them instead of starting the servers again.
