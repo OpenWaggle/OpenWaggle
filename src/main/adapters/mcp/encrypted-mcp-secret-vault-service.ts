@@ -157,8 +157,15 @@ export function createEncryptedMcpSecretVault(
       try {
         return await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
       } catch {
-        // A shared entry this build's key does not open is another build's secret.
-        if (shared) throw notFound()
+        // A shared entry this build's key does not open is another build's secret: not found
+        // here, said so, since Settings lists it (the shared names are read without decrypting).
+        if (shared) {
+          throw new McpVaultError({
+            reason: 'secret-not-found',
+            secretName: normalized,
+            message: `MCP secret ${JSON.stringify(normalized)} was saved by another OpenWaggle build, which this one cannot read. Save it again under Settings > MCP > Secrets.`,
+          })
+        }
         throw new McpVaultError({
           reason: 'decryption-failed',
           secretName: normalized,

@@ -106,6 +106,11 @@ describe("taking over the shared vault's secrets", () => {
     const key = releaseKey()
     const vault = createEncryptedMcpSecretVault(filePath, key.encryption, { legacyFilePath })
 
-    await expect(vault.resolve('THEIRS')).rejects.toMatchObject({ reason: 'secret-not-found' })
+    // Still not found for the migration's rules, and named as another build's for the user.
+    await expect(vault.resolve('THEIRS')).rejects.toMatchObject({
+      reason: 'secret-not-found',
+      message:
+        'MCP secret "THEIRS" was saved by another OpenWaggle build, which this one cannot read. Save it again under Settings > MCP > Secrets.',
+    })
   })
 })

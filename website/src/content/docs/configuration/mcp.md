@@ -118,7 +118,7 @@ A secret replaces the whole value, so `github-authorization` holds `Bearer <toke
 
 Secret references only work in `~/.openwaggle/mcp.json` and `.openwaggle/mcp.json`, because Pi and other tools read the other files and do not understand them.
 
-A server that refers to a secret you have not added yet, for example after an import that could not copy a password, is left out of sessions until you add it. **Settings > MCP** shows **Needs secret** and the secret's name on the server, and **Add in Secrets** on the server's page takes you to **Secrets** with the name filled in.
+A server that refers to a secret you have not added yet, for example after an import that could not copy a password, is left out of sessions until you add it. **Settings > MCP** shows **Needs secret** and the secret's name on the server, and **Add in Secrets** on the server's page takes you to **Secrets** with the name filled in. A secret another OpenWaggle version saved, which this one cannot read, is listed but does not work: the server reports it when a session starts, and saving the secret again fixes it.
 
 On Linux, unlock your keyring before you first save a secret in a new OpenWaggle version. Secrets an older version saved that cannot be read while the keyring is locked are left behind when the new version saves its first secret.
 
