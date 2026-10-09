@@ -75,4 +75,20 @@ describe('A Session OpenWaggle created', () => {
     expect(String(cause)).toMatch(/entry is missing/)
     expect(existsSync(file)).toBe(false)
   })
+
+  it('says, when opened, that its next message starts a new transcript once its file was deleted', async () => {
+    const sessionId = await createSession(fixture)
+    expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
+    const file = await recordedFile(sessionId)
+    rmSync(file)
+
+    const detail = await opened(sessionId)
+
+    expect(detail?.piSessionFileDeleted).toBe(
+      "This Session's Pi file was deleted; the next message starts a new transcript.",
+    )
+    // The next Run starts the new transcript, so the notice goes.
+    expect((await sendMessage(sessionId, 'Second', 'run-second')).outcome).toBe('success')
+    expect((await opened(sessionId))?.piSessionFileDeleted).toBeUndefined()
+  })
 })

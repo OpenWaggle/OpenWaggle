@@ -3,8 +3,9 @@ import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import { useChatStore } from '../state/chat-store'
 
 /**
- * A discovered Session whose Pi file was deleted outside OpenWaggle still shows its transcript,
- * but cannot be continued: say so when it is opened, rather than only when a send fails.
+ * A Session whose Pi file was deleted outside OpenWaggle still shows its transcript, but a
+ * discovered one cannot be continued and a created one's next message starts over: say so when
+ * it is opened, rather than only when a send fails or the transcript goes.
  */
 export function DeletedPiSessionFileNotice() {
   const notice = useChatStore((state) => state.activeSession?.piSessionFileDeleted)

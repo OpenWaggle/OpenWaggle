@@ -146,12 +146,24 @@ export function deletedPiSessionFileError(sessionId: SessionId) {
   )
 }
 
-/** An opened Session, with why it cannot be continued when its Pi file was deleted. */
+/** What an opened Session OpenWaggle created says once its Pi file was deleted. */
+export const CREATED_SESSION_FILE_DELETED =
+  "This Session's Pi file was deleted; the next message starts a new transcript."
+
+/**
+ * An opened Session, with what its Pi file's deletion means for it: why a discovered Session
+ * cannot be continued, or that a created Session's next message starts over.
+ */
 export function withDeletedPiSessionFileNotice(detail: SessionDetail | null) {
   if (!detail) return Effect.succeed(detail)
-  return Effect.map(deletedPiSessionFileError(detail.id), (deleted) =>
-    deleted ? { ...detail, piSessionFileDeleted: deleted.message } : detail,
-  )
+  return Effect.gen(function* () {
+    const deleted = yield* deletedPiSessionFile(detail.id)
+    if (!deleted) return detail
+    const notice = deleted.discovered
+      ? (yield* refusedRunError(detail.id, deleted)).message
+      : CREATED_SESSION_FILE_DELETED
+    return { ...detail, piSessionFileDeleted: notice }
+  })
 }
 
 function refusedRunError(
@@ -166,8 +178,10 @@ function refusedRunError(
 
 /**
  * Before a Run: a discovered Session whose Pi file was deleted is refused, never continued in a
- * new file under the same id. A Session OpenWaggle created keeps its own transcript, so its Run
- * still starts, in a new Pi file, with a warning that Pi lost what came before.
+ * new file under the same id. A Session OpenWaggle created still runs: Pi starts a new file under
+ * its Pi session id, without what came before, and the Run's snapshot of that file replaces the
+ * transcript shown, so the earlier messages go (`warnIfTranscriptLost`). It is logged once, and
+ * the Session says so when it is opened, before that next message.
  */
 export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
   return Effect.gen(function* () {

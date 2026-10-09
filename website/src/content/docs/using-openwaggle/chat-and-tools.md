@@ -53,6 +53,8 @@ A few things to know:
 - Sessions from folders that aren't an OpenWaggle project stay hidden. Add the folder as a project and its `pi` sessions appear.
 - Deleting the session in OpenWaggle removes it from OpenWaggle only. The Pi session file stays, so `pi --resume` still has it, and OpenWaggle doesn't list it again. Sessions you started in OpenWaggle are deleted completely, as before.
 - If the Pi session file is deleted outside OpenWaggle, for example from `pi --resume`, the session leaves OpenWaggle's sidebar too, since its history was in that file, unless a fork or a Worker of it still depends on it; then it stays, to read only, and says so when you open it. Until then, sending a message to it fails with a message that says so; OpenWaggle never starts a new file under the same session. If the folder that holds the file is missing, as when a drive is not connected, the session stays. A file put back later is found again.
+
+If the Pi file of a session you started in OpenWaggle is deleted outside OpenWaggle, the session says so when you open it. Your next message starts a new transcript: the agent no longer has the earlier conversation, and the session shows only what comes after.
 - Removing a project also keeps the Pi files of its `pi` sessions. If you add the folder again later, they come back. If the folder is inside another project, that project lists them once the removal is done, since they were started inside its folder.
 - Opening a session to read it never changes its file.
 - A session you forked with `/fork` in Pi shows up as its own session, next to the one it came from.

@@ -159,8 +159,9 @@ export interface SessionDetail {
    */
   readonly piSessionCwd?: string
   /**
-   * Set when an opened discovered Session's Pi file was deleted outside OpenWaggle: why it cannot
-   * be continued, as its Runs are refused. Only a Session read for the chat view carries it.
+   * Set when an opened Session's Pi file was deleted outside OpenWaggle: for a discovered Session,
+   * why it cannot be continued, as its Runs are refused; for one OpenWaggle created, that its next
+   * message starts a new transcript. Only a Session read for the chat view carries it.
    */
   readonly piSessionFileDeleted?: string
 }
