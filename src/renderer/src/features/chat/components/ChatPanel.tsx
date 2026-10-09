@@ -118,6 +118,19 @@ function matchesHiveSession(candidate: SessionSummary | null | undefined, sessio
   )
 }
 
+/** Whether the active Session belongs to a Hive the session store knows. */
+function useHiveAvailable(activeSessionId: string | null) {
+  return useSessionStore((state) => {
+    if (!activeSessionId) return false
+    return [
+      state.activeSessionTree?.session,
+      ...state.hiveSessions,
+      ...state.sessions,
+      ...state.archivedSessions,
+    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
+  })
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -131,15 +144,7 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
-  const hiveAvailable = useSessionStore((state) => {
-    if (!activeSessionId) return false
-    return [
-      state.activeSessionTree?.session,
-      ...state.hiveSessions,
-      ...state.sessions,
-      ...state.archivedSessions,
-    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
-  })
+  const hiveAvailable = useHiveAvailable(activeSessionId)
   useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
