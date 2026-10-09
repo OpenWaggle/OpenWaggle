@@ -10,6 +10,7 @@ import type {
   McpServerConfig,
   McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
+import { McpVaultError } from '../../../ports/mcp-errors'
 import { mcpFileMigrationFailure } from '../migration/migration-health'
 import {
   type McpConfigFileReader,
@@ -48,6 +49,8 @@ export interface McpRuntimeConfig {
   readonly merged: McpMergedConfig
   /** Servers left out because a vault secret could not be read, with why. */
   readonly unavailable: ReadonlyMap<string, string>
+  /** Those of `unavailable` whose secret is missing from the vault (Settings shows it per row). */
+  readonly missingSecrets: ReadonlyMap<string, string>
   /**
    * Each server's configuration with every vault value replaced by its stamp (`secretStamp`), for
    * the connection fingerprint: the same whether the Run deferred the secret or read it.
@@ -83,7 +86,7 @@ function errorMessage(error: unknown) {
 
 type ResolvedValues =
   | { readonly ok: true; readonly values: Record<string, string> | undefined }
-  | { readonly ok: false; readonly error: string }
+  | { readonly ok: false; readonly error: string; readonly missingSecret?: true }
 
 async function resolveValues(
   server: McpMergedServer,
@@ -102,9 +105,11 @@ async function resolveValues(
       // A secret is data: Pi must never read it as `${VAR}` or run it as `!command`.
       resolved[key] = piLiteral(await resolveSecret(value.secret))
     } catch (error) {
+      const missing = error instanceof McpVaultError && error.reason === 'secret-not-found'
       return {
         ok: false,
         error: `${server.source.path}: server "${server.name}": ${field} "${key}" names vault secret "${value.secret}", which could not be read: ${errorMessage(error)}`,
+        ...(missing ? { missingSecret: true as const } : {}),
       }
     }
   }
@@ -113,7 +118,7 @@ async function resolveValues(
 
 type ResolvedServer =
   | { readonly ok: true; readonly config: McpServerConfig }
-  | { readonly ok: false; readonly error: string }
+  | { readonly ok: false; readonly error: string; readonly missingSecret?: true }
 
 async function resolveServer(
   server: McpMergedServer,
@@ -207,6 +212,7 @@ export async function loadMcpRuntimeConfig(
   const transports = new Map<string, McpTransportKind>()
   const unavailable = new Map<string, string>()
   const connectionConfigs = new Map<string, McpServerConfig>()
+  const missingSecrets = new Map<string, string>()
   const stamp = input.secretStamp ?? (async (name: string) => name)
   for (const server of selected) {
     const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
@@ -218,6 +224,7 @@ export async function loadMcpRuntimeConfig(
     if (!resolved.ok) {
       errors.push(resolved.error)
       unavailable.set(server.name, resolved.error)
+      if (resolved.missingSecret) missingSecrets.set(server.name, resolved.error)
       continue
     }
     servers.push(runtimeEntry(server, resolved.config))
@@ -237,6 +244,7 @@ export async function loadMcpRuntimeConfig(
     transports,
     merged,
     unavailable,
+    missingSecrets,
     connectionConfigs,
   }
 }

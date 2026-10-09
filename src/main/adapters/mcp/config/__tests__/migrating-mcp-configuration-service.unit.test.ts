@@ -107,12 +107,15 @@ describe('the MCP configuration view', () => {
     const merged = (await Effect.runPromise(service.getView({ projectPath: null }))).errors
 
     const view = await Effect.runPromise(
-      withRuntimeConfigErrors(service, async () => [...merged, vaultError]).getView({
-        projectPath: null,
-      }),
+      withRuntimeConfigErrors(service, async () => ({
+        errors: [...merged, vaultError],
+        missingSecretErrors: [vaultError],
+      })).getView({ projectPath: null }),
     )
 
     expect(view.errors).toEqual([...merged, vaultError])
+    // Settings shows those on the servers' rows ("Needs secret"); the CLI lists them all.
+    expect(view.missingSecretErrors).toEqual([vaultError])
   })
 
   it('answers a read from the current files while the Host drains, migrating nothing', async () => {

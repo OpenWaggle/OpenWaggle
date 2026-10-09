@@ -1,6 +1,11 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
+const MISSING_ERROR = vi.hoisted(
+  () =>
+    'mcp.json: server "api": env "TOKEN" names vault secret "API_TOKEN", which could not be read',
+)
+
 const mocks = vi.hoisted(() => {
   const resolvers: ((name: string) => Promise<string>)[] = []
   return {
@@ -17,7 +22,10 @@ vi.mock('../../../mcp/config/mcp-runtime-config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../mcp/config/mcp-runtime-config')>()),
   loadMcpRuntimeConfig: async (input: { resolveSecret: (name: string) => Promise<string> }) => {
     mocks.resolvers.push(input.resolveSecret)
-    return { loaded: { servers: [], errors: [] } }
+    return {
+      loaded: { servers: [], errors: [MISSING_ERROR, 'docs: vault secret could not be decrypted'] },
+      missingSecrets: new Map([['api', MISSING_ERROR]]),
+    }
   },
 }))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
@@ -42,5 +50,14 @@ describe("Settings' and the CLI's MCP view", () => {
     await expect(resolveSecret?.('MISSING')).rejects.toThrow('MCP secret "MISSING" was not found.')
     // A slow or prompting keychain does not slow Settings down.
     expect(mocks.resolve).not.toHaveBeenCalled()
+  })
+
+  it("marks a missing secret's error, which Settings leaves to the server's row", async () => {
+    const view = await Effect.runPromise(
+      getOpenWaggleMcpConfigurationService().getView({ projectPath: null }),
+    )
+
+    expect(view.errors).toEqual([MISSING_ERROR, 'docs: vault secret could not be decrypted'])
+    expect(view.missingSecretErrors).toEqual([MISSING_ERROR])
   })
 })

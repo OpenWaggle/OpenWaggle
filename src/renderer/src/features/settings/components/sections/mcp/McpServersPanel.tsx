@@ -18,6 +18,12 @@ import { McpServerList } from './McpServerList'
 
 type OpenPanel = 'add' | 'import' | null
 
+/** The view's errors without those a server's row shows as "Needs secret X". */
+function bannerErrors(view: McpConfigurationView | null | undefined) {
+  const onRows = new Set(view?.missingSecretErrors)
+  return (view?.errors ?? []).filter((error) => !onRows.has(error))
+}
+
 function ConfigErrors({ errors }: { readonly errors: readonly string[] }) {
   if (errors.length === 0) return null
   return (
@@ -176,7 +182,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
           <McpImportPanel projectPath={projectPath} onClose={() => setPanel(null)} />
         ) : null}
         <McpInlineError message={configuration.loadError} />
-        <ConfigErrors errors={view?.errors ?? []} />
+        <ConfigErrors errors={bannerErrors(view)} />
         <ConfigWarnings
           projectPath={projectPath}
           warnings={view?.warnings ?? []}

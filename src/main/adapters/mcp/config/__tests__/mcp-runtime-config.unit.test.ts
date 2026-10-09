@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { McpVaultError } from '../../../../ports/mcp-errors'
 import { loadMcpRuntimeConfig } from '../mcp-runtime-config'
 
 let root: string
@@ -105,6 +106,28 @@ describe('MCP runtime configuration', () => {
     expect(config.loaded.errors).toEqual([
       `${path.join(homeDir, '.openwaggle', 'mcp.json')}: server "broken": headers "Authorization" names vault secret "missing", which could not be read: No such secret`,
     ])
+  })
+
+  it('names the servers left out because a secret is missing, apart from other failures', async () => {
+    write(path.join(homeDir, '.openwaggle', 'mcp.json'), {
+      mcpServers: {
+        missing: { command: 'm', env: { TOKEN: { secret: 'ABSENT' } } },
+        locked: { command: 'l', env: { TOKEN: { secret: 'LOCKED' } } },
+      },
+    })
+
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath: null },
+      resolveSecret: async (name) => {
+        if (name === 'ABSENT') {
+          throw new McpVaultError({ reason: 'secret-not-found', message: 'not found' })
+        }
+        throw new McpVaultError({ reason: 'decryption-failed', message: 'cannot be decrypted' })
+      },
+    })
+
+    expect([...config.missingSecrets.keys()]).toEqual(['missing'])
+    expect(config.missingSecrets.get('missing')).toBe(config.unavailable.get('missing'))
   })
 
   it('gives a Session with MCP off no servers, and narrows to an allowlist', async () => {

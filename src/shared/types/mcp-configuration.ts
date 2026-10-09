@@ -66,6 +66,11 @@ export interface McpConfigurationView {
   readonly servers: readonly McpConfiguredServerView[]
   /** Unreadable files and invalid entries, as Pi reports them. */
   readonly errors: readonly string[]
+  /**
+   * Those of `errors` that a missing vault secret causes. Settings shows them on the servers'
+   * rows ("Needs secret X") rather than in the configuration errors; the CLI lists them all.
+   */
+  readonly missingSecretErrors?: readonly string[]
   /** Entries that are ignored without breaking anything, such as an orphaned OpenWaggle override. */
   readonly warnings?: readonly string[]
   /**

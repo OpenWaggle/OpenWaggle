@@ -52,7 +52,11 @@ export function migrateBeforeEachCall(
  */
 export function withRuntimeConfigErrors(
   service: McpConfigurationServiceShape,
-  runtimeErrors: (projectPath: string | null) => Promise<readonly string[]>,
+  runtimeErrors: (projectPath: string | null) => Promise<{
+    readonly errors: readonly string[]
+    /** Those of `errors` caused by a secret missing from the vault. */
+    readonly missingSecretErrors?: readonly string[]
+  }>,
 ): McpConfigurationServiceShape {
   return {
     ...service,
@@ -60,12 +64,18 @@ export function withRuntimeConfigErrors(
       Effect.gen(function* () {
         const view = yield* service.getView(input)
         const extra = yield* Effect.promise(() =>
-          runtimeErrors(input.projectPath).catch((error: unknown) => [
-            error instanceof Error ? error.message : String(error),
-          ]),
+          runtimeErrors(input.projectPath).catch(
+            (error: unknown): Awaited<ReturnType<typeof runtimeErrors>> => ({
+              errors: [error instanceof Error ? error.message : String(error)],
+            }),
+          ),
         )
-        const errors = [...view.errors, ...extra.filter((error) => !view.errors.includes(error))]
-        return { ...view, errors }
+        const errors = [
+          ...view.errors,
+          ...extra.errors.filter((error) => !view.errors.includes(error)),
+        ]
+        const missing = extra.missingSecretErrors ?? []
+        return { ...view, errors, ...(missing.length > 0 ? { missingSecretErrors: missing } : {}) }
       }),
   }
 }

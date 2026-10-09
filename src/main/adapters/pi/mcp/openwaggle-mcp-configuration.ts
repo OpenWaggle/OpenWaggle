@@ -37,13 +37,17 @@ export function getOpenWaggleMcpConfigurationService() {
       migrateOpenWaggleMcpFilesOnce,
       { skipReadsWhile: isMcpHostDraining },
     ),
-    async (projectPath) =>
-      (
-        await loadMcpRuntimeConfig({
-          roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath },
-          resolveSecret: checkMcpVaultSecret,
-        })
-      ).loaded.errors,
+    async (projectPath) => {
+      const config = await loadMcpRuntimeConfig({
+        roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath },
+        resolveSecret: checkMcpVaultSecret,
+      })
+      // Settings shows a missing secret on the server's row ("Needs secret X") instead.
+      return {
+        errors: config.loaded.errors,
+        missingSecretErrors: [...config.missingSecrets.values()],
+      }
+    },
   )
   return service
 }

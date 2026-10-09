@@ -83,4 +83,21 @@ describe('Settings > MCP for a server whose vault secret is missing', () => {
     expect(within(form).getByLabelText('Secret name')).toHaveValue('')
     expect(within(form).getByLabelText('Secret value')).not.toHaveFocus()
   })
+
+  it("shows a missing secret on the server's row, not again in the configuration errors", async () => {
+    const missing =
+      'mcp.json: server "api": env "TOKEN" names vault secret "API_TOKEN", which could not be read'
+    api.getMcpConfiguration.mockResolvedValue({
+      ...mcpView(
+        [mcpServer('api', { source: OPENWAGGLE_GLOBAL, vaultSecrets: ['API_TOKEN'] })],
+        [missing, 'docs.json: Unexpected token'],
+      ),
+      missingSecretErrors: [missing],
+    })
+    renderWithQueryClient(<McpServersPanel projectPath={PROJECT} />)
+
+    const errors = await screen.findByLabelText('Configuration errors')
+    expect(errors).toHaveTextContent('docs.json: Unexpected token')
+    expect(errors).not.toHaveTextContent('API_TOKEN')
+  })
 })
