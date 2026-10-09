@@ -48,12 +48,26 @@ function skippedSourceChanges(
   skipped: readonly { readonly fingerprint: string }[],
 ) {
   const skippedFingerprints = new Set(skipped.map((item) => item.fingerprint))
-  return preview.candidates
-    .filter(
-      (candidate) =>
-        candidate.status === 'source-changed' && skippedFingerprints.has(candidate.fingerprint),
-    )
-    .map((candidate) => candidate.name)
+  return preview.candidates.filter(
+    (candidate) =>
+      candidate.status === 'source-changed' && skippedFingerprints.has(candidate.fingerprint),
+  )
+}
+
+/** A shell word for `value`: as it is when it is safe, else single-quoted. */
+function shellWord(value: string) {
+  return /^[A-Za-z0-9_.@%+=:,/-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+/** The command that updates the skipped servers of one app, which it names with `--from`. */
+function replaceCommand(
+  input: McpManagementCommandInput,
+  source: string,
+  names: readonly string[],
+) {
+  const project = projectOptionOf({ args: input.args, projectPath: input.projectPath })
+  const servers = names.map((name) => ` --server ${shellWord(name)}`).join('')
+  return `openwaggle mcp import${project} --from ${source} --apply --conflict replace${servers}`
 }
 
 /** The project and tools of this command, as options the hints repeat. */
@@ -69,7 +83,6 @@ function printApplied(
   input: McpManagementCommandInput,
   preview: McpImportPreviewView,
   result: McpImportApplyResultView,
-  sources: readonly string[] | undefined,
 ) {
   const { output } = input.context
   for (const item of result.imported) {
@@ -80,10 +93,15 @@ function printApplied(
   const changed = skippedSourceChanges(preview, result.skipped)
   if (changed.length === 0 || mcpCliConflictPolicy(input.args) === 'replace') return
   const one = changed.length === 1
-  const servers = changed.map((name) => ` --server ${name}`).join('')
+  const bySource = new Map<string, string[]>()
+  for (const candidate of changed) {
+    bySource.set(candidate.source, [...(bySource.get(candidate.source) ?? []), candidate.name])
+  }
   output.log(
-    `${changed.join(', ')} changed in the other app since ${one ? 'it was' : 'they were'} imported. To update ${one ? 'it' : 'them'}, run: openwaggle mcp import${sameImportOptions(input, sources)} --apply --conflict replace${servers}`,
+    `${changed.map((candidate) => candidate.name).join(', ')} changed in the other app since ${one ? 'it was' : 'they were'} imported. To update ${one ? 'it' : 'them'}, run:`,
   )
+  // One command per app: two apps may have a server of the same name.
+  for (const [source, names] of bySource) output.log(`  ${replaceCommand(input, source, names)}`)
 }
 
 export async function importCommand(input: McpManagementCommandInput): Promise<McpManagementExit> {
@@ -121,7 +139,7 @@ export async function importCommand(input: McpManagementCommandInput): Promise<M
     conflictPolicy: mcpCliConflictPolicy(args),
   })
   if (!json) {
-    printApplied(input, preview, result, sources)
+    printApplied(input, preview, result)
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
   context.output.log(

@@ -147,7 +147,7 @@ describe('openwaggle mcp import', () => {
     })
 
     expect(result.logs).toContain(
-      'linear changed in the other app since it was imported. To update it, run: openwaggle mcp import -l --apply --conflict replace --server linear',
+      'linear changed in the other app since it was imported. To update it, run:\n  openwaggle mcp import -l --from cursor --apply --conflict replace --server linear',
     )
   })
 })
