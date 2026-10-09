@@ -83,8 +83,10 @@ export function McpSecretsPanel({
           variant="secondary"
           size="sm"
           disabled={vault.pending || !name.trim() || !value}
+          aria-busy={vault.pending}
         >
-          Save
+          {/* Saving asks the system keychain, which may take a while or show a prompt. */}
+          {vault.pending ? 'Saving…' : 'Save'}
         </Button>
       </form>
       <McpInlineError message={vault.loadError ?? vault.error} />
