@@ -22,6 +22,19 @@ export interface PiWaggleTurnSummary {
   readonly unresolvedToolCalls: readonly UnresolvedToolCall[]
   readonly aborted: boolean
   readonly terminalError?: string
+  /**
+   * Whether the turn's error can recover on a later turn. False for an error that would fail
+   * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+   */
+  readonly terminalErrorRecoverable?: boolean
+}
+
+export interface PiWaggleTurnSummaryOptions {
+  /**
+   * Classifies a turn's final error. A host decides with its provider's error rules, such as
+   * Pi's retryable-error check; without it every error counts as recoverable.
+   */
+  readonly isRecoverableError?: (message: PiAssistantMessage) => boolean
 }
 
 export interface PiWaggleStopPolicyState {
@@ -98,16 +111,10 @@ function assistantTurnWasAborted(assistantMessages: readonly PiAssistantMessage[
   return assistantMessages.some((message) => message.stopReason === 'aborted')
 }
 
-function terminalErrorMessage(assistantMessages: readonly PiAssistantMessage[]) {
+function terminalErrorAssistantMessage(assistantMessages: readonly PiAssistantMessage[]) {
   for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
     const message = assistantMessages[index]
-    if (!message) {
-      continue
-    }
-
-    if (message.stopReason === 'error') {
-      return message.errorMessage ?? 'Pi assistant run ended with error.'
-    }
+    if (message?.stopReason === 'error') return message
   }
   return undefined
 }
@@ -122,6 +129,7 @@ export function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState {
 
 export function summarizePiWaggleTurnMessages(
   messages: readonly AgentEndEvent['messages'][number][],
+  options: PiWaggleTurnSummaryOptions = {},
 ): PiWaggleTurnSummary {
   const assistantMessages = messages.filter(isAssistantMessage)
   const responseText = assistantMessages.map(assistantText).join('\n\n').trim()
@@ -130,14 +138,21 @@ export function summarizePiWaggleTurnMessages(
   )
 
   const unresolved = unresolvedToolCalls(messages)
-  const terminalError = terminalErrorMessage(assistantMessages)
+  const errorMessage = terminalErrorAssistantMessage(assistantMessages)
 
   return {
     responseText,
     hasToolCalls,
     unresolvedToolCalls: unresolved,
     aborted: assistantTurnWasAborted(assistantMessages),
-    ...(terminalError ? { terminalError } : {}),
+    ...(errorMessage
+      ? {
+          terminalError: errorMessage.errorMessage ?? 'Pi assistant run ended with error.',
+          ...(options.isRecoverableError
+            ? { terminalErrorRecoverable: options.isRecoverableError(errorMessage) }
+            : {}),
+        }
+      : {}),
   }
 }
 
@@ -182,6 +197,18 @@ export function evaluatePiWaggleStopPolicy(input: {
       stop: {
         classification: 'stopped',
         reason: 'Waggle stopped because the assistant turn was aborted.',
+      },
+    }
+  }
+
+  if (input.summary.terminalError && input.summary.terminalErrorRecoverable === false) {
+    return {
+      continue: false,
+      state: input.state,
+      turnSucceeded: false,
+      stop: {
+        classification: 'stopped',
+        reason: `Waggle stopped because ${input.agentLabel} failed: ${input.summary.terminalError}`,
       },
     }
   }

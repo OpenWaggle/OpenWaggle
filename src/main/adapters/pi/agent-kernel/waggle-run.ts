@@ -28,6 +28,7 @@ import {
   buildWaggleTurnMetadata,
   sendInitialWaggleMessages,
 } from './waggle-run-messages'
+import { isRecoverableWaggleTurnError } from './waggle-turn-error'
 
 function appendEnabledWaggleModeState(input: {
   readonly session: AgentSession
@@ -118,7 +119,9 @@ function createConfiguredWaggleExtension(input: {
         waggleSessionId: input.waggleSessionId,
       }),
     onTurnComplete: ({ meta, messages, turn }) => {
-      const summary = summarizePiWaggleTurnMessages(messages)
+      const summary = summarizePiWaggleTurnMessages(messages, {
+        isRecoverableError: isRecoverableWaggleTurnError,
+      })
       const evaluation = evaluatePiWaggleStopPolicy({
         config: input.runtimeConfig,
         turnNumber: turn.turnNumber,

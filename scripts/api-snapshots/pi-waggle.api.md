@@ -280,6 +280,9 @@ export {};
 ```ts
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleConsensusCheckResult } from '@openwaggle/waggle-core';
+type PiAssistantMessage = Extract<AgentEndEvent['messages'][number], {
+    readonly role: 'assistant';
+}>;
 interface UnresolvedToolCall {
     readonly id: string;
     readonly name: string;
@@ -290,6 +293,18 @@ export interface PiWaggleTurnSummary {
     readonly unresolvedToolCalls: readonly UnresolvedToolCall[];
     readonly aborted: boolean;
     readonly terminalError?: string;
+    /**
+     * Whether the turn's error can recover on a later turn. False for an error that would fail
+     * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+     */
+    readonly terminalErrorRecoverable?: boolean;
+}
+export interface PiWaggleTurnSummaryOptions {
+    /**
+     * Classifies a turn's final error. A host decides with its provider's error rules, such as
+     * Pi's retryable-error check; without it every error counts as recoverable.
+     */
+    readonly isRecoverableError?: (message: PiAssistantMessage) => boolean;
 }
 export interface PiWaggleStopPolicyState {
     readonly consecutiveErrorTurns: number;
@@ -307,7 +322,7 @@ export interface PiWaggleStopPolicyDecision {
     };
 }
 export declare function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState;
-export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][]): PiWaggleTurnSummary;
+export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][], options?: PiWaggleTurnSummaryOptions): PiWaggleTurnSummary;
 export declare function evaluatePiWaggleStopPolicy(input: {
     readonly config: WaggleConfig;
     readonly turnNumber: number;
@@ -719,6 +734,9 @@ Types: `dist/stop-policy.d.ts`
 ```ts
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleConsensusCheckResult } from '@openwaggle/waggle-core';
+type PiAssistantMessage = Extract<AgentEndEvent['messages'][number], {
+    readonly role: 'assistant';
+}>;
 interface UnresolvedToolCall {
     readonly id: string;
     readonly name: string;
@@ -729,6 +747,18 @@ export interface PiWaggleTurnSummary {
     readonly unresolvedToolCalls: readonly UnresolvedToolCall[];
     readonly aborted: boolean;
     readonly terminalError?: string;
+    /**
+     * Whether the turn's error can recover on a later turn. False for an error that would fail
+     * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+     */
+    readonly terminalErrorRecoverable?: boolean;
+}
+export interface PiWaggleTurnSummaryOptions {
+    /**
+     * Classifies a turn's final error. A host decides with its provider's error rules, such as
+     * Pi's retryable-error check; without it every error counts as recoverable.
+     */
+    readonly isRecoverableError?: (message: PiAssistantMessage) => boolean;
 }
 export interface PiWaggleStopPolicyState {
     readonly consecutiveErrorTurns: number;
@@ -746,7 +776,7 @@ export interface PiWaggleStopPolicyDecision {
     };
 }
 export declare function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState;
-export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][]): PiWaggleTurnSummary;
+export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][], options?: PiWaggleTurnSummaryOptions): PiWaggleTurnSummary;
 export declare function evaluatePiWaggleStopPolicy(input: {
     readonly config: WaggleConfig;
     readonly turnNumber: number;

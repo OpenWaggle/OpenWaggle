@@ -75,6 +75,7 @@ Convenience entry point for Pi-native Waggle integration.
 | `PiWaggleTurnMessageInput` | interface |
 | `PiWaggleTurnMetadataInput` | interface |
 | `PiWaggleTurnSummary` | interface |
+| `PiWaggleTurnSummaryOptions` | interface |
 | `presetScopeLabel` | function |
 | `readPiWagglePresetsFile` | function |
 | `readPiWagglePresetsFileData` | function |
@@ -243,4 +244,5 @@ Pi stop-policy integration.
 | `PiWaggleStopPolicyDecision` | interface |
 | `PiWaggleStopPolicyState` | interface |
 | `PiWaggleTurnSummary` | interface |
+| `PiWaggleTurnSummaryOptions` | interface |
 | `summarizePiWaggleTurnMessages` | function |
