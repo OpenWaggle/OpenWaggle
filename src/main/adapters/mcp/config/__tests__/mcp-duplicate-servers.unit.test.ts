@@ -51,4 +51,31 @@ describe('an MCP file that names a server twice', () => {
       expect.stringContaining(`${file}: server "docs" is defined more than once`),
     )
   })
+
+  it('refuses a file that repeats a key at any level, such as mcpServers itself', async () => {
+    const repeated = `{
+  "mcpServers": {},
+  "mcpServers": {
+    "docs": { "enabled": false, "env": { "TOKEN": "a", "TOKEN": "b" } }
+  }
+}
+`
+    writeFileSync(file, repeated)
+    const service = createFilesystemMcpConfigurationService({
+      homeDir,
+      piAgentDir: path.join(homeDir, '.pi', 'agent'),
+    })
+
+    expect(() => removeMcpServerEntry(file, 'docs')).toThrow(
+      `${file}: "mcpServers" is defined more than once`,
+    )
+    expect(readFileSync(file, 'utf8')).toBe(repeated)
+    const view = await Effect.runPromise(service.getView({ projectPath: null }))
+    expect(view.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(`${file}: "mcpServers" is defined more than once`),
+        expect.stringContaining(`${file}: "mcpServers.docs.env.TOKEN" is defined more than once`),
+      ]),
+    )
+  })
 })

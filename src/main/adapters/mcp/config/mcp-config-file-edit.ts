@@ -19,7 +19,7 @@ import {
 import path from 'node:path'
 import { applyEdits, type FormattingOptions, type JSONPath, modify } from 'jsonc-parser'
 import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
-import { duplicateMcpServerMessage, duplicateMcpServerNames } from './mcp-duplicate-servers'
+import { duplicateMcpConfigKeys, duplicateMcpKeyMessage } from './mcp-duplicate-servers'
 import { mcpFileWriteTarget } from './mcp-file-write-target'
 
 type JsonRecord = Record<string, unknown>
@@ -107,8 +107,8 @@ function writeAtomically(linkOrFile: string, content: string) {
  */
 export function editMcpServers(filePath: string, edit: (servers: JsonRecord) => boolean) {
   const text = existsSync(filePath) ? readFileSync(filePath, 'utf8') : undefined
-  const [duplicate] = text ? duplicateMcpServerNames(text) : []
-  if (duplicate !== undefined) throw new Error(duplicateMcpServerMessage(filePath, duplicate))
+  const [duplicate] = text ? duplicateMcpConfigKeys(text) : []
+  if (duplicate !== undefined) throw new Error(duplicateMcpKeyMessage(filePath, duplicate))
   const parsed = parseFile(filePath, text)
   const before = isJsonRecord(parsed.mcpServers) ? parsed.mcpServers : undefined
   const servers: JsonRecord = before ? structuredClone(before) : {}

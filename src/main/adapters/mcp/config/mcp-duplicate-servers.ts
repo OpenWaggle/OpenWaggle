@@ -1,33 +1,52 @@
 /**
- * An `mcp.json` whose `mcpServers` names a server twice: a read keeps the last entry (JSON.parse,
- * as Pi reads it) but a text edit changes the first, so "Remove override" could delete the real
- * definition. Such a file is shown as an error and never edited.
+ * An `mcp.json` that repeats a key, such as a server in `mcpServers` or `mcpServers` itself: a read
+ * keeps the last one (JSON.parse, as Pi reads it) but a text edit changes the first, so "Remove
+ * override" could delete the real definition. Such a file is shown as an error and never edited.
  */
-import { findNodeAtLocation, parseTree } from 'jsonc-parser'
+import { type Node, parseTree } from 'jsonc-parser'
 import type { McpConfigFileLocation, McpConfigFileReader } from './mcp-config-files'
 
-/** The names `mcpServers` holds more than once, in file order. */
-export function duplicateMcpServerNames(text: string) {
-  const root = parseTree(text)
-  const servers = root ? findNodeAtLocation(root, ['mcpServers']) : undefined
-  if (servers?.type !== 'object') return []
+type JsonPath = readonly (string | number)[]
+
+function collectDuplicates(node: Node | undefined, at: JsonPath, duplicates: JsonPath[]) {
+  if (node?.type === 'array') {
+    for (const [index, item] of (node.children ?? []).entries()) {
+      collectDuplicates(item, [...at, index], duplicates)
+    }
+    return
+  }
+  if (node?.type !== 'object') return
   const seen = new Set<string>()
-  const duplicates = new Set<string>()
-  for (const property of servers.children ?? []) {
+  const repeated = new Set<string>()
+  for (const property of node.children ?? []) {
     const key: unknown = property.children?.[0]?.value
     if (typeof key !== 'string') continue
-    const name = key
-    if (seen.has(name)) duplicates.add(name)
-    seen.add(name)
+    if (seen.has(key) && !repeated.has(key)) {
+      repeated.add(key)
+      duplicates.push([...at, key])
+    }
+    seen.add(key)
+    collectDuplicates(property.children?.[1], [...at, key], duplicates)
   }
-  return [...duplicates]
 }
 
-export function duplicateMcpServerMessage(filePath: string, name: string) {
-  return `${filePath}: server "${name}" is defined more than once; remove one entry before changing it here`
+/** The keys a file holds more than once, at any level, as paths in file order. */
+export function duplicateMcpConfigKeys(text: string) {
+  const duplicates: JsonPath[] = []
+  collectDuplicates(parseTree(text), [], duplicates)
+  return duplicates
 }
 
-/** One error per server a file names twice, for the configuration view. */
+export function duplicateMcpKeyMessage(filePath: string, key: JsonPath) {
+  const [first, name, ...rest] = key
+  const what =
+    first === 'mcpServers' && typeof name === 'string' && rest.length === 0
+      ? `server ${JSON.stringify(name)}`
+      : JSON.stringify(key.join('.'))
+  return `${filePath}: ${what} is defined more than once; remove one entry before changing it here`
+}
+
+/** One error per key a file repeats, for the configuration view. */
 export function duplicateMcpServerErrors(
   files: readonly McpConfigFileLocation[],
   reader: McpConfigFileReader,
@@ -40,7 +59,7 @@ export function duplicateMcpServerErrors(
       return []
     }
     return text
-      ? duplicateMcpServerNames(text).map((name) => duplicateMcpServerMessage(file.path, name))
+      ? duplicateMcpConfigKeys(text).map((key) => duplicateMcpKeyMessage(file.path, key))
       : []
   })
 }
