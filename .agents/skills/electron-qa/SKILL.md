@@ -25,6 +25,8 @@ pnpm dev:debug
 
 This command is non-disruptive and keeps the Electron window hidden. Never run `pnpm dev:debug:headed` unless the maintainer explicitly approves that exact run.
 
+Every QA run, and every other start of the built app, Session Host, or `openwaggle` CLI, sets `HOME`, `PI_CODING_AGENT_DIR`, and `OPENWAGGLE_USER_DATA_DIR` to scratch directories and launches Electron with `--use-mock-keychain`; overriding userData alone still migrates the real `~/.openwaggle` and `~/.pi/agent` files and reaches the real keychain.
+
 The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
 
 Automation disables executable Pi extensions, which also hides OpenWaggle's first-party tools (such as `sessions`) from the model. To QA those tools, start the app with `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1 pnpm dev:debug`.
