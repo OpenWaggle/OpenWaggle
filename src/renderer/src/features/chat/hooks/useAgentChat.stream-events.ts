@@ -50,6 +50,18 @@ function handleAutoRetryEndEvent(
   setReadyIfNoActiveRun(context)
 }
 
+/**
+ * The retried response started streaming: the retry wait is over. Pi reports the retry's success
+ * only when that response ends, so its status would otherwise stay under the streaming reply.
+ */
+function handleAssistantMessageStartEvent(context: AgentStreamEventContext) {
+  const retryStatus = context.compactionStatusRef.current
+  if (retryStatus?.type !== 'retrying') return
+  signalStreamChange(context)
+  context.setCompactionStatus(retryStatus.previousCompactionStatus)
+  context.setStatus('streaming')
+}
+
 function handleAgentEndEvent(
   event: Extract<AgentEventPayload['event'], { readonly type: 'agent_end' }>,
   context: AgentStreamEventContext,
@@ -126,6 +138,9 @@ function handleForegroundAgentStateEvent(
       })
     })
     .with('auto_retry_end', (value) => handleAutoRetryEndEvent(value, context))
+    .with('message_start', (value) => {
+      if (value.role === 'assistant') handleAssistantMessageStartEvent(context)
+    })
     .with('agent_end', (value) => handleAgentEndEvent(value, context))
     .with(
       'agent_interaction_request',
@@ -133,7 +148,6 @@ function handleForegroundAgentStateEvent(
       'custom',
       'turn_start',
       'turn_end',
-      'message_start',
       'message_update',
       'message_end',
       'context_usage',
