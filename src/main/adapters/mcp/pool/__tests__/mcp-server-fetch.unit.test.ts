@@ -124,4 +124,22 @@ describe("the fetch of an MCP server's HTTP transport", () => {
     await expect(fetch(`${url}/mcp`, { method: 'POST' })).rejects.toThrow('closed')
     expect(sockets.size).toBe(connections)
   })
+
+  it('sends nothing to another host whose check was still running when it closed', async () => {
+    const network = answered()
+    let discovered = (_hosts: readonly string[]) => {}
+    // The authorization servers are read from a saved discovery, which answers late.
+    const authorizationServers = () =>
+      new Promise<readonly string[]>((resolve) => {
+        discovered = resolve
+      })
+    const fetch = createMcpServerFetch(SERVER, { authorizationServers, fetchFn: network })
+
+    const request = fetch(PRIVATE_TOKEN_ENDPOINT, { method: 'POST' })
+    await fetch.close()
+    discovered(['https://10.20.30.40/realms/x'])
+
+    await expect(request).rejects.toThrow('The MCP connection was closed.')
+    expect(network).not.toHaveBeenCalled()
+  })
 })
