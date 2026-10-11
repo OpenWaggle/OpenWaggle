@@ -3,6 +3,7 @@ import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent
 import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
+import { contextOmittedEntryIds } from './context-edit-omissions'
 import { createEntryModelSelection } from './entry-model-selection'
 import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
@@ -213,11 +214,7 @@ export function projectPiSessionSnapshot(
   const runIdByEntryId = new Map<string, string | null>()
   const leafId = session.sessionManager.getLeafId()
   const selectedModelOf = createEntryModelSelection(entryById)
-  const omittedEntryIds = new Set(
-    entries.flatMap((entry) =>
-      entry.type === 'context_edit' && entry.replacement === null ? [entry.targetId] : [],
-    ),
-  )
+  const omittedEntryIds = contextOmittedEntryIds(entries, entryById, leafId)
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),

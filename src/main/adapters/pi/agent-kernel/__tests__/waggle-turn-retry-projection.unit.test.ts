@@ -200,4 +200,51 @@ describe('the projection of a Waggle turn', () => {
 
     expect(metadata.get('answer')?.waggle).toMatchObject({ agentLabel: 'Reviewer' })
   })
+
+  describe('a context edit', () => {
+    const failed = assistant('failed', 'turn-1', {
+      stopReason: 'error',
+      errorMessage: '503 Service Unavailable',
+    })
+    const edit = (id: string, parentId: string, replacement: null | { content: string }) =>
+      fromPartial<SessionEntry>({
+        type: 'context_edit',
+        id,
+        parentId,
+        timestamp,
+        targetId: 'failed',
+        replacement,
+      })
+
+    it('drops an attempt only on the branch it was made on', () => {
+      const metadata = hydrated(
+        [
+          turn,
+          failed,
+          edit('edit', 'failed', null),
+          assistant('retried', 'edit', { content: [{ type: 'text', text: 'Retried' }] }),
+          // The active branch continues from the failed attempt without dropping it.
+          assistant('other', 'failed', { content: [{ type: 'text', text: 'Other branch' }] }),
+        ],
+        'other',
+      )
+
+      expect(metadata.get('failed')?.error).toBe('503 Service Unavailable')
+    })
+
+    it('follows the latest edit on the path, which may restore the attempt', () => {
+      const metadata = hydrated(
+        [
+          turn,
+          failed,
+          edit('drop', 'failed', null),
+          edit('restore', 'drop', { content: 'Restored' }),
+          assistant('answer', 'restore', { content: [{ type: 'text', text: 'Answer' }] }),
+        ],
+        'answer',
+      )
+
+      expect(metadata.get('failed')?.error).toBe('503 Service Unavailable')
+    })
+  })
 })
