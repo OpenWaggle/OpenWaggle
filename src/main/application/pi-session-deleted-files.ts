@@ -247,3 +247,17 @@ export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
     )
   })
 }
+
+/**
+ * After a Run saved its snapshot: one that continued in another Pi file than the Session had, as
+ * a created Session whose file was deleted does, replaced the transcript the Session showed. It is
+ * announced, so an open view reads it again and shows the new transcript alone, as a reload does.
+ */
+export function announceReplacedPiTranscript(
+  before: Pick<SessionDetail, 'id' | 'piSessionFile' | 'messages'> | null,
+  piSessionFile: string | undefined,
+) {
+  if (!before?.piSessionFile || !piSessionFile || before.piSessionFile === piSessionFile) return
+  if (before.messages.length === 0) return
+  publishSessionHostEvent({ kind: 'session-list-changed', sessionId: before.id, change: 'updated' })
+}

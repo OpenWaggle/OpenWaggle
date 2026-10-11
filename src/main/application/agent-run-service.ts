@@ -25,6 +25,7 @@ import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { announceReplacedPiTranscript } from './pi-session-deleted-files'
 import {
   mapPersistedRunResourceNodes,
   type PersistedRunResourceNodes,
@@ -131,6 +132,7 @@ export function executeAgentRun(input: AgentRunInput) {
       piSessionId: agentResult.piSessionId,
       piSessionFile: agentResult.piSessionFile,
     })
+    announceReplacedPiTranscript(preflight.session, agentResult.piSessionFile)
 
     const persistedTree = yield* sessionRepo.getTree(input.sessionId).pipe(
       Effect.catchAll((error) =>
