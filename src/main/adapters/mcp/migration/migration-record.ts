@@ -1,12 +1,17 @@
 /**
- * `~/.openwaggle/mcp/migration.json`: which files the one-time ADR 0051
- * migration has handled, so it never runs twice for the same file.
+ * `~/.openwaggle/mcp/migration.json`: what the one-time ADR 0051 migration has
+ * handled (files, old sign-ins per build, old per-Session switches, the
+ * projects whose servers kept their old on/off state), so it never handles
+ * the same thing twice.
  */
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { McpMigrationFs } from './migration-fs'
 
-/** Bump only with a new migration step; files recorded at this version are skipped. */
+/**
+ * Bump only with a new migration step: a file recorded at an older version is
+ * migrated again, one recorded at this version never is.
+ */
 export const MCP_FILE_MIGRATION_VERSION = 1
 const RECORD_FORMAT_VERSION = 1
 const JSON_INDENT = 2

@@ -5,9 +5,11 @@
  * Handles `~/.openwaggle/mcp.json` and `<project>/.openwaggle/mcp.json` for
  * every known project. Never writes Pi's files or `.mcp.json` (the old code
  * never wrote OpenWaggle-only fields there). Each file is handled once and
- * recorded in `~/.openwaggle/mcp/migration.json`; a changed file gets a
- * backup next to it first. A failure is logged and leaves the file as it was,
- * so the next start tries again.
+ * recorded in `~/.openwaggle/mcp/migration.json`, never again, whatever it
+ * holds later. A changed file is backed up first: the global file next to it,
+ * a project file under `~/.openwaggle/mcp/backups/` (`migrationBackupPath`).
+ * A failure is logged and leaves the file as it was, so the next start tries
+ * again.
  */
 import type { Logger } from '@shared/types/logger'
 import { createLogger } from '../../../logger'

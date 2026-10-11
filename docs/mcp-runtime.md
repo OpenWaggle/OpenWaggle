@@ -445,9 +445,10 @@ which starts no server and sends no request. For each configured server it repor
 1. **`live`**: a Session of the project being viewed (for no project, a Session with none)
    holds an open connection with the same server identity (`mcpServerIdentity`). Connections are
    per Session, so another project's Session connected to the same server, even a global one,
-   does not make it connected here: a Session of this project would connect on its own. The pool's `connectionStates(identity)` reads `ready` and the last error
-   without touching recency or handing the connection out; tools are the ones the Session's Run
-   listed. Nothing is sent over another Session's lease.
+   does not make it connected here: a Session of this project would connect on its own. The
+   pool's `connectionStates(identity, projectPath)` reads `ready` and the last error of that
+   project's connections without touching recency or handing a connection out; tools are the
+   ones the Session's Run listed. Nothing is sent over another Session's lease.
 2. **`last-check`**: the in-memory last known state per server identity
    (`adapters/pi/mcp/mcp-server-status-registry.ts`). `inspectServer` ("Check connection",
    `openwaggle mcp list`) records its result, and the connection hooks' `observeResult` records
