@@ -51,6 +51,20 @@ export async function hydratePayloadAttachments(
 }
 
 /**
+ * Whether a Session is still owed its title from the user's request: its title is the default
+ * one, or a Worker's Provisional title before its first message. Messages alone do not say so:
+ * an extension command can write a turn without titling the Session. Without a known source,
+ * only a Session with no messages is.
+ */
+export function sessionTitleOwed(session: SessionDetail) {
+  if (session.titleSource === 'default') return true
+  if (session.titleSource === 'provisional' || session.titleSource === undefined) {
+    return session.messages.length === 0
+  }
+  return false
+}
+
+/**
  * On a Session's first message, writes its Provisional title and asks the Session Host to generate
  * the real one in the background. Only the local write happens on the Run's path; returns the
  * Provisional title when this call assigned it.
@@ -65,7 +79,7 @@ export function assignSessionTitleFromUserText(
   },
 ) {
   return Effect.gen(function* () {
-    if (session.messages.length > 0) return null
+    if (!sessionTitleOwed(session)) return null
     const trimmed = payload.text.trim()
     const assigned = trimmed
       ? yield* (yield* SessionProjectionRepository).assignProvisionalTitle(

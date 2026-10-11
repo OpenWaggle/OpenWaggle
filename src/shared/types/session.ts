@@ -1,3 +1,4 @@
+import type { SessionTitleSource } from '../session-title-source'
 import type { Message, MessageRole } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
@@ -120,6 +121,8 @@ export interface SessionInterruptedRun {
 export interface SessionDetail {
   readonly id: SessionId
   readonly title: string
+  /** Where the title came from (ADR 0043); absent where the store does not read it. */
+  readonly titleSource?: SessionTitleSource
   readonly projectPath: string | null
   readonly piSessionId?: string
   readonly piSessionFile?: string

@@ -1,4 +1,4 @@
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -11,17 +11,29 @@ import { SessionProjectionRepository } from '../../../ports/session-projection-r
 import { SettingsService } from '../../../services/settings-service'
 import { EmptyExtensionRuntimeLayer } from '../../__tests__/extension-runtime-test-layer'
 
+const state = vi.hoisted(() => {
+  const value: { messages: SessionDetail['messages'] } = { messages: [] }
+  return value
+})
+
 vi.mock('../../pi-session-projection-refresh', async () => {
   const { succeed } = await import('effect/Effect')
   return {
     loadSessionForRun: () =>
-      succeed(fromPartial<SessionDetail>({ id: SessionId('session-1'), messages: [] })),
+      succeed(
+        fromPartial<SessionDetail>({
+          id: SessionId('session-1'),
+          titleSource: 'default',
+          messages: state.messages,
+        }),
+      ),
   }
 })
 
 const { loadAgentRunPreflight } = await import('../preflight')
 
-function preflightTitle(text: string) {
+function preflightTitle(text: string, messages: SessionDetail['messages'] = []) {
+  state.messages = messages
   const assignProvisionalTitle = vi.fn(() => Effect.succeed(true))
   const layer = Layer.mergeAll(
     Layer.succeed(ProviderService, fromPartial({ isKnownModel: () => Effect.succeed(true) })),
@@ -62,4 +74,15 @@ describe("a Session's first message and its title", () => {
       expect((await preflightTitle(text)).titled).toBe(true)
     },
   )
+
+  it('is titled from the first real prompt after a command that sent a turn', async () => {
+    // The command's turn left messages but no title.
+    const commandTurn = [
+      { id: MessageId('assistant-1'), role: 'assistant' as const, parts: [], createdAt: 2 },
+    ]
+
+    const { titled } = await preflightTitle('Now review the migration', commandTurn)
+
+    expect(titled).toBe(true)
+  })
 })

@@ -10,6 +10,8 @@ export interface SessionRow {
   readonly pi_session_file: string | null
   readonly project_path: string | null
   readonly title: string
+  /** Read where a caller needs the title's provenance, such as the Run preflight. */
+  readonly title_source?: string | null
   readonly archived: number
   readonly waggle_config_json: string | null
   readonly created_at: number

@@ -6,7 +6,7 @@ import { SettingsService } from '../../services/settings-service'
 import { invokesExtensionCommand } from '../agent-extension-commands'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
 import { loadSessionForRun } from '../pi-session-projection-refresh'
-import { assignSessionTitleFromUserText } from '../run-handler-utils'
+import { assignSessionTitleFromUserText, sessionTitleOwed } from '../run-handler-utils'
 import { isSessionModelRunnable } from '../session-model-availability'
 import type { AgentRunInput, AgentRunResult } from './types'
 
@@ -36,7 +36,7 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     const settings = yield* settingsService.get()
     // An extension command is not the user's request: the title waits for the first real prompt.
     const invokesCommand =
-      session.messages.length === 0 &&
+      sessionTitleOwed(session) &&
       (yield* invokesExtensionCommand({ session, model: input.model, text: input.payload.text }))
     const assignedTitle = invokesCommand
       ? null

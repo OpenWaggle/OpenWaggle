@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
@@ -52,6 +53,11 @@ function resumePosition(
   return { nodeId: SessionNodeId(sessionRow.last_active_node_id), piEntryCount }
 }
 
+function sessionTitleSource(raw: string | null | undefined) {
+  const titleSource = SESSION_TITLE_SOURCES.find((source) => source === raw)
+  return titleSource ? { titleSource } : {}
+}
+
 function sessionThinkingLevel(raw: string | null) {
   const executionThinkingLevel = THINKING_LEVELS.find((level) => level === raw)
   return executionThinkingLevel ? { executionThinkingLevel } : {}
@@ -65,6 +71,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
     return {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
+      ...sessionTitleSource(sessionRow.title_source),
       projectPath: sessionRow.project_path,
       piSessionId: sessionRow.pi_session_id,
       piSessionFile: sessionRow.pi_session_file ?? undefined,
@@ -108,6 +115,7 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       sessions.pi_session_file,
       sessions.project_path,
       sessions.title,
+      sessions.title_source,
       sessions.archived,
       sessions.waggle_config_json,
       sessions.created_at,
