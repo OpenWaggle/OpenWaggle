@@ -83,6 +83,7 @@ const messageMetadataSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   stopReason: Schema.optional(Schema.String),
   errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
+  omittedFromContext: Schema.optional(Schema.Boolean),
 })
 
 const messageNodeContentSchema = Schema.Struct({
@@ -129,10 +130,12 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
-  const { stopReason, errorMessage, ...metadata } = parsedMetadata.data
+  const { stopReason, errorMessage, omittedFromContext, ...metadata } = parsedMetadata.data
+  // An attempt Pi retried and dropped from the context is not the turn's failure.
+  const failed = stopReason === 'error' && errorMessage && omittedFromContext !== true
   return {
     ...metadata,
-    ...(stopReason === 'error' && errorMessage ? { error: errorMessage } : {}),
+    ...(failed ? { error: errorMessage } : {}),
     visualizationSessionId: parsedMetadata.data.visualizationSessionId
       ? SessionId(parsedMetadata.data.visualizationSessionId)
       : undefined,

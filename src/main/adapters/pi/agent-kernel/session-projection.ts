@@ -1,9 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
-import {
-  PI_WAGGLE_TURN_CUSTOM_TYPE,
-  parsePiWaggleTurnDetails,
-} from '@openwaggle/pi-waggle/protocol'
 import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
@@ -11,19 +7,15 @@ import { createEntryModelSelection } from './entry-model-selection'
 import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
 import { findUserInputProjection } from './user-input-projection'
+import {
+  currentTurnMetadata,
+  isUserMessageEntry,
+  type PiAssistantMessageEntry,
+} from './waggle-turn-metadata'
 
 interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
 }
-
-type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
-type PiAssistantMessageEntry = PiMessageEntry & {
-  readonly message: Extract<PiMessageEntry['message'], { role: 'assistant' }>
-}
-type PiUserMessageEntry = PiMessageEntry & {
-  readonly message: Extract<PiMessageEntry['message'], { role: 'user' }>
-}
-type PiTurnCustomMessageEntry = Extract<SessionEntry, { type: 'custom_message' }>
 
 function parsePiEntryTimestamp(timestamp: string) {
   const parsed = Date.parse(timestamp)
@@ -38,62 +30,17 @@ function isAssistantEntry(entry: SessionEntry): entry is PiAssistantMessageEntry
   return entry.type === 'message' && entry.message.role === 'assistant'
 }
 
-function isUserMessageEntry(entry: SessionEntry): entry is PiUserMessageEntry {
-  return entry.type === 'message' && entry.message.role === 'user'
-}
-
-function isTurnCustomMessageEntry(entry: SessionEntry): entry is PiTurnCustomMessageEntry {
-  return entry.type === 'custom_message' && entry.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
-}
-
-function turnMetadataFromCustomMessage(input: { readonly entry: PiTurnCustomMessageEntry }) {
-  const details = parsePiWaggleTurnDetails(input.entry.details)
-  if (!details) return null
-
-  return {
-    agentIndex: details.agentIndex,
-    agentLabel: details.agentLabel,
-    agentColor: details.agentColor,
-    agentModel: details.agentModel,
-    turnNumber: details.turnNumber,
-    sessionId: details.runId,
-  }
-}
-
-function turnMetadataForPromptParent(
-  parent: PiUserMessageEntry,
-  entryById: ReadonlyMap<string, SessionEntry>,
-) {
-  if (!parent.parentId) {
-    return null
-  }
-  const turnParent = entryById.get(parent.parentId)
-  return turnParent && isTurnCustomMessageEntry(turnParent)
-    ? turnMetadataFromCustomMessage({ entry: turnParent })
-    : null
-}
-
-function currentTurnMetadata(input: {
-  readonly entry: PiAssistantMessageEntry
-  readonly entryById: ReadonlyMap<string, SessionEntry>
-}) {
-  if (!input.entry.parentId) {
-    return null
-  }
-  const parent = input.entryById.get(input.entry.parentId)
-  if (!parent) {
-    return null
-  }
-  if (isTurnCustomMessageEntry(parent)) {
-    return turnMetadataFromCustomMessage({ entry: parent })
-  }
-  return isUserMessageEntry(parent) ? turnMetadataForPromptParent(parent, input.entryById) : null
-}
-
 function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   const parsed = parseJsonUnknown(rawMetadataJson)
   const metadata = isRecord(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, waggle })
+}
+
+/** A response a context edit drops from the model's context, such as an attempt Pi retried. */
+function mergeMetadataJsonWithContextOmission(rawMetadataJson: string, omitted: boolean) {
+  if (!omitted) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), omittedFromContext: true })
 }
 
 function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: string | null) {
@@ -187,6 +134,7 @@ function projectPiEntry(input: {
   readonly runId: string | null
   readonly nodeIds: PiEntryNodeIds
   readonly selectedModel: string | null
+  readonly omittedFromContext: boolean
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
@@ -208,9 +156,12 @@ function projectPiEntry(input: {
     metadataJson: mergeMetadataJsonWithRun(
       mergeMetadataJsonWithSelectedModel(
         mergeMetadataJsonWithDurableText(
-          waggleMetadata
-            ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-            : projection.metadataJson,
+          mergeMetadataJsonWithContextOmission(
+            waggleMetadata
+              ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+              : projection.metadataJson,
+            input.omittedFromContext,
+          ),
           displayProjection?.durableTextSha256 ?? null,
         ),
         isAssistantEntry(input.entry) ? input.selectedModel : null,
@@ -262,6 +213,11 @@ export function projectPiSessionSnapshot(
   const runIdByEntryId = new Map<string, string | null>()
   const leafId = session.sessionManager.getLeafId()
   const selectedModelOf = createEntryModelSelection(entryById)
+  const omittedEntryIds = new Set(
+    entries.flatMap((entry) =>
+      entry.type === 'context_edit' && entry.replacement === null ? [entry.targetId] : [],
+    ),
+  )
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
@@ -274,6 +230,7 @@ export function projectPiSessionSnapshot(
         runId: runIdForEntry({ entryId: entry.id, entryById, runIdByEntryId }),
         nodeIds,
         selectedModel: selectedModelOf(entry.parentId),
+        omittedFromContext: omittedEntryIds.has(entry.id),
       }),
     ),
   }
