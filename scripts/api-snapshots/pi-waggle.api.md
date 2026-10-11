@@ -64,6 +64,8 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI): void;
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -134,6 +136,21 @@ export declare function createPiWaggleTurnCompletionHandlers<TMeta>(input: PiWag
 export declare function createPiWaggleTurnEndHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleTurnEndHandler;
 export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleExtensionApi): void;
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
+```
+
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
 ```
 
 ### Declarations from `dist/mode-state.d.ts`
@@ -386,6 +403,8 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI): void;
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -458,6 +477,21 @@ export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMe
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
 ```
 
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
+```
+
 ## Export `./loop`
 
 Types: `dist/loop.d.ts`
@@ -467,6 +501,8 @@ Types: `dist/loop.d.ts`
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -537,6 +573,21 @@ export declare function createPiWaggleTurnCompletionHandlers<TMeta>(input: PiWag
 export declare function createPiWaggleTurnEndHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleTurnEndHandler;
 export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleExtensionApi): void;
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
+```
+
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
 ```
 
 ## Export `./mode-state`
