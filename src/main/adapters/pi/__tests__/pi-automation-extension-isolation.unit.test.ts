@@ -40,6 +40,7 @@ it('excludes project/user extensions but retains trusted built-ins during automa
   expect(createOpenWaggleGlobalPiResourceLoaderOptions()).toEqual({
     noExtensions: true,
     extensionFactories: [expect.any(Function)],
+    extensionsOverride: expect.any(Function),
   })
   expect(
     createOpenWagglePiResourceLoaderOptions(projectPath, {

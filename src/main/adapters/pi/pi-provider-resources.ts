@@ -17,6 +17,7 @@ import {
   openWagglePiBuiltInExtensionPaths,
   openWagglePiBuiltInExtensions,
 } from './pi-built-in-extensions'
+import { withoutInstalledPiWaggle } from './pi-waggle-package-dedupe'
 import { createProviderAttributionExtension } from './provider-attribution-extension'
 
 export interface PiRuntimeServicesOptions {
@@ -242,6 +243,7 @@ export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoade
   return {
     ...(disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}),
     extensionFactories: [providerAttributionExtensionFactory()],
+    extensionsOverride: withoutInstalledPiWaggle,
   }
 }
 
@@ -269,5 +271,6 @@ export function createOpenWagglePiResourceLoaderOptions(
     ...(appendSystemPrompt.length > 0 ? { appendSystemPrompt } : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
     extensionFactories,
+    extensionsOverride: withoutInstalledPiWaggle,
   }
 }
