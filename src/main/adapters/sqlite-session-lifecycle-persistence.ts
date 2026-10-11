@@ -218,8 +218,9 @@ function lifecycleTitleFromCommand(
 
 /**
  * An untitled fork is named after its source, marked as a fork or a copy, and keeps that title like
- * a rename. Titles are generated only for a Session with no messages, so a fork left as
- * "New session" never got a name.
+ * a rename. A fork of a Session still titled "New session" keeps the default title instead: a
+ * `default` title is owed a generated one whatever the message count (`sessionTitleOwed`), so
+ * the fork is titled from its next message rather than named "New session (copy)".
  */
 function defaultLifecycleTitle(
   sql: SqlClient.SqlClient,
@@ -232,7 +233,7 @@ function defaultLifecycleTitle(
       SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
     `
     const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
-    if (!source) return DEFAULT_LIFECYCLE_TITLE
+    if (!source || source === DEFAULT_SESSION_TITLE) return DEFAULT_LIFECYCLE_TITLE
     return {
       title: assertSessionTitle(
         `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,

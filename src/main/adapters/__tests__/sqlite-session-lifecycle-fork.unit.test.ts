@@ -113,6 +113,32 @@ describe('SQLite Session lifecycle fork persistence', () => {
     expect(title).toBe('Parent (copy)')
   })
 
+  // A Session still owed its title gets it from its next message; a fork of it is owed one too.
+  it.each(['New session', 'New session (fork)'])(
+    'leaves a fork of a Session titled %s owed its title',
+    async (sourceTitle) => {
+      const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'default-fork.sqlite'))
+      const input = forkLifecycleInput()
+      const { title: _explicitTitle, ...command } = input.request.command
+      const row = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`UPDATE sessions SET title = ${sourceTitle} WHERE id = ${'session-parent'}`
+          yield* (yield* SessionLifecycleRepository).execute({
+            ...input,
+            request: { ...input.request, command },
+          })
+          const rows = yield* sql<{ readonly title: string; readonly title_source: string }>`
+            SELECT title, title_source FROM sessions WHERE id = ${'session-fork'}
+          `
+          return rows[0]
+        }).pipe(Effect.provide(layer)),
+      )
+
+      expect(row).toEqual({ title: 'New session', title_source: 'default' })
+    },
+  )
+
   it('does not stack copy markers when a copy is copied again', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'copy-of-copy.sqlite'))
     const input = forkLifecycleInput()
