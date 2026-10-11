@@ -31,6 +31,19 @@ function inSessionWorktree(session: SessionDetail, folder: string) {
 }
 
 /**
+ * Why the Session's Pi file, which could not be found, cannot be used: its folder is missing, or
+ * the file was deleted from it.
+ */
+export function missingPiSessionFileError(session: SessionDetail) {
+  const file = session.piSessionFile?.trim() || `the Pi session file of ${String(session.id)}`
+  return new PiSessionFileUnavailableError(
+    existsSync(dirname(file))
+      ? deletedPiSessionFileMessage(file)
+      : unavailablePiSessionFileMessage(file),
+  )
+}
+
+/**
  * Throws when the Session's Pi file cannot be found and a new one under the same Pi session id
  * would replace the history the Session shows (ADR 0051):
  *

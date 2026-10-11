@@ -70,9 +70,9 @@ describe('A Session OpenWaggle created', () => {
       forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at').pipe(Effect.either),
     )
 
-    // It fails as a missing entry: a read of the deleted file finds nothing to fork from.
+    // There is no file to fork from, which it says, rather than an entry it could not find.
     const cause = fork._tag === 'Left' && fork.left instanceof Error ? fork.left.cause : undefined
-    expect(String(cause)).toMatch(/entry is missing/)
+    expect(String(cause)).toMatch(/This Session's Pi session file was deleted outside OpenWaggle/)
     expect(existsSync(file)).toBe(false)
   })
 

@@ -12,12 +12,8 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
-import {
-  projectWrittenFork,
-  rekeyPiWrittenFork,
-  type WrittenFork,
-  writeForkBeforeItStarts,
-} from './fork-files'
+import { projectWrittenFork, type WrittenFork, writeForkBeforeItStarts } from './fork-files'
+import { missingPiSessionFileError } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
@@ -181,24 +177,21 @@ export async function forkPiSession(
     resolveSessionWorkingPath(input.session),
   )
   // The file the copy loaded, found by Pi session id when the recorded path is missing or stale.
-  // A copy that persists loaded none, and Pi writes that fork itself.
-  const sourceFile = copy.isPersisted() ? undefined : copy.getSessionFile()
+  // Without one there is nothing to fork from: the file was deleted or its folder is missing.
+  const sourceFile = copy.getSessionFile()
+  if (!sourceFile) throw missingPiSessionFileError(input.session)
   let written: WrittenFork | undefined
   const runtime = await createPiSessionRuntime(input, {
     sessionManager: copy,
-    ...(sourceFile
-      ? {
-          beforeForkStarts: async (sessionManager: SessionManager) => {
-            const fork = await writeForkBeforeItStarts(
-              sessionManager,
-              sourceFile,
-              input.beforeWritingFork,
-            )
-            written = fork
-            return fork.sessionManager
-          },
-        }
-      : {}),
+    beforeForkStarts: async (sessionManager: SessionManager) => {
+      const fork = await writeForkBeforeItStarts(
+        sessionManager,
+        sourceFile,
+        input.beforeWritingFork,
+      )
+      written = fork
+      return fork.sessionManager
+    },
   })
   let editorText: string | undefined
   try {
@@ -209,12 +202,11 @@ export async function forkPiSession(
       return {
         cancelled: true,
         piSessionId: runtime.session.sessionId,
-        piSessionFile: sourceFile ?? input.session.piSessionFile,
+        piSessionFile: sourceFile,
         sessionSnapshot: projectPiSessionSnapshot(runtime.session, sourceNodeIds),
       }
     }
     editorText = result.selectedText
-    written ??= await rekeyPiWrittenFork(runtime.session, input.beforeWritingFork)
   } catch (error) {
     if (
       error instanceof Error &&
@@ -228,6 +220,7 @@ export async function forkPiSession(
     await disposeOpenWagglePiSession(runtime.session)
   }
 
+  if (!written) throw new Error('Pi did not create the forked session.')
   return {
     cancelled: false,
     ...projectWrittenFork(

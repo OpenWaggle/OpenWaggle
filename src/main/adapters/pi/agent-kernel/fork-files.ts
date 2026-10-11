@@ -75,16 +75,3 @@ export async function writeForkBeforeItStarts(
     sessionManager: SessionManager.open(fork.sessionFile, undefined, sessionManager.getCwd()),
   }
 }
-
-/** A fork Pi wrote itself, from a Session whose copy had no file to load: given ids of its own. */
-export async function rekeyPiWrittenFork(
-  session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
-  beforeWritingFork: ForkAgentKernelSessionInput['beforeWritingFork'],
-): Promise<WrittenFork> {
-  const sessionFile = session.sessionFile
-  const header = session.sessionManager.getHeader()
-  if (!sessionFile || !header) throw new Error('Pi did not create the forked session.')
-  if (beforeWritingFork) await Effect.runPromise(beforeWritingFork(sessionFile))
-  const lines = [header, ...session.sessionManager.getEntries()]
-  return { sessionFile, sourceEntryIdByNodeId: await writeRekeyedForkedSession(sessionFile, lines) }
-}

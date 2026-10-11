@@ -39,6 +39,7 @@ const operationMocks = vi.hoisted(() => ({
   withOpenWagglePiSessionLifecycleContext: vi.fn(),
   withPiSession: vi.fn(),
   withReadOnlyPiSession: vi.fn(),
+  readOnlySessionFile: vi.fn((): string | undefined => undefined),
 }))
 
 vi.mock('../session-runtime', () => ({
@@ -59,8 +60,8 @@ vi.mock('../session-listener', () => ({
 vi.mock('../session-manager', () => ({
   createReadOnlySessionManagerForSession: async () => ({
     getSessionId: () => 'pi-session-1',
-    getSessionFile: () => undefined,
-    isPersisted: () => true,
+    getSessionFile: operationMocks.readOnlySessionFile,
+    isPersisted: () => false,
   }),
   resolveSessionWorkingPath: () => '/repo',
 }))
@@ -241,6 +242,7 @@ describe('Pi session operations', () => {
   it('disposes the fork runtime and reports a missing entry when the target is invalid', async () => {
     // The successful fork path, which re-keys the new Pi file, is covered with a real Pi
     // session file in fork-entry-identity.unit.test.ts.
+    operationMocks.readOnlySessionFile.mockReturnValueOnce('/repo/source.jsonl')
     const runtimeSession = { sessionId: 'pi-session-2', sessionFile: '/repo/fork.jsonl' }
     const invalidFork = vi.fn(async () => {
       throw new Error('Invalid entry ID for forking')
