@@ -1,13 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { danglingMcpFileLink } from '../config/mcp-config-files'
 import { mcpFileWriteTargetAsync } from '../config/mcp-file-write-target'
 
 /** The file operations the migration needs; injectable for tests. */
 export interface McpMigrationFs {
-  /** The file's text, or undefined when it does not exist. */
+  /**
+   * The file's text, or undefined when it does not exist. A file reached through a link whose
+   * target is missing (an unmounted dotfiles checkout) is not missing: reading it fails.
+   */
   readText(filePath: string): Promise<string | undefined>
-  /** Replace the file through a temporary file and rename, creating directories. */
+  /**
+   * Replace the file through a temporary file and rename, creating directories, but never through
+   * a link whose target is missing, which would put a new file where the real one belongs.
+   */
   writeTextAtomic(filePath: string, content: string): Promise<void>
   /** Create the file only if it does not exist. Returns false when it already existed. */
   createTextExclusive(filePath: string, content: string): Promise<boolean>
@@ -24,16 +31,25 @@ function errorCode(error: unknown) {
     : undefined
 }
 
+/** Throws when the path, or one of its folders, is a link whose target does not resolve. */
+function danglingLinkRefusal(filePath: string, cause?: unknown) {
+  const dangling = danglingMcpFileLink(filePath)
+  if (dangling) throw new Error(`${filePath}: ${dangling}`, { cause })
+}
+
 export const nodeMcpMigrationFs: McpMigrationFs = {
   async readText(filePath) {
     try {
       return await readFile(filePath, 'utf8')
     } catch (error) {
-      if (errorCode(error) === 'ENOENT') return undefined
-      throw error
+      const code = errorCode(error)
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
+      danglingLinkRefusal(filePath, error)
+      return undefined
     }
   },
   async writeTextAtomic(linkOrFile, content) {
+    danglingLinkRefusal(linkOrFile)
     // A symbolic link stays a link: the file it points to is replaced.
     const filePath = await mcpFileWriteTargetAsync(linkOrFile)
     await mkdir(path.dirname(filePath), { recursive: true })

@@ -126,4 +126,69 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
       migrationBackupPath(openwaggleGlobal, homeDir),
     )
   })
+
+  describe('with a link whose target is missing, such as an unmounted dotfiles checkout', () => {
+    async function setUp() {
+      const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+      roots.push(root)
+      const homeDir = path.join(root, 'home')
+      const projectPath = path.join(root, 'project')
+      // MCP was off: a server the old OpenWaggle never connected stays off.
+      await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+        version: 1,
+        globalState: 'off',
+        projectStates: {},
+        sessionStates: {},
+        projectServerStates: {},
+        servers: {},
+      })
+      await mkdir(projectPath, { recursive: true })
+      const migrate = () =>
+        migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [projectPath], now: () => NOW })
+      return { root, projectPath, migrate }
+    }
+
+    const LEGACY = { mcpServers: { legacy: { command: 'legacy-server', directTools: true } } }
+
+    it('fails the file under a linked folder, and migrates it once the folder is back', async () => {
+      const { root, projectPath, migrate } = await setUp()
+      const dotfiles = path.join(root, 'dotfiles', 'openwaggle')
+      await symlink(dotfiles, path.join(projectPath, '.openwaggle'))
+
+      const first = await migrate()
+      expect(first.files.find((file) => file.path.startsWith(projectPath))).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('links to a missing folder'),
+      })
+
+      await writeJson(path.join(dotfiles, 'mcp.json'), LEGACY)
+      const second = await migrate()
+
+      expect(second.files.find((file) => file.path.startsWith(projectPath))?.status).toBe(
+        'migrated',
+      )
+      expect(await readJson(path.join(dotfiles, 'mcp.json'))).toMatchObject({
+        mcpServers: { legacy: { command: 'legacy-server', enabled: false } },
+      })
+    })
+
+    it('fails a linked file, creating nothing where the link points', async () => {
+      const { root, projectPath, migrate } = await setUp()
+      const target = path.join(root, 'dotfiles', 'openwaggle', 'mcp.json')
+      await mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+      await symlink(target, path.join(projectPath, '.openwaggle', 'mcp.json'))
+      // A Pi project file the migration would otherwise write an override file for.
+      await writeJson(path.join(projectPath, '.pi', 'mcp.json'), {
+        mcpServers: { pitool: { command: 'echo' } },
+      })
+
+      const report = await migrate()
+
+      expect(report.files.find((file) => file.path.startsWith(projectPath))).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('links to a missing file'),
+      })
+      await expect(readdir(path.join(root, 'dotfiles'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+  })
 })
