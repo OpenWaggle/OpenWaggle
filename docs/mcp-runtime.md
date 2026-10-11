@@ -113,8 +113,9 @@ A value that cannot be resolved fails that server's check or connection only; in
 `openwaggle mcp list`, and `doctor` report it per server, and the configuration view lists vault
 errors with the other config errors. The configuration view and Settings' server states
 (`getMcpServerStatuses`) only check that each referenced secret exists (`checkMcpVaultSecret`),
-without decrypting it; a server whose secret is missing shows as a failed check. A secret this
-build cannot decrypt is reported when a Run or a check reads it. Server states, inspect and
+without decrypting it; a server that is on but whose secret is missing is not checked and
+shows "Needs secret" (`needsSecret`), since Runs leave it out until the secret is saved. A
+secret this build cannot decrypt is reported when a Run or a check reads it. Server states, inspect and
 sign-in still read whether a server is signed in (`mcpSignedIn`) from the synchronous sign-in
 store, which decrypts on the main thread when the file changed (cached by mtime).
 

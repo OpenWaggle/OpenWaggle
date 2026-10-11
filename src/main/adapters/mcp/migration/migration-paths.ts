@@ -38,11 +38,6 @@ export function legacyMigrationBackupPath(filePath: string) {
 }
 
 /**
- * The migration's one backup of a file. The global file's sits next to it in `~/.openwaggle`. A
- * project file's is kept in the user's OpenWaggle data, under the project folder's name and a hash
- * of the file's path, so it is never written into a repository where it could be committed.
- */
-/**
  * Whether the file is the global OpenWaggle file, by its real location: a project whose
  * `.openwaggle` folder links to `~/.openwaggle` has the global file as its project file.
  */
@@ -50,6 +45,11 @@ export function isGlobalOpenWaggleMcpFile(filePath: string, homeDir: string) {
   return realLocation(filePath) === realLocation(globalMcpPaths(homeDir).openwaggleGlobal)
 }
 
+/**
+ * The migration's one backup of a file. The global file's sits next to it in `~/.openwaggle`. A
+ * project file's is kept in the user's OpenWaggle data, under the project folder's name and a hash
+ * of the file's path, so it is never written into a repository where it could be committed.
+ */
 export function migrationBackupPath(filePath: string, homeDir: string) {
   const resolved = path.resolve(filePath)
   if (isGlobalOpenWaggleMcpFile(resolved, homeDir)) {

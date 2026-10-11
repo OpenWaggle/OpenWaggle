@@ -48,7 +48,6 @@ export function useMcpImports(projectPath: string | null, open: boolean) {
   }
 }
 
-/** The encrypted vault behind `{ "secret": "<name>" }` values in OpenWaggle's MCP files. */
 /** The vault secrets a server reads that the vault lacks; none until the vault's list arrives. */
 export function useMcpMissingSecrets() {
   const vault = useMcpSecrets()
@@ -66,6 +65,7 @@ function pendingSecretOperation(operation: SecretOperation | undefined) {
   return operation ? { kind: operation.kind, name: operation.name } : null
 }
 
+/** The encrypted vault behind `{ "secret": "<name>" }` values in OpenWaggle's MCP files. */
 export function useMcpSecrets() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)

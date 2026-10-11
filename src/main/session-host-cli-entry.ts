@@ -83,13 +83,6 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
   }
 }
 
-/**
- * Electron turns SIGTERM and SIGINT into an app quit, which would end the Host at once: the MCP
- * pool would not close, and a stdio server that ignores SIGTERM would outlive it (its SIGKILL is
- * due 2 s later). The quit is held and the Host stopped instead; its disposal closes the pool and
- * kills what is still in its SIGTERM grace, then the Host exits through app.exit(), which skips
- * quit events.
- */
 /** Exits with the log written, or once a disk that does not answer has had its short chance. */
 function exitAfterLogDrain() {
   let exited = false
@@ -104,6 +97,13 @@ function exitAfterLogDrain() {
     .finally(exit)
 }
 
+/**
+ * Electron turns SIGTERM and SIGINT into an app quit, which would end the Host at once: the MCP
+ * pool would not close, and a stdio server that ignores SIGTERM would outlive it (its SIGKILL is
+ * due 2 s later). The quit is held and the Host stopped instead; its disposal closes the pool and
+ * kills what is still in its SIGTERM grace, then the Host exits through app.exit(), which skips
+ * quit events.
+ */
 export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
   let deadline: ReturnType<typeof setTimeout> | undefined
   const holdQuit = (event: { preventDefault(): void }) => {
