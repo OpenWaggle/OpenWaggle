@@ -47,7 +47,8 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * and exposure changes, adding, removing, and installing servers (Registry search and install
  * included), inspecting a server, signing in and out, importing from other tools, the MCP App
  * catalog (`mcp:list-app-catalog`), a Session's MCP switch (`mcp:get-session-enabled`,
- * `mcp:set-session-enabled`), `sessions:begin-project-removal`, and the options argument of
+ * `mcp:set-session-enabled`), the slash menu's Pi extension commands
+ * (`agent:list-extension-commands`), `sessions:begin-project-removal`, and the options argument of
  * `sessions:delete`.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
