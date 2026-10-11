@@ -1,14 +1,13 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
-import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import * as Exit from 'effect/Exit'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
 import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
+import { deletionRefusalOf } from './pi-session-deletion-refusal'
 import { assertSessionDeletable } from './session-deletion-preflight'
 
 export interface PiSessionDiscoveryScopeRows {
@@ -169,18 +168,6 @@ export function piSessionDeletionRefusalWithSql(sql: SqlClient.SqlClient, sessio
       return yield* deletionRefusalOf(yield* Effect.exit(assertSessionDeletable(sql, sessionId)))
     }),
   )
-}
-
-/**
- * The refusal a deletion check ended with: the message of what it threw, or undefined when the
- * Session can be deleted. An interrupted check refused nothing, so its interruption goes on
- * rather than being reported as the reason the Session stays.
- */
-export function deletionRefusalOf(exit: Exit.Exit<unknown, unknown>) {
-  if (Exit.isSuccess(exit)) return Effect.succeed(undefined)
-  if (Cause.isInterrupted(exit.cause)) return Effect.failCause(exit.cause)
-  const error = Cause.squash(exit.cause)
-  return Effect.succeed(error instanceof Error ? error.message : String(error))
 }
 
 /** See `PiSessionDiscoveryRepositoryShape.deletionRefusal`. */
