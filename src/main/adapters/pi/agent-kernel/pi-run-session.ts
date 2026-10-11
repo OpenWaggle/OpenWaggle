@@ -23,6 +23,8 @@ import {
   createOpenWaggleAgentSessionFromServices,
   type OpenWaggleAgentSessionOptions,
 } from '../pi-session-lifecycle'
+import { piExtensionCommands } from './pi-extension-commands'
+import { rememberRunExtensionCommands } from './run-extension-commands'
 
 /**
  * Drop an evidence directory the Host inherited (for example a Host started from an agent shell),
@@ -101,6 +103,10 @@ export async function createPiSessionForRun(input: {
   })
   if (hasExistingMessages && input.thinkingLevel) {
     result.session.setThinkingLevel(input.thinkingLevel)
+  }
+  // The slash menu lists the commands of the extensions only a Run loads, such as MCP's /mcp.
+  if (input.openWaggleUi) {
+    rememberRunExtensionCommands(input.openWaggleUi.sessionId, piExtensionCommands(result.session))
   }
   return result
 }

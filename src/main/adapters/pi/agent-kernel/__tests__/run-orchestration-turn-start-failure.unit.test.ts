@@ -60,6 +60,7 @@ describe('a Waggle Run whose next turn cannot start', () => {
           reportExtensionError = listener
           return () => undefined
         },
+        getRegisteredCommands: () => [],
       },
     }
     // Pi rejects the next turn's start and reports it only to the extension error listeners.

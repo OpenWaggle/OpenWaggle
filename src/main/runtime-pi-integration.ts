@@ -5,6 +5,7 @@
  */
 import { forgetModelFallbackNotice } from './adapters/pi/agent-kernel/interaction-ui-context'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
+import { forgetRunExtensionCommands } from './adapters/pi/agent-kernel/run-extension-commands'
 import {
   currentOpenWagglePiAppSettings,
   readPiUserAppSettingsFile,
@@ -28,6 +29,7 @@ export function installPiRuntimeIntegration() {
   const removeHook = onSessionRemoved(async (sessionId) => {
     promptCacheWarming().closeSession(sessionId)
     forgetModelFallbackNotice(sessionId)
+    forgetRunExtensionCommands(sessionId)
   })
   const unsubscribe = onAuthoritativeSettingsChange((settings) => {
     setOpenWagglePiAppSettingsSource(settings)

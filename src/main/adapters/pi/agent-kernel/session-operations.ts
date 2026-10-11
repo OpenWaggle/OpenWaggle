@@ -19,6 +19,7 @@ import { piExtensionCommands } from './pi-extension-commands'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
 import { summarizePiSessionUsage } from './pi-session-usage'
+import { withRunExtensionCommands } from './run-extension-commands'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import {
@@ -69,7 +70,7 @@ export async function getPiContextUsage(
 export async function getPiExtensionCommands(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return readPiSession(input, piExtensionCommands)
+  return withRunExtensionCommands(input.session.id, await readPiSession(input, piExtensionCommands))
 }
 
 /**
