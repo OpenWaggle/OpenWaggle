@@ -9,7 +9,7 @@ import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
 import { findUserInputProjection } from './user-input-projection'
 import {
-  currentTurnMetadata,
+  createWaggleTurnMetadataResolver,
   isUserMessageEntry,
   type PiAssistantMessageEntry,
 } from './waggle-turn-metadata'
@@ -136,15 +136,14 @@ function projectPiEntry(input: {
   readonly nodeIds: PiEntryNodeIds
   readonly selectedModel: string | null
   readonly omittedFromContext: boolean
+  readonly waggleTurnOf: ReturnType<typeof createWaggleTurnMetadataResolver>
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
   const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
     ...(displayProjection ? { userDisplayParts: displayProjection.parts } : {}),
   })
-  const waggleMetadata = isAssistantEntry(input.entry)
-    ? currentTurnMetadata({ entry: input.entry, entryById: input.entryById })
-    : null
+  const waggleMetadata = isAssistantEntry(input.entry) ? input.waggleTurnOf(input.entry) : null
 
   return {
     id: input.nodeIds.toNodeId(input.entry.id),
@@ -215,6 +214,7 @@ export function projectPiSessionSnapshot(
   const leafId = session.sessionManager.getLeafId()
   const selectedModelOf = createEntryModelSelection(entryById)
   const omittedEntryIds = contextOmittedEntryIds(entries, entryById, leafId)
+  const waggleTurnOf = createWaggleTurnMetadataResolver(entries, entryById)
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
@@ -228,6 +228,7 @@ export function projectPiSessionSnapshot(
         nodeIds,
         selectedModel: selectedModelOf(entry.parentId),
         omittedFromContext: omittedEntryIds.has(entry.id),
+        waggleTurnOf,
       }),
     ),
   }

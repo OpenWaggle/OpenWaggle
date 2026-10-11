@@ -75,31 +75,55 @@ function continuesTurn(entry: SessionEntry) {
   )
 }
 
-/** The entry a response's turn starts from: its parent, past the turn's earlier work. */
-function turnStartEntry(
-  entry: PiAssistantMessageEntry,
-  entryById: ReadonlyMap<string, SessionEntry>,
-) {
-  let parent = entry.parentId ? entryById.get(entry.parentId) : undefined
-  const visited = new Set<string>()
-  while (parent && continuesTurn(parent) && parent.parentId && !visited.has(parent.id)) {
-    visited.add(parent.id)
-    parent = entryById.get(parent.parentId)
+type TurnStart = SessionEntry | undefined
+
+/**
+ * The entry a response's turn starts from: the first of its ancestors, from its parent up, that
+ * is not the turn's earlier work. Every entry of a chain it walks gets the same start, so a turn of
+ * N tool calls is walked once, not once per response; the walk is a loop, so a deep chain cannot
+ * overflow the stack.
+ */
+function createTurnStartResolver(entryById: ReadonlyMap<string, SessionEntry>) {
+  const startById = new Map<string, TurnStart>()
+  return (first: SessionEntry | undefined): TurnStart => {
+    const walked = new Set<string>()
+    let entry = first
+    let start: TurnStart
+    let resolved = false
+    while (entry && !resolved) {
+      // A start already found, or a cycle, which has none.
+      if (startById.has(entry.id) || walked.has(entry.id)) {
+        start = startById.get(entry.id)
+        resolved = true
+        continue
+      }
+      walked.add(entry.id)
+      if (!continuesTurn(entry) || !entry.parentId) {
+        start = entry
+        resolved = true
+        continue
+      }
+      entry = entryById.get(entry.parentId)
+    }
+    for (const id of walked) startById.set(id, start)
+    return start
   }
-  return parent
 }
 
-/** The Waggle turn a response belongs to, from the turn message its turn starts from. */
-export function currentTurnMetadata(input: {
-  readonly entry: PiAssistantMessageEntry
-  readonly entryById: ReadonlyMap<string, SessionEntry>
-}) {
-  const parent = turnStartEntry(input.entry, input.entryById)
-  if (!parent) {
-    return null
+/**
+ * The Waggle turn of each response, from the turn message its turn starts from. Built once per
+ * projection; a Session with no Waggle turn message has no turns to find.
+ */
+export function createWaggleTurnMetadataResolver(
+  entries: readonly SessionEntry[],
+  entryById: ReadonlyMap<string, SessionEntry>,
+) {
+  if (!entries.some(isTurnCustomMessageEntry)) return () => null
+  const turnStart = createTurnStartResolver(entryById)
+  return (entry: PiAssistantMessageEntry) => {
+    const parent = turnStart(entry.parentId ? entryById.get(entry.parentId) : undefined)
+    if (!parent) return null
+    if (isTurnCustomMessageEntry(parent)) return turnMetadataFromCustomMessage({ entry: parent })
+    return isUserMessageEntry(parent) ? turnMetadataForPromptParent(parent, entryById) : null
   }
-  if (isTurnCustomMessageEntry(parent)) {
-    return turnMetadataFromCustomMessage({ entry: parent })
-  }
-  return isUserMessageEntry(parent) ? turnMetadataForPromptParent(parent, input.entryById) : null
 }
