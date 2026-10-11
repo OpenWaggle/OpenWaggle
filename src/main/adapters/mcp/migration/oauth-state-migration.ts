@@ -129,24 +129,34 @@ interface OAuthCandidate {
   readonly instanceId: string
 }
 
+type FileConfig = ReturnType<McpFileSources['legacyConfig']>
+
 async function oauthCandidates(input: {
   readonly sources: McpFileSources
   readonly state: LegacyStateFile
   readonly projects: readonly string[]
+  readonly logger: Logger
 }) {
+  // One file that cannot be read (a link into an unmounted dotfiles checkout, say) leaves out
+  // only its servers: nothing is recorded for them, so they are tried again on a later start.
+  const read = async (filePath: string, config: (filePath: string) => FileConfig) => {
+    try {
+      return { path: filePath, config: await config(filePath) }
+    } catch (error) {
+      input.logger.warn('MCP OAuth migration skipped an MCP file it could not read', {
+        path: filePath,
+        error: describeError(error),
+      })
+      return { path: filePath, config: undefined }
+    }
+  }
+  const legacy = (filePath: string) => input.sources.legacyConfig(filePath)
+  const readOnly = (filePath: string) => input.sources.readOnlyConfig(filePath)
   const global = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
-  const files = [
-    {
-      path: global.openwaggleGlobal,
-      config: await input.sources.legacyConfig(global.openwaggleGlobal),
-    },
-  ]
+  const files = [await read(global.openwaggleGlobal, legacy)]
   for (const projectPath of input.projects) {
     const project = projectMcpPaths(projectPath)
-    files.push(
-      { path: project.mcpJson, config: await input.sources.readOnlyConfig(project.mcpJson) },
-      { path: project.openwaggle, config: await input.sources.legacyConfig(project.openwaggle) },
-    )
+    files.push(await read(project.mcpJson, readOnly), await read(project.openwaggle, legacy))
   }
   const candidates: OAuthCandidate[] = []
   for (const file of files) {
