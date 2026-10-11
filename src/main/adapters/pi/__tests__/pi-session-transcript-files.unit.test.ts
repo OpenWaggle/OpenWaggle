@@ -133,4 +133,23 @@ describe('piSessionIdOfFile', () => {
     expect(piSessionIdOfFile('/sessions/2026_id.json')).toBeUndefined()
     expect(piSessionIdOfFile('/sessions/2026_.jsonl')).toBeUndefined()
   })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'lists a copy that may not be read, so deleting the Session deletes it too',
+    async () => {
+      const piSessionId = SessionManager.create(projectPath).getSessionId()
+      const unreadable = await writePiFile(projectPath, piSessionId, '2026-10-04T18-41-34-000Z')
+      await fs.chmod(unreadable, 0o000)
+
+      const files = listPiSessionTranscriptFiles({
+        transcriptId: piSessionId,
+        transcriptFile: null,
+        projectPath,
+        worktreePath: null,
+      })
+
+      expect(files).toEqual([unreadable])
+      await fs.chmod(unreadable, 0o600)
+    },
+  )
 })

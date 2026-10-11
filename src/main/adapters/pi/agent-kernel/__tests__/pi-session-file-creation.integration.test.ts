@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createReadOnlySessionManagerForSession,
   createSessionManagerForSession,
+  findExistingPiSessionFile,
+  piSessionDirectoryFor,
 } from '../session-manager'
 
 const PRE_CREATED_PI_SESSION_ID = '0199b1c2-0000-7000-8000-00000000abcd'
@@ -205,6 +207,30 @@ describe('A recorded Pi file that is missing after it was written', () => {
       /^This Session's Pi session file is unavailable \(.+\): it cannot be read/,
     )
   })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'never opens an older copy in place of a recorded file that may not be read',
+    async () => {
+      await fs.mkdir(path.dirname(recordedFile()), { recursive: true })
+      await fs.writeFile(recordedFile(), '{"type":"session"}\n')
+      await fs.chmod(recordedFile(), 0o000)
+      // An older copy with the same Pi session id, in the project's default Pi folder.
+      const copyFolder = piSessionDirectoryFor(projectPath)
+      await fs.mkdir(copyFolder, { recursive: true })
+      const copy = path.join(
+        copyFolder,
+        `2026-10-01T00-00-00-000Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
+      )
+      await fs.writeFile(copy, `{"type":"session","id":"${PRE_CREATED_PI_SESSION_ID}"}\n`)
+      const unreadable = deletedSession(createdWithEntries)
+
+      expect(findExistingPiSessionFile(unreadable, projectPath)).toBeUndefined()
+      expect(() => createSessionManagerForSession(unreadable, projectPath)).toThrow(
+        /^This Session's Pi session file is unavailable \(.+\): it cannot be read/,
+      )
+      await fs.chmod(recordedFile(), 0o600)
+    },
+  )
 
   it.skipIf(process.getuid?.() === 0)(
     'refuses a Session whose Pi file may not be read, rather than failing in Pi',

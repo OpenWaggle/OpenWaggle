@@ -54,6 +54,16 @@ export function isReadablePiSessionFile(file: string) {
   }
 }
 
+/** Whether something is at a Pi file's path, a link whose target is missing included. */
+export function isPresentPiSessionFile(file: string) {
+  try {
+    lstatSync(file)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** What needs the Session's Pi file, as the message names it: `forking`, `compacting`. */
 export type PiSessionFileAction =
   | 'forking'

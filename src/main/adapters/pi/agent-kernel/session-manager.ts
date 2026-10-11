@@ -8,6 +8,7 @@ import { isInsideProjectLocation, physicalPath } from '../pi-session-project-pat
 import { logger } from './constants'
 import {
   assertNoPiSessionFileToReplace,
+  isPresentPiSessionFile,
   isReadablePiSessionFile,
   warnIfTranscriptLost,
 } from './missing-session-file'
@@ -145,11 +146,10 @@ function leafContinuesThrough(sessionManager: SessionManager, entryId: string) {
 function piSessionFilesIn(directory: string, piSessionId: string) {
   try {
     // Exact id match: Pi allows `_` in session ids, so `<time>_review_<id>.jsonl` also ends with
-    // `_<id>.jsonl` but belongs to another Pi session. A file that may not be read is skipped.
+    // `_<id>.jsonl` but belongs to another Pi session. Every file is listed, readable or not.
     return readdirSync(directory)
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
-      .filter(isReadablePiSessionFile)
   } catch (error) {
     if (!(isRecord(error) && error.code === 'ENOENT')) {
       logger.warn('Could not list a Pi session directory', {
@@ -239,13 +239,14 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
  * an earlier first run wrote its own file, by Pi session id, in the run directory's Pi folder, and
  * a Host that stopped before the run's snapshot was saved left the Session pointing at a file that
  * was never written. Starting a fresh manager then silently drops the whole conversation, so look
- * for that file first, with {@link findPiSessionFiles}. Only a file that may be read is found.
+ * for that file first, with {@link findPiSessionFiles}. Only a file that may be read is found, and
+ * a recorded file that is there but may not be read is not replaced by an older copy.
  */
 export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory: string) {
-  if (session.piSessionFile && isReadablePiSessionFile(session.piSessionFile)) {
-    return session.piSessionFile
-  }
-  return findPiSessionFiles(session, runDirectory)[0]
+  const recorded = session.piSessionFile
+  if (recorded && isReadablePiSessionFile(recorded)) return recorded
+  if (recorded && isPresentPiSessionFile(recorded)) return undefined
+  return findPiSessionFiles(session, runDirectory).find(isReadablePiSessionFile)
 }
 
 /**
