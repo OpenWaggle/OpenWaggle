@@ -78,9 +78,12 @@ describe('A Session OpenWaggle created', () => {
     expect(existsSync(path.dirname(file))).toBe(folderBefore)
   })
 
-  it.each<['before' | 'at']>([['before'], ['at']])(
+  it.each<['before' | 'at', string]>([
+    ['before', 'forking'],
+    ['at', 'cloning'],
+  ])(
     'cannot be forked or cloned (%s) once its Pi file was deleted, and writes no file back',
-    async (position) => {
+    async (position, action) => {
       const sessionId = await createSession(fixture)
       expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
       const file = await recordedFile(sessionId)
@@ -100,7 +103,7 @@ describe('A Session OpenWaggle created', () => {
       const cause = fork._tag === 'Left' && fork.left instanceof Error ? fork.left.cause : undefined
       const message = cause instanceof Error ? cause.message : ''
       expect(message).toMatch(CREATED_FILE_DELETED)
-      expect(message).toMatch(/before forking it\.$/)
+      expect(message).toMatch(new RegExp(`before ${action} it\\.$`))
       expect(existsSync(file)).toBe(false)
     },
   )

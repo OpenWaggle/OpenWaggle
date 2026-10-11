@@ -215,7 +215,10 @@ export async function forkPiSession(
   // The file the copy loaded, found by Pi session id when the recorded path is missing or stale.
   // Without one there is nothing to fork from: the file was deleted or its folder is missing.
   const sourceFile = copy.getSessionFile()
-  if (!sourceFile) throw missingPiSessionFileError(input.session, 'forking')
+  // A clone copies the Session up to and with the target; a fork stops before it.
+  if (!sourceFile) {
+    throw missingPiSessionFileError(input.session, input.position === 'at' ? 'cloning' : 'forking')
+  }
   let written: WrittenFork | undefined
   const runtime = await createPiSessionRuntime(input, {
     sessionManager: copy,

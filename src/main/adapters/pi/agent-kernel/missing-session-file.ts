@@ -55,7 +55,11 @@ export function isReadablePiSessionFile(file: string) {
 }
 
 /** What needs the Session's Pi file, as the message names it: `forking`, `compacting`. */
-export type PiSessionFileAction = 'forking' | 'compacting' | 'going to another branch in'
+export type PiSessionFileAction =
+  | 'forking'
+  | 'cloning'
+  | 'compacting'
+  | 'going to another branch in'
 
 /**
  * Why the Session's Pi file, which could not be found, cannot be used for `action`: its folder is
