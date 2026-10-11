@@ -141,10 +141,11 @@ function leafContinuesThrough(sessionManager: SessionManager, entryId: string) {
 function piSessionFilesIn(directory: string, piSessionId: string) {
   try {
     // Exact id match: Pi allows `_` in session ids, so `<time>_review_<id>.jsonl` also ends with
-    // `_<id>.jsonl` but belongs to another Pi session.
+    // `_<id>.jsonl` but belongs to another Pi session. A link to a file out of reach is skipped.
     return readdirSync(directory)
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
+      .filter((file) => existsSync(file))
   } catch (error) {
     if (!(isRecord(error) && error.code === 'ENOENT')) {
       logger.warn('Could not list a Pi session directory', {

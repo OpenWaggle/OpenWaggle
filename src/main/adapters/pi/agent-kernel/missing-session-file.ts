@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, lstatSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
   deletedCreatedPiSessionFileMessage,
@@ -6,6 +6,7 @@ import {
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
+import { isRecord } from '@shared/utils/validation'
 
 /** A Session's Pi file cannot be used, so nothing is started in its place. */
 export class PiSessionFileUnavailableError extends Error {
@@ -24,6 +25,21 @@ export function hasProjectedEntries(session: SessionDetail) {
   )
 }
 
+/**
+ * Whether a Pi file that could not be found is out of reach rather than deleted: its folder is
+ * missing, it is a link whose target is missing, or it may not be read.
+ */
+function outOfReach(file: string) {
+  try {
+    lstatSync(file)
+    // Something is there, which `existsSync` could not follow or read.
+    return true
+  } catch (cause) {
+    const code = isRecord(cause) ? cause.code : undefined
+    return code !== 'ENOENT' || !existsSync(dirname(file))
+  }
+}
+
 /** What needs the Session's Pi file, as the message names it: `forking`, `compacting`. */
 export type PiSessionFileAction = 'forking' | 'compacting'
 
@@ -34,7 +50,7 @@ export type PiSessionFileAction = 'forking' | 'compacting'
  */
 export function missingPiSessionFileError(session: SessionDetail, action?: PiSessionFileAction) {
   const file = session.piSessionFile?.trim() || `the Pi session file of ${String(session.id)}`
-  if (!existsSync(dirname(file))) {
+  if (outOfReach(file)) {
     return new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
   }
   return new PiSessionFileUnavailableError(
@@ -58,7 +74,7 @@ export function missingPiSessionFileError(session: SessionDetail, action?: PiSes
 export function assertNoPiSessionFileToReplace(session: SessionDetail) {
   const file = session.piSessionFile?.trim()
   if (!file || !hasProjectedEntries(session)) return
-  const folderMissing = !existsSync(dirname(file))
+  const folderMissing = outOfReach(file)
   if (folderMissing) {
     throw new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
   }

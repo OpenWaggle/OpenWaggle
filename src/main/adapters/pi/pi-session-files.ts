@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises'
+import { lstat, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import {
   type FileEntry,
@@ -30,33 +30,27 @@ function errorCode(cause: unknown) {
 }
 
 /**
- * Gone, not out of reach: the file does not exist while the folder that held it does. A folder on
- * a drive that is not mounted, or one that was moved, is not taken as a deletion.
+ * Whether a Pi file is there, deleted, or out of reach. Deleted: nothing is at its path, in a
+ * folder that is there. Out of reach: its folder is missing, as on a drive that is not connected
+ * or one that was moved; it is a link whose target is missing; or it may not be read. A file out
+ * of reach is never taken as a deletion, which would remove a discovered Session.
  */
-async function isDeletedFile(file: string) {
+async function fileAvailability(file: string): Promise<'present' | 'deleted' | 'unavailable'> {
   try {
     await stat(file)
-    return false
+    return 'present'
   } catch (cause) {
-    if (errorCode(cause) !== 'ENOENT') return false
+    if (errorCode(cause) !== 'ENOENT') return 'unavailable'
   }
-  return stat(path.dirname(file)).then(
-    (folder) => folder.isDirectory(),
+  // `stat` follows a link; `lstat` finds a link whose target is gone.
+  const entry = await lstat(file).then(
+    () => true,
     () => false,
   )
-}
-
-/** Out of reach, not gone: the file is missing and so is the folder that held it. */
-async function isUnavailableFile(file: string) {
-  try {
-    await stat(file)
-    return false
-  } catch (cause) {
-    if (errorCode(cause) !== 'ENOENT') return false
-  }
+  if (entry) return 'unavailable'
   return stat(path.dirname(file)).then(
-    (folder) => !folder.isDirectory(),
-    () => true,
+    (folder) => (folder.isDirectory() ? 'deleted' : 'unavailable'),
+    () => 'unavailable',
   )
 }
 
@@ -187,8 +181,14 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
   return {
     discover: (input) => Effect.tryPromise({ try: () => scanner.scan(input), catch: toError }),
     fingerprint: (file) => Effect.promise(() => fingerprintOf(file)),
-    isDeleted: (file) => Effect.promise(() => isDeletedFile(file)),
-    isUnavailable: (file) => Effect.promise(() => isUnavailableFile(file)),
+    isDeleted: (file) =>
+      Effect.promise(() => fileAvailability(file)).pipe(
+        Effect.map((availability) => availability === 'deleted'),
+      ),
+    isUnavailable: (file) =>
+      Effect.promise(() => fileAvailability(file)).pipe(
+        Effect.map((availability) => availability === 'unavailable'),
+      ),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }

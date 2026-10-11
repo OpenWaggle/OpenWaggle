@@ -197,6 +197,15 @@ describe('A recorded Pi file that is missing after it was written', () => {
     expect(existsSync(recordedFile())).toBe(false)
   })
 
+  it('refuses a discovered Session linked to a file out of reach as unavailable, not deleted', async () => {
+    await fs.mkdir(path.dirname(recordedFile()), { recursive: true })
+    await fs.symlink(path.join(home, 'unmounted', 'file.jsonl'), recordedFile())
+
+    expect(() => createSessionManagerForSession(deletedSession(discovered), projectPath)).toThrow(
+      /^This Session's Pi session file is unavailable .*its folder is missing/,
+    )
+  })
+
   it('refuses a created Session whose folder was in its own worktree, as any missing folder', () => {
     const worktree = path.join(home, '.openwaggle', 'worktrees', 'project', 'w1')
     const inWorktree = path.join(
