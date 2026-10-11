@@ -4,6 +4,7 @@ import {
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
+import { isPiSessionFileRefusal } from '@/features/chat/lib/message-delivery'
 import { handleCompactionEndEvent } from './useAgentChat.compaction-events'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
@@ -60,6 +61,8 @@ function handleAgentEndEvent(
   signalStreamChange(context)
   const nextError = new Error(event.error.message)
   context.terminalRunErrorRef.current = nextError
+  // Its send hears of it; the Session's notice, not an error card, says why.
+  if (isPiSessionFileRefusal(nextError)) return
   setLastAgentErrorInfo(context.subscribedSessionId, event.error)
   context.setError(nextError)
   context.setStatus('error')

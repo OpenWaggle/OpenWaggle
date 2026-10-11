@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
 import { settlingRunId } from '../lib/run-ids'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
@@ -40,6 +41,17 @@ interface ForegroundRunState {
   readonly terminalRunError: Error | undefined
   readonly status: AgentChatStatus
   readonly error: Error | undefined
+}
+
+export function normalizeError(error: unknown) {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+/** The renderer follows no Run in the foreground any more. */
+export function clearRunPointers(refs: ForegroundRunRefs) {
+  refs.foregroundStreamActiveRef.current = false
+  refs.foregroundSessionIdRef.current = null
+  refs.terminalRunErrorRef.current = undefined
 }
 
 /** Offer a completion to a waiter, which may route it on; one without routing just settles. */
@@ -205,8 +217,45 @@ export function forgetQueuedSend(input: {
   readonly run: ForegroundRun
   readonly optimisticMessageId: UIMessage['id']
 }) {
+  input.run.handBack(input.refs, input.targetSessionId, input.setters)
+  dropOptimisticSend(input)
+}
+
+/**
+ * A send the Host refused before the agent got the message, as for a Session whose Pi file cannot
+ * be used: the Run it started is over, so the Session is idle again, with no error of its own to
+ * show, and the message leaves the transcript. Returns the refusal, for the caller, undelivered;
+ * nothing for any other failure.
+ */
+export function forgetIfRefusedForPiSessionFile(
+  input: {
+    readonly refs: ForegroundRunRefs
+    readonly setters: ForegroundRunSetters
+    readonly targetSessionId: SessionId
+    readonly run: ForegroundRun
+    readonly optimisticMessageId: UIMessage['id']
+  },
+  refusal: Error,
+) {
+  if (!isPiSessionFileRefusal(refusal)) return undefined
+  const { refs, setters, targetSessionId } = input
+  if (refs.pendingRunWaiterRef.current === input.run.waiter) refs.pendingRunWaiterRef.current = null
+  if (refs.foregroundSessionIdRef.current === targetSessionId) clearRunPointers(refs)
+  if (refs.currentSessionIdRef.current === targetSessionId) {
+    setters.setError(undefined)
+    setters.setStatus('ready')
+  }
+  dropOptimisticSend(input)
+  return new MessageNotDelivered('refused', refusal.message)
+}
+
+function dropOptimisticSend(input: {
+  readonly refs: ForegroundRunRefs
+  readonly setters: ForegroundRunSetters
+  readonly targetSessionId: SessionId
+  readonly optimisticMessageId: UIMessage['id']
+}) {
   const { refs, setters, targetSessionId, optimisticMessageId } = input
-  input.run.handBack(refs, targetSessionId, setters)
   setters.removeOptimisticUserMessage(targetSessionId, optimisticMessageId)
   updateMessagesForSession(
     refs.messagesBySessionIdRef,

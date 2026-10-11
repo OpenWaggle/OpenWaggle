@@ -1,3 +1,5 @@
+import { classifyErrorMessage } from '@shared/types/errors'
+
 /**
  * Whether a failed send had already delivered the message.
  *
@@ -14,6 +16,15 @@ export class MessageDeliveredRunFailed extends Error {
     this.name = 'MessageDeliveredRunFailed'
     this.cause = cause
   }
+}
+
+/**
+ * Whether a Run was refused before the agent got its message because the Session's Pi file
+ * cannot be used: deleted, or its folder missing. The Session's notice says why, so the refusal
+ * is not shown again as a Run failure, and the message was never delivered.
+ */
+export function isPiSessionFileRefusal(error: { readonly message: string }) {
+  return classifyErrorMessage(error.message).code === 'pi-session-file-deleted'
 }
 
 /** True when the message reached the agent and only the run that followed failed. */
