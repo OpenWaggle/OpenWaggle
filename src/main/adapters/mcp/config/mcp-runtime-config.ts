@@ -184,7 +184,8 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
     return false
   })
   const merged = mergeMcpConfigLayers(readMcpConfigLayers(files, reader))
-  return skipped.length === 0 ? merged : { ...merged, errors: [...skipped, ...merged.errors] }
+  if (skipped.length === 0) return merged
+  return { ...merged, errors: [...skipped, ...merged.errors], incomplete: true as const }
 }
 
 /**

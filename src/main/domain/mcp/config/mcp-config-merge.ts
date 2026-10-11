@@ -78,6 +78,13 @@ export interface McpMergedConfig {
   /** OpenWaggle's override-only entries for a server no file defines, which can be removed. */
   readonly orphanedOverrides?: readonly McpOrphanedOverride[]
   readonly autoEnableCodemode?: boolean
+  /**
+   * A file could not be read (or was left out), so its servers are unknown: one missing from
+   * `servers` may only be unread. Errors in single entries do not make the merge incomplete.
+   */
+  readonly incomplete?: true
+  /** Names whose entry is invalid: the server is configured, but not loaded as it is. */
+  readonly rejectedNames?: readonly string[]
 }
 
 export interface McpOrphanedOverride extends McpConfigFileReference {
@@ -273,5 +280,7 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     ...(state.autoEnableCodemode === undefined
       ? {}
       : { autoEnableCodemode: state.autoEnableCodemode }),
+    ...(state.unreadLayer ? { incomplete: true as const } : {}),
+    ...(state.rejectedNames.size > 0 ? { rejectedNames: [...state.rejectedNames] } : {}),
   }
 }

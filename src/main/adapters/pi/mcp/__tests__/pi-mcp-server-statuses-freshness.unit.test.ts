@@ -5,6 +5,10 @@ interface Server {
   readonly removed?: boolean
   /** The file cannot be read right now, such as mid-save in an editor. */
   readonly unreadable?: boolean
+  /** Another entry of the file is invalid (a `comand` typo), which stays so. */
+  readonly invalidSibling?: boolean
+  /** This server's own entry is invalid now. */
+  readonly rejected?: boolean
   readonly enabled: boolean
   /** Stands for the server's vault secret, as its stamp (name and when it was saved). */
   readonly secretStamp: string
@@ -23,13 +27,19 @@ function server(projectPath: string | null) {
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async (input: { roots: { projectPath: string | null } }) => {
-    const { enabled, secretStamp, unreadable } = server(input.roots.projectPath)
+    const { enabled, secretStamp, unreadable, invalidSibling, rejected } = server(
+      input.roots.projectPath,
+    )
     const config = { ...DOCS, enabled }
-    if (unreadable) {
-      const errors = ['mcp.json: Unexpected end of JSON input']
+    if (unreadable || rejected) {
+      const errors = [
+        unreadable ? 'mcp.json: Unexpected end of JSON input' : 'mcp.json: server "docs": comand',
+      ]
       return {
         loaded: { servers: [], errors },
-        merged: { servers: [], errors },
+        merged: unreadable
+          ? { servers: [], errors, incomplete: true }
+          : { servers: [], errors, rejectedNames: ['docs'] },
         transports: new Map(),
         unavailable: new Map(),
         missingSecrets: new Map(),
@@ -38,7 +48,13 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
     }
     return {
       loaded: { servers: [{ name: 'docs', config }], errors: [] },
-      merged: { servers: [{ name: 'docs', config }], errors: [] },
+      merged: invalidSibling
+        ? {
+            servers: [{ name: 'docs', config }],
+            errors: ['mcp.json: server "typo": unknown key comand'],
+            rejectedNames: ['typo'],
+          }
+        : { servers: [{ name: 'docs', config }], errors: [] },
       transports: new Map([['docs', 'stdio']]),
       unavailable: new Map(),
       missingSecrets: new Map(),
@@ -159,5 +175,26 @@ describe("Settings' MCP server states after a change", () => {
     mocks.servers.delete('/p7')
 
     expect(await docsStatus('/p7')).toMatchObject({ source: 'last-check' })
+  })
+
+  it('forget it when it changed, though another entry of the file stays invalid', async () => {
+    mocks.servers.set('/p8', { invalidSibling: true, enabled: true, secretStamp: 'TOKEN@1' })
+    checkedConnected()
+    await docsStatus('/p8')
+
+    mocks.servers.set('/p8', { invalidSibling: true, enabled: true, secretStamp: 'TOKEN@2' })
+
+    expect(await docsStatus('/p8')).toEqual({ name: 'docs', source: 'not-checked' })
+  })
+
+  it('keep it while its own entry is invalid: the server is not removed', async () => {
+    checkedConnected()
+    await docsStatus('/p9')
+
+    mocks.servers.set('/p9', { rejected: true, enabled: true, secretStamp: 'TOKEN@1' })
+    await getMcpServerStatuses({ projectPath: '/p9' }, roots, pool)
+    mocks.servers.delete('/p9')
+
+    expect(await docsStatus('/p9')).toMatchObject({ source: 'last-check' })
   })
 })

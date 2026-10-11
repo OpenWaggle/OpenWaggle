@@ -126,8 +126,10 @@ export async function getMcpServerStatuses(
     secretStamp: mcpVaultSecretStamps(),
   })
   // While a file cannot be read, its servers are unknown, not removed or changed.
-  if (config.merged.errors.length === 0) {
-    forgetStaleMcpServerStates(input.projectPath, sightings(config))
+  if (!config.merged.incomplete) {
+    forgetStaleMcpServerStates(input.projectPath, sightings(config), {
+      unchanged: config.merged.rejectedNames ?? [],
+    })
   }
   const checkedAt = Date.now()
   return [

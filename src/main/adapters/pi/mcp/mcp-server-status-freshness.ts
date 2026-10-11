@@ -51,13 +51,16 @@ function changed(last: SeenServer, next: SeenServer) {
 
 /**
  * Notes how a project's servers are now, forgetting the state of each that changed since. Only
- * for a complete read: with a file that cannot be read, its servers would look removed.
+ * for a complete read: with a file that cannot be read, its servers would look removed. A server
+ * in `unchanged` (one whose entry is invalid for now) is neither removed nor changed: it keeps
+ * how it was last seen.
  */
 export function forgetStaleMcpServerStates(
   projectPath: string | null,
   servers: readonly McpServerSighting[],
-  now: number = Date.now(),
+  options: { readonly unchanged?: readonly string[]; readonly now?: number } = {},
 ) {
+  const now = options.now ?? Date.now()
   const key = projectKey(projectPath)
   const before = seen.get(key)
   const current = new Map<string, SeenServer>()
@@ -77,9 +80,12 @@ export function forgetStaleMcpServerStates(
     }
     current.set(server.name, next)
   }
+  const unchanged = new Set(options.unchanged)
   // A server removed since: one added again under its name is another server.
   for (const [name, last] of before ?? []) {
-    if (!current.has(name)) forgetKnownMcpServerStateLearnedBy(last.identity, last.seenAt)
+    if (current.has(name)) continue
+    if (unchanged.has(name)) current.set(name, last)
+    else forgetKnownMcpServerStateLearnedBy(last.identity, last.seenAt)
   }
   seen.delete(key)
   seen.set(key, current)
@@ -111,7 +117,7 @@ export function forgetStatesOfSwitchedMcpServers() {
       projectPath,
     })
     // While a file cannot be read, nothing can be told about its servers.
-    if (merged.errors.length > 0) continue
+    if (merged.incomplete) continue
     forgetStaleMcpServerStates(
       projectPath,
       merged.servers.map((server) => ({
@@ -119,6 +125,7 @@ export function forgetStatesOfSwitchedMcpServers() {
         identity: configuredMcpServerIdentity(server.name, server.config),
         enabled: server.config.enabled !== false,
       })),
+      { unchanged: merged.rejectedNames ?? [] },
     )
   }
 }
