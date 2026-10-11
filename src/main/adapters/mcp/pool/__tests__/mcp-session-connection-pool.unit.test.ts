@@ -40,7 +40,10 @@ function server(name: string, upstreams: FakeUpstream[], fingerprint = 'v1') {
 async function useServer(
   pool: McpSessionConnectionPool,
   sessionId: string,
-  spec: ReturnType<typeof server> & { readonly identity?: string },
+  spec: ReturnType<typeof server> & {
+    readonly identity?: string
+    readonly projectPath?: string
+  },
 ) {
   const lease = pool.lease(sessionId, spec)
   await lease.start()
@@ -179,14 +182,27 @@ describe('MCP Session connection pool', () => {
     const sent = upstreams.map((upstream) => upstream.received.length)
     const recency = pool.warmSessions()
 
-    expect(pool.connectionStates('mcp-server:figma')).toEqual([{ ready: true }])
-    expect(pool.connectionStates('mcp-server:docs')).toEqual([{ ready: false }])
-    expect(pool.connectionStates('mcp-server:unknown')).toEqual([])
+    expect(pool.connectionStates('mcp-server:figma', null)).toEqual([{ ready: true }])
+    expect(pool.connectionStates('mcp-server:docs', null)).toEqual([{ ready: false }])
+    expect(pool.connectionStates('mcp-server:unknown', null)).toEqual([])
     expect(upstreams.map((upstream) => upstream.received.length)).toEqual(sent)
     expect(pool.warmSessions()).toEqual(recency)
 
     upstreams[0]?.crash()
-    expect(pool.connectionStates('mcp-server:figma')).toEqual([])
+    expect(pool.connectionStates('mcp-server:figma', null)).toEqual([])
+  })
+
+  it("tells a project only its own Sessions' connections, as each Session has its own", async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
+    const docs = { ...server('docs', upstreams), identity: 'mcp-server:docs' }
+    await useServer(pool, 'in-beta', { ...docs, projectPath: '/work/beta' })
+
+    expect(pool.connectionStates('mcp-server:docs', '/work/beta')).toEqual([{ ready: true }])
+    expect(pool.connectionStates('mcp-server:docs', '/work/beta/')).toEqual([{ ready: true }])
+    // Another project's Settings would connect its own Session, so it is not connected there.
+    expect(pool.connectionStates('mcp-server:docs', '/work/alpha')).toEqual([])
+    expect(pool.connectionStates('mcp-server:docs', null)).toEqual([])
   })
 
   it('closes one server of a Session and refuses its Run leases until the next Run', async () => {

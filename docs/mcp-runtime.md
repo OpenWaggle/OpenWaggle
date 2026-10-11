@@ -442,8 +442,10 @@ it again.
 Opening Settings > MCP calls `mcp:get-server-statuses` (`McpServerRuntimeService.getServerStatuses`),
 which starts no server and sends no request. For each configured server it reports, in order:
 
-1. **`live`**: a Session holds an open connection with the same server identity
-   (`mcpServerIdentity`). The pool's `connectionStates(identity)` reads `ready` and the last error
+1. **`live`**: a Session of the project being viewed (for no project, a Session with none)
+   holds an open connection with the same server identity (`mcpServerIdentity`). Connections are
+   per Session, so another project's Session connected to the same server, even a global one,
+   does not make it connected here: a Session of this project would connect on its own. The pool's `connectionStates(identity)` reads `ready` and the last error
    without touching recency or handing the connection out; tools are the ones the Session's Run
    listed. Nothing is sent over another Session's lease.
 2. **`last-check`**: the in-memory last known state per server identity

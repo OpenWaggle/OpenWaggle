@@ -210,5 +210,8 @@ describe('MCP server state for Settings without connecting', () => {
       },
     })
     expect(upstream.received).toHaveLength(sent)
+    // Another project's view: that Session's connection is not its server being connected.
+    const [elsewhere] = await getMcpServerStatuses({ projectPath: '/work/alpha' }, roots, sessions)
+    expect(elsewhere?.source).not.toBe('live')
   })
 })

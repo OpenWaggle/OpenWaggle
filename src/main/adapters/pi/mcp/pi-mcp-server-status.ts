@@ -66,13 +66,17 @@ function knownInspection(entry: McpServerEntry, known: McpKnownServerState): Mcp
   }
 }
 
-function serverStatus(entry: McpServerEntry, pool: McpConnectionPool): McpServerStatusView {
+function serverStatus(
+  entry: McpServerEntry,
+  pool: McpConnectionPool,
+  projectPath: string | null,
+): McpServerStatusView {
   const signedIn = mcpSignedIn(entry)
   const base = { name: entry.name, ...(signedIn === undefined ? {} : { signedIn }) }
   if (entry.config.enabled === false) return { ...base, source: 'not-checked' }
   const identity = mcpServerIdentity(entry.name, entry.config)
   const known = knownMcpServerState(identity)
-  const live = pool.connectionStates(identity)
+  const live = pool.connectionStates(identity, projectPath)
   if (live.length > 0) {
     return { ...base, source: 'live', inspection: liveInspection(entry, live, known) }
   }
@@ -103,11 +107,12 @@ function sightings(config: Awaited<ReturnType<typeof loadMcpRuntimeConfig>>) {
 }
 
 /**
- * Every configured server's state for Settings > MCP, read without connecting: a Session's warm
- * connection, otherwise the last check, otherwise not checked. It reads the files and the sign-in
- * store only (`mcpSignedIn`, the synchronous store, cached by mtime); vault secrets are checked to
- * exist, not decrypted. A server whose secret is missing needs that secret (`needsSecret`); another
- * secret that cannot be read shows as a failed check. No server is started and no request is sent.
+ * Every configured server's state for Settings > MCP, read without connecting: a warm connection
+ * of one of the project's Sessions, otherwise the last check, otherwise not checked. It reads the
+ * files and the sign-in store only (`mcpSignedIn`, the synchronous store, cached by mtime); vault
+ * secrets are checked to exist, not decrypted. A server whose secret is missing needs that secret
+ * (`needsSecret`); another secret that cannot be read shows as a failed check. No server is
+ * started and no request is sent.
  */
 export async function getMcpServerStatuses(
   input: McpConfigurationScopeInput,
@@ -123,7 +128,7 @@ export async function getMcpServerStatuses(
   forgetStaleMcpServerStates(input.projectPath, sightings(config))
   const checkedAt = Date.now()
   return [
-    ...config.loaded.servers.map((entry) => serverStatus(entry, pool)),
+    ...config.loaded.servers.map((entry) => serverStatus(entry, pool, input.projectPath)),
     ...[...config.unavailable].map(([name, error]): McpServerStatusView => {
       // A server that is off is not checked, whatever it lacks.
       const off = config.merged.servers.some(

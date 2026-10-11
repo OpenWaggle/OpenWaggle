@@ -135,7 +135,7 @@ describe("MCP Apps over the Session's connection", () => {
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/project-worktree' }))
     const [options] = mocks.createAuthProvider.mock.calls[0] ?? []
     expect(options?.settings()).toEqual({ clientId: 'openwaggle-client' })
-    expect(mcpSessionConnectionPool.connectionStates(IDENTITY)).toEqual([
+    expect(mcpSessionConnectionPool.connectionStates(IDENTITY, APP.projectPath)).toEqual([
       expect.objectContaining({ ready: true }),
     ])
   })

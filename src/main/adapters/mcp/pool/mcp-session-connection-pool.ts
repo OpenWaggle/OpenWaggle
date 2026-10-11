@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
   MCP_CLOSE_ALL_TIMEOUT_MS,
@@ -23,6 +24,12 @@ import type { McpWireTransport } from './mcp-wire'
  * Session is archived or deleted (`closeSession`), when the Host stops (`closeAll`), and when more
  * than `maxWarmSessions` Sessions hold some, the least recently used one without a Run first.
  */
+/** Whether a connection's project is `projectPath`, however either is spelled. */
+function sameProject(projectPath: string | null) {
+  const wanted = projectPath === null ? null : path.resolve(projectPath)
+  return (other: string | null) => (other === null ? null : path.resolve(other)) === wanted
+}
+
 export class McpSessionConnectionPool {
   private readonly sessions = new Map<string, SessionConnections>()
   /**
@@ -246,13 +253,21 @@ export class McpSessionConnectionPool {
   }
 
   /**
-   * The open connections to one server identity across Sessions, read without sending anything,
-   * touching recency, or handing a connection out: a connection stays its Session's alone.
+   * The open connections to one server identity of the project's Sessions (`null`: Sessions with
+   * no project), read without sending anything, touching recency, or handing a connection out: a
+   * connection stays its Session's alone. Another project's Session connects on its own, so its
+   * connection says nothing about the server there (ADR 0051).
    */
-  connectionStates(identity: string): McpPoolConnectionState[] {
+  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
+    const project = sameProject(projectPath)
     return [...this.sessions.values()].flatMap((session) =>
       [...session.servers.values()]
-        .filter((server) => server.identity === identity && !server.connection.isClosed)
+        .filter(
+          (server) =>
+            server.identity === identity &&
+            project(server.projectPath) &&
+            !server.connection.isClosed,
+        )
         .map(({ connection }) => ({
           ready: connection.isReady,
           ...(connection.lastError ? { lastError: connection.lastError } : {}),
