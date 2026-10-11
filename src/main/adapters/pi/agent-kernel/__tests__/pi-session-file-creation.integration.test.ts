@@ -148,7 +148,7 @@ describe('Pi session file creation (Pi 0.99+ writes the file at the first user m
   })
 })
 
-describe('A recorded Pi file that is missing because it was deleted', () => {
+describe('A recorded Pi file that is missing after it was written', () => {
   const recordedFile = () =>
     path.join(
       projectPath,
@@ -157,28 +157,55 @@ describe('A recorded Pi file that is missing because it was deleted', () => {
       `2026-10-09T10-41-32-337Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
     )
 
-  it.each<[string, Partial<SessionDetail>]>([
-    ['a discovered Session', { piEntryNodeIdPrefix: 'pi:discovered:' }],
-    [
-      'a created Session whose file had entries',
-      {
-        resumePosition: fromPartial({ piEntryCount: 2 }),
-        messages: [fromPartial({ id: 'n1', role: 'user', parts: [] })],
-      },
-    ],
-  ])('is never started again for %s, on the Run path or a read', async (_name, fields) => {
-    const deleted = session({
-      piSessionId: PRE_CREATED_PI_SESSION_ID,
-      piSessionFile: recordedFile(),
-      ...fields,
-    })
+  const discovered: Partial<SessionDetail> = { piEntryNodeIdPrefix: 'pi:discovered:' }
+  const createdWithEntries: Partial<SessionDetail> = {
+    resumePosition: fromPartial({ piEntryCount: 2 }),
+    messages: [fromPartial({ id: 'n1', role: 'user', parts: [] })],
+  }
+  const deletedSession = (fields: Partial<SessionDetail>) =>
+    session({ piSessionId: PRE_CREATED_PI_SESSION_ID, piSessionFile: recordedFile(), ...fields })
 
-    const runManager = createSessionManagerForSession(deleted, projectPath)
-    const readManager = await createReadOnlySessionManagerForSession(deleted, projectPath)
+  it("refuses a discovered Session's Run instead of starting its file again", async () => {
+    await fs.mkdir(path.dirname(recordedFile()), { recursive: true })
 
+    expect(() => createSessionManagerForSession(deletedSession(discovered), projectPath)).toThrow(
+      /^This Session's Pi session file was deleted outside OpenWaggle/,
+    )
+    const readManager = await createReadOnlySessionManagerForSession(
+      deletedSession(discovered),
+      projectPath,
+    )
+
+    expect(readManager.isPersisted()).toBe(false)
     expect(existsSync(recordedFile())).toBe(false)
+  })
+
+  it('starts a new transcript for a created Session, not the recorded file again', async () => {
+    await fs.mkdir(path.dirname(recordedFile()), { recursive: true })
+
+    const runManager = createSessionManagerForSession(
+      deletedSession(createdWithEntries),
+      projectPath,
+    )
+    const readManager = await createReadOnlySessionManagerForSession(
+      deletedSession(createdWithEntries),
+      projectPath,
+    )
+
     expect(runManager.getSessionFile()).not.toBe(recordedFile())
     expect(readManager.isPersisted()).toBe(false)
     expect(existsSync(recordedFile())).toBe(false)
+  })
+
+  it.each<[string, Partial<SessionDetail>]>([
+    ['a discovered Session', discovered],
+    ['a created Session with entries', createdWithEntries],
+  ])('refuses %s whose folder is missing, and creates no folder', async (_name, fields) => {
+    expect(() => createSessionManagerForSession(deletedSession(fields), projectPath)).toThrow(
+      /^This Session's Pi session file is unavailable .*its folder is missing/,
+    )
+    await createReadOnlySessionManagerForSession(deletedSession(fields), projectPath)
+
+    expect(existsSync(path.dirname(recordedFile()))).toBe(false)
   })
 })

@@ -88,6 +88,8 @@ export interface PiSessionFilesShape {
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
   /** The file was deleted: it is missing while its folder is there. */
   readonly isDeleted: (piSessionFile: string) => Effect.Effect<boolean>
+  /** The file is out of reach: it and its folder are missing, as on a drive not connected. */
+  readonly isUnavailable: (piSessionFile: string) => Effect.Effect<boolean>
   /**
    * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0051).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.

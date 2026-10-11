@@ -1,14 +1,14 @@
+import {
+  deletedPiSessionFileMessage,
+  unavailablePiSessionFileMessage,
+} from '@shared/domain/pi-session-file-messages'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { createLogger } from '../logger'
-import {
-  PiSessionDiscoveryRepository,
-  type PiSessionDiscoveryRepositoryShape,
-  PiSessionFiles,
-} from '../ports/pi-session-discovery'
+import { PiSessionDiscoveryRepository, PiSessionFiles } from '../ports/pi-session-discovery'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
@@ -31,13 +31,24 @@ function dependency(refusal: string) {
 export class DeletedPiSessionFileError extends Error {
   /** `refusal`: why the Session cannot be deleted either, as `deletionRefusal` says. */
   constructor(piSessionFile: string, refusal?: string) {
-    const lost = `This Session's Pi session file was deleted outside OpenWaggle (${piSessionFile}), so its history is gone and it cannot be continued.`
+    const lost = deletedPiSessionFileMessage(piSessionFile)
     super(
       refusal
         ? `${lost} Restore the file to continue it. The Session stays, to read, because ${dependency(refusal)}.`
         : `${lost} Restore the file to continue it, or delete the Session.`,
     )
     this.name = 'DeletedPiSessionFileError'
+  }
+}
+
+/**
+ * A Session's Pi file is out of reach: its folder is missing, renamed away or on a drive that is
+ * not connected. The Session stays, and its Runs are refused until the folder is back.
+ */
+export class UnavailablePiSessionFileError extends Error {
+  constructor(piSessionFile: string) {
+    super(unavailablePiSessionFileMessage(piSessionFile))
+    this.name = 'UnavailablePiSessionFileError'
   }
 }
 
@@ -125,9 +136,9 @@ export function removeSessionsWithDeletedPiFiles() {
 }
 
 /**
- * The Session's Pi file, when it was deleted outside OpenWaggle, with whether OpenWaggle created
- * the Session. A file a new Session recorded before Pi wrote it (no projected Pi entry yet) was
- * never written, not deleted.
+ * The Session's Pi file, when it was deleted outside OpenWaggle or is out of reach, with whether
+ * OpenWaggle created the Session. A file a new Session recorded before Pi wrote it (no projected
+ * Pi entry yet) was never written, not deleted.
  */
 function deletedPiSessionFile(sessionId: SessionId) {
   return Effect.gen(function* () {
@@ -139,9 +150,12 @@ function deletedPiSessionFile(sessionId: SessionId) {
       .pipe(Effect.orElseSucceed(() => null))
     if (!state?.piSessionFile) return undefined
     if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return undefined
-    if (!(yield* files.value.isDeleted(state.piSessionFile))) return undefined
+    const deleted = yield* files.value.isDeleted(state.piSessionFile)
+    const unavailable = !deleted && (yield* files.value.isUnavailable(state.piSessionFile))
+    if (!deleted && !unavailable) return undefined
     return {
       file: state.piSessionFile,
+      unavailable,
       discovered: state.piEntryNodeIdPrefix !== undefined,
       repository: repository.value,
     }
@@ -158,6 +172,10 @@ export function deletedPiSessionFileError(sessionId: SessionId) {
   )
 }
 
+type MissingPiSessionFile = NonNullable<
+  Effect.Effect.Success<ReturnType<typeof deletedPiSessionFile>>
+>
+
 /** What an opened Session OpenWaggle created says once its Pi file was deleted. */
 export const CREATED_SESSION_FILE_DELETED =
   "This Session's Pi file was deleted; the next message starts a new transcript."
@@ -171,17 +189,16 @@ export function withDeletedPiSessionFileNotice(detail: SessionDetail | null) {
   return Effect.gen(function* () {
     const deleted = yield* deletedPiSessionFile(detail.id)
     if (!deleted) return detail
-    const notice = deleted.discovered
-      ? (yield* refusedRunError(detail.id, deleted)).message
-      : CREATED_SESSION_FILE_DELETED
+    const notice =
+      deleted.discovered || deleted.unavailable
+        ? (yield* refusedRunError(detail.id, deleted)).message
+        : CREATED_SESSION_FILE_DELETED
     return { ...detail, piSessionFileDeleted: notice }
   })
 }
 
-function refusedRunError(
-  sessionId: SessionId,
-  deleted: { readonly file: string; readonly repository: PiSessionDiscoveryRepositoryShape },
-) {
+function refusedRunError(sessionId: SessionId, deleted: MissingPiSessionFile) {
+  if (deleted.unavailable) return Effect.succeed(new UnavailablePiSessionFileError(deleted.file))
   return deleted.repository.deletionRefusal(sessionId).pipe(
     Effect.orElseSucceed(() => undefined),
     Effect.map((refusal) => new DeletedPiSessionFileError(deleted.file, refusal)),
@@ -189,8 +206,10 @@ function refusedRunError(
 }
 
 /**
- * Before a Run: a discovered Session whose Pi file was deleted is refused, never continued in a
- * new file under the same id. A Session OpenWaggle created still runs: Pi starts a new file under
+ * Before a Run: a discovered Session whose Pi file was deleted or is out of reach is refused, never
+ * continued in a new file under the same id. A Session OpenWaggle created whose folder is out of
+ * reach is refused when Pi would open its file (`assertNoPiSessionFileToReplace`), since its
+ * folder may have gone with its own worktree. One whose file was deleted still runs: Pi starts a new file under
  * its Pi session id, without what came before, and the Run's snapshot of that file replaces the
  * transcript shown, so the earlier messages go (`warnIfTranscriptLost`). It is logged once, and
  * the Session says so when it is opened, before that next message.
@@ -198,7 +217,7 @@ function refusedRunError(
 export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
   return Effect.gen(function* () {
     const deleted = yield* deletedPiSessionFile(sessionId)
-    if (!deleted) return
+    if (!deleted || (deleted.unavailable && !deleted.discovered)) return
     if (deleted.discovered) return yield* Effect.fail(yield* refusedRunError(sessionId, deleted))
     // Once per Session and file: each Run checks before it reads the Session, and again before Pi.
     const key = `${sessionId}:${deleted.file}`

@@ -6,6 +6,7 @@ import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger } from './constants'
+import { assertNoPiSessionFileToReplace } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { newPiSessionDirectory, startRecordedPiSessionFile } from './recorded-session-file'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
@@ -270,6 +271,7 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
   const existingFile = findExistingPiSessionFile(session, projectPath)
   if (existingFile) return openSessionManager(session, existingFile, projectPath)
 
+  assertNoPiSessionFileToReplace(session)
   warnIfTranscriptLost(session)
   const started = startRecordedPiSessionFile(session, physicalPath(projectPath))
   if (started) return openSessionManager(session, started, projectPath)

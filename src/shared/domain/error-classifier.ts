@@ -1,8 +1,6 @@
 import type { AgentErrorCode, AgentErrorInfo } from '../types/errors'
 import { extractInnerErrorMessage } from './error-message-extraction'
-
-/** How `DeletedPiSessionFileError`'s message starts. */
-const PI_SESSION_FILE_DELETED = "This Session's Pi session file was deleted outside OpenWaggle"
+import { PI_SESSION_FILE_PROBLEM } from './pi-session-file-messages'
 
 interface ErrorCodeMeta {
   readonly userMessage: string
@@ -85,9 +83,9 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'pi-session-file-deleted': {
-    userMessage: "This Session's Pi session file was deleted",
+    userMessage: "This Session's Pi session file cannot be used",
     retryable: false,
-    messageFrom: PI_SESSION_FILE_DELETED,
+    messageFrom: PI_SESSION_FILE_PROBLEM,
   },
   unknown: {
     userMessage: 'Something went wrong',
@@ -213,7 +211,7 @@ const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [
   {
     // First: the message names the file, whose path could read as any other error.
     code: 'pi-session-file-deleted',
-    matches: (lower) => lower.includes(PI_SESSION_FILE_DELETED.toLowerCase()),
+    matches: (lower) => lower.includes(PI_SESSION_FILE_PROBLEM.toLowerCase()),
   },
   {
     code: 'insufficient-credits',

@@ -46,6 +46,20 @@ async function isDeletedFile(file: string) {
   )
 }
 
+/** Out of reach, not gone: the file is missing and so is the folder that held it. */
+async function isUnavailableFile(file: string) {
+  try {
+    await stat(file)
+    return false
+  } catch (cause) {
+    if (errorCode(cause) !== 'ENOENT') return false
+  }
+  return stat(path.dirname(file)).then(
+    (folder) => !folder.isDirectory(),
+    () => true,
+  )
+}
+
 async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | null> {
   try {
     const stats = await stat(file)
@@ -174,6 +188,7 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
     discover: (input) => Effect.tryPromise({ try: () => scanner.scan(input), catch: toError }),
     fingerprint: (file) => Effect.promise(() => fingerprintOf(file)),
     isDeleted: (file) => Effect.promise(() => isDeletedFile(file)),
+    isUnavailable: (file) => Effect.promise(() => isUnavailableFile(file)),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }
