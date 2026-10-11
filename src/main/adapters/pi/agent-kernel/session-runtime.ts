@@ -91,7 +91,9 @@ export async function withPiSession<T>(
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     },
     createSession: async ({ services, model }) => {
-      const sessionManager = createSessionManagerForSession(input.session, projectPath)
+      const sessionManager = createSessionManagerForSession(input.session, projectPath, {
+        forRun: false,
+      })
       return createOpenWaggleAgentSessionFromServices({
         services,
         model,
@@ -160,7 +162,8 @@ export async function createPiSessionRuntime(
   await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
   const initialSessionManager =
-    hooks.sessionManager ?? createSessionManagerForSession(input.session, projectPath)
+    hooks.sessionManager ??
+    createSessionManagerForSession(input.session, projectPath, { forRun: false })
   const createRuntime: CreateAgentSessionRuntimeFactory = async (requested) => {
     const forkManager =
       requested.sessionStartEvent?.reason === 'fork'

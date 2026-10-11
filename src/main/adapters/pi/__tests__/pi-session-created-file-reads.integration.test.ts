@@ -1,4 +1,5 @@
 import { existsSync, rmSync } from 'node:fs'
+import path from 'node:path'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
@@ -58,6 +59,23 @@ describe('A Session OpenWaggle created', () => {
 
     expect(existsSync(file)).toBe(false)
     expect((await opened(sessionId))?.piSessionFileDeleted).toBeUndefined()
+  })
+
+  it('is compacted, never run, without writing a Pi file', async () => {
+    const sessionId = await createSession(fixture)
+    const file = await recordedFile(sessionId)
+    const folderBefore = existsSync(path.dirname(file))
+    const { compactAgentSession } = await import('../../../application/agent-session-service')
+
+    const compacted = await run(
+      Effect.either(compactAgentSession({ sessionId, model: FAKE_PROVIDER_MODEL })),
+    )
+
+    const message =
+      compacted._tag === 'Left' && compacted.left instanceof Error ? compacted.left.message : ''
+    expect(message).toMatch(/^Nothing to compact/)
+    expect(existsSync(file)).toBe(false)
+    expect(existsSync(path.dirname(file))).toBe(folderBefore)
   })
 
   it.each<['before' | 'at']>([['before'], ['at']])(

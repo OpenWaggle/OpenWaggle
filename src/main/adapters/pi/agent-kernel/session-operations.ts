@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentSession, ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
+import type { SessionDetail } from '@shared/types/session'
 import {
   AgentKernelMissingEntryError,
   type AgentKernelSessionInput,
@@ -13,7 +14,11 @@ import {
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
 import { projectWrittenFork, type WrittenFork, writeForkBeforeItStarts } from './fork-files'
-import { hasProjectedEntries, missingPiSessionFileError } from './missing-session-file'
+import {
+  hasProjectedEntries,
+  missingPiSessionFileError,
+  type PiSessionFileAction,
+} from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { piExtensionCommands } from './pi-extension-commands'
 import { idleCacheWarming } from './pi-idle-cache-warming'
@@ -106,17 +111,25 @@ export async function getPiSessionSnapshot(
     sessionSnapshot: projectPiSessionSnapshot({ sessionManager }, nodeIds),
   }
 }
+/** What Pi says for a session too small to compact. */
+const NOTHING_TO_COMPACT = 'Nothing to compact (session too small)'
+
+/**
+ * Refuses an operation on a Session whose transcript has no Pi file to work on: without it, Pi
+ * would compact an empty transcript, or find no branch to go to and cancel without a word.
+ */
+function assertPiSessionFileFor(session: SessionDetail, action: PiSessionFileAction) {
+  if (!hasProjectedEntries(session)) return
+  if (findExistingPiSessionFile(session, resolveSessionWorkingPath(session))) return
+  throw missingPiSessionFileError(session, action)
+}
+
 export async function compactPiSession(
   input: CompactAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  // Without its file, Pi would compact a new empty transcript and report it too small.
-  const workingPath = resolveSessionWorkingPath(input.session)
-  if (
-    hasProjectedEntries(input.session) &&
-    !findExistingPiSessionFile(input.session, workingPath)
-  ) {
-    throw missingPiSessionFileError(input.session, 'compacting')
-  }
+  // A Session never run holds nothing to compact, and Pi is not opened for it.
+  if (!hasProjectedEntries(input.session)) throw new Error(NOTHING_TO_COMPACT)
+  assertPiSessionFileFor(input.session, 'compacting')
   return withPiSession(input, async (session) => {
     const unsubscribe = input.onEvent
       ? session.subscribe(

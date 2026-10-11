@@ -7,6 +7,7 @@ import {
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
+import { logger } from './constants'
 
 /** A Session's Pi file cannot be used, so nothing is started in its place. */
 export class PiSessionFileUnavailableError extends Error {
@@ -83,4 +84,24 @@ export function assertNoPiSessionFileToReplace(session: SessionDetail) {
       folderMissing ? unavailablePiSessionFileMessage(file) : deletedPiSessionFileMessage(file),
     )
   }
+}
+
+const sessionsWarnedForLostTranscript = new Set<string>()
+
+/**
+ * No file is expected before a Session's first assistant reply: Pi writes its file lazily, so a
+ * first run aborted before replying leaves none. Once the Session holds an assistant reply, a
+ * missing file means the transcript is gone and the run starts over without it. Logged once per
+ * Session, because every Pi operation on it would repeat the search.
+ */
+export function warnIfTranscriptLost(session: SessionDetail) {
+  if (!session.messages.some((message) => message.role === 'assistant')) return
+  const sessionId = String(session.id)
+  if (sessionsWarnedForLostTranscript.has(sessionId)) return
+  sessionsWarnedForLostTranscript.add(sessionId)
+  logger.warn('Session Pi transcript file is missing; starting a new transcript', {
+    sessionId,
+    piSessionId: session.piSessionId,
+    piSessionFile: session.piSessionFile,
+  })
 }

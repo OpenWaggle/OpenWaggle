@@ -6,7 +6,7 @@ import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger } from './constants'
-import { assertNoPiSessionFileToReplace } from './missing-session-file'
+import { assertNoPiSessionFileToReplace, warnIfTranscriptLost } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { newPiSessionDirectory, startRecordedPiSessionFile } from './recorded-session-file'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
@@ -248,31 +248,25 @@ export function findExistingPiSessionFile(session: PiSessionFileLocation, runDir
   return findPiSessionFiles(session, runDirectory)[0]
 }
 
-const sessionsWarnedForLostTranscript = new Set<string>()
-
 /**
- * No file is expected before a Session's first assistant reply: Pi writes its file lazily, so a
- * first run aborted before replying leaves none. Once the Session holds an assistant reply, a
- * missing file means the transcript is gone and the run starts over without it. Logged once per
- * Session, because every Pi operation on it would repeat the search.
+ * Only a Run's manager starts the Session's Pi file; any other operation (`forRun: false`) on a
+ * Session without one gets a manager that does not persist, never a file `pi --resume` lists.
  */
-function warnIfTranscriptLost(session: SessionDetail) {
-  if (!session.messages.some((message) => message.role === 'assistant')) return
-  const sessionId = String(session.id)
-  if (sessionsWarnedForLostTranscript.has(sessionId)) return
-  sessionsWarnedForLostTranscript.add(sessionId)
-  logger.warn('Session Pi transcript file is missing; starting a new transcript', {
-    sessionId,
-    piSessionId: session.piSessionId,
-    piSessionFile: session.piSessionFile,
-  })
-}
-
-export function createSessionManagerForSession(session: SessionDetail, projectPath: string) {
+export function createSessionManagerForSession(
+  session: SessionDetail,
+  projectPath: string,
+  options: { readonly forRun?: boolean } = {},
+) {
   const existingFile = findExistingPiSessionFile(session, projectPath)
   if (existingFile) return openSessionManager(session, existingFile, projectPath)
 
   assertNoPiSessionFileToReplace(session)
+  if (options.forRun === false) {
+    return SessionManager.inMemory(
+      physicalPath(projectPath),
+      session.piSessionId ? { id: session.piSessionId } : undefined,
+    )
+  }
   warnIfTranscriptLost(session)
   const started = startRecordedPiSessionFile(session, physicalPath(projectPath))
   if (started) return openSessionManager(session, started, projectPath)

@@ -66,6 +66,7 @@ vi.mock('../session-manager', () => ({
     isPersisted: () => false,
   }),
   resolveSessionWorkingPath: () => '/repo',
+  findExistingPiSessionFile: () => '/repo/session.jsonl',
 }))
 
 vi.mock('../session-projection', () => ({
@@ -88,6 +89,14 @@ function input() {
       updatedAt: 2,
     },
     model: MODEL,
+  }
+}
+
+/** A Session whose projection holds a transcript. */
+function withTranscript() {
+  return {
+    ...input(),
+    session: { ...input().session, messages: [fromPartial<Message>({ id: 'm1', role: 'user' })] },
   }
 }
 
@@ -151,12 +160,9 @@ describe('Pi session operations', () => {
 
   it('takes no snapshot of a Session with a transcript whose Pi file cannot be found', async () => {
     // At Host start, an empty snapshot would replace the transcript the Session shows.
-    const withTranscript = {
-      ...input(),
-      session: { ...input().session, messages: [fromPartial<Message>({ id: 'm1', role: 'user' })] },
-    }
+    const transcript = withTranscript()
 
-    await expect(getPiSessionSnapshot(withTranscript)).rejects.toThrow(
+    await expect(getPiSessionSnapshot(transcript)).rejects.toThrow(
       /^This Session's Pi session file /,
     )
     expect(operationMocks.projectPiSessionSnapshot).not.toHaveBeenCalled()
@@ -197,7 +203,7 @@ describe('Pi session operations', () => {
     const onEvent = vi.fn()
 
     const result = await compactPiSession({
-      ...input(),
+      ...withTranscript(),
       customInstructions: 'keep recent decisions',
       signal: controller.signal,
       onEvent,

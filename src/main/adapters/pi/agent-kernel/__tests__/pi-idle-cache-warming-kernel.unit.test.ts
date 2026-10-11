@@ -1,3 +1,4 @@
+import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -37,6 +38,7 @@ vi.mock('../session-manager', async (importOriginal) => ({
     throw new Error(OPENED)
   }),
   resolveSessionWorkingPath: vi.fn(() => '/repo'),
+  findExistingPiSessionFile: vi.fn(() => '/repo/.pi/session.jsonl'),
 }))
 
 const SESSION_ID = SessionId('warming-session')
@@ -72,7 +74,12 @@ const operations = {
         workingPath: '/repo',
       }),
     ),
-  'the Session is compacted': () => compactPiSession({ session, model }),
+  // A Session with nothing in it has nothing to compact, and Pi is not opened for it.
+  'the Session is compacted': () =>
+    compactPiSession({
+      session: { ...session, messages: [fromPartial<Message>({ id: 'm1', role: 'user' })] },
+      model,
+    }),
   'the Session tree is navigated': () =>
     navigatePiSessionTree({ session, model, targetNodeId: 'node-1' }),
   'the Session is forked': () =>
