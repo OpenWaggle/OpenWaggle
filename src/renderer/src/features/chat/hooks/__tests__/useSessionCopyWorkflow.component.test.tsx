@@ -72,6 +72,38 @@ it('shows the Host reason without Electron transport context when cloning fails'
   expect(showToast).toHaveBeenCalledWith('Failed to clone session: Session is busy')
 })
 
+it('shows why a Session whose Pi file cannot be used is not cloned, as a plain sentence', async () => {
+  apiMock.getSessionWorkspace.mockResolvedValue(null)
+  useChatStore.setState({ activeSessionId: SessionId('session-1') })
+  const reason =
+    "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before cloning it."
+  apiMock.cloneSessionToNew.mockRejectedValue(
+    new Error(
+      `Error invoking remote method 'sessions:clone-to-new': Error: SessionLifecyclePreparationError (prepare-session-lifecycle): ${reason}`,
+    ),
+  )
+  const showToast = vi.fn()
+  const { result } = renderHook(() =>
+    useSessionCopyWorkflow({
+      activeSessionId: SessionId('session-1'),
+      activeWorkspace: null,
+      draftBranchSourceNodeId: SessionNodeId('draft-source'),
+      model: SupportedModelId('openai/gpt-5.5'),
+      messages: [],
+      navigate: vi.fn(),
+      setActiveSession: vi.fn(),
+      loadSessions: vi.fn().mockResolvedValue(undefined),
+      refreshSession: vi.fn().mockResolvedValue(undefined),
+      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
+      showToast,
+    }),
+  )
+
+  await act(() => result.current.cloneCurrentSessionToNewSession())
+
+  expect(showToast).toHaveBeenCalledWith(reason)
+})
+
 it('forks the persisted node of a message sent in this window and drafts its text', async () => {
   const sessionId = SessionId('session-1')
   const forkedSessionId = SessionId('session-fork')

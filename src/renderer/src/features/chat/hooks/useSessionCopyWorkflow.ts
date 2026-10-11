@@ -8,6 +8,7 @@ import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { sessionCopyFailureMessage } from '@/shared/lib/session-copy-failure'
 import { findUserMessageNode } from '../lib/branch-from-message'
 import { setComposerTextValue } from '../lib/composer-text'
 import {
@@ -87,7 +88,7 @@ async function forkNodeToNewSessionAction(
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, result.editorText ?? '')
   } catch (error) {
-    params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
+    params.showToast(sessionCopyFailureMessage('fork', ipcErrorMessage(error)))
   }
 }
 
@@ -129,7 +130,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, '')
   } catch (error) {
-    params.showToast(`Failed to clone session: ${ipcErrorMessage(error)}`)
+    params.showToast(sessionCopyFailureMessage('clone', ipcErrorMessage(error)))
   }
 }
 
@@ -196,7 +197,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
         }
         await forkNodeToNewSessionAction(params, node.id)
       } catch (error) {
-        params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
+        params.showToast(sessionCopyFailureMessage('fork', ipcErrorMessage(error)))
       }
     },
     openForkSelector() {
