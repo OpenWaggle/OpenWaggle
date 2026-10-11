@@ -121,7 +121,11 @@ describe('Pi runtime patches', () => {
       const file = path.join(directory, 'example.js')
       writeFileSync(file, 'export function f(a) {\n  return g(\n    a,\n  );\n  h();\n}\n')
 
-      expect(typeScriptUnreachableCode([file])).toEqual([`${path.relative(REPOSITORY_ROOT, file)}:5`])
+      // tsc reports paths relative to the real working directory, which can differ from the
+      // temporary directory's spelling when it sits behind a symlink (macOS /tmp).
+      const reported = typeScriptUnreachableCode([file])
+      expect(reported).toHaveLength(1)
+      expect(reported[0]).toMatch(/(^|\/)example\.js:5$/)
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }
