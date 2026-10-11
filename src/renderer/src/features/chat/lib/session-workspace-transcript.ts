@@ -42,6 +42,7 @@ function fromWorkspaceNode(
   // Read once per message instead of re-walking message.metadata.* per branch.
   const branchSummary = message.metadata?.branchSummary
   const compactionSummary = message.metadata?.compactionSummary
+  const error = message.metadata?.error
   const next: UIMessage = {
     id: String(message.id),
     role: message.role,
@@ -51,6 +52,7 @@ function fromWorkspaceNode(
       sessionNodeId: nodeId,
       ...(branchSummary ? { branchSummary } : {}),
       ...(compactionSummary ? { compactionSummary } : {}),
+      ...(error ? { error } : {}),
     },
   }
   persistedMessage.set(message, { nodeId, message: next })
