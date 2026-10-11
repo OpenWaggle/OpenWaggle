@@ -32,11 +32,21 @@ export function sessionHostLaunchCommand(input: {
   readonly appPath: string
   readonly appImagePath?: string
   readonly parentNoSandbox?: boolean
+  /** Chromium's --use-mock-keychain on the GUI: QA keeps credential prompts off the screen. */
+  readonly parentUseMockKeychain?: boolean
+  /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
+  readonly parentPasswordStore?: string
 }) {
   // Restricted Linux environments may launch the GUI with this explicit Electron switch.
   // Its detached authority needs the same policy; never disable the sandbox by default.
-  const electronArguments =
-    input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []
+  // The Host reads and writes credentials too, so it uses the GUI's credential store switches.
+  const electronArguments = [
+    ...(input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []),
+    ...(input.parentUseMockKeychain ? ['--use-mock-keychain'] : []),
+    ...(input.platform === 'linux' && input.parentPasswordStore
+      ? [`--password-store=${input.parentPasswordStore}`]
+      : []),
+  ]
   if (
     input.platform === 'linux' &&
     input.isPackaged &&
@@ -49,6 +59,21 @@ export function sessionHostLaunchCommand(input: {
     command: input.executablePath,
     args: [...electronArguments, ...sessionHostLaunchArguments(input)],
   }
+}
+
+/** The command that launches a Host with the switches this process was started with. */
+export function currentSessionHostLaunchCommand() {
+  const passwordStore = app.commandLine.getSwitchValue('password-store')
+  return sessionHostLaunchCommand({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    executablePath: process.execPath,
+    appPath: app.getAppPath(),
+    parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
+    parentUseMockKeychain: app.commandLine.hasSwitch('use-mock-keychain'),
+    ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
+    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+  })
 }
 
 /**
@@ -130,23 +155,14 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       throw error
     }
   },
-  launch: () => {
-    const launch = sessionHostLaunchCommand({
-      platform: process.platform,
-      isPackaged: app.isPackaged,
-      executablePath: process.execPath,
-      appPath: app.getAppPath(),
-      parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
-      ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
-    })
-    return launchHeadlessBackgroundProcess({
-      ...launch,
+  launch: () =>
+    launchHeadlessBackgroundProcess({
+      ...currentSessionHostLaunchCommand(),
       environment: sessionHostChildEnvironment({
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
       }),
-    })
-  },
+    }),
   now: Date.now,
   wait: (milliseconds, signal) =>
     new Promise((resolve, reject) => {
