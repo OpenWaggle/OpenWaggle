@@ -73,6 +73,18 @@ describe('switching the branch of a Session whose model is gone', () => {
     expect(showToast).not.toHaveBeenCalled()
   })
 
+  it('says plainly why a Session whose Pi file cannot be used does not switch branch', async () => {
+    const reason =
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it."
+    apiMock.navigateSessionTree.mockRejectedValueOnce(
+      new Error(`Error invoking remote method 'sessions:navigate-tree': Error: ${reason}`),
+    )
+
+    const showToast = switchBranch(sessionAnsweredBy(MINI))
+
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith(reason))
+  })
+
   it('refuses when nothing the Session could fall back to has answered', async () => {
     const showToast = switchBranch(sessionAnsweredBy(undefined))
 

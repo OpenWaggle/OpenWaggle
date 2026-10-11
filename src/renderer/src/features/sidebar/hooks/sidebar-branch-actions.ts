@@ -11,6 +11,7 @@ import { isSessionModelActionable } from '@/features/chat/lib'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -99,7 +100,7 @@ async function switchSessionBranch(
       refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId)
     }
   } catch (error) {
-    deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
+    deps.showToast(sessionOperationFailureMessage('Failed to switch session branch', error))
   }
 }
 

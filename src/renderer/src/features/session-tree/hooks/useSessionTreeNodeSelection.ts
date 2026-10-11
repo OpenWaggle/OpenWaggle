@@ -12,6 +12,7 @@ import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 
 interface SessionTreeNodeSelectionInput {
   readonly activeWorkspace: SessionWorkspace | null
@@ -72,8 +73,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     void api
       .navigateSessionTree(tree.session.id, input.selectedModel, node.id, { summarize: false })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
-        input.showToast(`Failed to switch session branch: ${message}`)
+        input.showToast(sessionOperationFailureMessage('Failed to switch session branch', error))
       })
       .finally(() => {
         void refreshSessionWorkspace(tree.session.id, {

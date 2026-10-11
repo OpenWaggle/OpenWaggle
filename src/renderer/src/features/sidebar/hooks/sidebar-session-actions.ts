@@ -11,7 +11,7 @@ import { useSessionStore } from '@/features/sessions/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
-import { sessionCopyFailureMessage } from '@/shared/lib/session-copy-failure'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
 
@@ -185,7 +185,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
       deps.refreshSessionWorkspace(result.session.id),
     ])
   } catch (error) {
-    deps.showToast(sessionCopyFailureMessage('clone', errorMessage(error)))
+    deps.showToast(sessionOperationFailureMessage('Failed to clone session', error))
   }
 }
 
