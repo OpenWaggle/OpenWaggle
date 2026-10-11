@@ -197,6 +197,28 @@ describe('A recorded Pi file that is missing after it was written', () => {
     expect(existsSync(recordedFile())).toBe(false)
   })
 
+  it('refuses a created Session whose folder was in its own worktree, as any missing folder', () => {
+    const worktree = path.join(home, '.openwaggle', 'worktrees', 'project', 'w1')
+    const inWorktree = path.join(
+      worktree,
+      '.pi',
+      'sessions',
+      `2026-10-09T10-41-32-337Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
+    )
+    const removed = session({
+      piSessionId: PRE_CREATED_PI_SESSION_ID,
+      piSessionFile: inWorktree,
+      environmentMode: 'worktree',
+      worktreePath: worktree,
+      ...createdWithEntries,
+    })
+
+    expect(() => createSessionManagerForSession(removed, projectPath)).toThrow(
+      /^This Session's Pi session file is unavailable .*its folder is missing/,
+    )
+    expect(existsSync(path.dirname(inWorktree))).toBe(false)
+  })
+
   it.each<[string, Partial<SessionDetail>]>([
     ['a discovered Session', discovered],
     ['a created Session with entries', createdWithEntries],

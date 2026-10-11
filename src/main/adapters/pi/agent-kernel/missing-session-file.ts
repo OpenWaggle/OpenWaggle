@@ -6,7 +6,6 @@ import {
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
-import { isPathInsideProject } from '../pi-session-project-paths'
 
 /** A Session's Pi file cannot be used, so nothing is started in its place. */
 export class PiSessionFileUnavailableError extends Error {
@@ -23,12 +22,6 @@ export function hasProjectedEntries(session: SessionDetail) {
     (session.resumePosition?.piEntryCount ?? 0) > 0 ||
     session.messages.length > 0
   )
-}
-
-/** The folder went with the Session's worktree, which OpenWaggle removes; it is not coming back. */
-function inSessionWorktree(session: SessionDetail, folder: string) {
-  const worktree = session.worktreePath?.trim()
-  return worktree ? isPathInsideProject(folder, worktree) : false
 }
 
 /** What needs the Session's Pi file, as the message names it: `forking`, `compacting`. */
@@ -60,14 +53,13 @@ export function missingPiSessionFileError(session: SessionDetail, action?: PiSes
  *   away or is on a drive that is not connected. Starting a file would also create the folder.
  *
  * A Session OpenWaggle created whose file was deleted while its folder is there still starts a
- * new transcript, as does one whose file was in its own removed worktree.
+ * new transcript.
  */
 export function assertNoPiSessionFileToReplace(session: SessionDetail) {
   const file = session.piSessionFile?.trim()
   if (!file || !hasProjectedEntries(session)) return
-  const folder = dirname(file)
-  const folderMissing = !existsSync(folder)
-  if (folderMissing && !inSessionWorktree(session, folder)) {
+  const folderMissing = !existsSync(dirname(file))
+  if (folderMissing) {
     throw new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
   }
   if (session.piEntryNodeIdPrefix !== undefined) {

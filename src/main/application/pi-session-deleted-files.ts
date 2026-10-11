@@ -221,18 +221,19 @@ function refusedRunError(sessionId: SessionId, deleted: MissingPiSessionFile) {
 
 /**
  * Before a Run: a discovered Session whose Pi file was deleted or is out of reach is refused, never
- * continued in a new file under the same id. A Session OpenWaggle created whose folder is out of
- * reach is refused when Pi would open its file (`assertNoPiSessionFileToReplace`), since its
- * folder may have gone with its own worktree. One whose file was deleted still runs: Pi starts a new file under
- * its Pi session id, without what came before, and the Run's snapshot of that file replaces the
- * transcript shown, so the earlier messages go (`warnIfTranscriptLost`). It is logged once, and
- * the Session says so when it is opened, before that next message.
+ * continued in a new file under the same id, as is any Session whose Pi folder is out of reach.
+ * One OpenWaggle created whose file was deleted from its folder still runs: Pi starts a new file
+ * under its Pi session id, without what came before, and the Run's snapshot of that file replaces
+ * the transcript shown, so the earlier messages go (`warnIfTranscriptLost`). It is logged once,
+ * and the Session says so when it is opened, before that next message.
  */
 export function refuseRunWithDeletedPiFile(sessionId: SessionId) {
   return Effect.gen(function* () {
     const deleted = yield* deletedPiSessionFile(sessionId)
-    if (!deleted || (deleted.unavailable && !deleted.discovered)) return
-    if (deleted.discovered) return yield* Effect.fail(yield* refusedRunError(sessionId, deleted))
+    if (!deleted) return
+    if (deleted.discovered || deleted.unavailable) {
+      return yield* Effect.fail(yield* refusedRunError(sessionId, deleted))
+    }
     // Once per Session and file: each Run checks before it reads the Session, and again before Pi.
     const key = `${sessionId}:${deleted.file}`
     if (warnedDeletedFiles.has(key)) return
