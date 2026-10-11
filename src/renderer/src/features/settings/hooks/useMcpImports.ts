@@ -56,12 +56,22 @@ export function useMcpMissingSecrets() {
     vault.loaded ? mcpMissingSecrets(server, vault.secrets) : []
 }
 
+interface SecretOperation {
+  readonly kind: 'save' | 'remove'
+  readonly name: string
+  readonly run: () => ReturnType<typeof api.listMcpSecrets>
+}
+
+function pendingSecretOperation(operation: SecretOperation | undefined) {
+  return operation ? { kind: operation.kind, name: operation.name } : null
+}
+
 export function useMcpSecrets() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
   const secrets = useQuery(mcpSecretsQueryOptions())
   const change = useMutation({
-    mutationFn: (run: () => ReturnType<typeof api.listMcpSecrets>) => run(),
+    mutationFn: (operation: SecretOperation) => operation.run(),
     onMutate: () => setError(null),
     onError: (failure) => setError(ipcErrorMessage(failure)),
     onSuccess: (next) => queryClient.setQueryData(mcpQueryKeys.secrets, next),
@@ -73,14 +83,21 @@ export function useMcpSecrets() {
     loadError: secrets.error ? ipcErrorMessage(secrets.error) : null,
     error,
     pending: change.isPending,
+    /** What is being changed, so a delete does not read as "Saving…". */
+    pendingOperation: change.isPending ? pendingSecretOperation(change.variables) : null,
     save: async (name: string, value: string) => {
       try {
-        await change.mutateAsync(() => api.setMcpSecret({ name, value }))
+        await change.mutateAsync({
+          kind: 'save',
+          name,
+          run: () => api.setMcpSecret({ name, value }),
+        })
         return true
       } catch {
         return false
       }
     },
-    remove: (name: string) => change.mutate(() => api.removeMcpSecret({ name })),
+    remove: (name: string) =>
+      change.mutate({ kind: 'remove', name, run: () => api.removeMcpSecret({ name }) }),
   }
 }

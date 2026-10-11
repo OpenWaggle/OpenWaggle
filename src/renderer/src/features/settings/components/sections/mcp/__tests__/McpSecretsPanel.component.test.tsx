@@ -48,4 +48,17 @@ describe('Settings > MCP > Secrets', () => {
     expect(await screen.findByText(/The system keychain did not answer within 20 s/)).toBeVisible()
     expect(within(form).getByRole('button', { name: 'Save' })).toBeEnabled()
   })
+
+  it('says it is deleting, not saving, while a secret is deleted', async () => {
+    api.listMcpSecrets.mockResolvedValue([{ name: 'OLD', createdAt: 1, updatedAt: 1 }])
+    api.removeMcpSecret.mockReturnValue(new Promise(() => {}))
+    renderWithQueryClient(<McpSecretsPanel />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete secret OLD' }))
+
+    const deleting = await screen.findByRole('button', { name: 'Deleting secret OLD' })
+    expect(deleting).toHaveAttribute('aria-busy', 'true')
+    const form = screen.getByRole('form', { name: 'Add secret' })
+    expect(within(form).getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
 })

@@ -15,6 +15,9 @@ export function McpSecretsPanel({
   readonly onSaved?: () => void
 } = {}) {
   const vault = useMcpSecrets()
+  const saving = vault.pendingOperation?.kind === 'save'
+  const deleting = (name: string) =>
+    vault.pendingOperation?.kind === 'remove' && vault.pendingOperation.name === name
   const [name, setName] = useState(requestedName ?? '')
   const [value, setValue] = useState('')
   return (
@@ -39,7 +42,8 @@ export function McpSecretsPanel({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={`Delete secret ${secret.name}`}
+                aria-label={`${deleting(secret.name) ? 'Deleting' : 'Delete'} secret ${secret.name}`}
+                aria-busy={deleting(secret.name)}
                 disabled={vault.pending}
                 onClick={() => vault.remove(secret.name)}
               >
@@ -83,10 +87,10 @@ export function McpSecretsPanel({
           variant="secondary"
           size="sm"
           disabled={vault.pending || !name.trim() || !value}
-          aria-busy={vault.pending}
+          aria-busy={saving}
         >
           {/* Saving asks the system keychain, which may take a while or show a prompt. */}
-          {vault.pending ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : 'Save'}
         </Button>
       </form>
       <McpInlineError message={vault.loadError ?? vault.error} />
