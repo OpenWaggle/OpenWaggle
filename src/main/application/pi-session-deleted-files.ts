@@ -162,16 +162,6 @@ function deletedPiSessionFile(sessionId: SessionId) {
   })
 }
 
-/**
- * Why a discovered Session whose Pi file was deleted cannot run, or undefined while it can: what
- * a Run of it fails with, and what the Session shows when it is opened.
- */
-export function deletedPiSessionFileError(sessionId: SessionId) {
-  return Effect.flatMap(deletedPiSessionFile(sessionId), (deleted) =>
-    deleted?.discovered ? refusedRunError(sessionId, deleted) : Effect.succeed(undefined),
-  )
-}
-
 type MissingPiSessionFile = NonNullable<
   Effect.Effect.Success<ReturnType<typeof deletedPiSessionFile>>
 >
