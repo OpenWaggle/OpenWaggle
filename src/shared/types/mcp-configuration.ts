@@ -127,6 +127,11 @@ export interface McpServerStatusView {
   readonly checkedAt?: number
   /** Whether OpenWaggle holds a sign-in, for OAuth servers. Read from the store, not the server. */
   readonly signedIn?: boolean
+  /**
+   * The server is on but reads a vault secret that is not saved, so Runs leave it out. Nothing
+   * connected or failed: it is not checked until the secret is added.
+   */
+  readonly needsSecret?: boolean
 }
 
 /** Where a new server, a per-project switch, or an install goes. */

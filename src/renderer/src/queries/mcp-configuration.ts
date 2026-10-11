@@ -10,6 +10,8 @@ import type { OpenWaggleQueryOptions } from './query-options'
 export const mcpQueryKeys = {
   configuration: (projectPath: string | null) => ['mcpConfiguration', projectPath] as const,
   statuses: (projectPath: string | null) => ['mcpServerStatuses', projectPath] as const,
+  /** Every project's server states, which a change to the vault's secrets affects. */
+  allStatuses: ['mcpServerStatuses'] as const,
   /** The mutation key of "Check connection", the only action that connects to a server. */
   checks: (projectPath: string | null) => ['mcpServerCheck', projectPath] as const,
   imports: (projectPath: string | null) => ['mcpImportPreview', projectPath] as const,

@@ -74,7 +74,11 @@ export function useMcpSecrets() {
     mutationFn: (operation: SecretOperation) => operation.run(),
     onMutate: () => setError(null),
     onError: (failure) => setError(ipcErrorMessage(failure)),
-    onSuccess: (next) => queryClient.setQueryData(mcpQueryKeys.secrets, next),
+    onSuccess: async (next) => {
+      queryClient.setQueryData(mcpQueryKeys.secrets, next)
+      // A server that needed the secret, or read the one that changed, is in a new state.
+      await queryClient.invalidateQueries({ queryKey: mcpQueryKeys.allStatuses })
+    },
   })
   return {
     secrets: secrets.data ?? [],

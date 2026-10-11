@@ -68,10 +68,15 @@ export const MCP_IMPORT_STATUS_LABELS: Readonly<Record<McpImportCandidateStatus,
 }
 
 /**
- * The row state: the server's known state, `checking` while "Check connection" runs, or
- * `not-checked` when nothing is known yet. Settings never connects on its own.
+ * The row state: the server's known state, `checking` while "Check connection" runs,
+ * `needs-secret` while a vault secret it reads is not saved, or `not-checked` when nothing is
+ * known yet. Settings never connects on its own.
  */
-export type McpServerStatus = McpServerConnectionStateView | 'checking' | 'not-checked'
+export type McpServerStatus =
+  | McpServerConnectionStateView
+  | 'checking'
+  | 'needs-secret'
+  | 'not-checked'
 
 export type McpStatusTone = 'neutral' | 'good' | 'warning' | 'error'
 
@@ -79,6 +84,7 @@ export const MCP_STATUS_COPY: Readonly<
   Record<McpServerStatus, { readonly label: string; readonly tone: McpStatusTone }>
 > = {
   'needs-sign-in': { label: 'Needs sign-in', tone: 'warning' },
+  'needs-secret': { label: 'Needs secret', tone: 'warning' },
   failed: { label: 'Failed', tone: 'error' },
   'not-connected': { label: 'Not connected', tone: 'neutral' },
   connecting: { label: 'Connecting…', tone: 'neutral' },
@@ -91,6 +97,7 @@ export const MCP_STATUS_COPY: Readonly<
 /** Servers that need the user come first, as in Pi's `/mcp` manager. */
 const ATTENTION_RANK: Readonly<Record<McpServerStatus, number>> = {
   'needs-sign-in': 0,
+  'needs-secret': 0,
   failed: 1,
   'not-connected': 2,
   connecting: 3,
@@ -107,6 +114,7 @@ export function mcpServerStatus(
 ): McpServerStatus {
   if (!server.enabled) return 'disabled'
   if (checking) return 'checking'
+  if (known?.needsSecret) return 'needs-secret'
   return known?.inspection?.state ?? 'not-checked'
 }
 

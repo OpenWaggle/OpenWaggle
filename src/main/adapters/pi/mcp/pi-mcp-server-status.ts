@@ -79,8 +79,8 @@ function serverStatus(entry: McpServerEntry, pool: McpConnectionPool): McpServer
  * Every configured server's state for Settings > MCP, read without connecting: a Session's warm
  * connection, otherwise the last check, otherwise not checked. It reads the files and the sign-in
  * store only (`mcpSignedIn`, the synchronous store, cached by mtime); vault secrets are checked to
- * exist, not decrypted. A server whose secret is missing shows that, as a failed check. No server
- * is started and no request is sent.
+ * exist, not decrypted. A server whose secret is missing needs that secret (`needsSecret`); another
+ * secret that cannot be read shows as a failed check. No server is started and no request is sent.
  */
 export async function getMcpServerStatuses(
   input: McpConfigurationScopeInput,
@@ -100,6 +100,8 @@ export async function getMcpServerStatuses(
         (server) => server.name === name && server.config.enabled === false,
       )
       if (off) return { name, source: 'not-checked' }
+      // Left out of Runs until the secret is added: nothing connected, so nothing failed.
+      if (config.missingSecrets.has(name)) return { name, source: 'not-checked', needsSecret: true }
       return {
         name,
         source: 'last-check',

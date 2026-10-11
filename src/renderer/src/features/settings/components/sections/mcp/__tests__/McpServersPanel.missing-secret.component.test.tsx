@@ -100,4 +100,28 @@ describe('Settings > MCP for a server whose vault secret is missing', () => {
     expect(errors).toHaveTextContent('docs.json: Unexpected token')
     expect(errors).not.toHaveTextContent('API_TOKEN')
   })
+
+  it('shows Needs secret, not Failed, and refreshes the state once the secret is saved', async () => {
+    // The Host leaves the server out until its secret is added; that is not a failed connection.
+    api.getMcpServerStatuses
+      .mockResolvedValueOnce([{ name: 'api', source: 'not-checked', needsSecret: true }])
+      .mockResolvedValue([{ name: 'api', source: 'not-checked' }])
+    renderWithQueryClient(<McpServersPanel projectPath={PROJECT} />)
+    const row = () =>
+      within(screen.getByRole('list', { name: 'MCP servers' })).getByRole('button', {
+        name: /Open api/,
+      })
+
+    await waitFor(() => expect(row()).toHaveTextContent(/^Open api Needs secret/))
+    expect(row()).not.toHaveTextContent('Failed')
+    fireEvent.click(row())
+    fireEvent.click(await screen.findByRole('button', { name: 'Add API_TOKEN in Secrets' }))
+    const form = await screen.findByRole('form', { name: 'Add secret' })
+    fireEvent.change(within(form).getByLabelText('Secret value'), { target: { value: 'v' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+    // The states are read again, so the row does not keep what the Host said before the save.
+    await waitFor(() => expect(row()).toHaveTextContent(/^Open api Not checked yet/))
+    expect(api.getMcpServerStatuses).toHaveBeenCalledTimes(2)
+  })
 })
