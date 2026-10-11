@@ -1,5 +1,5 @@
 import { type RunId, type SessionId, SupportedModelId } from '@shared/types/brand'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import * as Cause from 'effect/Cause'
@@ -77,8 +77,11 @@ export function continueWithPiSessionSettings(
   sessionId: SessionId,
   state: PiSessionProjectionState,
   snapshot: PiSessionFileSnapshot,
-  options: SessionSettingChangeOptions = {},
+  options: ContinuationOptions = {},
 ): Effect.Effect<ContinuationOutcome, never, never> {
+  const changeOptions: SessionSettingChangeOptions = options.forRun
+    ? { forRun: options.forRun }
+    : {}
   const { projectPath, piEntryNodeIdPrefix } = state
   if (!piEntryNodeIdPrefix || !projectPath) {
     return Effect.succeed<ContinuationOutcome>({ kind: 'applied' })
@@ -96,7 +99,7 @@ export function continueWithPiSessionSettings(
     }
     const continued = yield* continuationModel(snapshot, projectPath)
     if (continued) {
-      note(yield* settings.value.setModel(sessionId, SupportedModelId(continued.id), options))
+      note(yield* settings.value.setModel(sessionId, SupportedModelId(continued.id), changeOptions))
     }
     const projections = yield* Effect.serviceOption(SessionProjectionRepository)
     const current =
@@ -104,9 +107,15 @@ export function continueWithPiSessionSettings(
         ? undefined
         : (yield* projections.value.getOptional(sessionId))?.executionModel
     const model = continued ?? (current ? yield* lookUpModel(current, projectPath) : undefined)
-    const thinkingLevel = yield* continuationThinkingLevel(snapshot, model)
+    // A level the Run's message chose stays, clamped to the model the Session continues with.
+    const chosen = options.thinkingLevel
+    const thinkingLevel = chosen
+      ? model
+        ? clampThinkingLevel(chosen, model.availableThinkingLevels)
+        : chosen
+      : yield* continuationThinkingLevel(snapshot, model)
     if (thinkingLevel) {
-      note(yield* settings.value.setThinkingLevel(sessionId, thinkingLevel, options))
+      note(yield* settings.value.setThinkingLevel(sessionId, thinkingLevel, changeOptions))
     }
     return outcome
   }).pipe(
@@ -121,6 +130,17 @@ export function continueWithPiSessionSettings(
     ),
   )
 }
+
+/**
+ * What the starting Run's message set itself. A thinking level it chose stays: the Pi file's
+ * continuation then sets only the model, and the level is clamped to what that model offers.
+ */
+export interface RunStartChoice {
+  readonly thinkingLevel?: ThinkingLevel
+}
+
+/** `forRun`: the Run that may change its own Session's settings, with what its message chose. */
+export interface ContinuationOptions extends SessionSettingChangeOptions, RunStartChoice {}
 
 /**
  * `refused-by-run`: a Run already holds the Session, so it applies them itself before it reads

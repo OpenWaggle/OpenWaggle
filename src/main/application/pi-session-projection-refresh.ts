@@ -21,7 +21,7 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { appendDurableAgentLoopEvents } from './agent-run/agent-loop-events'
 import { validateSessionId } from './host-ui-session-operation-validation'
-import { continueWithPiSessionSettings } from './pi-session-continuation'
+import { continueWithPiSessionSettings, type RunStartChoice } from './pi-session-continuation'
 import { refuseRunWithDeletedPiFile } from './pi-session-deleted-files'
 import {
   forgetRefusedContinuation,
@@ -104,6 +104,7 @@ function refreshProjection(
   sessionId: SessionId,
   owner: PiSessionProjectionRefreshOwner,
   runId: RunId | undefined,
+  start: RunStartChoice,
 ) {
   return Effect.gen(function* () {
     const busy = () =>
@@ -151,7 +152,7 @@ function refreshProjection(
       }),
     })
     if (!persisted) return 'superseded'
-    yield* afterProjection(sessionId, owner, state, snapshot, runId)
+    yield* afterProjection(sessionId, owner, state, snapshot, runId, start)
     return 'projected'
   })
 }
@@ -167,11 +168,12 @@ function afterProjection(
   state: PiSessionProjectionState,
   snapshot: PiSessionFileSnapshot,
   runId: RunId | undefined,
+  start: RunStartChoice,
 ) {
   return Effect.gen(function* () {
     if (owner === 'reader' || state.projectedPiEntryCount === 0) {
       const outcome = yield* continueWithPiSessionSettings(sessionId, state, snapshot, {
-        ...(runId ? { forRun: runId } : {}),
+        ...(runId ? { forRun: runId, ...start } : {}),
       })
       // A Run admitted meanwhile holds the Session; it applies these before reading its profile.
       // Without a known holder (a stopping Run), no later Run may apply them.
@@ -185,11 +187,16 @@ function afterProjection(
 }
 
 /** The Run applies the Pi settings a reader's projection could not, for its own Session. */
-function applyRefusedContinuation(sessionId: SessionId, runId: RunId | undefined) {
+function applyRefusedContinuation(
+  sessionId: SessionId,
+  runId: RunId | undefined,
+  start: RunStartChoice,
+) {
   const refused = runId ? refusedContinuationFor(sessionId, runId) : undefined
   if (!refused || !runId) return Effect.void
   return continueWithPiSessionSettings(sessionId, refused.state, refused.snapshot, {
     forRun: runId,
+    ...start,
   }).pipe(
     Effect.tap((outcome) =>
       Effect.sync(() => {
@@ -210,6 +217,7 @@ export function refreshPiSessionProjection(
   sessionId: SessionId,
   owner: PiSessionProjectionRefreshOwner,
   runId?: RunId,
+  start: RunStartChoice = {},
 ) {
   return Effect.gen(function* () {
     const key = `${owner}:${sessionId}`
@@ -223,8 +231,8 @@ export function refreshPiSessionProjection(
       PiSessionDiscoveryRepository | PiSessionFiles | SessionRepository
     >()
     const refresh = Runtime.runPromise(runtime)(
-      refreshProjection(sessionId, owner, runId).pipe(
-        Effect.tap(() => applyRefusedContinuation(sessionId, runId)),
+      refreshProjection(sessionId, owner, runId, start).pipe(
+        Effect.tap(() => applyRefusedContinuation(sessionId, runId, start)),
       ),
     ).finally(() => refreshesInFlight.delete(key))
     refreshesInFlight.set(key, refresh)
@@ -240,13 +248,14 @@ export function refreshPiSessionProjectionSafely(
   sessionId: SessionId,
   owner: PiSessionProjectionRefreshOwner,
   runId?: RunId,
+  start: RunStartChoice = {},
 ) {
   return Effect.gen(function* () {
     const repository = yield* Effect.serviceOption(PiSessionDiscoveryRepository)
     const files = yield* Effect.serviceOption(PiSessionFiles)
     const sessions = yield* Effect.serviceOption(SessionRepository)
     if (Option.isNone(repository) || Option.isNone(files) || Option.isNone(sessions)) return
-    yield* refreshPiSessionProjection(sessionId, owner, runId).pipe(
+    yield* refreshPiSessionProjection(sessionId, owner, runId, start).pipe(
       Effect.provideService(PiSessionDiscoveryRepository, repository.value),
       Effect.provideService(PiSessionFiles, files.value),
       Effect.provideService(SessionRepository, sessions.value),
@@ -266,10 +275,14 @@ export function refreshPiSessionProjectionSafely(
  * Before a Run reads its Session or profile: refuses a discovered Session whose Pi file was
  * deleted, then takes in what the Pi CLI wrote since the last projection (ADR 0051).
  */
-export function prepareSessionForRun(sessionId: SessionId, runId?: RunId) {
+export function prepareSessionForRun(
+  sessionId: SessionId,
+  runId?: RunId,
+  start: RunStartChoice = {},
+) {
   return Effect.zipRight(
     refuseRunWithDeletedPiFile(sessionId),
-    refreshPiSessionProjectionSafely(sessionId, 'run', runId),
+    refreshPiSessionProjectionSafely(sessionId, 'run', runId, start),
   )
 }
 

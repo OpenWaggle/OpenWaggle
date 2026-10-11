@@ -152,7 +152,9 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
     // A discovered Session nobody opened is projected now, so its profile already holds the model
     // and thinking level `pi --resume` would continue with; one whose file was deleted is refused
     // (ADR 0051).
-    yield* prepareSessionForRun(input.sessionId, input.runId)
+    yield* prepareSessionForRun(input.sessionId, input.runId, {
+      ...(input.intent.thinkingLevel ? { thinkingLevel: input.intent.thinkingLevel } : {}),
+    })
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(

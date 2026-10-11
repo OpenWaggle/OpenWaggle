@@ -143,4 +143,20 @@ describe('Pi settings a Run held off', () => {
       executionThinkingLevel: 'high',
     })
   })
+
+  it("keep the thinking level the holding Run's message chose", async () => {
+    const sessionId = await discoveredWithPiSettings()
+    const runId = await admit(sessionId, 'chosen')
+    const { refreshPiSessionProjection } = await import(
+      '../../../application/pi-session-projection-refresh'
+    )
+    await run(refreshPiSessionProjection(sessionId, 'reader'))
+
+    await run(refreshPiSessionProjection(sessionId, 'run', runId, { thinkingLevel: 'low' }))
+
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      executionModel: 'local/file-model',
+      executionThinkingLevel: 'low',
+    })
+  })
 })

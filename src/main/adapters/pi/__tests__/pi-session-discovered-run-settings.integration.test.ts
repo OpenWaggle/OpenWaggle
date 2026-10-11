@@ -1,6 +1,7 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
@@ -66,7 +67,11 @@ async function sessionControlRun(sessionId: SessionId, text: string) {
 }
 
 /** A message admitted and activated by Session Control, as the Run coordinator does. */
-async function admitSessionControlRun(sessionId: SessionId, text: string) {
+async function admitSessionControlRun(
+  sessionId: SessionId,
+  text: string,
+  thinkingLevel?: ThinkingLevel,
+) {
   const { submitSessionMessage } = await import('../../../application/session-control-service')
   const { SessionControlRunLifecycleRepository } = await import(
     '../../../ports/session-control-run-lifecycle-repository'
@@ -79,7 +84,11 @@ async function admitSessionControlRun(sessionId: SessionId, text: string) {
           contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
           requestId: 'request-admit',
           idempotencyKey: 'idempotency-admit',
-          command: { operation: 'message', sessionId, input: { text, attachmentIds: [] } },
+          command: {
+            operation: 'message',
+            sessionId,
+            input: { text, attachmentIds: [], ...(thinkingLevel ? { thinkingLevel } : {}) },
+          },
         },
       })
       const outcome = admitted.outcome
@@ -92,15 +101,24 @@ async function admitSessionControlRun(sessionId: SessionId, text: string) {
 }
 
 /** A message admitted and activated by Session Control, as the Run coordinator does, then run. */
-async function admittedSessionControlRun(sessionId: SessionId, text: string) {
-  const runId = await admitSessionControlRun(sessionId, text)
+async function admittedSessionControlRun(
+  sessionId: SessionId,
+  text: string,
+  thinkingLevel?: ThinkingLevel,
+) {
+  const runId = await admitSessionControlRun(sessionId, text, thinkingLevel)
   const { SessionControlRunExecutor } = await import('../../../ports/session-control-run-executor')
   return run(
     Effect.flatMap(SessionControlRunExecutor, (executor) =>
       executor.execute({
         sessionId,
         runId,
-        intent: fromPartial({ callerId: 'gui:local-user', text, attachmentIds: [] }),
+        intent: fromPartial({
+          callerId: 'gui:local-user',
+          text,
+          attachmentIds: [],
+          ...(thinkingLevel ? { thinkingLevel } : {}),
+        }),
         controller: new AbortController(),
       }),
     ),
@@ -122,6 +140,26 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     expect(result.terminalStatus).toBe('completed')
     expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
     expect(provider.requests[0]).toMatchObject({ reasoning_effort: 'high' })
+  })
+
+  it("keeps the thinking level the message set, with the Pi file's model", async () => {
+    await selectDefaultModel()
+    const cli = createPiCliSession(fixture.project, 'First question')
+    const cliManager = SessionManager.open(cli.file)
+    cliManager.appendModelChange('local', 'file-model')
+    cliManager.appendThinkingLevelChange('high')
+    agePiFile(cli.file)
+    const sessionId = SessionId(await discoverOne())
+
+    const result = await admittedSessionControlRun(sessionId, 'Go on', 'low')
+
+    expect(result.terminalStatus).toBe('completed')
+    expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
+    expect(provider.requests[0]).toMatchObject({ reasoning_effort: 'low' })
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      executionModel: 'local/file-model',
+      executionThinkingLevel: 'low',
+    })
   })
 
   it("runs with the Pi file's model and thinking level, and writes no others into it", async () => {
