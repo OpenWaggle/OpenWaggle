@@ -18,6 +18,10 @@ import {
   type PiSessionFilesShape,
 } from '../../ports/pi-session-discovery'
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
+import {
+  findExistingPiSessionFile,
+  resolveSessionWorkingPath,
+} from './agent-kernel/session-manager'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
 import { onlyUsageAppendedAfter } from './agent-kernel/usage-only-appends'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
@@ -197,6 +201,8 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
           availability === 'folder' || availability === 'file' ? availability : undefined,
         ),
       ),
+    continuedFile: (session) =>
+      Effect.sync(() => findExistingPiSessionFile(session, resolveSessionWorkingPath(session))),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }

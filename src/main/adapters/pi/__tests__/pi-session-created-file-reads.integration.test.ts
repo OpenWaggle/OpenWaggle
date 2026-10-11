@@ -1,10 +1,15 @@
-import { existsSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import { createSession, sendMessage } from './pi-session-created.test-support'
-import { run, sessionDetail, setUpPiDiscoveryFixture } from './pi-session-discovery.test-support'
+import {
+  messageTexts,
+  run,
+  sessionDetail,
+  setUpPiDiscoveryFixture,
+} from './pi-session-discovery.test-support'
 import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-provider.test-support'
 
 /**
@@ -149,6 +154,24 @@ describe('A Session OpenWaggle created', () => {
     expect(message).toMatch(CREATED_FILE_DELETED)
     expect(message).toMatch(/before going to another branch in it\.$/)
     expect(existsSync(file)).toBe(false)
+  })
+
+  it('says nothing is lost when the file is gone but a copy the next Run continues is there', async () => {
+    const sessionId = await createSession(fixture)
+    expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
+    const file = await recordedFile(sessionId)
+    // A copy under the same Pi session id, as an earlier first run wrote in the project's Pi folder.
+    const { piSessionDirectoryFor } = await import('../agent-kernel/session-manager')
+    const copyFolder = piSessionDirectoryFor(fixture.project)
+    mkdirSync(copyFolder, { recursive: true })
+    const copy = path.join(copyFolder, `copy-${path.basename(file)}`)
+    copyFileSync(file, copy)
+    rmSync(file)
+
+    expect((await opened(sessionId))?.piSessionFileDeleted).toBeUndefined()
+    expect((await sendMessage(sessionId, 'Second', 'run-second')).outcome).toBe('success')
+    expect((await sessionDetail(sessionId))?.piSessionFile).toBe(copy)
+    expect(messageTexts(await sessionDetail(sessionId))).toContain('First')
   })
 
   it('says, when opened, that its next message starts a new transcript once its file was deleted', async () => {

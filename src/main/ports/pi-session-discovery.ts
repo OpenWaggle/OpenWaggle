@@ -1,5 +1,6 @@
 import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
 import type { AgentKernelSessionSnapshot } from './agent-kernel-service'
@@ -96,6 +97,11 @@ export interface PiSessionFilesShape {
   readonly unavailability: (
     piSessionFile: string,
   ) => Effect.Effect<PiSessionFileUnavailability | undefined>
+  /**
+   * The Pi file a Run of `session` would continue, which may be a copy under its Pi session id
+   * when the recorded file is gone from its folder; undefined when it would start a new one.
+   */
+  readonly continuedFile: (session: SessionDetail) => Effect.Effect<string | undefined>
   /**
    * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0051).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.

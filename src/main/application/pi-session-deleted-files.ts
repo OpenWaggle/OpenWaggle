@@ -177,12 +177,28 @@ function deletedPiSessionFile(sessionId: SessionId) {
     const deleted = yield* files.value.isDeleted(state.piSessionFile)
     const unavailable = deleted ? undefined : yield* files.value.unavailability(state.piSessionFile)
     if (!deleted && !unavailable) return undefined
+    // A created Session's Run continues a copy under its Pi session id when there is one.
+    if (deleted && !state.piEntryNodeIdPrefix && (yield* continuesACopy(sessionId))) {
+      return undefined
+    }
     return {
       file: state.piSessionFile,
       unavailable,
       discovered: state.piEntryNodeIdPrefix !== undefined,
       repository: repository.value,
     }
+  })
+}
+
+function continuesACopy(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const files = yield* Effect.serviceOption(PiSessionFiles)
+    const projections = yield* Effect.serviceOption(SessionProjectionRepository)
+    if (Option.isNone(files) || Option.isNone(projections)) return false
+    const detail = yield* projections.value
+      .getOptional(sessionId)
+      .pipe(Effect.orElseSucceed(() => null))
+    return detail ? (yield* files.value.continuedFile(detail)) !== undefined : false
   })
 }
 
