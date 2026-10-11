@@ -1,5 +1,11 @@
 import { MCP_MAX_MESSAGE_BYTES } from '../runtime/mcp-message-limit'
-import { createSecureMcpFetch, type SecureMcpFetch } from '../runtime/secure-fetch'
+import {
+  createSecureMcpFetch,
+  type PinnedFetch,
+  type SecureMcpFetch,
+} from '../runtime/secure-fetch'
+
+export { MCP_FETCH_CLOSE_GRACE_MS } from '../runtime/secure-fetch'
 
 export type McpServerFetch = ((
   input: string | URL | Request,
@@ -19,6 +25,8 @@ export interface McpServerFetchOptions {
    * can discover them after the transport was created.
    */
   readonly authorizationServers?: () => readonly string[] | Promise<readonly string[]>
+  /** Sends a request that passed the checks; the network by default, a stand-in in tests. */
+  readonly fetchFn?: PinnedFetch
 }
 
 function hostOf(value: string) {
@@ -42,6 +50,7 @@ export function createMcpServerFetch(
     allowInsecurePrivateNetwork: true,
     allowPlainHttp: true,
     maxResponseBytes: MCP_MAX_MESSAGE_BYTES,
+    ...(options.fetchFn ? { fetchFn: options.fetchFn } : {}),
   })
   const others = new Map<string, SecureMcpFetch>()
   const isAuthorizationServer = async (url: URL) =>
@@ -56,6 +65,7 @@ export function createMcpServerFetch(
       baseUrl: url,
       maxResponseBytes: MCP_MAX_MESSAGE_BYTES,
       ...(trusted ? { allowInsecurePrivateNetwork: true, allowPlainHttp: true } : {}),
+      ...(options.fetchFn ? { fetchFn: options.fetchFn } : {}),
     })
     others.set(key, created)
     return created

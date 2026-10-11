@@ -9,6 +9,7 @@ import {
   normalizeMcpAllowedHosts,
 } from './mcp-network-hosts'
 import { limitMcpResponseBytes } from './response-byte-limit'
+import { closeWithinGrace } from './secure-fetch-close'
 import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -30,7 +31,7 @@ export interface ValidatedMcpNetworkTarget {
   readonly family: 4 | 6
 }
 
-type PinnedFetch = (
+export type PinnedFetch = (
   url: URL,
   init: RequestInit,
   target: ValidatedMcpNetworkTarget,
@@ -198,6 +199,8 @@ function dispatcherFor(
 
 export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
 
+export { MCP_FETCH_CLOSE_GRACE_MS } from './secure-fetch-close'
+
 function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   if (
     status !== HTTP_SEE_OTHER &&
@@ -237,12 +240,21 @@ export function createSecureMcpFetch(input: {
     ...(input.allowedDomains ?? []),
   ])
   const dispatchers = new Map<string, Dispatcher1Wrapper>()
+  const inFlight = new Set<AbortController>()
   const pinnedFetch: PinnedFetch = async (url, init, target) => {
+    // Closing can end a request that would otherwise wait out a host that never answers.
+    const closing = new AbortController()
+    inFlight.add(closing)
     const requestInit: DispatcherRequestInit = {
       ...init,
+      signal: init.signal ? AbortSignal.any([init.signal, closing.signal]) : closing.signal,
       dispatcher: dispatcherFor(target, dispatchers),
     }
-    return fetch(url, requestInit)
+    try {
+      return await fetch(url, requestInit)
+    } finally {
+      inFlight.delete(closing)
+    }
   }
 
   return Object.assign(
@@ -289,7 +301,7 @@ export function createSecureMcpFetch(input: {
       async close() {
         const activeDispatchers = [...dispatchers.values()]
         dispatchers.clear()
-        await Promise.all(activeDispatchers.map((dispatcher) => dispatcher.close()))
+        await closeWithinGrace(activeDispatchers, inFlight)
       },
     },
   )
