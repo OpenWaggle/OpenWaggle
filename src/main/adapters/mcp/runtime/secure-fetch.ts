@@ -9,7 +9,7 @@ import {
   normalizeMcpAllowedHosts,
 } from './mcp-network-hosts'
 import { limitMcpResponseBytes } from './response-byte-limit'
-import { closeWithinGrace } from './secure-fetch-close'
+import { McpFetchRequests } from './secure-fetch-close'
 import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -240,25 +240,21 @@ export function createSecureMcpFetch(input: {
     ...(input.allowedDomains ?? []),
   ])
   const dispatchers = new Map<string, Dispatcher1Wrapper>()
-  const inFlight = new Set<AbortController>()
-  const pinnedFetch: PinnedFetch = async (url, init, target) => {
-    // Closing can end a request that would otherwise wait out a host that never answers.
-    const closing = new AbortController()
-    inFlight.add(closing)
-    const requestInit: DispatcherRequestInit = {
-      ...init,
-      signal: init.signal ? AbortSignal.any([init.signal, closing.signal]) : closing.signal,
-      dispatcher: dispatcherFor(target, dispatchers),
-    }
-    try {
-      return await fetch(url, requestInit)
-    } finally {
-      inFlight.delete(closing)
-    }
-  }
+  const requests = new McpFetchRequests()
+  // Closing can end a request, or a body still streaming, that would otherwise wait out a host.
+  const pinnedFetch: PinnedFetch = (url, init, target) =>
+    requests.send(init, (signal) => {
+      const requestInit: DispatcherRequestInit = {
+        ...init,
+        signal,
+        dispatcher: dispatcherFor(target, dispatchers),
+      }
+      return fetch(url, requestInit)
+    })
 
   return Object.assign(
     async (urlInput: Parameters<FetchLike>[0], requestInit: RequestInit = {}) => {
+      requests.assertOpen()
       let url = new URL(typeof urlInput === 'string' ? urlInput : urlInput.toString())
       let init: RequestInit = { ...requestInit, redirect: 'manual' }
 
@@ -301,7 +297,7 @@ export function createSecureMcpFetch(input: {
       async close() {
         const activeDispatchers = [...dispatchers.values()]
         dispatchers.clear()
-        await closeWithinGrace(activeDispatchers, inFlight)
+        await requests.close(activeDispatchers)
       },
     },
   )

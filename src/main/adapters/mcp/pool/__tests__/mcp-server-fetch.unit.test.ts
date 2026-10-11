@@ -1,3 +1,4 @@
+import { createServer as createHttpServer } from 'node:http'
 import { createServer, type Server, type Socket } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMcpServerFetch, MCP_FETCH_CLOSE_GRACE_MS } from '../mcp-server-fetch'
@@ -91,5 +92,36 @@ describe("the fetch of an MCP server's HTTP transport", () => {
     await expect(request).resolves.toBe('failed')
     // The request is ended with the close, not by the connect timeout (10 s).
     expect(Date.now() - started).toBeLessThan(MCP_FETCH_CLOSE_GRACE_MS + CLOSE_MARGIN_MS)
+  })
+
+  it("ends a streaming body it no longer waits for, even without the caller's signal", async () => {
+    // An SSE stream: the headers and one event arrive, then the server goes quiet.
+    const http = createHttpServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/event-stream' })
+      response.write('data: hi\n\n')
+    })
+    server = http
+    http.on('connection', (socket) => sockets.add(socket))
+    await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
+    const address = http.address()
+    const url = `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`
+    const fetch = createMcpServerFetch(`${url}/mcp`)
+    const response = await fetch(`${url}/sse`, { method: 'GET' })
+    const reader = response.body?.getReader()
+    await reader?.read()
+    const rest = reader?.read().then(
+      () => 'ended',
+      () => 'ended',
+    )
+
+    const started = Date.now()
+    await fetch.close()
+
+    await expect(rest).resolves.toBe('ended')
+    expect(Date.now() - started).toBeLessThan(MCP_FETCH_CLOSE_GRACE_MS + CLOSE_MARGIN_MS)
+    // Nothing reaches the server once the fetch is closed.
+    const connections = sockets.size
+    await expect(fetch(`${url}/mcp`, { method: 'POST' })).rejects.toThrow('closed')
+    expect(sockets.size).toBe(connections)
   })
 })

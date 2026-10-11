@@ -53,6 +53,8 @@ export function createMcpServerFetch(
     ...(options.fetchFn ? { fetchFn: options.fetchFn } : {}),
   })
   const others = new Map<string, SecureMcpFetch>()
+  // A closed fetch opens nothing more, such as a fetch for another host during the close.
+  let closed = false
   const isAuthorizationServer = async (url: URL) =>
     (await (options.authorizationServers?.() ?? [])).some((value) => hostOf(value) === url.host)
   const fetchFor = async (url: URL) => {
@@ -72,6 +74,7 @@ export function createMcpServerFetch(
   }
   return Object.assign(
     async (input: string | URL | Request, init?: RequestInit) => {
+      if (closed) throw new Error('The MCP connection was closed.')
       const url = requestUrl(input)
       return (await fetchFor(url))(url, {
         ...(input instanceof Request
@@ -82,6 +85,7 @@ export function createMcpServerFetch(
     },
     {
       async close() {
+        closed = true
         await Promise.all([own.close(), ...[...others.values()].map((fetch) => fetch.close())])
         others.clear()
       },
