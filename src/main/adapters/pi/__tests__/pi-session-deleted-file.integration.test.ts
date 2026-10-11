@@ -184,7 +184,8 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     expect(failure).toMatch(/Pi session file was deleted/)
     expect(failure).not.toMatch(/removes the Session|delete the Session/)
     expect(failure).toMatch(/Restore the file to continue it/)
-    expect(failure).toMatch(/fork \S+ still depends on it/)
+    // The result is JSON, so the fork's title is between escaped quotes.
+    expect(failure).toMatch(/fork \\"[^\\]+\\" still depends on it/)
     // Opened, it says so before any send.
     const { dispatchHostBackedSessionGuiOperation } = await import(
       '../../../application/host-ui-session-operation-dispatcher'
@@ -193,7 +194,7 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [forked.sessionId]),
     )
     expect(opened?.piSessionFileDeleted).toMatch(/^This Session's Pi session file was deleted/)
-    expect(opened?.piSessionFileDeleted).toMatch(/fork \S+ still depends on it/)
+    expect(opened?.piSessionFileDeleted).toMatch(/fork "[^"]+" still depends on it/)
     // Put back, it is announced again, and opens without the notice.
     await fs.writeFile(forked.cli.file, forkedContent)
     await discover()

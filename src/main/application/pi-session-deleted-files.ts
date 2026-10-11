@@ -2,13 +2,14 @@ import {
   deletedPiSessionFileMessage,
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { createLogger } from '../logger'
 import { PiSessionDiscoveryRepository, PiSessionFiles } from '../ports/pi-session-discovery'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
@@ -28,13 +29,35 @@ function dependency(refusal: string) {
   return /because (.+?)\.?$/.exec(refusal)?.[1] ?? refusal
 }
 
+/** What a refusal names, such as `fork <id>`, which a fork or Worker's title names better. */
+const DEPENDENT_SESSION = /^(fork|worker) (\S+) still depends on it$/
+
+/**
+ * What keeps the Session, with the fork or Worker named by its title, as the sidebar shows it;
+ * by its id when it has none.
+ */
+function namedDependency(refusal: string) {
+  const dependsOn = dependency(refusal)
+  const named = DEPENDENT_SESSION.exec(dependsOn)
+  const [, kind, id] = named ?? []
+  if (!kind || !id) return Effect.succeed(dependsOn)
+  return Effect.gen(function* () {
+    const projections = yield* Effect.serviceOption(SessionProjectionRepository)
+    if (Option.isNone(projections)) return dependsOn
+    const title = (yield* projections.value
+      .getOptional(SessionId(id))
+      .pipe(Effect.orElseSucceed(() => null)))?.title.trim()
+    return title ? `${kind} "${title}" still depends on it` : dependsOn
+  })
+}
+
 export class DeletedPiSessionFileError extends Error {
-  /** `refusal`: why the Session cannot be deleted either, as `deletionRefusal` says. */
-  constructor(piSessionFile: string, refusal?: string) {
+  /** `dependsOn`: what keeps the Session, as `deletionRefusal` says, such as a fork. */
+  constructor(piSessionFile: string, dependsOn?: string) {
     const lost = deletedPiSessionFileMessage(piSessionFile)
     super(
-      refusal
-        ? `${lost} Restore the file to continue it. The Session stays, to read, because ${dependency(refusal)}.`
+      dependsOn
+        ? `${lost} Restore the file to continue it. The Session stays, to read, because ${dependsOn}.`
         : `${lost} Restore the file to continue it, or delete the Session.`,
     )
     this.name = 'DeletedPiSessionFileError'
@@ -191,7 +214,8 @@ function refusedRunError(sessionId: SessionId, deleted: MissingPiSessionFile) {
   if (deleted.unavailable) return Effect.succeed(new UnavailablePiSessionFileError(deleted.file))
   return deleted.repository.deletionRefusal(sessionId).pipe(
     Effect.orElseSucceed(() => undefined),
-    Effect.map((refusal) => new DeletedPiSessionFileError(deleted.file, refusal)),
+    Effect.flatMap((refusal) => (refusal ? namedDependency(refusal) : Effect.succeed(undefined))),
+    Effect.map((dependsOn) => new DeletedPiSessionFileError(deleted.file, dependsOn)),
   )
 }
 

@@ -65,13 +65,14 @@ describe('A forked discovered Session whose Pi file was deleted', () => {
     const { forkSession } = await import(
       '../../../application/host-ui-session-lifecycle-operations'
     )
-    await run(forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
+    const forked = await run(forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
+    const forkTitle = forked.cancelled ? '' : forked.session.title
     await fs.rm(cli.file)
 
-    // Opened: the notice says why it cannot be continued.
-    expect((await opened(sessionId))?.piSessionFileDeleted).toMatch(
-      /^This Session's Pi session file was deleted.*fork \S+ still depends on it/,
-    )
+    // Opened: the notice says why it cannot be continued, naming the fork by its title.
+    const notice = (await opened(sessionId))?.piSessionFileDeleted
+    expect(notice).toMatch(/^This Session's Pi session file was deleted/)
+    expect(notice).toContain(`because fork "${forkTitle}" still depends on it.`)
     // The composer reads its context usage, which writes nothing.
     const { getAgentContextUsage } = await import('../../../application/agent-session-service')
     await run(getAgentContextUsage({ sessionId, model: FAKE_PROVIDER_MODEL }))
