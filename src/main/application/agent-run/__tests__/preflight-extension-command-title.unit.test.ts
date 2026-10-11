@@ -1,3 +1,4 @@
+import type { PreparedAttachment } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
@@ -32,7 +33,11 @@ vi.mock('../../pi-session-projection-refresh', async () => {
 
 const { loadAgentRunPreflight } = await import('../preflight')
 
-function preflightTitle(text: string, messages: SessionDetail['messages'] = []) {
+function preflightTitle(
+  text: string,
+  messages: SessionDetail['messages'] = [],
+  attachments: readonly PreparedAttachment[] = [],
+) {
   state.messages = messages
   const assignProvisionalTitle = vi.fn(() => Effect.succeed(true))
   const layer = Layer.mergeAll(
@@ -53,7 +58,7 @@ function preflightTitle(text: string, messages: SessionDetail['messages'] = []) 
       fromPartial({
         sessionId: SessionId('session-1'),
         model: SupportedModelId('fake/fake-model'),
-        payload: { text, attachments: [] },
+        payload: { text, attachments },
       }),
     ).pipe(Effect.provide(layer)),
   ).then((result) => ({ result, titled: assignProvisionalTitle.mock.calls.length > 0 }))
@@ -68,7 +73,18 @@ describe("a Session's first message and its title", () => {
   })
 
   // Pi runs a command only from a message that starts with it, as typed.
-  it.each(['Hello there', '/not-a-command please', ' /qa-hello world', '/qa-hello\tworld'])(
+  // Pi parses the prompt OpenWaggle sends: trimmed, with each attachment appended.
+  it('is not titled from a command typed after leading space', async () => {
+    expect((await preflightTitle('  /qa-hello world  ')).titled).toBe(false)
+  })
+
+  it('is titled from a command name an attachment runs into, which Pi does not run', async () => {
+    const attachment = fromPartial<PreparedAttachment>({ name: 'notes.txt', extractedText: '' })
+
+    expect((await preflightTitle('/qa-hello', [], [attachment])).titled).toBe(true)
+  })
+
+  it.each(['Hello there', '/not-a-command please', '/qa-hello\tworld'])(
     'is titled from %j',
     async (text) => {
       expect((await preflightTitle(text)).titled).toBe(true)

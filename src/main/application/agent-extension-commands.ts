@@ -1,5 +1,7 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
@@ -53,15 +55,16 @@ export function listAgentExtensionCommands(input: {
 
 /**
  * Whether a message invokes one of the Session's extension commands, which Pi runs instead of
- * prompting the model. Commands that cannot be listed count as none: the message is then treated
- * as the prompt it most likely is.
+ * prompting the model. Pi parses the prompt OpenWaggle sends it (`buildAgentPromptText`): the
+ * trimmed text with each attachment appended. Commands that cannot be listed count as none: the
+ * message is then treated as the prompt it most likely is.
  */
 export function invokesExtensionCommand(input: {
   readonly session: SessionDetail
   readonly model: SupportedModelId
-  readonly text: string
+  readonly payload: Pick<AgentSendPayload, 'text' | 'attachments'>
 }) {
-  const name = invokedCommandName(input.text)
+  const name = invokedCommandName(buildAgentPromptText(input.payload))
   if (name === undefined) return Effect.succeed(false)
   return sessionExtensionCommands(input.session, input.model).pipe(
     Effect.map((commands) => commands.some((command) => command.name === name)),

@@ -37,7 +37,7 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     // An extension command is not the user's request: the title waits for the first real prompt.
     const invokesCommand =
       sessionTitleOwed(session) &&
-      (yield* invokesExtensionCommand({ session, model: input.model, text: input.payload.text }))
+      (yield* invokesExtensionCommand({ session, model: input.model, payload: input.payload }))
     const assignedTitle = invokesCommand
       ? null
       : yield* assignSessionTitleFromUserText(input.sessionId, session, {
