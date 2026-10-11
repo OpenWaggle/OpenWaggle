@@ -34,6 +34,8 @@ const logger = createLogger('session-host-cli')
 const ORPHAN_HOST_GRACE_MS = 10_000
 /** How long a quit signal waits for the Host to stop and be disposed before it exits anyway. */
 export const SESSION_HOST_QUIT_HOLD_MS = 30_000
+/** How long that exit waits for the log file to be written, so its reason is not lost. */
+export const SESSION_HOST_QUIT_LOG_DRAIN_MS = 2_000
 export const UNADOPTABLE_HOST_SWEEP_INTERVAL_MS = 60_000
 
 /**
@@ -88,6 +90,20 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
  * kills what is still in its SIGTERM grace, then the Host exits through app.exit(), which skips
  * quit events.
  */
+/** Exits with the log written, or once a disk that does not answer has had its short chance. */
+function exitAfterLogDrain() {
+  let exited = false
+  const exit = () => {
+    if (exited) return
+    exited = true
+    app.exit(FAILURE_EXIT_CODE)
+  }
+  setTimeout(exit, SESSION_HOST_QUIT_LOG_DRAIN_MS)
+  void drainFileLogger()
+    .catch(() => undefined)
+    .finally(exit)
+}
+
 export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
   let deadline: ReturnType<typeof setTimeout> | undefined
   const holdQuit = (event: { preventDefault(): void }) => {
@@ -99,7 +115,7 @@ export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
       logger.error('Session Host did not stop in time after a quit signal; exiting', {
         holdMs: SESSION_HOST_QUIT_HOLD_MS,
       })
-      app.exit(FAILURE_EXIT_CODE)
+      exitAfterLogDrain()
     }, SESSION_HOST_QUIT_HOLD_MS)
   }
   app.on('before-quit', holdQuit)

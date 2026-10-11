@@ -130,6 +130,7 @@ vi.mock('../store/settings', () => ({
 
 import {
   SESSION_HOST_QUIT_HOLD_MS,
+  SESSION_HOST_QUIT_LOG_DRAIN_MS,
   startSessionHostCliIfRequested,
   stopSessionHostOnQuit,
   UNADOPTABLE_HOST_SWEEP_INTERVAL_MS,
@@ -259,6 +260,27 @@ describe('a Session Host stop that fails', () => {
         expect.stringContaining('did not stop in time'),
         expect.anything(),
       )
+    } finally {
+      release()
+    }
+  })
+
+  it('drains the log before that exit, and exits anyway when the drain hangs', async () => {
+    vi.useFakeTimers()
+    mocks.exit.mockClear()
+    mocks.drainFileLogger.mockClear()
+    // The log file sits on a disk that stopped answering.
+    mocks.drainFileLogger.mockImplementationOnce(() => new Promise<undefined>(() => {}))
+    const release = stopSessionHostOnQuit(() => new Promise<void>(() => {}))
+    try {
+      for (const handler of mocks.quitHandlers) handler({ preventDefault: vi.fn() })
+      await vi.advanceTimersByTimeAsync(SESSION_HOST_QUIT_HOLD_MS)
+      // "Did not stop in time" reaches the log file before the process exits.
+      expect(mocks.drainFileLogger).toHaveBeenCalledOnce()
+      expect(mocks.exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(SESSION_HOST_QUIT_LOG_DRAIN_MS)
+
+      expect(mocks.exit).toHaveBeenCalledWith(1)
     } finally {
       release()
     }
