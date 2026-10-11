@@ -2,6 +2,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 interface Server {
+  readonly removed?: boolean
   readonly enabled: boolean
   /** Stands for the server's vault secret, as its stamp (name and when it was saved). */
   readonly secretStamp: string
@@ -32,7 +33,9 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
     }
   },
   loadMcpMergedConfig: (roots: { projectPath: string | null }) => ({
-    servers: [{ name: 'docs', config: { ...DOCS, enabled: server(roots.projectPath).enabled } }],
+    servers: server(roots.projectPath).removed
+      ? []
+      : [{ name: 'docs', config: { ...DOCS, enabled: server(roots.projectPath).enabled } }],
     errors: [],
   }),
 }))
@@ -121,5 +124,16 @@ describe("Settings' MCP server states after a change", () => {
 
     expect(await docsStatus('/p5')).toMatchObject({ source: 'last-check' })
     vi.useRealTimers()
+  })
+
+  it('forget it when the server is removed, so one added again under that name starts fresh', async () => {
+    checkedConnected()
+    await docsStatus('/p6')
+
+    mocks.servers.set('/p6', { removed: true, enabled: true, secretStamp: 'TOKEN@1' })
+    forgetStatesOfSwitchedMcpServers()
+    mocks.servers.delete('/p6')
+
+    expect(await docsStatus('/p6')).toEqual({ name: 'docs', source: 'not-checked' })
   })
 })

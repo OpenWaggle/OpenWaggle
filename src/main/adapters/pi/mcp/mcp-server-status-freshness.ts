@@ -1,8 +1,8 @@
 /**
  * A server's last known state describes the server as it was then: on, and connecting with the
- * values and vault secrets it had. Once it is turned off or on, or what it connects with changes
- * (a secret saved again, say), that state is stale: "Connected, last checked 5 minutes ago" would
- * describe another server. Settings' state reads (and every saved MCP change, for the projects
+ * values and vault secrets it had. Once it is turned off or on, removed, or what it connects with
+ * changes (a secret saved again, say), that state is stale: "Connected, last checked 5 minutes
+ * ago" would describe another server. Settings' state reads (and every saved MCP change, for the projects
  * those reads saw) compare each server with how they last saw it, and forget a state that no
  * longer applies.
  */
@@ -73,6 +73,10 @@ export function forgetStaleMcpServerStates(
       forgetKnownMcpServerStateLearnedBy(next.identity, last.seenAt)
     }
     current.set(server.name, next)
+  }
+  // A server removed since: one added again under its name is another server.
+  for (const [name, last] of before ?? []) {
+    if (!current.has(name)) forgetKnownMcpServerStateLearnedBy(last.identity, last.seenAt)
   }
   seen.delete(key)
   seen.set(key, current)
