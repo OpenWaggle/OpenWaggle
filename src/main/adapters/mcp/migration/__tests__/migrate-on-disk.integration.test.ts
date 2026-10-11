@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -91,5 +91,39 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
       'mcp.json.pre-adr-0048.bak',
     ])
     expect(await readdir(path.join(homeDir, '.pi', 'agent'))).toEqual(['mcp.json'])
+  })
+
+  it("keeps a project's choices out of the global file when its .openwaggle links to it", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+    roots.push(root)
+    const homeDir = path.join(root, 'home')
+    const projectPath = path.join(root, 'project')
+    const openwaggleGlobal = path.join(homeDir, '.openwaggle', 'mcp.json')
+    const files = { [openwaggleGlobal]: { mcpServers: { own: { command: 'own-mcp' } } } }
+    await writeJson(openwaggleGlobal, files[openwaggleGlobal])
+    const state = allConnectedState(files)
+    // The project turned "own" off for itself only.
+    await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+      ...state,
+      projectStates: { [projectPath]: 'inherit' },
+      projectServerStates: { [projectPath]: { 'own-id': 'off' } },
+    })
+    await mkdir(projectPath, { recursive: true })
+    await symlink(path.join(homeDir, '.openwaggle'), path.join(projectPath, '.openwaggle'))
+
+    const report = await migrateOpenWaggleMcpFiles({
+      homeDir,
+      projectPaths: [projectPath],
+      now: () => NOW,
+    })
+
+    expect(report.files.map((file) => file.path)).toEqual([openwaggleGlobal])
+    expect(await readJson(openwaggleGlobal)).toEqual({
+      mcpServers: { own: { command: 'own-mcp' } },
+    })
+    // The global file's backup is the one beside it, whichever path reaches it.
+    expect(migrationBackupPath(path.join(projectPath, '.openwaggle', 'mcp.json'), homeDir)).toBe(
+      migrationBackupPath(openwaggleGlobal, homeDir),
+    )
   })
 })

@@ -1,4 +1,3 @@
-import path from 'node:path'
 /**
  * The one-time, silent migration of OpenWaggle's pre-ADR-0051 MCP files to
  * Pi's entry format (ADR 0051, "One-time silent migration").
@@ -33,6 +32,7 @@ import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
   globalMcpPaths,
+  isGlobalOpenWaggleMcpFile,
   isInside,
   managedWorktreesRoot,
   migrationBackupPath,
@@ -263,10 +263,9 @@ export async function migrateOpenWaggleMcpFiles(
     }),
   ]
   for (const projectPath of projects) {
-    // A project that is the home folder has the global file as its project file; it is migrated once.
-    if (
-      path.resolve(projectMcpPaths(projectPath).openwaggle) === path.resolve(paths.openwaggleGlobal)
-    ) {
+    // A project that is the home folder, or whose .openwaggle folder links to the global one, has
+    // the global file as its project file; it is migrated once, and its own choices stay out.
+    if (isGlobalOpenWaggleMcpFile(projectMcpPaths(projectPath).openwaggle, input.homeDir)) {
       // Logged once, then recorded: the choices cannot move anywhere on a later start either.
       if (!record.isHomeFolderNoticed(projectPath)) {
         const reported = await reportHomeFolderProjectState({

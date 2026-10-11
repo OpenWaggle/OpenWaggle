@@ -45,7 +45,7 @@ export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFile
 }
 
 /** The file's real path, or its folder's real path joined with its name when it does not exist. */
-function realLocation(filePath: string) {
+export function realLocation(filePath: string) {
   try {
     return realpathSync(filePath)
   } catch {
