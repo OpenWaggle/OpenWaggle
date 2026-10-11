@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, realpathSync } from 'node:fs'
+import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import {
   type McpConfigFileId,
@@ -95,12 +95,38 @@ export interface McpConfigFileReader {
   readonly readText: (filePath: string) => string | undefined
 }
 
-/** A path that is a symbolic link whose target does not exist (a dotfiles checkout not mounted). */
-function isDanglingLink(filePath: string) {
+function lstatIfPresent(filePath: string) {
   try {
-    return lstatSync(filePath).isSymbolicLink()
+    return lstatSync(filePath)
+  } catch {
+    return undefined
+  }
+}
+
+function resolves(filePath: string) {
+  try {
+    statSync(filePath)
+    return true
   } catch {
     return false
+  }
+}
+
+/**
+ * Why a path that does not resolve is not simply missing: the file, or one of its folders, is a
+ * symbolic link whose target does not exist (a dotfiles checkout not mounted). The nearest part
+ * of the path that exists decides; a link there that resolves leaves the file missing below it.
+ */
+function danglingLink(filePath: string) {
+  for (let current = filePath; ; current = path.dirname(current)) {
+    const stats = lstatIfPresent(current)
+    if (stats) {
+      if (!stats.isSymbolicLink() || resolves(current)) return undefined
+      return current === filePath
+        ? 'links to a missing file'
+        : `${current} links to a missing folder`
+    }
+    if (path.dirname(current) === current) return undefined
   }
 }
 
@@ -109,12 +135,11 @@ export const nodeMcpConfigFileReader: McpConfigFileReader = {
     try {
       return readFileSync(filePath, 'utf8')
     } catch (error) {
+      if (!isMissingFile(error)) throw error
       // Not missing: read as missing, its overrides elsewhere would count as removable orphans.
-      if (isMissingFile(error) && isDanglingLink(filePath)) {
-        throw new Error('links to a missing file', { cause: error })
-      }
-      if (isMissingFile(error)) return undefined
-      throw error
+      const dangling = danglingLink(filePath)
+      if (dangling) throw new Error(dangling, { cause: error })
+      return undefined
     }
   },
 }

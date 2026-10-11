@@ -80,4 +80,46 @@ describe.skipIf(process.platform === 'win32')('MCP files that are symbolic links
     expect(view.orphanedOverrides).toBeUndefined()
     expect(view.files.find((file) => file.fileId === 'openwaggle-global')?.exists).toBe(true)
   })
+
+  it('read a file under a linked folder that is missing as unreadable, not as missing', async () => {
+    const home = path.join(root, 'home')
+    const globalFolder = path.join(home, '.openwaggle')
+    const project = path.join(root, 'project')
+    mkdirSync(home, { recursive: true })
+    // The folder is the link, and its target, a dotfiles checkout, is not mounted.
+    symlinkSync(path.join(root, 'dotfiles', 'openwaggle'), globalFolder)
+    mkdirSync(path.join(project, '.openwaggle'), { recursive: true })
+    writeFileSync(
+      path.join(project, '.openwaggle', 'mcp.json'),
+      '{"mcpServers":{"docs":{"enabled":false}}}\n',
+    )
+    const service = createFilesystemMcpConfigurationService({
+      homeDir: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+    })
+
+    const view = await Effect.runPromise(service.getView({ projectPath: project }))
+
+    expect(view.errors).toContain(
+      `${path.join(globalFolder, 'mcp.json')}: ${globalFolder} links to a missing folder`,
+    )
+    expect(view.orphanedOverrides).toBeUndefined()
+  })
+
+  it('still reads a file missing under a linked folder that exists as missing', async () => {
+    const home = path.join(root, 'home')
+    const project = path.join(root, 'project')
+    mkdirSync(path.join(root, 'dotfiles', 'openwaggle'), { recursive: true })
+    mkdirSync(home, { recursive: true })
+    symlinkSync(path.join(root, 'dotfiles', 'openwaggle'), path.join(home, '.openwaggle'))
+    mkdirSync(project, { recursive: true })
+    const service = createFilesystemMcpConfigurationService({
+      homeDir: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+    })
+
+    const view = await Effect.runPromise(service.getView({ projectPath: project }))
+
+    expect(view.errors).toEqual([])
+  })
 })
