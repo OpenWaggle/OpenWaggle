@@ -10,6 +10,7 @@ import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
 import { requiredSessionQueryCapabilities } from '../domain/session-control/session-capability-authorization'
+import { SessionAuthorizationTargetRepositoryError } from '../errors'
 import type { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionQueryRepository } from '../ports/session-query-repository'
@@ -148,6 +149,35 @@ export function dispatchSessionWaitQuery(
   })
 }
 
+function isSessionNotFound(error: unknown) {
+  return (
+    error instanceof SessionAuthorizationTargetRepositoryError &&
+    error.operation === 'session-not-found'
+  )
+}
+
+/**
+ * A view may still ask about a Session the Host just removed, as one whose Pi file was deleted:
+ * the answer is that it is not found, not a failure of the query.
+ */
+function answerRemovedSession(
+  payload: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>,
+) {
+  return Effect.catchIf(isSessionNotFound, () =>
+    Effect.succeed({
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: payload.request.contractVersion,
+        requestId: payload.request.requestId,
+        outcome: {
+          operation: payload.request.query.operation,
+          error: { code: 'session_not_found', message: 'The Session was not found.' },
+        },
+      },
+    } as const),
+  )
+}
+
 function canListInteraction(
   caller: LocalSessionCallerIdentity,
   target: Parameters<typeof authorizeTargetForCaller>[1],
@@ -203,7 +233,7 @@ export function dispatchSessionRequestsListQuery(
         },
       },
     } as const
-  })
+  }).pipe(answerRemovedSession(payload))
   return observeSessionQueryWithSignal(operation, signal)
 }
 
@@ -248,7 +278,7 @@ export function dispatchSessionRepositoryQuery(
     }
     yield* resolveAuthorizedSessionQueryCaller(caller, payload, resolveLiveCaller)
     return { contract: 'session-query-v2', response } as const
-  })
+  }).pipe(answerRemovedSession(payload))
   return observeSessionQueryWithSignal(operation, signal)
 }
 
