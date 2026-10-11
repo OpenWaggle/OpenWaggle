@@ -191,4 +191,42 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
       await expect(readdir(path.join(root, 'dotfiles'))).rejects.toMatchObject({ code: 'ENOENT' })
     })
   })
+
+  describe('with a file that appears after it was migrated as absent', () => {
+    it('migrates an old-format file restored there, such as one pulled from git', async () => {
+      const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+      roots.push(root)
+      const homeDir = path.join(root, 'home')
+      const projectPath = path.join(root, 'project')
+      const projectFile = path.join(projectPath, '.openwaggle', 'mcp.json')
+      await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+        version: 1,
+        globalState: 'off',
+        projectStates: {},
+        sessionStates: {},
+        projectServerStates: {},
+        servers: {},
+      })
+      await mkdir(projectPath, { recursive: true })
+      const migrate = () =>
+        migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [projectPath], now: () => NOW })
+      const projectReport = async () =>
+        (await migrate()).files.find((file) => file.path === projectFile)?.status
+      expect(await projectReport()).toBe('unchanged')
+
+      // A file in the current format is left as it is.
+      await writeJson(projectFile, { mcpServers: { fresh: { command: 'fresh-mcp' } } })
+      expect(await projectReport()).toBe('already-migrated')
+      // An old OpenWaggle file comes back: MCP was off, so its server stays off.
+      await writeJson(projectFile, {
+        mcpServers: { legacy: { command: 'legacy-server', directTools: true } },
+      })
+
+      expect(await projectReport()).toBe('migrated')
+      expect(await readJson(projectFile)).toMatchObject({
+        mcpServers: { legacy: { command: 'legacy-server', enabled: false } },
+      })
+      expect(await projectReport()).toBe('already-migrated')
+    })
+  })
 })

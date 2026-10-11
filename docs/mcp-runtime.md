@@ -522,7 +522,13 @@ is unresponsive. Host stop
 what it is writing gets `MCP_MIGRATION_STOP_WAIT_MS` (5 s) to finish.
 
 `adapters/mcp/migration/` runs once per file, silently, with one `.pre-adr-0048.bak` backup, and
-records what it did in `~/.openwaggle/mcp/migration.json`. The global file's backup sits next to
+records what it did in `~/.openwaggle/mcp/migration.json`. A recorded file runs again only when it came back in the
+old format (`reappeared-legacy-file.ts`): it differs from what was recorded (or was absent then)
+and an entry still has a field only the old OpenWaggle wrote (`directTools`, `provenance`,
+`trustedConfigHash`), as when a git pull or a dotfiles checkout restores an old copy. A file
+behind a link whose target is missing (an unmounted dotfiles checkout, as the file or one of its
+folders) is not read as absent: its migration fails, so it is not loaded, and is tried again;
+nothing is written through such a link. The global file's backup sits next to
 it; a project file's goes to `~/.openwaggle/mcp/backups/<project>-<hash of its path>/`, never
 into the repository, where it could be committed (`migrationBackupPath`). A file the migration
 creates (`keepCreatedFileOutOfGit` → `git-exclude.ts`) inside a git work tree gets its path added
