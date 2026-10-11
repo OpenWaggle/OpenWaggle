@@ -6,7 +6,6 @@ export { resolveCurrentConversationNode } from './current-conversation-node'
 export {
   createdSessionIdOf,
   FirstSendFailed,
-  isPiSessionFileRefusal,
   isReportableSendFailure,
   MessageDeliveredRunFailed,
   MessageNotDelivered,

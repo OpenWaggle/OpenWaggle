@@ -78,18 +78,6 @@ export function toolResultMessage(toolCallId: string): TurnEndEvent['toolResults
   }
 }
 
-export function turnEndEvent(input: {
-  readonly message: AgentEndEvent['messages'][number]
-  readonly toolResults?: TurnEndEvent['toolResults']
-}): TurnEndEvent {
-  return fromPartial<TurnEndEvent>({
-    type: 'turn_end',
-    turnIndex: 0,
-    message: input.message,
-    toolResults: [...(input.toolResults ?? [])],
-  })
-}
-
 export function inputImage(): NonNullable<InputEvent['images']>[number] {
   return { type: 'image', data: 'base64-image', mimeType: 'image/png' }
 }
