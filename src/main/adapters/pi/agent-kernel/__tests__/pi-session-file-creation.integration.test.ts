@@ -232,6 +232,55 @@ describe('A recorded Pi file that is missing after it was written', () => {
     },
   )
 
+  /** An older copy with the same Pi session id, in the project's default Pi folder. */
+  async function writeOlderCopy() {
+    const copyFolder = piSessionDirectoryFor(projectPath)
+    await fs.mkdir(copyFolder, { recursive: true })
+    const copy = path.join(
+      copyFolder,
+      `2026-10-01T00-00-00-000Z_${PRE_CREATED_PI_SESSION_ID}.jsonl`,
+    )
+    await fs.writeFile(copy, `{"type":"session","id":"${PRE_CREATED_PI_SESSION_ID}"}\n`)
+    return copy
+  }
+
+  it.each<[string, Partial<SessionDetail>]>([
+    ['a discovered Session', discovered],
+    ['a created Session with entries', createdWithEntries],
+  ])('never opens an older copy for %s whose Pi folder is missing', async (_name, fields) => {
+    await writeOlderCopy()
+    const away = deletedSession(fields)
+
+    expect(findExistingPiSessionFile(away, projectPath)).toBeUndefined()
+    for (const forRun of [true, false]) {
+      expect(() => createSessionManagerForSession(away, projectPath, { forRun })).toThrow(
+        /^This Session's Pi session file is unavailable \(.+\): its folder is missing/,
+      )
+    }
+  })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'never opens an older copy for a recorded file in a folder that may not be searched',
+    async () => {
+      await fs.mkdir(path.dirname(recordedFile()), { recursive: true })
+      await fs.writeFile(recordedFile(), '{"type":"session"}\n')
+      await writeOlderCopy()
+      await fs.chmod(path.dirname(recordedFile()), 0o000)
+      const locked = deletedSession(createdWithEntries)
+
+      try {
+        expect(findExistingPiSessionFile(locked, projectPath)).toBeUndefined()
+        for (const forRun of [true, false]) {
+          expect(() => createSessionManagerForSession(locked, projectPath, { forRun })).toThrow(
+            /^This Session's Pi session file is unavailable \(.+\): it cannot be read/,
+          )
+        }
+      } finally {
+        await fs.chmod(path.dirname(recordedFile()), 0o700)
+      }
+    },
+  )
+
   it.skipIf(process.getuid?.() === 0)(
     'refuses a Session whose Pi file may not be read, rather than failing in Pi',
     async () => {

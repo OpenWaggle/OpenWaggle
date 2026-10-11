@@ -8,8 +8,8 @@ import { isInsideProjectLocation, physicalPath } from '../pi-session-project-pat
 import { logger } from './constants'
 import {
   assertNoPiSessionFileToReplace,
-  isPresentPiSessionFile,
   isReadablePiSessionFile,
+  unavailabilityOf,
   warnIfTranscriptLost,
 } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
@@ -240,12 +240,13 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
  * a Host that stopped before the run's snapshot was saved left the Session pointing at a file that
  * was never written. Starting a fresh manager then silently drops the whole conversation, so look
  * for that file first, with {@link findPiSessionFiles}. Only a file that may be read is found, and
- * a recorded file that is there but may not be read is not replaced by an older copy.
+ * only when the recorded file is gone from a folder that is there: one out of reach (its folder
+ * missing or not searchable, or the file unreadable) is never replaced by an older copy.
  */
 export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory: string) {
   const recorded = session.piSessionFile
   if (recorded && isReadablePiSessionFile(recorded)) return recorded
-  if (recorded && isPresentPiSessionFile(recorded)) return undefined
+  if (recorded && unavailabilityOf(recorded)) return undefined
   return findPiSessionFiles(session, runDirectory).find(isReadablePiSessionFile)
 }
 

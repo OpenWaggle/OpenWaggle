@@ -62,8 +62,9 @@ describe('Forking a discovered Pi session', () => {
   it.each([
     ['records no Pi file', () => null],
     [
+      // Gone from a folder that is there; a recorded folder that is missing is out of reach.
       'records a path that no longer exists',
-      (source: string) => path.join(path.dirname(source), '..', 'moved', path.basename(source)),
+      (source: string) => path.join(path.dirname(source), `renamed-${path.basename(source)}`),
     ],
   ])('writes the fork next to the file it found when the Session %s', async (_, recorded) => {
     await selectFakeModel()

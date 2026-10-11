@@ -32,7 +32,7 @@ export function hasProjectedEntries(session: SessionDetail) {
  * is missing (`folder`), or it is a link whose target is missing, or it may not be read (`file`).
  * Undefined when it was deleted from a folder that is there.
  */
-function unavailabilityOf(file: string): PiSessionFileUnavailability | undefined {
+export function unavailabilityOf(file: string): PiSessionFileUnavailability | undefined {
   try {
     lstatSync(file)
     // Something is there that could not be followed or read.
@@ -48,16 +48,6 @@ function unavailabilityOf(file: string): PiSessionFileUnavailability | undefined
 export function isReadablePiSessionFile(file: string) {
   try {
     accessSync(file, constants.R_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/** Whether something is at a Pi file's path, a link whose target is missing included. */
-export function isPresentPiSessionFile(file: string) {
-  try {
-    lstatSync(file)
     return true
   } catch {
     return false
