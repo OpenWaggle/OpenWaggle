@@ -178,6 +178,8 @@ export interface AgentTransportMessageEndEvent extends TransportEventBase {
   readonly type: 'message_end'
   readonly messageId: string
   readonly role: 'user' | 'assistant' | 'system' | 'tool'
+  /** The provider error a failed assistant response ended with. */
+  readonly errorMessage?: string
 }
 
 /** Authoritative context usage reported after a completed model response. */

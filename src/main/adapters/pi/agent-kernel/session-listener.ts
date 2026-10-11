@@ -157,6 +157,9 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
     role: 'assistant',
     timestamp: Date.now(),
     model: state.input.model,
+    ...(event.message.stopReason === 'error' && event.message.errorMessage
+      ? { errorMessage: event.message.errorMessage }
+      : {}),
   })
   const contextUsage = responseContextUsageEvent(state.input, event.message)
   if (contextUsage) emitEvent(state.input.onEvent, contextUsage)

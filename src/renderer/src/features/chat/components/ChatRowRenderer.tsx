@@ -98,6 +98,18 @@ function MessageRow({
   )
 }
 
+/** The error a failed Waggle turn ended with, in place of an empty turn. */
+function FailedTurnNotice({ error }: { readonly error: string }) {
+  return (
+    <p
+      role="alert"
+      className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
+    >
+      This turn failed: {error}
+    </p>
+  )
+}
+
 function WaggleTurnRow({
   row,
   context,
@@ -149,6 +161,7 @@ function WaggleTurnRow({
             actions={context.actions}
           />
         ))}
+        {row.failure ? <FailedTurnNotice error={row.failure} /> : null}
         {turn && terminalMessageId && context.actions.onOpenTurnDiff ? (
           <ChangedFilesCard
             sessionId={context.runtime.sessionId}

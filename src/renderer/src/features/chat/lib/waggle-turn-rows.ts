@@ -82,3 +82,29 @@ export function groupWaggleTurnRows(rows: readonly ChatRow[]) {
   flushDeferredCards()
   return groupedRows
 }
+
+function runErrorShows(rows: readonly ChatRow[]) {
+  return rows.some((row) => row.type === 'error' && row.dismissedError !== row.error.message)
+}
+
+/**
+ * Marks each Waggle turn whose last response failed with that response's error. A response Pi
+ * retried and a later one answered leaves no failure. While the Run error row shows, it stands for
+ * the Run's last failed turn, so that turn does not repeat the error.
+ */
+export function withWaggleTurnFailures(rows: readonly ChatRow[]): ChatRow[] {
+  const marked = rows.map((row) => {
+    if (row.type !== 'waggle-turn') return row
+    const failure = row.messages.at(-1)?.message.metadata?.error
+    return failure ? { ...row, failure } : row
+  })
+  if (!runErrorShows(rows)) return marked
+  for (let index = marked.length - 1; index >= 0; index -= 1) {
+    const row = marked[index]
+    if (row?.type !== 'waggle-turn') continue
+    const { failure: _shownByRunError, ...turn } = row
+    marked[index] = turn
+    break
+  }
+  return marked
+}

@@ -168,23 +168,6 @@ interface AssistantMessageBubbleProps {
   }
 }
 
-/**
- * The error a failed Waggle turn ended with, in place of an empty turn. A classic Run shows its
- * failure below the transcript instead.
- */
-function FailedTurnNotice({ message }: { readonly message: UIMessage }) {
-  const error = message.metadata?.error
-  if (!error) return null
-  return (
-    <p
-      role="alert"
-      className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
-    >
-      This turn failed: {error}
-    </p>
-  )
-}
-
 export function AssistantMessageBubble({
   message,
   runtime,
@@ -233,7 +216,6 @@ export function AssistantMessageBubble({
         ) : null}
 
         <SessionMessageImages messageId={message.metadata?.sessionNodeId ?? message.id} />
-        {waggle ? <FailedTurnNotice message={message} /> : null}
 
         {message.parts.map((part, i) => {
           const content =
