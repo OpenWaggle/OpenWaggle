@@ -37,6 +37,8 @@ You do not need a Pi extension to connect an MCP server. Configure it through [M
 
 OpenWaggle loads Pi's built-in MCP, codemode, and tool-search extensions into every session, so MCP works as it does in the `pi` command. An extension that registers its own `/mcp` command, such as `pi-mcp-adapter`, replaces Pi's built-in MCP in Pi; OpenWaggle does not load `pi-mcp-adapter`, because the built-in support already covers it.
 
+In the same way, OpenWaggle does not load an installed `@openwaggle/pi-waggle` package, because OpenWaggle provides Waggle itself; the `pi` command still loads it.
+
 Extensions can still add servers for a session with `pi.registerMcpServer()`, as in Pi.
 
 For app development, keep transports, configuration files, and sign-in storage in `src/main/adapters/mcp/`, and the code that loads Pi's extensions in `src/main/adapters/pi/`.
