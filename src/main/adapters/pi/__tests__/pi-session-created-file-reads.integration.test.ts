@@ -1,6 +1,6 @@
 import { existsSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import type { SessionId } from '@shared/types/brand'
+import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import { createSession, sendMessage } from './pi-session-created.test-support'
@@ -120,6 +120,31 @@ describe('A Session OpenWaggle created', () => {
       compacted._tag === 'Left' && compacted.left instanceof Error ? compacted.left.message : ''
     expect(message).toMatch(CREATED_FILE_DELETED)
     expect(message).toMatch(/before compacting it\.$/)
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('cannot go to another branch once its Pi file was deleted, and says why', async () => {
+    const sessionId = await createSession(fixture)
+    expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
+    const file = await recordedFile(sessionId)
+    const firstNode = (await sessionDetail(sessionId))?.messages[0]?.id
+    rmSync(file)
+    const { navigateAgentSessionTree } = await import('../../../application/agent-session-service')
+
+    const navigated = await run(
+      Effect.either(
+        navigateAgentSessionTree({
+          sessionId,
+          model: FAKE_PROVIDER_MODEL,
+          targetNodeId: SessionNodeId(String(firstNode)),
+        }),
+      ),
+    )
+
+    const message =
+      navigated._tag === 'Left' && navigated.left instanceof Error ? navigated.left.message : ''
+    expect(message).toMatch(CREATED_FILE_DELETED)
+    expect(message).toMatch(/before going to another branch in it\.$/)
     expect(existsSync(file)).toBe(false)
   })
 

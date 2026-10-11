@@ -175,6 +175,7 @@ export async function navigatePiSessionTree(
   input: NavigateAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
   const nodeIds = piEntryNodeIds(input.session)
+  assertPiSessionFileFor(input.session, 'going to another branch in')
   return withPiSession(input, async (session) => {
     const targetEntryId = nodeIds.toEntryId(input.targetNodeId)
     try {
