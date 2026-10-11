@@ -159,5 +159,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   rows.push(...cards.withoutMessages)
   appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
   appendInterruptedRunRow(rows, params)
-  return applyTurnFolds(withWaggleTurnFailures(groupWaggleTurnRows(rows)), toTurnFoldInput(params))
+  return applyTurnFolds(
+    withWaggleTurnFailures(groupWaggleTurnRows(rows), { isLoading: params.isLoading }),
+    toTurnFoldInput(params),
+  )
 }

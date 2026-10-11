@@ -34,10 +34,11 @@ function waggleTurns(input: {
   readonly lookup: Record<string, WaggleMessageMetadata>
   readonly error?: Error
   readonly dismissedError?: string
+  readonly isLoading?: boolean
 }) {
   return buildChatRows({
     messages: [createUserMessage('user-1', 'question'), ...input.messages],
-    isLoading: false,
+    isLoading: input.isLoading ?? false,
     error: input.error,
     lastUserMessage: 'question',
     dismissedError: input.dismissedError ?? null,
@@ -86,5 +87,39 @@ describe('buildChatRows failed Waggle turns', () => {
     })
 
     expect(turns[0]?.failure).toBe('401 Unauthorized')
+  })
+
+  it('does not mark the turn in flight, whose failed attempt Pi may be retrying', () => {
+    const turns = waggleTurns({
+      messages: [failed('a-1', '401 Unauthorized'), failed('c-1', '503 Service Unavailable')],
+      lookup: { 'a-1': ADVOCATE, 'c-1': CRITIC },
+      isLoading: true,
+    })
+
+    expect(turns.map((turn) => turn.failure)).toEqual(['401 Unauthorized', undefined])
+  })
+
+  it("keeps an earlier Run's failed turn while a later Run's error shows", () => {
+    const turns = waggleTurns({
+      messages: [
+        failed('c-1', '401 Unauthorized'),
+        createUserMessage('user-2', 'try again'),
+        answer('classic-1', 'Classic answer'),
+      ],
+      lookup: { 'c-1': CRITIC },
+      error: new Error('Something else failed'),
+    })
+
+    expect(turns[0]?.failure).toBe('401 Unauthorized')
+  })
+
+  it("leaves an earlier Run's failed turn to the Run error row when they show the same error", () => {
+    const turns = waggleTurns({
+      messages: [failed('c-1', '401 Unauthorized'), createUserMessage('user-2', 'try again')],
+      lookup: { 'c-1': CRITIC },
+      error: new Error('401 Unauthorized'),
+    })
+
+    expect(turns[0]?.failure).toBeUndefined()
   })
 })
