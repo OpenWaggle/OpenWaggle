@@ -229,23 +229,26 @@ function orphanContext(context: ServiceContext, input: McpConfigurationScopeInpu
   return { roots: context.roots(input), reader: context.reader }
 }
 
+/** Removes the server, then (best effort, each logged) its overrides that became orphans. */
 function removeServer(
   context: ServiceContext,
   input: McpRemoveServerInput,
   knownProjects: readonly string[],
+  changed: (filePath: string) => void,
 ) {
   const server = findServer(context, input, input.name)
   removeMcpServerEntry(server.source.path, input.name)
-  const changed = [
-    server.source.path,
-    ...removeOrphanedOverrides(orphanContext(context, input), input.name),
-  ]
-  if (server.scope !== 'global') return changed
+  changed(server.source.path)
+  for (const filePath of removeOrphanedOverrides(orphanContext(context, input), input.name)) {
+    changed(filePath)
+  }
+  if (server.scope !== 'global') return []
   for (const projectPath of new Set(knownProjects)) {
     if (projectPath === input.projectPath) continue
-    changed.push(...removeOrphanedOverrides(orphanContext(context, { projectPath }), input.name))
+    const other = orphanContext(context, { projectPath })
+    for (const filePath of removeOrphanedOverrides(other, input.name)) changed(filePath)
   }
-  return [...new Set(changed)]
+  return []
 }
 
 export function createFilesystemMcpConfigurationService(
@@ -263,13 +266,20 @@ export function createFilesystemMcpConfigurationService(
   const notify = (filePath: string) => {
     for (const listener of listeners) listener(filePath)
   }
-  const write = (operation: () => string | readonly string[]) =>
+  // `changed` notes a file as soon as it is written, so it is announced (warm connections closed,
+  // Settings refreshed) even when a later step of the operation fails.
+  const write = (operation: (changed: (filePath: string) => void) => string | readonly string[]) =>
     Effect.try({
       try: () => {
-        const changed = operation()
-        for (const filePath of typeof changed === 'string' ? [changed] : changed) {
-          removeEmptyOpenWaggleProjectFile(filePath, options.homeDir)
-          notify(filePath)
+        const noted: string[] = []
+        try {
+          const returned = operation((filePath) => noted.push(filePath))
+          noted.push(...(typeof returned === 'string' ? [returned] : returned))
+        } finally {
+          for (const filePath of new Set(noted)) {
+            removeEmptyOpenWaggleProjectFile(filePath, options.homeDir)
+            notify(filePath)
+          }
         }
       },
       catch: (error) =>
@@ -289,7 +299,9 @@ export function createFilesystemMcpConfigurationService(
     addServer: (input) => write(() => addServer(context, input)),
     removeServer: (input) =>
       Effect.promise(async () => (await options.knownProjectPaths?.().catch(() => [])) ?? []).pipe(
-        Effect.flatMap((projects) => write(() => removeServer(context, input, projects))),
+        Effect.flatMap((projects) =>
+          write((changed) => removeServer(context, input, projects, changed)),
+        ),
       ),
     removeOrphanedOverride: (input) =>
       write(() => removeOrphanedOverride(orphanContext(context, input), input)),

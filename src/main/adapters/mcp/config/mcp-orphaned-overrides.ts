@@ -1,4 +1,5 @@
 import { isJsonRecord, MCP_OVERRIDE_KEYS } from '../../../domain/mcp/config/mcp-server-config'
+import { createLogger } from '../../../logger'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import {
   type McpConfigFileReader,
@@ -8,6 +9,8 @@ import {
 } from './mcp-config-files'
 import { removeMcpServerEntry } from './mcp-config-writer'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
+
+const logger = createLogger('mcp-orphaned-overrides')
 
 interface OrphanContext {
   readonly roots: McpConfigFileRoots
@@ -35,12 +38,30 @@ function overrideOnlyEntry(context: OrphanContext, filePath: string, name: strin
  * error, they stay: the merge reports no orphan then.
  */
 export function removeOrphanedOverrides(context: OrphanContext, name: string) {
-  const orphans = loadMcpMergedConfig(context.roots, context.reader).orphanedOverrides ?? []
   const removed: string[] = []
-  for (const orphan of orphans) {
-    if (orphan.name !== name || !overrideOnlyEntry(context, orphan.path, name)) continue
-    removeMcpServerEntry(orphan.path, name)
-    removed.push(orphan.path)
+  try {
+    const orphans = loadMcpMergedConfig(context.roots, context.reader).orphanedOverrides ?? []
+    for (const orphan of orphans) {
+      if (orphan.name !== name || !overrideOnlyEntry(context, orphan.path, name)) continue
+      try {
+        removeMcpServerEntry(orphan.path, name)
+        removed.push(orphan.path)
+      } catch (error) {
+        // The server is already removed: a file that cannot be edited (one that repeats a key,
+        // say) keeps its override, which the view shows as an orphan to remove by hand.
+        logger.warn('Could not remove an orphaned MCP override', {
+          path: orphan.path,
+          name,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  } catch (error) {
+    logger.warn('Could not look for orphaned MCP overrides', {
+      projectPath: context.roots.projectPath,
+      name,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
   return removed
 }
