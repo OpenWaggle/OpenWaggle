@@ -1,4 +1,5 @@
 import {
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -121,5 +122,28 @@ describe.skipIf(process.platform === 'win32')('MCP files that are symbolic links
     const view = await Effect.runPromise(service.getView({ projectPath: project }))
 
     expect(view.errors).toEqual([])
+  })
+
+  it('refuse an edit through a link whose target is missing, creating nothing', () => {
+    const target = path.join(root, 'Volumes', 'Dotfiles', 'openwaggle', 'mcp.json')
+    const link = path.join(root, 'home', '.openwaggle', 'mcp.json')
+    mkdirSync(path.dirname(link), { recursive: true })
+    symlinkSync(target, link)
+
+    expect(() => addMcpServerEntry(link, 'new', { command: 'x' })).toThrow(
+      `${link}: links to a missing file`,
+    )
+    expect(existsSync(path.join(root, 'Volumes'))).toBe(false)
+  })
+
+  it('refuse an edit under a linked folder whose target is missing', () => {
+    const folder = path.join(root, 'home', '.openwaggle')
+    mkdirSync(path.dirname(folder), { recursive: true })
+    symlinkSync(path.join(root, 'Volumes', 'Dotfiles', 'openwaggle'), folder)
+
+    expect(() => addMcpServerEntry(path.join(folder, 'mcp.json'), 'new', { command: 'x' })).toThrow(
+      `${folder} links to a missing folder`,
+    )
+    expect(existsSync(path.join(root, 'Volumes'))).toBe(false)
   })
 })

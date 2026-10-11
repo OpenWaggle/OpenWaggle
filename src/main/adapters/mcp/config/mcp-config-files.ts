@@ -117,7 +117,7 @@ function resolves(filePath: string) {
  * symbolic link whose target does not exist (a dotfiles checkout not mounted). The nearest part
  * of the path that exists decides; a link there that resolves leaves the file missing below it.
  */
-function danglingLink(filePath: string) {
+export function danglingMcpFileLink(filePath: string) {
   for (let current = filePath; ; current = path.dirname(current)) {
     const stats = lstatIfPresent(current)
     if (stats) {
@@ -137,7 +137,7 @@ export const nodeMcpConfigFileReader: McpConfigFileReader = {
     } catch (error) {
       if (!isMissingFile(error)) throw error
       // Not missing: read as missing, its overrides elsewhere would count as removable orphans.
-      const dangling = danglingLink(filePath)
+      const dangling = danglingMcpFileLink(filePath)
       if (dangling) throw new Error(dangling, { cause: error })
       return undefined
     }

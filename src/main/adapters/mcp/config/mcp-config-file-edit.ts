@@ -19,6 +19,7 @@ import {
 import path from 'node:path'
 import { applyEdits, type FormattingOptions, type JSONPath, modify } from 'jsonc-parser'
 import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
+import { danglingMcpFileLink } from './mcp-config-files'
 import { duplicateMcpConfigKeys, duplicateMcpKeyMessage } from './mcp-duplicate-servers'
 import { mcpFileWriteTarget } from './mcp-file-write-target'
 
@@ -106,7 +107,14 @@ function writeAtomically(linkOrFile: string, content: string) {
  * when `edit` returns true, writes back only what changed.
  */
 export function editMcpServers(filePath: string, edit: (servers: JsonRecord) => boolean) {
-  const text = existsSync(filePath) ? readFileSync(filePath, 'utf8') : undefined
+  const exists = existsSync(filePath)
+  // A link into a dotfiles checkout that is not mounted: writing would create its folders and a
+  // fresh file in place of the real one.
+  const dangling = exists ? undefined : danglingMcpFileLink(filePath)
+  if (dangling) {
+    throw new Error(`${filePath}: ${dangling}; restore it before changing this file here`)
+  }
+  const text = exists ? readFileSync(filePath, 'utf8') : undefined
   const [duplicate] = text ? duplicateMcpConfigKeys(text) : []
   if (duplicate !== undefined) throw new Error(duplicateMcpKeyMessage(filePath, duplicate))
   const parsed = parseFile(filePath, text)
