@@ -8,6 +8,7 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
   new Set<HostBackedGuiChannel>([
     'agent:list-active-runs',
     'agent:get-context-usage',
+    'agent:list-extension-commands',
     'sessions:get-detail',
     'sessions:list-by-ids',
     'sessions:list-page',

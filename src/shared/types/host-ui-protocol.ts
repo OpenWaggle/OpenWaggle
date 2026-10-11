@@ -30,6 +30,10 @@ export const HOST_UI_REVISION_24_REQUIRED_CHANNELS = [
 export const HOST_UI_REVISION_24_SESSION_CHANNELS = [
   'sessions:begin-project-removal',
 ] as const satisfies readonly IpcInvokeChannel[]
+/** Listing a Session's Pi extension commands for the slash menu ships with revision 24. */
+export const HOST_UI_REVISION_24_AGENT_CHANNELS = [
+  'agent:list-extension-commands',
+] as const satisfies readonly IpcInvokeChannel[]
 /**
  * Arguments existing channels gained in revision 24: `sessions:delete`'s second argument says the
  * Session is deleted as part of removing its project, which keeps a discovered Pi file listable.
@@ -154,6 +158,7 @@ export const HOST_BACKED_GUI_CHANNELS = [
   ...HOST_UI_REVISION_9_REQUIRED_CHANNELS,
   'agent:list-active-runs',
   'agent:get-context-usage',
+  ...HOST_UI_REVISION_24_AGENT_CHANNELS,
   'sessions:get-detail',
   'sessions:create',
   'sessions:fork-to-new',

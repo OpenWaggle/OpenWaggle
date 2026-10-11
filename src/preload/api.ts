@@ -29,6 +29,7 @@ export const api: OpenWaggleApi = {
   getBackgroundRun: invoke('agent:get-background-run'),
   listActiveRuns: invoke('agent:list-active-runs'),
   getContextUsage: invoke('agent:get-context-usage'),
+  listExtensionCommands: invoke('agent:list-extension-commands'),
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
   onSessionResourcesInvalidated: on('sessions:resources-invalidated'),

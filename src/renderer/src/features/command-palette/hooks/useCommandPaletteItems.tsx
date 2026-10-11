@@ -1,10 +1,13 @@
+import { SessionId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { extensionSlashCommandText } from '@/features/composer/commands'
+import { useComposerModel } from '@/features/composer/hooks'
 import { consumeActiveSlashCommand } from '@/features/composer/lib'
 import type { SlashMenuFilter } from '@/features/composer/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { extensionCommandsQueryOptions } from '@/queries/extension-commands'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
 import { useUIStore } from '@/shell/ui-store'
@@ -20,6 +23,7 @@ import {
   createExtensionSlashCommandItems,
   type ExtensionSlashCommandActionInput,
 } from '../lib/extension-command-items'
+import { createPiExtensionCommandItems } from '../lib/pi-extension-command-items'
 import type { CommandPaletteActionHandlers, CommandPaletteCallbacks } from '../model'
 
 function currentHashPathname() {
@@ -63,6 +67,10 @@ export function useCommandPaletteItems({
   const { data: extensionContributions = null } = useQuery(
     extensionContributionsQueryOptions(projectPaths, { sessionId }),
   )
+  const { model } = useComposerModel()
+  const { data: piExtensionCommands = [] } = useQuery(
+    extensionCommandsQueryOptions(sessionId ? SessionId(sessionId) : null, model ?? null),
+  )
   const lowerQuery = normalizeCommandQuery(query)
   const consumeAndClose = () => {
     consumeActiveSlashCommand()
@@ -105,6 +113,11 @@ export function useCommandPaletteItems({
       registry: extensionContributions,
       lowerQuery,
       insertCommand: insertExtensionSlashCommand,
+    }),
+    ...createPiExtensionCommandItems({
+      commands: piExtensionCommands,
+      lowerQuery,
+      insertCommand: insertCommandText,
     }),
     ...configureWaggleItems,
   ]

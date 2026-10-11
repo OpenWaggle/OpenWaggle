@@ -12,6 +12,7 @@ import {
   HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   HOST_UI_REVISION_23_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_24_AGENT_CHANNELS,
   HOST_UI_REVISION_24_ARGUMENT_COUNTS,
   HOST_UI_REVISION_24_REQUIRED_CHANNELS,
   HOST_UI_REVISION_24_SESSION_CHANNELS,
@@ -51,12 +52,16 @@ function usesArgumentAddedIn(
   return count !== undefined && request.args.length >= count
 }
 
-/** MCP configuration and Pi session discovery's project removal ship with revision 24. */
+/**
+ * MCP configuration, Pi session discovery's project removal, and the slash menu's Pi extension
+ * commands ship with revision 24.
+ */
 function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
   return (
     HOST_UI_REVISION_24_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
     HOST_UI_REVISION_24_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
+    HOST_UI_REVISION_24_AGENT_CHANNELS.some((candidate) => candidate === channel) ||
     usesArgumentAddedIn(HOST_UI_REVISION_24_ARGUMENT_COUNTS, request)
   )
 }

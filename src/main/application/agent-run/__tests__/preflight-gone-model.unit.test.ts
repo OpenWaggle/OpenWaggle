@@ -5,6 +5,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
+import { AgentKernelService } from '../../../ports/agent-kernel-service'
 import { ProviderService } from '../../../ports/provider-service'
 import { SessionProjectionRepository } from '../../../ports/session-projection-repository'
 import { SettingsService } from '../../../services/settings-service'
@@ -35,6 +36,10 @@ const TestLayer = Layer.mergeAll(
   Layer.succeed(
     SessionProjectionRepository,
     fromPartial({ assignProvisionalTitle: () => Effect.succeed(false) }),
+  ),
+  Layer.succeed(
+    AgentKernelService,
+    fromPartial({ listExtensionCommands: () => Effect.succeed([]) }),
   ),
   EmptyExtensionRuntimeLayer,
 )

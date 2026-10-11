@@ -15,6 +15,7 @@ import {
 import { projectWrittenFork, type WrittenFork, writeForkBeforeItStarts } from './fork-files'
 import { hasProjectedEntries, missingPiSessionFileError } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
+import { piExtensionCommands } from './pi-extension-commands'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
 import { summarizePiSessionUsage } from './pi-session-usage'
@@ -62,6 +63,13 @@ export async function getPiContextUsage(
   return readPiSession(input, (session) =>
     toContextUsageSnapshot(session.getContextUsage(), summarizePiSessionUsage(session)),
   )
+}
+
+/** The commands the Session's Pi extensions register, which the slash menu lists. */
+export async function getPiExtensionCommands(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
+  return readPiSession(input, piExtensionCommands)
 }
 
 /**

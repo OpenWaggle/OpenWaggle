@@ -10,7 +10,11 @@ import {
   dispatchHostUiAgentDefinitionOperation,
   isHostUiAgentDefinitionChannel,
 } from './host-ui-agent-definition-dispatcher'
-import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
+import {
+  getHostUiAgentContextUsage,
+  listHostUiActiveActivities,
+  listHostUiAgentExtensionCommands,
+} from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
 import { dispatchHostUiExtensionOperation } from './host-ui-extension-dispatcher'
 import * as McpHostUi from './host-ui-mcp-operation-dispatcher'
@@ -155,6 +159,12 @@ function dispatchHostUiChannel(
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* getHostUiAgentContextUsage(args[0], args[1])
+      }),
+    )
+    .with('agent:list-extension-commands', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* listHostUiAgentExtensionCommands(args[0], args[1])
       }),
     )
     .with('providers:get-models', () =>

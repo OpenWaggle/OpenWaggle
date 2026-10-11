@@ -19,6 +19,7 @@ import type {
   DocsResolveTopicInput,
   FirstPartyDocsTopicSummary,
 } from './docs'
+import type { AgentExtensionCommand } from './extension-command'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -112,6 +113,11 @@ export interface OpenWaggleApi
     sessionId: SessionId,
     model: SupportedModelId,
   ): Promise<ContextUsageSnapshot | null>
+  /** The commands the Session's Pi extensions register, for the slash menu. */
+  listExtensionCommands(
+    sessionId: SessionId,
+    model: SupportedModelId,
+  ): Promise<readonly AgentExtensionCommand[]>
   compactSession(
     sessionId: SessionId,
     model: SupportedModelId,

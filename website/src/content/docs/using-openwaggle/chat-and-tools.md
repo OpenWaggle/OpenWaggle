@@ -142,6 +142,8 @@ Type `/` at the start of a word in the message box. Keep typing to filter, then 
 
 The menu lists the built-in commands `/compact`, `/fork`, and `/clone` first, followed by skills, saved Waggle presets, and commands added by enabled extensions. A skill supplies instructions for a particular task. A Waggle preset sets up a multi-agent review.
 
+In a session, the menu also lists the commands its Pi extensions register, such as Pi's `/mcp`, with their descriptions. Choosing one inserts it; Pi runs it when you send the message, instead of sending the message to the model. A session is not titled from such a command: its title comes from the first real request.
+
 When a built-in command such as `/compact` is the whole message, press `Enter` to run it. `Tab` or a click always completes the command so you can add text after it, such as compaction instructions. `Enter` also completes it when the message contains other text.
 
 Selecting a skill or preset replaces only the slash token, keeping the rest of your draft. The selection appears as a chip before you send. A Waggle preset applies to that message, not every later message.

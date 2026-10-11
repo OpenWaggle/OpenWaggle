@@ -30,6 +30,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getBackgroundRun',
   'listActiveRuns',
   'getContextUsage',
+  'listExtensionCommands',
   'compactSession',
   'onRunCompleted',
   'onSessionResourcesInvalidated',

@@ -171,6 +171,8 @@ describe('commands a draining Session Host still accepts', () => {
     ])
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',
+      // Builds a Pi session over the Session's file to read its extensions' commands.
+      'agent:list-extension-commands',
       'providers:get-models',
       // Lists an App server's resources and prompts over a pooled connection, opening one.
       'mcp:list-app-catalog',

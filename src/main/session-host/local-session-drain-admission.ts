@@ -25,6 +25,7 @@ const WAITING_QUERY_OPERATIONS: ReadonlySet<string> = new Set(['wait', 'exports-
  */
 const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
   'agent:get-context-usage',
+  'agent:list-extension-commands',
   'providers:get-models',
   'mcp:inspect-server',
   'mcp:list-app-catalog',

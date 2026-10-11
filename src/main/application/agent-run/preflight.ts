@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../../agent/error-classifier'
 import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-toggle-settings'
 import { SettingsService } from '../../services/settings-service'
+import { invokesExtensionCommand } from '../agent-extension-commands'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
 import { loadSessionForRun } from '../pi-session-projection-refresh'
 import { assignSessionTitleFromUserText } from '../run-handler-utils'
@@ -33,11 +34,17 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const assignedTitle = yield* assignSessionTitleFromUserText(input.sessionId, session, {
-      text: input.payload.text,
-      attachments: input.payload.attachments,
-      model: input.model,
-    })
+    // An extension command is not the user's request: the title waits for the first real prompt.
+    const invokesCommand =
+      session.messages.length === 0 &&
+      (yield* invokesExtensionCommand({ session, model: input.model, text: input.payload.text }))
+    const assignedTitle = invokesCommand
+      ? null
+      : yield* assignSessionTitleFromUserText(input.sessionId, session, {
+          text: input.payload.text,
+          attachments: input.payload.attachments,
+          model: input.model,
+        })
     if (assignedTitle) {
       yield* Effect.sync(() => input.onTitleAssigned?.(assignedTitle))
     }

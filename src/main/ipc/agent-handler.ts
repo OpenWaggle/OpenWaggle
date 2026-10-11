@@ -14,6 +14,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
+import { listAgentExtensionCommands } from '../application/agent-extension-commands'
 import { getAgentContextUsage } from '../application/agent-session-service'
 import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
@@ -205,6 +206,12 @@ function registerAgentStateHandlers() {
 
   hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
+  )
+
+  hostHandle(
+    'agent:list-extension-commands',
+    (_event, sessionId: SessionId, model: SupportedModelId) =>
+      listAgentExtensionCommands({ sessionId, model }),
   )
 }
 

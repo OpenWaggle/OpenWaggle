@@ -26,6 +26,7 @@ import {
   compactPiSession,
   forkPiSession,
   getPiContextUsage,
+  getPiExtensionCommands,
   getPiSessionSnapshot,
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
@@ -142,6 +143,18 @@ export const piAgentKernelLayer = (mcpPool: McpConnectionPool) =>
               browserPreviewAutomation: browserPreviewAutomationService,
               enableBrowserPreviewAutomation,
               mcpPool,
+            })
+          }),
+
+        listExtensionCommands: (input: AgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
+            return yield* Effect.tryPromise({
+              try: () => getPiExtensionCommands({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
             })
           }),
 

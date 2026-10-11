@@ -6,6 +6,7 @@ import type {
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
+import type { AgentExtensionCommand } from '@shared/types/extension-command'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionCapability } from '@shared/types/session-capability'
@@ -188,6 +189,10 @@ export interface AgentKernelServiceShape {
   readonly getContextUsage: (
     input: AgentKernelSessionInput,
   ) => Effect.Effect<ContextUsageSnapshot | null, Error>
+  /** The commands the Session's Pi extensions register (`pi.registerCommand`). */
+  readonly listExtensionCommands: (
+    input: AgentKernelSessionInput,
+  ) => Effect.Effect<readonly AgentExtensionCommand[], Error>
   readonly compact: (
     input: CompactAgentKernelSessionInput,
   ) => Effect.Effect<AgentKernelCompactResult, Error>
