@@ -125,7 +125,10 @@ export async function getMcpServerStatuses(
     // Stands for each secret by when it was saved, without decrypting it.
     secretStamp: mcpVaultSecretStamps(),
   })
-  forgetStaleMcpServerStates(input.projectPath, sightings(config))
+  // While a file cannot be read, its servers are unknown, not removed or changed.
+  if (config.merged.errors.length === 0) {
+    forgetStaleMcpServerStates(input.projectPath, sightings(config))
+  }
   const checkedAt = Date.now()
   return [
     ...config.loaded.servers.map((entry) => serverStatus(entry, pool, input.projectPath)),

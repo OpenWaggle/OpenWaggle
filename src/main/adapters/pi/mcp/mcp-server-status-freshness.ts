@@ -49,7 +49,10 @@ function changed(last: SeenServer, next: SeenServer) {
   )
 }
 
-/** Notes how a project's servers are now, forgetting the state of each that changed since. */
+/**
+ * Notes how a project's servers are now, forgetting the state of each that changed since. Only
+ * for a complete read: with a file that cannot be read, its servers would look removed.
+ */
 export function forgetStaleMcpServerStates(
   projectPath: string | null,
   servers: readonly McpServerSighting[],
