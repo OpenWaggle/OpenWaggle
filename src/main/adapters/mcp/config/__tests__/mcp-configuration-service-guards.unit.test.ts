@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Exit } from 'effect'
@@ -179,5 +187,17 @@ describe('a project that is the home folder', () => {
     )
 
     expect(result).toContain('home folder')
+  })
+
+  it('explains the refusal for a project whose .openwaggle folder links to the global one', async () => {
+    write(owGlobal(), { mcpServers: { fs: { command: 'fs' } } })
+    mkdirSync(projectPath, { recursive: true })
+    symlinkSync(path.join(homeDir, '.openwaggle'), path.join(projectPath, '.openwaggle'))
+
+    const result = await failure(
+      service().setServerEnabled({ projectPath, name: 'fs', enabled: false, target: 'project' }),
+    )
+
+    expect(result).toContain("This project's .openwaggle folder is the global one")
   })
 })

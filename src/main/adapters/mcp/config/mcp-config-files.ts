@@ -44,6 +44,13 @@ export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFile
   })
 }
 
+/**
+ * Why a project has no OpenWaggle file of its own: it is the home folder, or its `.openwaggle`
+ * folder links to `~/.openwaggle`. Either way its file is the global one.
+ */
+export const PROJECT_FILE_IS_GLOBAL =
+  "This project's .openwaggle folder is the global one (the project is your home folder, or the folder links to ~/.openwaggle), so its mcp.json is the global file."
+
 /** The file's real path, or its folder's real path joined with its name when it does not exist. */
 export function realLocation(filePath: string) {
   try {

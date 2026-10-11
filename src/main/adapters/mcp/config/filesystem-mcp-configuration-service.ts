@@ -26,6 +26,7 @@ import {
   type McpConfigFileRoots,
   mcpConfigFileLocations,
   nodeMcpConfigFileReader,
+  PROJECT_FILE_IS_GLOBAL,
 } from './mcp-config-files'
 import {
   assertDestinationInScope,
@@ -120,7 +121,7 @@ function fileFor(
     throw new McpConfigurationError({
       reason: 'validation',
       message: context.roots(input).projectPath
-        ? 'This project is your home folder, so its .openwaggle/mcp.json is the global file. Change the server for every project instead.'
+        ? `${PROJECT_FILE_IS_GLOBAL} Change the server for every project instead.`
         : 'A project is required for a project MCP file.',
     })
   }
