@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
+  deletedCreatedPiSessionFileMessage,
   deletedPiSessionFileMessage,
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
@@ -30,16 +31,23 @@ function inSessionWorktree(session: SessionDetail, folder: string) {
   return worktree ? isPathInsideProject(folder, worktree) : false
 }
 
+/** What needs the Session's Pi file, as the message names it: `forking`, `compacting`. */
+export type PiSessionFileAction = 'forking' | 'compacting'
+
 /**
- * Why the Session's Pi file, which could not be found, cannot be used: its folder is missing, or
- * the file was deleted from it.
+ * Why the Session's Pi file, which could not be found, cannot be used for `action`: its folder is
+ * missing, or the file was deleted from it. A discovered Session cannot be continued then; one
+ * OpenWaggle created starts a new transcript with its next message.
  */
-export function missingPiSessionFileError(session: SessionDetail) {
+export function missingPiSessionFileError(session: SessionDetail, action?: PiSessionFileAction) {
   const file = session.piSessionFile?.trim() || `the Pi session file of ${String(session.id)}`
+  if (!existsSync(dirname(file))) {
+    return new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
+  }
   return new PiSessionFileUnavailableError(
-    existsSync(dirname(file))
-      ? deletedPiSessionFileMessage(file)
-      : unavailablePiSessionFileMessage(file),
+    session.piEntryNodeIdPrefix === undefined
+      ? deletedCreatedPiSessionFileMessage(file, action)
+      : deletedPiSessionFileMessage(file),
   )
 }
 

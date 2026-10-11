@@ -24,6 +24,7 @@ import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isola
 import { createSessionListener } from './session-listener'
 import {
   createReadOnlySessionManagerForSession,
+  findExistingPiSessionFile,
   resolveSessionWorkingPath,
 } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -108,6 +109,14 @@ export async function getPiSessionSnapshot(
 export async function compactPiSession(
   input: CompactAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  // Without its file, Pi would compact a new empty transcript and report it too small.
+  const workingPath = resolveSessionWorkingPath(input.session)
+  if (
+    hasProjectedEntries(input.session) &&
+    !findExistingPiSessionFile(input.session, workingPath)
+  ) {
+    throw missingPiSessionFileError(input.session, 'compacting')
+  }
   return withPiSession(input, async (session) => {
     const unsubscribe = input.onEvent
       ? session.subscribe(
@@ -192,7 +201,7 @@ export async function forkPiSession(
   // The file the copy loaded, found by Pi session id when the recorded path is missing or stale.
   // Without one there is nothing to fork from: the file was deleted or its folder is missing.
   const sourceFile = copy.getSessionFile()
-  if (!sourceFile) throw missingPiSessionFileError(input.session)
+  if (!sourceFile) throw missingPiSessionFileError(input.session, 'forking')
   let written: WrittenFork | undefined
   const runtime = await createPiSessionRuntime(input, {
     sessionManager: copy,

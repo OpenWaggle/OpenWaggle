@@ -31,6 +31,10 @@ vi.mock('electron', () => ({
 const fixture = setUpPiDiscoveryFixture(state)
 setUpFakePiProvider(fixture)
 
+/** What a created Session whose Pi file was deleted says, as its notice does. */
+const CREATED_FILE_DELETED =
+  /^This Session's Pi session file was deleted \(.+\)\. Send a message to start a new transcript/
+
 async function recordedFile(sessionId: string) {
   const file = (await sessionDetail(sessionId))?.piSessionFile
   if (!file) throw new Error('The Session recorded no Pi file.')
@@ -56,23 +60,48 @@ describe('A Session OpenWaggle created', () => {
     expect((await opened(sessionId))?.piSessionFileDeleted).toBeUndefined()
   })
 
-  it('cannot be forked once its Pi file was deleted, and the fork writes no file back', async () => {
+  it.each<['before' | 'at']>([['before'], ['at']])(
+    'cannot be forked or cloned (%s) once its Pi file was deleted, and writes no file back',
+    async (position) => {
+      const sessionId = await createSession(fixture)
+      expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
+      const file = await recordedFile(sessionId)
+      const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
+      rmSync(file)
+      const { forkSession } = await import(
+        '../../../application/host-ui-session-lifecycle-operations'
+      )
+
+      const fork = await run(
+        forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], position).pipe(
+          Effect.either,
+        ),
+      )
+
+      // It says what the notice says: a message starts a new transcript, which can then be forked.
+      const cause = fork._tag === 'Left' && fork.left instanceof Error ? fork.left.cause : undefined
+      const message = cause instanceof Error ? cause.message : ''
+      expect(message).toMatch(CREATED_FILE_DELETED)
+      expect(message).toMatch(/before forking it\.$/)
+      expect(existsSync(file)).toBe(false)
+    },
+  )
+
+  it('cannot be compacted once its Pi file was deleted, and says why', async () => {
     const sessionId = await createSession(fixture)
     expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
     const file = await recordedFile(sessionId)
-    const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
     rmSync(file)
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
+    const { compactAgentSession } = await import('../../../application/agent-session-service')
+
+    const compacted = await run(
+      Effect.either(compactAgentSession({ sessionId, model: FAKE_PROVIDER_MODEL })),
     )
 
-    const fork = await run(
-      forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at').pipe(Effect.either),
-    )
-
-    // There is no file to fork from, which it says, rather than an entry it could not find.
-    const cause = fork._tag === 'Left' && fork.left instanceof Error ? fork.left.cause : undefined
-    expect(String(cause)).toMatch(/This Session's Pi session file was deleted outside OpenWaggle/)
+    const message =
+      compacted._tag === 'Left' && compacted.left instanceof Error ? compacted.left.message : ''
+    expect(message).toMatch(CREATED_FILE_DELETED)
+    expect(message).toMatch(/before compacting it\.$/)
     expect(existsSync(file)).toBe(false)
   })
 
