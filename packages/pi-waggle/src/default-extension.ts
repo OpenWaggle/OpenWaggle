@@ -12,6 +12,7 @@ import {
   type DefaultPiWaggleRunState,
   setWaggleStatus,
 } from './default-run.js'
+import { onPiWaggleSettledAgentEnd } from './loop.js'
 import { latestPiWaggleModeStateFromBranch } from './mode-state.js'
 import { PI_WAGGLE_TURN_CUSTOM_TYPE, PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from './protocol.js'
 import { registerPiWaggleRenderers } from './renderers.js'
@@ -135,11 +136,8 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     }
     return { action: 'continue' }
   })
-  pi.on('turn_end', async (event, ctx) => {
-    const currentRun = activeRun
-    if (currentRun) await currentRun.onTurnEnd(event, ctx)
-  })
-  pi.on('agent_end', async (event, ctx) => {
+  // A turn ends when Pi settles its run, not at a failed attempt Pi is about to retry.
+  onPiWaggleSettledAgentEnd(pi, async (event, ctx) => {
     const currentRun = activeRun
     if (currentRun) await currentRun.onAgentEnd(event, ctx)
   })

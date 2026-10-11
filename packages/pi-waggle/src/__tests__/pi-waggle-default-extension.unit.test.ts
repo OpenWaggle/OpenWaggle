@@ -1,151 +1,13 @@
-import type {
-  AgentEndEvent,
-  ExtensionAPI,
-  ExtensionCommandContext,
-  ExtensionToolContext,
-  InputEvent,
-  TurnEndEvent,
-} from '@earendil-works/pi-coding-agent'
-import { fromPartial } from '@total-typescript/shoehorn'
+import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, vi } from 'vitest'
-import type { PiWaggleModel } from '../extension.js'
-import defaultPiWaggleExtension from '../extension.js'
-
-const FIRST_PROVIDER_CHARACTER_INDEX = 0
-const MODEL_ID_START_OFFSET = 1
-const MAX_TURNS_SAFETY = 4
-const PRIMARY_MODEL = 'openai/gpt-5.5'
-const SECONDARY_MODEL = 'anthropic/claude-sonnet-4'
-
-type RegisteredCommandOptions = Parameters<ExtensionAPI['registerCommand']>[1]
-type RegisteredToolOptions = Parameters<ExtensionAPI['registerTool']>[0]
-
-function modelFor(modelReference: string): PiWaggleModel {
-  const separatorIndex = modelReference.indexOf('/')
-  if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
-    throw new Error(`Expected provider/model id, received ${modelReference}`)
-  }
-
-  return fromPartial<PiWaggleModel>({
-    provider: modelReference.slice(FIRST_PROVIDER_CHARACTER_INDEX, separatorIndex),
-    id: modelReference.slice(separatorIndex + MODEL_ID_START_OFFSET),
-  })
-}
-
-function waggleConfig() {
-  return {
-    mode: 'sequential',
-    agents: [
-      {
-        label: 'Architect',
-        model: PRIMARY_MODEL,
-        roleDescription: 'Designs the implementation',
-        color: 'blue',
-      },
-      {
-        label: 'Reviewer',
-        model: SECONDARY_MODEL,
-        roleDescription: 'Reviews the implementation',
-        color: 'amber',
-      },
-    ],
-    stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY },
-  } as const
-}
-
-function assistantToolCallMessage(toolCallId: string): AgentEndEvent['messages'][number] {
-  return fromPartial<AgentEndEvent['messages'][number]>({
-    role: 'assistant',
-    content: [{ type: 'toolCall', id: toolCallId, name: 'read', arguments: {} }],
-  })
-}
-
-function assistantTextMessage(text: string): AgentEndEvent['messages'][number] {
-  return fromPartial<AgentEndEvent['messages'][number]>({
-    role: 'assistant',
-    content: [{ type: 'text', text }],
-  })
-}
-
-function toolResultMessage(toolCallId: string): TurnEndEvent['toolResults'][number] {
-  return {
-    role: 'toolResult',
-    toolCallId,
-    toolName: 'read',
-    content: [{ type: 'text', text: 'ok' }],
-    isError: false,
-    timestamp: Date.now(),
-  }
-}
-
-function turnEndEvent(input: {
-  readonly message: AgentEndEvent['messages'][number]
-  readonly toolResults?: TurnEndEvent['toolResults']
-}): TurnEndEvent {
-  return fromPartial<TurnEndEvent>({
-    type: 'turn_end',
-    turnIndex: 0,
-    message: input.message,
-    toolResults: [...(input.toolResults ?? [])],
-  })
-}
-
-function inputImage(): NonNullable<InputEvent['images']>[number] {
-  return { type: 'image', data: 'base64-image', mimeType: 'image/png' }
-}
-
-function enabledModeStateEntry() {
-  return {
-    id: 'enabled-mode',
-    parentId: null,
-    timestamp: '2026-05-25T00:00:00.000Z',
-    type: 'custom',
-    customType: 'pi-waggle.mode-state',
-    data: { enabled: true, config: waggleConfig(), updatedAt: 1 },
-  }
-}
-
-function createHarness(input: { readonly branchEntries?: readonly unknown[] } = {}) {
-  const commands = new Map<string, RegisteredCommandOptions>()
-  const tools = new Map<string, RegisteredToolOptions>()
-  const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
-  const sendMessage = vi.fn<ExtensionAPI['sendMessage']>()
-  const sendUserMessage = vi.fn<ExtensionAPI['sendUserMessage']>()
-  const setModel = vi.fn<ExtensionAPI['setModel']>(async () => true)
-  const pi = fromPartial<ExtensionAPI>({
-    appendEntry: vi.fn(),
-    getFlag: vi.fn(),
-    on: vi.fn((eventName: string, handler: (...args: unknown[]) => unknown) => {
-      eventHandlers.set(eventName, handler)
-    }),
-    registerCommand: vi.fn((name: string, options: RegisteredCommandOptions) => {
-      commands.set(name, options)
-    }),
-    registerTool: vi.fn((tool: RegisteredToolOptions) => {
-      tools.set(tool.name, tool)
-    }),
-    registerMessageRenderer: vi.fn(),
-    sendMessage,
-    sendUserMessage,
-    setModel,
-  })
-  const currentModel = modelFor(PRIMARY_MODEL)
-  const ctx = fromPartial<ExtensionCommandContext & ExtensionToolContext>({
-    cwd: '/repo',
-    hasUI: true,
-    isIdle: () => true,
-    model: currentModel,
-    modelRegistry: {
-      find: (provider: string, modelId: string) => modelFor(`${provider}/${modelId}`),
-    },
-    sessionManager: { getBranch: () => [...(input.branchEntries ?? [])] },
-    ui: { notify: vi.fn(), setStatus: vi.fn(), setWorkingMessage: vi.fn() },
-    waitForIdle: vi.fn(async () => undefined),
-  })
-
-  defaultPiWaggleExtension(pi)
-  return { commands, ctx, eventHandlers, sendMessage, sendUserMessage, tools }
-}
+import {
+  assistantTextMessage,
+  assistantToolCallMessage,
+  createHarness,
+  enabledModeStateEntry,
+  inputImage,
+  toolResultMessage,
+} from './pi-waggle-default-extension.test-support'
 
 describe('pi-waggle default extension runtime flow', () => {
   it('registers the terminating Waggle invocation tool for standard agents', () => {
@@ -235,10 +97,8 @@ describe('pi-waggle default extension runtime flow', () => {
       const harness = createHarness()
       const waggleCommand = harness.commands.get('waggle')
       const input = harness.eventHandlers.get('input')
-      const turnEnd = harness.eventHandlers.get('turn_end')
       if (!waggleCommand) throw new Error('Expected /waggle command to be registered')
       if (!input) throw new Error('Expected input handler')
-      if (!turnEnd) throw new Error('Expected turn_end handler')
 
       await waggleCommand.handler('code-review Review this migration', harness.ctx)
       harness.sendUserMessage.mockClear()
@@ -260,10 +120,7 @@ describe('pi-waggle default extension runtime flow', () => {
       harness.sendUserMessage.mockClear()
       vi.useFakeTimers()
       try {
-        await turnEnd(
-          turnEndEvent({ message: assistantTextMessage('Stopped with summary.') }),
-          harness.ctx,
-        )
+        await harness.settle([assistantTextMessage('Stopped with summary.')])
         await vi.runOnlyPendingTimersAsync()
         expect(harness.sendMessage).not.toHaveBeenCalled()
         expect(harness.sendUserMessage).not.toHaveBeenCalled()
@@ -273,38 +130,32 @@ describe('pi-waggle default extension runtime flow', () => {
     },
   )
 
-  it('waits for tool-using Pi turns to finish before scheduling the next Waggle turn', async () => {
+  it('waits for a tool-using Pi run to settle before scheduling the next Waggle turn', async () => {
     const harness = createHarness()
     const waggleCommand = harness.commands.get('waggle')
-    const turnEnd = harness.eventHandlers.get('turn_end')
+    const agentEnd = harness.eventHandlers.get('agent_end')
+    const agentSettled = harness.eventHandlers.get('agent_settled')
     if (!waggleCommand) throw new Error('Expected /waggle command to be registered')
-    if (!turnEnd) throw new Error('Expected turn_end handler')
+    if (!agentEnd || !agentSettled) throw new Error('Expected agent_end and agent_settled handlers')
 
     await waggleCommand.handler('code-review Review this migration', harness.ctx)
     harness.sendMessage.mockClear()
     harness.sendUserMessage.mockClear()
 
-    await turnEnd(
-      turnEndEvent({
-        message: assistantToolCallMessage('tool-1'),
-        toolResults: [toolResultMessage('tool-1')],
-      }),
-      harness.ctx,
-    )
-
-    expect(harness.sendMessage).not.toHaveBeenCalled()
-    expect(harness.sendUserMessage).not.toHaveBeenCalled()
-
     vi.useFakeTimers()
     try {
-      await turnEnd(
-        turnEndEvent({ message: assistantTextMessage('Done after reading.') }),
-        harness.ctx,
-      )
+      const messages: AgentEndEvent['messages'] = [
+        assistantToolCallMessage('tool-1'),
+        toolResultMessage('tool-1'),
+        assistantTextMessage('Done after reading.'),
+      ]
+      await agentEnd({ type: 'agent_end', messages }, harness.ctx)
+      await vi.runOnlyPendingTimersAsync()
 
       expect(harness.sendMessage).not.toHaveBeenCalled()
       expect(harness.sendUserMessage).not.toHaveBeenCalled()
 
+      await agentSettled({ type: 'agent_settled' }, harness.ctx)
       await vi.runOnlyPendingTimersAsync()
 
       expect(harness.sendMessage).toHaveBeenLastCalledWith(

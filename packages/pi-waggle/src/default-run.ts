@@ -10,11 +10,11 @@ import {
   resolveTurnModel,
   setTurnModel,
 } from './default-run-model.js'
+import { piWaggleTurnErrorClassifier } from './default-turn-error.js'
 import {
-  createPiWaggleTurnCompletionHandlers,
+  createPiWaggleLoopHandler,
   type PiWaggleAgentEndHandler,
   type PiWaggleCustomMessage,
-  type PiWaggleTurnEndHandler,
 } from './loop.js'
 import {
   createPiWaggleTurnDetails,
@@ -48,7 +48,7 @@ export interface DefaultPiWaggleRunState {
   readonly turnNumber: number
   readonly userPrompt: string
   readonly userImages: readonly PiInputImage[]
-  readonly onTurnEnd: PiWaggleTurnEndHandler
+  /** Judges the turn and starts the next one, with the messages of a settled Pi run. */
   readonly onAgentEnd: PiWaggleAgentEndHandler
 }
 
@@ -162,7 +162,7 @@ function buildDefaultWaggleRunHandler(input: {
   readonly getActiveRun: () => DefaultPiWaggleRunState | null
   readonly setActiveRun: (run: DefaultPiWaggleRunState | null) => void
 }) {
-  return createPiWaggleTurnCompletionHandlers<DefaultPiWaggleTurnMeta>(
+  return createPiWaggleLoopHandler<DefaultPiWaggleTurnMeta>(
     {
       config: input.config,
       createTurnMetadata: ({ turnNumber, agentIndex }) => ({ turnNumber, agentIndex }),
@@ -173,7 +173,9 @@ function buildDefaultWaggleRunHandler(input: {
         const evaluation = evaluatePiWaggleStopPolicy({
           config: activeRun.config,
           turnNumber: activeRun.turnNumber,
-          summary: summarizePiWaggleTurnMessages(messages),
+          summary: summarizePiWaggleTurnMessages(messages, {
+            isRecoverableError: await piWaggleTurnErrorClassifier(),
+          }),
           state: activeRun.policyState,
           agentLabel: turn.agent.label,
         })
@@ -268,7 +270,7 @@ export function createStartDefaultWaggleRun(input: {
       inheritedModelReference,
     })
 
-    const turnHandlers = buildDefaultWaggleRunHandler({
+    const onAgentEnd = buildDefaultWaggleRunHandler({
       pi,
       ctx,
       config,
@@ -284,8 +286,7 @@ export function createStartDefaultWaggleRun(input: {
       turnNumber: INITIAL_TURN_NUMBER,
       userPrompt: prompt,
       userImages,
-      onTurnEnd: turnHandlers.onTurnEnd,
-      onAgentEnd: turnHandlers.onAgentEnd,
+      onAgentEnd,
     } satisfies DefaultPiWaggleRunState
 
     input.setActiveRun(run)
