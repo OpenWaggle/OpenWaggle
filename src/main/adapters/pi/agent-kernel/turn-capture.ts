@@ -112,7 +112,8 @@ function ownPiSessionFolders(projectPath: string, files: readonly (string | unde
     if (!file?.trim()) return []
     const folder = physicalPath(path.dirname(file))
     if (!isPathInsideProject(folder, project) || folder === project) return []
-    return [path.relative(project, folder)]
+    // A pathspec takes `/` on every platform.
+    return [path.relative(project, folder).split(path.sep).join('/')]
   })
   return [...new Set(folders)]
 }
