@@ -382,9 +382,12 @@ listing before the model can reach it, whatever the exposure:
 "Lazy" in ADR 0051 means a connection never blocks a message. Only servers with `direct` tools
 are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
 `tool_search`, or a resource tool waits for the servers it needs when it runs. Before that, a
-Run with a server turned on waits for the scope's sign-in migration and for the login-shell
-environment the Host reads once at start (`mcpShellEnvironmentReady`, at most 5 s per shell it
-tries): both are done after the first such Run in a Host process. A Run with no server turned on
+Run with a server turned on waits for the login-shell environment the Host reads once at start
+(`mcpShellEnvironmentReady`, at most 5 s per shell it tries) and, when one of them is a URL server
+(the kind that signs in), for the scope's sign-in migration: both are done after the first such
+Run in a Host process. When that migration fails because the keychain did not answer or could
+not be used, it is tried again after `MCP_MIGRATION_KEYCHAIN_RETRY_MS` (5 min) rather than
+`MCP_MIGRATION_RETRY_MS` (5 s), so Runs do not wait for the keychain again and again. A Run with no server turned on
 waits for neither and reads no keychain; it still awaits `migrateOpenWaggleMcpFilesOnce`, which
 is done for the projects Host start knows. For a project not yet migrated, or one retrying after
 a failure, it can take the migration lock (at most 30 s), wait behind a sign-in pass in the shared

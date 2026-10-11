@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
+import { McpVaultError } from '../../../ports/mcp-errors'
 import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
 import { keepMcpFileOutOfGit } from '../../mcp/migration/git-exclude'
 import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
@@ -26,6 +27,12 @@ export const MCP_MIGRATION_LOCK_WAIT_MS = 30_000
 /** After a failed migration, the next call tries again once this much time has passed. */
 export const MCP_MIGRATION_RETRY_MS = 5_000
 
+/**
+ * After the keychain did not answer or could not be used, the sign-in migration waits this long
+ * before it reads it again: whatever waits for the migration would wait for the keychain again.
+ */
+export const MCP_MIGRATION_KEYCHAIN_RETRY_MS = 300_000
+
 /** How long Host stop waits for the sign-in migration it started after listening. */
 export const MCP_MIGRATION_STOP_WAIT_MS = 5_000
 
@@ -33,6 +40,12 @@ interface MigrationAttempt {
   readonly done: Promise<unknown>
   /** When the attempt failed; undefined while it runs or once it succeeded. */
   failedAt?: number
+  /** How long after a failure the next call tries again; `MCP_MIGRATION_RETRY_MS` by default. */
+  retryAfterMs?: number
+}
+
+function keychainUnavailable(error: unknown) {
+  return error instanceof McpVaultError && error.reason === 'encryption-unavailable'
 }
 
 /**
@@ -108,7 +121,8 @@ function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string 
   const key = `${part}:${projectPath ?? ''}`
   const previous = migrations.get(key)
   const retry =
-    previous?.failedAt !== undefined && Date.now() - previous.failedAt >= MCP_MIGRATION_RETRY_MS
+    previous?.failedAt !== undefined &&
+    Date.now() - previous.failedAt >= (previous.retryAfterMs ?? MCP_MIGRATION_RETRY_MS)
   if (previous && !retry) return previous.done
   const attempt: MigrationAttempt = {
     done:
@@ -145,12 +159,16 @@ async function migrateSignIns(projectPath: string | null, attempt: () => Migrati
       projectPath,
       error: describeError(error),
     })
+    if (keychainUnavailable(error)) attempt().retryAfterMs = MCP_MIGRATION_KEYCHAIN_RETRY_MS
     return undefined
   })
   if (signInMigrationStopped) return undefined
   if (!oldSignIns) {
     attempt().failedAt = Date.now()
     return undefined
+  }
+  if ([...oldSignIns.values()].some((read) => 'error' in read && keychainUnavailable(read.error))) {
+    attempt().retryAfterMs = MCP_MIGRATION_KEYCHAIN_RETRY_MS
   }
   return queuedSignIns(projectPath, attempt, (name) => oldSignIn(oldSignIns, name))
 }

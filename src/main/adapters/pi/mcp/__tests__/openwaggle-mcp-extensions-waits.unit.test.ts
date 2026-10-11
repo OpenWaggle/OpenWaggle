@@ -73,8 +73,20 @@ describe("a Run's MCP start", () => {
     expect(mocks.shell).not.toHaveBeenCalled()
   })
 
-  it("waits for old sign-ins and the login shell's environment when a server is on", async () => {
+  it("waits for the login shell's environment, not old sign-ins, when a command server is on", async () => {
     mocks.servers = [{ name: 'docs', config: { command: 'docs-mcp' } }]
+
+    await expect(settledSoon(createOpenWaggleMcpExtensions(input))).resolves.toBe('waiting')
+    // Only a URL server signs in, so only one waits for the old sign-ins' keychain read.
+    expect(mocks.signIns).not.toHaveBeenCalled()
+    expect(mocks.shell).toHaveBeenCalled()
+  })
+
+  it('waits for old sign-ins when a URL server is on', async () => {
+    mocks.servers = [
+      { name: 'docs', config: { command: 'docs-mcp' } },
+      { name: 'remote', config: { url: 'https://mcp.example.com' } },
+    ]
 
     await expect(settledSoon(createOpenWaggleMcpExtensions(input))).resolves.toBe('waiting')
     expect(mocks.signIns).toHaveBeenCalledWith('/p')

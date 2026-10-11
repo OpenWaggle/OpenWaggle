@@ -258,12 +258,16 @@ export async function createOpenWaggleMcpExtensions(
     deferSecretsOfServersOff: true,
     secretStamp: mcpVaultSecretStamps(),
   })
-  // A server that is on connects in the background: its old sign-in first, so it is not reported
-  // signed out while the keychain is read, and the login shell's environment for its command and
-  // values. With no server on, a Run waits for neither (ADR 0051).
-  if (config.loaded.servers.some((server) => server.config.enabled !== false)) {
+  // A server that is on connects in the background with the login shell's environment for its
+  // command and values; a URL server, which can sign in, after its old sign-in moved too, so it is
+  // not reported signed out while the keychain is read. With no server on, a Run waits for neither
+  // (ADR 0051).
+  const on = config.loaded.servers.filter((server) => server.config.enabled !== false)
+  if (on.length > 0) {
     await Promise.all([
-      migrateOpenWaggleMcpSignInsOnce(input.projectPath),
+      on.some((server) => 'url' in server.config)
+        ? migrateOpenWaggleMcpSignInsOnce(input.projectPath)
+        : undefined,
       mcpShellEnvironmentReady(),
     ])
   }
