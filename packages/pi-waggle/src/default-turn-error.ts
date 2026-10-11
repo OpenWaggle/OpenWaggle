@@ -1,7 +1,7 @@
 import type * as PiAi from '@earendil-works/pi-ai'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 
-let piAi: Promise<typeof PiAi> | undefined
+type TurnErrorClassifier = (message: AssistantMessage) => boolean
 
 /**
  * Whether a later Waggle turn can recover from the error a turn ended with, by Pi's own rules:
@@ -10,11 +10,24 @@ let piAi: Promise<typeof PiAi> | undefined
  * overflow Pi could not compact fails every later turn too.
  *
  * pi-ai, which Pi supplies to extensions, loads on a turn's first judgement rather than with the
- * package: it is ESM-only, and pi-waggle's CommonJS build must still load without it.
+ * package: it is ESM-only, so pi-waggle's CommonJS build cannot require it. Where it cannot load,
+ * there is no classifier and every error counts as recoverable, as before; a failed load is not
+ * kept, so the next turn tries again.
  */
-export async function piWaggleTurnErrorClassifier() {
-  piAi ??= import('@earendil-works/pi-ai')
-  const { isContextOverflow, isRetryableAssistantError } = await piAi
-  return (message: AssistantMessage) =>
-    !isContextOverflow(message) && isRetryableAssistantError(message)
+export function createPiWaggleTurnErrorClassifier(
+  load: () => Promise<typeof PiAi> = () => import('@earendil-works/pi-ai'),
+) {
+  let classifier: TurnErrorClassifier | undefined
+  return async (): Promise<TurnErrorClassifier | undefined> => {
+    if (classifier) return classifier
+    try {
+      const { isContextOverflow, isRetryableAssistantError } = await load()
+      classifier = (message) => !isContextOverflow(message) && isRetryableAssistantError(message)
+      return classifier
+    } catch {
+      return undefined
+    }
+  }
 }
+
+export const piWaggleTurnErrorClassifier = createPiWaggleTurnErrorClassifier()

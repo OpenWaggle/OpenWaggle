@@ -170,12 +170,14 @@ function buildDefaultWaggleRunHandler(input: {
         const activeRun = input.getActiveRun()
         if (!activeRun) return { continue: false }
 
+        const isRecoverableError = await piWaggleTurnErrorClassifier()
         const evaluation = evaluatePiWaggleStopPolicy({
           config: activeRun.config,
           turnNumber: activeRun.turnNumber,
-          summary: summarizePiWaggleTurnMessages(messages, {
-            isRecoverableError: await piWaggleTurnErrorClassifier(),
-          }),
+          summary: summarizePiWaggleTurnMessages(
+            messages,
+            isRecoverableError ? { isRecoverableError } : {},
+          ),
           state: activeRun.policyState,
           agentLabel: turn.agent.label,
         })

@@ -40,6 +40,7 @@ import {
   type PackageSpec,
   validatePackedPackage,
 } from './package-smoke-tarballs'
+import { SMOKE_PROJECT_SCRIPTS, SMOKE_SCRIPTS_BEFORE_BROWSER } from './package-smoke-scripts'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
@@ -170,13 +171,7 @@ export function createSmokePackageJson(
   return {
     private: true,
     type: 'module',
-    scripts: {
-      typecheck: 'tsc -p tsconfig.json --noEmit',
-      'import:cjs': 'tsx require-smoke.ts',
-      'import:esm': 'tsx import-smoke.ts',
-      'browser:bundle': 'vite build --config vite.config.ts',
-      'pi:discovery': 'tsx pi-discovery-smoke.ts',
-    },
+    scripts: SMOKE_PROJECT_SCRIPTS,
     dependencies,
     devDependencies,
     overrides: packedDependencyOverrides,
@@ -269,10 +264,9 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
         ['install', ...packageManagerInstallArgs(packageManager.name)],
         smokeProjectRoot,
       )
-      await runCommand(packageManager.command, ['run', 'typecheck'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'import:esm'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'import:cjs'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'browser:bundle'], smokeProjectRoot)
+      for (const script of SMOKE_SCRIPTS_BEFORE_BROWSER) {
+        await runCommand(packageManager.command, ['run', script], smokeProjectRoot)
+      }
       const bundlePath = path.join(smokeProjectRoot, 'dist/browser-smoke.js')
       assertBrowserBundleContent(await fs.readFile(bundlePath, 'utf8'))
       if (environment.browserSmokeEnabled) {
