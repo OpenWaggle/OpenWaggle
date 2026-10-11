@@ -1,4 +1,6 @@
+import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentKernelMissingEntryError } from '../../../../ports/agent-kernel-service'
 import {
@@ -145,6 +147,19 @@ describe('Pi session operations', () => {
       sessionSnapshot: { activeNodeId: 'node-2', nodes: [] },
     })
     expect(operationMocks.withReadOnlyPiSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes no snapshot of a Session with a transcript whose Pi file cannot be found', async () => {
+    // At Host start, an empty snapshot would replace the transcript the Session shows.
+    const withTranscript = {
+      ...input(),
+      session: { ...input().session, messages: [fromPartial<Message>({ id: 'm1', role: 'user' })] },
+    }
+
+    await expect(getPiSessionSnapshot(withTranscript)).rejects.toThrow(
+      /^This Session's Pi session file /,
+    )
+    expect(operationMocks.projectPiSessionSnapshot).not.toHaveBeenCalled()
   })
 
   it("adds the Session's cost per answering model to its context usage", async () => {

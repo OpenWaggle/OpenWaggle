@@ -16,7 +16,7 @@ export class PiSessionFileUnavailableError extends Error {
 }
 
 /** Whether the projection holds what a Pi file held: a discovered Session, or any projected entry. */
-function hasProjectedEntries(session: SessionDetail) {
+export function hasProjectedEntries(session: SessionDetail) {
   return (
     session.piEntryNodeIdPrefix !== undefined ||
     (session.resumePosition?.piEntryCount ?? 0) > 0 ||

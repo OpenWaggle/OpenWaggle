@@ -13,7 +13,7 @@ import {
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
 import { projectWrittenFork, type WrittenFork, writeForkBeforeItStarts } from './fork-files'
-import { missingPiSessionFileError } from './missing-session-file'
+import { hasProjectedEntries, missingPiSessionFileError } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
@@ -85,6 +85,10 @@ export async function getPiSessionSnapshot(
     input.session,
     resolveSessionWorkingPath(input.session),
   )
+  // Without its file, the snapshot would be empty and replace the transcript the Session shows.
+  if (!sessionManager.getSessionFile() && hasProjectedEntries(input.session)) {
+    throw missingPiSessionFileError(input.session)
+  }
   return {
     piSessionId: sessionManager.getSessionId(),
     // An in-memory manager has no file of its own; it read the Session's.
