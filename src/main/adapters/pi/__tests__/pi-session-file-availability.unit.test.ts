@@ -17,7 +17,7 @@ const files = createPiSessionFiles()
 async function availability(file: string) {
   return {
     deleted: await Effect.runPromise(files.isDeleted(file)),
-    unavailable: await Effect.runPromise(files.isUnavailable(file)),
+    unavailable: await Effect.runPromise(files.unavailability(file)),
   }
 }
 
@@ -34,14 +34,14 @@ describe('A Pi session file', () => {
   it('is deleted when it is gone from its folder', async () => {
     expect(await availability(path.join(root, 'gone.jsonl'))).toEqual({
       deleted: true,
-      unavailable: false,
+      unavailable: undefined,
     })
   })
 
   it('is unavailable when its folder is gone', async () => {
     expect(await availability(path.join(root, 'away', 'file.jsonl'))).toEqual({
       deleted: false,
-      unavailable: true,
+      unavailable: 'folder',
     })
   })
 
@@ -49,7 +49,7 @@ describe('A Pi session file', () => {
     const link = path.join(root, 'linked.jsonl')
     await symlink(path.join(root, 'unmounted', 'file.jsonl'), link)
 
-    expect(await availability(link)).toEqual({ deleted: false, unavailable: true })
+    expect(await availability(link)).toEqual({ deleted: false, unavailable: 'file' })
   })
 
   it.skipIf(process.getuid?.() === 0)('is unavailable in a folder it may not read', async () => {
@@ -60,14 +60,22 @@ describe('A Pi session file', () => {
 
     expect(await availability(path.join(locked, 'file.jsonl'))).toEqual({
       deleted: false,
-      unavailable: true,
+      unavailable: 'file',
     })
+  })
+
+  it.skipIf(process.getuid?.() === 0)('is unavailable when it may not be read itself', async () => {
+    const file = path.join(root, 'unreadable.jsonl')
+    await writeFile(file, '')
+    await chmod(file, 0o000)
+
+    expect(await availability(file)).toEqual({ deleted: false, unavailable: 'file' })
   })
 
   it('is neither when it is there', async () => {
     const file = path.join(root, 'here.jsonl')
     await writeFile(file, '')
 
-    expect(await availability(file)).toEqual({ deleted: false, unavailable: false })
+    expect(await availability(file)).toEqual({ deleted: false, unavailable: undefined })
   })
 })

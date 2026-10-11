@@ -1,5 +1,6 @@
 import {
   deletedPiSessionFileMessage,
+  type PiSessionFileUnavailability,
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import { SessionId } from '@shared/types/brand'
@@ -69,8 +70,8 @@ export class DeletedPiSessionFileError extends Error {
  * not connected. The Session stays, and its Runs are refused until the folder is back.
  */
 export class UnavailablePiSessionFileError extends Error {
-  constructor(piSessionFile: string) {
-    super(unavailablePiSessionFileMessage(piSessionFile))
+  constructor(piSessionFile: string, unavailability: PiSessionFileUnavailability) {
+    super(unavailablePiSessionFileMessage(piSessionFile, unavailability))
     this.name = 'UnavailablePiSessionFileError'
   }
 }
@@ -174,7 +175,7 @@ function deletedPiSessionFile(sessionId: SessionId) {
     if (!state?.piSessionFile) return undefined
     if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return undefined
     const deleted = yield* files.value.isDeleted(state.piSessionFile)
-    const unavailable = !deleted && (yield* files.value.isUnavailable(state.piSessionFile))
+    const unavailable = deleted ? undefined : yield* files.value.unavailability(state.piSessionFile)
     if (!deleted && !unavailable) return undefined
     return {
       file: state.piSessionFile,
@@ -211,7 +212,9 @@ export function withDeletedPiSessionFileNotice(detail: SessionDetail | null) {
 }
 
 function refusedRunError(sessionId: SessionId, deleted: MissingPiSessionFile) {
-  if (deleted.unavailable) return Effect.succeed(new UnavailablePiSessionFileError(deleted.file))
+  if (deleted.unavailable) {
+    return Effect.succeed(new UnavailablePiSessionFileError(deleted.file, deleted.unavailable))
+  }
   return deleted.repository.deletionRefusal(sessionId).pipe(
     Effect.orElseSucceed(() => undefined),
     Effect.flatMap((refusal) => (refusal ? namedDependency(refusal) : Effect.succeed(undefined))),

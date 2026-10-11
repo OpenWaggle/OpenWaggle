@@ -6,7 +6,11 @@ import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger } from './constants'
-import { assertNoPiSessionFileToReplace, warnIfTranscriptLost } from './missing-session-file'
+import {
+  assertNoPiSessionFileToReplace,
+  isReadablePiSessionFile,
+  warnIfTranscriptLost,
+} from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { newPiSessionDirectory, startRecordedPiSessionFile } from './recorded-session-file'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
@@ -141,11 +145,11 @@ function leafContinuesThrough(sessionManager: SessionManager, entryId: string) {
 function piSessionFilesIn(directory: string, piSessionId: string) {
   try {
     // Exact id match: Pi allows `_` in session ids, so `<time>_review_<id>.jsonl` also ends with
-    // `_<id>.jsonl` but belongs to another Pi session. A link to a file out of reach is skipped.
+    // `_<id>.jsonl` but belongs to another Pi session. A file that may not be read is skipped.
     return readdirSync(directory)
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
-      .filter((file) => existsSync(file))
+      .filter(isReadablePiSessionFile)
   } catch (error) {
     if (!(isRecord(error) && error.code === 'ENOENT')) {
       logger.warn('Could not list a Pi session directory', {
@@ -231,20 +235,16 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
 }
 
 /**
- * Finds the Pi file a Session's transcript lives in when the recorded path does not exist.
- *
- * The recorded path is only a hint until the first run settles. Preparation records the file of
- * a manager it creates in the opened checkout, but Pi writes a file lazily, on the first assistant
- * message, and the first run opens its own manager in the run directory: for a worktree Session
- * that is a different Pi session directory, and Pi names the file by the time it was created. The
- * file the run writes is only recorded when the run's snapshot is persisted. A Host that stops
- * during that first run, or a run whose snapshot is not saved, leaves the Session pointing at a
- * file that was never written while its transcript sits in another file with the same Pi session
- * id. Starting a fresh manager then silently drops the whole conversation, so look for that file
- * first, with {@link findPiSessionFiles}.
+ * Finds the Pi file a Session's transcript lives in, which may be another than the recorded one:
+ * an earlier first run wrote its own file, by Pi session id, in the run directory's Pi folder, and
+ * a Host that stopped before the run's snapshot was saved left the Session pointing at a file that
+ * was never written. Starting a fresh manager then silently drops the whole conversation, so look
+ * for that file first, with {@link findPiSessionFiles}. Only a file that may be read is found.
  */
 export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory: string) {
-  if (session.piSessionFile && existsSync(session.piSessionFile)) return session.piSessionFile
+  if (session.piSessionFile && isReadablePiSessionFile(session.piSessionFile)) {
+    return session.piSessionFile
+  }
   return findPiSessionFiles(session, runDirectory)[0]
 }
 

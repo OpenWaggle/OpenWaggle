@@ -1,4 +1,5 @@
-import { lstat, readFile, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, lstat, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import {
   type FileEntry,
@@ -8,6 +9,7 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
+import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
 import { Effect, Layer } from 'effect'
 import {
   type PiSessionFileFingerprint,
@@ -30,27 +32,31 @@ function errorCode(cause: unknown) {
 }
 
 /**
- * Whether a Pi file is there, deleted, or out of reach. Deleted: nothing is at its path, in a
- * folder that is there. Out of reach: its folder is missing, as on a drive that is not connected
- * or one that was moved; it is a link whose target is missing; or it may not be read. A file out
- * of reach is never taken as a deletion, which would remove a discovered Session.
+ * Whether a Pi file is there, deleted, or out of reach, and why. Deleted: nothing is at its path,
+ * in a folder that is there. Out of reach: its folder is missing, as on a drive that is not
+ * connected or one that was moved (`folder`); or it is a link whose target is missing, or it may
+ * not be read (`file`). A file out of reach is never taken as a deletion, which would remove a
+ * discovered Session.
  */
-async function fileAvailability(file: string): Promise<'present' | 'deleted' | 'unavailable'> {
+async function fileAvailability(
+  file: string,
+): Promise<'present' | 'deleted' | PiSessionFileUnavailability> {
   try {
     await stat(file)
+    await access(file, constants.R_OK)
     return 'present'
   } catch (cause) {
-    if (errorCode(cause) !== 'ENOENT') return 'unavailable'
+    if (errorCode(cause) !== 'ENOENT') return 'file'
   }
   // `stat` follows a link; `lstat` finds a link whose target is gone.
   const entry = await lstat(file).then(
     () => true,
     () => false,
   )
-  if (entry) return 'unavailable'
+  if (entry) return 'file'
   return stat(path.dirname(file)).then(
-    (folder) => (folder.isDirectory() ? 'deleted' : 'unavailable'),
-    () => 'unavailable',
+    (folder) => (folder.isDirectory() ? 'deleted' : 'folder'),
+    () => 'folder',
   )
 }
 
@@ -185,9 +191,11 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
       Effect.promise(() => fileAvailability(file)).pipe(
         Effect.map((availability) => availability === 'deleted'),
       ),
-    isUnavailable: (file) =>
+    unavailability: (file) =>
       Effect.promise(() => fileAvailability(file)).pipe(
-        Effect.map((availability) => availability === 'unavailable'),
+        Effect.map((availability) =>
+          availability === 'folder' || availability === 'file' ? availability : undefined,
+        ),
       ),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape

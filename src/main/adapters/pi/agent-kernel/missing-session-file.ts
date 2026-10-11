@@ -1,8 +1,9 @@
-import { existsSync, lstatSync } from 'node:fs'
+import { accessSync, constants, existsSync, lstatSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
   deletedCreatedPiSessionFileMessage,
   deletedPiSessionFileMessage,
+  type PiSessionFileUnavailability,
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
@@ -27,17 +28,29 @@ export function hasProjectedEntries(session: SessionDetail) {
 }
 
 /**
- * Whether a Pi file that could not be found is out of reach rather than deleted: its folder is
- * missing, it is a link whose target is missing, or it may not be read.
+ * Why a Pi file that could not be found or read is out of reach rather than deleted: its folder
+ * is missing (`folder`), or it is a link whose target is missing, or it may not be read (`file`).
+ * Undefined when it was deleted from a folder that is there.
  */
-function outOfReach(file: string) {
+function unavailabilityOf(file: string): PiSessionFileUnavailability | undefined {
   try {
     lstatSync(file)
-    // Something is there, which `existsSync` could not follow or read.
-    return true
+    // Something is there that could not be followed or read.
+    return 'file'
   } catch (cause) {
     const code = isRecord(cause) ? cause.code : undefined
-    return code !== 'ENOENT' || !existsSync(dirname(file))
+    if (code !== 'ENOENT') return 'file'
+    return existsSync(dirname(file)) ? undefined : 'folder'
+  }
+}
+
+/** Whether a Pi file is there and may be read: one that may not is out of reach, not opened. */
+export function isReadablePiSessionFile(file: string) {
+  try {
+    accessSync(file, constants.R_OK)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -51,8 +64,9 @@ export type PiSessionFileAction = 'forking' | 'compacting' | 'going to another b
  */
 export function missingPiSessionFileError(session: SessionDetail, action?: PiSessionFileAction) {
   const file = session.piSessionFile?.trim() || `the Pi session file of ${String(session.id)}`
-  if (outOfReach(file)) {
-    return new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
+  const unavailability = unavailabilityOf(file)
+  if (unavailability) {
+    return new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file, unavailability))
   }
   return new PiSessionFileUnavailableError(
     session.piEntryNodeIdPrefix === undefined
@@ -75,14 +89,12 @@ export function missingPiSessionFileError(session: SessionDetail, action?: PiSes
 export function assertNoPiSessionFileToReplace(session: SessionDetail) {
   const file = session.piSessionFile?.trim()
   if (!file || !hasProjectedEntries(session)) return
-  const folderMissing = outOfReach(file)
-  if (folderMissing) {
-    throw new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file))
+  const unavailability = unavailabilityOf(file)
+  if (unavailability) {
+    throw new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file, unavailability))
   }
   if (session.piEntryNodeIdPrefix !== undefined) {
-    throw new PiSessionFileUnavailableError(
-      folderMissing ? unavailablePiSessionFileMessage(file) : deletedPiSessionFileMessage(file),
-    )
+    throw new PiSessionFileUnavailableError(deletedPiSessionFileMessage(file))
   }
 }
 

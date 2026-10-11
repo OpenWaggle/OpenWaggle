@@ -1,3 +1,4 @@
+import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
 import type { SessionId } from '@shared/types/brand'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
@@ -88,8 +89,13 @@ export interface PiSessionFilesShape {
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
   /** The file was deleted: it is missing while its folder is there. */
   readonly isDeleted: (piSessionFile: string) => Effect.Effect<boolean>
-  /** The file is out of reach: it and its folder are missing, as on a drive not connected. */
-  readonly isUnavailable: (piSessionFile: string) => Effect.Effect<boolean>
+  /**
+   * Why the file is out of reach, undefined while it is not: its folder is missing, as on a
+   * drive not connected (`folder`), or it may not be read or links to nothing (`file`).
+   */
+  readonly unavailability: (
+    piSessionFile: string,
+  ) => Effect.Effect<PiSessionFileUnavailability | undefined>
   /**
    * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0051).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.
