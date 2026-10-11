@@ -48,28 +48,28 @@ If you are importing the package APIs into another project instead of installing
 ### npm
 
 ```bash
-npm install @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
+npm install @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
 ### pnpm
 
 ```bash
-pnpm add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
+pnpm add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
 ### Yarn
 
 ```bash
-yarn add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
+yarn add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
 ### Bun
 
 ```bash
-bun add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
+bun add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
-`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
+`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 
