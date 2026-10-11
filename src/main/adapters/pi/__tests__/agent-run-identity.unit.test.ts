@@ -27,6 +27,19 @@ function stored(content: string, messages: readonly ContextMessage[]) {
   })
 }
 
+/** The branch entry Pi stores for a message the model saw. */
+function entry(message: ContextMessage) {
+  return message.role === 'custom'
+    ? fromPartial<SessionEntry>({
+        type: 'custom_message',
+        customType: message.customType,
+        content: message.content,
+        display: message.display,
+        timestamp: '',
+      })
+    : fromPartial<SessionEntry>({ type: 'message', message })
+}
+
 const contents = (messages: readonly ContextMessage[] | undefined) =>
   messages?.map((message) => ('content' in message ? message.content : undefined))
 
@@ -41,7 +54,9 @@ describe('the Run identity of a turn an extension command starts', () => {
       contents(
         withRunIdentities(
           [...history, command(3)],
-          [stored('run-command', [...history, command(3)])],
+          [...history, command(3)]
+            .map(entry)
+            .concat(stored('run-command', [...history, command(3)])),
         ),
       ),
     ).toEqual(['Audit it', [], 'Command: go', 'run-command'])
@@ -52,7 +67,9 @@ describe('the Run identity of a turn an extension command starts', () => {
     // Reloaded from the file, a custom message carries its entry's time.
     const reloaded = [command(7), answer(8), user('Next', 9)]
 
-    expect(contents(withRunIdentities(reloaded, [stored('run-command', live)]))).toEqual([
+    const branch = [entry(command(3)), stored('run-command', live), entry(user('Next', 9))]
+
+    expect(contents(withRunIdentities(reloaded, branch))).toEqual([
       'Command: go',
       'run-command',
       [],
@@ -66,7 +83,7 @@ describe('the Run identity of a turn an extension command starts', () => {
 
     const result = withRunIdentities(
       [command(3), answer(4), command(5), answer(6)],
-      [stored('run-1', first), stored('run-2', second)],
+      [entry(command(3)), stored('run-1', first), entry(command(5)), stored('run-2', second)],
     )
 
     expect(contents(result)).toEqual(['Command: go', 'run-1', [], 'Command: go', 'run-2', []])
@@ -77,7 +94,13 @@ describe('the Run identity of a turn an extension command starts', () => {
     // (OpenWaggle) sent it again.
     const run3 = [user('U1', 1), answer(2), command(3), answer(4), command(5)]
 
-    const result = withRunIdentities(run3, [stored('r1', [user('U1', 1)]), stored('r3', run3)])
+    const result = withRunIdentities(run3, [
+      entry(user('U1', 1)),
+      stored('r1', [user('U1', 1)]),
+      entry(command(3)),
+      entry(command(5)),
+      stored('r3', run3),
+    ])
 
     expect(contents(result)).toEqual(['U1', 'r1', [], 'Command: go', [], 'Command: go', 'r3'])
   })
@@ -90,8 +113,24 @@ describe('the Run identity of a turn an extension command starts', () => {
     })
     const runD = [summary, user('kept', 60), answer(61), command(70)]
 
-    const result = withRunIdentities(runD, [stored('rA', [command(3)]), stored('rD', runD)])
+    const result = withRunIdentities(runD, [
+      entry(command(3)),
+      stored('rA', [command(3)]),
+      entry(user('kept', 60)),
+      entry(command(70)),
+      stored('rD', runD),
+    ])
 
     expect(contents(result)).toEqual([undefined, 'kept', [], 'Command: go', 'rD'])
+  })
+
+  it('keeps an older identity on its own command when a later Run without one sent the same text', () => {
+    // An OpenWaggle Run sent the command; then the pi CLI sent it again, with no identity.
+    const result = withRunIdentities(
+      [command(3), answer(4), command(5), answer(6)],
+      [entry(command(3)), stored('rA', [command(3)]), entry(command(5))],
+    )
+
+    expect(contents(result)).toEqual(['Command: go', 'rA', [], 'Command: go', []])
   })
 })

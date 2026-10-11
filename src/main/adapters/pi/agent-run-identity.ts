@@ -123,30 +123,64 @@ function runIdentityMessage(identity: RunIdentityEntryData): CustomMessage {
   }
 }
 
+/** The message a branch entry gives the model, when it is one an identity can follow. */
+function entryMessage(entry: SessionEntry): ContextMessage | undefined {
+  if (entry.type === 'message') return entry.message
+  if (entry.type !== 'custom_message') return undefined
+  // Only the custom type and content name a custom prompt (see `isPrompt`).
+  return {
+    role: 'custom',
+    customType: entry.customType,
+    content: entry.content,
+    display: entry.display,
+    timestamp: 0,
+  }
+}
+
+/**
+ * Each stored Run identity with how many later branch entries sent the same prompt again. The
+ * identity's prompt is that many matching messages before the last one.
+ */
+function identitiesWithLaterPrompts(branch: readonly SessionEntry[]) {
+  const identities: { identity: RunIdentityEntryData; laterPrompts: number }[] = []
+  for (const entry of branch) {
+    const identity = storedRunIdentity(entry)
+    if (identity) {
+      identities.push({ identity, laterPrompts: 0 })
+      continue
+    }
+    const message = entryMessage(entry)
+    if (!message) continue
+    for (const stored of identities) {
+      if (isPrompt(message, stored.identity.prompt)) stored.laterPrompts += 1
+    }
+  }
+  return identities
+}
+
 /**
  * The model's messages with each stored Run identity right after its Run's prompt. That is where
  * Pi put the context message it used to be, so an earlier Run's request stays a prefix of the
- * next one and keeps its prompt cache. A Run whose prompt was compacted away sends no identity.
- * Each Run started after the one before, so identities are placed newest first, each on the
- * latest matching message before the next Run's: the current Run's identity takes the current
- * message even when an earlier one has the same text, and an older identity whose message was
- * compacted away is dropped instead of taking a later Run's.
+ * next one and keeps its prompt cache. The prompt is found by branch order: a Run's identity
+ * follows its prompt's entry, so the prompts with the same content sent after it (by a later
+ * Run, with or without an identity, such as a pi CLI turn) say which matching message is its.
+ * Compaction removes the oldest messages first, so counting from the last match still holds; an
+ * identity whose prompt was compacted away is dropped instead of taking a later Run's.
  */
 export function withRunIdentities(
   messages: readonly ContextMessage[],
   branch: readonly SessionEntry[],
 ) {
-  const identities = branch.flatMap((entry) => storedRunIdentity(entry) ?? [])
+  const identities = identitiesWithLaterPrompts(branch)
   if (identities.length === 0) return undefined
-  const placed = new Map<number, readonly CustomMessage[]>()
-  let searchBelow = messages.length
-  for (const identity of identities.toReversed()) {
-    const prompt = messages.findLastIndex(
-      (message, index) => index < searchBelow && isPrompt(message, identity.prompt),
+  const placed = new Map<number, CustomMessage[]>()
+  for (const { identity, laterPrompts } of identities) {
+    const matches = messages.flatMap((message, index) =>
+      isPrompt(message, identity.prompt) ? [index] : [],
     )
-    if (prompt < 0) continue
-    placed.set(prompt, [runIdentityMessage(identity)])
-    searchBelow = prompt
+    const prompt = matches[matches.length - 1 - laterPrompts]
+    if (prompt === undefined) continue
+    placed.set(prompt, [...(placed.get(prompt) ?? []), runIdentityMessage(identity)])
   }
   if (placed.size === 0) return undefined
   return messages.flatMap((message, index) => [message, ...(placed.get(index) ?? [])])
