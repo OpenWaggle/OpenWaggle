@@ -14,6 +14,7 @@ import { ChangedFilesCard } from './ChangedFilesCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionTimelineRow } from './CompactionTimelineRow'
+import { FailedTurnNotice } from './FailedTurnNotice'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
 import { TurnFoldRow } from './TurnFoldRow'
@@ -95,18 +96,6 @@ function MessageRow({
         />
       ) : null}
     </div>
-  )
-}
-
-/** The error a failed Waggle turn ended with, in place of an empty turn. */
-function FailedTurnNotice({ error }: { readonly error: string }) {
-  return (
-    <p
-      role="alert"
-      className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
-    >
-      This turn failed: {error}
-    </p>
   )
 }
 

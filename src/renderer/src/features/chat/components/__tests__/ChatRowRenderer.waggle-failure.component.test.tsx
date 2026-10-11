@@ -101,3 +101,38 @@ describe.each([
     expect(screen.getByRole('alert')).toHaveTextContent(`This turn failed: ${ERROR}`)
   })
 })
+
+describe('a failed Waggle turn whose provider answered with JSON', () => {
+  it('shows the provider message and keeps the raw error under its details', () => {
+    const raw = '401: {"message":"Incorrect API key provided","code":"invalid_api_key"}'
+    const messages: readonly UIMessage[] = [
+      USER,
+      { id: 'critic-1', role: 'assistant', parts: [], metadata: { error: raw } },
+    ]
+    const rows = buildChatRows({
+      messages: [...messages],
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: 'Q',
+      dismissedError: null,
+      sessionId: 'session-1',
+      waggleMetadataLookup: { 'critic-1': CRITIC },
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+    render(
+      <div>
+        {rows.map((row) => (
+          <ChatRowRenderer
+            key={rowKey(row)}
+            row={row}
+            sessionId={SessionId('session-1')}
+            onDismissError={vi.fn()}
+          />
+        ))}
+      </div>,
+    )
+
+    expect(screen.getByText('This turn failed: Incorrect API key provided')).toBeVisible()
+    expect(screen.getByText(raw).closest('details')).not.toBeNull()
+  })
+})
