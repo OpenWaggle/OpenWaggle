@@ -162,6 +162,23 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     })
   })
 
+  it("clamps the thinking level the message set to the Pi file's model", async () => {
+    await selectDefaultModel()
+    const cli = createPiCliSession(fixture.project, 'First question')
+    // A model without reasoning, which has only `off`.
+    SessionManager.open(cli.file).appendModelChange('local', 'fake-model')
+    agePiFile(cli.file)
+    const sessionId = SessionId(await discoverOne())
+
+    const result = await admittedSessionControlRun(sessionId, 'Go on', 'high')
+
+    expect(result.terminalStatus).toBe('completed')
+    expect(await sessionDetail(sessionId)).toMatchObject({
+      executionModel: FAKE_PROVIDER_MODEL,
+      executionThinkingLevel: 'off',
+    })
+  })
+
   it("runs with the Pi file's model and thinking level, and writes no others into it", async () => {
     await selectDefaultModel()
     const cli = createPiCliSession(fixture.project, 'First question')
