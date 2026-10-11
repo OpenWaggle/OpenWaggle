@@ -48,12 +48,27 @@ function turnMetadataForPromptParent(
     : null
 }
 
+/** Entries the model never sees as a message, which a turn's response can follow. */
+const UNSEEN_ENTRY_TYPES: ReadonlySet<SessionEntry['type']> = new Set<SessionEntry['type']>([
+  // A context edit drops an attempt Pi retried.
+  'context_edit',
+  // Such as the Run identity OpenWaggle stores before a Run's first response.
+  'custom',
+  // Overflow compaction in the middle of a turn.
+  'compaction',
+  'model_change',
+  'thinking_level_change',
+  'label',
+  'session_info',
+  'usage',
+])
+
 /**
  * An entry a turn's later response can follow: an earlier response of the turn (a tool call or a
- * failed attempt), a tool result, or the context edit that drops an attempt Pi retried.
+ * failed attempt), a tool result, or an entry the model does not see.
  */
 function continuesTurn(entry: SessionEntry) {
-  if (entry.type === 'context_edit') return true
+  if (UNSEEN_ENTRY_TYPES.has(entry.type)) return true
   return (
     entry.type === 'message' &&
     (entry.message.role === 'assistant' || entry.message.role === 'toolResult')

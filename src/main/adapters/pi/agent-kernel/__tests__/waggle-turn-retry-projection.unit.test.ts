@@ -154,4 +154,50 @@ describe('the projection of a Waggle turn', () => {
       waggle: { agentLabel: 'Reviewer' },
     })
   })
+
+  it('keeps the answer after a mid-turn overflow compaction in its turn', () => {
+    const metadata = hydrated(
+      [
+        turn,
+        assistant('overflow', 'turn-1', {
+          stopReason: 'error',
+          errorMessage: 'prompt is too long: 210000 tokens > 200000 maximum',
+        }),
+        fromPartial<SessionEntry>({
+          type: 'compaction',
+          id: 'compaction',
+          parentId: 'overflow',
+          timestamp,
+          summary: 'Earlier work',
+          firstKeptEntryId: 'turn-1',
+          tokensBefore: 210_000,
+        }),
+        assistant('answer', 'compaction', {
+          content: [{ type: 'text', text: 'Compacted answer' }],
+        }),
+      ],
+      'answer',
+    )
+
+    expect(metadata.get('answer')?.waggle).toMatchObject({ agentLabel: 'Reviewer', turnNumber: 1 })
+  })
+
+  it.each([
+    fromPartial<SessionEntry>({ type: 'model_change', provider: 'p', modelId: 'm' }),
+    fromPartial<SessionEntry>({ type: 'thinking_level_change', thinkingLevel: 'high' }),
+    fromPartial<SessionEntry>({ type: 'custom', customType: 'openwaggle-run-identity', data: {} }),
+    fromPartial<SessionEntry>({ type: 'label', targetId: 'turn-1', label: 'x' }),
+    fromPartial<SessionEntry>({ type: 'session_info', name: 'Named' }),
+  ])('keeps a response in its turn past a $type entry the model does not see', (between) => {
+    const metadata = hydrated(
+      [
+        turn,
+        { ...between, id: 'between', parentId: 'turn-1', timestamp },
+        assistant('answer', 'between', { content: [{ type: 'text', text: 'Answer' }] }),
+      ],
+      'answer',
+    )
+
+    expect(metadata.get('answer')?.waggle).toMatchObject({ agentLabel: 'Reviewer' })
+  })
 })
