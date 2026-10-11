@@ -30,6 +30,7 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
         ['off', 'MCP server "off": MCP secret "MISSING" was not found.'],
       ]),
       merged: { servers: [{ name: 'off', config: { command: 'x', enabled: false } }], errors: [] },
+      connectionConfigs: new Map(),
     }
   },
 }))

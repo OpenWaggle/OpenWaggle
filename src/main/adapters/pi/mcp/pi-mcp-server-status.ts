@@ -6,8 +6,20 @@ import type {
 } from '@shared/types/mcp-configuration'
 import type { McpConfigurationScopeInput } from '../../../ports/mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { checkMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
+import {
+  checkMcpVaultSecret,
+  mcpVaultSecretStamps,
+} from '../../mcp/encrypted-mcp-secret-vault-service'
+import {
+  type McpConnectionPool,
+  mcpConnectionFingerprint,
+  mcpServerIdentity,
+} from '../../mcp/pool/mcp-connection-pool-api'
+import {
+  configuredMcpServerIdentity,
+  forgetStaleMcpServerStates,
+  type McpServerSighting,
+} from './mcp-server-status-freshness'
 import { knownMcpServerState, type McpKnownServerState } from './mcp-server-status-registry'
 import { mcpSignedIn } from './pi-mcp-server-oauth'
 
@@ -75,6 +87,21 @@ function serverStatus(entry: McpServerEntry, pool: McpConnectionPool): McpServer
   return { ...base, source: 'not-checked' }
 }
 
+/** How each server is now, so a state from before it was switched or changed is not shown. */
+function sightings(config: Awaited<ReturnType<typeof loadMcpRuntimeConfig>>) {
+  return config.merged.servers.map((server): McpServerSighting => {
+    const connection = config.connectionConfigs.get(server.name)
+    return {
+      name: server.name,
+      identity: configuredMcpServerIdentity(server.name, server.config),
+      enabled: server.config.enabled !== false,
+      connection: connection
+        ? mcpConnectionFingerprint({ config: connection, transport: server.transport, cwd: '' })
+        : null,
+    }
+  })
+}
+
 /**
  * Every configured server's state for Settings > MCP, read without connecting: a Session's warm
  * connection, otherwise the last check, otherwise not checked. It reads the files and the sign-in
@@ -90,7 +117,10 @@ export async function getMcpServerStatuses(
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
     resolveSecret: checkMcpVaultSecret,
+    // Stands for each secret by when it was saved, without decrypting it.
+    secretStamp: mcpVaultSecretStamps(),
   })
+  forgetStaleMcpServerStates(input.projectPath, sightings(config))
   const checkedAt = Date.now()
   return [
     ...config.loaded.servers.map((entry) => serverStatus(entry, pool)),

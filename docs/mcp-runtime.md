@@ -449,8 +449,17 @@ which starts no server and sends no request. For each configured server it repor
    (`adapters/pi/mcp/mcp-server-status-registry.ts`). `inspectServer` ("Check connection",
    `openwaggle mcp list`) records its result, and the connection hooks' `observeResult` records
    every `tools/list` result a Run receives. Tool exposure is applied from the current
-   configuration when read. Signing in or out forgets the server's entry.
-3. **`not-checked`**: nothing is known; the UI says "Not checked yet".
+   configuration when read. Signing in or out forgets the server's entry. So does a change that
+   makes it describe another server (`mcp-server-status-freshness.ts`): each state read notes, per
+   project, whether every server is on and its connection fingerprint (vault secrets as their
+   stamps), and every saved MCP change re-reads the on/off switches of the projects seen. A
+   server turned off or on, or whose connection changed (a secret saved again, say), loses a
+   state learned before that was seen; a check made since, such as Check connection after an
+   edit, is kept.
+3. **`not-checked`**: nothing is known; the UI says "Not checked yet". A server that is on but
+   reads a vault secret that is not saved is `not-checked` with `needsSecret`, and its row says
+   "Needs secret": Runs leave it out, so nothing connected or failed. Saving or deleting a secret
+   reads the states again.
 
 `mcp:inspect-server` connects outside any Session and runs only on **Check connection** and in the
 CLI's `list`. The state is in memory only, so it starts empty after the Host restarts.

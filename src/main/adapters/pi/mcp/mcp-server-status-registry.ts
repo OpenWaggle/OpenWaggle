@@ -110,6 +110,12 @@ export function forgetKnownMcpServerState(identity: string) {
   known.delete(identity)
 }
 
+/** Forgets a server's state if it was learned by `time`: one learned later may be current. */
+export function forgetKnownMcpServerStateLearnedBy(identity: string, time: number) {
+  const state = known.get(identity)
+  if (state && state.checkedAt <= time) known.delete(identity)
+}
+
 /** For tests: forgets every server. */
 export function forgetKnownMcpServerStates() {
   known.clear()
