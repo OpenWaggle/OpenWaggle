@@ -20,7 +20,7 @@ import { registerPiLiveRun } from './pi-live-run-registry'
 import { piResponseUsageInput } from './pi-response-usage'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import { createSessionListener } from './session-listener'
-import { captureTurnCheckpoint } from './turn-capture'
+import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
 import { createWaggleRunExtensions, type PiWaggleKernelRunInput } from './waggle-run-extensions'
 import {
@@ -283,6 +283,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     projectPath,
     runId: input.runId,
     startedAt,
+    ...piSessionFileOf(session),
   })
   return result
 }

@@ -21,7 +21,7 @@ import {
 } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { captureTurnCheckpoint } from './turn-capture'
+import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 
 function sessionDirectories(input: {
   readonly visualizationDirectory?: string
@@ -178,6 +178,7 @@ export async function runPiSession(
     projectPath,
     runId: input.runId,
     startedAt,
+    ...piSessionFileOf(session),
   })
 
   return result

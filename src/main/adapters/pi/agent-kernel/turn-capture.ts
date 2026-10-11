@@ -13,6 +13,7 @@ import {
   recordTurnCheckpoint,
 } from '../../../store/turn-checkpoints'
 import { DIFF_GIT_MAX_BUFFER, runGit } from '../../git/run-git'
+import { isPathInsideProject, physicalPath } from '../pi-session-project-paths'
 
 const logger = createLogger('turn-capture')
 const MAX_CHECKPOINTS_PER_SESSION = 100
@@ -31,12 +32,20 @@ export async function captureTurnCheckpoint(input: {
   readonly runId: string
   /** Epoch ms when the run started; persisted for fold duration labels (ADR 0034). */
   readonly startedAt: number
+  /** The Pi session file the Run wrote, when it is not yet the one the Session records. */
+  readonly piSessionFile?: string
 }): Promise<void> {
   try {
     const sessionId = SessionId(String(input.session.id))
     const snapshotRef = await createWorktreeSnapshot(input.projectPath)
     const previousRef = await getLatestSnapshotRef(sessionId)
-    const diff = await computeIncrementalDiff(input.projectPath, previousRef, snapshotRef)
+    const piSessionFiles = [input.piSessionFile, input.session.piSessionFile]
+    const diff = await computeIncrementalDiff(
+      input.projectPath,
+      previousRef,
+      snapshotRef,
+      ownPiSessionFolders(input.projectPath, piSessionFiles),
+    )
 
     // Anchor the snapshot so the next turn's diff base stays resolvable.
     if (snapshotRef) {
@@ -89,6 +98,43 @@ export async function deleteTurnCheckpointRefs(
         logger.warn('Failed to delete turn snapshot ref', { turnId, stderr: result.stderr })
       }
     }),
+  )
+}
+
+/**
+ * The folders, relative to the project, that hold the Session's own Pi session files, when a
+ * project keeps its Pi sessions inside it (`sessionDir: ".pi/sessions"`) without ignoring them.
+ * Pi writes there on every turn, which is not the agent's work, so the turn's changes leave them out.
+ */
+function ownPiSessionFolders(projectPath: string, files: readonly (string | undefined)[]) {
+  const project = physicalPath(projectPath)
+  const folders = files.flatMap((file) => {
+    if (!file?.trim()) return []
+    const folder = physicalPath(path.dirname(file))
+    if (!isPathInsideProject(folder, project) || folder === project) return []
+    return [path.relative(project, folder)]
+  })
+  return [...new Set(folders)]
+}
+
+/** The Pi session file a Run's session wrote, for `captureTurnCheckpoint`. */
+export function piSessionFileOf(session: { readonly sessionFile?: string | undefined }) {
+  const piSessionFile = session.sessionFile
+  return piSessionFile ? { piSessionFile } : {}
+}
+
+/** Test seam for a turn's diff, leaving out the folders of `piSessionFiles`. */
+export function turnDiffForTests(
+  projectPath: string,
+  previousRef: string | null,
+  currentRef: string | null,
+  piSessionFiles: readonly string[],
+) {
+  return computeIncrementalDiff(
+    projectPath,
+    previousRef,
+    currentRef,
+    ownPiSessionFolders(projectPath, piSessionFiles),
   )
 }
 
@@ -188,6 +234,7 @@ async function computeIncrementalDiff(
   projectPath: string,
   previousRef: string | null,
   currentRef: string | null,
+  excludedFolders: readonly string[] = [],
 ): Promise<string> {
   const from = (await resolvableRef(projectPath, previousRef)) ?? 'HEAD'
   const to = currentRef ?? 'HEAD'
@@ -195,7 +242,11 @@ async function computeIncrementalDiff(
   const result = await runGit(
     projectPath,
     // Paths are parsed out of this diff, so git must not C-quote them.
-    ['-c', 'core.quotePath=false', 'diff', '--patch', '--find-renames', '--no-ext-diff', from, to],
+    [
+      ...['-c', 'core.quotePath=false', 'diff', '--patch', '--find-renames', '--no-ext-diff'],
+      ...[from, to, '--', ':/'],
+      ...excludedFolders.map((folder) => `:(exclude,literal)${folder}`),
+    ],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (result.code !== 0) {
