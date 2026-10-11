@@ -10,8 +10,15 @@ import { isSessionModelRunnable } from './session-model-availability'
 
 const logger = createLogger('agent-extension-commands')
 
-/** `/name` at the start of a message: the command a message invokes, if it invokes one. */
-const SLASH_INVOCATION = /^\/(\S+)/
+/**
+ * The command a message invokes, if any, parsed as Pi's `prompt()` does: the message starts with
+ * `/`, and the name runs to the first space.
+ */
+function invokedCommandName(text: string) {
+  if (!text.startsWith('/')) return undefined
+  const space = text.indexOf(' ')
+  return space === -1 ? text.slice(1) : text.slice(1, space)
+}
 
 /** The commands a Session's Pi extensions register, with the Session's extensions and skills. */
 function sessionExtensionCommands(session: SessionDetail, model: SupportedModelId) {
@@ -54,7 +61,7 @@ export function invokesExtensionCommand(input: {
   readonly model: SupportedModelId
   readonly text: string
 }) {
-  const name = SLASH_INVOCATION.exec(input.text.trim())?.[1]
+  const name = invokedCommandName(input.text)
   if (name === undefined) return Effect.succeed(false)
   return sessionExtensionCommands(input.session, input.model).pipe(
     Effect.map((commands) => commands.some((command) => command.name === name)),

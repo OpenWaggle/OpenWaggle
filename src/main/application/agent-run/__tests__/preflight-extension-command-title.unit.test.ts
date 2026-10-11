@@ -55,7 +55,11 @@ describe("a Session's first message and its title", () => {
     expect(titled).toBe(false)
   })
 
-  it.each(['Hello there', '/not-a-command please'])('is titled from %s', async (text) => {
-    expect((await preflightTitle(text)).titled).toBe(true)
-  })
+  // Pi runs a command only from a message that starts with it, as typed.
+  it.each(['Hello there', '/not-a-command please', ' /qa-hello world', '/qa-hello\tworld'])(
+    'is titled from %j',
+    async (text) => {
+      expect((await preflightTitle(text)).titled).toBe(true)
+    },
+  )
 })
