@@ -61,12 +61,20 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
       connectionConfigs: new Map([['docs', { ...config, env: { TOKEN: secretStamp } }]]),
     }
   },
-  loadMcpMergedConfig: (roots: { projectPath: string | null }) => ({
-    servers: server(roots.projectPath).removed
-      ? []
-      : [{ name: 'docs', config: { ...DOCS, enabled: server(roots.projectPath).enabled } }],
-    errors: [],
-  }),
+  loadMcpMergedConfig: (roots: { projectPath: string | null }) => {
+    const { removed, enabled, unreadable, invalidSibling, rejected } = server(roots.projectPath)
+    const docs = [{ name: 'docs', config: { ...DOCS, enabled } }]
+    if (unreadable) {
+      return { servers: [], errors: ['mcp.json: Unexpected end of JSON input'], incomplete: true }
+    }
+    if (rejected) {
+      return { servers: [], errors: ['mcp.json: server "docs": comand'], rejectedNames: ['docs'] }
+    }
+    if (invalidSibling) {
+      return { servers: docs, errors: ['mcp.json: server "typo": comand'], rejectedNames: ['typo'] }
+    }
+    return { servers: removed ? [] : docs, errors: [] }
+  },
 }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 
@@ -196,5 +204,43 @@ describe("Settings' MCP server states after a change", () => {
     mocks.servers.delete('/p9')
 
     expect(await docsStatus('/p9')).toMatchObject({ source: 'last-check' })
+  })
+
+  describe('after a saved change, seen only through the change listener', () => {
+    it('keep it while a file cannot be read', async () => {
+      checkedConnected()
+      await docsStatus('/l7')
+
+      mocks.servers.set('/l7', { unreadable: true, enabled: false, secretStamp: 'TOKEN@1' })
+      forgetStatesOfSwitchedMcpServers()
+      mocks.servers.delete('/l7')
+
+      expect(await docsStatus('/l7')).toMatchObject({ source: 'last-check' })
+    })
+
+    it('forget it when it was switched, though another entry stays invalid', async () => {
+      const sibling = { invalidSibling: true, secretStamp: 'TOKEN@1' }
+      mocks.servers.set('/l8', { ...sibling, enabled: true })
+      checkedConnected()
+      await docsStatus('/l8')
+
+      mocks.servers.set('/l8', { ...sibling, enabled: false })
+      forgetStatesOfSwitchedMcpServers()
+      mocks.servers.set('/l8', { ...sibling, enabled: true })
+      forgetStatesOfSwitchedMcpServers()
+
+      expect(await docsStatus('/l8')).toEqual({ name: 'docs', source: 'not-checked' })
+    })
+
+    it('keep it while its own entry is invalid', async () => {
+      checkedConnected()
+      await docsStatus('/l9')
+
+      mocks.servers.set('/l9', { rejected: true, enabled: true, secretStamp: 'TOKEN@1' })
+      forgetStatesOfSwitchedMcpServers()
+      mocks.servers.delete('/l9')
+
+      expect(await docsStatus('/l9')).toMatchObject({ source: 'last-check' })
+    })
   })
 })

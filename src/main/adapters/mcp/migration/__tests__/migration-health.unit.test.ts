@@ -55,5 +55,7 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     expect(config.loaded.errors).toEqual([
       expect.stringContaining(`${globalFile} was not loaded: its one-time migration failed`),
     ])
+    // Its servers are unknown, not removed: the state read compares none of them.
+    expect(config.merged.incomplete).toBe(true)
   })
 })

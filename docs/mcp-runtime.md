@@ -459,10 +459,13 @@ which starts no server and sends no request. For each configured server it repor
    stamps), and every saved MCP change re-reads the on/off switches of the projects seen. A
    server turned off or on, or whose connection changed (a secret saved again, say), loses a
    state learned before that was seen; a check made since, such as Check connection after an
-   edit, is kept. Nothing is compared while the merge is `incomplete` (a file that cannot be
-   read, or one left out after a failed migration), since its servers would look removed; an
-   invalid entry (`rejectedNames`, a `comand` typo, say) leaves that server as last seen and does
-   not stop the others being compared.
+   edit, is kept. Nothing is compared while the merge is `incomplete`, since its servers would
+   look removed: for both the state read and the change listener, a file that cannot be read;
+   for the state read also a file left out after a failed migration (it loads what a Run
+   connects with, `loadMcpRuntimeConfig`; the listener reads the files as they are,
+   `loadMcpMergedConfig`, so it still sees that file's switches). An invalid entry
+   (`rejectedNames`, a `comand` typo, say) leaves that server as last seen and does not stop the
+   others being compared.
 3. **`not-checked`**: nothing is known; the UI says "Not checked yet". A server that is on but
    reads a vault secret that is not saved is `not-checked` with `needsSecret`, and its row says
    "Needs secret": Runs leave it out, so nothing connected or failed. Saving or deleting a secret
