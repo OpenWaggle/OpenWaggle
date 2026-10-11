@@ -152,11 +152,6 @@ export class McpMigrationRecord {
     await this.persist()
   }
 
-  /** The hash of the file as it was recorded; null when it did not exist then. */
-  fileContentHash(filePath: string) {
-    return this.files[filePath]?.contentHash
-  }
-
   isFileMigrated(filePath: string) {
     const record = this.files[filePath]
     return record !== undefined && record.version >= MCP_FILE_MIGRATION_VERSION

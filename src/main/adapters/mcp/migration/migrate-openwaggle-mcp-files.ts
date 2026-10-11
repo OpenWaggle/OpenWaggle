@@ -44,7 +44,6 @@ import {
   type McpOAuthMigrationSink,
   migrateLegacyOAuthStates,
 } from './oauth-state-migration'
-import { isStillMigrated } from './reappeared-legacy-file'
 import {
   type McpSessionSwitchMigrationSink,
   migrateLegacySessionSwitches,
@@ -123,7 +122,7 @@ class McpFileMigrator {
   }
 
   private async migrate(job: FileJob): Promise<McpFileMigrationReport> {
-    if (await isStillMigrated(this.fs, this.record, job.path)) {
+    if (this.record.isFileMigrated(job.path)) {
       return { path: job.path, status: 'already-migrated', changes: [] }
     }
     try {
