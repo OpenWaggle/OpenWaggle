@@ -38,11 +38,18 @@ function validateSecretName(name: string) {
   return normalized
 }
 
+/** A keychain that does not answer, or cannot be used, says nothing about whose key sealed it. */
+function rethrowUnavailableKeychain(error: unknown) {
+  if (error instanceof McpVaultError && error.reason === 'encryption-unavailable') throw error
+}
+
 async function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
   try {
     await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
     return true
-  } catch {
+  } catch (error) {
+    // Otherwise the takeover would drop this build's own secret as another build's.
+    rethrowUnavailableKeychain(error)
     return false
   }
 }
@@ -160,7 +167,8 @@ export function createEncryptedMcpSecretVault(
       await assertEncryptionAvailable(encryption)
       try {
         return await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
-      } catch {
+      } catch (error) {
+        rethrowUnavailableKeychain(error)
         // A shared entry this build's key does not open is another build's secret: not found
         // here, said so, since Settings lists it (the shared names are read without decrypting).
         if (shared) {

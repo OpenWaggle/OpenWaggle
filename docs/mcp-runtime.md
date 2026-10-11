@@ -227,8 +227,8 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   changed. The encrypted secret vault (`vault.json`) moved the same way. Until a build
   has its own vault, it reads the shared one: names without decrypting (`list`, `has`), and a value
   decrypted only when resolved (another build's entry is not found). Its first save copies the
-  shared secrets it can decrypt, under the vault's lock; a save that cannot decrypt fails and
-  records nothing. Reads keep no takeover state, so nothing is hidden by a concurrent or failed
+  shared secrets it can decrypt, under the vault's lock; a save whose keychain is unavailable
+  or does not answer fails and records nothing. Reads keep no takeover state, so nothing is hidden by a concurrent or failed
   attempt, and a dev build next to a release build reads no keychain to list or check secrets.
 - Limit: a shared entry, or a shared sign-in store, that this build's key does not open is taken
   to be another build's. That cannot be told apart from a transient failure: on Linux, Chromium
@@ -490,9 +490,13 @@ format; checked with `--use-mock-keychain`). `resolve` looks the entry up before
 keychain, so a missing secret never touches it. Each of these calls fails after
 `MCP_KEYCHAIN_TIMEOUT_MS` (20 s) with "The system keychain did not answer": without a login
 keychain, or with a prompt nobody answers, macOS never returns, which hung a Run at "Starting
-session", Check connection, and Save in Secrets (round-8 QA). The Host's quit hold for SIGTERM or
-SIGINT ends after `SESSION_HOST_QUIT_HOLD_MS` (30 s) whatever is still pending. The sign-in part runs in two queued passes, each
-under the migration lock: the first migrates the files and asks for the old sign-ins it still
+session", Check connection, and Save in Secrets (round-8 QA). That failure is reported as it is:
+`resolve` does not turn it into "saved by another OpenWaggle build" or "cannot be decrypted", and
+the first save's takeover fails and records nothing rather than dropping a secret whose
+decryption timed out as another build's. The Host's quit hold for SIGTERM or SIGINT ends after
+`SESSION_HOST_QUIT_HOLD_MS` (30 s) whatever is still pending.
+
+The sign-in part runs in two queued passes, each under the migration lock: the first migrates the files and asks for the old sign-ins it still
 needs (`SIGN_IN_NOT_READ_YET`, not recorded), the vault is read outside the queue and lock, and
 the second pass moves them. Once every sign-in is recorded, the first pass asks for none and no
 keychain is read. So a slow or prompting keychain leaves the Host responsive, and a files-only
