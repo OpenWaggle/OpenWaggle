@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { AgentSession } from '@earendil-works/pi-coding-agent'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { projectTitleModelRuntime } from '../pi-session-title-generator'
@@ -18,6 +19,7 @@ const NO_OPENWAGGLE_EXTENSIONS = {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.restoreAllMocks()
 })
 
 describe('the Title model registry', () => {
@@ -34,5 +36,18 @@ describe('the Title model registry', () => {
       provider: 'qa-router',
       id: 'offline-model',
     })
+  })
+
+  it('disposes the session that binds the extensions once the request releases it', async () => {
+    vi.stubEnv('PI_CODING_AGENT_DIR', await fs.mkdtemp(path.join(os.tmpdir(), 'ow-pi-agent-')))
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-title-model-'))
+    await writeProviderExtension(projectPath, 'qa-router')
+    const dispose = vi.spyOn(AgentSession.prototype, 'dispose')
+
+    const { release } = await projectTitleModelRuntime(NO_OPENWAGGLE_EXTENSIONS)(projectPath)
+    expect(dispose).not.toHaveBeenCalled()
+    release()
+
+    expect(dispose).toHaveBeenCalledOnce()
   })
 })
