@@ -86,7 +86,9 @@ export function moveBranchSummaryDraftToLanding(
   if (!left) return
   const target = landingKey(prompt, landing)
   if (left.shown) {
+    // Emptied, the composer leaves nothing under the draft branch, not even a Waggle preset.
     store.replaceAttachments([])
+    store.setSelectedWagglePreset(null)
     setComposerTextValue('')
   }
   store.clearScopedDraft(draftBranchComposerContextKey(prompt))

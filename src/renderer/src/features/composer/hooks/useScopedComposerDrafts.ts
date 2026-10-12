@@ -24,6 +24,35 @@ function syncEditorDraft(draft: {
   }
 }
 
+type ScopedDraft = ReturnType<typeof useComposerStore.getState>['scopedDrafts'][string]
+
+/**
+ * A draft the Session owned before its workspace was shown goes after a draft not sent yet on the
+ * branch it is shown on, which it never replaces. One cleared on purpose clears that branch's.
+ */
+function withOlderDraft(draft: ScopedDraft, older: ScopedDraft | undefined): ScopedDraft {
+  if (!older || (!draft.input && draft.attachments.length === 0)) return draft
+  if (older.input === draft.input && older.attachments.length === 0) return draft
+  const attachments = [...older.attachments, ...draft.attachments]
+  return {
+    input:
+      older.input && draft.input ? `${older.input}\n\n${draft.input}` : older.input || draft.input,
+    attachments: [
+      ...new Map(attachments.map((attachment) => [attachment.id, attachment])).values(),
+    ],
+    wagglePreset: draft.wagglePreset ?? older.wagglePreset ?? null,
+  }
+}
+
+/** Shows a draft in the composer that already owns its context. */
+function syncComposer(draft: ScopedDraft) {
+  const store = useComposerStore.getState()
+  store.setInput(draft.input)
+  store.replaceAttachments(draft.attachments)
+  store.setSelectedWagglePreset(draft.wagglePreset ?? null)
+  syncEditorDraft(draft)
+}
+
 function currentDraftOverride() {
   const prompt = useBranchSummaryStore.getState().prompt
   if (!prompt) {
@@ -74,9 +103,14 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
             wagglePreset: store.selectedWagglePreset,
           }
         : store.switchScopedDraftContext(pendingContextKey, undefined, currentDraftOverride())
+      const kept = withOlderDraft(draft, store.scopedDrafts[contextKey])
       store.setActiveDraftContextKey(contextKey)
-      store.saveScopedDraft(contextKey, draft)
+      store.saveScopedDraft(contextKey, kept)
       store.clearScopedDraft(pendingContextKey)
+      if (kept !== draft) {
+        syncComposer(kept)
+        return
+      }
       if (!pendingIsActive) syncEditorDraft(draft)
       return
     }
