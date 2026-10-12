@@ -164,6 +164,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
         compactionThresholdPercent,
         targetNodeId: String(input.targetNodeId),
         position: input.position,
+        copy: input.position === 'at' ? 'clone' : 'fork',
         ...(skillToggles ? { skillToggles } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths
           ? { enabledOpenWaggleExtensionPackagePaths }

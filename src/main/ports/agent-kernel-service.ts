@@ -153,6 +153,8 @@ export type AgentKernelForkPosition = 'before' | 'at'
 export interface ForkAgentKernelSessionInput extends AgentKernelSessionInput {
   readonly targetNodeId: string
   readonly position: AgentKernelForkPosition
+  /** What the caller asked for, as a refusal names it: a fork, or a clone of the Session. */
+  readonly copy?: 'fork' | 'clone'
   /**
    * Runs once the fork's file is named and before it is written, so a caller can record the file
    * first: a stop between the two then leaves a file the caller knows of, never an orphan.

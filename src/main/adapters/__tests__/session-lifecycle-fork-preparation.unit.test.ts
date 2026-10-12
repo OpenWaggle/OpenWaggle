@@ -148,4 +148,40 @@ describe('prepareLifecycleFork', () => {
     expect(recordedAtWrite).toBe(forkFile)
     expect(told).toEqual([forkFile])
   })
+
+  it.each<[string, 'before' | 'at' | undefined, 'fork' | 'clone']>([
+    ['a fork before the target, as the GUI forks', 'before', 'fork'],
+    ['a copy with the target, as the GUI clones', 'at', 'clone'],
+    ['a fork that names no position, as the Sessions tool and CLI send', undefined, 'fork'],
+  ])('tells the kernel it is %s', async (_case, position, copy) => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, `copy-${copy}.sqlite`))
+    const received: ForkAgentKernelSessionInput[] = []
+    const kernel = fromPartial<AgentKernelServiceShape>({
+      forkSession: (input: ForkAgentKernelSessionInput) => {
+        received.push(input)
+        return Effect.fail(new Error('stop after the kernel was asked'))
+      },
+    })
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* prepareLifecycleFork({
+          sql,
+          kernel,
+          command: {
+            operation: 'fork',
+            sourceSessionId: 'session-parent',
+            targetNodeId: 'x',
+            ...(position ? { position } : {}),
+          },
+          modelId: 'provider/model',
+          attemptId: 'attempt-1',
+          onForkFile: () => undefined,
+        }).pipe(Effect.either)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(received.map((input) => input.copy)).toEqual([copy])
+  })
 })

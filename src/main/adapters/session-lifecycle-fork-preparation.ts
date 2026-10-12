@@ -116,6 +116,8 @@ export function prepareLifecycleFork(input: {
         model: SupportedModelId(input.modelId),
         targetNodeId,
         position: input.command.position ?? 'at',
+        // The GUI clones with the target included; a Sessions tool or CLI fork names no position.
+        copy: input.command.position === 'at' ? 'clone' : 'fork',
         // OpenWaggle names the fork's file, so it is recorded before it is written: a stop between
         // the two leaves an attempt that names it, which discovery never lists.
         beforeWritingFork: (file) =>
