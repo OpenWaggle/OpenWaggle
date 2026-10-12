@@ -9,6 +9,7 @@ import {
   type MigrateOpenWaggleMcpFilesInput,
   migrateOpenWaggleMcpFiles,
 } from '../../mcp/migration/migrate-openwaggle-mcp-files'
+import { gateUnmigratedMcpFiles } from '../../mcp/migration/migration-gate'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
 import { SIGN_IN_NOT_READ_YET } from '../../mcp/migration/oauth-state-migration'
 import { withProcessFileLock } from '../../mcp/process-file-lock'
@@ -218,12 +219,9 @@ async function runMigration(
     () => migrateOnce(projectPath, readOld),
     // Host start must not hang on another process that keeps the lock; it tries again later.
     { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
-  ).catch((error: unknown) => {
+  ).catch(async (error: unknown) => {
     // Not cached: the attempt is marked failed below and a later call runs it again.
-    logger.error('MCP migration failed; it is tried again later', {
-      projectPath,
-      error: describeError(error),
-    })
+    await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPath, error, logger })
     return undefined
   })
   // What a failed start or file left unmigrated is tried again on a later call.
