@@ -9,6 +9,7 @@ import {
   type McpWriteScope,
   mcpWriteRefusal,
   migratePendingKeptProjects,
+  type PendingKeptProjects,
   type PendingMcpMigrationLookup,
   serverWriteScope,
 } from './mcp-write-refusal'
@@ -31,7 +32,7 @@ export function migrateBeforeEachCall(
     /** The scope's OpenWaggle file whose migration is still failing, if any. */
     readonly pendingMigration?: PendingMcpMigrationLookup
     /** Kept projects whose migration fails, which a global write migrates again first. */
-    readonly pendingKeptProjects?: () => readonly string[]
+    readonly pendingKeptProjects?: PendingKeptProjects
   } = {},
 ): McpConfigurationServiceShape {
   function first<A, E>(
@@ -53,8 +54,8 @@ export function migrateBeforeEachCall(
         Effect.promise(() =>
           migratePendingKeptProjects(writeScope, migrate, options.pendingKeptProjects),
         ).pipe(
-          Effect.flatMap(() => {
-            const pending = options.pendingMigration?.(input.projectPath, writeScope)
+          Effect.flatMap((waited) => {
+            const pending = waited ?? options.pendingMigration?.(input.projectPath, writeScope)
             const refusal = mcpWriteRefusal(pending)
             return refusal ? Effect.fail(refusal) : call()
           }),

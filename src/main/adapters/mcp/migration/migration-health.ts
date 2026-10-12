@@ -149,5 +149,8 @@ export function pendingKeptProjects(homeDir: string) {
   const global = path.resolve(globalMcpPaths(homeDir).openwaggleGlobal)
   return failures
     .filter((failure) => failure.keepsLegacyState && failure.path !== global)
-    .map((failure) => path.dirname(path.dirname(failure.path)))
+    .map((failure) => ({
+      projectPath: path.dirname(path.dirname(failure.path)),
+      pending: pending(failure),
+    }))
 }

@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PendingMcpFileMigration } from '../../migration/migration-health'
-import { mcpFilePendingNotice, mcpScopePendingNotice, mcpWriteRefusal } from '../mcp-write-refusal'
+import {
+  mcpFilePendingNotice,
+  mcpScopePendingNotice,
+  mcpWriteRefusal,
+  migratePendingKeptProjects,
+} from '../mcp-write-refusal'
 
 const FILE = '/home/user/.openwaggle/mcp.json'
 
@@ -57,5 +62,24 @@ describe('refusing an MCP write while its scope is not migrated', () => {
     expect(mcpScopePendingNotice(pending({ source: state, error: 'Unexpected token' }))).toBe(
       `MCP servers stay off here until OpenWaggle has updated ${FILE}: Fix ${state} (Unexpected token).`,
     )
+  })
+})
+
+describe('migrating kept projects again before a global write', () => {
+  it('stops at the first lock wait and says to try again shortly, not waiting for each', async () => {
+    const failing = (projectPath: string, overrides: Partial<PendingMcpFileMigration> = {}) => ({
+      projectPath,
+      pending: pending({ path: `${projectPath}/.openwaggle/mcp.json`, ...overrides }),
+    })
+    let current = [failing('/a'), failing('/b')]
+    const migrate = vi.fn(async (projectPath: string | null) => {
+      // Another process keeps the migration lock past the wait.
+      if (projectPath === '/a') current = [failing('/a', { cause: 'wait' }), failing('/b')]
+    })
+
+    const waited = await migratePendingKeptProjects('global', migrate, () => current)
+
+    expect(migrate).toHaveBeenCalledTimes(1)
+    expect(mcpWriteRefusal(waited)?.message).toContain('try again shortly')
   })
 })

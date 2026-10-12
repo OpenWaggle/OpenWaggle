@@ -3,6 +3,7 @@ import type { McpImportServiceShape } from '../../ports/mcp-import-service'
 import {
   mcpWriteRefusal,
   migratePendingKeptProjects,
+  type PendingKeptProjects,
   type PendingMcpMigrationLookup,
 } from './config/mcp-write-refusal'
 
@@ -23,7 +24,7 @@ export function migrateBeforeImports(
     /** The scope's OpenWaggle file whose migration is still failing, if any. */
     readonly pendingMigration?: PendingMcpMigrationLookup
     /** Kept projects whose migration fails, which a global import migrates again first. */
-    readonly pendingKeptProjects?: () => readonly string[]
+    readonly pendingKeptProjects?: PendingKeptProjects
   } = {},
 ): McpImportServiceShape {
   const migrated = (projectPath: string | null) =>
@@ -42,10 +43,11 @@ export function migrateBeforeImports(
       const again = () => migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects)
       return migrated(input.projectPath).pipe(
         Effect.zipRight(Effect.promise(again)),
-        Effect.zipRight(
+        Effect.flatMap((waited) =>
           Effect.suspend(() => {
             // An import written before the migration succeeds would be undone by it.
-            const refusal = mcpWriteRefusal(options.pendingMigration?.(input.projectPath, scope))
+            const pending = waited ?? options.pendingMigration?.(input.projectPath, scope)
+            const refusal = mcpWriteRefusal(pending)
             return refusal ? Effect.fail(refusal) : service.apply(input, write)
           }),
         ),

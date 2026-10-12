@@ -104,17 +104,30 @@ export function mcpUpdateRefusal(roots: McpConfigFileRoots) {
   }
 }
 
+/** Kept projects whose migration fails, each with its failure. */
+export type PendingKeptProjects = () => ReadonlyArray<{
+  readonly projectPath: string
+  readonly pending: PendingMcpFileMigration
+}>
+
 /**
  * Before a write that waits for other projects (`global`, `everywhere`), migrates again each kept
- * project whose migration fails, so a file fixed since no longer holds the write back.
+ * project whose migration fails, so a file fixed since no longer holds the write back. It stops
+ * at the first that waited for the migration lock (another process migrates) and returns that
+ * failure, so the write is refused with "try again shortly" instead of waiting for each.
  */
 export async function migratePendingKeptProjects(
   scope: McpWriteScope,
   migrate: (projectPath: string | null) => Promise<unknown>,
-  pendingProjects: (() => readonly string[]) | undefined,
+  pendingProjects: PendingKeptProjects | undefined,
 ) {
-  if (scope === 'all' || !pendingProjects) return
-  for (const projectPath of new Set(pendingProjects())) {
+  if (scope === 'all' || !pendingProjects) return undefined
+  for (const projectPath of new Set(pendingProjects().map((kept) => kept.projectPath))) {
     await migrate(projectPath).catch(() => undefined)
+    const waited = pendingProjects().find(
+      (kept) => kept.projectPath === projectPath && kept.pending.cause === 'wait',
+    )
+    if (waited) return waited.pending
   }
+  return undefined
 }
