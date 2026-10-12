@@ -95,9 +95,9 @@ async function materializeBranchSummaryAction(
     cancelBranchSummary(prompt, previousMode)
     return
   }
-  await finishBranchSummary(params, prompt).catch((error: unknown) => {
-    leaveSavedBranchSummary(params, prompt, error)
-  })
+  await finishBranchSummary(params, prompt).catch((error: unknown) =>
+    leaveSavedBranchSummary(params, prompt, error),
+  )
 }
 
 export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {

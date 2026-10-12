@@ -8,7 +8,10 @@ import type {
 import type { SessionWorkspace } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state/chat-store'
-import { buildComposerDraftContextKey } from '@/features/composer/lib'
+import {
+  buildComposerDraftContextKey,
+  buildPendingSessionDraftContextKey,
+} from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
@@ -152,27 +155,47 @@ export async function finishBranchSummary(
 }
 
 /**
- * The summary is saved, but showing it failed: it is not offered again, which would save a second
- * one. The view goes to the Session where the summary left it, on its saved branch.
+ * The message being written on the draft branch, kept for the Session as a draft it owns before
+ * its workspace is shown, so the composer moves it to the branch the view lands on. The composer
+ * shows the summary's instructions or choice meanwhile, which are not kept.
  */
-export function leaveSavedBranchSummary(
+function keepDraftForSession(prompt: BranchSummaryPromptState) {
+  const store = useComposerStore.getState()
+  store.saveScopedDraft(buildPendingSessionDraftContextKey(prompt.sessionId), {
+    input: prompt.draftComposerText,
+    attachments: store.attachments,
+    wagglePreset: store.selectedWagglePreset,
+  })
+  store.replaceAttachments([])
+  setComposerTextValue('')
+  store.clearScopedDraft(draftBranchComposerContextKey(prompt))
+}
+
+/**
+ * The summary is saved, but showing it failed: it is not offered again, which would save a second
+ * one. Once the Session is read again, the view goes where the summary left it, on its saved
+ * branch, with the message being written.
+ */
+export async function leaveSavedBranchSummary(
   params: BranchSummaryWorkflowParams,
   prompt: BranchSummaryPromptState,
   error: unknown,
 ) {
   if (!isCurrentBranchSummaryPrompt(prompt)) return
+  keepDraftForSession(prompt)
   useBranchSummaryStore.getState().clearPrompt()
-  params.clearDraftBranchForSession(prompt.sessionId)
-  routeToSessionSelection(params, prompt.sessionId, {})
-  void Promise.allSettled([
-    params.loadSessions(),
-    params.refreshSession(prompt.sessionId),
-    params.refreshSessionWorkspace(prompt.sessionId),
-  ])
   params.showToast(
     sessionOperationFailureMessage(
       'The branch summary was saved, but it could not be shown',
       error,
     ),
   )
+  await Promise.allSettled([
+    params.loadSessions(),
+    params.refreshSession(prompt.sessionId),
+    params.refreshSessionWorkspace(prompt.sessionId),
+  ])
+  params.clearDraftBranchForSession(prompt.sessionId)
+  if (String(useChatStore.getState().activeSessionId) !== String(prompt.sessionId)) return
+  routeToSessionSelection(params, prompt.sessionId, {})
 }
