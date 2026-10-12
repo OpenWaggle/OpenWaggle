@@ -158,8 +158,10 @@ export function switchComposerToDraftBranch(input: {
     sessionId: input.sessionId,
     draftSourceNodeId: input.sourceNodeId,
   })
-  const composer = useComposerStore.getState()
   const prompt = useBranchSummaryStore.getState().prompt
+  // Shown again as the same draft branch, the composer gives back the message, not instructions.
+  if (prompt) keepMessageOnDraftBranch(prompt)
+  const composer = useComposerStore.getState()
   const leftDraft = prompt
     ? {
         input: prompt.draftComposerText,
