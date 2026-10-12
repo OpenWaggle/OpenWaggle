@@ -43,6 +43,12 @@ export function migrateBeforeEachCall(
       Effect.zipRight(Effect.suspend(call)),
     )
   }
+  /** The kept projects' pass after the viewed scope's migration (`migratePendingKeptProjects`). */
+  const keptPass = (input: McpConfigurationScopeInput, scope: McpWriteScope) =>
+    migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects, {
+      projectPath: input.projectPath,
+      pending: options.pendingMigration?.(input.projectPath, 'all'),
+    })
   /** A write, once the files it may change are migrated: one made before would be undone. */
   function write(
     input: McpConfigurationScopeInput,
@@ -51,9 +57,7 @@ export function migrateBeforeEachCall(
   ) {
     return first(input, () =>
       Effect.flatMap(scope, (writeScope) =>
-        Effect.promise(() =>
-          migratePendingKeptProjects(writeScope, migrate, options.pendingKeptProjects),
-        ).pipe(
+        Effect.promise(() => keptPass(input, writeScope)).pipe(
           Effect.flatMap((waited) => {
             const pending = waited ?? options.pendingMigration?.(input.projectPath, writeScope)
             const refusal = mcpWriteRefusal(pending)
@@ -75,12 +79,12 @@ export function migrateBeforeEachCall(
       Effect.suspend(() =>
         options.skipReadsWhile?.()
           ? service.getView(input)
-          : first(input, () =>
-              // A kept project fixed since no longer holds back global writes: "open Settings again".
-              Effect.promise(() =>
-                migratePendingKeptProjects('global', migrate, options.pendingKeptProjects),
-              ).pipe(Effect.zipRight(service.getView(input))),
-            ),
+          : first(input, () => {
+              // Started, not awaited: the view never waits for the lock twice, and a later
+              // write finds a kept project migrated by then ("open Settings again").
+              void keptPass(input, 'global').catch(() => undefined)
+              return service.getView(input)
+            }),
       ),
     setServerEnabled: (input) =>
       write(input, input.target === 'project' ? Effect.succeed('all') : serverScope(input), () =>

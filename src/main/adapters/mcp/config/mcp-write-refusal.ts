@@ -10,6 +10,7 @@ import {
   type PendingMcpFileMigration,
   pendingMcpFileMigration,
 } from '../migration/migration-health'
+import { sameMigrationLocation } from '../migration/project-spellings'
 import { type McpConfigFileRoots, mcpConfigFileLocations, realLocation } from './mcp-config-files'
 
 /** Which pending migrations a write waits for (`McpPendingScope`). */
@@ -133,17 +134,25 @@ export type PendingKeptProjects = () => ReadonlyArray<{
 
 /**
  * Before a write that waits for other projects (`global`, `everywhere`), migrates again each kept
- * project whose migration fails, so a file fixed since no longer holds the write back. It stops
- * at the first that waited for the migration lock (another process migrates) and returns that
- * failure, so the write is refused with "try again shortly" instead of waiting for each.
+ * project whose migration waited for the lock, so one the lock was freed for since no longer
+ * holds the write back. It stops at the first that waited again (another process migrates) and
+ * returns that failure, so the write is refused with "try again shortly" instead of waiting for
+ * each. `viewed` is the scope the call migrated just before: not migrated twice, and when its
+ * own migration waited, nothing else is tried, as it would wait as long.
  */
 export async function migratePendingKeptProjects(
   scope: McpWriteScope,
   migrate: (projectPath: string | null) => Promise<unknown>,
   pendingProjects: PendingKeptProjects | undefined,
+  viewed?: { readonly projectPath: string | null; readonly pending?: PendingMcpFileMigration },
 ) {
   if (scope === 'all' || !pendingProjects) return undefined
-  for (const projectPath of new Set(pendingProjects().map((kept) => kept.projectPath))) {
+  if (viewed?.pending?.cause === 'wait') return viewed.pending
+  const viewedProject = viewed?.projectPath
+  const projects = pendingProjects()
+    .map((kept) => kept.projectPath)
+    .filter((projectPath) => !viewedProject || !sameMigrationLocation(projectPath, viewedProject))
+  for (const projectPath of new Set(projects)) {
     await migrate(projectPath).catch(() => undefined)
     const waited = pendingProjects().find(
       (kept) => kept.projectPath === projectPath && kept.pending.cause === 'wait',

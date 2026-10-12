@@ -40,7 +40,11 @@ export function migrateBeforeImports(
       ),
     apply: (input, write) => {
       const scope = input.target === 'global' ? 'global' : 'all'
-      const again = () => migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects)
+      const again = () =>
+        migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects, {
+          projectPath: input.projectPath,
+          pending: options.pendingMigration?.(input.projectPath, 'all'),
+        })
       return migrated(input.projectPath).pipe(
         Effect.zipRight(Effect.promise(again)),
         Effect.flatMap((waited) =>
