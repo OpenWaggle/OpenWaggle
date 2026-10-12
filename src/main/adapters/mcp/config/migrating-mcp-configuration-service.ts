@@ -75,7 +75,12 @@ export function migrateBeforeEachCall(
       Effect.suspend(() =>
         options.skipReadsWhile?.()
           ? service.getView(input)
-          : first(input, () => service.getView(input)),
+          : first(input, () =>
+              // A kept project fixed since no longer holds back global writes: "open Settings again".
+              Effect.promise(() =>
+                migratePendingKeptProjects('global', migrate, options.pendingKeptProjects),
+              ).pipe(Effect.zipRight(service.getView(input))),
+            ),
       ),
     setServerEnabled: (input) =>
       write(input, input.target === 'project' ? Effect.succeed('all') : serverScope(input), () =>

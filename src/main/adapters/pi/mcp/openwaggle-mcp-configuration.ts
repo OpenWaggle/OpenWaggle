@@ -8,7 +8,7 @@ import {
 import { McpImportService } from '../../../ports/mcp-import-service'
 import { createFilesystemMcpConfigurationService } from '../../mcp/config/filesystem-mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import type { McpWriteScope } from '../../mcp/config/mcp-write-refusal'
+import { type McpWriteScope, mcpUpdateRefusal } from '../../mcp/config/mcp-write-refusal'
 import {
   migrateBeforeEachCall,
   withRuntimeConfigErrors,
@@ -26,6 +26,17 @@ let service: McpConfigurationServiceShape | undefined
 const pendingMigration = (projectPath: string | null, scope: McpWriteScope) =>
   pendingMcpFileMigration(homedir(), projectPath, scope)
 const keptPending = () => pendingKeptProjects(homedir())
+
+/**
+ * The refusal of Pi's `/mcp` changes in a Run of `projectPath`, as Settings refuses them. A
+ * refused global change migrates the failing kept projects again in the background.
+ */
+export function openWaggleMcpUpdateRefusal(projectPath: string | null) {
+  return mcpUpdateRefusal(
+    { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath },
+    { migrate: migrateOpenWaggleMcpFilesOnce, pendingKeptProjects: keptPending },
+  )
+}
 
 /**
  * The Host's one MCP configuration service, so a change saved by Pi's `/mcp` inside a Run and one

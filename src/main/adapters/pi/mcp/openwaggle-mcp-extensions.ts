@@ -12,7 +12,6 @@ import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { mcpUpdateRefusal } from '../../mcp/config/mcp-write-refusal'
 import {
   deferredMcpVaultSecret,
   mcpVaultSecretStamps,
@@ -33,6 +32,7 @@ import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
 import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
+import { openWaggleMcpUpdateRefusal } from './openwaggle-mcp-configuration'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
 import {
   migrateOpenWaggleMcpFilesOnce,
@@ -284,11 +284,7 @@ export async function createOpenWaggleMcpExtensions(
       (filePath) => input.onConfigChanged?.(filePath),
       (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
       // As Settings: a change made before the scope's migration succeeds would be undone by it.
-      mcpUpdateRefusal({
-        homeDir: homedir(),
-        piAgentDir: getPiAgentDir(),
-        projectPath: input.projectPath,
-      }),
+      openWaggleMcpUpdateRefusal(input.projectPath),
     ),
     startupWaitMs: MCP_STARTUP_WAIT_MS,
   })

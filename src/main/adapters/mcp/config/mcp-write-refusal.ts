@@ -92,15 +92,36 @@ export function mcpFilePendingNotice(pending: PendingMcpFileMigration) {
 /**
  * The refusal of Pi's `/mcp` change to `filePath` in a Run of `roots.projectPath`, by the scope
  * that file is in: a global file waits for any kept project, as a global write from Settings.
+ * Pi asks synchronously, so nothing is migrated first; a refused global change migrates the
+ * failing kept projects again in the background (`retry`), and the next `/mcp` can go through.
  */
-export function mcpUpdateRefusal(roots: McpConfigFileRoots) {
+export function mcpUpdateRefusal(
+  roots: McpConfigFileRoots,
+  retry?: {
+    readonly migrate: (projectPath: string | null) => Promise<unknown>
+    readonly pendingKeptProjects: PendingKeptProjects
+  },
+) {
+  let retrying: Promise<unknown> | undefined
+  const migrateAgain = (scope: McpWriteScope) => {
+    if (!retry || scope === 'all' || retrying) return
+    retrying = migratePendingKeptProjects(scope, retry.migrate, retry.pendingKeptProjects)
+      .catch(() => undefined)
+      .finally(() => {
+        retrying = undefined
+      })
+  }
   return (filePath: string) => {
     const target = realLocation(filePath)
     const file = mcpConfigFileLocations(roots).find(
       (location) => realLocation(location.path) === target,
     )
     const scope = file ? fileWriteScope(file.fileId) : 'all'
-    return mcpWriteRefusal(pendingMcpFileMigration(roots.homeDir, roots.projectPath, scope))
+    const refusal = mcpWriteRefusal(
+      pendingMcpFileMigration(roots.homeDir, roots.projectPath, scope),
+    )
+    if (refusal) migrateAgain(scope)
+    return refusal
   }
 }
 
