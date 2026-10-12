@@ -14,6 +14,11 @@ vi.mock('../runtime-host-services', async (importOriginal) => ({
   startHostBackgroundServices: () => Effect.void,
 }))
 
+// Loaded while the file is collected, which has no time limit: the first import of the runtime's
+// module graph is slow under load, and in the settings lifecycle's beforeEach it counted against
+// the hook timeout.
+await import('../runtime')
+
 /*
  * The desktop app initializes the same runtime as the Session Host, but every MCP channel is
  * Host-backed. Reading the login shell's environment there spawned `$SHELL -ilc env` at every app

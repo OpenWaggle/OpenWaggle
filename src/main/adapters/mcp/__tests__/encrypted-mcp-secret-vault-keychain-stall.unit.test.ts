@@ -51,7 +51,8 @@ function keychainThatDoesNotDecrypt() {
 }
 
 const TIMER_STEP_MS = 1_000
-const MAX_TIMER_STEPS = 500
+/** Real time the vault's file I/O may take, however slow the machine; the clock is fake. */
+const REAL_DEADLINE_MS = 30_000
 
 /** Advances the fake clock while `promise` also waits on real file I/O. */
 async function settleWithTimers(promise: Promise<unknown>) {
@@ -60,8 +61,10 @@ async function settleWithTimers(promise: Promise<unknown>) {
     () => (settled = true),
     () => (settled = true),
   )
-  // Steps are bounded, not the fake time: a step may pass while the file I/O is still going.
-  for (let step = 0; !settled && step < MAX_TIMER_STEPS; step += 1) {
+  // Bounded by real time, not steps or fake time: a step may pass while the file I/O is still
+  // going, and a loaded machine takes many.
+  const deadline = performance.now() + REAL_DEADLINE_MS
+  while (!settled && performance.now() < deadline) {
     await new Promise((resolve) => setImmediate(resolve))
     await vi.advanceTimersByTimeAsync(TIMER_STEP_MS)
   }
