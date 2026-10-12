@@ -34,7 +34,28 @@ describe('refusing an MCP write while its scope is not migrated', () => {
       `${FILE} was not loaded, so its servers stay off: it waited (the lock is held) and is tried again shortly.`,
     )
     expect(mcpScopePendingNotice(pending({ error: 'Unexpected token' }))).toBe(
-      `MCP servers stay off here until OpenWaggle has updated ${FILE}: Fix ${FILE} (Unexpected token).`,
+      `MCP servers stay off here until OpenWaggle has updated ${FILE}: fix it (Unexpected token).`,
+    )
+  })
+
+  it('names the file once when the error already names it', () => {
+    const error = `${FILE}: ${FILE.replace('/mcp.json', '')} links to a missing folder`
+    const occurrences = (notice: string) => notice.split(FILE).length - 1
+
+    const scope = mcpScopePendingNotice(pending({ error }))
+    const file = mcpFilePendingNotice(pending({ error }))
+
+    expect(scope).toBe(`MCP servers stay off here until an MCP file is fixed. Fix it: ${error}.`)
+    expect(occurrences(scope)).toBe(1)
+    expect(file).toBe(`An MCP file was not loaded, so its servers stay off. Fix it: ${error}.`)
+    expect(occurrences(file)).toBe(1)
+  })
+
+  it('names both files when the one to fix is another, such as the old state', () => {
+    const state = '/home/user/.openwaggle/mcp/state.json'
+
+    expect(mcpScopePendingNotice(pending({ source: state, error: 'Unexpected token' }))).toBe(
+      `MCP servers stay off here until OpenWaggle has updated ${FILE}: Fix ${state} (Unexpected token).`,
     )
   })
 })

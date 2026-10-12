@@ -62,10 +62,9 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     expect(config.loaded.servers.map((server) => server.name)).toEqual([])
     // One notice, naming the file and what to do; the file's own line is not repeated.
     expect(config.loaded.errors).toEqual([
-      expect.stringContaining(
-        `MCP servers stay off here until OpenWaggle has updated ${globalFile}`,
-      ),
+      expect.stringContaining('MCP servers stay off here until'),
     ])
+    expect(config.loaded.errors[0]?.split(globalFile)).toHaveLength(2)
     expect(config.loaded.errors[0]).toContain('Fix')
     // Its servers are unknown, not removed: the state read compares none of them.
     expect(config.merged.incomplete).toBe(true)

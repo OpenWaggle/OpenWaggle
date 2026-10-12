@@ -55,21 +55,38 @@ export function fileWriteScope(fileId: string): McpWriteScope {
   return isGlobalFileId(fileId) ? 'global' : 'all'
 }
 
-/** What to do about a failing migration: wait for it, or fix the file it names. */
-function pendingAdvice(pending: PendingMcpFileMigration) {
-  return pending.cause === 'wait'
-    ? `it waited (${pending.error}) and is tried again shortly.`
-    : mcpFixInstruction(pending)
+/**
+ * A notice about a failing migration of `pending.path`, naming each file once: `naming` names
+ * that file, `plain` does not, for an error that already does. Then what to do: wait, or fix it.
+ */
+function pendingNotice(pending: PendingMcpFileMigration, naming: string, plain: string) {
+  if (pending.cause === 'wait') {
+    return `${naming}: it waited (${pending.error}) and is tried again shortly.`
+  }
+  if (pending.source && pending.source !== pending.path) {
+    return `${naming}: ${mcpFixInstruction(pending)}`
+  }
+  return pending.error.includes(pending.path)
+    ? `${plain} Fix it: ${pending.error}.`
+    : `${naming}: fix it (${pending.error}).`
 }
 
 /** The notice for a scope whose servers all stay off while its old state waits. */
 export function mcpScopePendingNotice(pending: PendingMcpFileMigration) {
-  return `MCP servers stay off here until OpenWaggle has updated ${pending.path}: ${pendingAdvice(pending)}`
+  return pendingNotice(
+    pending,
+    `MCP servers stay off here until OpenWaggle has updated ${pending.path}`,
+    'MCP servers stay off here until an MCP file is fixed.',
+  )
 }
 
 /** The notice for one file left out while its migration fails. */
 export function mcpFilePendingNotice(pending: PendingMcpFileMigration) {
-  return `${pending.path} was not loaded, so its servers stay off: ${pendingAdvice(pending)}`
+  return pendingNotice(
+    pending,
+    `${pending.path} was not loaded, so its servers stay off`,
+    'An MCP file was not loaded, so its servers stay off.',
+  )
 }
 
 /**
