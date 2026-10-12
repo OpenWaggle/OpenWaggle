@@ -151,10 +151,11 @@ describe('MCP configuration operations', () => {
           entry: { command: 'touch', args: ['planted'] },
         }),
       ),
-    ).resolves.toMatch(/Open this project in OpenWaggle/)
+    ).resolves.toBe('Open this project in OpenWaggle before changing its MCP servers.')
+    // A read, such as `openwaggle mcp doctor -l`, changes nothing, and says so.
     await expect(
       failureMessage(getMcpConfigurationOperation({ projectPath: unknownProject })),
-    ).resolves.toMatch(/Open this project in OpenWaggle/)
+    ).resolves.toBe('Open this project in OpenWaggle before checking its MCP servers.')
   })
 
   it('saves server and per-tool exposure where the server is defined', async () => {

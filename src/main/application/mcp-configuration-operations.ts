@@ -42,10 +42,19 @@ function decodePayload<A, I>(schema: Schema.Schema<A, I>, raw: unknown, action: 
  * A Session's managed worktree, such as the folder `openwaggle mcp -l` runs in there, stands for
  * the Session's project: Runs read the project's MCP files, never the worktree's.
  */
+/** Reads change nothing, so their refusal says checking, not changing. */
+type McpProjectAccess = 'read' | 'write'
+
+const UNKNOWN_PROJECT_MESSAGE: Readonly<Record<McpProjectAccess, string>> = {
+  read: 'Open this project in OpenWaggle before checking its MCP servers.',
+  write: 'Open this project in OpenWaggle before changing its MCP servers.',
+}
+
 function decode<A extends { readonly projectPath: string | null }, I>(
   schema: Schema.Schema<A, I>,
   raw: unknown,
   action: string,
+  access: McpProjectAccess = 'write',
 ) {
   return Effect.gen(function* () {
     const input = yield* decodePayload(schema, raw, action)
@@ -61,7 +70,7 @@ function decode<A extends { readonly projectPath: string | null }, I>(
         () =>
           new McpConfigurationError({
             reason: 'validation',
-            message: 'Open this project in OpenWaggle before changing its MCP servers.',
+            message: UNKNOWN_PROJECT_MESSAGE[access],
           }),
       ),
     )
@@ -83,7 +92,7 @@ function writeThenView<R>(
 
 export function getMcpConfigurationOperation(raw: unknown) {
   return Effect.flatMap(
-    decode(mcpConfigurationScopeRequestSchema, raw, 'configuration read'),
+    decode(mcpConfigurationScopeRequestSchema, raw, 'configuration read', 'read'),
     (input) => viewFor(input.projectPath),
   )
 }
@@ -159,7 +168,7 @@ export function installMcpCatalogServerOperation(raw: unknown) {
 
 export function inspectMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerNameRequestSchema, raw, 'inspect server')
+    const input = yield* decode(mcpServerNameRequestSchema, raw, 'inspect server', 'read')
     const runtime = yield* McpServerRuntimeService
     return yield* runtime.inspectServer(input)
   })
@@ -168,7 +177,7 @@ export function inspectMcpServerOperation(raw: unknown) {
 /** Settings > MCP on open: every server's state without connecting to any of them. */
 export function getMcpServerStatusesOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpConfigurationScopeRequestSchema, raw, 'server statuses')
+    const input = yield* decode(mcpConfigurationScopeRequestSchema, raw, 'server statuses', 'read')
     const runtime = yield* McpServerRuntimeService
     return yield* runtime.getServerStatuses(input)
   })
@@ -192,7 +201,7 @@ export function signOutMcpServerOperation(raw: unknown) {
 
 export function previewMcpImportsOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpImportPreviewRequestSchema, raw, 'import preview')
+    const input = yield* decode(mcpImportPreviewRequestSchema, raw, 'import preview', 'read')
     const importer = yield* McpImportService
     return yield* importer.preview(input)
   })
