@@ -31,8 +31,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 /*
  * The message being written on a draft branch while a branch summary is offered or made stays
- * the Session's when the view leaves the draft branch, whichever way it leaves: it is kept as
- * the draft the Session owns before its workspace is shown, never as the summary's instructions.
+ * under the draft branch when the view leaves it, whichever way it leaves, as when no summary is
+ * offered: never the summary's instructions in its place.
  */
 
 const DRAFT_KEY = 'project:/repo:session:session-1:draft:source-node'
@@ -106,11 +106,11 @@ function leaveWithoutKeeping() {
   })
 }
 
-function expectKeptForTheSession() {
-  expect(useComposerStore.getState().getScopedDraft(PENDING_KEY)).toEqual(
+function expectKeptOnItsDraftBranch() {
+  expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toEqual(
     expect.objectContaining({ input: MESSAGE, attachments: [image] }),
   )
-  expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toBeNull()
+  expect(useComposerStore.getState().getScopedDraft(PENDING_KEY)).toBeNull()
 }
 
 describe('The message on a draft branch with a branch summary prompt', () => {
@@ -140,7 +140,7 @@ describe('The message on a draft branch with a branch summary prompt', () => {
     reading.resolve()
     await act(() => summarized)
 
-    expectKeptForTheSession()
+    expectKeptOnItsDraftBranch()
   })
 
   it('is kept when the view leaves while the summary is made', async () => {
@@ -156,7 +156,7 @@ describe('The message on a draft branch with a branch summary prompt', () => {
     navigation.resolve({ cancelled: false })
     await act(() => summarized)
 
-    expectKeptForTheSession()
+    expectKeptOnItsDraftBranch()
   })
 
   it('is kept, not the instructions, when the sidebar leaves a custom summary', () => {
@@ -165,14 +165,11 @@ describe('The message on a draft branch with a branch summary prompt', () => {
 
     act(() => storeProjectDraftNavigation(vi.fn()).clearTransientDraftContext())
 
-    // The view is on the Session's branch, and the message with it.
     expect(useBranchSummaryStore.getState().prompt).toBeNull()
-    expect(useComposerStore.getState()).toMatchObject({
-      activeDraftContextKey: 'project:/repo:session:session-1:branch:main',
-      input: MESSAGE,
-      attachments: [image],
-    })
-    expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toBeNull()
+    expect(useComposerStore.getState().activeDraftContextKey).toBe(
+      'project:/repo:session:session-1:branch:main',
+    )
+    expectKeptOnItsDraftBranch()
   })
 
   it('stays on its draft branch, not the instructions, when branching from another message', () => {

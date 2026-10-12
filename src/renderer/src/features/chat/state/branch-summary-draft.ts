@@ -1,4 +1,5 @@
 import type { PreparedAttachment } from '@shared/types/agent'
+import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import {
   buildComposerDraftContextKey,
   buildPendingSessionDraftContextKey,
@@ -27,51 +28,85 @@ function distinct(attachments: readonly PreparedAttachment[]) {
 }
 
 /**
- * The message being written on the prompt's draft branch, with its attachments, kept as the draft
- * its Session owns before its workspace is shown, so the composer moves it to the branch the
- * view lands on. While the prompt is open the composer may show the summary's instructions, or
- * nothing once they were sent; those are not kept. Nothing is kept once the message left the
- * draft branch.
+ * The message being written stays under the prompt's draft branch as the view leaves it, as when
+ * no summary is offered: while the prompt is open the composer may show the summary's
+ * instructions, or nothing once they were sent, which are never kept in its place.
  */
-export function keepBranchSummaryDraft(prompt: BranchSummaryPromptState) {
+function keepMessageOnDraftBranch(prompt: BranchSummaryPromptState) {
   const store = useComposerStore.getState()
   const draftKey = draftBranchComposerContextKey(prompt)
-  const shown = store.activeDraftContextKey === draftKey
-  const saved = shown ? null : store.getScopedDraft(draftKey)
-  if (!shown && !saved) return
-  const pendingKey = buildPendingSessionDraftContextKey(prompt.sessionId)
-  const pending = store.getScopedDraft(pendingKey)
-  const attachments = shown ? store.attachments : (saved?.attachments ?? [])
-  store.saveScopedDraft(pendingKey, {
-    input: joined(pending?.input ?? '', prompt.draftComposerText),
-    attachments: distinct([...(pending?.attachments ?? []), ...attachments]),
-    wagglePreset: (shown ? store.selectedWagglePreset : saved?.wagglePreset) ?? null,
-  })
-  if (shown) {
-    store.replaceAttachments([])
-    setComposerTextValue('')
-  }
-  store.clearScopedDraft(draftKey)
-}
-
-function keepMessageOf(prompt: BranchSummaryPromptState) {
-  const draftKey = draftBranchComposerContextKey(prompt)
-  if (useChatStore.getState().missingSessionIds.has(prompt.sessionId)) {
-    // The Host removed the Session meanwhile, and its message went to New session with it.
-    useComposerStore.getState().clearScopedDraft(draftKey)
-    return
-  }
-  if (useComposerStore.getState().activeDraftContextKey === draftKey) {
-    // Still on its draft branch: the message is shown again in place of the instructions.
+  if (store.activeDraftContextKey === draftKey) {
+    // The composer files what it shows under the draft branch as the view leaves it.
     setComposerTextValue(prompt.draftComposerText)
     return
   }
-  keepBranchSummaryDraft(prompt)
+  const saved = store.getScopedDraft(draftKey)
+  if (saved && saved.input !== prompt.draftComposerText) {
+    store.saveScopedDraft(draftKey, { ...saved, input: prompt.draftComposerText })
+  }
+}
+
+/** Where the view lands for the prompt's Session: its shown branch, or before it is shown. */
+function landingKey(prompt: BranchSummaryPromptState) {
+  const workspace = useSessionStore.getState().activeWorkspace
+  if (workspace?.tree.session.id !== prompt.sessionId) {
+    return buildPendingSessionDraftContextKey(prompt.sessionId)
+  }
+  return buildComposerDraftContextKey({
+    projectPath: workspace.tree.session.projectPath,
+    sessionId: prompt.sessionId,
+    activeBranchId: workspace.activeBranchId,
+    activeNodeId: workspace.activeNodeId,
+  })
+}
+
+/** What is left on the prompt's draft branch besides its message: shown, or saved there. */
+function leftOnDraftBranch(prompt: BranchSummaryPromptState) {
+  const store = useComposerStore.getState()
+  const draftKey = draftBranchComposerContextKey(prompt)
+  if (store.activeDraftContextKey === draftKey) {
+    return { shown: true, attachments: store.attachments, wagglePreset: store.selectedWagglePreset }
+  }
+  const saved = store.getScopedDraft(draftKey)
+  if (!saved) return null
+  return { shown: false, attachments: saved.attachments, wagglePreset: saved.wagglePreset }
+}
+
+/**
+ * The view of the prompt's draft branch ends, as for a summary saved but not shown: its message,
+ * with its attachments, goes to the branch the view lands on, after a draft not sent there yet.
+ */
+export function moveBranchSummaryDraftToLanding(prompt: BranchSummaryPromptState) {
+  const store = useComposerStore.getState()
+  const left = leftOnDraftBranch(prompt)
+  if (!left) return
+  const target = landingKey(prompt)
+  const existing = store.getScopedDraft(target)
+  store.saveScopedDraft(target, {
+    input: joined(existing?.input ?? '', prompt.draftComposerText),
+    attachments: distinct([...(existing?.attachments ?? []), ...left.attachments]),
+    wagglePreset: left.wagglePreset ?? existing?.wagglePreset ?? null,
+  })
+  if (left.shown) {
+    store.replaceAttachments([])
+    setComposerTextValue('')
+  }
+  store.clearScopedDraft(draftBranchComposerContextKey(prompt))
+}
+
+function keepMessageOf(prompt: BranchSummaryPromptState) {
+  if (useChatStore.getState().missingSessionIds.has(prompt.sessionId)) {
+    // The Host removed the Session meanwhile, and its message went to New session with it.
+    useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
+    return
+  }
+  keepMessageOnDraftBranch(prompt)
 }
 
 /**
  * A summary whose prompt something else cleared meanwhile, as the view leaving its draft branch:
- * the message stays the Session's. A prompt opened meanwhile owns the view, and is left alone.
+ * the message stays under the draft branch. A prompt opened meanwhile owns the view, and is left
+ * alone.
  */
 export function keepLeftBranchSummaryDraft(prompt: BranchSummaryPromptState) {
   const current = useBranchSummaryStore.getState().prompt
@@ -83,7 +118,7 @@ export function keepLeftBranchSummaryDraft(prompt: BranchSummaryPromptState) {
 /** Closes the branch summary prompt as the view leaves its draft branch, keeping its message. */
 export function leaveBranchSummaryPrompt() {
   const prompt = useBranchSummaryStore.getState().prompt
-  if (prompt) keepBranchSummaryDraft(prompt)
+  if (prompt) keepMessageOnDraftBranch(prompt)
   useBranchSummaryStore.getState().clearPrompt()
 }
 
@@ -92,4 +127,38 @@ export function leaveBranchSummaryDraftContext() {
   leaveBranchSummaryPrompt()
   const sessions = useSessionStore.getState()
   if (sessions.draftBranch) sessions.clearDraftBranchForSession(sessions.draftBranch.sessionId)
+}
+
+/**
+ * Shows the draft branch from `sourceNodeId` in the composer. The message left on the draft
+ * branch shown before stays there; with a prompt open the composer shows the summary's
+ * instructions in its place, which are not kept.
+ */
+export function switchComposerToDraftBranch(input: {
+  readonly projectPath: string | null
+  readonly sessionId: SessionId
+  readonly sourceNodeId: SessionNodeId
+  readonly fallbackText: string
+}) {
+  const contextKey = buildComposerDraftContextKey({
+    projectPath: input.projectPath,
+    sessionId: input.sessionId,
+    draftSourceNodeId: input.sourceNodeId,
+  })
+  const composer = useComposerStore.getState()
+  const prompt = useBranchSummaryStore.getState().prompt
+  const leftDraft = prompt
+    ? {
+        input: prompt.draftComposerText,
+        attachments: composer.attachments,
+        wagglePreset: composer.selectedWagglePreset,
+      }
+    : undefined
+  const appliedDraft = composer.switchScopedDraftContext(
+    contextKey,
+    { input: input.fallbackText, attachments: [] },
+    leftDraft,
+  )
+  setComposerTextValue(appliedDraft.input)
+  return appliedDraft.input
 }

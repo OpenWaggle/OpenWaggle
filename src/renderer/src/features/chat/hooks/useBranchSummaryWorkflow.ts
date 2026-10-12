@@ -5,7 +5,10 @@ import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
 import { isSessionModelActionable } from '../lib/session-answered-by'
-import { keepLeftBranchSummaryDraft } from '../state/branch-summary-draft'
+import {
+  keepLeftBranchSummaryDraft,
+  switchComposerToDraftBranch,
+} from '../state/branch-summary-draft'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
 import {
   type BranchSummaryWorkflowParams,
@@ -32,31 +35,6 @@ function restoreBranchSummaryChoice(
     return
   }
   useBranchSummaryStore.getState().restoreChoice()
-}
-
-function switchComposerToDraftBranch(input: DraftBranchComposerInput) {
-  const contextKey = buildComposerDraftContextKey({
-    projectPath: input.projectPath,
-    sessionId: input.sessionId,
-    draftSourceNodeId: input.sourceNodeId,
-  })
-  const composer = useComposerStore.getState()
-  const prompt = useBranchSummaryStore.getState().prompt
-  // With a prompt open, the composer shows the summary's instructions, not the message left here.
-  const leftDraft = prompt
-    ? {
-        input: prompt.draftComposerText,
-        attachments: composer.attachments,
-        wagglePreset: composer.selectedWagglePreset,
-      }
-    : undefined
-  const appliedDraft = composer.switchScopedDraftContext(
-    contextKey,
-    { input: input.fallbackText, attachments: [] },
-    leftDraft,
-  )
-  setComposerTextValue(appliedDraft.input)
-  return appliedDraft.input
 }
 
 async function navigateWithBranchSummary(

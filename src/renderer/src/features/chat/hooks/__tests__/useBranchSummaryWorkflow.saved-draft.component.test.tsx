@@ -132,4 +132,25 @@ describe('A saved branch summary that cannot be shown', () => {
     })
     expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toBeNull()
   })
+
+  it('joins the message to a draft not sent yet on the branch the view lands on', async () => {
+    useComposerStore.getState().saveScopedDraft(SUMMARY_KEY, {
+      input: 'An older draft on the summary branch',
+      attachments: [],
+    })
+    const { workflow } = mountOnDraftBranch()
+    act(() => {
+      useComposerStore.getState().setInput('The message I was writing')
+      useComposerStore.getState().replaceAttachments([image])
+    })
+    openPrompt('The message I was writing')
+
+    await act(() => workflow().materializeBranchSummary())
+
+    expect(useComposerStore.getState()).toMatchObject({
+      activeDraftContextKey: SUMMARY_KEY,
+      input: 'An older draft on the summary branch\n\nThe message I was writing',
+      attachments: [image],
+    })
+  })
 })

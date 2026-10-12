@@ -15,8 +15,8 @@ import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-f
 import { setComposerTextValue } from '../lib/composer-text'
 import {
   draftBranchComposerContextKey,
-  keepBranchSummaryDraft,
   keepLeftBranchSummaryDraft,
+  moveBranchSummaryDraftToLanding,
 } from '../state/branch-summary-draft'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
 
@@ -177,7 +177,7 @@ export async function leaveSavedBranchSummary(
     keepLeftBranchSummaryDraft(prompt)
     return
   }
-  keepBranchSummaryDraft(prompt)
+  moveBranchSummaryDraftToLanding(prompt)
   useBranchSummaryStore.getState().clearPrompt()
   params.clearDraftBranchForSession(prompt.sessionId)
   routeToSessionSelection(params, prompt.sessionId, {})
