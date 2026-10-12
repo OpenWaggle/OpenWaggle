@@ -5,7 +5,12 @@
  */
 import type { McpConfiguredServerView } from '@shared/types/mcp-configuration'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
-import type { McpPendingScope, PendingMcpFileMigration } from '../migration/migration-health'
+import {
+  type McpPendingScope,
+  type PendingMcpFileMigration,
+  pendingMcpFileMigration,
+} from '../migration/migration-health'
+import { type McpConfigFileRoots, mcpConfigFileLocations, realLocation } from './mcp-config-files'
 
 /** Which pending migrations a write waits for (`McpPendingScope`). */
 export type McpWriteScope = McpPendingScope
@@ -65,4 +70,19 @@ export function mcpScopePendingNotice(pending: PendingMcpFileMigration) {
 /** The notice for one file left out while its migration fails. */
 export function mcpFilePendingNotice(pending: PendingMcpFileMigration) {
   return `${pending.path} was not loaded, so its servers stay off: ${pendingAdvice(pending)}`
+}
+
+/**
+ * The refusal of Pi's `/mcp` change to `filePath` in a Run of `roots.projectPath`, by the scope
+ * that file is in: a global file waits for any kept project, as a global write from Settings.
+ */
+export function mcpUpdateRefusal(roots: McpConfigFileRoots) {
+  return (filePath: string) => {
+    const target = realLocation(filePath)
+    const file = mcpConfigFileLocations(roots).find(
+      (location) => realLocation(location.path) === target,
+    )
+    const scope = file ? fileWriteScope(file.fileId) : 'all'
+    return mcpWriteRefusal(pendingMcpFileMigration(roots.homeDir, roots.projectPath, scope))
+  }
 }

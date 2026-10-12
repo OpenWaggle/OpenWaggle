@@ -146,13 +146,13 @@ export interface McpUpdateConfigEntry {
 export function createMcpUpdateConfig(
   onChanged: (filePath: string) => void,
   overrideOf: (name: string) => string | undefined = () => undefined,
-  refusal: () => Error | undefined = () => undefined,
+  refusal: (filePath: string) => Error | undefined = () => undefined,
 ) {
   return (entry: McpUpdateConfigEntry, patch: McpServerSettingsPatch) => {
-    const refused = refusal()
-    if (refused) throw refused
     const override = entry.override ?? overrideOf(entry.name)
     const filePath = override ?? entry.source
+    const refused = refusal(filePath)
+    if (refused) throw refused
     updateMcpServerSettings(filePath, entry.name, patch, { override: override !== undefined })
     onChanged(filePath)
   }

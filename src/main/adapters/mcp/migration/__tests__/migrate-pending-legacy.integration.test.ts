@@ -5,10 +5,11 @@ import { Effect } from 'effect'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../../config/filesystem-mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
+import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
 import { migrateBeforeEachCall } from '../../config/migrating-mcp-configuration-service'
 import { legacyServerIdentityKey } from '../legacy-pi-import'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import { pendingMcpFileMigration } from '../migration-health'
+import { forgetMcpFileMigrationOutcomes, pendingMcpFileMigration } from '../migration-health'
 import { NOW } from './migration-fixtures'
 
 const roots: string[] = []
@@ -19,6 +20,8 @@ async function writeJson(filePath: string, value: unknown) {
 }
 
 afterEach(async () => {
+  // Failures are kept per process; each test starts as a new Host would.
+  forgetMcpFileMigrationOutcomes()
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
@@ -67,7 +70,7 @@ async function setUp(serversOf: (globalFile: string) => Record<string, unknown> 
         pendingMcpFileMigration(homeDir, projectPath, scope),
     },
   )
-  return { homeDir, statePath, migrate, connectable, danglingProject, service }
+  return { homeDir, piAgentDir, statePath, migrate, connectable, danglingProject, service, root }
 }
 
 describe('the old state a pending migration keeps', () => {
@@ -138,5 +141,21 @@ describe('the old state a pending migration keeps', () => {
 
     // Turned on now, g would be turned off for that project once its migration ran.
     expect(refused.message).toContain(path.join(project, '.openwaggle', 'mcp.json'))
+  })
+
+  it("refuses Pi's /mcp change to a global file in another project's Run likewise", async () => {
+    const { migrate, danglingProject, homeDir, piAgentDir, root } = await setUp()
+    const kept = await danglingProject('kept')
+    const other = path.join(root, 'other')
+    await mkdir(other, { recursive: true })
+    await migrate([kept])
+    await migrate([other])
+    const refusal = mcpUpdateRefusal({ homeDir, piAgentDir, projectPath: other })
+
+    expect(refusal(path.join(homeDir, '.openwaggle', 'mcp.json'))?.message).toContain(
+      path.join(kept, '.openwaggle', 'mcp.json'),
+    )
+    // That Run's own project file waits for nothing that would undo it.
+    expect(refusal(path.join(other, '.openwaggle', 'mcp.json'))).toBeUndefined()
   })
 })
