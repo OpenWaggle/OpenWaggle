@@ -202,7 +202,7 @@ export async function listCreatedPiSessionFiles() {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<{ readonly session_id: string; readonly pi_session_file: string }>`
         SELECT sessions.id AS session_id, sessions.pi_session_file FROM sessions
-        WHERE sessions.pi_session_file IS NOT NULL
+        WHERE sessions.pi_session_file IS NOT NULL AND sessions.archived = 0
           AND NOT EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id)
           AND EXISTS (SELECT 1 FROM session_nodes WHERE session_id = sessions.id)
       `

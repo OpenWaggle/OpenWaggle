@@ -217,7 +217,7 @@ export interface PiSessionDiscoveryRepositoryShape {
     readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],
     SessionProjectionRepositoryError
   >
-  /** Every Session OpenWaggle created that holds a transcript and records a Pi file, with it. */
+  /** Every unarchived Session OpenWaggle created that holds a transcript and records a Pi file. */
   readonly listCreatedPiSessionFiles: () => Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],
     SessionProjectionRepositoryError

@@ -96,4 +96,19 @@ describe("A created Session's next message after its Pi file was deleted", () =>
     await discover()
     expect(updates()).toHaveLength(2)
   })
+
+  it('is not announced while it is archived', async () => {
+    const sessionId = await createSession(fixture)
+    expect((await sendMessage(sessionId, 'First', 'run-archived')).outcome).toBe('success')
+    const file = (await sessionDetail(sessionId))?.piSessionFile
+    if (!file) throw new Error('The Session recorded no Pi file.')
+    const { archiveSession } = await import('../../../store/session-details/session-mutations')
+    await archiveSession(sessionId)
+    rmSync(file)
+    events.length = 0
+
+    await discover()
+
+    expect(events.filter((event) => event.sessionId === sessionId)).toEqual([])
+  })
 })
