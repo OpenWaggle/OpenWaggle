@@ -10,6 +10,7 @@ import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { useBackgroundRunStore } from './background-run-store'
+import { customBranchSummaryDraft } from './branch-summary-store'
 import {
   handleStoreError,
   isSameSessionId,
@@ -163,7 +164,7 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
       // Before the view leaves it, so the text written in it goes to New session.
-      if (wasActiveSession) carryRemovedSessionDraft(id)
+      if (wasActiveSession) carryRemovedSessionDraft(id, customBranchSummaryDraft(id))
       removeMissingSession(id, set)
       refreshMissingSessionTree(wasActiveSession)
       return

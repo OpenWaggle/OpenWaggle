@@ -86,3 +86,11 @@ export const useBranchSummaryStore = create<BranchSummaryStoreState>((set) => ({
     set({ prompt: null })
   },
 }))
+
+/** With a custom branch summary prompt open, the composer holds its instructions, not the draft. */
+export function customBranchSummaryDraft(sessionId: SessionId) {
+  const prompt = useBranchSummaryStore.getState().prompt
+  return prompt?.mode === 'custom' && String(prompt.sessionId) === String(sessionId)
+    ? prompt.draftComposerText
+    : undefined
+}

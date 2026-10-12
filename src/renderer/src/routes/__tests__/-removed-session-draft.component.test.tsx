@@ -1,12 +1,13 @@
+import type { PreparedAttachment } from '@shared/types/agent'
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, renderHook } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import { useChatStore } from '@/features/chat/state'
+import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
-import { useComposerStore } from '@/features/composer/state'
+import { forgoRemovedSessionDraft, useComposerStore } from '@/features/composer/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -138,4 +139,74 @@ describe('An open Session the Host removed', () => {
       useComposerStore.getState().getScopedDraft('project:/old-project:new-session'),
     ).toBeNull()
   })
+
+  it('carries an attachment the New session draft holds already once', async () => {
+    const image = fromPartial<PreparedAttachment>({ id: 'image-1', sizeBytes: 1 })
+    openRemovedSession()
+    useComposerStore
+      .getState()
+      .saveScopedDraft('project:/old-project:new-session', { input: '', attachments: [image] })
+    act(() => {
+      useComposerStore.getState().setInput('Look')
+      useComposerStore.getState().replaceAttachments([image])
+    })
+
+    await removeByTheHost()
+
+    expect(useComposerStore.getState().getScopedDraft('project:/old-project:new-session')).toEqual(
+      expect.objectContaining({ input: 'Look', attachments: [image] }),
+    )
+  })
+
+  it('carries the draft, not the instructions, of a custom branch summary it was writing', async () => {
+    openRemovedSession()
+    useBranchSummaryStore
+      .getState()
+      .openPrompt(
+        fromPartial({ sessionId: ID, projectPath: '/old-project', draftComposerText: '' }),
+      )
+    useBranchSummaryStore.getState().startCustomPrompt('The message I was writing')
+    act(() => useComposerStore.getState().setInput('Summarize only the API changes'))
+
+    await removeByTheHost()
+
+    expect(
+      useComposerStore.getState().getScopedDraft('project:/old-project:new-session')?.input,
+    ).toBe('The message I was writing')
+  })
+
+  it('does not carry the draft of a Session removed with its project', async () => {
+    openRemovedSession()
+    act(() => useComposerStore.getState().setInput('Never mind'))
+    forgoRemovedSessionDraft(ID)
+
+    await removeByTheHost()
+
+    expect(
+      useComposerStore.getState().getScopedDraft('project:/old-project:new-session'),
+    ).toBeNull()
+  })
 })
+
+function openRemovedSession() {
+  usePreferencesStore.setState({ settings: { ...DEFAULT_SETTINGS, projectPath: '/old-project' } })
+  useBranchSummaryStore.getState().clearPrompt()
+  useChatStore.setState({
+    activeSessionId: ID,
+    activeSession: session,
+    sessionById: new Map([[ID, session]]),
+    missingSessionIds: new Set(),
+  })
+  useComposerStore.setState(useComposerStore.getInitialState())
+  renderHook(() => {
+    const activeSessionId = useChatStore((s) => s.activeSessionId)
+    useScopedComposerDrafts(activeSessionId)
+  })
+}
+
+async function removeByTheHost() {
+  vi.mocked(api.getSessionDetail).mockResolvedValue(null)
+  await act(async () => {
+    await useChatStore.getState().refreshSession(ID)
+  })
+}

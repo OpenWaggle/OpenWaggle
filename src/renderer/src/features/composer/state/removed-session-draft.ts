@@ -18,21 +18,38 @@ function joined(first: string, second: string) {
   return first && second ? `${first}\n\n${second}` : first || second
 }
 
+/** Sessions the user is deleting, as removing their project does: their drafts go with them. */
+const forgoneSessions = new Set<string>()
+
+/** The draft of a Session the user is deleting is not carried once the Host reports it gone. */
+export function forgoRemovedSessionDraft(sessionId: SessionId) {
+  forgoneSessions.add(String(sessionId))
+}
+
 /**
  * The Host removed the open Session, as one whose Pi file was deleted: the view goes to New
  * session, and the draft written in it goes along, so text a refused send gave back is not lost.
  * Joined to a New session draft already there, in the project that is open.
  */
-export function carryRemovedSessionDraft(sessionId: SessionId) {
+export function carryRemovedSessionDraft(
+  sessionId: SessionId,
+  /** The text written in it, when the composer shows something else, as summary instructions. */
+  draftText?: string,
+) {
+  if (forgoneSessions.delete(String(sessionId))) return
   const store = useComposerStore.getState()
   const projectPath = usePreferencesStore.getState().settings.projectPath
   if (!ownedBySession(store.activeDraftContextKey, sessionId)) return
-  if (!store.input.trim() && store.attachments.length === 0) return
+  const input = draftText ?? store.input
+  if (!input.trim() && store.attachments.length === 0) return
   const target = buildComposerDraftContextKey({ projectPath, sessionId: null })
   const existing = store.getScopedDraft(target)
+  const attachments = [...(existing?.attachments ?? []), ...store.attachments]
   store.saveScopedDraft(target, {
-    input: joined(existing?.input ?? '', store.input),
-    attachments: [...(existing?.attachments ?? []), ...store.attachments],
+    input: joined(existing?.input ?? '', input),
+    attachments: [
+      ...new Map(attachments.map((attachment) => [attachment.id, attachment])).values(),
+    ],
     wagglePreset: store.selectedWagglePreset ?? existing?.wagglePreset ?? null,
   })
 }

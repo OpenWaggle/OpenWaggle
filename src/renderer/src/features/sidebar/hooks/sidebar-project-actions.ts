@@ -7,6 +7,7 @@ import {
 } from '@shared/types/session-query'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { forgoRemovedSessionDraft } from '@/features/composer/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
 import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
@@ -214,6 +215,8 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       (run) => api.cancelAgent(run.sessionId),
     )
     await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
+      // Its draft is deleted with it, not carried to the project's New session.
+      forgoRemovedSessionDraft(id)
       await api.deleteSession(id, { removingProject: true })
       clearComposerDraftForSession(id)
       await deleteWorkspaceOwner(String(id))
