@@ -1,5 +1,7 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { WagglePreset } from '@shared/types/waggle'
 import { act, renderHook } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
@@ -114,6 +116,17 @@ describe('useBranchSummaryWorkflow', () => {
       params: { sessionId: 'session-1' },
       search: expect.any(Function),
     })
+  })
+
+  it('keeps a Waggle preset picked on the draft branch after summarizing', async () => {
+    openPrompt()
+    const preset = fromPartial<WagglePreset>({ id: 'preset-1', name: 'Debate' })
+    useComposerStore.getState().setSelectedWagglePreset(preset)
+    const { result } = renderHook(() => useBranchSummaryWorkflow(workflowParams()))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(useComposerStore.getState().selectedWagglePreset).toEqual(preset)
   })
 
   it('keeps both source and saved destination images after summarizing', async () => {

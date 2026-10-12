@@ -101,14 +101,16 @@ function applySummarizedBranchDraft(
     activeBranchId: workspace.activeBranchId,
     activeNodeId: workspace.activeNodeId,
   })
-  const sourceAttachments = useComposerStore.getState().attachments
+  const { attachments: sourceAttachments, selectedWagglePreset } = useComposerStore.getState()
+  // A Waggle preset picked on the draft branch goes with its message.
+  const sourceDraft = {
+    input: prompt.draftComposerText,
+    attachments: sourceAttachments,
+    wagglePreset: selectedWagglePreset,
+  }
   const appliedDraft = useComposerStore
     .getState()
-    .switchScopedDraftContext(
-      contextKey,
-      { input: prompt.draftComposerText, attachments: sourceAttachments },
-      { input: prompt.draftComposerText, attachments: sourceAttachments },
-    )
+    .switchScopedDraftContext(contextKey, sourceDraft, sourceDraft)
   const attachments = [
     ...new Map(
       [...appliedDraft.attachments, ...sourceAttachments].map((attachment) => [
