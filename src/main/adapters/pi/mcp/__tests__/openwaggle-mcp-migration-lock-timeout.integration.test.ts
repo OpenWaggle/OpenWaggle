@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { mcpFileMigrationFailure } from '../../../mcp/migration/migration-health'
+import { mcpFileMigrationPending } from '../../../mcp/migration/migration-health'
 import { migrationRecordPath } from '../../../mcp/migration/migration-record'
 
 /** A short lock wait stands for the 30 s one, so the test does not wait that long. */
@@ -76,8 +76,8 @@ describe('the MCP file migration when another process keeps the lock', () => {
 
     await migrateOpenWaggleMcpFilesOnce(project)
 
-    expect(mcpFileMigrationFailure(globalFile)).toEqual(expect.any(String))
-    expect(mcpFileMigrationFailure(projectFile)).toEqual(expect.any(String))
+    expect(mcpFileMigrationPending(globalFile)?.error).toEqual(expect.any(String))
+    expect(mcpFileMigrationPending(projectFile)?.error).toEqual(expect.any(String))
     released.resolve()
     await otherHost
   })
@@ -94,7 +94,7 @@ describe('the MCP file migration when another process keeps the lock', () => {
       )
     }
     await migrateOpenWaggleMcpFilesOnce(null)
-    expect(mcpFileMigrationFailure(globalFile)).toBeUndefined()
+    expect(mcpFileMigrationPending(globalFile)?.error).toBeUndefined()
     const recordPath = migrationRecordPath(homedir())
     const released = Promise.withResolvers<void>()
     const otherHost = withProcessFileLock(recordPath, () => released.promise)
@@ -102,8 +102,8 @@ describe('the MCP file migration when another process keeps the lock', () => {
 
     await migrateOpenWaggleMcpFilesOnce(project)
 
-    expect(mcpFileMigrationFailure(globalFile)).toBeUndefined()
-    expect(mcpFileMigrationFailure(projectFile)).toEqual(expect.any(String))
+    expect(mcpFileMigrationPending(globalFile)?.error).toBeUndefined()
+    expect(mcpFileMigrationPending(projectFile)?.error).toEqual(expect.any(String))
     released.resolve()
     await otherHost
   })
@@ -119,7 +119,9 @@ describe('the MCP file migration when another process keeps the lock', () => {
 
     await migrateOpenWaggleMcpFilesOnce(added)
 
-    expect(mcpFileMigrationFailure(path.join(added, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    expect(
+      mcpFileMigrationPending(path.join(added, '.openwaggle', 'mcp.json'))?.error,
+    ).toBeUndefined()
     released.resolve()
     await otherHost
   })
@@ -133,7 +135,9 @@ describe('the MCP file migration when another process keeps the lock', () => {
 
     await migrateOpenWaggleMcpFilesOnce(worktree)
 
-    expect(mcpFileMigrationFailure(path.join(worktree, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    expect(
+      mcpFileMigrationPending(path.join(worktree, '.openwaggle', 'mcp.json'))?.error,
+    ).toBeUndefined()
     released.resolve()
     await otherHost
   })
@@ -160,7 +164,7 @@ describe('the MCP file migration when another process keeps the lock', () => {
     // One wait for the lock, not one per scope: Host start is not held for (1 + N) waits.
     expect(lockCalls.count).toBe(1)
     for (const project of projects) {
-      expect(mcpFileMigrationFailure(path.join(project, '.openwaggle', 'mcp.json'))).toEqual(
+      expect(mcpFileMigrationPending(path.join(project, '.openwaggle', 'mcp.json'))?.error).toEqual(
         expect.any(String),
       )
     }

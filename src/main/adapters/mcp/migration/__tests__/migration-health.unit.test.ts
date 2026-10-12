@@ -6,7 +6,7 @@ import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
   forgetMcpFileMigrationOutcomes,
-  mcpFileMigrationFailure,
+  mcpFileMigrationPending,
   pendingMcpFileMigration,
   recordMcpFileMigrationOutcome,
 } from '../migration-health'
@@ -32,11 +32,11 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     fs.failWritesTo = globalFile
 
     await migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [], now: () => NOW, fs })
-    expect(mcpFileMigrationFailure(globalFile)).toContain('EACCES')
+    expect(mcpFileMigrationPending(globalFile)?.error).toContain('EACCES')
 
     fs.failWritesTo = undefined
     await migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [], now: () => NOW, fs })
-    expect(mcpFileMigrationFailure(globalFile)).toBeUndefined()
+    expect(mcpFileMigrationPending(globalFile)?.error).toBeUndefined()
   })
 
   it('is not loaded, so its old servers do not connect, and the error says why', async () => {
@@ -78,9 +78,11 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     const linkedFile = path.join(root, 'linked', '.openwaggle', 'mcp.json')
 
     recordMcpFileMigrationOutcome(linkedFile, 'EACCES')
-    expect(mcpFileMigrationFailure(path.join(real, '.openwaggle', 'mcp.json'))).toBe('EACCES')
+    expect(mcpFileMigrationPending(path.join(real, '.openwaggle', 'mcp.json'))?.error).toBe(
+      'EACCES',
+    )
     recordMcpFileMigrationOutcome(path.join(real, '.openwaggle', 'mcp.json'))
-    expect(mcpFileMigrationFailure(linkedFile)).toBeUndefined()
+    expect(mcpFileMigrationPending(linkedFile)?.error).toBeUndefined()
   })
 
   it('stays failed once a dangling folder link resolves, until a migration succeeds', () => {
@@ -95,11 +97,13 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     // Mounted again: the file now leads somewhere else, still in the old format.
     mkdirSync(dotfiles, { recursive: true })
     writeFileSync(path.join(dotfiles, 'mcp.json'), '{"mcpServers":{}}')
-    expect(mcpFileMigrationFailure(file)).toBe('links to a missing folder')
+    expect(mcpFileMigrationPending(file)?.error).toBe('links to a missing folder')
 
     recordMcpFileMigrationOutcome(file)
-    expect(mcpFileMigrationFailure(file)).toBeUndefined()
-    expect(mcpFileMigrationFailure(path.join(project, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    expect(mcpFileMigrationPending(file)?.error).toBeUndefined()
+    expect(
+      mcpFileMigrationPending(path.join(project, '.openwaggle', 'mcp.json'))?.error,
+    ).toBeUndefined()
   })
 
   it('stays failed under any spelling of the project folder once its link resolves', () => {
@@ -116,10 +120,10 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     mkdirSync(dotfiles, { recursive: true })
     writeFileSync(path.join(dotfiles, 'mcp.json'), '{"mcpServers":{}}')
     // Settings and Runs reach the project by its real path.
-    expect(mcpFileMigrationFailure(path.join(real, tail))).toBe('links to a missing folder')
+    expect(mcpFileMigrationPending(path.join(real, tail))?.error).toBe('links to a missing folder')
 
     recordMcpFileMigrationOutcome(path.join(real, tail))
-    expect(mcpFileMigrationFailure(path.join(linkedProject, tail))).toBeUndefined()
+    expect(mcpFileMigrationPending(path.join(linkedProject, tail))?.error).toBeUndefined()
   })
 
   describe('as a write that may change several files sees it', () => {

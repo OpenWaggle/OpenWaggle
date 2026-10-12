@@ -87,11 +87,6 @@ function failureOf(filePath: string) {
   return failures.find((failure) => concerns(failure, spellings))
 }
 
-/** Why the file's last migration in this process failed, or undefined. */
-export function mcpFileMigrationFailure(filePath: string) {
-  return failureOf(filePath)?.error
-}
-
 /** The file's failing migration with its cause, or undefined. */
 export function mcpFileMigrationPending(filePath: string): PendingMcpFileMigration | undefined {
   const failure = failureOf(filePath)
