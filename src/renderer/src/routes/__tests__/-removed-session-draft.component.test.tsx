@@ -175,6 +175,25 @@ describe('An open Session the Host removed', () => {
     ).toBe('The message I was writing')
   })
 
+  it('carries the draft of a custom branch summary being made, not the cleared composer', async () => {
+    openRemovedSession()
+    useBranchSummaryStore
+      .getState()
+      .openPrompt(
+        fromPartial({ sessionId: ID, projectPath: '/old-project', draftComposerText: '' }),
+      )
+    useBranchSummaryStore.getState().startCustomPrompt('The message I was writing')
+    useBranchSummaryStore.getState().startSummarizing()
+    // Sending the instructions cleared the composer.
+    act(() => useComposerStore.getState().setInput(''))
+
+    await removeByTheHost()
+
+    expect(
+      useComposerStore.getState().getScopedDraft('project:/old-project:new-session')?.input,
+    ).toBe('The message I was writing')
+  })
+
   it('does not carry the draft of a Session removed with its project', async () => {
     openRemovedSession()
     act(() => useComposerStore.getState().setInput('Never mind'))
