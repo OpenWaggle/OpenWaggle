@@ -7,7 +7,7 @@ import {
   maybeOpenBranchSummaryPrompt,
   setComposerTextValue,
 } from '@/features/chat/lib'
-import { useBranchSummaryStore } from '@/features/chat/state'
+import { leaveBranchSummaryPrompt } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
@@ -59,7 +59,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
       return
     }
 
-    useBranchSummaryStore.getState().clearPrompt()
+    leaveBranchSummaryPrompt()
     clearDraftBranchForSession(tree.session.id)
     void navigate({
       to: '/sessions/$sessionId',

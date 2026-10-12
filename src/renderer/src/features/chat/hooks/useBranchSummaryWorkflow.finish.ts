@@ -8,14 +8,16 @@ import type {
 import type { SessionWorkspace } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state/chat-store'
-import {
-  buildComposerDraftContextKey,
-  buildPendingSessionDraftContextKey,
-} from '@/features/composer/lib'
+import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
+import {
+  draftBranchComposerContextKey,
+  keepBranchSummaryDraft,
+  keepLeftBranchSummaryDraft,
+} from '../state/branch-summary-draft'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
 
 // Where a branch summary lands once Pi saved it: shown on its branch, or left there.
@@ -41,13 +43,7 @@ export interface BranchSummaryWorkflowParams {
   readonly showToast: (message: string) => void
 }
 
-export function draftBranchComposerContextKey(prompt: BranchSummaryPromptState) {
-  return buildComposerDraftContextKey({
-    projectPath: prompt.projectPath,
-    sessionId: prompt.sessionId,
-    draftSourceNodeId: prompt.sourceNodeId,
-  })
-}
+export { draftBranchComposerContextKey }
 
 export function routeToSessionSelection(
   params: BranchSummaryWorkflowParams,
@@ -155,23 +151,6 @@ export async function finishBranchSummary(
 }
 
 /**
- * The message being written on the draft branch, kept for the Session as a draft it owns before
- * its workspace is shown, so the composer moves it to the branch the view lands on. The composer
- * shows the summary's instructions or choice meanwhile, which are not kept.
- */
-function keepDraftForSession(prompt: BranchSummaryPromptState) {
-  const store = useComposerStore.getState()
-  store.saveScopedDraft(buildPendingSessionDraftContextKey(prompt.sessionId), {
-    input: prompt.draftComposerText,
-    attachments: store.attachments,
-    wagglePreset: store.selectedWagglePreset,
-  })
-  store.replaceAttachments([])
-  setComposerTextValue('')
-  store.clearScopedDraft(draftBranchComposerContextKey(prompt))
-}
-
-/**
  * The summary is saved, but showing it failed: it is not offered again, which would save a second
  * one. While the Session is read again the prompt stays summarizing, which keeps the composer
  * disabled; then, if nothing moved the view meanwhile, it goes where the summary left it, on its
@@ -195,13 +174,10 @@ export async function leaveSavedBranchSummary(
     params.refreshSessionWorkspace(prompt.sessionId),
   ])
   if (!isCurrentBranchSummaryPrompt(prompt)) {
-    // A prompt opened meanwhile is another's; this one, left summarizing, would stay stuck.
-    if (useBranchSummaryStore.getState().prompt === prompt) {
-      useBranchSummaryStore.getState().clearPrompt()
-    }
+    keepLeftBranchSummaryDraft(prompt)
     return
   }
-  keepDraftForSession(prompt)
+  keepBranchSummaryDraft(prompt)
   useBranchSummaryStore.getState().clearPrompt()
   params.clearDraftBranchForSession(prompt.sessionId)
   routeToSessionSelection(params, prompt.sessionId, {})

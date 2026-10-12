@@ -2,7 +2,7 @@ import { RepositoryPath, SessionBranchId, SessionId, SessionNodeId } from '@shar
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
-import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
+import { leaveBranchSummaryPrompt, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -118,7 +118,7 @@ export function useChatRouteEffects({
       draftBranch.sessionId !== routeSessionTreeId ||
       routeMovedToBranch
     ) {
-      useBranchSummaryStore.getState().clearPrompt()
+      leaveBranchSummaryPrompt()
       clearDraftBranchForSession(draftBranch.sessionId)
     }
   }, [clearDraftBranchForSession, draftBranch, routeBranchId, routeSessionTreeId])

@@ -2,7 +2,7 @@ import type { RepositoryPath, SessionId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
+import { leaveBranchSummaryPrompt, useChatStore } from '@/features/chat/state'
 import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
@@ -180,7 +180,7 @@ export function useSidebarController() {
   }
 
   function clearTransientDraftContext() {
-    useBranchSummaryStore.getState().clearPrompt()
+    leaveBranchSummaryPrompt()
     if (state.sessions.draftBranch) {
       state.sessions.clearDraftBranchForSession(state.sessions.draftBranch.sessionId)
     }
