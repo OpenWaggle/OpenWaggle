@@ -1,4 +1,4 @@
-import { constants } from 'node:fs'
+import { constants, readdirSync } from 'node:fs'
 import { access, lstat, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -10,8 +10,11 @@ import {
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
+import type { SessionDetail } from '@shared/types/session'
+import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import {
+  type PiSessionContinuation,
   type PiSessionFileFingerprint,
   type PiSessionFileRead,
   PiSessionFiles,
@@ -20,6 +23,7 @@ import {
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
 import {
   findExistingPiSessionFile,
+  piSessionSearchDirectories,
   resolveSessionWorkingPath,
 } from './agent-kernel/session-manager'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
@@ -186,6 +190,37 @@ async function readSnapshot(
   }
 }
 
+/** Where a Run of `session` would run; undefined when there is none, as once its worktree is gone. */
+function runDirectoryOf(session: SessionDetail) {
+  try {
+    return resolveSessionWorkingPath(session)
+  } catch {
+    return undefined
+  }
+}
+
+function isUnsearchable(folder: string) {
+  try {
+    readdirSync(folder)
+    return false
+  } catch (error) {
+    return isRecord(error) && (error.code === 'EACCES' || error.code === 'EPERM')
+  }
+}
+
+/**
+ * Searched over the Session's run directory when there is one, and over its checkout, worktree
+ * and recorded folders in any case. A copy found is continued; a folder that cannot be read may
+ * hold a newer one, so without one found what a Run would continue is unknown.
+ */
+function continuationOf(session: SessionDetail): PiSessionContinuation {
+  const runDirectory = runDirectoryOf(session)
+  const file = findExistingPiSessionFile(session, runDirectory)
+  if (file) return { kind: 'file', file }
+  const folder = piSessionSearchDirectories(session, runDirectory).find(isUnsearchable)
+  return folder ? { kind: 'unsearchable', folder } : { kind: 'new' }
+}
+
 export function createPiSessionFiles(options: { readonly sessionsRoot?: string } = {}) {
   const scanner = createPiSessionDiscoveryScanner(options)
   return {
@@ -201,12 +236,7 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
           availability === 'folder' || availability === 'file' ? availability : undefined,
         ),
       ),
-    // A Session with no run directory to find one from, such as one whose worktree is gone, has
-    // no copy a Run would continue.
-    continuedFile: (session) =>
-      Effect.try(() => findExistingPiSessionFile(session, resolveSessionWorkingPath(session))).pipe(
-        Effect.orElseSucceed(() => undefined),
-      ),
+    continuedFile: (session) => Effect.sync(() => continuationOf(session)),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }

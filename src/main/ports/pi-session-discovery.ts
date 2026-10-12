@@ -82,6 +82,11 @@ export type PiSessionFileRead =
       readonly fingerprint: PiSessionFileFingerprint
     }
 
+export type PiSessionContinuation =
+  | { readonly kind: 'file'; readonly file: string }
+  | { readonly kind: 'new' }
+  | { readonly kind: 'unsearchable'; readonly folder: string }
+
 export interface PiSessionFilesShape {
   readonly discover: (
     input: PiSessionDiscoveryInput,
@@ -99,9 +104,10 @@ export interface PiSessionFilesShape {
   ) => Effect.Effect<PiSessionFileUnavailability | undefined>
   /**
    * The Pi file a Run of `session` would continue, which may be a copy under its Pi session id
-   * when the recorded file is gone from its folder; undefined when it would start a new one.
+   * when the recorded file is gone from its folder, or that it would start a new one; unknown
+   * while a folder that may hold a copy cannot be read.
    */
-  readonly continuedFile: (session: SessionDetail) => Effect.Effect<string | undefined>
+  readonly continuedFile: (session: SessionDetail) => Effect.Effect<PiSessionContinuation>
   /**
    * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0051).
    * `projectedPiEntryCount` is how many of the file's entries the projection already holds.

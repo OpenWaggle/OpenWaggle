@@ -207,17 +207,24 @@ export function piSessionIdOfFile(file: string) {
 /**
  * Every file that holds a transcript of the Session's Pi session id, newest first.
  *
- * Looks in the run directory's Pi session directory, the recorded path's directory, and the
- * directories of the Session's checkout and worktree, in case the Session moved between them.
+ * Looks in the folders of its run directory, recorded path, checkout and worktree, as it moves.
  * See {@link findExistingPiSessionFile} for why a transcript can live outside the recorded path.
  * Only files named for the Session's own Pi session id are returned, never another session's.
  */
 export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?: string) {
   const piSessionId = session.piSessionId
   if (!piSessionId) return []
+  const candidates = piSessionSearchDirectories(session, runDirectory).flatMap((directory) =>
+    piSessionFilesIn(directory, piSessionId),
+  )
+  // The newest file is the one the last run wrote; earlier ones are abandoned copies.
+  return candidates.sort((left, right) => modifiedAt(right) - modifiedAt(left))
+}
+
+// The folders `findPiSessionFiles` looks in for the Session's Pi files.
+export function piSessionSearchDirectories(session: PiSessionFileLocation, runDirectory?: string) {
   const directories = new Set<string>()
-  // A folder's files may be under its path or, as `pi` and new Sessions file them, the folder it
-  // resolves to.
+  // A folder's files may be under its path or the one it resolves to, as `pi` files them.
   const addFolder = (folder: string) => {
     directories.add(piSessionDirectoryFor(folder))
     directories.add(piSessionDirectoryFor(physicalPath(folder)))
@@ -227,11 +234,7 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
   if (session.projectPath) addFolder(session.projectPath)
   const worktreePath = session.worktreePath?.trim()
   if (worktreePath) addFolder(worktreePath)
-  const candidates = [...directories].flatMap((directory) =>
-    piSessionFilesIn(directory, piSessionId),
-  )
-  // The newest file is the one the last run wrote; earlier ones are abandoned copies.
-  return candidates.sort((left, right) => modifiedAt(right) - modifiedAt(left))
+  return [...directories]
 }
 
 /**
@@ -243,7 +246,7 @@ export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?
  * only when the recorded file is gone from a folder that is there: one out of reach (its folder
  * missing or not searchable, or the file unreadable) is never replaced by an older copy.
  */
-export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory: string) {
+export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory?: string) {
   const recorded = session.piSessionFile
   if (recorded && isReadablePiSessionFile(recorded)) return recorded
   if (recorded && unavailabilityOf(recorded)) return undefined

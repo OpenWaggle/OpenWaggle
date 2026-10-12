@@ -175,12 +175,10 @@ export function deletedPiSessionFile(sessionId: SessionId) {
     if (!state?.piSessionFile) return undefined
     if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return undefined
     const deleted = yield* files.value.isDeleted(state.piSessionFile)
-    const unavailable = deleted ? undefined : yield* files.value.unavailability(state.piSessionFile)
-    if (!deleted && !unavailable) return undefined
-    // A created Session's Run continues a copy under its Pi session id when there is one.
-    if (deleted && !state.piEntryNodeIdPrefix && (yield* continuesACopy(sessionId))) {
-      return undefined
-    }
+    const unavailable = deleted
+      ? yield* deletedFileUnavailability(sessionId, state.piEntryNodeIdPrefix)
+      : yield* files.value.unavailability(state.piSessionFile)
+    if (unavailable === 'continued' || (!deleted && !unavailable)) return undefined
     return {
       file: state.piSessionFile,
       unavailable,
@@ -190,15 +188,32 @@ export function deletedPiSessionFile(sessionId: SessionId) {
   })
 }
 
-function continuesACopy(sessionId: SessionId) {
+/**
+ * A deleted file's Session: a created one's Run continues a copy under its Pi session id when
+ * there is one, and cannot tell while a folder that may hold one cannot be read.
+ */
+function deletedFileUnavailability(sessionId: SessionId, piEntryNodeIdPrefix?: string) {
+  if (piEntryNodeIdPrefix) return Effect.succeed(undefined)
+  return createdSessionContinuation(sessionId).pipe(
+    Effect.map((continuation) =>
+      continuation?.kind === 'file'
+        ? ('continued' as const)
+        : continuation?.kind === 'unsearchable'
+          ? ('copies' as const)
+          : undefined,
+    ),
+  )
+}
+
+function createdSessionContinuation(sessionId: SessionId) {
   return Effect.gen(function* () {
     const files = yield* Effect.serviceOption(PiSessionFiles)
     const projections = yield* Effect.serviceOption(SessionProjectionRepository)
-    if (Option.isNone(files) || Option.isNone(projections)) return false
+    if (Option.isNone(files) || Option.isNone(projections)) return null
     const detail = yield* projections.value
       .getOptional(sessionId)
       .pipe(Effect.orElseSucceed(() => null))
-    return detail ? (yield* files.value.continuedFile(detail)) !== undefined : false
+    return detail ? yield* files.value.continuedFile(detail) : null
   })
 }
 
