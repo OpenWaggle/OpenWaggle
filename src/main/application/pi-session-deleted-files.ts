@@ -13,6 +13,7 @@ import { PiSessionDiscoveryRepository, PiSessionFiles } from '../ports/pi-sessio
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
+import { inspectPiSessionFile, type MissingPiSessionFile } from './pi-session-file-inspection'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { deleteSessionWithVisualizations } from './session-visualization-deletion'
 
@@ -169,66 +170,8 @@ export function removeSessionsWithDeletedPiFiles() {
  * Pi entry yet) was never written, not deleted.
  */
 export function deletedPiSessionFile(sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const repository = yield* Effect.serviceOption(PiSessionDiscoveryRepository)
-    const files = yield* Effect.serviceOption(PiSessionFiles)
-    if (Option.isNone(repository) || Option.isNone(files)) return undefined
-    const state = yield* repository.value
-      .getProjectionState(sessionId)
-      .pipe(Effect.orElseSucceed(() => null))
-    if (!state?.piSessionFile) return undefined
-    if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return undefined
-    const deleted = yield* files.value.isDeleted(state.piSessionFile)
-    const { unavailable, unreadableFolder } = deleted
-      ? yield* deletedFileUnavailability(sessionId, state.piEntryNodeIdPrefix)
-      : { unavailable: yield* files.value.unavailability(state.piSessionFile) }
-    if (unavailable === 'continued' || (!deleted && !unavailable)) return undefined
-    return {
-      file: state.piSessionFile,
-      unavailable,
-      unreadableFolder,
-      discovered: state.piEntryNodeIdPrefix !== undefined,
-      repository: repository.value,
-    }
-  })
+  return inspectPiSessionFile(sessionId).pipe(Effect.map((inspection) => inspection.missing))
 }
-
-/**
- * A deleted file's Session: a created one's Run continues a copy under its Pi session id when
- * there is one, and cannot tell while a folder that may hold one cannot be read.
- */
-function deletedFileUnavailability(
-  sessionId: SessionId,
-  piEntryNodeIdPrefix?: string,
-): Effect.Effect<{
-  readonly unavailable?: 'continued' | 'copies'
-  readonly unreadableFolder?: string
-}> {
-  if (piEntryNodeIdPrefix) return Effect.succeed({})
-  return createdSessionContinuation(sessionId).pipe(
-    Effect.map((continuation) => {
-      if (continuation?.kind === 'file') return { unavailable: 'continued' }
-      if (continuation?.kind !== 'unsearchable') return {}
-      return { unavailable: 'copies', unreadableFolder: continuation.folder }
-    }),
-  )
-}
-
-function createdSessionContinuation(sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const files = yield* Effect.serviceOption(PiSessionFiles)
-    const projections = yield* Effect.serviceOption(SessionProjectionRepository)
-    if (Option.isNone(files) || Option.isNone(projections)) return null
-    const detail = yield* projections.value
-      .getOptional(sessionId)
-      .pipe(Effect.orElseSucceed(() => null))
-    return detail ? yield* files.value.continuedFile(detail) : null
-  })
-}
-
-type MissingPiSessionFile = NonNullable<
-  Effect.Effect.Success<ReturnType<typeof deletedPiSessionFile>>
->
 
 /** What an opened Session OpenWaggle created says once its Pi file was deleted. */
 export const CREATED_SESSION_FILE_DELETED =

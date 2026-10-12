@@ -149,6 +149,25 @@ describe('announceCreatedSessionsWithMissingPiFiles', () => {
     expect(published).toHaveLength(2)
   })
 
+  it('reads a Session whose Run continues a copy once, until the copy is gone', async () => {
+    const deleted = firstSession()
+    const copy = '/pi/other/copy.jsonl'
+    const deletedFiles = new Set([deleted.piSessionFile])
+    const projectionReads: string[] = []
+    const files: Files = { deletedFiles, continuation: { kind: 'file', file: copy } }
+
+    await pass({ listed: SESSIONS, ...files, projectionReads })
+    await pass({ listed: SESSIONS, ...files, projectionReads })
+
+    expect(projectionReads).toEqual([String(deleted.sessionId)])
+    expect(published).toEqual([])
+    deletedFiles.add(copy)
+    files.continuation = { kind: 'new' }
+    await pass({ listed: SESSIONS, ...files, projectionReads })
+    expect(projectionReads).toHaveLength(2)
+    expect(published).toHaveLength(1)
+  })
+
   it('forgets an announced Session once it is gone from the list', async () => {
     const deleted = firstSession()
     const files: Files = {

@@ -5,7 +5,7 @@ import { createLogger } from '../logger'
 import { PiSessionDiscoveryRepository, PiSessionFiles } from '../ports/pi-session-discovery'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { hasAnyActiveRun } from './active-session-runs'
-import { deletedPiSessionFile } from './pi-session-deleted-files'
+import { inspectPiSessionFile } from './pi-session-file-inspection'
 
 const logger = createLogger('pi-session-created-file-notices')
 
@@ -15,20 +15,40 @@ const logger = createLogger('pi-session-created-file-notices')
  */
 const announcedNotices = new Map<string, string>()
 
+/**
+ * Created Sessions whose deleted Pi file a Run would replace with a copy, with the file listed for
+ * them and the copy: they show no notice while that copy is there, so they are not read again.
+ */
+const continuedCopies = new Map<string, { readonly listedFile: string; readonly copy: string }>()
+
 /** A Session deleted or archived since it was announced is not announced again on its own. */
 function forgetUnlistedSessions(listed: ReadonlySet<string>) {
-  for (const sessionId of announcedNotices.keys()) {
-    if (!listed.has(sessionId)) announcedNotices.delete(sessionId)
+  for (const sessions of [announcedNotices, continuedCopies]) {
+    for (const sessionId of sessions.keys()) {
+      if (!listed.has(sessionId)) sessions.delete(sessionId)
+    }
   }
 }
 
-/** The notice a Session whose Pi file is missing shows, undefined when it shows none. */
-function missingFileNotice(sessionId: SessionId) {
-  return deletedPiSessionFile(sessionId).pipe(
-    Effect.map((missing) =>
-      missing ? `${missing.unavailable ?? 'deleted'}:${missing.unreadableFolder ?? ''}` : undefined,
-    ),
-  )
+function isPresent(file: string) {
+  return Effect.gen(function* () {
+    const files = yield* PiSessionFiles
+    return !(yield* files.isDeleted(file)) && (yield* files.unavailability(file)) === undefined
+  })
+}
+
+/** The notice a Session whose listed Pi file is missing shows, undefined when it shows none. */
+function missingFileNotice(sessionId: SessionId, listedFile: string) {
+  return Effect.gen(function* () {
+    const continued = continuedCopies.get(sessionId)
+    if (continued?.listedFile === listedFile && (yield* isPresent(continued.copy))) return undefined
+    continuedCopies.delete(sessionId)
+    const { missing, continuedCopy } = yield* inspectPiSessionFile(sessionId)
+    if (continuedCopy) continuedCopies.set(sessionId, { listedFile, copy: continuedCopy })
+    return missing
+      ? `${missing.unavailable ?? 'deleted'}:${missing.unreadableFolder ?? ''}`
+      : undefined
+  })
 }
 
 /**
@@ -39,19 +59,17 @@ function missingFileNotice(sessionId: SessionId) {
 export function announceCreatedSessionsWithMissingPiFiles() {
   return Effect.gen(function* () {
     const repository = yield* PiSessionDiscoveryRepository
-    const files = yield* PiSessionFiles
     const listed = yield* repository.listCreatedPiSessionFiles()
     for (const { sessionId, piSessionFile } of listed) {
       if (hasAnyActiveRun(sessionId)) continue
       // Only the file is looked at first; the Session is read only when the file is gone.
-      const present =
-        !(yield* files.isDeleted(piSessionFile)) &&
-        (yield* files.unavailability(piSessionFile)) === undefined
+      const present = yield* isPresent(piSessionFile)
+      if (present) continuedCopies.delete(sessionId)
       const announced = announcedNotices.get(sessionId)
       if (present && announced === undefined) continue
       // A missing file's notice may change while it stays missing, as a copy appears or goes,
-      // so those few Sessions are read on each pass.
-      const notice = present ? undefined : yield* missingFileNotice(sessionId)
+      // so those few Sessions are read on each pass, unless the copy they continue is there.
+      const notice = present ? undefined : yield* missingFileNotice(sessionId, piSessionFile)
       if (notice === announced) continue
       if (notice === undefined) announcedNotices.delete(sessionId)
       else announcedNotices.set(sessionId, notice)
