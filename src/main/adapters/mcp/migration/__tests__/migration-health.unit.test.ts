@@ -135,7 +135,7 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
       recordMcpFileMigrationOutcome(viewedFile, 'links to a missing folder', {
         keepsLegacyState: false,
       })
-      recordMcpFileMigrationOutcome(keptFile, 'links to a missing folder')
+      recordMcpFileMigrationOutcome(keptFile, 'the lock is held', { cause: 'wait' })
 
       expect(pendingMcpFileMigration(homeDir, viewed, 'everywhere')?.path).toBe(keptFile)
       expect(pendingMcpFileMigration(homeDir, viewed, 'global')?.path).toBe(keptFile)
@@ -146,6 +146,23 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
       })
       recordMcpFileMigrationOutcome(viewedFile)
       recordMcpFileMigrationOutcome(keptFile)
+    })
+
+    it("holds global writes back for another kept project's lock wait, not for a file to fix", () => {
+      const viewed = path.join(root, 'viewed')
+      const viewedFile = path.join(viewed, '.openwaggle', 'mcp.json')
+      const dotfiles = path.join(root, 'dotfiles', '.openwaggle', 'mcp.json')
+      // An unmounted dotfiles checkout: the user must fix it, which may take a long time.
+      recordMcpFileMigrationOutcome(dotfiles, 'links to a missing folder')
+
+      expect(pendingMcpFileMigration(homeDir, viewed, 'global')).toBeUndefined()
+      expect(pendingMcpFileMigration(homeDir, viewed, 'everywhere')).toBeUndefined()
+      // The viewed project's own failure and the global file's still hold its writes back.
+      recordMcpFileMigrationOutcome(viewedFile, 'Unexpected token')
+      expect(pendingMcpFileMigration(homeDir, viewed, 'global')?.path).toBe(viewedFile)
+      const globalFile = path.join(homeDir, '.openwaggle', 'mcp.json')
+      recordMcpFileMigrationOutcome(globalFile, 'Unexpected token')
+      expect(pendingMcpFileMigration(homeDir, null, 'global')?.path).toBe(globalFile)
     })
   })
 })

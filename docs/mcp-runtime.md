@@ -568,8 +568,11 @@ While old on/off state waits to be applied (OpenWaggle had an MCP setup, or that
 yet), no server of the scope connects at all, fail-closed: the overrides the migration writes
 there also keep servers of Pi's files and `.mcp.json` off. Meanwhile writes that could be undone
 are refused (`mcp-write-refusal.ts`): Settings, the CLI, imports, and Pi's `/mcp` in a Run (only
-in Pi's TUI mode). A write that changes only global files checks the global file and any
-project whose old state waits, since that project's migration would write overrides over it. The
+in Pi's TUI mode). A write that changes only global files checks the global file, the viewed
+project's, and any other project whose old state waits for the migration lock, since that
+project's migration would write overrides over it. Another project's failure the user must fix
+(an unmounted dotfiles checkout) does not hold global writes back, as it could for good: a project
+whose update is waiting keeps its old on/off choices once it is updated. The
 refusal says "try again shortly" when the migration waited for a lock, and "Fix <file>" when a
 file it reads cannot be read; an unreadable state.json or migration.json is named as that file
 (`migration-start.ts`). Whether old state waits is decided per file: the global file's when

@@ -75,20 +75,29 @@ describe('the old state a pending migration keeps', () => {
     expect(pendingMcpFileMigration(homeDir, added)).toMatchObject({ keepsLegacyState: false })
   })
 
-  it("refuses a global write while a project's old state waits, naming that project's file", async () => {
-    const { migrate, danglingProject, service } = await setUp()
+  it("lets a global write through while a kept project's file needs fixing", async () => {
+    const { migrate, danglingProject, service, statePath, root, connectable } = await setUp()
     const project = await danglingProject('kept')
-    // The first run keeps the project's old on/off; its file cannot be migrated yet.
+    // The old OpenWaggle had g on everywhere but in that project.
+    await writeJson(statePath, {
+      version: 1,
+      globalState: 'on',
+      projectServerStates: { [project]: { g: 'off' } },
+    })
     await migrate([project])
 
-    const refused = await Effect.runPromise(
-      Effect.flip(
+    // An unmounted dotfiles checkout would otherwise hold every global change back for good.
+    await expect(
+      Effect.runPromise(
         service.setServerEnabled({ projectPath: null, name: 'g', enabled: true, target: 'server' }),
       ),
-    )
+    ).resolves.toBeUndefined()
 
-    // Turned on now, g would be turned off for that project once its migration ran.
-    expect(refused.message).toContain(path.join(project, '.openwaggle', 'mcp.json'))
+    // Once it is mounted and migrated, that project keeps its old choice.
+    await mkdir(path.join(root, 'unmounted', 'kept'), { recursive: true })
+    await migrate([project])
+    expect(await connectable(null)).toContain('g')
+    expect(await connectable(project)).not.toContain('g')
   })
 
   it('shows a left-out file once in Settings, in the notice that names it once', async () => {
@@ -111,37 +120,20 @@ describe('the old state a pending migration keeps', () => {
     expect(aboutFile[0]?.split(file)).toHaveLength(2)
   })
 
-  it('lets the global write through once that project file is fixed, from any scope', async () => {
-    const { migrate, danglingProject, service, root } = await setUp()
-    const project = await danglingProject('kept')
-    await migrate([project])
-    const turnOn = service.setServerEnabled({
-      projectPath: null,
-      name: 'g',
-      enabled: true,
-      target: 'server',
-    })
-    await Effect.runPromise(Effect.flip(turnOn))
-
-    // The dotfiles checkout is mounted again; nobody opens that project before the next write.
-    await mkdir(path.join(root, 'unmounted', 'kept'), { recursive: true })
-
-    await expect(Effect.runPromise(turnOn)).resolves.toBeUndefined()
-  })
-
-  it("refuses Pi's /mcp change to a global file in another project's Run likewise", async () => {
+  it("lets Pi's /mcp change a global file in another project's Run likewise", async () => {
     const { migrate, danglingProject, homeDir, piAgentDir, root } = await setUp()
     const kept = await danglingProject('kept')
     const other = path.join(root, 'other')
     await mkdir(other, { recursive: true })
     await migrate([kept])
     await migrate([other])
-    const refusal = mcpUpdateRefusal({ homeDir, piAgentDir, projectPath: other })
+    const globalFile = path.join(homeDir, '.openwaggle', 'mcp.json')
 
-    expect(refusal(path.join(homeDir, '.openwaggle', 'mcp.json'))?.message).toContain(
-      path.join(kept, '.openwaggle', 'mcp.json'),
-    )
-    // That Run's own project file waits for nothing that would undo it.
-    expect(refusal(path.join(other, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    expect(
+      mcpUpdateRefusal({ homeDir, piAgentDir, projectPath: other })(globalFile),
+    ).toBeUndefined()
+    // In that project's own Run, its file still waits to be fixed.
+    const inKept = mcpUpdateRefusal({ homeDir, piAgentDir, projectPath: kept })
+    expect(inKept(path.join(kept, '.openwaggle', 'mcp.json'))?.message).toContain('Fix')
   })
 })

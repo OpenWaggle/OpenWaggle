@@ -154,7 +154,7 @@ If the conversion cannot finish for a file, MCP servers stay off until it does: 
 - **Try again shortly**: another OpenWaggle window or the command line was converting the same files. It tries again by itself; nothing to do.
 - **Fix** followed by a file: the file cannot be read, for example its JSON is broken or it is a link to a folder that is not there (a dotfiles folder not mounted). Fix or restore that file, then open **Settings > MCP** again.
 
-This only applies after an upgrade. A new install has nothing to convert, so nothing waits. For a project added after the upgrade, only its own `.openwaggle/mcp.json` is left out until it can be read; its other servers keep working. While a project that had MCP settings before the upgrade waits, changes to servers of all projects are refused from every project too, and the message names that project's file.
+This only applies after an upgrade. A new install has nothing to convert, so nothing waits. For a project added after the upgrade, only its own `.openwaggle/mcp.json` is left out until it can be read; its other servers keep working. While a project that had MCP settings before the upgrade is being converted by another OpenWaggle window or the command line, changes to servers of all projects are refused from every project too ("try again shortly"). A project whose file needs fixing does not hold those changes back: a project whose update is waiting keeps its old on/off choices once it is updated.
 
 ## How tools reach the agent
 

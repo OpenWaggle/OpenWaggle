@@ -103,14 +103,25 @@ export interface PendingMcpFileMigration {
 
 /**
  * The files a write may need migrated first. `all`: the global file and the viewed project's.
- * `global`: the global file, then any project whose old state waits, since that project's
- * migration would write overrides over what a global write changed. `everywhere`: both.
+ * `global`: the global file and the viewed project's, then any other project whose old state
+ * waits for the migration lock (`blocksGlobalWrites`), since that project's migration would write
+ * overrides over what a global write changed. `everywhere`: the same.
  */
 export type McpPendingScope = 'all' | 'global' | 'everywhere'
 
 function pending(failure: Failure, filePath = failure.path): PendingMcpFileMigration {
   const { spellings: _spellings, path: _path, ...details } = failure
   return { path: filePath, ...details }
+}
+
+/**
+ * Whether another project's failure holds back a global write: only while its migration waits for
+ * the lock, which passes by itself. One the user must fix (an unmounted dotfiles checkout) would
+ * hold every global change back for good; that project keeps its old on/off choices once it is
+ * updated, over what changed meanwhile, as it had them.
+ */
+function blocksGlobalWrites(failure: Failure) {
+  return failure.keepsLegacyState && failure.cause === 'wait'
 }
 
 /**
@@ -125,14 +136,14 @@ export function pendingMcpFileMigration(
 ): PendingMcpFileMigration | undefined {
   const files = [
     globalMcpPaths(homeDir).openwaggleGlobal,
-    ...(projectPath && scope !== 'global' ? [projectMcpPaths(projectPath).openwaggle] : []),
+    ...(projectPath ? [projectMcpPaths(projectPath).openwaggle] : []),
   ]
   for (const filePath of files) {
     const failure = failureOf(filePath)
     if (failure && (scope === 'all' || failure.keepsLegacyState)) return pending(failure, filePath)
   }
   if (scope === 'all') return undefined
-  const elsewhere = failures.find((failure) => failure.keepsLegacyState)
+  const elsewhere = failures.find(blocksGlobalWrites)
   return elsewhere ? pending(elsewhere) : undefined
 }
 
@@ -142,13 +153,13 @@ export function forgetMcpFileMigrationOutcomes() {
 }
 
 /**
- * The projects whose migration fails while their old state waits: a global write waits for them,
- * so it migrates them again first, as their file may have been fixed since.
+ * The projects whose migration waited for the lock while their old state waits: a global write
+ * waits for them, so it migrates them again first, as the lock may be free since.
  */
 export function pendingKeptProjects(homeDir: string) {
   const global = path.resolve(globalMcpPaths(homeDir).openwaggleGlobal)
   return failures
-    .filter((failure) => failure.keepsLegacyState && failure.path !== global)
+    .filter((failure) => blocksGlobalWrites(failure) && failure.path !== global)
     .map((failure) => ({
       projectPath: path.dirname(path.dirname(failure.path)),
       pending: pending(failure),
