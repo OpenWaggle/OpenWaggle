@@ -1,85 +1,25 @@
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect } from 'effect'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createFilesystemMcpConfigurationService } from '../../config/filesystem-mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
 import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
-import {
-  migrateBeforeEachCall,
-  withRuntimeConfigErrors,
-} from '../../config/migrating-mcp-configuration-service'
+import { withRuntimeConfigErrors } from '../../config/migrating-mcp-configuration-service'
 import { legacyServerIdentityKey } from '../legacy-pi-import'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import {
-  forgetMcpFileMigrationOutcomes,
-  pendingKeptProjects,
-  pendingMcpFileMigration,
-} from '../migration-health'
+import { pendingMcpFileMigration } from '../migration-health'
 import { NOW } from './migration-fixtures'
+import {
+  cleanUpPendingLegacy,
+  setUpPendingLegacy,
+  temporaryRoots,
+  writeJson,
+} from './pending-legacy-setup'
 
-const roots: string[] = []
+afterEach(cleanUpPendingLegacy)
 
-async function writeJson(filePath: string, value: unknown) {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-}
-
-afterEach(async () => {
-  // Failures are kept per process; each test starts as a new Host would.
-  forgetMcpFileMigrationOutcomes()
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
-})
-
-async function setUp(serversOf: (globalFile: string) => Record<string, unknown> = () => ({})) {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-legacy-')))
-  roots.push(root)
-  const homeDir = path.join(root, 'home')
-  const piAgentDir = path.join(homeDir, '.pi', 'agent')
-  const globalFile = path.join(homeDir, '.openwaggle', 'mcp.json')
-  const statePath = path.join(homeDir, '.openwaggle', 'mcp', 'state.json')
-  await writeJson(globalFile, { mcpServers: { g: { command: 'g' } } })
-  await writeJson(statePath, {
-    version: 1,
-    globalState: 'on',
-    projectStates: {},
-    sessionStates: {},
-    projectServerStates: {},
-    servers: serversOf(globalFile),
-  })
-  const migrate = (projectPaths: readonly string[]) =>
-    migrateOpenWaggleMcpFiles({ homeDir, piAgentDir, projectPaths, now: () => NOW })
-  const connectable = async (projectPath: string | null) => {
-    const config = await loadMcpRuntimeConfig({
-      roots: { homeDir, piAgentDir, projectPath },
-      resolveSecret: async () => '',
-    })
-    return config.loaded.servers
-      .filter((server) => server.config.enabled !== false)
-      .map((server) => server.name)
-  }
-  /** A project whose .openwaggle folder is in a dotfiles checkout that is not mounted. */
-  const danglingProject = async (name: string) => {
-    const project = path.join(root, name)
-    await mkdir(project, { recursive: true })
-    await symlink(path.join(root, 'unmounted', name), path.join(project, '.openwaggle'))
-    await writeJson(path.join(project, '.mcp.json'), {
-      mcpServers: { [`${name}-mcp`]: { command: 'x' } },
-    })
-    return project
-  }
-  const service = migrateBeforeEachCall(
-    createFilesystemMcpConfigurationService({ homeDir, piAgentDir }),
-    async (projectPath) => migrate(projectPath ? [projectPath] : []),
-    {
-      pendingMigration: (projectPath, scope) =>
-        pendingMcpFileMigration(homeDir, projectPath, scope),
-      pendingKeptProjects: () => pendingKeptProjects(homeDir),
-    },
-  )
-  return { homeDir, piAgentDir, statePath, migrate, connectable, danglingProject, service, root }
-}
+const setUp = setUpPendingLegacy
 
 describe('the old state a pending migration keeps', () => {
   it('leaves migrated files loadable when state.json breaks after the migration', async () => {
@@ -101,7 +41,7 @@ describe('the old state a pending migration keeps', () => {
 
   it('leaves a fresh install alone when a state.json it never had appears broken', async () => {
     const root = await realpath(await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-legacy-')))
-    roots.push(root)
+    temporaryRoots.push(root)
     const homeDir = path.join(root, 'home')
     const piAgentDir = path.join(homeDir, '.pi', 'agent')
     await writeJson(path.join(piAgentDir, 'mcp.json'), { mcpServers: { pi: { command: 'pi' } } })
