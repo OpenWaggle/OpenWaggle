@@ -149,8 +149,10 @@ export class McpMigrationRecord {
     this.legacy = projects
   }
 
+  /** Noticed under this spelling of the home folder or another reaching it. */
   isHomeFolderNoticed(projectPath: string) {
-    return this.homeNotices.has(projectPath)
+    if (this.homeNotices.has(projectPath)) return true
+    return [...this.homeNotices].some((noticed) => sameMigrationLocation(noticed, projectPath))
   }
 
   async recordHomeFolderNotice(projectPath: string) {

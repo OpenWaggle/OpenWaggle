@@ -537,7 +537,12 @@ spellings (a symbolic link such as /tmp to /private/tmp, or a Settings path next
 Session's) is one project (`project-spellings.ts`): records, this process's attempts and its
 failures are matched by real location, and the project is migrated under the spelling the old
 state.json used for it, the one it names, else the one whose server keys it holds, so its old
-switches are found. A recorded file is never migrated
+switches are found. Real locations resolve the deepest part of a path that exists
+(`realLocation`, `realpathSync.native`, so case is the stored one on macOS and Windows), so
+two spellings of a project with no `.openwaggle` folder yet agree. Limit: a project file's
+backup is found by the spelling it was migrated under (`migrationBackupPath` hashes that path),
+so a later legacy read through another spelling (old sign-ins, old server names) reads the
+migrated file instead. A recorded file is never migrated
 again, so a user's later changes, toggles included, are never undone by the old state. Limit: a
 file in the old format restored after its migration (absent at the first launch, or an old copy
 brought back by a git pull or a dotfiles checkout) loads as it is, with its servers on, and its

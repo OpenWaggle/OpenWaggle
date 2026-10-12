@@ -51,15 +51,20 @@ export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFile
 export const PROJECT_FILE_IS_GLOBAL =
   "This project's .openwaggle folder is the global one (the project is your home folder, or the folder links to ~/.openwaggle), so its mcp.json is the global file."
 
-/** The file's real path, or its folder's real path joined with its name when it does not exist. */
+/**
+ * Where a path really leads: the real path of its deepest part that exists (through links, in the
+ * case the file system stores, as `realpathSync.native` gives it), with the rest of the path
+ * after it. Two spellings of a folder that does not exist yet, below one that does, so agree.
+ */
 export function realLocation(filePath: string) {
-  try {
-    return realpathSync(filePath)
-  } catch {
+  const resolved = path.resolve(filePath)
+  const missing: string[] = []
+  for (let current = resolved; ; current = path.dirname(current)) {
     try {
-      return path.join(realpathSync(path.dirname(filePath)), path.basename(filePath))
+      return path.join(realpathSync.native(current), ...missing.reverse())
     } catch {
-      return path.resolve(filePath)
+      if (path.dirname(current) === current) return resolved
+      missing.push(path.basename(current))
     }
   }
 }

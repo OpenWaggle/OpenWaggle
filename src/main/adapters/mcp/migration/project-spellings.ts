@@ -14,7 +14,6 @@ import {
   legacyStateProjects,
   normalizeLegacyProjectPath,
 } from './legacy-state'
-import type { MigrateOpenWaggleMcpFilesInput } from './migrate-openwaggle-mcp-files'
 import { isInside, managedWorktreesRoot, projectMcpPaths } from './migration-paths'
 
 /** Whether two spellings reach the same file or folder. */
@@ -59,7 +58,7 @@ async function oldSpelling(
 }
 
 /** One spelling per real folder, in first-seen order. */
-export async function oneSpellingPerProject(
+async function oneSpellingPerProject(
   projects: readonly string[],
   input: { readonly sources: McpFileSources; readonly state: LegacyStateFile },
 ) {
@@ -81,15 +80,25 @@ export async function oneSpellingPerProject(
  * one, even when the old state names it: a new `.openwaggle/mcp.json` there would be an untracked
  * file in the Session's checkout, and Git would then refuse to remove it when the Session is deleted.
  */
-export async function migrationProjects(
-  input: Pick<MigrateOpenWaggleMcpFilesInput, 'homeDir' | 'projectPaths' | 'knownProjectPaths'>,
-  state: LegacyStateFile,
-  sources: McpFileSources,
-) {
+export async function migrationProjects(input: {
+  readonly homeDir: string
+  readonly projectPaths: readonly string[]
+  readonly state: LegacyStateFile
+  readonly sources: McpFileSources
+  readonly knownProjectPaths: () => Promise<readonly string[]>
+  /** The projects the first run recorded (`legacyProjects`), under the spellings it saw. */
+  readonly recordedProjects: readonly string[]
+}) {
+  const { state, sources } = input
   const worktrees = managedWorktreesRoot(input.homeDir)
   // Other spellings of a folder help find the one the old state used for it.
-  const known = input.knownProjectPaths ? await input.knownProjectPaths() : []
-  const projects = [...input.projectPaths, ...legacyStateProjects(state), ...known]
+  const known = await input.knownProjectPaths()
+  const projects = [
+    ...input.projectPaths,
+    ...legacyStateProjects(state),
+    ...known,
+    ...input.recordedProjects,
+  ]
     .filter((projectPath) => projectPath.trim().length > 0)
     .map(normalizeLegacyProjectPath)
     .filter((projectPath) => !isInside(projectPath, worktrees))

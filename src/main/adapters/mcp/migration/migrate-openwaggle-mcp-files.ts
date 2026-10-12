@@ -184,6 +184,7 @@ async function legacyProjects(
   input: MigrateOpenWaggleMcpFilesInput,
   start: Awaited<ReturnType<typeof loadStart>>,
   fs: McpMigrationFs,
+  knownProjectPaths: () => Promise<readonly string[]>,
 ) {
   const { record, state } = start
   if (record.legacyProjects !== undefined) return record.legacyProjects
@@ -193,7 +194,8 @@ async function legacyProjects(
     record.setLegacyProjects(null)
     return null
   }
-  const known = input.knownProjectPaths ? await input.knownProjectPaths() : []
+  // Recorded for good, so a failure to list the known projects fails the run (tried again).
+  const known = await knownProjectPaths()
   const projects = [...known, ...input.projectPaths, ...legacyStateProjects(state)]
     .filter((projectPath) => projectPath.trim().length > 0)
     .map(normalizeLegacyProjectPath)
@@ -210,9 +212,15 @@ export async function migrateOpenWaggleMcpFiles(
   const logger = input.logger ?? defaultLogger
   let start: Awaited<ReturnType<typeof loadStart>>
   let kept: readonly string[] | null
+  let listed: Promise<readonly string[]> | undefined
+  // Listed once per run: they decide the projects kept on the first run and lend spellings.
+  const knownProjectPaths = () => {
+    listed ??= input.knownProjectPaths ? input.knownProjectPaths() : Promise.resolve([])
+    return listed
+  }
   try {
     start = await loadStart(fs, input.homeDir)
-    kept = await legacyProjects(input, start, fs)
+    kept = await legacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
     logger.error('MCP migration could not read its record or the old MCP state', {
       homeDir: input.homeDir,
@@ -232,7 +240,14 @@ export async function migrateOpenWaggleMcpFiles(
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
-  const projects = await migrationProjects(input, state, sources)
+  const projects = await migrationProjects({
+    ...input,
+    state,
+    sources,
+    // Only spellings: a list that cannot be read lends none.
+    knownProjectPaths: () => knownProjectPaths().catch(() => []),
+    recordedProjects: record.legacyProjects ?? [],
+  })
   // Read before the files are rewritten, and saved with their records.
   const legacy = await legacyServerRecords({ sources, state, projects })
   record.noteLegacyServerNames(legacy.names)

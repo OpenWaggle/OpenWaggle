@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -14,6 +15,7 @@ import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nodeMcpMigrationFs } from '../../migration/migration-fs'
 import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
+import { realLocation } from '../mcp-config-files'
 import { addMcpServerEntry } from '../mcp-config-writer'
 
 let root: string
@@ -145,5 +147,17 @@ describe.skipIf(process.platform === 'win32')('MCP files that are symbolic links
       `${folder} links to a missing folder`,
     )
     expect(existsSync(path.join(root, 'Volumes'))).toBe(false)
+  })
+
+  it('agree on where two spellings lead, below folders that do not exist yet', () => {
+    const real = path.join(root, 'real')
+    mkdirSync(real)
+    symlinkSync(real, path.join(root, 'linked'))
+    const tail = path.join('.openwaggle', 'mcp.json')
+
+    expect(realLocation(path.join(root, 'linked', tail))).toBe(realLocation(path.join(real, tail)))
+    expect(realLocation(path.join(root, 'linked', tail))).toBe(
+      path.join(realpathSync.native(real), tail),
+    )
   })
 })
