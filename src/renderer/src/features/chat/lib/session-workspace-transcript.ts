@@ -1,6 +1,6 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionWorkspace } from '@shared/types/session'
+import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import { messagePartToUIParts } from '@/features/chat/lib/useAgentChat.utils'
 
 interface ResolveTranscriptMessagesInput {
@@ -254,4 +254,24 @@ export function resolveTranscriptMessages({
     activeSessionUpdatedAt,
     draftBranchSourceNodeId,
   )
+}
+
+/**
+ * Whether the Session's newer detail replaced the transcript the loaded workspace shows: it holds
+ * messages, none of them in the workspace's tree, as when a created Session whose Pi file was
+ * deleted started a new transcript. The workspace then shows the old path with the new messages
+ * after it, until it is loaded again.
+ */
+export function detailReplacedWorkspaceTranscript(input: {
+  readonly activeSessionId: SessionId | null
+  readonly activeSession: SessionDetail | null
+  readonly activeWorkspace: SessionWorkspace | null
+}) {
+  const { activeSessionId, activeSession, activeWorkspace } = input
+  if (!activeSessionId || !activeSession || !activeWorkspace) return false
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) return false
+  if (activeSession.updatedAt <= activeWorkspace.tree.session.updatedAt) return false
+  if (activeSession.messages.length === 0 || !isViewingSessionHead(activeWorkspace)) return false
+  const { messageIds } = persistedIds(activeWorkspace.tree)
+  return activeSession.messages.every((message) => !messageIds.has(String(message.id)))
 }
