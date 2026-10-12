@@ -19,6 +19,7 @@ import {
   forgetPiSessionDiscoveryCreates,
   getPiSessionProjectionState,
   listAdoptedPiSessionFiles,
+  listCreatedPiSessionFiles,
   listUnattachedDiscoveredPiSessions,
   piSessionDeletionRefusal,
   readPiSessionDiscoveryScope,
@@ -60,6 +61,8 @@ function createPiSessionDiscoveryRepository(
       repositoryOperation('piSessionDeletionRefusal', () => piSessionDeletionRefusal(sessionId)),
     listAdoptedPiSessionFiles: () =>
       repositoryOperation('listAdoptedPiSessionFiles', listAdoptedPiSessionFiles),
+    listCreatedPiSessionFiles: () =>
+      repositoryOperation('listCreatedPiSessionFiles', listCreatedPiSessionFiles),
     getProjectionState: (sessionId) =>
       repositoryOperation('getPiSessionProjectionState', () =>
         getPiSessionProjectionState(sessionId),

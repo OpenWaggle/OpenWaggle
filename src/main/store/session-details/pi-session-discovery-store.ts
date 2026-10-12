@@ -195,6 +195,25 @@ export async function listAdoptedPiSessionFiles() {
   )
 }
 
+/** See `PiSessionDiscoveryRepositoryShape.listCreatedPiSessionFiles`. */
+export async function listCreatedPiSessionFiles() {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly session_id: string; readonly pi_session_file: string }>`
+        SELECT sessions.id AS session_id, sessions.pi_session_file FROM sessions
+        WHERE sessions.pi_session_file IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id)
+          AND EXISTS (SELECT 1 FROM session_nodes WHERE session_id = sessions.id)
+      `
+      return rows.map((row) => ({
+        sessionId: SessionId(row.session_id),
+        piSessionFile: row.pi_session_file,
+      }))
+    }),
+  )
+}
+
 /** See `PiSessionDiscoveryRepositoryShape.recordDiscoveryCreate`. */
 export async function recordPiSessionDiscoveryCreate(idempotencyKey: string) {
   await runStoreEffect(

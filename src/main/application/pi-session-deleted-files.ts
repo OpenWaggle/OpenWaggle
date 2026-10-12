@@ -164,7 +164,7 @@ export function removeSessionsWithDeletedPiFiles() {
  * OpenWaggle created the Session. A file a new Session recorded before Pi wrote it (no projected
  * Pi entry yet) was never written, not deleted.
  */
-function deletedPiSessionFile(sessionId: SessionId) {
+export function deletedPiSessionFile(sessionId: SessionId) {
   return Effect.gen(function* () {
     const repository = yield* Effect.serviceOption(PiSessionDiscoveryRepository)
     const files = yield* Effect.serviceOption(PiSessionFiles)

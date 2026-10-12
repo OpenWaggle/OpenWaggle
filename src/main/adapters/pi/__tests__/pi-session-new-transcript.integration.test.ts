@@ -1,7 +1,8 @@
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { createSession, sendMessage } from './pi-session-created.test-support'
 import {
+  discover,
   messageTexts,
   sessionDetail,
   setUpPiDiscoveryFixture,
@@ -73,5 +74,26 @@ describe("A created Session's next message after its Pi file was deleted", () =>
     expect(
       events.filter((event) => event.sessionId === sessionId && event.change === 'updated'),
     ).toEqual([])
+  })
+
+  it('is announced when its Pi file is deleted while it is open, and again when it is back', async () => {
+    const sessionId = await createSession(fixture)
+    expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
+    const file = (await sessionDetail(sessionId))?.piSessionFile
+    if (!file) throw new Error('The Session recorded no Pi file.')
+    const content = readFileSync(file)
+    const updates = () =>
+      events.filter((event) => event.sessionId === sessionId && event.change === 'updated')
+    rmSync(file)
+    events.length = 0
+
+    await discover()
+    await discover()
+
+    // Once, so an open view reads it again and shows that the next message starts over.
+    expect(updates()).toHaveLength(1)
+    writeFileSync(file, content)
+    await discover()
+    expect(updates()).toHaveLength(2)
   })
 })
