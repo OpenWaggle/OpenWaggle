@@ -291,6 +291,7 @@ describe('Pi session operations', () => {
       ['forking', () => forkPiSession({ ...deleted(), targetNodeId: 'm1', position: 'before' })],
       ['compacting', () => compactPiSession(deleted())],
       ['navigating', () => navigatePiSessionTree({ ...deleted(), targetNodeId: 'm1' })],
+      ['taking a snapshot of', () => getPiSessionSnapshot(deleted())],
     ])('refuses %s, naming the folder, not offering a new transcript', async (_action, run) => {
       await expect(run()).rejects.toThrow(COPIES)
     })
