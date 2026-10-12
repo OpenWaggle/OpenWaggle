@@ -156,6 +156,24 @@ describe('openwaggle mcp list', () => {
     expect(result.exitCode).toBe(1)
   })
 
+  it('says a server needs a secret, as Settings and doctor do, rather than that it failed', async () => {
+    const missing =
+      'server "api": env "TOKEN" names vault secret "API_TOKEN", which could not be read'
+    const result = await run('list', [], {
+      'mcp:get-configuration': () => ({
+        ...view([server({ name: 'api' })], [missing]),
+        missingSecretErrors: [missing],
+        missingSecretServers: ['api'],
+      }),
+      'mcp:inspect-server': ({ name }) => ({ name, state: 'failed', tools: [], error: missing }),
+    })
+
+    expect(result.logs).toContain('api: needs secret (codemode, global)')
+    expect(result.logs).toContain('  add the secret under Settings > MCP > Secrets')
+    expect(result.logs).not.toContain('api: failed')
+    expect(result.exitCode).toBe(1)
+  })
+
   it('reports sign-in, errors, and config errors as JSON and exits 1', async () => {
     const result = await run('list', ['--json'], {
       'mcp:get-configuration': () =>

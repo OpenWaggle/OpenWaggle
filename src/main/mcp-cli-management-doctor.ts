@@ -1,6 +1,7 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpConfigFileView,
+  McpConfigurationView,
   McpConfiguredServerView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
@@ -12,6 +13,12 @@ import {
 } from './mcp-cli-management-context'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
 import { projectOptionOf } from './mcp-cli-management-list'
+import {
+  MCP_NEEDS_SECRET_HINT,
+  MCP_NEEDS_SECRET_STATE,
+  mcpCliServerState,
+  mcpCliStateLabel,
+} from './mcp-cli-management-server-state'
 
 /**
  * `openwaggle mcp doctor`: which MCP files exist, what Pi could not read in them, and the state
@@ -42,14 +49,14 @@ function serverPlace(server: McpConfiguredServerView) {
 function doctorServer(
   server: McpConfiguredServerView,
   inspection: McpServerInspection | undefined,
-  needsSecret: boolean,
+  view: Pick<McpConfigurationView, 'missingSecretServers'>,
 ): DoctorServer {
-  // As Settings says: left out of Runs until its secret is saved, which is not a failure to connect.
-  if (server.enabled && needsSecret) {
+  const state = mcpCliServerState(server, inspection, view)
+  if (state === MCP_NEEDS_SECRET_STATE) {
     return {
       ...serverPlace(server),
       enabled: true,
-      state: 'needs-secret',
+      state,
       tools: 0,
       ...(inspection?.error ? { error: inspection.error } : {}),
     }
@@ -83,27 +90,17 @@ function fileLines(files: readonly McpConfigFileView[], projectPath: string | nu
   ]
 }
 
-function stateLabel(server: DoctorServer) {
-  if (server.state === 'connected') {
-    return `connected, ${String(server.tools)} tool${server.tools === 1 ? '' : 's'}`
-  }
-  if (server.state === 'needs-sign-in') return 'needs sign-in'
-  return server.state === 'needs-secret' ? 'needs secret' : server.state
-}
-
 function serverLines(servers: readonly DoctorServer[], projectOption: string) {
   if (servers.length === 0) return ['Servers: none configured.']
   return [
     'Servers:',
     ...servers.flatMap((server) => [
-      `  ${server.name}: ${stateLabel(server)} (${server.scope}, ${server.source})`,
+      `  ${server.name}: ${mcpCliStateLabel(server.state, server.tools)} (${server.scope}, ${server.source})`,
       ...(server.override ? [`    override: ${server.override}`] : []),
       ...(server.state === 'needs-sign-in'
         ? [`    sign in with: openwaggle mcp login ${server.name}${projectOption}`]
         : []),
-      ...(server.state === 'needs-secret'
-        ? ['    add the secret under Settings > MCP > Secrets']
-        : []),
+      ...(server.state === MCP_NEEDS_SECRET_STATE ? [`    ${MCP_NEEDS_SECRET_HINT}`] : []),
       ...(server.error ? [indent(server.error, '    ')] : []),
       ...(server.stderrTail ? ['    stderr:', indent(server.stderrTail, '      ')] : []),
     ]),
@@ -120,9 +117,8 @@ export async function doctorCommand({
   }
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
   const inspections = await inspectEnabledServers(context, projectPath, view.servers)
-  const needsSecret = new Set(view.missingSecretServers)
   const servers = view.servers.map((server) =>
-    doctorServer(server, inspections.get(server.name), needsSecret.has(server.name)),
+    doctorServer(server, inspections.get(server.name), view),
   )
   const ok =
     view.errors.length === 0 &&

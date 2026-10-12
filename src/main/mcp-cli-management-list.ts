@@ -1,6 +1,7 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpConfigFileScope,
+  McpConfigurationView,
   McpConfiguredServerView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
@@ -11,6 +12,12 @@ import {
   type McpManagementExit,
 } from './mcp-cli-management-context'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
+import {
+  MCP_NEEDS_SECRET_HINT,
+  MCP_NEEDS_SECRET_STATE,
+  mcpCliServerState,
+  mcpCliStateLabel,
+} from './mcp-cli-management-server-state'
 
 /** `openwaggle mcp list`: connects to every enabled server and prints what `pi mcp list` prints. */
 
@@ -43,7 +50,12 @@ interface ServerReport {
   readonly error?: string
 }
 
-function report(server: McpConfiguredServerView, inspection?: McpServerInspection): ServerReport {
+function report(
+  server: McpConfiguredServerView,
+  inspection: McpServerInspection | undefined,
+  view: Pick<McpConfigurationView, 'missingSecretServers'>,
+): ServerReport {
+  const state = mcpCliServerState(server, inspection, view)
   const overrides = (inspection?.tools ?? []).flatMap((tool) =>
     tool.exposure === server.exposure ? [] : [[tool.name, tool.exposure] as const],
   )
@@ -55,18 +67,12 @@ function report(server: McpConfiguredServerView, inspection?: McpServerInspectio
     enabled: server.enabled,
     exposure: server.exposure,
     transport: server.target,
-    state: inspection?.state ?? 'disabled',
-    tools: (inspection?.tools ?? []).map((tool) => tool.name),
+    state,
+    tools:
+      state === MCP_NEEDS_SECRET_STATE ? [] : (inspection?.tools ?? []).map((tool) => tool.name),
     ...(overrides.length > 0 ? { toolExposure: Object.fromEntries(overrides) } : {}),
     ...(inspection?.error && inspection.state !== 'connected' ? { error: inspection.error } : {}),
   }
-}
-
-function stateLabel(entry: ServerReport) {
-  if (entry.state === 'connected') {
-    return `connected, ${String(entry.tools.length)} tool${entry.tools.length === 1 ? '' : 's'}`
-  }
-  return entry.state === 'needs-sign-in' ? 'needs sign-in' : entry.state
 }
 
 function reportLines(entry: ServerReport, projectOption: string) {
@@ -75,12 +81,13 @@ function reportLines(entry: ServerReport, projectOption: string) {
     return exposure ? `${tool} [${exposure}]` : tool
   })
   return [
-    `${entry.name}: ${stateLabel(entry)} (${entry.exposure}, ${entry.scope})`,
+    `${entry.name}: ${mcpCliStateLabel(entry.state, entry.tools.length)} (${entry.exposure}, ${entry.scope})`,
     `  ${entry.transport}`,
     ...(entry.override ? [`  override: ${entry.override}`] : []),
     ...(entry.state === 'needs-sign-in'
       ? [`  sign in with: openwaggle mcp login ${entry.name}${projectOption}`]
       : []),
+    ...(entry.state === MCP_NEEDS_SECRET_STATE ? [`  ${MCP_NEEDS_SECRET_HINT}`] : []),
     ...(tools.length > 0 ? [`  tools: ${tools.join(', ')}`] : []),
     ...(entry.error ? [`  ${entry.error.split('\n').join('\n  ')}`] : []),
   ]
@@ -95,7 +102,7 @@ export async function listCommand({
     throw new McpCliUsageError('Usage: openwaggle mcp list [--json] [-l]')
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
   const inspections = await inspectEnabledServers(context, projectPath, view.servers)
-  const reports = view.servers.map((server) => report(server, inspections.get(server.name)))
+  const reports = view.servers.map((server) => report(server, inspections.get(server.name), view))
   const failed =
     view.errors.length > 0 || reports.some((entry) => entry.enabled && entry.state !== 'connected')
   if (args.flags.has('json')) {
