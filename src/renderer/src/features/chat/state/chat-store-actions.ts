@@ -3,7 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
-import { useComposerStore } from '@/features/composer/state'
+import { carryRemovedSessionDraft, useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
@@ -162,6 +162,8 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
     if (latestSessionRefresh.get(id) !== requestId) return
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
+      // Before the view leaves it, so the text written in it goes to New session.
+      if (wasActiveSession) carryRemovedSessionDraft(id)
       removeMissingSession(id, set)
       refreshMissingSessionTree(wasActiveSession)
       return

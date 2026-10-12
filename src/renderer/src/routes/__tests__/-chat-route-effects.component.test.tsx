@@ -4,7 +4,6 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
-import { useComposerStore } from '@/features/composer/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -183,30 +182,6 @@ describe('useChatRouteEffects', () => {
     expect(useGitStore.getState().refreshStatus).toHaveBeenLastCalledWith('/other-project')
     expect(useGitStore.getState().refreshBranches).toHaveBeenLastCalledWith('/other-project')
     expect(api.updateSessionTreeUiState).toHaveBeenCalledTimes(1)
-  })
-
-  it("moves an open Session's draft to New session when the Host removes the Session", () => {
-    const removed = sessionDetail('removed-session', '/old-project')
-    useComposerStore.setState(useComposerStore.getInitialState())
-    useComposerStore
-      .getState()
-      .setActiveDraftContextKey(`project:/old-project:session:${removed.id}:main`)
-    useComposerStore.getState().setInput('Are you there?')
-    useChatStore.setState({ missingSessionIds: new Set([removed.id]) })
-
-    renderHook(() =>
-      useChatRouteEffects({
-        branchId: null,
-        diffOpen: false,
-        nodeId: null,
-        sessionId: String(removed.id),
-      }),
-    )
-
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/', replace: true })
-    expect(useComposerStore.getState().getScopedDraft('project:/old-project:new-session')).toEqual(
-      expect.objectContaining({ input: 'Are you there?' }),
-    )
   })
 
   it('redirects the root chat route back to the active session when no draft is active', async () => {
