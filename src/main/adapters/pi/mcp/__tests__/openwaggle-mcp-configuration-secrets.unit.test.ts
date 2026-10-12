@@ -59,5 +59,6 @@ describe("Settings' and the CLI's MCP view", () => {
 
     expect(view.errors).toEqual([MISSING_ERROR, 'docs: vault secret could not be decrypted'])
     expect(view.missingSecretErrors).toEqual([MISSING_ERROR])
+    expect(view.missingSecretServers).toEqual(['api'])
   })
 })

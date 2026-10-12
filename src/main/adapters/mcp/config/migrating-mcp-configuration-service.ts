@@ -56,6 +56,8 @@ export function withRuntimeConfigErrors(
     readonly errors: readonly string[]
     /** Those of `errors` caused by a secret missing from the vault. */
     readonly missingSecretErrors?: readonly string[]
+    /** The servers they leave out. */
+    readonly missingSecretServers?: readonly string[]
   }>,
 ): McpConfigurationServiceShape {
   return {
@@ -75,7 +77,13 @@ export function withRuntimeConfigErrors(
           ...extra.errors.filter((error) => !view.errors.includes(error)),
         ]
         const missing = extra.missingSecretErrors ?? []
-        return { ...view, errors, ...(missing.length > 0 ? { missingSecretErrors: missing } : {}) }
+        const servers = extra.missingSecretServers ?? []
+        return {
+          ...view,
+          errors,
+          ...(missing.length > 0 ? { missingSecretErrors: missing } : {}),
+          ...(servers.length > 0 ? { missingSecretServers: servers } : {}),
+        }
       }),
   }
 }

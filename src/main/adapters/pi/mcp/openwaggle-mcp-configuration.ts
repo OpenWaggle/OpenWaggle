@@ -46,6 +46,7 @@ export function getOpenWaggleMcpConfigurationService() {
       return {
         errors: config.loaded.errors,
         missingSecretErrors: [...config.missingSecrets.values()],
+        missingSecretServers: [...config.missingSecrets.keys()],
       }
     },
   )

@@ -30,16 +30,33 @@ interface DoctorServer {
   readonly stderrTail?: string
 }
 
-function doctorServer(
-  server: McpConfiguredServerView,
-  inspection: McpServerInspection | undefined,
-): DoctorServer {
-  const failed = inspection !== undefined && inspection.state !== 'connected'
+function serverPlace(server: McpConfiguredServerView) {
   return {
     name: server.name,
     scope: server.scope,
     source: server.source.path,
     ...(server.override ? { override: server.override.path } : {}),
+  }
+}
+
+function doctorServer(
+  server: McpConfiguredServerView,
+  inspection: McpServerInspection | undefined,
+  needsSecret: boolean,
+): DoctorServer {
+  // As Settings says: left out of Runs until its secret is saved, which is not a failure to connect.
+  if (server.enabled && needsSecret) {
+    return {
+      ...serverPlace(server),
+      enabled: true,
+      state: 'needs-secret',
+      tools: 0,
+      ...(inspection?.error ? { error: inspection.error } : {}),
+    }
+  }
+  const failed = inspection !== undefined && inspection.state !== 'connected'
+  return {
+    ...serverPlace(server),
     enabled: server.enabled,
     state: inspection?.state ?? 'disabled',
     tools: inspection?.tools.length ?? 0,
@@ -70,7 +87,8 @@ function stateLabel(server: DoctorServer) {
   if (server.state === 'connected') {
     return `connected, ${String(server.tools)} tool${server.tools === 1 ? '' : 's'}`
   }
-  return server.state === 'needs-sign-in' ? 'needs sign-in' : server.state
+  if (server.state === 'needs-sign-in') return 'needs sign-in'
+  return server.state === 'needs-secret' ? 'needs secret' : server.state
 }
 
 function serverLines(servers: readonly DoctorServer[], projectOption: string) {
@@ -82,6 +100,9 @@ function serverLines(servers: readonly DoctorServer[], projectOption: string) {
       ...(server.override ? [`    override: ${server.override}`] : []),
       ...(server.state === 'needs-sign-in'
         ? [`    sign in with: openwaggle mcp login ${server.name}${projectOption}`]
+        : []),
+      ...(server.state === 'needs-secret'
+        ? ['    add the secret under Settings > MCP > Secrets']
         : []),
       ...(server.error ? [indent(server.error, '    ')] : []),
       ...(server.stderrTail ? ['    stderr:', indent(server.stderrTail, '      ')] : []),
@@ -99,7 +120,10 @@ export async function doctorCommand({
   }
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
   const inspections = await inspectEnabledServers(context, projectPath, view.servers)
-  const servers = view.servers.map((server) => doctorServer(server, inspections.get(server.name)))
+  const needsSecret = new Set(view.missingSecretServers)
+  const servers = view.servers.map((server) =>
+    doctorServer(server, inspections.get(server.name), needsSecret.has(server.name)),
+  )
   const ok =
     view.errors.length === 0 &&
     servers.every((server) => !server.enabled || server.state === 'connected')

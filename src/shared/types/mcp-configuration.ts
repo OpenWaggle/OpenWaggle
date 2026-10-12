@@ -71,6 +71,8 @@ export interface McpConfigurationView {
    * rows ("Needs secret X") rather than in the configuration errors; the CLI lists them all.
    */
   readonly missingSecretErrors?: readonly string[]
+  /** The servers those errors leave out: on, but reading a vault secret that is not saved. */
+  readonly missingSecretServers?: readonly string[]
   /** Entries that are ignored without breaking anything, such as an orphaned OpenWaggle override. */
   readonly warnings?: readonly string[]
   /**

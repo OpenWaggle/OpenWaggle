@@ -116,4 +116,24 @@ describe('openwaggle mcp doctor', () => {
     expect(signInHint(doctor.logs)?.trim()).toBe(`sign in with: ${command}`)
     expect(signInHint(list.logs)?.trim()).toBe(`sign in with: ${command}`)
   })
+
+  it('says a server needs a secret, as Settings does, rather than that it failed', async () => {
+    const missing =
+      '/home/.openwaggle/mcp.json: server "api": env "TOKEN" names vault secret "API_TOKEN", which could not be read: MCP secret "API_TOKEN" was not found.'
+    const result = await run('doctor', [], {
+      'mcp:get-configuration': () => ({
+        ...view([server({ name: 'api', vaultSecrets: ['API_TOKEN'] })], [missing]),
+        missingSecretErrors: [missing],
+        missingSecretServers: ['api'],
+      }),
+      'mcp:inspect-server': ({ name }) => ({ name, state: 'failed', tools: [], error: missing }),
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.logs).toContain('  api: needs secret (global, /home/.openwaggle/mcp.json)')
+    expect(result.logs).toContain('    add the secret under Settings > MCP > Secrets')
+    // The error names the secret.
+    expect(result.logs).toContain('names vault secret "API_TOKEN"')
+    expect(result.logs).not.toContain('api: failed')
+  })
 })
