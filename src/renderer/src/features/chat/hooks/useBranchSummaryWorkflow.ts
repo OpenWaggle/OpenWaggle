@@ -12,6 +12,7 @@ import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
 import { isSessionModelActionable } from '../lib/session-answered-by'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
@@ -228,7 +229,7 @@ async function materializeBranchSummaryAction(
     await finishBranchSummary(params, prompt)
   } catch (error) {
     if (!isCurrentBranchSummaryPrompt(prompt)) return
-    params.showToast(error instanceof Error ? error.message : String(error))
+    params.showToast(sessionOperationFailureMessage('Failed to summarize the branch', error))
     restoreBranchSummaryChoice(prompt, previousMode)
   }
 }
