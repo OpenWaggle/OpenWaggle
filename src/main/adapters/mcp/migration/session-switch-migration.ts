@@ -22,6 +22,7 @@ interface SessionSwitchMigrationInput {
 /** Returns how many old Session states were not carried over. */
 export async function migrateLegacySessionSwitches(input: SessionSwitchMigrationInput) {
   const states = Object.entries(input.state.sessionStates)
+  const off = states.filter(([, value]) => value === 'off').length
   const { sink } = input
   if (!sink) return states.length
   let carried = 0
@@ -42,5 +43,15 @@ export async function migrateLegacySessionSwitches(input: SessionSwitchMigration
       })
     }
   }
+  if (carried === off) await input.record.recordSessionSwitchesDone()
   return states.length - carried
+}
+
+/**
+ * Notes, before anything else is recorded, that the old state has no MCP-off Session switch to
+ * carry over, so the note is saved with the run's first record write.
+ */
+export async function noteNoSessionSwitches(state: LegacyStateFile, record: McpMigrationRecord) {
+  const off = Object.values(state.sessionStates).filter((value) => value === 'off')
+  if (off.length === 0) await record.recordSessionSwitchesDone()
 }

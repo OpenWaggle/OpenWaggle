@@ -3,11 +3,15 @@
  * names the file it came from, so the user is told which file to fix, not the migrated one.
  */
 import type { Logger } from '@shared/types/logger'
-import { normalizeLegacyProjectPath, parseLegacyState } from './legacy-state'
+import {
+  EMPTY_LEGACY_STATE,
+  legacyStateProjects,
+  normalizeLegacyProjectPath,
+  parseLegacyState,
+} from './legacy-state'
 import type { McpMigrationFs } from './migration-fs'
 import { gateUnmigratedMcpFiles } from './migration-gate'
-import { recordMcpFileMigrationOutcome } from './migration-health'
-import { globalMcpPaths, isInside, managedWorktreesRoot, projectMcpPaths } from './migration-paths'
+import { globalMcpPaths } from './migration-paths'
 import { McpMigrationRecord, migrationRecordPath } from './migration-record'
 
 /** A file the migration reads could not be read or understood. */
@@ -50,44 +54,28 @@ export async function loadMigrationStart(fs: McpMigrationFs, homeDir: string) {
 }
 
 /**
- * When the old state cannot be read, the report of a run that has nothing left to do with it:
- * every file asked for is recorded as migrated and the old-state decision is made, so a
- * state.json broken afterwards changes nothing. Undefined otherwise (another file, the record
- * itself, or work left), which fails the run closed.
+ * When only state.json cannot be read and the old state is needed no more (the old-state
+ * decision is made and every old MCP-off Session switch carried over), the run goes on without
+ * it: what it migrates from now on keeps no old state. A file that still waits for old state
+ * fails instead (`unreadableState`). Undefined otherwise, which fails the run closed.
  */
-export async function settledAfterStateError(
-  fs: McpMigrationFs,
-  input: { readonly homeDir: string; readonly projectPaths: readonly string[] },
-  error: unknown,
-) {
-  const statePath = globalMcpPaths(input.homeDir).legacyState
+export async function startWithoutOldState(fs: McpMigrationFs, homeDir: string, error: unknown) {
+  const statePath = globalMcpPaths(homeDir).legacyState
   if (!(error instanceof McpMigrationSourceError) || error.filePath !== statePath) return undefined
-  const record = await McpMigrationRecord.load(fs, input.homeDir).catch(() => undefined)
-  if (record?.legacyProjects === undefined) return undefined
-  const worktrees = managedWorktreesRoot(input.homeDir)
-  const files = [
-    globalMcpPaths(input.homeDir).openwaggleGlobal,
-    ...input.projectPaths
-      .filter((projectPath) => projectPath.trim() && !isInside(projectPath, worktrees))
-      .map((projectPath) => projectMcpPaths(normalizeLegacyProjectPath(projectPath)).openwaggle),
-  ]
-  if (!files.every((filePath) => record.isFileMigrated(filePath))) return undefined
-  for (const filePath of files) recordMcpFileMigrationOutcome(filePath)
+  const record = await McpMigrationRecord.load(fs, homeDir).catch(() => undefined)
+  if (record?.legacyProjects === undefined || !record.sessionSwitchesDone) return undefined
   return {
-    files: files.map((filePath) => ({
-      path: filePath,
-      status: 'already-migrated' as const,
-      changes: [],
-    })),
-    oauth: [],
-    droppedSessionStates: 0,
+    record,
+    legacyProjects: record.legacyProjects,
+    state: EMPTY_LEGACY_STATE,
+    stateExists: true,
+    unreadableState: error,
   }
 }
 
 /**
- * The report of a run that could not read its record or the old state. Once nothing is left to
- * do with the old state, that is not a failure (a sign-in run still reports it, to be retried).
- * Otherwise the files the record does not list as migrated are gated: they may not load yet.
+ * The report of a run that could not read its record or the old state: the files the record
+ * does not list as migrated are gated, as they may not load yet.
  */
 export async function startFailureReport(input: {
   readonly fs: McpMigrationFs
@@ -98,17 +86,6 @@ export async function startFailureReport(input: {
 }) {
   const { fs, homeDir, error, logger } = input
   const message = error instanceof Error ? error.message : String(error)
-  const settled = await settledAfterStateError(
-    fs,
-    { homeDir, projectPaths: input.input.projectPaths },
-    error,
-  )
-  if (settled) {
-    logger.warn('MCP migration could not read the old MCP state; nothing is left to migrate', {
-      error: message,
-    })
-    return input.input.oauth ? { ...settled, error: message } : settled
-  }
   logger.error('MCP migration could not read its record or the old MCP state', {
     homeDir,
     error: message,
@@ -121,4 +98,33 @@ export async function startFailureReport(input: {
     ...(error instanceof McpMigrationSourceError ? { source: error.filePath } : {}),
   })
   return { files: [], oauth: [], droppedSessionStates: 0, error: message }
+}
+
+/**
+ * The projects whose servers keep their old on/off state, decided once. Null when OpenWaggle had
+ * no MCP setup (no old state and no global file): nothing connected before, but nothing was set
+ * up either, so Pi's servers simply work.
+ */
+export async function decideLegacyProjects(
+  input: { readonly homeDir: string; readonly projectPaths: readonly string[] },
+  start: Awaited<ReturnType<typeof loadMigrationStart>>,
+  fs: McpMigrationFs,
+  knownProjectPaths: () => Promise<readonly string[]>,
+) {
+  const { record, state } = start
+  if (record.legacyProjects !== undefined) return record.legacyProjects
+  const hadGlobalFile =
+    (await fs.readText(globalMcpPaths(input.homeDir).openwaggleGlobal)) !== undefined
+  if (!start.stateExists && !hadGlobalFile) {
+    record.setLegacyProjects(null)
+    return null
+  }
+  // Recorded for good, so a failure to list the known projects fails the run (tried again).
+  const known = await knownProjectPaths()
+  const projects = [...known, ...input.projectPaths, ...legacyStateProjects(state)]
+    .filter((projectPath) => projectPath.trim().length > 0)
+    .map(normalizeLegacyProjectPath)
+  const unique = [...new Set(projects)]
+  record.setLegacyProjects(unique)
+  return unique
 }

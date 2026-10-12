@@ -108,6 +108,22 @@ describe('the MCP file migration when another process keeps the lock', () => {
     await otherHost
   })
 
+  it('does not gate a file that is not there in a project that keeps no old state', async () => {
+    await migrateOpenWaggleMcpFilesOnce(null)
+    const added = path.join(homedir(), 'work', 'added-later')
+    mkdirSync(added, { recursive: true })
+    const recordPath = migrationRecordPath(homedir())
+    const released = Promise.withResolvers<void>()
+    const otherHost = withProcessFileLock(recordPath, () => released.promise)
+    await vi.waitFor(() => expect(existsSync(`${recordPath}.lock`)).toBe(true))
+
+    await migrateOpenWaggleMcpFilesOnce(added)
+
+    expect(mcpFileMigrationFailure(path.join(added, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    released.resolve()
+    await otherHost
+  })
+
   it("does not gate a managed worktree's file, which no run migrates or clears", async () => {
     const worktree = path.join(homedir(), '.openwaggle', 'worktrees', 'project', 'session-1')
     const recordPath = migrationRecordPath(homedir())
@@ -124,6 +140,14 @@ describe('the MCP file migration when another process keeps the lock', () => {
 
   it('at Host start, waits for the lock once, then leaves the other scopes to the retry', async () => {
     const projects = ['alpha', 'beta', 'gamma'].map((name) => path.join(homedir(), 'start', name))
+    for (const project of projects) {
+      const file = path.join(project, '.openwaggle', 'mcp.json')
+      mkdirSync(path.dirname(file), { recursive: true })
+      writeFileSync(
+        file,
+        JSON.stringify({ mcpServers: { fs: { command: 'fs', directTools: true } } }),
+      )
+    }
     settings.recentProjects = projects
     const recordPath = migrationRecordPath(homedir())
     const released = Promise.withResolvers<void>()

@@ -14,6 +14,14 @@ import { globalMcpPaths, isInside, managedWorktreesRoot, projectMcpPaths } from 
 import { McpMigrationRecord } from './migration-record'
 import { keepsEnablement } from './project-spellings'
 
+/** A file behind a link that leads nowhere counts as there: its read fails, it is not absent. */
+function exists(fs: McpMigrationFs, filePath: string) {
+  return fs.readText(filePath).then(
+    (text) => text !== undefined,
+    () => true,
+  )
+}
+
 /** Whether old on/off state waits for this file: unknown while undecided, so assumed. */
 function keepsLegacyState(record: McpMigrationRecord | undefined, projectPath: string | null) {
   const projects = record?.legacyProjects
@@ -46,9 +54,12 @@ export async function gateUnmigratedMcpFiles(input: {
       ? projectMcpPaths(projectPath).openwaggle
       : globalMcpPaths(homeDir).openwaggleGlobal
     if (record?.isFileMigrated(filePath)) continue
+    const keeps = keepsLegacyState(record, projectPath)
+    // Without old state, an absent file has nothing to convert and nothing to keep from loading.
+    if (!keeps && !(await exists(fs, filePath))) continue
     recordMcpFileMigrationOutcome(filePath, error, {
       cause,
-      keepsLegacyState: keepsLegacyState(record, projectPath),
+      keepsLegacyState: keeps,
       ...(input.source ? { source: input.source } : {}),
     })
   }

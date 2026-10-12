@@ -23,7 +23,6 @@ import {
 import { reportHomeFolderProjectState } from './home-project-state'
 import { contentHash } from './json-document'
 import { legacyServerRecords } from './legacy-server-names'
-import { legacyStateProjects, normalizeLegacyProjectPath } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
 import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
@@ -34,7 +33,13 @@ import {
   projectMcpPaths,
 } from './migration-paths'
 import { MCP_FILE_MIGRATION_VERSION, type McpMigrationRecord } from './migration-record'
-import { loadMigrationStart, startFailureReport } from './migration-start'
+import {
+  decideLegacyProjects,
+  loadMigrationStart,
+  type McpMigrationSourceError,
+  startFailureReport,
+  startWithoutOldState,
+} from './migration-start'
 import {
   type McpOAuthMigrationResult,
   type McpOAuthMigrationSink,
@@ -44,6 +49,7 @@ import { keepsEnablement, migrationProjects } from './project-spellings'
 import {
   type McpSessionSwitchMigrationSink,
   migrateLegacySessionSwitches,
+  noteNoSessionSwitches,
 } from './session-switch-migration'
 
 export type { McpServerMigrationChange } from './entry-migration'
@@ -111,13 +117,15 @@ class McpFileMigrator {
     private readonly input: Pick<
       MigrateOpenWaggleMcpFilesInput,
       'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
-    >,
+    > & { readonly unreadableState?: McpMigrationSourceError },
   ) {}
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
     const report = await this.migrate(job)
+    const { unreadableState } = this.input
     recordMcpFileMigrationOutcome(job.path, report.status === 'failed' ? report.error : undefined, {
       keepsLegacyState: job.keepsLegacyState,
+      ...(unreadableState && job.keepsLegacyState ? { source: unreadableState.filePath } : {}),
     })
     return report
   }
@@ -125,6 +133,11 @@ class McpFileMigrator {
   private async migrate(job: FileJob): Promise<McpFileMigrationReport> {
     if (this.record.isFileMigrated(job.path)) {
       return { path: job.path, status: 'already-migrated', changes: [] }
+    }
+    // Its old on/off state is in the state.json that cannot be read: it waits until it can be.
+    const { unreadableState } = this.input
+    if (unreadableState && job.keepsLegacyState) {
+      return { path: job.path, status: 'failed', changes: [], error: unreadableState.message }
     }
     try {
       const original = await this.fs.readText(job.path)
@@ -174,35 +187,6 @@ class McpFileMigrator {
   }
 }
 
-/**
- * The projects whose servers keep their old on/off state, decided once. Null when OpenWaggle had
- * no MCP setup (no old state and no global file): nothing connected before, but nothing was set
- * up either, so Pi's servers simply work.
- */
-async function legacyProjects(
-  input: MigrateOpenWaggleMcpFilesInput,
-  start: Awaited<ReturnType<typeof loadMigrationStart>>,
-  fs: McpMigrationFs,
-  knownProjectPaths: () => Promise<readonly string[]>,
-) {
-  const { record, state } = start
-  if (record.legacyProjects !== undefined) return record.legacyProjects
-  const hadGlobalFile =
-    (await fs.readText(globalMcpPaths(input.homeDir).openwaggleGlobal)) !== undefined
-  if (!start.stateExists && !hadGlobalFile) {
-    record.setLegacyProjects(null)
-    return null
-  }
-  // Recorded for good, so a failure to list the known projects fails the run (tried again).
-  const known = await knownProjectPaths()
-  const projects = [...known, ...input.projectPaths, ...legacyStateProjects(state)]
-    .filter((projectPath) => projectPath.trim().length > 0)
-    .map(normalizeLegacyProjectPath)
-  const unique = [...new Set(projects)]
-  record.setLegacyProjects(unique)
-  return unique
-}
-
 /** Run the migration for the global file and every known project. Safe to call repeatedly. */
 export async function migrateOpenWaggleMcpFiles(
   input: MigrateOpenWaggleMcpFilesInput,
@@ -211,6 +195,7 @@ export async function migrateOpenWaggleMcpFiles(
   const logger = input.logger ?? defaultLogger
   let start: Awaited<ReturnType<typeof loadMigrationStart>>
   let kept: readonly string[] | null
+  let unreadableState: McpMigrationSourceError | undefined
   let listed: Promise<readonly string[]> | undefined
   // Listed once per run: they decide the projects kept on the first run and lend spellings.
   const knownProjectPaths = () => {
@@ -219,12 +204,21 @@ export async function migrateOpenWaggleMcpFiles(
   }
   try {
     start = await loadMigrationStart(fs, input.homeDir)
-    kept = await legacyProjects(input, start, fs, knownProjectPaths)
+    kept = await decideLegacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
-    return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    const withoutState = await startWithoutOldState(fs, input.homeDir, error)
+    if (!withoutState)
+      return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    logger.warn('MCP migration goes on without the old MCP state, which cannot be read', {
+      error: withoutState.unreadableState.message,
+    })
+    start = withoutState
+    kept = withoutState.legacyProjects
+    unreadableState = withoutState.unreadableState
   }
   const { record, state } = start
-  const migrator = new McpFileMigrator(fs, record, logger, input)
+  if (!unreadableState) await noteNoSessionSwitches(state, record)
+  const migrator = new McpFileMigrator(fs, record, logger, { ...input, unreadableState })
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
@@ -298,5 +292,7 @@ export async function migrateOpenWaggleMcpFiles(
     now: input.now,
     logger,
   })
-  return { files, oauth, droppedSessionStates }
+  // A sign-in run reads the old sign-ins' servers from the old state: tried again later.
+  const error = input.oauth && unreadableState ? { error: unreadableState.message } : {}
+  return { files, oauth, droppedSessionStates, ...error }
 }

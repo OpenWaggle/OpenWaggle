@@ -74,6 +74,8 @@ const migrationRecordSchema = Schema.Struct({
   ),
   /** Home-folder projects whose left-out on/off choices were already logged. */
   homeFolderNotices: Schema.optionalWith(Schema.Array(Schema.String), { default: () => [] }),
+  /** Every old MCP-off Session switch was carried over, so the old state is needed no more. */
+  sessionSwitchesDone: Schema.optional(Schema.Boolean),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -96,6 +98,9 @@ export class McpMigrationRecord {
     private readonly serverNames: Record<string, string> = {},
     private readonly serverIdentities: Record<string, McpLegacyServerIdentity> = {},
     private readonly homeNotices: Set<string> = new Set(),
+    private switchesDone = false,
+    /** Whether the record is on disk: a marker alone never creates it. */
+    private onDisk = false,
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
@@ -114,7 +119,21 @@ export class McpMigrationRecord {
       { ...decoded.legacyServerNames },
       { ...decoded.legacyServerIdentities },
       new Set(decoded.homeFolderNotices),
+      decoded.sessionSwitchesDone === true,
+      true,
     )
+  }
+
+  /** Whether every old MCP-off Session switch was carried over. */
+  get sessionSwitchesDone() {
+    return this.switchesDone
+  }
+
+  /** Saved with the record; written now only when the record is already on disk. */
+  async recordSessionSwitchesDone() {
+    if (this.switchesDone) return
+    this.switchesDone = true
+    if (this.onDisk) await this.persist()
   }
 
   /** Old instance ID to server name; see `legacyServerNames` in the schema. */
@@ -193,6 +212,7 @@ export class McpMigrationRecord {
   }
 
   private persist() {
+    this.onDisk = true
     const value = {
       version: RECORD_FORMAT_VERSION,
       files: this.files,
@@ -208,6 +228,7 @@ export class McpMigrationRecord {
         ? {}
         : { legacyServerIdentities: this.serverIdentities }),
       ...(this.homeNotices.size === 0 ? {} : { homeFolderNotices: [...this.homeNotices] }),
+      ...(this.switchesDone ? { sessionSwitchesDone: true } : {}),
     }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)
   }
