@@ -568,11 +568,18 @@ While old on/off state waits to be applied (OpenWaggle had an MCP setup, or that
 yet), no server of the scope connects at all, fail-closed: the overrides the migration writes
 there also keep servers of Pi's files and `.mcp.json` off. Meanwhile writes that could be undone
 are refused (`mcp-write-refusal.ts`): Settings, the CLI, imports, and Pi's `/mcp` in a Run (only
-in Pi's TUI mode). A write that changes only global files checks only the global file. The
+in Pi's TUI mode). A write that changes only global files checks the global file and any
+project whose old state waits, since that project's migration would write overrides over it. The
 refusal says "try again shortly" when the migration waited for a lock, and "Fix <file>" when a
 file it reads cannot be read; an unreadable state.json or migration.json is named as that file
-(`migration-start.ts`). On a fresh install there is no old state to apply, so nothing is
-refused. Unchanged copies of Pi entries are
+(`migration-start.ts`). Whether old state waits is decided per file: the global file's when
+OpenWaggle had an MCP setup, a project file's when its project keeps its old on/off (undecided
+counts as waiting). On a fresh install, or for a project added after the first run, nothing
+waits, so nothing is refused. A failed start gates only the files the record does not list as
+migrated, and a broken state.json is ignored once every file asked for is migrated and the
+decision is made; only an unreadable migration.json fails closed for everything. While a scope
+is closed, Check connection fails with the reason instead of "No MCP server named", and a Run
+shows one notice per failing file, worded by cause. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
 or dropped. It also keeps every server as on or off as it was (`legacy-enablement.ts`): the old
 code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwaggle/mcp.json`, and

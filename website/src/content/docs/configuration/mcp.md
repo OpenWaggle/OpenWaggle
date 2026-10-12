@@ -149,6 +149,13 @@ The first time a new version starts, OpenWaggle converts its older MCP files to 
 
 Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server. A copy you edited, or one that reads a secret from the encrypted store, is kept.
 
+If the conversion cannot finish for a file, MCP servers stay off until it does: for that project, or for every project when the file is `~/.openwaggle/mcp.json`. That way a server you had off does not start. Changes to those servers are refused until then, so the conversion cannot undo them, and the message says what to do:
+
+- **Try again shortly**: another OpenWaggle window or the command line was converting the same files. It tries again by itself; nothing to do.
+- **Fix** followed by a file: the file cannot be read, for example its JSON is broken or it is a link to a folder that is not there (a dotfiles folder not mounted). Fix or restore that file, then open **Settings > MCP** again.
+
+This only applies after an upgrade. A new install has nothing to convert, so nothing waits.
+
 ## How tools reach the agent
 
 Each server's **exposure** decides how the agent can use its tools. Tool names look like `mcp__<server>__<tool>`.
@@ -190,7 +197,7 @@ A session's servers stop after 5 minutes without a new message, when the session
 
 Open **Settings > MCP** and select the server. Its error and the last lines it printed usually say what is wrong: a missing program, a wrong URL, or a sign-in that expired. Fix the configuration, then choose **Check connection**.
 
-Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working.
+Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working, except while an upgrade's conversion is unfinished (see [After upgrading from an older OpenWaggle](#after-upgrading-from-an-older-openwaggle)).
 
 `openwaggle mcp doctor` prints the same in a terminal: which of the five files exist, the errors found in them, and each server's state with the last lines it printed. It connects to every enabled server to check it. Add `--local` to include the current project's files, or `--json` for a machine-readable report.
 
