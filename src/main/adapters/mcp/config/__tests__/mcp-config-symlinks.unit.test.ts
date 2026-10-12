@@ -160,4 +160,16 @@ describe.skipIf(process.platform === 'win32')('MCP files that are symbolic links
       path.join(realpathSync.native(real), tail),
     )
   })
+
+  it('agree on where two spellings lead that differ only in case, where case does not matter', (context) => {
+    const real = path.join(root, 'real', 'proj')
+    mkdirSync(real, { recursive: true })
+    // Only on a file system that ignores case (macOS and Windows by default).
+    if (!existsSync(path.join(root, 'REAL', 'PROJ'))) context.skip()
+    const tail = path.join('.openwaggle', 'mcp.json')
+
+    expect(realLocation(path.join(root, 'Real', 'Proj', tail))).toBe(
+      realLocation(path.join(real, tail)),
+    )
+  })
 })
