@@ -25,7 +25,7 @@ import { contentHash } from './json-document'
 import { legacyServerRecords } from './legacy-server-names'
 import { legacyStateProjects, normalizeLegacyProjectPath } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
-import { gateMcpFiles } from './migration-gate'
+import { gateUnmigratedMcpFiles } from './migration-gate'
 import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
@@ -99,6 +99,8 @@ function describeError(error: unknown) {
 
 interface FileJob {
   readonly path: string
+  /** Whether old on/off state waits for this file while its migration fails. */
+  readonly keepsLegacyState: boolean
   readonly compute: (original: string | undefined) => Promise<FileComputation>
 }
 
@@ -110,13 +112,13 @@ class McpFileMigrator {
     private readonly input: Pick<
       MigrateOpenWaggleMcpFilesInput,
       'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
-    > & { readonly keepsLegacyState: boolean },
+    >,
   ) {}
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
     const report = await this.migrate(job)
     recordMcpFileMigrationOutcome(job.path, report.status === 'failed' ? report.error : undefined, {
-      keepsLegacyState: this.input.keepsLegacyState,
+      keepsLegacyState: job.keepsLegacyState,
     })
     return report
   }
@@ -224,17 +226,18 @@ export async function migrateOpenWaggleMcpFiles(
       homeDir: input.homeDir,
       error: describeError(error),
     })
-    // Nothing was migrated, so none of OpenWaggle's files for these scopes may be loaded yet.
-    gateMcpFiles(input.homeDir, input.projectPaths, describeError(error), {
+    // What the record does not list as migrated may not load yet; the rest was migrated.
+    await gateUnmigratedMcpFiles({
+      homeDir: input.homeDir,
+      projectPaths: input.projectPaths,
+      error,
+      fs,
       ...(error instanceof McpMigrationSourceError ? { source: error.filePath } : {}),
     })
     return { files: [], oauth: [], droppedSessionStates: 0, error: describeError(error) }
   }
   const { record, state } = start
-  const migrator = new McpFileMigrator(fs, record, logger, {
-    ...input,
-    keepsLegacyState: kept !== null,
-  })
+  const migrator = new McpFileMigrator(fs, record, logger, input)
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
@@ -253,6 +256,7 @@ export async function migrateOpenWaggleMcpFiles(
   const files: McpFileMigrationReport[] = [
     await migrator.run({
       path: paths.openwaggleGlobal,
+      keepsLegacyState: kept !== null,
       compute: (original) =>
         computeGlobalFile({ sources, state, original, preserveEnablement: kept !== null }),
     }),
@@ -277,6 +281,7 @@ export async function migrateOpenWaggleMcpFiles(
     files.push(
       await migrator.run({
         path: projectMcpPaths(projectPath).openwaggle,
+        keepsLegacyState: keepsEnablement(kept, projectPath),
         compute: (original) =>
           computeProjectFile({
             sources,

@@ -4,57 +4,52 @@
  * load: in the old format, without the `enabled` overrides, servers the old OpenWaggle had off
  * would start. Each such file is gated as failed until a later run migrates it
  * (`migration-health.ts`). A managed worktree's file is never one: the migration never handles it,
- * so nothing would clear its gate.
+ * so nothing would clear its gate. The caller logs the failure.
  */
 
-import type { Logger } from '@shared/types/logger'
 import { ProcessFileLockTimeoutError } from '../process-file-lock'
-import { nodeMcpMigrationFs } from './migration-fs'
-import { type McpMigrationFailureDetails, recordMcpFileMigrationOutcome } from './migration-health'
+import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
+import { recordMcpFileMigrationOutcome } from './migration-health'
 import { globalMcpPaths, isInside, managedWorktreesRoot, projectMcpPaths } from './migration-paths'
 import { McpMigrationRecord } from './migration-record'
+import { keepsEnablement } from './project-spellings'
 
-/** The OpenWaggle files a run for these projects migrates: the global one and each project's. */
-export function migratedMcpFiles(homeDir: string, projectPaths: readonly string[]) {
-  const worktrees = managedWorktreesRoot(homeDir)
-  return [
-    globalMcpPaths(homeDir).openwaggleGlobal,
-    ...projectPaths
-      .filter((projectPath) => !isInside(projectPath, worktrees))
-      .map((projectPath) => projectMcpPaths(projectPath).openwaggle),
-  ]
+/** Whether old on/off state waits for this file: unknown while undecided, so assumed. */
+function keepsLegacyState(record: McpMigrationRecord | undefined, projectPath: string | null) {
+  const projects = record?.legacyProjects
+  if (projects === undefined) return true
+  if (projects === null) return false
+  return projectPath === null || keepsEnablement(projects, projectPath)
 }
 
-/** Gates every file of the scopes, as nothing of them was migrated. */
-export function gateMcpFiles(
-  homeDir: string,
-  projectPaths: readonly string[],
-  error: string,
-  details: McpMigrationFailureDetails,
-) {
-  for (const filePath of migratedMcpFiles(homeDir, projectPaths)) {
-    recordMcpFileMigrationOutcome(filePath, error, details)
-  }
-}
-
+/**
+ * Gates the scopes' files the record does not list as migrated (read without the lock; all of
+ * them when it cannot be read), each with whether old state waits for it.
+ */
 export async function gateUnmigratedMcpFiles(input: {
   readonly homeDir: string
-  readonly projectPath: string | null
+  readonly projectPaths: readonly (string | null)[]
   readonly error: unknown
-  readonly logger: Logger
+  readonly source?: string
+  readonly fs?: McpMigrationFs
 }) {
-  const { homeDir, projectPath } = input
+  const { homeDir } = input
   const error = input.error instanceof Error ? input.error.message : String(input.error)
-  input.logger.error('MCP migration failed; it is tried again later', { projectPath, error })
-  // Read without the lock: a file already recorded as migrated stays loadable.
-  const record = await McpMigrationRecord.load(nodeMcpMigrationFs, homeDir).catch(() => undefined)
-  const details: McpMigrationFailureDetails = {
-    cause: input.error instanceof ProcessFileLockTimeoutError ? 'wait' : 'content',
-    // Not decided yet, or an MCP setup to keep: old on/off state waits to be applied.
-    keepsLegacyState: record?.legacyProjects !== null,
-  }
-  for (const filePath of migratedMcpFiles(homeDir, projectPath ? [projectPath] : [])) {
+  const fs = input.fs ?? nodeMcpMigrationFs
+  const record = await McpMigrationRecord.load(fs, homeDir).catch(() => undefined)
+  const cause = input.error instanceof ProcessFileLockTimeoutError ? 'wait' : 'content'
+  const projects = input.projectPaths.filter((projectPath) => projectPath !== null)
+  const worktrees = managedWorktreesRoot(homeDir)
+  const scopes = [null, ...projects.filter((projectPath) => !isInside(projectPath, worktrees))]
+  for (const projectPath of scopes) {
+    const filePath = projectPath
+      ? projectMcpPaths(projectPath).openwaggle
+      : globalMcpPaths(homeDir).openwaggleGlobal
     if (record?.isFileMigrated(filePath)) continue
-    recordMcpFileMigrationOutcome(filePath, error, details)
+    recordMcpFileMigrationOutcome(filePath, error, {
+      cause,
+      keepsLegacyState: keepsLegacyState(record, projectPath),
+      ...(input.source ? { source: input.source } : {}),
+    })
   }
 }

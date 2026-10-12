@@ -121,7 +121,7 @@ describe('an MCP configuration write while the migration is failing', () => {
 
     const refused = await Effect.runPromise(Effect.flip(Effect.provide(turnOn, layer())))
     // A missing folder lasts until the user mounts or fixes it, so the refusal says what to fix.
-    expect(refused.message).toContain(`Fix ${path.join(project, '.openwaggle', 'mcp.json')}`)
+    expect(refused.message).toContain(`Fix it: ${path.join(project, '.openwaggle', 'mcp.json')}`)
 
     // Mounted again, with the old OpenWaggle file: the next call migrates it, then writes.
     write(path.join(dotfiles, 'mcp.json'), { mcpServers: {} })
@@ -136,7 +136,7 @@ describe('an MCP configuration write while the migration is failing', () => {
 })
 
 describe("a global server's write from a project whose own file is not migrated yet", () => {
-  it('goes through: it changes only the global file, which is migrated', async () => {
+  it('goes through when that project keeps no old state: it changes only the global file', async () => {
     const project = path.join(root, 'project')
     mkdirSync(project, { recursive: true })
     symlinkSync(path.join(root, 'unmounted'), path.join(project, '.openwaggle'))
@@ -146,6 +146,8 @@ describe("a global server's write from a project whose own file is not migrated 
       globalState: 'on',
       servers: {},
     })
+    // The first run decided which projects keep their old on/off; this one was added later.
+    await run(getMcpConfigurationOperation({ projectPath: null }))
     const toggle = (target: 'server' | 'project') =>
       setMcpServerEnabledOperation({ projectPath: project, name: 'docs', enabled: true, target })
 
@@ -157,8 +159,9 @@ describe("a global server's write from a project whose own file is not migrated 
     expect(JSON.parse(readFileSync(owGlobal, 'utf8')).mcpServers.docs).toEqual({
       command: 'docs-mcp',
     })
-    // A toggle for this project only would go into the file that is not migrated.
-    expect(projectOnly.message).toContain('Fix')
+    // A toggle for this project only would go into the file that is not migrated: refused,
+    // though its migration only converts the format, as its link cannot be written through.
+    expect(projectOnly.message).toContain('links to a missing')
   })
 })
 

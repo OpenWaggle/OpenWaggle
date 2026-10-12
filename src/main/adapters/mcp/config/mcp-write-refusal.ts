@@ -5,10 +5,10 @@
  */
 import type { McpConfiguredServerView } from '@shared/types/mcp-configuration'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
-import type { PendingMcpFileMigration } from '../migration/migration-health'
+import type { McpPendingScope, PendingMcpFileMigration } from '../migration/migration-health'
 
-/** `global`: a write that changes only global files, so only the global file's migration counts. */
-export type McpWriteScope = 'all' | 'global'
+/** Which pending migrations a write waits for (`McpPendingScope`). */
+export type McpWriteScope = McpPendingScope
 
 export type PendingMcpMigrationLookup = (
   projectPath: string | null,
@@ -21,8 +21,18 @@ export function mcpWriteRefusal(pending: PendingMcpFileMigration | undefined) {
   const message =
     pending.cause === 'wait'
       ? `MCP settings are still being updated, so nothing was changed; try again shortly. (${pending.path}: ${pending.error})`
-      : `Nothing was changed: OpenWaggle could not finish updating its MCP settings. Fix ${pending.source ?? pending.path} (${pending.error}).`
+      : `Nothing was changed: OpenWaggle could not finish updating its MCP settings. ${mcpFixInstruction(pending)}`
   return new McpConfigurationError({ reason: 'io', message })
+}
+
+/** "Fix <file> (<error>)", naming the file once even when the error already does. */
+export function mcpFixInstruction(
+  pending: Pick<PendingMcpFileMigration, 'path' | 'source' | 'error'>,
+) {
+  const file = pending.source ?? pending.path
+  return pending.error.includes(file)
+    ? `Fix it: ${pending.error}.`
+    : `Fix ${file} (${pending.error}).`
 }
 
 function isGlobalFileId(fileId: string) {

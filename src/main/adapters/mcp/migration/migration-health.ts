@@ -26,6 +26,8 @@ export interface McpMigrationFailureDetails {
 }
 
 interface Failure extends Required<Omit<McpMigrationFailureDetails, 'source'>> {
+  /** The file as it was recorded. */
+  readonly path: string
   /** The file as it was spelled and where it led when it failed. */
   readonly spellings: ReadonlySet<string>
   readonly error: string
@@ -70,6 +72,7 @@ export function recordMcpFileMigrationOutcome(
     return
   }
   const failure: Failure = {
+    path: path.resolve(filePath),
     spellings,
     error,
     cause: details.cause ?? 'content',
@@ -102,22 +105,32 @@ export interface PendingMcpFileMigration {
  * failing. A write made meanwhile would be undone when the migration later succeeds and applies
  * the old on/off state, so writes wait until then.
  */
+/**
+ * The files a write may need migrated first. `all`: the global file and the viewed project's.
+ * `global`: the global file, then any project whose old state waits, since that project's
+ * migration would write overrides over what a global write changed. `everywhere`: both.
+ */
+export type McpPendingScope = 'all' | 'global' | 'everywhere'
+
+function pending(failure: Failure, filePath = failure.path): PendingMcpFileMigration {
+  const { spellings: _spellings, path: _path, ...details } = failure
+  return { path: filePath, ...details }
+}
+
 export function pendingMcpFileMigration(
   homeDir: string,
   projectPath: string | null,
-  /** `global`: only the global file, for a write that changes only global files. */
-  scope: 'all' | 'global' = 'all',
+  scope: McpPendingScope = 'all',
 ): PendingMcpFileMigration | undefined {
   const files = [
     globalMcpPaths(homeDir).openwaggleGlobal,
-    ...(projectPath && scope === 'all' ? [projectMcpPaths(projectPath).openwaggle] : []),
+    ...(projectPath && scope !== 'global' ? [projectMcpPaths(projectPath).openwaggle] : []),
   ]
   for (const filePath of files) {
     const failure = failureOf(filePath)
-    if (failure) {
-      const { spellings: _spellings, ...pending } = failure
-      return { path: filePath, ...pending }
-    }
+    if (failure) return pending(failure, filePath)
   }
-  return undefined
+  if (scope === 'all') return undefined
+  const elsewhere = failures.find((failure) => failure.keepsLegacyState)
+  return elsewhere ? pending(elsewhere) : undefined
 }

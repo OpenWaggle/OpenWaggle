@@ -77,7 +77,8 @@ export function migrateBeforeEachCall(
         service.addServer(input),
       ),
     // Removing a server also removes its orphaned overrides in project files.
-    removeServer: (input) => write(input, Effect.succeed('all'), () => service.removeServer(input)),
+    removeServer: (input) =>
+      write(input, Effect.succeed('everywhere'), () => service.removeServer(input)),
     removeOrphanedOverride: (input) =>
       write(input, Effect.succeed(fileWriteScope(input.fileId)), () =>
         service.removeOrphanedOverride(input),

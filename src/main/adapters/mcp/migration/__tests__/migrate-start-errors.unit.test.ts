@@ -25,6 +25,9 @@ describe('a migration that cannot read its record or the old state', () => {
     expect(report.error).toContain(`${wording} ${broken}`)
     const pending = pendingMcpFileMigration(HOME, null)
     expect(pending).toMatchObject({ path: OPENWAGGLE_GLOBAL, source: broken })
-    expect(mcpWriteRefusal(pending)?.message).toContain(`Fix ${broken}`)
+    const message = mcpWriteRefusal(pending)?.message ?? ''
+    expect(message).toContain(`Fix it: ${wording} ${broken}`)
+    // Named once, though both the instruction and the error point at it.
+    expect(message.split(broken)).toHaveLength(2)
   })
 })

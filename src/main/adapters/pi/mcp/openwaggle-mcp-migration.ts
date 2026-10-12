@@ -181,7 +181,11 @@ async function runMigration(
   ).catch(async (error: unknown) => {
     if (error instanceof ProcessFileLockTimeoutError) lastLockTimeout = error
     // Not cached: the attempt is marked failed below and a later call runs it again.
-    await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPath, error, logger })
+    logger.error('MCP migration failed; it is tried again later', {
+      projectPath,
+      error: describeError(error),
+    })
+    await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPaths: [projectPath], error })
     return undefined
   })
   // What a failed start or file left unmigrated is tried again on a later call.
@@ -245,7 +249,13 @@ async function migrateKnownScopes(migrate: (projectPath: string | null) => Promi
   for (const projectPath of new Set(projects)) {
     const timeout = lastLockTimeout
     if (timeout === timeoutBefore || timeout === undefined) await migrate(projectPath)
-    else await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPath, error: timeout, logger })
+    else {
+      await gateUnmigratedMcpFiles({
+        homeDir: homedir(),
+        projectPaths: [projectPath],
+        error: timeout,
+      })
+    }
   }
 }
 
