@@ -200,6 +200,23 @@ describe('MCP config writer', () => {
     expect(changed).toEqual([override, source])
   })
 
+  it("refuses Pi's /mcp change as Settings would, writing nothing", () => {
+    const text = JSON.stringify({ mcpServers: { s: { command: 's' } } })
+    const source = file('global.json', text)
+    const changed: string[] = []
+    const updateConfig = createMcpUpdateConfig(
+      (filePath) => changed.push(filePath),
+      () => undefined,
+      () => new Error('MCP settings are still being updated'),
+    )
+
+    expect(() => updateConfig({ name: 's', source }, { enabled: false })).toThrow(
+      'MCP settings are still being updated',
+    )
+    expect(read(source)).toBe(text)
+    expect(changed).toEqual([])
+  })
+
   it("saves Pi's /mcp changes to a global override that Pi was not told about", () => {
     const source = file('pi-global.json', JSON.stringify({ mcpServers: { s: { command: 's' } } }))
     const globalOverride = file('openwaggle-global.json', JSON.stringify({ mcpServers: { s: {} } }))

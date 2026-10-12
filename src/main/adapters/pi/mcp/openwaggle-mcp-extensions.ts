@@ -12,11 +12,13 @@ import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
+import { mcpWriteRefusal } from '../../mcp/config/mcp-write-refusal'
 import {
   deferredMcpVaultSecret,
   mcpVaultSecretStamps,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { pendingMcpFileMigration } from '../../mcp/migration/migration-health'
 import {
   type McpConnectionPool,
   mcpConnectionFingerprint,
@@ -282,6 +284,8 @@ export async function createOpenWaggleMcpExtensions(
     updateConfig: createMcpUpdateConfig(
       (filePath) => input.onConfigChanged?.(filePath),
       (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+      // As Settings: a change made before the scope's migration succeeds would be undone by it.
+      () => mcpWriteRefusal(pendingMcpFileMigration(homedir(), input.projectPath)),
     ),
     startupWaitMs: MCP_STARTUP_WAIT_MS,
   })
