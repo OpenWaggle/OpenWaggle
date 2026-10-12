@@ -196,6 +196,19 @@ describe('useBranchSummaryWorkflow', () => {
     expect(params.showToast).toHaveBeenCalledWith(toast)
   })
 
+  it('says what failed once the summary was saved, not that summarizing failed', async () => {
+    openPrompt()
+    useSessionStore.setState({ activeWorkspace: null })
+    const params = workflowParams()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(params.showToast).toHaveBeenCalledWith(
+      'The summarized branch workspace is not available. Please try again.',
+    )
+  })
+
   it('blocks draft sends when the branch source is no longer available', async () => {
     branchSummaryMocks.navigateSessionTree.mockResolvedValue({ cancelled: true })
     const params = workflowParams()

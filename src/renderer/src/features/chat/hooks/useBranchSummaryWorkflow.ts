@@ -217,21 +217,27 @@ async function materializeBranchSummaryAction(
   const prompt = useBranchSummaryStore.getState().prompt
   if (!prompt) return
 
-  try {
-    const navigation = await navigateWithBranchSummary(params, prompt, customInstructions)
+  const failed = (message: string) => {
     if (!isCurrentBranchSummaryPrompt(prompt)) return
-    if (navigation.cancelled) {
-      params.showToast('Branch summarization cancelled.')
-      cancelBranchSummary(prompt, previousMode)
-      return
-    }
-
-    await finishBranchSummary(params, prompt)
-  } catch (error) {
-    if (!isCurrentBranchSummaryPrompt(prompt)) return
-    params.showToast(sessionOperationFailureMessage('Failed to summarize the branch', error))
+    params.showToast(message)
     restoreBranchSummaryChoice(prompt, previousMode)
   }
+  const navigation = await navigateWithBranchSummary(params, prompt, customInstructions).catch(
+    (error: unknown) => {
+      failed(sessionOperationFailureMessage('Failed to summarize the branch', error))
+      return null
+    },
+  )
+  if (!navigation || !isCurrentBranchSummaryPrompt(prompt)) return
+  if (navigation.cancelled) {
+    params.showToast('Branch summarization cancelled.')
+    cancelBranchSummary(prompt, previousMode)
+    return
+  }
+  // The summary is saved by now: what fails after is showing it, said as it is.
+  await finishBranchSummary(params, prompt).catch((error: unknown) => {
+    failed(error instanceof Error ? error.message : String(error))
+  })
 }
 
 export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
