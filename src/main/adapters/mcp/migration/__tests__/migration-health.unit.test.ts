@@ -89,4 +89,24 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     expect(mcpFileMigrationFailure(file)).toBeUndefined()
     expect(mcpFileMigrationFailure(path.join(project, '.openwaggle', 'mcp.json'))).toBeUndefined()
   })
+
+  it('stays failed under any spelling of the project folder once its link resolves', () => {
+    const real = path.join(root, 'real-project')
+    const linkedProject = path.join(root, 'linked-project')
+    const dotfiles = path.join(root, 'dotfiles', 'openwaggle')
+    mkdirSync(real, { recursive: true })
+    symlinkSync(real, linkedProject)
+    symlinkSync(dotfiles, path.join(real, '.openwaggle'))
+    const tail = path.join('.openwaggle', 'mcp.json')
+    // The migration ran under the project's link spelling while the dotfiles were not mounted.
+    recordMcpFileMigrationOutcome(path.join(linkedProject, tail), 'links to a missing folder')
+
+    mkdirSync(dotfiles, { recursive: true })
+    writeFileSync(path.join(dotfiles, 'mcp.json'), '{"mcpServers":{}}')
+    // Settings and Runs reach the project by its real path.
+    expect(mcpFileMigrationFailure(path.join(real, tail))).toBe('links to a missing folder')
+
+    recordMcpFileMigrationOutcome(path.join(real, tail))
+    expect(mcpFileMigrationFailure(path.join(linkedProject, tail))).toBeUndefined()
+  })
 })

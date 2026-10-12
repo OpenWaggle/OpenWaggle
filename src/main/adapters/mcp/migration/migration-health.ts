@@ -16,12 +16,19 @@ interface Failure {
 let failures: readonly Failure[] = []
 
 /**
- * A file's lexical spelling and where it leads now. Either matches: two spellings of one folder
- * are one file, and a file keeps its failure when its link later leads elsewhere (a dotfiles
- * checkout mounted again) until a migration succeeds.
+ * A file's lexical spelling, where it leads now, and its folder's real location with the file's
+ * last two parts. Any matches: two spellings of one folder are one file, and a file keeps its
+ * failure when its link later leads elsewhere (a dotfiles checkout mounted again) until a
+ * migration succeeds.
  */
 function spellingsOf(filePath: string) {
-  return new Set([path.resolve(filePath), realLocation(filePath)])
+  const resolved = path.resolve(filePath)
+  // `<folder>/.openwaggle/mcp.json` by the folder's real location: any spelling of the project
+  // matches, even after its `.openwaggle` link has come to lead elsewhere.
+  const openWaggleFolder = path.dirname(resolved)
+  const folder = path.dirname(openWaggleFolder)
+  const tail = path.join(path.basename(openWaggleFolder), path.basename(resolved))
+  return new Set([resolved, realLocation(filePath), path.join(realLocation(folder), tail)])
 }
 
 function concerns(failure: Failure, spellings: ReadonlySet<string>) {
