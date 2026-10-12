@@ -76,7 +76,7 @@ describe('A created Session whose Pi file was deleted', () => {
     )
 
     expect(opened?.piSessionFileDeleted).toBe(
-      `This Session's Pi session file is unavailable (${FILE}): it was deleted, and a folder that may hold a copy of it cannot be read. Reconnect or restore it to continue the Session.`,
+      `This Session's Pi session file is unavailable (${FILE}): it was deleted, and a folder that may hold a copy of it (/pi/other) cannot be read. Make it readable to continue the Session.`,
     )
     expect(refusal).toEqual(expect.objectContaining({ message: opened?.piSessionFileDeleted }))
   })

@@ -70,8 +70,12 @@ export class DeletedPiSessionFileError extends Error {
  * not connected. The Session stays, and its Runs are refused until the folder is back.
  */
 export class UnavailablePiSessionFileError extends Error {
-  constructor(piSessionFile: string, unavailability: PiSessionFileUnavailability) {
-    super(unavailablePiSessionFileMessage(piSessionFile, unavailability))
+  constructor(
+    piSessionFile: string,
+    unavailability: PiSessionFileUnavailability,
+    unreadableFolder?: string,
+  ) {
+    super(unavailablePiSessionFileMessage(piSessionFile, unavailability, unreadableFolder))
     this.name = 'UnavailablePiSessionFileError'
   }
 }
@@ -175,13 +179,14 @@ export function deletedPiSessionFile(sessionId: SessionId) {
     if (!state?.piSessionFile) return undefined
     if (!state.piEntryNodeIdPrefix && state.projectedPiEntryCount === 0) return undefined
     const deleted = yield* files.value.isDeleted(state.piSessionFile)
-    const unavailable = deleted
+    const { unavailable, unreadableFolder } = deleted
       ? yield* deletedFileUnavailability(sessionId, state.piEntryNodeIdPrefix)
-      : yield* files.value.unavailability(state.piSessionFile)
+      : { unavailable: yield* files.value.unavailability(state.piSessionFile) }
     if (unavailable === 'continued' || (!deleted && !unavailable)) return undefined
     return {
       file: state.piSessionFile,
       unavailable,
+      unreadableFolder,
       discovered: state.piEntryNodeIdPrefix !== undefined,
       repository: repository.value,
     }
@@ -192,16 +197,20 @@ export function deletedPiSessionFile(sessionId: SessionId) {
  * A deleted file's Session: a created one's Run continues a copy under its Pi session id when
  * there is one, and cannot tell while a folder that may hold one cannot be read.
  */
-function deletedFileUnavailability(sessionId: SessionId, piEntryNodeIdPrefix?: string) {
-  if (piEntryNodeIdPrefix) return Effect.succeed(undefined)
+function deletedFileUnavailability(
+  sessionId: SessionId,
+  piEntryNodeIdPrefix?: string,
+): Effect.Effect<{
+  readonly unavailable?: 'continued' | 'copies'
+  readonly unreadableFolder?: string
+}> {
+  if (piEntryNodeIdPrefix) return Effect.succeed({})
   return createdSessionContinuation(sessionId).pipe(
-    Effect.map((continuation) =>
-      continuation?.kind === 'file'
-        ? ('continued' as const)
-        : continuation?.kind === 'unsearchable'
-          ? ('copies' as const)
-          : undefined,
-    ),
+    Effect.map((continuation) => {
+      if (continuation?.kind === 'file') return { unavailable: 'continued' }
+      if (continuation?.kind !== 'unsearchable') return {}
+      return { unavailable: 'copies', unreadableFolder: continuation.folder }
+    }),
   )
 }
 
@@ -244,7 +253,13 @@ export function withDeletedPiSessionFileNotice(detail: SessionDetail | null) {
 
 function refusedRunError(sessionId: SessionId, deleted: MissingPiSessionFile) {
   if (deleted.unavailable) {
-    return Effect.succeed(new UnavailablePiSessionFileError(deleted.file, deleted.unavailable))
+    return Effect.succeed(
+      new UnavailablePiSessionFileError(
+        deleted.file,
+        deleted.unavailable,
+        deleted.unreadableFolder,
+      ),
+    )
   }
   return deleted.repository.deletionRefusal(sessionId).pipe(
     Effect.orElseSucceed(() => undefined),

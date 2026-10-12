@@ -11,18 +11,21 @@ export const PI_SESSION_FILE_PROBLEM = "This Session's Pi session file "
  */
 export type PiSessionFileUnavailability = 'folder' | 'file' | 'copies'
 
-const UNAVAILABLE_BECAUSE: Record<PiSessionFileUnavailability, string> = {
-  folder: 'its folder is missing',
-  file: 'it cannot be read, or it links to a file that is missing',
-  copies: 'it was deleted, and a folder that may hold a copy of it cannot be read',
-}
-
 /** A Pi file that is out of reach, which a Session continues from once it is back. */
 export function unavailablePiSessionFileMessage(
   piSessionFile: string,
   unavailability: PiSessionFileUnavailability = 'folder',
+  /** The folder that may hold a copy and cannot be read, for `copies`. */
+  unreadableFolder?: string,
 ) {
-  return `${PI_SESSION_FILE_PROBLEM}is unavailable (${piSessionFile}): ${UNAVAILABLE_BECAUSE[unavailability]}. Reconnect or restore it to continue the Session.`
+  const unavailable = `${PI_SESSION_FILE_PROBLEM}is unavailable (${piSessionFile})`
+  const restore = 'Reconnect or restore it to continue the Session.'
+  if (unavailability === 'folder') return `${unavailable}: its folder is missing. ${restore}`
+  if (unavailability === 'file') {
+    return `${unavailable}: it cannot be read, or it links to a file that is missing. ${restore}`
+  }
+  const folder = unreadableFolder ? ` (${unreadableFolder})` : ''
+  return `${unavailable}: it was deleted, and a folder that may hold a copy of it${folder} cannot be read. Make it readable to continue the Session.`
 }
 
 /**

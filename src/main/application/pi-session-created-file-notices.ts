@@ -25,7 +25,9 @@ function forgetUnlistedSessions(listed: ReadonlySet<string>) {
 /** The notice a Session whose Pi file is missing shows, undefined when it shows none. */
 function missingFileNotice(sessionId: SessionId) {
   return deletedPiSessionFile(sessionId).pipe(
-    Effect.map((missing) => (missing ? (missing.unavailable ?? 'deleted') : undefined)),
+    Effect.map((missing) =>
+      missing ? `${missing.unavailable ?? 'deleted'}:${missing.unreadableFolder ?? ''}` : undefined,
+    ),
   )
 }
 
