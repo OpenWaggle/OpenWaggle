@@ -173,8 +173,9 @@ function keepDraftForSession(prompt: BranchSummaryPromptState) {
 
 /**
  * The summary is saved, but showing it failed: it is not offered again, which would save a second
- * one. Once the Session is read again, the view goes where the summary left it, on its saved
- * branch, with the message being written.
+ * one. While the Session is read again the prompt stays summarizing, which keeps the composer
+ * disabled; then, if nothing moved the view meanwhile, it goes where the summary left it, on its
+ * saved branch, with the message being written. Otherwise the message stays where it is.
  */
 export async function leaveSavedBranchSummary(
   params: BranchSummaryWorkflowParams,
@@ -182,8 +183,6 @@ export async function leaveSavedBranchSummary(
   error: unknown,
 ) {
   if (!isCurrentBranchSummaryPrompt(prompt)) return
-  keepDraftForSession(prompt)
-  useBranchSummaryStore.getState().clearPrompt()
   params.showToast(
     sessionOperationFailureMessage(
       'The branch summary was saved, but it could not be shown',
@@ -195,7 +194,15 @@ export async function leaveSavedBranchSummary(
     params.refreshSession(prompt.sessionId),
     params.refreshSessionWorkspace(prompt.sessionId),
   ])
+  if (!isCurrentBranchSummaryPrompt(prompt)) {
+    // A prompt opened meanwhile is another's; this one, left summarizing, would stay stuck.
+    if (useBranchSummaryStore.getState().prompt === prompt) {
+      useBranchSummaryStore.getState().clearPrompt()
+    }
+    return
+  }
+  keepDraftForSession(prompt)
+  useBranchSummaryStore.getState().clearPrompt()
   params.clearDraftBranchForSession(prompt.sessionId)
-  if (String(useChatStore.getState().activeSessionId) !== String(prompt.sessionId)) return
   routeToSessionSelection(params, prompt.sessionId, {})
 }
