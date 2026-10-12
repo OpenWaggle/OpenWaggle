@@ -201,8 +201,12 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
           availability === 'folder' || availability === 'file' ? availability : undefined,
         ),
       ),
+    // A Session with no run directory to find one from, such as one whose worktree is gone, has
+    // no copy a Run would continue.
     continuedFile: (session) =>
-      Effect.sync(() => findExistingPiSessionFile(session, resolveSessionWorkingPath(session))),
+      Effect.try(() => findExistingPiSessionFile(session, resolveSessionWorkingPath(session))).pipe(
+        Effect.orElseSucceed(() => undefined),
+      ),
     readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }

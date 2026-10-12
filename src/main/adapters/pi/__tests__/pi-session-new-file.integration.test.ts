@@ -52,6 +52,20 @@ setUpFakePiProvider(fixture)
 
 const createdSession = (workspace?: CreatedSessionWorkspace) => createSession(fixture, workspace)
 
+/** A git project that keeps its Pi sessions in `.pi/sessions`, ignored. */
+async function useProjectSessionDir() {
+  await fs.mkdir(path.join(fixture.project, '.pi'), { recursive: true })
+  await fs.writeFile(
+    path.join(fixture.project, '.pi', 'settings.json'),
+    JSON.stringify({ sessionDir: '.pi/sessions' }),
+  )
+  await fs.writeFile(path.join(fixture.project, '.gitignore'), '.pi/sessions/\n')
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: fixture.project })
+  git('init', '-q')
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.')
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'init')
+}
+
 describe("A new Session's first Run", () => {
   it('writes the Pi file recorded at creation, and reports no deleted file', async () => {
     const sessionId = await createdSession()
@@ -78,16 +92,7 @@ describe("A new Session's first Run", () => {
   })
 
   it("keeps a worktree Session's file in the project's sessionDir through the first send", async () => {
-    await fs.mkdir(path.join(fixture.project, '.pi'), { recursive: true })
-    await fs.writeFile(
-      path.join(fixture.project, '.pi', 'settings.json'),
-      JSON.stringify({ sessionDir: '.pi/sessions' }),
-    )
-    await fs.writeFile(path.join(fixture.project, '.gitignore'), '.pi/sessions/\n')
-    const git = (...args: string[]) => execFileSync('git', args, { cwd: fixture.project })
-    git('init', '-q')
-    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.')
-    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'init')
+    await useProjectSessionDir()
     const sessionId = await createdSession({ mode: 'new-worktree' })
     const recorded = (await sessionDetail(sessionId))?.piSessionFile
     const { executeAgentRun } = await import('../../../application/agent-run-service')
@@ -112,5 +117,35 @@ describe("A new Session's first Run", () => {
       path.join(fixture.project, '.pi', 'sessions'),
     )
     expect(existsSync(path.join(String(detail?.worktreePath), '.pi', 'sessions'))).toBe(false)
+  }, 180_000)
+
+  it('opens, with its notice, once its worktree is gone and its Pi file was deleted', async () => {
+    await useProjectSessionDir()
+    const sessionId = await createdSession({ mode: 'new-worktree' })
+    const { executeAgentRun } = await import('../../../application/agent-run-service')
+    const result = await run(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-worktree-gone',
+        payload: { text: 'Hello from a worktree', attachments: [] },
+        model: FAKE_PROVIDER_MODEL,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+      }),
+    )
+    expect(result.outcome).toBe('success')
+    const detail = await sessionDetail(sessionId)
+    await fs.rm(String(detail?.worktreePath), { recursive: true, force: true })
+    await fs.rm(String(detail?.piSessionFile))
+    const { dispatchHostBackedSessionGuiOperation } = await import(
+      '../../../application/host-ui-session-operation-dispatcher'
+    )
+
+    const opened = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
+    )
+
+    expect(opened?.id).toBe(sessionId)
+    expect(opened?.piSessionFileDeleted).toMatch(/the next message starts a new transcript/)
   }, 180_000)
 })
