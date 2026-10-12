@@ -13,7 +13,9 @@ import {
   assertBrowserBundleContent,
   findPackageDependencyVersion,
   isPackageSmokeDevDependency,
+  piRuntimeSmokePins,
   resolvePackageSmokeCatalogVersion,
+  smokePnpmWorkspaceConfig,
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
@@ -149,10 +151,11 @@ async function smokeDependencyVersion(
 export function createSmokePackageJson(
   packedPackages: readonly PackedPackageReference[],
   smokeDependencyVersions: readonly SmokeDependencyVersion[],
+  registryPins: Readonly<Record<string, string>> = {},
 ) {
   const dependencies: { [name: string]: string } = {}
   const devDependencies: { [name: string]: string } = {}
-  const packedDependencyOverrides: { [name: string]: string } = {}
+  const packedDependencyOverrides: { [name: string]: string } = { ...registryPins }
   for (const packedPackage of packedPackages) {
     const tarballReference = `file:${packedPackage.tarballPath}`
     dependencies[packedPackage.name] = tarballReference
@@ -192,7 +195,8 @@ async function writeSmokePackageJson(
       version: await smokeDependencyVersion(projectRoot, name, workspaceConfig),
     })),
   )
-  const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions)
+  const pins = piRuntimeSmokePins(workspaceConfig)
+  const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions, pins)
   await fs.writeFile(
     path.join(smokeProjectRoot, 'package.json'),
     `${JSON.stringify(packageJson, null, JSON_INDENT_SPACES)}\n`,
@@ -205,15 +209,13 @@ export function packageManagerInstallArgs(packageManager: PackageManagerName) {
 }
 
 async function writeSmokeWorkspaceConfig(
+  projectRoot: string,
   smokeProjectRoot: string,
   packedPackages: readonly PackedPackage[],
 ) {
-  const overrideLines = packedPackages.map(
-    (packedPackage) => `  "${packedPackage.name}": "file:${packedPackage.tarballPath}"`,
-  )
-  const workspaceConfig = ['packages: []', '', 'overrides:', ...overrideLines, ''].join('\n')
-
-  await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), workspaceConfig, 'utf8')
+  const workspace = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const config = smokePnpmWorkspaceConfig(piRuntimeSmokePins(workspace), packedPackages)
+  await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), config, 'utf8')
 }
 
 async function writeYarnTrustPolicy(projectRoot: string, smokeProjectRoot: string) {
@@ -234,7 +236,7 @@ async function prepareSmokeProject(
   const smokeProjectRoot = path.join(smokeRoot, SMOKE_PROJECT_DIR)
   await fs.cp(path.join(projectRoot, FIXTURE_DIR), smokeProjectRoot, { recursive: true })
   await writeSmokePackageJson(projectRoot, smokeProjectRoot, packedPackages)
-  await writeSmokeWorkspaceConfig(smokeProjectRoot, packedPackages)
+  await writeSmokeWorkspaceConfig(projectRoot, smokeProjectRoot, packedPackages)
   await writeYarnTrustPolicy(projectRoot, smokeProjectRoot)
   return smokeProjectRoot
 }
