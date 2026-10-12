@@ -21,9 +21,15 @@ function joined(first: string, second: string) {
 /** Sessions the user is deleting, as removing their project does: their drafts go with them. */
 const forgoneSessions = new Set<string>()
 
-/** The draft of a Session the user is deleting is not carried once the Host reports it gone. */
+/**
+ * The draft of a Session the user is deleting is not carried once the Host reports it gone.
+ * Returns what undoes that, for a deletion that failed: the Session stays, and so does its draft.
+ */
 export function forgoRemovedSessionDraft(sessionId: SessionId) {
   forgoneSessions.add(String(sessionId))
+  return () => {
+    forgoneSessions.delete(String(sessionId))
+  }
 }
 
 /**

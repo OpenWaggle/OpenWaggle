@@ -216,8 +216,11 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
     )
     await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
       // Its draft is deleted with it, not carried to the project's New session.
-      forgoRemovedSessionDraft(id)
-      await api.deleteSession(id, { removingProject: true })
+      const keepDraft = forgoRemovedSessionDraft(id)
+      await api.deleteSession(id, { removingProject: true }).catch((error: unknown) => {
+        keepDraft()
+        throw error
+      })
       clearComposerDraftForSession(id)
       await deleteWorkspaceOwner(String(id))
     })
