@@ -1,8 +1,11 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { Effect } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { McpImportServiceShape } from '../../../../ports/mcp-import-service'
 import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
+import { migrateBeforeImports } from '../../migrating-mcp-import-service'
 import { pendingKeptProjects, pendingMcpFileMigration } from '../migration-health'
 import { cleanUpPendingLegacy, setUpPendingLegacy } from './pending-legacy-setup'
 
@@ -46,5 +49,28 @@ describe('a global change waiting on a kept project that was fixed since', () =>
     await Effect.runPromise(service.getView({ projectPath: null }))
 
     expect(pendingMcpFileMigration(homeDir, null, 'global')).toBeUndefined()
+  })
+
+  it('refuses a global import, then lets it through once that project file is fixed', async () => {
+    const { homeDir, kept, fix, migrateOne } = await keptFailingProject()
+    const inner: McpImportServiceShape = fromPartial({
+      apply: () => Effect.succeed(fromPartial({ imported: [] })),
+    })
+    const imports = migrateBeforeImports(inner, migrateOne, {
+      pendingMigration: (projectPath, scope) =>
+        pendingMcpFileMigration(homeDir, projectPath, scope),
+      pendingKeptProjects: () => pendingKeptProjects(homeDir),
+    })
+    const apply = imports.apply(
+      { projectPath: null, fingerprints: ['fp'], target: 'global', conflictPolicy: 'skip' },
+      () => Effect.void,
+    )
+
+    const refused = await Effect.runPromise(Effect.flip(apply))
+    expect(refused.message).toContain(path.join(kept, '.openwaggle', 'mcp.json'))
+
+    await fix()
+
+    await expect(Effect.runPromise(apply)).resolves.toBeDefined()
   })
 })
