@@ -8,7 +8,7 @@ import type {
 } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { isSessionModelActionable } from '@/features/chat/lib'
-import { leaveBranchSummaryPrompt, useChatStore } from '@/features/chat/state'
+import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
@@ -84,7 +84,7 @@ async function switchSessionBranch(
     }
     const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
 
-    leaveBranchSummaryPrompt()
+    useBranchSummaryStore.getState().clearPrompt()
     if (deps.activeSessionId) deps.clearDraftBranchForSession(deps.activeSessionId)
     deps.clearDraftBranchForSession(targetSessionId)
     useChatStore.getState().setActiveSession(targetSessionId)

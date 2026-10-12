@@ -211,33 +211,4 @@ describe('useSessionTreeNodeSelection', () => {
     })
     expect(refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, { nodeId: ROOT_NODE.id })
   })
-
-  it('keeps the message, not the summary instructions, on the draft branch it leaves', () => {
-    const leftDraftKey = 'project:/repo:session:session-1:draft:assistant'
-    useComposerStore.getState().setActiveDraftContextKey(leftDraftKey)
-    useBranchSummaryStore.getState().openPrompt({
-      sessionId: SESSION_ID,
-      projectPath: '/repo',
-      sourceNodeId: ASSISTANT_NODE.id,
-      restoreSelection: { branchId: SessionBranchId('main'), nodeId: ASSISTANT_NODE.id },
-      previousComposerText: '',
-      draftComposerText: 'The message on that draft branch',
-    })
-    useBranchSummaryStore.getState().startCustomPrompt('The message on that draft branch')
-    useComposerStore.getState().setInput('Summarize only the API changes')
-    const { result } = renderHook(() =>
-      useSessionTreeNodeSelection({
-        activeWorkspace: workspace(),
-        selectedModel: SupportedModelId('openai/gpt-5.5'),
-        showToast: vi.fn(),
-        tree: tree(),
-      }),
-    )
-
-    act(() => result.current.selectNode(USER_NODE))
-
-    expect(useComposerStore.getState().getScopedDraft(leftDraftKey)?.input).toBe(
-      'The message on that draft branch',
-    )
-  })
 })

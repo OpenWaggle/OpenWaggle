@@ -2,8 +2,9 @@ import type { RepositoryPath } from '@shared/types/brand'
 import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import type { useNavigate } from '@tanstack/react-router'
-import { leaveBranchSummaryDraftContext, useChatStore } from '@/features/chat/state'
+import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
+import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useSidebarViewStore } from '../state/sidebar-view-store'
 
@@ -31,7 +32,11 @@ export async function openProjectInDraft(deps: ProjectDraftNavigationDeps, path:
 /** The same navigation for callers outside the sidebar, bound to the app stores. */
 export function storeProjectDraftNavigation(navigate: Navigate): ProjectDraftNavigationDeps {
   return {
-    clearTransientDraftContext: leaveBranchSummaryDraftContext,
+    clearTransientDraftContext() {
+      useBranchSummaryStore.getState().clearPrompt()
+      const sessions = useSessionStore.getState()
+      if (sessions.draftBranch) sessions.clearDraftBranchForSession(sessions.draftBranch.sessionId)
+    },
     startDraftSession: (projectPath) => useChatStore.getState().startDraftSession(projectPath),
     expandProject: (path) => useSidebarViewStore.getState().setProjectExpanded(path, true),
     navigate,

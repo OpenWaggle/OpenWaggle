@@ -5,8 +5,10 @@ import {
   createBranchDraftSelectionFromNode,
   isSessionModelActionable,
   maybeOpenBranchSummaryPrompt,
+  setComposerTextValue,
 } from '@/features/chat/lib'
-import { leaveBranchSummaryPrompt, switchComposerToDraftBranch } from '@/features/chat/state'
+import { useBranchSummaryStore } from '@/features/chat/state'
+import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
@@ -17,6 +19,25 @@ interface SessionTreeNodeSelectionInput {
   readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
   readonly tree: SessionTree | null
+}
+
+function switchComposerToDraftBranch(input: {
+  readonly projectPath: string | null
+  readonly sessionId: SessionNode['sessionId']
+  readonly sourceNodeId: SessionNode['id']
+  readonly fallbackText: string
+}) {
+  const contextKey = buildComposerDraftContextKey({
+    projectPath: input.projectPath,
+    sessionId: input.sessionId,
+    draftSourceNodeId: input.sourceNodeId,
+  })
+  const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
+    input: input.fallbackText,
+    attachments: [],
+  })
+  setComposerTextValue(appliedDraft.input)
+  return appliedDraft.input
 }
 
 export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput) {
@@ -38,7 +59,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
       return
     }
 
-    leaveBranchSummaryPrompt()
+    useBranchSummaryStore.getState().clearPrompt()
     clearDraftBranchForSession(tree.session.id)
     void navigate({
       to: '/sessions/$sessionId',

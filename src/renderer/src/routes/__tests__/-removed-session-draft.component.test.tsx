@@ -194,21 +194,6 @@ describe('An open Session the Host removed', () => {
     ).toBe('The message I was writing')
   })
 
-  it('carries the draft it owns before its workspace is shown', async () => {
-    openRemovedSession()
-    useComposerStore.getState().saveScopedDraft(`session:${String(ID)}:pending`, {
-      input: 'Kept for the saved branch',
-      attachments: [],
-    })
-
-    await removeByTheHost()
-
-    expect(
-      useComposerStore.getState().getScopedDraft('project:/old-project:new-session')?.input,
-    ).toBe('Kept for the saved branch')
-    expect(useComposerStore.getState().getScopedDraft(`session:${String(ID)}:pending`)).toBeNull()
-  })
-
   it('does not carry the draft of a Session removed with its project', async () => {
     openRemovedSession()
     act(() => useComposerStore.getState().setInput('Never mind'))

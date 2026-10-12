@@ -1,7 +1,5 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { WagglePreset } from '@shared/types/waggle'
 import { act, renderHook } from '@testing-library/react'
-import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
@@ -118,17 +116,6 @@ describe('useBranchSummaryWorkflow', () => {
     })
   })
 
-  it('keeps a Waggle preset picked on the draft branch after summarizing', async () => {
-    openPrompt()
-    const preset = fromPartial<WagglePreset>({ id: 'preset-1', name: 'Debate' })
-    useComposerStore.getState().setSelectedWagglePreset(preset)
-    const { result } = renderHook(() => useBranchSummaryWorkflow(workflowParams()))
-
-    await act(() => result.current.materializeBranchSummary())
-
-    expect(useComposerStore.getState().selectedWagglePreset).toEqual(preset)
-  })
-
   it('keeps both source and saved destination images after summarizing', async () => {
     openPrompt()
     useBranchSummaryStore.getState().startCustomPrompt('summarize this branch')
@@ -183,6 +170,43 @@ describe('useBranchSummaryWorkflow', () => {
     expect(params.clearDraftBranchForSession).not.toHaveBeenCalled()
     expect(useBranchSummaryStore.getState().prompt?.mode).toBe('custom')
     expect(useBranchSummaryStore.getState().prompt?.draftComposerText).toBe('custom summary')
+  })
+
+  it.each<[string, string, string]>([
+    [
+      'a Session whose Pi file cannot be used, as the sentence that says why',
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it.",
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it.",
+    ],
+    [
+      'any other failure, without transport text',
+      'Session is busy',
+      'Failed to summarize the branch: Session is busy',
+    ],
+  ])('says why the branch summary failed for %s', async (_case, reason, toast) => {
+    openPrompt()
+    branchSummaryMocks.navigateSessionTree.mockRejectedValue(
+      new Error(`Error invoking remote method 'sessions:navigate-tree': Error: ${reason}`),
+    )
+    const params = workflowParams()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(params.showToast).toHaveBeenCalledWith(toast)
+  })
+
+  it('says what failed once the summary was saved, not that summarizing failed', async () => {
+    openPrompt()
+    useSessionStore.setState({ activeWorkspace: null })
+    const params = workflowParams()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(params.showToast).toHaveBeenCalledWith(
+      'The summarized branch workspace is not available. Please try again.',
+    )
   })
 
   it('blocks draft sends when the branch source is no longer available', async () => {
