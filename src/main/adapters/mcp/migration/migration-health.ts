@@ -107,11 +107,6 @@ export interface PendingMcpFileMigration {
 }
 
 /**
- * The OpenWaggle file of this scope (the global one, and the project's) whose migration is
- * failing. A write made meanwhile would be undone when the migration later succeeds and applies
- * the old on/off state, so writes wait until then.
- */
-/**
  * The files a write may need migrated first. `all`: the global file and the viewed project's.
  * `global`: the global file, then any project whose old state waits, since that project's
  * migration would write overrides over what a global write changed. `everywhere`: both.
@@ -123,6 +118,11 @@ function pending(failure: Failure, filePath = failure.path): PendingMcpFileMigra
   return { path: filePath, ...details }
 }
 
+/**
+ * The OpenWaggle file of this scope whose migration is failing. A write made meanwhile would be
+ * undone when the migration later succeeds and applies the old on/off state, so writes wait.
+ * Beyond `all`, a failure that keeps no old state undoes nothing, so the search looks past it.
+ */
 export function pendingMcpFileMigration(
   homeDir: string,
   projectPath: string | null,
@@ -134,9 +134,14 @@ export function pendingMcpFileMigration(
   ]
   for (const filePath of files) {
     const failure = failureOf(filePath)
-    if (failure) return pending(failure, filePath)
+    if (failure && (scope === 'all' || failure.keepsLegacyState)) return pending(failure, filePath)
   }
   if (scope === 'all') return undefined
   const elsewhere = failures.find((failure) => failure.keepsLegacyState)
   return elsewhere ? pending(elsewhere) : undefined
+}
+
+/** For tests: forgets every recorded failure, as a new Host process starts with none. */
+export function forgetMcpFileMigrationOutcomes() {
+  failures = []
 }

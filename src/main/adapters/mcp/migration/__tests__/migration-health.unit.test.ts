@@ -4,13 +4,19 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import { mcpFileMigrationFailure, recordMcpFileMigrationOutcome } from '../migration-health'
+import {
+  forgetMcpFileMigrationOutcomes,
+  mcpFileMigrationFailure,
+  pendingMcpFileMigration,
+  recordMcpFileMigrationOutcome,
+} from '../migration-health'
 import { memoryFs, NOW } from './migration-fixtures'
 
 let root: string
 let homeDir: string
 
 beforeEach(() => {
+  forgetMcpFileMigrationOutcomes()
   root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-migration-health-'))
   homeDir = path.join(root, 'home')
 })
@@ -114,5 +120,29 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
 
     recordMcpFileMigrationOutcome(path.join(real, tail))
     expect(mcpFileMigrationFailure(path.join(linkedProject, tail))).toBeUndefined()
+  })
+
+  describe('as a write that may change several files sees it', () => {
+    it("looks past a failure that keeps no old state to a kept project's", () => {
+      const viewed = path.join(root, 'viewed')
+      const kept = path.join(root, 'kept')
+      const viewedFile = path.join(viewed, '.openwaggle', 'mcp.json')
+      const keptFile = path.join(kept, '.openwaggle', 'mcp.json')
+      // Added after the first run: its migration only converts the format.
+      recordMcpFileMigrationOutcome(viewedFile, 'links to a missing folder', {
+        keepsLegacyState: false,
+      })
+      recordMcpFileMigrationOutcome(keptFile, 'links to a missing folder')
+
+      expect(pendingMcpFileMigration(homeDir, viewed, 'everywhere')?.path).toBe(keptFile)
+      expect(pendingMcpFileMigration(homeDir, viewed, 'global')?.path).toBe(keptFile)
+      // A write to the viewed project alone waits for nothing that would undo it.
+      expect(pendingMcpFileMigration(homeDir, viewed, 'all')).toMatchObject({
+        path: viewedFile,
+        keepsLegacyState: false,
+      })
+      recordMcpFileMigrationOutcome(viewedFile)
+      recordMcpFileMigrationOutcome(keptFile)
+    })
   })
 })
