@@ -11,6 +11,7 @@ import { useChatStore } from '@/features/chat/state/chat-store'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
+import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
 import {
@@ -150,6 +151,50 @@ export async function finishBranchSummary(
   })
 }
 
+/** The Session's workspace where the Host left it, as a landed summary did; null if unread. */
+async function landedWorkspace(sessionId: SessionId) {
+  try {
+    return await api.getSessionWorkspace(sessionId)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A summary that landed once its prompt was no longer current, as with the view on another
+ * Session meanwhile. The Session's view, shown now or next, goes to the summary's branch, where
+ * the Host left it, and the message written on the draft branch goes there with it, after a
+ * draft not sent yet there. Without the Session's workspace the message stays on the draft
+ * branch; with another prompt open, the view stays where it is.
+ */
+export async function landLeftBranchSummary(
+  params: BranchSummaryWorkflowParams,
+  prompt: BranchSummaryPromptState,
+) {
+  const current = useBranchSummaryStore.getState().prompt
+  if (current === prompt) useBranchSummaryStore.getState().clearPrompt()
+  const landed = useChatStore.getState().missingSessionIds.has(prompt.sessionId)
+    ? null
+    : await landedWorkspace(prompt.sessionId)
+  if (landed?.tree.session.id !== prompt.sessionId) {
+    keepLeftBranchSummaryDraft(prompt)
+    return
+  }
+  moveBranchSummaryDraftToLanding(prompt, landed)
+  if (current !== null && current !== prompt) return
+  const draftBranch = useSessionStore.getState().draftBranch
+  if (draftBranch?.sessionId === prompt.sessionId) {
+    if (draftBranch.sourceNodeId !== prompt.sourceNodeId) return
+    params.clearDraftBranchForSession(prompt.sessionId)
+  }
+  if (String(useChatStore.getState().activeSessionId) !== String(prompt.sessionId)) return
+  routeToSessionSelection(params, prompt.sessionId, {})
+  await Promise.allSettled([
+    params.refreshSession(prompt.sessionId),
+    params.refreshSessionWorkspace(prompt.sessionId),
+  ])
+}
+
 /**
  * The summary is saved, but showing it failed: it is not offered again, which would save a second
  * one. While the Session is read again the prompt stays summarizing, which keeps the composer
@@ -174,7 +219,7 @@ export async function leaveSavedBranchSummary(
     params.refreshSessionWorkspace(prompt.sessionId),
   ])
   if (!isCurrentBranchSummaryPrompt(prompt)) {
-    keepLeftBranchSummaryDraft(prompt)
+    await landLeftBranchSummary(params, prompt)
     return
   }
   moveBranchSummaryDraftToLanding(prompt)

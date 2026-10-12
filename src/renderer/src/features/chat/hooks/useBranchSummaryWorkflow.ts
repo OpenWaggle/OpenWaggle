@@ -15,6 +15,7 @@ import {
   draftBranchComposerContextKey,
   finishBranchSummary,
   isCurrentBranchSummaryPrompt,
+  landLeftBranchSummary,
   leaveSavedBranchSummary,
   routeToSessionSelection,
 } from './useBranchSummaryWorkflow.finish'
@@ -80,7 +81,9 @@ async function materializeBranchSummaryAction(
     },
   )
   if (!isCurrentBranchSummaryPrompt(prompt)) {
-    keepLeftBranchSummaryDraft(prompt)
+    // A summary made meanwhile lands all the same; one not made leaves the message where it is.
+    if (navigation && !navigation.cancelled) await landLeftBranchSummary(params, prompt)
+    else keepLeftBranchSummaryDraft(prompt)
     return
   }
   if (!navigation) return

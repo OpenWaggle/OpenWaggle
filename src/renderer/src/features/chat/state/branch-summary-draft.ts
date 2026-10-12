@@ -1,5 +1,6 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionWorkspace } from '@shared/types/session'
 import {
   buildComposerDraftContextKey,
   buildPendingSessionDraftContextKey,
@@ -47,8 +48,7 @@ function keepMessageOnDraftBranch(prompt: BranchSummaryPromptState) {
 }
 
 /** Where the view lands for the prompt's Session: its shown branch, or before it is shown. */
-function landingKey(prompt: BranchSummaryPromptState) {
-  const workspace = useSessionStore.getState().activeWorkspace
+function landingKey(prompt: BranchSummaryPromptState, workspace: SessionWorkspace | null) {
   if (workspace?.tree.session.id !== prompt.sessionId) {
     return buildPendingSessionDraftContextKey(prompt.sessionId)
   }
@@ -76,22 +76,33 @@ function leftOnDraftBranch(prompt: BranchSummaryPromptState) {
  * The view of the prompt's draft branch ends, as for a summary saved but not shown: its message,
  * with its attachments, goes to the branch the view lands on, after a draft not sent there yet.
  */
-export function moveBranchSummaryDraftToLanding(prompt: BranchSummaryPromptState) {
+export function moveBranchSummaryDraftToLanding(
+  prompt: BranchSummaryPromptState,
+  /** The Session's workspace where the view lands; the one shown unless another is given. */
+  landing: SessionWorkspace | null = useSessionStore.getState().activeWorkspace,
+) {
   const store = useComposerStore.getState()
   const left = leftOnDraftBranch(prompt)
   if (!left) return
-  const target = landingKey(prompt)
+  const target = landingKey(prompt, landing)
+  if (left.shown) {
+    store.replaceAttachments([])
+    setComposerTextValue('')
+  }
+  store.clearScopedDraft(draftBranchComposerContextKey(prompt))
+  const shown = useComposerStore.getState()
+  if (shown.activeDraftContextKey === target) {
+    // The view is there already: the composer shows the message after what it holds.
+    shown.replaceAttachments(distinct([...shown.attachments, ...left.attachments]))
+    setComposerTextValue(joined(shown.input, prompt.draftComposerText))
+    return
+  }
   const existing = store.getScopedDraft(target)
   store.saveScopedDraft(target, {
     input: joined(existing?.input ?? '', prompt.draftComposerText),
     attachments: distinct([...(existing?.attachments ?? []), ...left.attachments]),
     wagglePreset: left.wagglePreset ?? existing?.wagglePreset ?? null,
   })
-  if (left.shown) {
-    store.replaceAttachments([])
-    setComposerTextValue('')
-  }
-  store.clearScopedDraft(draftBranchComposerContextKey(prompt))
 }
 
 function keepMessageOf(prompt: BranchSummaryPromptState) {

@@ -25,6 +25,7 @@ import {
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     navigateSessionTree: vi.fn(),
+    getSessionWorkspace: vi.fn(),
     discardPreparedAttachment: vi.fn(async () => {}),
   },
 }))
@@ -32,7 +33,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 /*
  * The message being written on a draft branch while a branch summary is offered or made stays
  * under the draft branch when the view leaves it, whichever way it leaves, as when no summary is
- * offered: never the summary's instructions in its place.
+ * offered: never the summary's instructions in its place. Once the summary lands, it goes to the
+ * summary's branch with the view.
  */
 
 const DRAFT_KEY = 'project:/repo:session:session-1:draft:source-node'
@@ -106,6 +108,17 @@ function leaveWithoutKeeping() {
   })
 }
 
+/** A summary landed: the view is on its branch, with the message. */
+function expectOnTheSummaryBranch() {
+  expect(useComposerStore.getState()).toMatchObject({
+    activeDraftContextKey: 'project:/repo:session:session-1:branch:summary-branch',
+    input: MESSAGE,
+    attachments: [image],
+  })
+  expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toBeNull()
+  expect(useComposerStore.getState().getScopedDraft(PENDING_KEY)).toBeNull()
+}
+
 function expectKeptOnItsDraftBranch() {
   expect(useComposerStore.getState().getScopedDraft(DRAFT_KEY)).toEqual(
     expect.objectContaining({ input: MESSAGE, attachments: [image] }),
@@ -116,6 +129,9 @@ function expectKeptOnItsDraftBranch() {
 describe('The message on a draft branch with a branch summary prompt', () => {
   beforeEach(() => {
     vi.mocked(api.navigateSessionTree).mockReset()
+    vi.mocked(api.getSessionWorkspace).mockResolvedValue(
+      workspace({ branchId: SUMMARY_BRANCH_ID, nodeId: ACTIVE_NODE_ID }),
+    )
     usePreferencesStore.setState({ settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' } })
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({ activeSessionId: SESSION_ID, missingSessionIds: new Set() })
@@ -126,7 +142,7 @@ describe('The message on a draft branch with a branch summary prompt', () => {
     })
   })
 
-  it('is kept when the view leaves while a saved summary waits to be shown', async () => {
+  it('goes with the view to the summary’s branch when it leaves while a saved summary waits', async () => {
     vi.mocked(api.navigateSessionTree).mockResolvedValue({ cancelled: false })
     const reading = deferred<void>()
     const { params, workflow } = mountOnDraftBranch(reading.promise)
@@ -140,10 +156,10 @@ describe('The message on a draft branch with a branch summary prompt', () => {
     reading.resolve()
     await act(() => summarized)
 
-    expectKeptOnItsDraftBranch()
+    expectOnTheSummaryBranch()
   })
 
-  it('is kept when the view leaves while the summary is made', async () => {
+  it('goes with the view to the summary’s branch when it leaves while the summary is made', async () => {
     const navigation = deferred<{ cancelled: boolean }>()
     vi.mocked(api.navigateSessionTree).mockReturnValue(navigation.promise)
     const { workflow } = mountOnDraftBranch()
@@ -156,7 +172,7 @@ describe('The message on a draft branch with a branch summary prompt', () => {
     navigation.resolve({ cancelled: false })
     await act(() => summarized)
 
-    expectKeptOnItsDraftBranch()
+    expectOnTheSummaryBranch()
   })
 
   it('is kept, not the instructions, when the sidebar leaves a custom summary', () => {
