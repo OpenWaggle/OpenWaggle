@@ -1,85 +1,25 @@
-import { ATTACHMENT } from '@shared/constants/resource-limits'
-import type {
-  SessionBranchId,
-  SessionId,
-  SessionNodeId,
-  SupportedModelId,
-} from '@shared/types/brand'
-import type { SessionWorkspace } from '@shared/types/session'
-import type { useNavigate } from '@tanstack/react-router'
-import { useChatStore } from '@/features/chat/state/chat-store'
+import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
 import { isSessionModelActionable } from '../lib/session-answered-by'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
-
-type Navigate = ReturnType<typeof useNavigate>
-
-interface BranchSummaryWorkflowParams {
-  readonly activeSessionId: SessionId | null
-  readonly activeWorkspace: SessionWorkspace | null
-  readonly model: SupportedModelId | undefined
-  readonly projectPath: string | null
-  readonly navigate: Navigate
-  readonly loadSessions: () => Promise<void>
-  readonly refreshSession: (sessionId: SessionId) => Promise<void>
-  readonly refreshSessionWorkspace: (
-    sessionId: SessionId,
-    selection?: {
-      readonly branchId?: SessionBranchId | null
-      readonly nodeId?: SessionNodeId | null
-    },
-  ) => Promise<void>
-  readonly clearDraftBranchForSession: (sessionId: SessionId) => void
-  readonly showToast: (message: string) => void
-}
+import {
+  type BranchSummaryWorkflowParams,
+  draftBranchComposerContextKey,
+  finishBranchSummary,
+  isCurrentBranchSummaryPrompt,
+  leaveSavedBranchSummary,
+  routeToSessionSelection,
+} from './useBranchSummaryWorkflow.finish'
 
 interface DraftBranchComposerInput {
   readonly sessionId: SessionId
   readonly sourceNodeId: SessionNodeId
   readonly fallbackText: string
   readonly projectPath: string | null
-}
-
-function draftBranchComposerContextKey(prompt: BranchSummaryPromptState) {
-  return buildComposerDraftContextKey({
-    projectPath: prompt.projectPath,
-    sessionId: prompt.sessionId,
-    draftSourceNodeId: prompt.sourceNodeId,
-  })
-}
-
-function routeToSessionSelection(
-  params: BranchSummaryWorkflowParams,
-  sessionId: SessionId,
-  selection: { readonly branchId?: SessionBranchId | null; readonly nodeId?: SessionNodeId | null },
-) {
-  void params.navigate({
-    to: '/sessions/$sessionId',
-    params: { sessionId: String(sessionId) },
-    search: (previous) => ({
-      ...previous,
-      branch: selection.branchId ? String(selection.branchId) : undefined,
-      node: selection.nodeId ? String(selection.nodeId) : undefined,
-    }),
-  })
-}
-
-function isCurrentBranchSummaryPrompt(prompt: BranchSummaryPromptState) {
-  const currentPrompt = useBranchSummaryStore.getState().prompt
-  const currentDraft = useSessionStore.getState().draftBranch
-  const currentSessionId = useChatStore.getState().activeSessionId
-  return (
-    currentPrompt === prompt &&
-    prompt.mode === 'summarizing' &&
-    currentDraft?.sessionId === prompt.sessionId &&
-    currentDraft.sourceNodeId === prompt.sourceNodeId &&
-    String(currentSessionId) === String(prompt.sessionId)
-  )
 }
 
 function restoreBranchSummaryChoice(
@@ -107,66 +47,6 @@ function switchComposerToDraftBranch(input: DraftBranchComposerInput) {
   return appliedDraft.input
 }
 
-async function refreshAfterBranchSummary(
-  params: BranchSummaryWorkflowParams,
-  prompt: BranchSummaryPromptState,
-) {
-  await Promise.all([
-    params.loadSessions(),
-    params.refreshSession(prompt.sessionId),
-    params.refreshSessionWorkspace(prompt.sessionId),
-  ])
-}
-
-function applySummarizedBranchDraft(
-  params: BranchSummaryWorkflowParams,
-  prompt: BranchSummaryPromptState,
-) {
-  const workspace = useSessionStore.getState().activeWorkspace
-  if (workspace?.tree.session.id !== prompt.sessionId) {
-    throw new Error('The summarized branch workspace is not available. Please try again.')
-  }
-
-  const contextKey = buildComposerDraftContextKey({
-    projectPath: workspace.tree.session.projectPath,
-    sessionId: prompt.sessionId,
-    activeBranchId: workspace.activeBranchId,
-    activeNodeId: workspace.activeNodeId,
-  })
-  const sourceAttachments = useComposerStore.getState().attachments
-  const appliedDraft = useComposerStore
-    .getState()
-    .switchScopedDraftContext(
-      contextKey,
-      { input: prompt.draftComposerText, attachments: sourceAttachments },
-      { input: prompt.draftComposerText, attachments: sourceAttachments },
-    )
-  const attachments = [
-    ...new Map(
-      [...appliedDraft.attachments, ...sourceAttachments].map((attachment) => [
-        attachment.id,
-        attachment,
-      ]),
-    ).values(),
-  ]
-  if (attachments.length !== appliedDraft.attachments.length) {
-    useComposerStore.getState().replaceAttachments(attachments)
-  }
-  const exceedsCount = attachments.length > ATTACHMENT.MAX_COUNT
-  const exceedsSize =
-    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
-    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  if (exceedsCount) {
-    params.showToast('Your draft has too many attachments to send. Remove some before retrying.')
-  }
-  if (!exceedsCount && exceedsSize) {
-    params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
-  }
-  useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
-  setComposerTextValue(appliedDraft.input)
-  return workspace
-}
-
 async function navigateWithBranchSummary(
   params: BranchSummaryWorkflowParams,
   prompt: BranchSummaryPromptState,
@@ -179,22 +59,6 @@ async function navigateWithBranchSummary(
   return api.navigateSessionTree(prompt.sessionId, params.model, prompt.sourceNodeId, {
     summarize: true,
     ...(trimmedInstructions ? { customInstructions: trimmedInstructions } : {}),
-  })
-}
-
-async function finishBranchSummary(
-  params: BranchSummaryWorkflowParams,
-  prompt: BranchSummaryPromptState,
-) {
-  await refreshAfterBranchSummary(params, prompt)
-  if (!isCurrentBranchSummaryPrompt(prompt)) return
-
-  const workspace = applySummarizedBranchDraft(params, prompt)
-  useBranchSummaryStore.getState().clearPrompt()
-  params.clearDraftBranchForSession(prompt.sessionId)
-  routeToSessionSelection(params, prompt.sessionId, {
-    branchId: workspace.activeBranchId,
-    nodeId: workspace.activeNodeId,
   })
 }
 
@@ -217,14 +81,11 @@ async function materializeBranchSummaryAction(
   const prompt = useBranchSummaryStore.getState().prompt
   if (!prompt) return
 
-  const failed = (message: string) => {
-    if (!isCurrentBranchSummaryPrompt(prompt)) return
-    params.showToast(message)
-    restoreBranchSummaryChoice(prompt, previousMode)
-  }
   const navigation = await navigateWithBranchSummary(params, prompt, customInstructions).catch(
     (error: unknown) => {
-      failed(sessionOperationFailureMessage('Failed to summarize the branch', error))
+      if (!isCurrentBranchSummaryPrompt(prompt)) return null
+      params.showToast(sessionOperationFailureMessage('Failed to summarize the branch', error))
+      restoreBranchSummaryChoice(prompt, previousMode)
       return null
     },
   )
@@ -234,9 +95,8 @@ async function materializeBranchSummaryAction(
     cancelBranchSummary(prompt, previousMode)
     return
   }
-  // The summary is saved by now: what fails after is showing it, said as it is.
   await finishBranchSummary(params, prompt).catch((error: unknown) => {
-    failed(error instanceof Error ? error.message : String(error))
+    leaveSavedBranchSummary(params, prompt, error)
   })
 }
 

@@ -241,7 +241,7 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
     expect(params.navigate).not.toHaveBeenCalled()
   })
 
-  it('does not apply another Session workspace returned by the final refresh', async () => {
+  it('does not apply another Session workspace returned by the final refresh, nor summarize again', async () => {
     const source = ownedWorkspace('/repo')
     const params: ReturnType<typeof workflowParams> = {
       ...workflowParams(),
@@ -258,10 +258,15 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
     })
 
     expect(useComposerStore.getState().activeDraftContextKey).toBe(sourceDraftKey('/repo'))
-    expect(useBranchSummaryStore.getState().prompt?.mode).toBe('choice')
-    expect(params.clearDraftBranchForSession).not.toHaveBeenCalled()
-    expect(params.navigate).not.toHaveBeenCalled()
-    expect(params.showToast).toHaveBeenCalled()
+    // The summary is saved: it is not offered again, and the view goes to its Session.
+    expect(useBranchSummaryStore.getState().prompt).toBeNull()
+    expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(params.navigate).toHaveBeenCalledWith(
+      expect.objectContaining({ params: { sessionId: String(SESSION_ID) } }),
+    )
+    expect(params.showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/^The branch summary was saved, but it could not be shown: /),
+    )
   })
 
   it('ignores the older preference lookup after the same branch is reopened and summarizing', async () => {
