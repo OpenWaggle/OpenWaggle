@@ -145,3 +145,14 @@ export function pendingMcpFileMigration(
 export function forgetMcpFileMigrationOutcomes() {
   failures = []
 }
+
+/**
+ * The projects whose migration fails while their old state waits: a global write waits for them,
+ * so it migrates them again first, as their file may have been fixed since.
+ */
+export function pendingKeptProjects(homeDir: string) {
+  const global = path.resolve(globalMcpPaths(homeDir).openwaggleGlobal)
+  return failures
+    .filter((failure) => failure.keepsLegacyState && failure.path !== global)
+    .map((failure) => path.dirname(path.dirname(failure.path)))
+}

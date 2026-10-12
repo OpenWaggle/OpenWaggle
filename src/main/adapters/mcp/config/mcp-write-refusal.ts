@@ -86,3 +86,18 @@ export function mcpUpdateRefusal(roots: McpConfigFileRoots) {
     return mcpWriteRefusal(pendingMcpFileMigration(roots.homeDir, roots.projectPath, scope))
   }
 }
+
+/**
+ * Before a write that waits for other projects (`global`, `everywhere`), migrates again each kept
+ * project whose migration fails, so a file fixed since no longer holds the write back.
+ */
+export async function migratePendingKeptProjects(
+  scope: McpWriteScope,
+  migrate: (projectPath: string | null) => Promise<unknown>,
+  pendingProjects: (() => readonly string[]) | undefined,
+) {
+  if (scope === 'all' || !pendingProjects) return
+  for (const projectPath of new Set(pendingProjects())) {
+    await migrate(projectPath).catch(() => undefined)
+  }
+}

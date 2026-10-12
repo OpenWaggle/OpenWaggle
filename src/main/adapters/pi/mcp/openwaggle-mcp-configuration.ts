@@ -16,7 +16,7 @@ import {
 import { checkMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { createFilesystemMcpImportService } from '../../mcp/filesystem-mcp-import-service'
 import { migrateBeforeImports } from '../../mcp/migrating-mcp-import-service'
-import { pendingMcpFileMigration } from '../../mcp/migration/migration-health'
+import { pendingKeptProjects, pendingMcpFileMigration } from '../../mcp/migration/migration-health'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { durableMcpProjectPaths, migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 
@@ -25,6 +25,7 @@ let service: McpConfigurationServiceShape | undefined
 /** Writes wait while the scope's OpenWaggle file could not be migrated yet. */
 const pendingMigration = (projectPath: string | null, scope: McpWriteScope) =>
   pendingMcpFileMigration(homedir(), projectPath, scope)
+const keptPending = () => pendingKeptProjects(homedir())
 
 /**
  * The Host's one MCP configuration service, so a change saved by Pi's `/mcp` inside a Run and one
@@ -41,7 +42,7 @@ export function getOpenWaggleMcpConfigurationService() {
         knownProjectPaths: durableMcpProjectPaths,
       }),
       migrateOpenWaggleMcpFilesOnce,
-      { skipReadsWhile: isMcpHostDraining, pendingMigration },
+      { skipReadsWhile: isMcpHostDraining, pendingMigration, pendingKeptProjects: keptPending },
     ),
     async (projectPath) => {
       const config = await loadMcpRuntimeConfig({
@@ -65,7 +66,7 @@ export const OpenWaggleMcpImportServiceLive = Layer.sync(McpImportService, () =>
     migrateBeforeImports(
       createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
       migrateOpenWaggleMcpFilesOnce,
-      { skipReadsWhile: isMcpHostDraining, pendingMigration },
+      { skipReadsWhile: isMcpHostDraining, pendingMigration, pendingKeptProjects: keptPending },
     ),
   ),
 )

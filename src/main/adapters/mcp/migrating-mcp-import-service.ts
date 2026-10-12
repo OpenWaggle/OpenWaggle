@@ -1,6 +1,10 @@
 import { Effect } from 'effect'
 import type { McpImportServiceShape } from '../../ports/mcp-import-service'
-import { mcpWriteRefusal, type PendingMcpMigrationLookup } from './config/mcp-write-refusal'
+import {
+  mcpWriteRefusal,
+  migratePendingKeptProjects,
+  type PendingMcpMigrationLookup,
+} from './config/mcp-write-refusal'
 
 /**
  * Runs the one-time ADR 0051 migration before an import reads OpenWaggle's files, so an import
@@ -18,6 +22,8 @@ export function migrateBeforeImports(
     readonly skipReadsWhile?: () => boolean
     /** The scope's OpenWaggle file whose migration is still failing, if any. */
     readonly pendingMigration?: PendingMcpMigrationLookup
+    /** Kept projects whose migration fails, which a global import migrates again first. */
+    readonly pendingKeptProjects?: () => readonly string[]
   } = {},
 ): McpImportServiceShape {
   const migrated = (projectPath: string | null) =>
@@ -31,16 +37,19 @@ export function migrateBeforeImports(
               Effect.zipRight(Effect.suspend(() => service.preview(input))),
             ),
       ),
-    apply: (input, write) =>
-      migrated(input.projectPath).pipe(
+    apply: (input, write) => {
+      const scope = input.target === 'global' ? 'global' : 'all'
+      const again = () => migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects)
+      return migrated(input.projectPath).pipe(
+        Effect.zipRight(Effect.promise(again)),
         Effect.zipRight(
           Effect.suspend(() => {
             // An import written before the migration succeeds would be undone by it.
-            const scope = input.target === 'global' ? 'global' : 'all'
             const refusal = mcpWriteRefusal(options.pendingMigration?.(input.projectPath, scope))
             return refusal ? Effect.fail(refusal) : service.apply(input, write)
           }),
         ),
-      ),
+      )
+    },
   }
 }

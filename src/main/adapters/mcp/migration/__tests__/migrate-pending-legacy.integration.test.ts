@@ -9,7 +9,11 @@ import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
 import { migrateBeforeEachCall } from '../../config/migrating-mcp-configuration-service'
 import { legacyServerIdentityKey } from '../legacy-pi-import'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import { forgetMcpFileMigrationOutcomes, pendingMcpFileMigration } from '../migration-health'
+import {
+  forgetMcpFileMigrationOutcomes,
+  pendingKeptProjects,
+  pendingMcpFileMigration,
+} from '../migration-health'
 import { NOW } from './migration-fixtures'
 
 const roots: string[] = []
@@ -68,6 +72,7 @@ async function setUp(serversOf: (globalFile: string) => Record<string, unknown> 
     {
       pendingMigration: (projectPath, scope) =>
         pendingMcpFileMigration(homeDir, projectPath, scope),
+      pendingKeptProjects: () => pendingKeptProjects(homeDir),
     },
   )
   return { homeDir, piAgentDir, statePath, migrate, connectable, danglingProject, service, root }
@@ -141,6 +146,24 @@ describe('the old state a pending migration keeps', () => {
 
     // Turned on now, g would be turned off for that project once its migration ran.
     expect(refused.message).toContain(path.join(project, '.openwaggle', 'mcp.json'))
+  })
+
+  it('lets the global write through once that project file is fixed, from any scope', async () => {
+    const { migrate, danglingProject, service, root } = await setUp()
+    const project = await danglingProject('kept')
+    await migrate([project])
+    const turnOn = service.setServerEnabled({
+      projectPath: null,
+      name: 'g',
+      enabled: true,
+      target: 'server',
+    })
+    await Effect.runPromise(Effect.flip(turnOn))
+
+    // The dotfiles checkout is mounted again; nobody opens that project before the next write.
+    await mkdir(path.join(root, 'unmounted', 'kept'), { recursive: true })
+
+    await expect(Effect.runPromise(turnOn)).resolves.toBeUndefined()
   })
 
   it("refuses Pi's /mcp change to a global file in another project's Run likewise", async () => {
