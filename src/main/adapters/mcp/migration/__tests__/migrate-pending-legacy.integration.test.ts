@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../../config/filesystem-mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
 import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
-import { migrateBeforeEachCall } from '../../config/migrating-mcp-configuration-service'
+import {
+  migrateBeforeEachCall,
+  withRuntimeConfigErrors,
+} from '../../config/migrating-mcp-configuration-service'
 import { legacyServerIdentityKey } from '../legacy-pi-import'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
@@ -146,6 +149,26 @@ describe('the old state a pending migration keeps', () => {
 
     // Turned on now, g would be turned off for that project once its migration ran.
     expect(refused.message).toContain(path.join(project, '.openwaggle', 'mcp.json'))
+  })
+
+  it('shows a left-out file once in Settings, in the notice that names it once', async () => {
+    const { homeDir, piAgentDir, migrate, danglingProject, service } = await setUp()
+    const project = await danglingProject('gamma')
+    const file = path.join(project, '.openwaggle', 'mcp.json')
+    await migrate([project])
+    const settings = withRuntimeConfigErrors(service, async (projectPath) => {
+      const config = await loadMcpRuntimeConfig({
+        roots: { homeDir, piAgentDir, projectPath },
+        resolveSecret: async () => '',
+      })
+      return { errors: config.loaded.errors }
+    })
+
+    const view = await Effect.runPromise(settings.getView({ projectPath: project }))
+
+    const aboutFile = view.errors.filter((error) => error.includes(file))
+    expect(aboutFile).toEqual([expect.stringContaining('MCP servers stay off here until')])
+    expect(aboutFile[0]?.split(file)).toHaveLength(2)
   })
 
   it('lets the global write through once that project file is fixed, from any scope', async () => {

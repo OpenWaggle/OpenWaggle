@@ -101,6 +101,7 @@ export function migrateBeforeEachCall(
 /**
  * Adds what only the runtime configuration knows to the view, such as a vault secret that cannot
  * be read (that server is left out of every Run), so Settings and `openwaggle mcp doctor` show it.
+ * A file's read error that a migration notice quotes is shown once, in that notice.
  */
 export function withRuntimeConfigErrors(
   service: McpConfigurationServiceShape,
@@ -124,8 +125,11 @@ export function withRuntimeConfigErrors(
             }),
           ),
         )
+        // A file's own line goes when a notice quotes it: the notice names the file and what to do.
+        const quoted = (error: string) =>
+          extra.errors.some((notice) => notice !== error && notice.includes(error))
         const errors = [
-          ...view.errors,
+          ...view.errors.filter((error) => !quoted(error)),
           ...extra.errors.filter((error) => !view.errors.includes(error)),
         ]
         const missing = extra.missingSecretErrors ?? []
