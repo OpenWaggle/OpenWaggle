@@ -560,7 +560,11 @@ spaces), and `git check-ignore` confirms it afterwards; otherwise agent turns wo
 build left next to a project file is still read as the old content. An OpenWaggle file whose migration failed is
 not loaded for a Run or an MCP App until a later run migrates it (`migration-health.ts`): it still
 has the old format, without the `enabled` overrides that keep old-off servers off. The error is
-shown in Settings > MCP and in the Run's MCP notice. Unchanged copies of Pi entries are
+shown in Settings > MCP and in the Run's MCP notice. That includes a run that could not take the
+migration lock within its wait: the files it has not recorded as migrated are gated the same way
+(`migration-gate.ts`). Meanwhile Settings, CLI and import writes in that scope are refused ("MCP
+settings are still being updated…", `pendingMcpFileMigration`), since the migration, once it
+succeeds, would apply the old on/off state over them. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
 or dropped. It also keeps every server as on or off as it was (`legacy-enablement.ts`): the old
 code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwaggle/mcp.json`, and

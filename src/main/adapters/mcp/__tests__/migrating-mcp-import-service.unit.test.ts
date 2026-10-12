@@ -56,4 +56,33 @@ describe('MCP imports', () => {
 
     expect(order).toEqual(['preview', 'migrate', 'apply'])
   })
+
+  it('refuse to apply while the migration of a file it may write is failing', async () => {
+    const applied: string[] = []
+    let pending: { path: string; error: string } | undefined = {
+      path: '/home/user/.openwaggle/mcp.json',
+      error: 'the migration lock was busy',
+    }
+    const service = migrateBeforeImports(
+      {
+        preview: () => Effect.succeed(fromPartial({ candidates: [] })),
+        apply: (input) =>
+          Effect.sync(() => {
+            applied.push(String(input.projectPath))
+            return fromPartial({ imported: [] })
+          }),
+      },
+      async () => undefined,
+      { pendingMigration: () => pending },
+    )
+    const apply = service.apply(fromPartial({ projectPath: null }), () => Effect.void)
+
+    const refused = await Effect.runPromise(Effect.flip(apply))
+    expect(refused.message).toContain('MCP settings are still being updated')
+    expect(applied).toEqual([])
+
+    pending = undefined
+    await Effect.runPromise(apply)
+    expect(applied).toEqual(['null'])
+  })
 })

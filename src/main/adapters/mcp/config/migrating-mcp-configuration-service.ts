@@ -1,8 +1,18 @@
 import { Effect } from 'effect'
-import type {
-  McpConfigurationScopeInput,
-  McpConfigurationServiceShape,
+import {
+  McpConfigurationError,
+  type McpConfigurationScopeInput,
+  type McpConfigurationServiceShape,
 } from '../../../ports/mcp-configuration-service'
+import type { PendingMcpFileMigration } from '../migration/migration-health'
+
+/** Refuses a write while the scope's OpenWaggle file is not migrated yet. */
+export function migrationPendingError(pending: PendingMcpFileMigration) {
+  return new McpConfigurationError({
+    reason: 'io',
+    message: `MCP settings are still being updated, so nothing was changed; try again shortly. ${pending.path} could not be migrated yet: ${pending.error}`,
+  })
+}
 
 /**
  * Runs the one-time ADR 0051 migration (global files plus the requested project) before every
@@ -19,6 +29,8 @@ export function migrateBeforeEachCall(
      * migration, so it never holds the drain open. Writes are refused during a drain anyway.
      */
     readonly skipReadsWhile?: () => boolean
+    /** The scope's OpenWaggle file whose migration is still failing, if any. */
+    readonly pendingMigration?: (projectPath: string | null) => PendingMcpFileMigration | undefined
   } = {},
 ): McpConfigurationServiceShape {
   function first<A, E>(
@@ -29,6 +41,16 @@ export function migrateBeforeEachCall(
       Effect.zipRight(Effect.suspend(call)),
     )
   }
+  /** A write, once the scope's files are migrated: one made before would be undone by it. */
+  function write(
+    input: McpConfigurationScopeInput,
+    call: () => Effect.Effect<void, McpConfigurationError>,
+  ) {
+    return first(input, () => {
+      const pending = options.pendingMigration?.(input.projectPath)
+      return pending ? Effect.fail(migrationPendingError(pending)) : call()
+    })
+  }
   return {
     getView: (input) =>
       Effect.suspend(() =>
@@ -36,11 +58,11 @@ export function migrateBeforeEachCall(
           ? service.getView(input)
           : first(input, () => service.getView(input)),
       ),
-    setServerEnabled: (input) => first(input, () => service.setServerEnabled(input)),
-    setServerExposure: (input) => first(input, () => service.setServerExposure(input)),
-    addServer: (input) => first(input, () => service.addServer(input)),
-    removeServer: (input) => first(input, () => service.removeServer(input)),
-    removeOrphanedOverride: (input) => first(input, () => service.removeOrphanedOverride(input)),
+    setServerEnabled: (input) => write(input, () => service.setServerEnabled(input)),
+    setServerExposure: (input) => write(input, () => service.setServerExposure(input)),
+    addServer: (input) => write(input, () => service.addServer(input)),
+    removeServer: (input) => write(input, () => service.removeServer(input)),
+    removeOrphanedOverride: (input) => write(input, () => service.removeOrphanedOverride(input)),
     changed: (filePath) => service.changed(filePath),
     onChange: (listener) => service.onChange(listener),
   }

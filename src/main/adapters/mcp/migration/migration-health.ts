@@ -5,6 +5,7 @@
  */
 import path from 'node:path'
 import { realLocation } from '../config/mcp-config-files'
+import { globalMcpPaths, projectMcpPaths } from './migration-paths'
 
 interface Failure {
   /** The file as it was spelled and where it led when it failed. */
@@ -38,4 +39,29 @@ export function recordMcpFileMigrationOutcome(filePath: string, error?: string) 
 export function mcpFileMigrationFailure(filePath: string) {
   const spellings = spellingsOf(filePath)
   return failures.find((failure) => concerns(failure, spellings))?.error
+}
+
+export interface PendingMcpFileMigration {
+  readonly path: string
+  readonly error: string
+}
+
+/**
+ * The OpenWaggle file of this scope (the global one, and the project's) whose migration is
+ * failing. A write made meanwhile would be undone when the migration later succeeds and applies
+ * the old on/off state, so writes wait until then.
+ */
+export function pendingMcpFileMigration(
+  homeDir: string,
+  projectPath: string | null,
+): PendingMcpFileMigration | undefined {
+  const files = [
+    globalMcpPaths(homeDir).openwaggleGlobal,
+    ...(projectPath ? [projectMcpPaths(projectPath).openwaggle] : []),
+  ]
+  for (const filePath of files) {
+    const error = mcpFileMigrationFailure(filePath)
+    if (error !== undefined) return { path: filePath, error }
+  }
+  return undefined
 }

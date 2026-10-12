@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect, Layer } from 'effect'
@@ -10,6 +10,7 @@ import {
 import { McpConfigurationService } from '../../../../ports/mcp-configuration-service'
 import { WorkspaceProjectAuthorization } from '../../../../ports/workspace-project-authorization'
 import { migrateOpenWaggleMcpFiles } from '../../migration/migrate-openwaggle-mcp-files'
+import { pendingMcpFileMigration } from '../../migration/migration-health'
 import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
 import {
   migrateBeforeEachCall,
@@ -45,7 +46,12 @@ function layer() {
       now: () => new Date('2026-10-01T00:00:00Z'),
     })
   return Layer.mergeAll(
-    Layer.succeed(McpConfigurationService, migrateBeforeEachCall(service, migrate)),
+    Layer.succeed(
+      McpConfigurationService,
+      migrateBeforeEachCall(service, migrate, {
+        pendingMigration: (projectPath) => pendingMcpFileMigration(homeDir, projectPath),
+      }),
+    ),
     Layer.succeed(
       WorkspaceProjectAuthorization,
       WorkspaceProjectAuthorization.of({ authorize: (projectPath) => Effect.succeed(projectPath) }),
@@ -89,6 +95,41 @@ describe('MCP configuration reads and writes from Settings and the CLI', () => {
       url: 'https://docs.example/mcp',
       exposure: 'direct',
     })
+  })
+})
+
+describe('an MCP configuration write while the migration is failing', () => {
+  it('is refused, so the migration cannot undo it, and works once the migration succeeded', async () => {
+    const project = path.join(root, 'project')
+    const dotfiles = path.join(root, 'dotfiles', 'openwaggle')
+    mkdirSync(project, { recursive: true })
+    // The project's .openwaggle is in a dotfiles checkout that is not mounted: its migration fails.
+    symlinkSync(dotfiles, path.join(project, '.openwaggle'))
+    write(path.join(project, '.mcp.json'), { mcpServers: { docs: { command: 'docs-mcp' } } })
+    write(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+      globalState: 'on',
+      servers: {},
+    })
+    // The old OpenWaggle never turned docs on, so its migration turns it off; the user turns it on.
+    const turnOn = setMcpServerEnabledOperation({
+      projectPath: project,
+      name: 'docs',
+      enabled: true,
+      target: 'project',
+    })
+
+    const refused = await Effect.runPromise(Effect.flip(Effect.provide(turnOn, layer())))
+    expect(refused.message).toContain('MCP settings are still being updated')
+
+    // Mounted again, with the old OpenWaggle file: the next call migrates it, then writes.
+    write(path.join(dotfiles, 'mcp.json'), { mcpServers: {} })
+    const view = await run(turnOn)
+    await migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [project], now: () => new Date() })
+
+    expect(view.servers).toEqual([expect.objectContaining({ name: 'docs', enabled: true })])
+    // A Run's start migrates again and finds the file handled: the user's choice stays.
+    const after = await run(getMcpConfigurationOperation({ projectPath: project }))
+    expect(after.servers).toEqual([expect.objectContaining({ name: 'docs', enabled: true })])
   })
 })
 

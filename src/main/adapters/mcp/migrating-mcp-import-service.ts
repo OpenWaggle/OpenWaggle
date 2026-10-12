@@ -1,5 +1,7 @@
 import { Effect } from 'effect'
 import type { McpImportServiceShape } from '../../ports/mcp-import-service'
+import { migrationPendingError } from './config/migrating-mcp-configuration-service'
+import type { PendingMcpFileMigration } from './migration/migration-health'
 
 /**
  * Runs the one-time ADR 0051 migration before an import reads OpenWaggle's files, so an import
@@ -15,6 +17,8 @@ export function migrateBeforeImports(
      * migration, so it never holds the drain open. Applying is refused during a drain anyway.
      */
     readonly skipReadsWhile?: () => boolean
+    /** The scope's OpenWaggle file whose migration is still failing, if any. */
+    readonly pendingMigration?: (projectPath: string | null) => PendingMcpFileMigration | undefined
   } = {},
 ): McpImportServiceShape {
   const migrated = (projectPath: string | null) =>
@@ -30,7 +34,15 @@ export function migrateBeforeImports(
       ),
     apply: (input, write) =>
       migrated(input.projectPath).pipe(
-        Effect.zipRight(Effect.suspend(() => service.apply(input, write))),
+        Effect.zipRight(
+          Effect.suspend(() => {
+            // An import written before the migration succeeds would be undone by it.
+            const pending = options.pendingMigration?.(input.projectPath)
+            return pending
+              ? Effect.fail(migrationPendingError(pending))
+              : service.apply(input, write)
+          }),
+        ),
       ),
   }
 }
