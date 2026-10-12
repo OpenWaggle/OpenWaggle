@@ -59,6 +59,7 @@ const PUBLISHABLE_PACKAGES: readonly PackageSpec[] = [
 ]
 
 const SMOKE_REGISTRY_DEPENDENCIES = [
+  '@earendil-works/pi-ai',
   '@earendil-works/pi-coding-agent',
   '@earendil-works/pi-tui',
   '@types/node',
