@@ -92,4 +92,12 @@ describe('Sessions CLI output contract', () => {
       ).toBe('conflict')
     }
   })
+
+  it('maps no code to a kind by an object property name', () => {
+    for (const code of ['constructor', 'tostring', '__proto__', 'hasownproperty']) {
+      expect(classifySessionsCliError(new LocalSessionClientProtocolError(code, 'Failed'))).toBe(
+        'internal',
+      )
+    }
+  })
 })

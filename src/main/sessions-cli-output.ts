@@ -80,19 +80,19 @@ function includesAny(message: string, fragments: readonly string[]) {
   return fragments.some((fragment) => message.includes(fragment))
 }
 
-const KIND_OF_CODE: Readonly<Record<string, SessionsCliErrorKind>> = {
-  authentication_failed: 'authentication',
-  credential_rejected: 'authentication',
-  profile_revoked: 'authentication',
-  host_draining: 'host_unavailable',
+const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
+  ['authentication_failed', 'authentication'],
+  ['credential_rejected', 'authentication'],
+  ['profile_revoked', 'authentication'],
+  ['host_draining', 'host_unavailable'],
   // A Session whose Pi file cannot be used is refused until the file is back or a message
   // starts a new transcript.
-  pi_session_file_unusable: 'conflict',
-}
+  ['pi_session_file_unusable', 'conflict'],
+])
 
 export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind | undefined {
   const normalized = code.toLowerCase()
-  const exact = KIND_OF_CODE[normalized]
+  const exact = KIND_OF_CODE.get(normalized)
   if (exact) return exact
   if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
   if (
