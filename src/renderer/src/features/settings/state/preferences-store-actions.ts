@@ -104,8 +104,24 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   mergeSettings(set, { enabledModels, selectedModel })
 }
 
+/**
+ * A project whose preferences cannot be read, as one whose `.openwaggle` is a link to nothing,
+ * keeps the current settings; opening it does not fail for that.
+ */
+async function readProjectPreferences(projectPath: string) {
+  try {
+    return await api.getProjectPreferences(projectPath)
+  } catch (error) {
+    logger.warn('Could not read the project preferences; keeping the current settings', {
+      projectPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
 async function loadProjectPreferences(projectPath: string, set: PreferencesSet) {
-  const prefs = await api.getProjectPreferences(projectPath)
+  const prefs = await readProjectPreferences(projectPath)
   if (!prefs) return
 
   if (!prefs.model) return
