@@ -1,4 +1,4 @@
-import path from 'node:path'
+import { realLocation } from '../config/mcp-config-files'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
   MCP_CLOSE_ALL_TIMEOUT_MS,
@@ -18,18 +18,21 @@ import {
 import type { McpWireTransport } from './mcp-wire'
 
 /**
+ * Whether a connection's project is `projectPath`, however either is spelled: by real folder, as
+ * a Run records the Session's spelling (perhaps through a link) and Settings sends the real path.
+ */
+function sameProject(projectPath: string | null) {
+  const wanted = projectPath === null ? null : realLocation(projectPath)
+  return (other: string | null) => (other === null ? null : realLocation(other)) === wanted
+}
+
+/**
  * Every Session's MCP server connections. A connection belongs to one Session and lasts across
  * its Runs; it is never shared with another Session, so a Worker or fork has its own. Warm
  * connections are bounded: a Session's close after `idleCloseMs` without a new Run, when the
  * Session is archived or deleted (`closeSession`), when the Host stops (`closeAll`), and when more
  * than `maxWarmSessions` Sessions hold some, the least recently used one without a Run first.
  */
-/** Whether a connection's project is `projectPath`, however either is spelled. */
-function sameProject(projectPath: string | null) {
-  const wanted = projectPath === null ? null : path.resolve(projectPath)
-  return (other: string | null) => (other === null ? null : path.resolve(other)) === wanted
-}
-
 export class McpSessionConnectionPool {
   private readonly sessions = new Map<string, SessionConnections>()
   /**

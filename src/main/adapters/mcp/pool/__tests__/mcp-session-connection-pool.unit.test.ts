@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { McpSessionConnectionPool } from '../mcp-session-connection-pool'
 import { MCP_IDLE_CLOSE_MS, type McpPoolClock } from '../mcp-session-connection-pool-types'
@@ -203,6 +206,21 @@ describe('MCP Session connection pool', () => {
     // Another project's Settings would connect its own Session, so it is not connected there.
     expect(pool.connectionStates('mcp-server:docs', '/work/alpha')).toEqual([])
     expect(pool.connectionStates('mcp-server:docs', null)).toEqual([])
+  })
+
+  it("matches a Session's project however its folder is spelled, such as through a link", async () => {
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'ow-mcp-pool-project-')))
+    const real = path.join(root, 'real')
+    mkdirSync(real)
+    symlinkSync(real, path.join(root, 'linked'))
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
+    const docs = { ...server('docs', upstreams), identity: 'mcp-server:docs' }
+    // The Session's Run uses the link; Settings sends the real path.
+    await useServer(pool, 'in-linked', { ...docs, projectPath: path.join(root, 'linked') })
+
+    expect(pool.connectionStates('mcp-server:docs', real)).toEqual([{ ready: true }])
+    rmSync(root, { recursive: true, force: true })
   })
 
   it('closes one server of a Session and refuses its Run leases until the next Run', async () => {
