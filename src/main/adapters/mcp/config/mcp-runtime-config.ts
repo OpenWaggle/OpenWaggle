@@ -11,7 +11,12 @@ import type {
   McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
 import { McpVaultError } from '../../../ports/mcp-errors'
-import { mcpFileMigrationFailure, pendingMcpFileMigration } from '../migration/migration-health'
+import {
+  mcpFileMigrationPending,
+  type PendingMcpFileMigration,
+  pendingMcpFileMigration,
+} from '../migration/migration-health'
+import { sameMigrationLocation } from '../migration/project-spellings'
 import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
@@ -20,6 +25,7 @@ import {
   readMcpConfigLayers,
 } from './mcp-config-files'
 import { deferredMcpSecret } from './mcp-deferred-secrets'
+import { mcpFilePendingNotice, mcpScopePendingNotice } from './mcp-write-refusal'
 
 /** One server as Pi's MCP extension receives it (`McpServerEntry`). */
 export interface McpRuntimeServerEntry {
@@ -176,29 +182,33 @@ export function loadMcpMergedConfig(
  * there also keep servers of Pi's files and `.mcp.json` off.
  */
 function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigFileReader) {
-  const skipped: string[] = []
+  const left: PendingMcpFileMigration[] = []
   const files = mcpConfigFileLocations(roots).filter((file) => {
-    const failure = mcpFileMigrationFailure(file.path)
-    if (failure === undefined) return true
-    skipped.push(
-      `${file.path} was not loaded: its one-time migration failed (${failure}). It is tried again shortly; until then its servers stay off.`,
-    )
-    return false
+    const pending = mcpFileMigrationPending(file.path)
+    if (pending) left.push(pending)
+    return pending === undefined
   })
   const merged = mergeMcpConfigLayers(readMcpConfigLayers(files, reader))
-  const pending = pendingMcpFileMigration(roots.homeDir, roots.projectPath)
-  if (pending?.keepsLegacyState) {
-    const error = `MCP servers stay off until OpenWaggle has updated ${pending.path}: its one-time migration failed (${pending.error}).`
+  const scope = pendingMcpFileMigration(roots.homeDir, roots.projectPath)
+  const closed = scope?.keepsLegacyState ? scope : undefined
+  // One notice per failure: the scope's names its file, so that file's own is not repeated.
+  const notices = [
+    ...(closed ? [mcpScopePendingNotice(closed)] : []),
+    ...left
+      .filter((pending) => !closed || !sameMigrationLocation(pending.path, closed.path))
+      .map(mcpFilePendingNotice),
+  ]
+  if (closed) {
     return {
       ...merged,
       servers: [],
       orphanedOverrides: undefined,
-      errors: [error, ...skipped, ...merged.errors],
+      errors: [...notices, ...merged.errors],
       incomplete: true as const,
     }
   }
-  if (skipped.length === 0) return merged
-  return { ...merged, errors: [...skipped, ...merged.errors], incomplete: true as const }
+  if (notices.length === 0) return merged
+  return { ...merged, errors: [...notices, ...merged.errors], incomplete: true as const }
 }
 
 /**

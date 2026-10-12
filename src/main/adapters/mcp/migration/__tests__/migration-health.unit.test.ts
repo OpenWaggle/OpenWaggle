@@ -54,11 +54,13 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     // Pi's server too: the overrides that keep what the old OpenWaggle had off are what the
     // migration writes, so nothing in the scope connects until it does.
     expect(config.loaded.servers.map((server) => server.name)).toEqual([])
-    expect(config.loaded.errors).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining(`${globalFile} was not loaded: its one-time migration failed`),
-      ]),
-    )
+    // One notice, naming the file and what to do; the file's own line is not repeated.
+    expect(config.loaded.errors).toEqual([
+      expect.stringContaining(
+        `MCP servers stay off here until OpenWaggle has updated ${globalFile}`,
+      ),
+    ])
+    expect(config.loaded.errors[0]).toContain('Fix')
     // Its servers are unknown, not removed: the state read compares none of them.
     expect(config.merged.incomplete).toBe(true)
   })

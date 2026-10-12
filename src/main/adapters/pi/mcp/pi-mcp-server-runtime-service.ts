@@ -1,14 +1,12 @@
 import { homedir } from 'node:os'
 import {
   createMcpAuthProvider,
-  getMcpToolExposure,
   type McpServerEntry,
   McpSignInCancelledError,
   signInMcpServer,
 } from '@earendil-works/pi-coding-agent'
 import { McpClient } from '@earendil-works/pi-mcp'
-import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-configuration'
-import { isRecord } from '@shared/utils/validation'
+import type { McpServerInspection } from '@shared/types/mcp-configuration'
 import { Effect } from 'effect'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { isMcpHostDraining } from '../../../mcp-host-draining'
@@ -26,10 +24,12 @@ import {
 } from '../../../store/session-mcp-switch'
 import { deferredMcpSecret, resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
+import { mcpScopePendingNotice } from '../../mcp/config/mcp-write-refusal'
 import {
   deferredMcpVaultSecret,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { pendingMcpFileMigration } from '../../mcp/migration/migration-health'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
@@ -39,6 +39,7 @@ import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
 import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
+import { needsSignIn, toolViews } from './pi-mcp-server-tool-views'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
 /** How long Settings waits for a server to connect and list its tools. */
@@ -80,6 +81,14 @@ async function findServer(
   })
   const entry = config.loaded.servers.find((server) => server.name === input.name)
   const unavailable = config.unavailable.get(input.name)
+  // The scope is closed while its migration waits: say so, not that the server does not exist.
+  const pending = entry ? undefined : pendingMcpFileMigration(roots.homeDir, input.projectPath)
+  if (pending?.keepsLegacyState) {
+    throw new McpConfigurationError({
+      reason: 'validation',
+      message: mcpScopePendingNotice(pending),
+    })
+  }
   if (!entry) {
     throw new McpConfigurationError({
       reason: unavailable ? 'validation' : 'not-found',
@@ -88,30 +97,6 @@ async function findServer(
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
   return { entry, transport }
-}
-
-function needsSignIn(error: unknown) {
-  return (
-    error instanceof Error &&
-    (error.name === 'McpAuthRequiredError' || error.name === 'McpOAuthAuthorizationRequiredError')
-  )
-}
-
-function toolViews(
-  entry: McpServerEntry,
-  tools: Awaited<ReturnType<McpClient['listTools']>>,
-): McpServerToolView[] {
-  return tools.map((tool) => {
-    const ui = tool._meta?.ui
-    const resourceUri = isRecord(ui) ? ui.resourceUri : undefined
-    return {
-      name: tool.name,
-      ...(tool.title ? { title: tool.title } : {}),
-      ...(tool.description ? { description: tool.description } : {}),
-      exposure: getMcpToolExposure(entry.config, tool.name),
-      hasApp: typeof resourceUri === 'string' && resourceUri.startsWith('ui://'),
-    }
-  })
 }
 
 /**

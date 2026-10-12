@@ -49,3 +49,20 @@ export function serverWriteScope(server: McpConfiguredServerView | undefined): M
 export function fileWriteScope(fileId: string): McpWriteScope {
   return isGlobalFileId(fileId) ? 'global' : 'all'
 }
+
+/** What to do about a failing migration: wait for it, or fix the file it names. */
+function pendingAdvice(pending: PendingMcpFileMigration) {
+  return pending.cause === 'wait'
+    ? `it waited (${pending.error}) and is tried again shortly.`
+    : mcpFixInstruction(pending)
+}
+
+/** The notice for a scope whose servers all stay off while its old state waits. */
+export function mcpScopePendingNotice(pending: PendingMcpFileMigration) {
+  return `MCP servers stay off here until OpenWaggle has updated ${pending.path}: ${pendingAdvice(pending)}`
+}
+
+/** The notice for one file left out while its migration fails. */
+export function mcpFilePendingNotice(pending: PendingMcpFileMigration) {
+  return `${pending.path} was not loaded, so its servers stay off: ${pendingAdvice(pending)}`
+}

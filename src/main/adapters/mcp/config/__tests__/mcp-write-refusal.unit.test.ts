@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PendingMcpFileMigration } from '../../migration/migration-health'
-import { mcpWriteRefusal } from '../mcp-write-refusal'
+import { mcpFilePendingNotice, mcpScopePendingNotice, mcpWriteRefusal } from '../mcp-write-refusal'
 
 const FILE = '/home/user/.openwaggle/mcp.json'
 
@@ -27,5 +27,14 @@ describe('refusing an MCP write while its scope is not migrated', () => {
 
     expect(refusal?.message).toContain(`Fix ${state} (Unexpected token)`)
     expect(refusal?.message).not.toContain('try again shortly')
+  })
+
+  it('words the notices by cause, so a Run says whether to wait or what to fix', () => {
+    expect(mcpFilePendingNotice(pending({ cause: 'wait', error: 'the lock is held' }))).toBe(
+      `${FILE} was not loaded, so its servers stay off: it waited (the lock is held) and is tried again shortly.`,
+    )
+    expect(mcpScopePendingNotice(pending({ error: 'Unexpected token' }))).toBe(
+      `MCP servers stay off here until OpenWaggle has updated ${FILE}: Fix ${FILE} (Unexpected token).`,
+    )
   })
 })

@@ -92,6 +92,12 @@ export function mcpFileMigrationFailure(filePath: string) {
   return failureOf(filePath)?.error
 }
 
+/** The file's failing migration with its cause, or undefined. */
+export function mcpFileMigrationPending(filePath: string): PendingMcpFileMigration | undefined {
+  const failure = failureOf(filePath)
+  return failure ? pending(failure, path.resolve(filePath)) : undefined
+}
+
 export interface PendingMcpFileMigration {
   readonly path: string
   readonly error: string
