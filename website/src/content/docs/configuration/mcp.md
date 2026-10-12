@@ -151,7 +151,7 @@ Copies OpenWaggle made of your Pi servers are removed when they still match Pi's
 
 If the conversion cannot finish for a file, MCP servers stay off until it does: for that project, or for every project when the file is `~/.openwaggle/mcp.json`. That way a server you had off does not start. Changes to those servers are refused until then, so the conversion cannot undo them, and the message says what to do:
 
-- **Try again shortly**: another OpenWaggle window or the command line was converting the same files. It tries again by itself; nothing to do.
+- **Try again shortly**: another OpenWaggle window or the command line was converting the same files. Make the change again in a moment; OpenWaggle retries on your next change, when Settings opens, or with your next message.
 - **Fix** followed by a file: the file cannot be read, for example its JSON is broken or it is a link to a folder that is not there (a dotfiles folder not mounted). Fix or restore that file, then open **Settings > MCP** again.
 
 This only applies after an upgrade. A new install has nothing to convert, so nothing waits. For a project added after the upgrade, only its own `.openwaggle/mcp.json` is left out until it can be read; its other servers keep working. While a project that had MCP settings before the upgrade is being converted by another OpenWaggle window or the command line, changes to servers of all projects are refused from every project too ("try again shortly"). A project whose file needs fixing does not hold those changes back: a project whose update is waiting keeps its old on/off choices once it is updated.

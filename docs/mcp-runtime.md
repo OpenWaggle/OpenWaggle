@@ -572,15 +572,24 @@ in Pi's TUI mode). A write that changes only global files checks the global file
 project's, and any other project whose old state waits for the migration lock, since that
 project's migration would write overrides over it. Another project's failure the user must fix
 (an unmounted dotfiles checkout) does not hold global writes back, as it could for good: a project
-whose update is waiting keeps its old on/off choices once it is updated. The
+whose update is waiting keeps its old on/off choices once it is updated. Those waiting projects
+are migrated again (`migratePendingKeptProjects`) before a global or everywhere write from
+Settings or the CLI and before a global import, awaited; when Settings > MCP opens (`getView`),
+started without waiting; and in the background when Pi's `/mcp` change to a global file is
+refused, since Pi asks synchronously (one retry at a time, so the next `/mcp` can go through).
+Each pass skips the project the call has just migrated, does nothing when the call's own scope
+just waited for the lock, and stops at the first project whose migration waits for the lock
+again, refusing with "try again shortly". So one call waits for the lock at most once. The
 refusal says "try again shortly" when the migration waited for a lock, and "Fix <file>" when a
 file it reads cannot be read; an unreadable state.json or migration.json is named as that file
 (`migration-start.ts`). Whether old state waits is decided per file: the global file's when
 OpenWaggle had an MCP setup, a project file's when its project keeps its old on/off (undecided
 counts as waiting). On a fresh install, or for a project added after the first run, nothing
 waits, so nothing is refused. A failed start gates only the files the record does not list as
-migrated, and a broken state.json is ignored once every file asked for is migrated and the
-decision is made; only an unreadable migration.json fails closed for everything. While a scope
+migrated. A broken state.json is not needed once the decision is made and every old MCP-off
+Session switch was carried over (`sessionSwitchesDone`): the run goes on without it, and only a
+file still waiting for old state fails. A project folder the old state names that is gone
+(deleted, not cloned again yet) is skipped: nothing is created, recorded or gated. Only an unreadable migration.json fails closed for everything. While a scope
 is closed, Check connection fails with the reason instead of "No MCP server named", and a Run
 shows one notice per failing file, worded by cause. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
