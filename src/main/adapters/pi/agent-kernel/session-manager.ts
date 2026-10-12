@@ -1,6 +1,7 @@
 import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from 'node:fs'
 import path, { basename, dirname, join, resolve } from 'node:path'
 import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import type { SessionDetail } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
@@ -14,7 +15,6 @@ import {
 } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { newPiSessionDirectory, startRecordedPiSessionFile } from './recorded-session-file'
-import { SESSION_WORKTREE_MISSING_MESSAGE } from './session-worktree-missing'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
 
 /**

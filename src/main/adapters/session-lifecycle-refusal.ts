@@ -1,6 +1,6 @@
 import { PI_SESSION_FILE_PROBLEM } from '@shared/domain/pi-session-file-messages'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import { SessionLifecyclePreparationError } from '../errors'
-import { SESSION_WORKTREE_MISSING_MESSAGE } from './pi/agent-kernel/session-worktree-missing'
 
 /** The code a client gets when a Session's Pi file cannot be used to copy it. */
 export const PI_SESSION_FILE_UNUSABLE = 'pi_session_file_unusable'

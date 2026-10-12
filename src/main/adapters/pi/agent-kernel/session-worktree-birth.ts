@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { createLogger } from '../../../logger'
@@ -22,7 +23,6 @@ import {
   isWorktreeOf,
   releaseAppliedHandoffSeed,
 } from './session-worktree-birth-support'
-import { SESSION_WORKTREE_MISSING_MESSAGE } from './session-worktree-missing'
 import {
   dispatchPendingSessionWorktreeSetup,
   type SessionWorktreeSetupDispatchOptions,
