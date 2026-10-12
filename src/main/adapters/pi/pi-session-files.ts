@@ -1,4 +1,4 @@
-import { constants, readdirSync } from 'node:fs'
+import { constants } from 'node:fs'
 import { access, lstat, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -11,7 +11,6 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
-import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import {
   type PiSessionContinuation,
@@ -21,11 +20,8 @@ import {
   type PiSessionFilesShape,
 } from '../../ports/pi-session-discovery'
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
-import {
-  findExistingPiSessionFile,
-  piSessionSearchDirectories,
-  resolveSessionWorkingPath,
-} from './agent-kernel/session-manager'
+import { runDirectoryOf, unsearchablePiSessionFolder } from './agent-kernel/pi-session-search'
+import { findExistingPiSessionFile } from './agent-kernel/session-manager'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
 import { onlyUsageAppendedAfter } from './agent-kernel/usage-only-appends'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
@@ -190,24 +186,6 @@ async function readSnapshot(
   }
 }
 
-/** Where a Run of `session` would run; undefined when there is none, as once its worktree is gone. */
-function runDirectoryOf(session: SessionDetail) {
-  try {
-    return resolveSessionWorkingPath(session)
-  } catch {
-    return undefined
-  }
-}
-
-function isUnsearchable(folder: string) {
-  try {
-    readdirSync(folder)
-    return false
-  } catch (error) {
-    return isRecord(error) && (error.code === 'EACCES' || error.code === 'EPERM')
-  }
-}
-
 /**
  * Searched over the Session's run directory when there is one, and over its checkout, worktree
  * and recorded folders in any case. A copy found is continued; a folder that cannot be read may
@@ -217,7 +195,7 @@ function continuationOf(session: SessionDetail): PiSessionContinuation {
   const runDirectory = runDirectoryOf(session)
   const file = findExistingPiSessionFile(session, runDirectory)
   if (file) return { kind: 'file', file }
-  const folder = piSessionSearchDirectories(session, runDirectory).find(isUnsearchable)
+  const folder = unsearchablePiSessionFolder(session, runDirectory)
   return folder ? { kind: 'unsearchable', folder } : { kind: 'new' }
 }
 

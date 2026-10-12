@@ -1,7 +1,9 @@
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentKernelMissingEntryError } from '../../../../ports/agent-kernel-service'
 import {
   compactPiSession,
@@ -42,6 +44,12 @@ const operationMocks = vi.hoisted(() => ({
   withPiSession: vi.fn(),
   withReadOnlyPiSession: vi.fn(),
   readOnlySessionFile: vi.fn((): string | undefined => undefined),
+  existingSessionFile: vi.fn((): string | undefined => '/repo/session.jsonl'),
+  unsearchableFolder: vi.fn((): string | undefined => undefined),
+}))
+
+vi.mock('../pi-session-search', () => ({
+  unsearchablePiSessionFolder: operationMocks.unsearchableFolder,
 }))
 
 vi.mock('../session-runtime', () => ({
@@ -66,7 +74,7 @@ vi.mock('../session-manager', () => ({
     isPersisted: () => false,
   }),
   resolveSessionWorkingPath: () => '/repo',
-  findExistingPiSessionFile: () => '/repo/session.jsonl',
+  findExistingPiSessionFile: operationMocks.existingSessionFile,
 }))
 
 vi.mock('../session-projection', () => ({
@@ -258,6 +266,34 @@ describe('Pi session operations', () => {
     await expect(
       navigatePiSessionTree({ ...input(), targetNodeId: 'stale-node' }),
     ).rejects.toBeInstanceOf(AgentKernelMissingEntryError)
+  })
+
+  describe("on a created Session whose Pi file was deleted and a folder that may hold a copy can't be read", () => {
+    const deletedFile = path.join(tmpdir(), `ow-deleted-${process.pid}-${Date.now()}.jsonl`)
+    const COPIES =
+      /^This Session's Pi session file is unavailable \(.+\): it was deleted, and a folder that may hold a copy of it \(\/pi\/locked\) cannot be read\. Make it readable/
+
+    beforeEach(() => {
+      operationMocks.existingSessionFile.mockReturnValue(undefined)
+      operationMocks.unsearchableFolder.mockReturnValue('/pi/locked')
+    })
+    afterEach(() => {
+      operationMocks.existingSessionFile.mockReturnValue('/repo/session.jsonl')
+      operationMocks.unsearchableFolder.mockReturnValue(undefined)
+    })
+
+    function deleted() {
+      const transcript = withTranscript()
+      return { ...transcript, session: { ...transcript.session, piSessionFile: deletedFile } }
+    }
+
+    it.each<[string, () => Promise<unknown>]>([
+      ['forking', () => forkPiSession({ ...deleted(), targetNodeId: 'm1', position: 'before' })],
+      ['compacting', () => compactPiSession(deleted())],
+      ['navigating', () => navigatePiSessionTree({ ...deleted(), targetNodeId: 'm1' })],
+    ])('refuses %s, naming the folder, not offering a new transcript', async (_action, run) => {
+      await expect(run()).rejects.toThrow(COPIES)
+    })
   })
 
   it('disposes the fork runtime and reports a missing entry when the target is invalid', async () => {

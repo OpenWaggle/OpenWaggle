@@ -23,6 +23,7 @@ import { piEntryNodeIds } from './pi-entry-node-ids'
 import { piExtensionCommands } from './pi-extension-commands'
 import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
+import { unsearchablePiSessionFolder } from './pi-session-search'
 import { summarizePiSessionUsage } from './pi-session-usage'
 import { withRunExtensionCommands } from './run-extension-commands'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
@@ -102,7 +103,7 @@ export async function getPiSessionSnapshot(
   )
   // Without its file, the snapshot would be empty and replace the transcript the Session shows.
   if (!sessionManager.getSessionFile() && hasProjectedEntries(input.session)) {
-    throw missingPiSessionFileError(input.session)
+    throw piSessionFileRefusal(input.session)
   }
   return {
     piSessionId: sessionManager.getSessionId(),
@@ -111,6 +112,11 @@ export async function getPiSessionSnapshot(
     sessionSnapshot: projectPiSessionSnapshot({ sessionManager }, nodeIds),
   }
 }
+/** Why the Session's Pi file, not found, cannot be used, naming a folder a copy may be in. */
+function piSessionFileRefusal(session: SessionDetail, action?: PiSessionFileAction) {
+  return missingPiSessionFileError(session, action, unsearchablePiSessionFolder(session))
+}
+
 /** What Pi says for a session too small to compact. */
 const NOTHING_TO_COMPACT = 'Nothing to compact (session too small)'
 
@@ -121,7 +127,7 @@ const NOTHING_TO_COMPACT = 'Nothing to compact (session too small)'
 function assertPiSessionFileFor(session: SessionDetail, action: PiSessionFileAction) {
   if (!hasProjectedEntries(session)) return
   if (findExistingPiSessionFile(session, resolveSessionWorkingPath(session))) return
-  throw missingPiSessionFileError(session, action)
+  throw piSessionFileRefusal(session, action)
 }
 
 export async function compactPiSession(
@@ -217,7 +223,7 @@ export async function forkPiSession(
   const sourceFile = copy.getSessionFile()
   // Named as the caller asked: a fork, or a clone.
   if (!sourceFile) {
-    throw missingPiSessionFileError(input.session, input.copy === 'clone' ? 'cloning' : 'forking')
+    throw piSessionFileRefusal(input.session, input.copy === 'clone' ? 'cloning' : 'forking')
   }
   let written: WrittenFork | undefined
   const runtime = await createPiSessionRuntime(input, {

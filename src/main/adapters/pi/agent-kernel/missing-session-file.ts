@@ -66,11 +66,21 @@ export type PiSessionFileAction =
  * missing, or the file was deleted from it. A discovered Session cannot be continued then; one
  * OpenWaggle created starts a new transcript with its next message.
  */
-export function missingPiSessionFileError(session: SessionDetail, action?: PiSessionFileAction) {
+export function missingPiSessionFileError(
+  session: SessionDetail,
+  action?: PiSessionFileAction,
+  /** A folder a copy may be in that cannot be read: a created Session cannot start over then. */
+  unreadableFolder?: string,
+) {
   const file = session.piSessionFile?.trim() || `the Pi session file of ${String(session.id)}`
   const unavailability = unavailabilityOf(file)
   if (unavailability) {
     return new PiSessionFileUnavailableError(unavailablePiSessionFileMessage(file, unavailability))
+  }
+  if (session.piEntryNodeIdPrefix === undefined && unreadableFolder) {
+    return new PiSessionFileUnavailableError(
+      unavailablePiSessionFileMessage(file, 'copies', unreadableFolder),
+    )
   }
   return new PiSessionFileUnavailableError(
     session.piEntryNodeIdPrefix === undefined
