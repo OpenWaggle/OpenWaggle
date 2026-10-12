@@ -72,10 +72,15 @@ export function recordPreparedSessionFile(
   `
 }
 
+/** The desktop app's caller; it clones a Session as a fork that keeps the target. */
+const DESKTOP_APP_CALLER_ID = 'gui:local-user'
+
 export function prepareLifecycleFork(input: {
   readonly sql: SqlClient.SqlClient
   readonly kernel: AgentKernelServiceShape
   readonly command: ForkSessionCommand
+  /** Who asked: only the desktop app's clone is a clone; the CLI and Sessions tool fork. */
+  readonly callerId: string
   readonly modelId: string
   /** The preparation attempt the fork's file is recorded under before it is written. */
   readonly attemptId: string
@@ -116,8 +121,10 @@ export function prepareLifecycleFork(input: {
         model: SupportedModelId(input.modelId),
         targetNodeId,
         position: input.command.position ?? 'at',
-        // The GUI clones with the target included; a Sessions tool or CLI fork names no position.
-        copy: input.command.position === 'at' ? 'clone' : 'fork',
+        copy:
+          input.callerId === DESKTOP_APP_CALLER_ID && input.command.position === 'at'
+            ? 'clone'
+            : 'fork',
         // OpenWaggle names the fork's file, so it is recorded before it is written: a stop between
         // the two leaves an attempt that names it, which discovery never lists.
         beforeWritingFork: (file) =>

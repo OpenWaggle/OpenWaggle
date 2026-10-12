@@ -229,6 +229,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
                     sql,
                     kernel,
                     command,
+                    callerId: input.callerId,
                     modelId: parent?.profile.modelId ?? settings.selectedModel,
                     attemptId,
                     onForkFile: (file) => {

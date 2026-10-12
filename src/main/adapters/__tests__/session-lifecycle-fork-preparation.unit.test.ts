@@ -83,6 +83,7 @@ describe('prepareLifecycleFork', () => {
           sql,
           kernel,
           command: { operation: 'fork', sourceSessionId: 'session-parent', targetNodeId: 'x' },
+          callerId: 'gui:local-user',
           modelId: 'provider/model',
           attemptId: 'attempt-1',
           onForkFile: () => undefined,
@@ -137,6 +138,7 @@ describe('prepareLifecycleFork', () => {
           sql,
           kernel,
           command: { operation: 'fork', sourceSessionId: 'session-parent', targetNodeId: 'x' },
+          callerId: 'gui:local-user',
           modelId: 'provider/model',
           attemptId: 'attempt-1',
           onForkFile: (file) => told.push(file),
@@ -149,12 +151,21 @@ describe('prepareLifecycleFork', () => {
     expect(told).toEqual([forkFile])
   })
 
-  it.each<[string, 'before' | 'at' | undefined, 'fork' | 'clone']>([
-    ['a fork before the target, as the GUI forks', 'before', 'fork'],
-    ['a copy with the target, as the GUI clones', 'at', 'clone'],
-    ['a fork that names no position, as the Sessions tool and CLI send', undefined, 'fork'],
-  ])('tells the kernel it is %s', async (_case, position, copy) => {
-    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, `copy-${copy}.sqlite`))
+  it.each<[string, string, 'before' | 'at' | undefined, 'fork' | 'clone']>([
+    ['a fork, from the GUI', 'gui:local-user', 'before', 'fork'],
+    ['a clone, from the GUI', 'gui:local-user', 'at', 'clone'],
+    ['a fork, from the CLI with --position at', 'local-user:machine', 'at', 'fork'],
+    ['a fork, from the Sessions tool with position at', 'session-agent:session-a', 'at', 'fork'],
+    [
+      'a fork, from the Sessions tool with no position',
+      'session-agent:session-a',
+      undefined,
+      'fork',
+    ],
+  ])('tells the kernel it is %s', async (_case, callerId, position, copy) => {
+    const layer = makeSessionLifecycleTestLayer(
+      path.join(temporaryRoot, `copy-${String(position)}-${copy}.sqlite`),
+    )
     const received: ForkAgentKernelSessionInput[] = []
     const kernel = fromPartial<AgentKernelServiceShape>({
       forkSession: (input: ForkAgentKernelSessionInput) => {
@@ -175,6 +186,7 @@ describe('prepareLifecycleFork', () => {
             targetNodeId: 'x',
             ...(position ? { position } : {}),
           },
+          callerId,
           modelId: 'provider/model',
           attemptId: 'attempt-1',
           onForkFile: () => undefined,
