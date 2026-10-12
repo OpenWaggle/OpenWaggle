@@ -18,16 +18,27 @@ vi.mock('../../../mcp/process-file-lock', async (importOriginal) => {
       filePath: string,
       run: () => Promise<unknown>,
       options?: Parameters<typeof original.withProcessFileLock>[2],
-    ) =>
-      original.withProcessFileLock(
+    ) => {
+      lockCalls.count += 1
+      return original.withProcessFileLock(
         filePath,
         run,
         options?.maxWaitMs === undefined ? options : { ...options, maxWaitMs: SHORT_LOCK_WAIT_MS },
-      ),
+      )
+    },
   }
 })
+const settings = vi.hoisted(() => {
+  const recentProjects: string[] = []
+  return { recentProjects }
+})
+const lockCalls = vi.hoisted(() => ({ count: 0 }))
 vi.mock('../../../../store/settings', () => ({
-  getSettings: () => ({ projectPath: null, recentProjects: [], projectDisplayNames: {} }),
+  getSettings: () => ({
+    projectPath: null,
+    recentProjects: settings.recentProjects,
+    projectDisplayNames: {},
+  }),
 }))
 vi.mock('../../../../store/session-details/workspace-root-authorization', () => ({
   listSessionProjectRoots: async () => [],
@@ -39,7 +50,9 @@ vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   },
 }))
 
-const { migrateOpenWaggleMcpFilesOnce } = await import('../openwaggle-mcp-migration')
+const { migrateOpenWaggleMcpFilesAtHostStart, migrateOpenWaggleMcpFilesOnce } = await import(
+  '../openwaggle-mcp-migration'
+)
 const { withProcessFileLock } = await import('../../../mcp/process-file-lock')
 
 describe('the MCP file migration when another process keeps the lock', () => {
@@ -93,5 +106,42 @@ describe('the MCP file migration when another process keeps the lock', () => {
     expect(mcpFileMigrationFailure(projectFile)).toEqual(expect.any(String))
     released.resolve()
     await otherHost
+  })
+
+  it("does not gate a managed worktree's file, which no run migrates or clears", async () => {
+    const worktree = path.join(homedir(), '.openwaggle', 'worktrees', 'project', 'session-1')
+    const recordPath = migrationRecordPath(homedir())
+    const released = Promise.withResolvers<void>()
+    const otherHost = withProcessFileLock(recordPath, () => released.promise)
+    await vi.waitFor(() => expect(existsSync(`${recordPath}.lock`)).toBe(true))
+
+    await migrateOpenWaggleMcpFilesOnce(worktree)
+
+    expect(mcpFileMigrationFailure(path.join(worktree, '.openwaggle', 'mcp.json'))).toBeUndefined()
+    released.resolve()
+    await otherHost
+  })
+
+  it('at Host start, waits for the lock once, then leaves the other scopes to the retry', async () => {
+    const projects = ['alpha', 'beta', 'gamma'].map((name) => path.join(homedir(), 'start', name))
+    settings.recentProjects = projects
+    const recordPath = migrationRecordPath(homedir())
+    const released = Promise.withResolvers<void>()
+    const otherHost = withProcessFileLock(recordPath, () => released.promise)
+    await vi.waitFor(() => expect(existsSync(`${recordPath}.lock`)).toBe(true))
+    lockCalls.count = 0
+
+    await migrateOpenWaggleMcpFilesAtHostStart()
+
+    // One wait for the lock, not one per scope: Host start is not held for (1 + N) waits.
+    expect(lockCalls.count).toBe(1)
+    for (const project of projects) {
+      expect(mcpFileMigrationFailure(path.join(project, '.openwaggle', 'mcp.json'))).toEqual(
+        expect.any(String),
+      )
+    }
+    released.resolve()
+    await otherHost
+    settings.recentProjects = []
   })
 })

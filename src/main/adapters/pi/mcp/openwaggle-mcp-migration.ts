@@ -12,10 +12,13 @@ import {
 import { gateUnmigratedMcpFiles } from '../../mcp/migration/migration-gate'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
 import { SIGN_IN_NOT_READ_YET } from '../../mcp/migration/oauth-state-migration'
-import { withProcessFileLock } from '../../mcp/process-file-lock'
+import { ProcessFileLockTimeoutError, withProcessFileLock } from '../../mcp/process-file-lock'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
 import { oldSignIn, readOldSignIns } from './openwaggle-mcp-old-sign-ins'
+import { durableMcpProjectPaths, knownMcpProjectPaths } from './openwaggle-mcp-project-paths'
+
+export { durableMcpProjectPaths, knownMcpProjectPaths } from './openwaggle-mcp-project-paths'
 
 const logger = createLogger('mcp-migration')
 
@@ -67,53 +70,9 @@ const migrations = new Map<string, MigrationAttempt>()
 let migrationQueue: Promise<unknown> = Promise.resolve()
 /** Set at Host stop: no sign-in migration writes anything afterwards. */
 let signInMigrationStopped = false
+/** The last time another process kept the migration lock past the wait. */
+let lastLockTimeout: ProcessFileLockTimeoutError | undefined
 let signInsAfterHostStart: Promise<void> | undefined
-
-/** Session workspace roots, paged as `WorkspaceProjectAuthorization` reads them. */
-async function sessionWorkspaceRoots() {
-  const { listSessionWorkspaceRootPage } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
-  const roots: string[] = []
-  let afterRoot: string | undefined
-  while (true) {
-    const page = await listSessionWorkspaceRootPage(afterRoot)
-    roots.push(...page)
-    const last = page.at(-1)
-    if (last === undefined || last === afterRoot) return roots
-    afterRoot = last
-  }
-}
-
-async function settingsProjectPaths() {
-  const { getSettings } = await import('../../../store/settings')
-  const settings = getSettings()
-  return [
-    ...(settings.projectPath ? [settings.projectPath] : []),
-    ...settings.recentProjects,
-    ...Object.keys(settings.projectDisplayNames),
-  ]
-}
-
-/**
- * The projects OpenWaggle knows, so the first run keeps their servers' old on/off state: the
- * same sources as workspace authorization, settings plus every Session's workspace root.
- */
-export async function knownMcpProjectPaths(): Promise<readonly string[]> {
-  return [...new Set([...(await settingsProjectPaths()), ...(await sessionWorkspaceRoots())])]
-}
-
-/**
- * The project roots whose files the migration writes: settings plus every Session's project
- * path. A managed worktree is not one; writing its `.openwaggle/mcp.json` would leave an
- * untracked file in the user's checkout.
- */
-export async function durableMcpProjectPaths(): Promise<readonly string[]> {
-  const { listSessionProjectRoots } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
-  return [...new Set([...(await settingsProjectPaths()), ...(await listSessionProjectRoots())])]
-}
 
 function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string | null) {
   // One canonical spelling, the one the migration records use, so `/a/` and `/a` are one project.
@@ -220,6 +179,7 @@ async function runMigration(
     // Host start must not hang on another process that keeps the lock; it tries again later.
     { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
   ).catch(async (error: unknown) => {
+    if (error instanceof ProcessFileLockTimeoutError) lastLockTimeout = error
     // Not cached: the attempt is marked failed below and a later call runs it again.
     await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPath, error, logger })
     return undefined
@@ -268,8 +228,13 @@ async function carryOverSessionMcpOff(sessionId: string) {
   })
 }
 
-/** Migrates the global scope, then every project OpenWaggle knows. */
+/**
+ * Migrates the global scope, then every project OpenWaggle knows. Once another process kept the
+ * lock past one wait, the scopes left are gated at once, for the usual retry, rather than each
+ * waiting again: Host start would otherwise wait for every scope in turn.
+ */
 async function migrateKnownScopes(migrate: (projectPath: string | null) => Promise<unknown>) {
+  const timeoutBefore = lastLockTimeout
   await migrate(null)
   const projects = await durableMcpProjectPaths().catch((error: unknown): readonly string[] => {
     logger.error('MCP migration could not list the known projects at Host start', {
@@ -277,7 +242,11 @@ async function migrateKnownScopes(migrate: (projectPath: string | null) => Promi
     })
     return []
   })
-  for (const projectPath of new Set(projects)) await migrate(projectPath)
+  for (const projectPath of new Set(projects)) {
+    const timeout = lastLockTimeout
+    if (timeout === timeoutBefore || timeout === undefined) await migrate(projectPath)
+    else await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPath, error: timeout, logger })
+  }
 }
 
 /**
