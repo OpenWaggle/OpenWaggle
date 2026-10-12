@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 // The scope is closed while its migration waits: no server is loaded.
-vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
+vi.mock('../../../mcp/config/mcp-runtime-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../mcp/config/mcp-runtime-config')>()),
   loadMcpRuntimeConfig: async () => ({
     loaded: { servers: [], errors: [] },
     merged: { servers: [], errors: [], incomplete: true },

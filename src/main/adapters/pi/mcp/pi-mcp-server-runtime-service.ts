@@ -23,13 +23,11 @@ import {
   UnknownMcpSessionError,
 } from '../../../store/session-mcp-switch'
 import { deferredMcpSecret, resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
-import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { mcpScopePendingNotice } from '../../mcp/config/mcp-write-refusal'
+import { loadMcpRuntimeConfig, mcpLeftOutServerNotice } from '../../mcp/config/mcp-runtime-config'
 import {
   deferredMcpVaultSecret,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { pendingMcpFileMigration } from '../../mcp/migration/migration-health'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
@@ -74,21 +72,17 @@ async function findServer(
     mcpShellEnvironmentReady(),
     migrateOpenWaggleMcpSignInsOnce(input.projectPath),
   ])
+  const scopeRoots = { ...roots, projectPath: input.projectPath }
   const config = await loadMcpRuntimeConfig({
-    roots: { ...roots, projectPath: input.projectPath },
+    roots: scopeRoots,
     resolveSecret: secrets === 'checked' ? deferredMcpVaultSecret : unreadMcpSecret,
     serverAllowlist: [input.name],
   })
   const entry = config.loaded.servers.find((server) => server.name === input.name)
   const unavailable = config.unavailable.get(input.name)
-  // The scope is closed while its migration waits: say so, not that the server does not exist.
-  const pending = entry ? undefined : pendingMcpFileMigration(roots.homeDir, input.projectPath)
-  if (pending?.keepsLegacyState) {
-    throw new McpConfigurationError({
-      reason: 'validation',
-      message: mcpScopePendingNotice(pending),
-    })
-  }
+  // Left out while a migration waits: say why, not that the server does not exist.
+  const leftOut = entry ? undefined : mcpLeftOutServerNotice(scopeRoots, input.name)
+  if (leftOut) throw new McpConfigurationError({ reason: 'validation', message: leftOut })
   if (!entry) {
     throw new McpConfigurationError({
       reason: unavailable ? 'validation' : 'not-found',

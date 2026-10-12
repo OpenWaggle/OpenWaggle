@@ -212,6 +212,18 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
 }
 
 /**
+ * Why a server the merge leaves out is missing: the notice of a failing migration, when the scope
+ * is closed or the file that defines the server is left out. Undefined when it is not configured.
+ */
+export function mcpLeftOutServerNotice(roots: McpConfigFileRoots, name: string) {
+  const scope = pendingMcpFileMigration(roots.homeDir, roots.projectPath)
+  if (scope?.keepsLegacyState) return mcpScopePendingNotice(scope)
+  const server = loadMcpMergedConfig(roots).servers.find((candidate) => candidate.name === name)
+  const leftOut = server ? mcpFileMigrationPending(server.source.path) : undefined
+  return leftOut ? mcpFilePendingNotice(leftOut) : undefined
+}
+
+/**
  * The configuration one Pi session receives: the merged file set with vault references resolved,
  * narrowed by the Session's MCP switch and an Agent definition's allowlist.
  */
