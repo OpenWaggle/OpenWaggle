@@ -45,7 +45,7 @@ import {
   type McpOAuthMigrationSink,
   migrateLegacyOAuthStates,
 } from './oauth-state-migration'
-import { keepsEnablement, migrationProjects } from './project-spellings'
+import { keepsEnablement, migrationProjects, presentMigrationProjects } from './project-spellings'
 import {
   type McpSessionSwitchMigrationSink,
   migrateLegacySessionSwitches,
@@ -222,14 +222,17 @@ export async function migrateOpenWaggleMcpFiles(
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
-  const projects = await migrationProjects({
-    ...input,
-    state,
-    sources,
-    // Only spellings: a list that cannot be read lends none.
-    knownProjectPaths: () => knownProjectPaths().catch(() => []),
-    recordedProjects: record.legacyProjects ?? [],
-  })
+  const projects = await presentMigrationProjects(
+    fs,
+    await migrationProjects({
+      ...input,
+      state,
+      sources,
+      // Only spellings: a list that cannot be read lends none.
+      knownProjectPaths: () => knownProjectPaths().catch(() => []),
+      recordedProjects: record.legacyProjects ?? [],
+    }),
+  )
   // Read before the files are rewritten, and saved with their records.
   const legacy = await legacyServerRecords({ sources, state, projects })
   record.noteLegacyServerNames(legacy.names)

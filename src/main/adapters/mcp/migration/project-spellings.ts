@@ -14,6 +14,8 @@ import {
   legacyStateProjects,
   normalizeLegacyProjectPath,
 } from './legacy-state'
+import type { McpMigrationFs } from './migration-fs'
+import { recordMcpFileMigrationOutcome } from './migration-health'
 import { isInside, managedWorktreesRoot, projectMcpPaths } from './migration-paths'
 
 /** Whether two spellings reach the same file or folder. */
@@ -115,4 +117,21 @@ export async function migrationProjects(input: {
 /** Whether the old on/off state is kept for the project, by its real folder. */
 export function keepsEnablement(kept: readonly string[] | null, projectPath: string) {
   return kept?.some((candidate) => sameMigrationLocation(candidate, projectPath)) === true
+}
+
+/**
+ * The projects whose folder is there. One that is gone (deleted, or not cloned again yet) is left
+ * alone: nothing is created, recorded or gated, so it migrates once it is back. A failure kept
+ * for it in this process is forgotten.
+ */
+export async function presentMigrationProjects(fs: McpMigrationFs, projects: readonly string[]) {
+  const present: string[] = []
+  for (const projectPath of projects) {
+    if (await fs.projectFolderGone?.(projectPath)) {
+      recordMcpFileMigrationOutcome(projectMcpPaths(projectPath).openwaggle)
+    } else {
+      present.push(projectPath)
+    }
+  }
+  return present
 }

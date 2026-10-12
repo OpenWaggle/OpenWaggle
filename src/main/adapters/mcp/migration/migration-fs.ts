@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { danglingMcpFileLink } from '../config/mcp-config-files'
 import { mcpFileWriteTargetAsync } from '../config/mcp-file-write-target'
@@ -18,6 +18,11 @@ export interface McpMigrationFs {
   writeTextAtomic(filePath: string, content: string): Promise<void>
   /** Create the file only if it does not exist. Returns false when it already existed. */
   createTextExclusive(filePath: string, content: string): Promise<boolean>
+  /**
+   * Whether the project folder is gone (deleted, or not cloned again yet). A link to a folder
+   * that is not mounted is not gone. Without it, every folder counts as there.
+   */
+  projectFolderGone?(projectPath: string): Promise<boolean>
 }
 
 /** MCP files can hold credentials: a file the migration creates is readable by the user only. */
@@ -78,5 +83,11 @@ export const nodeMcpMigrationFs: McpMigrationFs = {
       if (errorCode(error) === 'EEXIST') return false
       throw error
     }
+  },
+  projectFolderGone(projectPath) {
+    return lstat(projectPath).then(
+      () => false,
+      (error: unknown) => errorCode(error) === 'ENOENT',
+    )
   },
 }

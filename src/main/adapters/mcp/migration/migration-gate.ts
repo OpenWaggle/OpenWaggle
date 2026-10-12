@@ -54,6 +54,8 @@ export async function gateUnmigratedMcpFiles(input: {
       ? projectMcpPaths(projectPath).openwaggle
       : globalMcpPaths(homeDir).openwaggleGlobal
     if (record?.isFileMigrated(filePath)) continue
+    // A project folder that is gone migrates once it is back; until then nothing is there to load.
+    if (projectPath && (await fs.projectFolderGone?.(projectPath))) continue
     const keeps = keepsLegacyState(record, projectPath)
     // Without old state, an absent file has nothing to convert and nothing to keep from loading.
     if (!keeps && !(await exists(fs, filePath))) continue
