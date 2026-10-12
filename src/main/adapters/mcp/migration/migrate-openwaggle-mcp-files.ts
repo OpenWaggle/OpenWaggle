@@ -25,7 +25,6 @@ import { contentHash } from './json-document'
 import { legacyServerRecords } from './legacy-server-names'
 import { legacyStateProjects, normalizeLegacyProjectPath } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
-import { gateUnmigratedMcpFiles } from './migration-gate'
 import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
@@ -35,7 +34,7 @@ import {
   projectMcpPaths,
 } from './migration-paths'
 import { MCP_FILE_MIGRATION_VERSION, type McpMigrationRecord } from './migration-record'
-import { loadMigrationStart, McpMigrationSourceError } from './migration-start'
+import { loadMigrationStart, startFailureReport } from './migration-start'
 import {
   type McpOAuthMigrationResult,
   type McpOAuthMigrationSink,
@@ -222,19 +221,7 @@ export async function migrateOpenWaggleMcpFiles(
     start = await loadMigrationStart(fs, input.homeDir)
     kept = await legacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
-    logger.error('MCP migration could not read its record or the old MCP state', {
-      homeDir: input.homeDir,
-      error: describeError(error),
-    })
-    // What the record does not list as migrated may not load yet; the rest was migrated.
-    await gateUnmigratedMcpFiles({
-      homeDir: input.homeDir,
-      projectPaths: input.projectPaths,
-      error,
-      fs,
-      ...(error instanceof McpMigrationSourceError ? { source: error.filePath } : {}),
-    })
-    return { files: [], oauth: [], droppedSessionStates: 0, error: describeError(error) }
+    return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
   }
   const { record, state } = start
   const migrator = new McpFileMigrator(fs, record, logger, input)

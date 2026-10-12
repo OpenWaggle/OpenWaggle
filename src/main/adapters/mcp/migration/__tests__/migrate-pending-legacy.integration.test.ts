@@ -82,8 +82,33 @@ describe('the old state a pending migration keeps', () => {
     await writeFile(statePath, '{ "version": 1,')
     const report = await migrate([])
 
-    expect(report.error).toContain(statePath)
+    // Everything asked for is migrated and decided, so the old state is not even read.
+    expect(report.error).toBeUndefined()
     expect(await connectable(null)).toEqual(['g'])
+    expect(pendingMcpFileMigration(homeDir, null)).toBeUndefined()
+  })
+
+  it('leaves a fresh install alone when a state.json it never had appears broken', async () => {
+    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-legacy-')))
+    roots.push(root)
+    const homeDir = path.join(root, 'home')
+    const piAgentDir = path.join(homeDir, '.pi', 'agent')
+    await writeJson(path.join(piAgentDir, 'mcp.json'), { mcpServers: { pi: { command: 'pi' } } })
+    const migrate = () =>
+      migrateOpenWaggleMcpFiles({ homeDir, piAgentDir, projectPaths: [], now: () => NOW })
+    // No old state and no OpenWaggle file: nothing to keep, decided on the first run.
+    await migrate()
+    await mkdir(path.join(homeDir, '.openwaggle', 'mcp'), { recursive: true })
+    await writeFile(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), '{ broken')
+
+    const report = await migrate()
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath: null },
+      resolveSecret: async () => '',
+    })
+
+    expect(report.error).toBeUndefined()
+    expect(config.loaded.servers.map((server) => server.name)).toEqual(['pi'])
     expect(pendingMcpFileMigration(homeDir, null)).toBeUndefined()
   })
 
