@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const migrate = vi.hoisted(() => vi.fn())
@@ -105,6 +108,20 @@ describe('the MCP file migration within one Host process', () => {
 
     expect(migrate).toHaveBeenCalledOnce()
     expect(migrate.mock.calls[0]?.[0].projectPaths).toEqual(['/projects/same'])
+  })
+
+  it('treats two spellings of one folder, such as a symbolic link, as one project', async () => {
+    migrate.mockResolvedValue(OK)
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'ow-mcp-spelling-')))
+    const real = path.join(root, 'real')
+    mkdirSync(real)
+    symlinkSync(real, path.join(root, 'linked'))
+
+    await migrateOpenWaggleMcpFilesOnce(path.join(root, 'linked'))
+    await migrateOpenWaggleMcpFilesOnce(real)
+
+    expect(migrate).toHaveBeenCalledOnce()
+    rmSync(root, { recursive: true, force: true })
   })
 
   it('tries again after a failure, once a short wait has passed', async () => {

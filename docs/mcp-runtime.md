@@ -532,7 +532,12 @@ is unresponsive. Host stop
 what it is writing gets `MCP_MIGRATION_STOP_WAIT_MS` (5 s) to finish.
 
 `adapters/mcp/migration/` runs once per file, silently, with one `.pre-adr-0048.bak` backup, and
-records what it did in `~/.openwaggle/mcp/migration.json`. A recorded file is never migrated
+records what it did in `~/.openwaggle/mcp/migration.json`. A project reached by several
+spellings (a symbolic link such as /tmp to /private/tmp, or a Settings path next to a
+Session's) is one project (`project-spellings.ts`): records, this process's attempts and its
+failures are matched by real location, and the project is migrated under the spelling the old
+state.json used for it, the one it names, else the one whose server keys it holds, so its old
+switches are found. A recorded file is never migrated
 again, so a user's later changes, toggles included, are never undone by the old state. Limit: a
 file in the old format restored after its migration (absent at the first launch, or an old copy
 brought back by a git pull or a dotfiles checkout) loads as it is, with its servers on, and its

@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadMcpRuntimeConfig } from '../../config/mcp-runtime-config'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import { mcpFileMigrationFailure } from '../migration-health'
+import { mcpFileMigrationFailure, recordMcpFileMigrationOutcome } from '../migration-health'
 import { memoryFs, NOW } from './migration-fixtures'
 
 let root: string
@@ -57,5 +57,17 @@ describe('an OpenWaggle MCP file whose migration failed', () => {
     ])
     // Its servers are unknown, not removed: the state read compares none of them.
     expect(config.merged.incomplete).toBe(true)
+  })
+
+  it('is the same file whichever spelling of its folder reaches it', () => {
+    const real = path.join(root, 'real')
+    mkdirSync(path.join(real, '.openwaggle'), { recursive: true })
+    symlinkSync(real, path.join(root, 'linked'))
+    const linkedFile = path.join(root, 'linked', '.openwaggle', 'mcp.json')
+
+    recordMcpFileMigrationOutcome(linkedFile, 'EACCES')
+    expect(mcpFileMigrationFailure(path.join(real, '.openwaggle', 'mcp.json'))).toBe('EACCES')
+    recordMcpFileMigrationOutcome(path.join(real, '.openwaggle', 'mcp.json'))
+    expect(mcpFileMigrationFailure(linkedFile)).toBeUndefined()
   })
 })

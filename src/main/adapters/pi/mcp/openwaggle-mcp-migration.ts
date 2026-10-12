@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
 import { McpVaultError } from '../../../ports/mcp-errors'
+import { realLocation } from '../../mcp/config/mcp-config-files'
 import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
 import { keepMcpFileOutOfGit } from '../../mcp/migration/git-exclude'
 import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
@@ -118,7 +119,8 @@ function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string 
   const projectPath = requestedProjectPath?.trim()
     ? normalizeLegacyProjectPath(requestedProjectPath)
     : null
-  const key = `${part}:${projectPath ?? ''}`
+  // By real folder: a symbolic link's spelling and the real one are the same project.
+  const key = `${part}:${projectPath === null ? '' : realLocation(projectPath)}`
   const previous = migrations.get(key)
   const retry =
     previous?.failedAt !== undefined &&

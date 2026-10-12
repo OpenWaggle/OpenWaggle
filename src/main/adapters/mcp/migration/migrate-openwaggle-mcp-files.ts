@@ -23,20 +23,13 @@ import {
 import { reportHomeFolderProjectState } from './home-project-state'
 import { contentHash } from './json-document'
 import { legacyServerRecords } from './legacy-server-names'
-import {
-  type LegacyStateFile,
-  legacyStateProjects,
-  normalizeLegacyProjectPath,
-  parseLegacyState,
-} from './legacy-state'
+import { legacyStateProjects, normalizeLegacyProjectPath, parseLegacyState } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
 import { recordMcpFileMigrationOutcome } from './migration-health'
 import {
   defaultPiAgentDir,
   globalMcpPaths,
   isGlobalOpenWaggleMcpFile,
-  isInside,
-  managedWorktreesRoot,
   migrationBackupPath,
   projectMcpPaths,
 } from './migration-paths'
@@ -46,6 +39,7 @@ import {
   type McpOAuthMigrationSink,
   migrateLegacyOAuthStates,
 } from './oauth-state-migration'
+import { keepsEnablement, migrationProjects } from './project-spellings'
 import {
   type McpSessionSwitchMigrationSink,
   migrateLegacySessionSwitches,
@@ -208,20 +202,6 @@ async function legacyProjects(
   return unique
 }
 
-/**
- * The projects whose files are migrated. A managed worktree (`~/.openwaggle/worktrees/…`) is never
- * one, even when the old state names it: a new `.openwaggle/mcp.json` there would be an untracked
- * file in the Session's checkout, and Git would then refuse to remove it when the Session is deleted.
- */
-function knownProjects(input: MigrateOpenWaggleMcpFilesInput, state: LegacyStateFile) {
-  const worktrees = managedWorktreesRoot(input.homeDir)
-  const projects = [...input.projectPaths, ...legacyStateProjects(state)]
-    .filter((projectPath) => projectPath.trim().length > 0)
-    .map(normalizeLegacyProjectPath)
-    .filter((projectPath) => !isInside(projectPath, worktrees))
-  return [...new Set(projects)]
-}
-
 /** Run the migration for the global file and every known project. Safe to call repeatedly. */
 export async function migrateOpenWaggleMcpFiles(
   input: MigrateOpenWaggleMcpFilesInput,
@@ -252,7 +232,7 @@ export async function migrateOpenWaggleMcpFiles(
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
-  const projects = knownProjects(input, state)
+  const projects = await migrationProjects(input, state, sources)
   // Read before the files are rewritten, and saved with their records.
   const legacy = await legacyServerRecords({ sources, state, projects })
   record.noteLegacyServerNames(legacy.names)
@@ -274,7 +254,7 @@ export async function migrateOpenWaggleMcpFiles(
           sources,
           state,
           projectPath,
-          preserveEnablement: kept?.includes(projectPath) === true,
+          preserveEnablement: keepsEnablement(kept, projectPath),
           logger,
         })
         if (reported) await record.recordHomeFolderNotice(projectPath)
@@ -290,7 +270,7 @@ export async function migrateOpenWaggleMcpFiles(
             state,
             projectPath,
             original,
-            preserveEnablement: kept?.includes(projectPath) === true,
+            preserveEnablement: keepsEnablement(kept, projectPath),
           }),
       }),
     )

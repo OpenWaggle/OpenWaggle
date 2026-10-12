@@ -7,6 +7,7 @@
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { McpMigrationFs } from './migration-fs'
+import { sameMigrationLocation } from './project-spellings'
 
 /**
  * Bump only with a new migration step: a file recorded at an older version is
@@ -157,9 +158,13 @@ export class McpMigrationRecord {
     await this.persist()
   }
 
+  /** Recorded under this spelling, or another reaching the same file (a record of any build). */
   isFileMigrated(filePath: string) {
-    const record = this.files[filePath]
-    return record !== undefined && record.version >= MCP_FILE_MIGRATION_VERSION
+    const migrated = (key: string) => (this.files[key]?.version ?? 0) >= MCP_FILE_MIGRATION_VERSION
+    if (migrated(filePath)) return true
+    return Object.keys(this.files).some(
+      (key) => migrated(key) && sameMigrationLocation(key, filePath),
+    )
   }
 
   isOAuthHandled(key: string) {
