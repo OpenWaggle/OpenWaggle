@@ -114,6 +114,12 @@ export class SessionLifecyclePreparationError extends Data.TaggedError(
 )<{
   readonly operation: string
   readonly cause?: unknown
+  /**
+   * For a refusal a client can act on: its code, which a command error frame carries, and the
+   * sentence that says why, shown as it is.
+   */
+  readonly code?: string
+  readonly message?: string
 }> {}
 
 export class LocalSessionProfileRepositoryError extends Data.TaggedError(

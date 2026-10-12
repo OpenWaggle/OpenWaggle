@@ -109,6 +109,14 @@ describe('A Session OpenWaggle created', () => {
       const message = cause instanceof Error ? cause.message : ''
       expect(message).toMatch(CREATED_FILE_DELETED)
       expect(message).toMatch(new RegExp(`before ${action} it\\.$`))
+      // A client is told that sentence alone, as a refusal it can act on, not an internal error.
+      const { sessionCommandFailureMessage } = await import(
+        '../../../session-host/session-command-failure-message'
+      )
+      expect(fork._tag === 'Left' ? fork.left : undefined).toMatchObject({
+        code: 'pi_session_file_unusable',
+      })
+      expect(fork._tag === 'Left' ? sessionCommandFailureMessage(fork.left) : '').toBe(message)
       expect(existsSync(file)).toBe(false)
     },
   )

@@ -29,6 +29,7 @@ import {
   prepareLifecycleFork,
   recordPreparedSessionFile,
 } from './session-lifecycle-fork-preparation'
+import { lifecyclePreparationError } from './session-lifecycle-refusal'
 import {
   prepareLifecycleWorkspacePlan,
   projectPathForLifecycleCommand,
@@ -285,7 +286,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
           Effect.mapError((cause) =>
             cause instanceof SessionLifecyclePreparationError
               ? cause
-              : preparationError('prepare-session-lifecycle', cause),
+              : lifecyclePreparationError('prepare-session-lifecycle', cause),
           ),
         ),
       discard: ({ attempt }) =>
