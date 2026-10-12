@@ -7,10 +7,29 @@ import path from 'node:path'
 import { realLocation } from '../config/mcp-config-files'
 import { globalMcpPaths, projectMcpPaths } from './migration-paths'
 
-interface Failure {
+/**
+ * Why a migration failed. `content`: a file it reads cannot be (its JSON, a link into a missing
+ * folder), which lasts until the user fixes it. `wait`: something it waited for did not answer in
+ * time (another process's lock), which passes by itself.
+ */
+export type McpMigrationFailureCause = 'content' | 'wait'
+
+export interface McpMigrationFailureDetails {
+  readonly cause?: McpMigrationFailureCause
+  /** The file to fix for a `content` failure, when it is not the migrated file itself. */
+  readonly source?: string
+  /**
+   * Whether old on/off state is waiting to be applied (OpenWaggle had an MCP setup, or that is
+   * not decided yet). Without it, the migration only converts the format: nothing to undo.
+   */
+  readonly keepsLegacyState?: boolean
+}
+
+interface Failure extends Required<Omit<McpMigrationFailureDetails, 'source'>> {
   /** The file as it was spelled and where it led when it failed. */
   readonly spellings: ReadonlySet<string>
   readonly error: string
+  readonly source?: string
 }
 
 let failures: readonly Failure[] = []
@@ -35,22 +54,47 @@ function concerns(failure: Failure, spellings: ReadonlySet<string>) {
   return [...spellings].some((spelling) => failure.spellings.has(spelling))
 }
 
-/** The outcome of one file's migration: an error while it failed, nothing once it succeeded. */
-export function recordMcpFileMigrationOutcome(filePath: string, error?: string) {
+/**
+ * The outcome of one file's migration: an error while it failed, nothing once it succeeded. A
+ * failure is taken as a lasting one that keeps old state waiting unless said otherwise.
+ */
+export function recordMcpFileMigrationOutcome(
+  filePath: string,
+  error?: string,
+  details: McpMigrationFailureDetails = {},
+) {
   const spellings = spellingsOf(filePath)
   const others = failures.filter((failure) => !concerns(failure, spellings))
-  failures = error === undefined ? others : [...others, { spellings, error }]
+  if (error === undefined) {
+    failures = others
+    return
+  }
+  const failure: Failure = {
+    spellings,
+    error,
+    cause: details.cause ?? 'content',
+    keepsLegacyState: details.keepsLegacyState ?? true,
+    ...(details.source ? { source: details.source } : {}),
+  }
+  failures = [...others, failure]
+}
+
+function failureOf(filePath: string) {
+  const spellings = spellingsOf(filePath)
+  return failures.find((failure) => concerns(failure, spellings))
 }
 
 /** Why the file's last migration in this process failed, or undefined. */
 export function mcpFileMigrationFailure(filePath: string) {
-  const spellings = spellingsOf(filePath)
-  return failures.find((failure) => concerns(failure, spellings))?.error
+  return failureOf(filePath)?.error
 }
 
 export interface PendingMcpFileMigration {
   readonly path: string
   readonly error: string
+  readonly cause: McpMigrationFailureCause
+  readonly source?: string
+  readonly keepsLegacyState: boolean
 }
 
 /**
@@ -61,14 +105,19 @@ export interface PendingMcpFileMigration {
 export function pendingMcpFileMigration(
   homeDir: string,
   projectPath: string | null,
+  /** `global`: only the global file, for a write that changes only global files. */
+  scope: 'all' | 'global' = 'all',
 ): PendingMcpFileMigration | undefined {
   const files = [
     globalMcpPaths(homeDir).openwaggleGlobal,
-    ...(projectPath ? [projectMcpPaths(projectPath).openwaggle] : []),
+    ...(projectPath && scope === 'all' ? [projectMcpPaths(projectPath).openwaggle] : []),
   ]
   for (const filePath of files) {
-    const error = mcpFileMigrationFailure(filePath)
-    if (error !== undefined) return { path: filePath, error }
+    const failure = failureOf(filePath)
+    if (failure) {
+      const { spellings: _spellings, ...pending } = failure
+      return { path: filePath, ...pending }
+    }
   }
   return undefined
 }

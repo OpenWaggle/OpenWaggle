@@ -8,6 +8,7 @@ import {
 import { McpImportService } from '../../../ports/mcp-import-service'
 import { createFilesystemMcpConfigurationService } from '../../mcp/config/filesystem-mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
+import type { McpWriteScope } from '../../mcp/config/mcp-write-refusal'
 import {
   migrateBeforeEachCall,
   withRuntimeConfigErrors,
@@ -22,8 +23,8 @@ import { durableMcpProjectPaths, migrateOpenWaggleMcpFilesOnce } from './openwag
 let service: McpConfigurationServiceShape | undefined
 
 /** Writes wait while the scope's OpenWaggle file could not be migrated yet. */
-const pendingMigration = (projectPath: string | null) =>
-  pendingMcpFileMigration(homedir(), projectPath)
+const pendingMigration = (projectPath: string | null, scope: McpWriteScope) =>
+  pendingMcpFileMigration(homedir(), projectPath, scope)
 
 /**
  * The Host's one MCP configuration service, so a change saved by Pi's `/mcp` inside a Run and one

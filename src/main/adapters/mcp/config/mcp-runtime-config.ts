@@ -11,7 +11,7 @@ import type {
   McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
 import { McpVaultError } from '../../../ports/mcp-errors'
-import { mcpFileMigrationFailure } from '../migration/migration-health'
+import { mcpFileMigrationFailure, pendingMcpFileMigration } from '../migration/migration-health'
 import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
@@ -171,7 +171,9 @@ export function loadMcpMergedConfig(
 /**
  * The merge a Run connects with. An OpenWaggle file whose one-time migration failed is left out,
  * with an error saying so: it still has the old format, without the overrides that keep servers
- * the old OpenWaggle had off turned off, so loading it could connect them.
+ * the old OpenWaggle had off turned off, so loading it could connect them. While old on/off state
+ * waits to be applied, no server of the scope connects at all: the overrides the migration writes
+ * there also keep servers of Pi's files and `.mcp.json` off.
  */
 function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigFileReader) {
   const skipped: string[] = []
@@ -184,6 +186,17 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
     return false
   })
   const merged = mergeMcpConfigLayers(readMcpConfigLayers(files, reader))
+  const pending = pendingMcpFileMigration(roots.homeDir, roots.projectPath)
+  if (pending?.keepsLegacyState) {
+    const error = `MCP servers stay off until OpenWaggle has updated ${pending.path}: its one-time migration failed (${pending.error}).`
+    return {
+      ...merged,
+      servers: [],
+      orphanedOverrides: undefined,
+      errors: [error, ...skipped, ...merged.errors],
+      incomplete: true as const,
+    }
+  }
   if (skipped.length === 0) return merged
   return { ...merged, errors: [...skipped, ...merged.errors], incomplete: true as const }
 }

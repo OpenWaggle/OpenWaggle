@@ -70,7 +70,7 @@ async function runWithProcessFileLock<T>(
         if (!isLockContention(error)) throw error
         // A live holder keeps its lock fresh, so contention alone would wait forever.
         if (deadline !== undefined && Date.now() >= deadline) {
-          throw new Error(`${targetPath} is still held by another process.`, { cause: error })
+          throw new ProcessFileLockTimeoutError(targetPath, error)
         }
         const timeout = Math.min(
           LOCK_RETRY_MAX_TIMEOUT_MS,
@@ -86,6 +86,14 @@ async function runWithProcessFileLock<T>(
     return await operation()
   } finally {
     await release()
+  }
+}
+
+/** Another process kept the lock past the wait. */
+export class ProcessFileLockTimeoutError extends Error {
+  constructor(targetPath: string, cause: unknown) {
+    super(`${targetPath} is still held by another process.`, { cause })
+    this.name = 'ProcessFileLockTimeoutError'
   }
 }
 

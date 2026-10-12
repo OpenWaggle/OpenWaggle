@@ -1,18 +1,16 @@
 import { Effect } from 'effect'
-import {
+import type {
   McpConfigurationError,
-  type McpConfigurationScopeInput,
-  type McpConfigurationServiceShape,
+  McpConfigurationScopeInput,
+  McpConfigurationServiceShape,
 } from '../../../ports/mcp-configuration-service'
-import type { PendingMcpFileMigration } from '../migration/migration-health'
-
-/** Refuses a write while the scope's OpenWaggle file is not migrated yet. */
-export function migrationPendingError(pending: PendingMcpFileMigration) {
-  return new McpConfigurationError({
-    reason: 'io',
-    message: `MCP settings are still being updated, so nothing was changed; try again shortly. ${pending.path} could not be migrated yet: ${pending.error}`,
-  })
-}
+import {
+  fileWriteScope,
+  type McpWriteScope,
+  mcpWriteRefusal,
+  type PendingMcpMigrationLookup,
+  serverWriteScope,
+} from './mcp-write-refusal'
 
 /**
  * Runs the one-time ADR 0051 migration (global files plus the requested project) before every
@@ -30,7 +28,7 @@ export function migrateBeforeEachCall(
      */
     readonly skipReadsWhile?: () => boolean
     /** The scope's OpenWaggle file whose migration is still failing, if any. */
-    readonly pendingMigration?: (projectPath: string | null) => PendingMcpFileMigration | undefined
+    readonly pendingMigration?: PendingMcpMigrationLookup
   } = {},
 ): McpConfigurationServiceShape {
   function first<A, E>(
@@ -41,16 +39,26 @@ export function migrateBeforeEachCall(
       Effect.zipRight(Effect.suspend(call)),
     )
   }
-  /** A write, once the scope's files are migrated: one made before would be undone by it. */
+  /** A write, once the files it may change are migrated: one made before would be undone. */
   function write(
     input: McpConfigurationScopeInput,
+    scope: Effect.Effect<McpWriteScope, McpConfigurationError>,
     call: () => Effect.Effect<void, McpConfigurationError>,
   ) {
-    return first(input, () => {
-      const pending = options.pendingMigration?.(input.projectPath)
-      return pending ? Effect.fail(migrationPendingError(pending)) : call()
-    })
+    return first(input, () =>
+      Effect.flatMap(scope, (writeScope) => {
+        const refusal = mcpWriteRefusal(options.pendingMigration?.(input.projectPath, writeScope))
+        return refusal ? Effect.fail(refusal) : call()
+      }),
+    )
   }
+  /** Where changing the named server writes, from the current files. */
+  const serverScope = (input: McpConfigurationScopeInput & { readonly name: string }) =>
+    options.pendingMigration
+      ? Effect.map(service.getView(input), (view) =>
+          serverWriteScope(view.servers.find((server) => server.name === input.name)),
+        )
+      : Effect.succeed<McpWriteScope>('all')
   return {
     getView: (input) =>
       Effect.suspend(() =>
@@ -58,11 +66,22 @@ export function migrateBeforeEachCall(
           ? service.getView(input)
           : first(input, () => service.getView(input)),
       ),
-    setServerEnabled: (input) => write(input, () => service.setServerEnabled(input)),
-    setServerExposure: (input) => write(input, () => service.setServerExposure(input)),
-    addServer: (input) => write(input, () => service.addServer(input)),
-    removeServer: (input) => write(input, () => service.removeServer(input)),
-    removeOrphanedOverride: (input) => write(input, () => service.removeOrphanedOverride(input)),
+    setServerEnabled: (input) =>
+      write(input, input.target === 'project' ? Effect.succeed('all') : serverScope(input), () =>
+        service.setServerEnabled(input),
+      ),
+    setServerExposure: (input) =>
+      write(input, serverScope(input), () => service.setServerExposure(input)),
+    addServer: (input) =>
+      write(input, Effect.succeed(input.scope === 'global' ? 'global' : 'all'), () =>
+        service.addServer(input),
+      ),
+    // Removing a server also removes its orphaned overrides in project files.
+    removeServer: (input) => write(input, Effect.succeed('all'), () => service.removeServer(input)),
+    removeOrphanedOverride: (input) =>
+      write(input, Effect.succeed(fileWriteScope(input.fileId)), () =>
+        service.removeOrphanedOverride(input),
+      ),
     changed: (filePath) => service.changed(filePath),
     onChange: (listener) => service.onChange(listener),
   }

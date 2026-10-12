@@ -562,9 +562,17 @@ not loaded for a Run or an MCP App until a later run migrates it (`migration-hea
 has the old format, without the `enabled` overrides that keep old-off servers off. The error is
 shown in Settings > MCP and in the Run's MCP notice. That includes a run that could not take the
 migration lock within its wait: the files it has not recorded as migrated are gated the same way
-(`migration-gate.ts`). Meanwhile Settings, CLI and import writes in that scope are refused ("MCP
-settings are still being updated…", `pendingMcpFileMigration`), since the migration, once it
-succeeds, would apply the old on/off state over them. Unchanged copies of Pi entries are
+(`migration-gate.ts`), except a managed worktree's, which no run migrates. At Host start, after
+one such wait the scopes left are gated at once for the usual retry, not waited for in turn.
+While old on/off state waits to be applied (OpenWaggle had an MCP setup, or that is not decided
+yet), no server of the scope connects at all, fail-closed: the overrides the migration writes
+there also keep servers of Pi's files and `.mcp.json` off. Meanwhile writes that could be undone
+are refused (`mcp-write-refusal.ts`): Settings, the CLI, imports, and Pi's `/mcp` in a Run (only
+in Pi's TUI mode). A write that changes only global files checks only the global file. The
+refusal says "try again shortly" when the migration waited for a lock, and "Fix <file>" when a
+file it reads cannot be read; an unreadable state.json or migration.json is named as that file
+(`migration-start.ts`). On a fresh install there is no old state to apply, so nothing is
+refused. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
 or dropped. It also keeps every server as on or off as it was (`legacy-enablement.ts`): the old
 code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwaggle/mcp.json`, and

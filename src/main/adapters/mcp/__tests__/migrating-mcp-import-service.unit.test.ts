@@ -2,6 +2,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { migrateBeforeImports } from '../migrating-mcp-import-service'
+import type { PendingMcpFileMigration } from '../migration/migration-health'
 
 describe('MCP imports', () => {
   it("migrate OpenWaggle's files before previewing or applying against them", async () => {
@@ -59,9 +60,11 @@ describe('MCP imports', () => {
 
   it('refuse to apply while the migration of a file it may write is failing', async () => {
     const applied: string[] = []
-    let pending: { path: string; error: string } | undefined = {
+    let pending: PendingMcpFileMigration | undefined = {
       path: '/home/user/.openwaggle/mcp.json',
       error: 'the migration lock was busy',
+      cause: 'wait',
+      keepsLegacyState: true,
     }
     const service = migrateBeforeImports(
       {

@@ -49,7 +49,8 @@ function layer() {
     Layer.succeed(
       McpConfigurationService,
       migrateBeforeEachCall(service, migrate, {
-        pendingMigration: (projectPath) => pendingMcpFileMigration(homeDir, projectPath),
+        pendingMigration: (projectPath, scope) =>
+          pendingMcpFileMigration(homeDir, projectPath, scope),
       }),
     ),
     Layer.succeed(
@@ -119,7 +120,8 @@ describe('an MCP configuration write while the migration is failing', () => {
     })
 
     const refused = await Effect.runPromise(Effect.flip(Effect.provide(turnOn, layer())))
-    expect(refused.message).toContain('MCP settings are still being updated')
+    // A missing folder lasts until the user mounts or fixes it, so the refusal says what to fix.
+    expect(refused.message).toContain(`Fix ${path.join(project, '.openwaggle', 'mcp.json')}`)
 
     // Mounted again, with the old OpenWaggle file: the next call migrates it, then writes.
     write(path.join(dotfiles, 'mcp.json'), { mcpServers: {} })
@@ -130,6 +132,33 @@ describe('an MCP configuration write while the migration is failing', () => {
     // A Run's start migrates again and finds the file handled: the user's choice stays.
     const after = await run(getMcpConfigurationOperation({ projectPath: project }))
     expect(after.servers).toEqual([expect.objectContaining({ name: 'docs', enabled: true })])
+  })
+})
+
+describe("a global server's write from a project whose own file is not migrated yet", () => {
+  it('goes through: it changes only the global file, which is migrated', async () => {
+    const project = path.join(root, 'project')
+    mkdirSync(project, { recursive: true })
+    symlinkSync(path.join(root, 'unmounted'), path.join(project, '.openwaggle'))
+    const owGlobal = path.join(homeDir, '.openwaggle', 'mcp.json')
+    write(owGlobal, { mcpServers: { docs: { command: 'docs-mcp' } } })
+    write(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+      globalState: 'on',
+      servers: {},
+    })
+    const toggle = (target: 'server' | 'project') =>
+      setMcpServerEnabledOperation({ projectPath: project, name: 'docs', enabled: true, target })
+
+    await run(toggle('server'))
+    const projectOnly = await Effect.runPromise(
+      Effect.flip(Effect.provide(toggle('project'), layer())),
+    )
+
+    expect(JSON.parse(readFileSync(owGlobal, 'utf8')).mcpServers.docs).toEqual({
+      command: 'docs-mcp',
+    })
+    // A toggle for this project only would go into the file that is not migrated.
+    expect(projectOnly.message).toContain('Fix')
   })
 })
 
