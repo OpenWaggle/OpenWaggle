@@ -100,4 +100,15 @@ describe('Sessions CLI output contract', () => {
       )
     }
   })
+
+  it('reports a Session whose worktree is gone as a conflict', () => {
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError(
+          'session_worktree_missing',
+          "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
+        ),
+      ),
+    ).toBe('conflict')
+  })
 })

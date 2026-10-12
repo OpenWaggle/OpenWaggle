@@ -22,6 +22,7 @@ import {
   isWorktreeOf,
   releaseAppliedHandoffSeed,
 } from './session-worktree-birth-support'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from './session-worktree-missing'
 import {
   dispatchPendingSessionWorktreeSetup,
   type SessionWorktreeSetupDispatchOptions,
@@ -115,9 +116,7 @@ async function recoverRecordedWorktree(input: {
     sessionId: String(input.session.id),
     missingWorktreePath: input.existing,
   })
-  throw new Error(
-    "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
-  )
+  throw new Error(SESSION_WORKTREE_MISSING_MESSAGE)
 }
 
 function requireBirthableWorkspace(workspace: BoundWorkspaceResource) {

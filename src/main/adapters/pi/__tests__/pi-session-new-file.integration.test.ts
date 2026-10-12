@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import { type CreatedSessionWorkspace, createSession } from './pi-session-created.test-support'
 import { run, sessionDetail, setUpPiDiscoveryFixture } from './pi-session-discovery.test-support'
@@ -147,5 +148,18 @@ describe("A new Session's first Run", () => {
 
     expect(opened?.id).toBe(sessionId)
     expect(opened?.piSessionFileDeleted).toMatch(/the next message starts a new transcript/)
+    // Forking it is refused for a reason the user can fix, said as it is.
+    const { forkSession } = await import(
+      '../../../application/host-ui-session-lifecycle-operations'
+    )
+    const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
+    const fork = await run(
+      forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'before').pipe(Effect.either),
+    )
+    expect(fork._tag === 'Left' ? fork.left : undefined).toMatchObject({
+      code: 'session_worktree_missing',
+      message:
+        "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
+    })
   }, 180_000)
 })

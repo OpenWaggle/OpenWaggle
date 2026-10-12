@@ -14,6 +14,7 @@ import {
 } from './missing-session-file'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { newPiSessionDirectory, startRecordedPiSessionFile } from './recorded-session-file'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from './session-worktree-missing'
 import { onlyUsageAppendedAfter } from './usage-only-appends'
 
 /**
@@ -102,9 +103,7 @@ export function resolveSessionWorkingPath(session: SessionDetail): string {
   if (!worktreePath) return projectPath
   if (existsSync(worktreePath)) return worktreePath
 
-  throw new Error(
-    "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
-  )
+  throw new Error(SESSION_WORKTREE_MISSING_MESSAGE)
 }
 
 /**

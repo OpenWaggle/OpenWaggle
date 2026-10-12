@@ -88,6 +88,8 @@ const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
   // A Session whose Pi file cannot be used is refused until the file is back or a message
   // starts a new transcript.
   ['pi_session_file_unusable', 'conflict'],
+  // A worktree Session whose worktree is gone is refused until it is recreated.
+  ['session_worktree_missing', 'conflict'],
 ])
 
 export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind | undefined {
