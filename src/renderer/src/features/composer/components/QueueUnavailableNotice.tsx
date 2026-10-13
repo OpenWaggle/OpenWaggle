@@ -1,5 +1,6 @@
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 
 export function followUpQueueAnnouncement(input: {
@@ -16,8 +17,15 @@ export function followUpQueueAnnouncement(input: {
   return `${String(input.count)} Follow-up${plural} ${state}.`
 }
 
-export function QueueUnavailableNotice({ onRetry }: { readonly onRetry: () => Promise<unknown> }) {
+export function QueueUnavailableNotice({
+  error,
+  onRetry,
+}: {
+  readonly error: Error
+  readonly onRetry: () => Promise<unknown>
+}) {
   const [isRetrying, setIsRetrying] = useState(false)
+  const reason = ipcErrorMessage(error).trim()
 
   async function retry() {
     setIsRetrying(true)
@@ -36,6 +44,11 @@ export function QueueUnavailableNotice({ onRetry }: { readonly onRetry: () => Pr
         <div className="text-xs leading-normal text-text-tertiary">
           OpenWaggle could not load durable Follow-ups. Retry before assuming the queue is empty.
         </div>
+        {reason ? (
+          <div className="truncate text-xs leading-normal text-text-tertiary" title={reason}>
+            {reason}
+          </div>
+        ) : null}
       </div>
       <Button
         variant="unstyled"
