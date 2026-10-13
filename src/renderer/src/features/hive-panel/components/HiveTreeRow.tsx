@@ -8,6 +8,7 @@ import { SessionItemContextMenu } from '@/features/sidebar/components'
 import { usePinnedSessionsStore } from '@/features/sidebar/state'
 import { useUnarchiveSessionMutation } from '@/queries/archived-sessions'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
 import { type HiveTreeRow, hiveRowStateLabel } from '../lib/hive-tree-model'
 
@@ -217,6 +218,7 @@ function HiveRowMenu({
 }) {
   const actions = useHivePanelSessionActions()
   const unarchive = useUnarchiveSessionMutation()
+  const showToast = useUIStore((state) => state.showToast)
   if (actions === null) return null
   const { sessionId, session } = view
 
@@ -225,8 +227,10 @@ function HiveRowMenu({
     void unarchive
       .mutateAsync(sessionId)
       .then(() => useSessionStore.getState().loadSessions())
-      .catch(() => {
-        // A failed unarchive leaves the row where it is; the row keeps offering Unarchive.
+      .catch((error: unknown) => {
+        // The row stays archived and keeps offering Unarchive; say why it did not move.
+        const reason = error instanceof Error ? error.message : String(error)
+        showToast(`Unable to unarchive ${session.title}: ${reason}`, 'error')
       })
   }
   return (

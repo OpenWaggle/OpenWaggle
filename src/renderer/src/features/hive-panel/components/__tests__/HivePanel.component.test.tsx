@@ -3,9 +3,11 @@ import type { SessionLineageSummary, SessionSummary } from '@shared/types/sessio
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSidebarSessionActions } from '@/features/sidebar/lib'
+import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
+const unarchiveSession = vi.hoisted(() => vi.fn())
 type NavigateOptions = {
   to: string
   params: Record<string, string>
@@ -13,7 +15,7 @@ type NavigateOptions = {
 }
 const useNavigate = vi.hoisted(() => vi.fn<(options: NavigateOptions) => Promise<unknown>>())
 
-vi.mock('@/shared/lib/ipc', () => ({ api: { listHiveTreeSessionCatalogPage } }))
+vi.mock('@/shared/lib/ipc', () => ({ api: { listHiveTreeSessionCatalogPage, unarchiveSession } }))
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useNavigate: () => useNavigate,
@@ -256,6 +258,41 @@ describe('HivePanel', () => {
     expect(await screen.findByRole('button', { name: 'Unarchive session' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive session' })).toBeNull()
 
+    registerSidebarSessionActions(null)
+  })
+
+  it('explains a refused Unarchive and keeps the row archived', async () => {
+    unarchiveSession.mockRejectedValue(new Error('Host unavailable'))
+    listHiveTreeSessionCatalogPage.mockResolvedValue(
+      hivePage([
+        summary('archived', {
+          archived: true,
+          lineage: { ...workerLineage, delegationState: 'accepted' },
+        }),
+      ]),
+    )
+    registerSidebarSessionActions({
+      select: vi.fn(),
+      delete: vi.fn(),
+      archive: vi.fn(),
+      markUnread: vi.fn(),
+      clone: vi.fn(),
+      togglePin: vi.fn(),
+    })
+    renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived · 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open session actions for archived' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unarchive session' }))
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toMatchObject({
+        message: 'Unable to unarchive archived: Host unavailable',
+        variant: 'error',
+      }),
+    )
+    expect(unarchiveSession).toHaveBeenCalledWith(SessionId('archived'))
+    expect(screen.getByRole('button', { name: 'Archived · 1' })).toBeInTheDocument()
     registerSidebarSessionActions(null)
   })
 

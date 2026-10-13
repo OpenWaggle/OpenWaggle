@@ -43,7 +43,6 @@ export interface ComposerSectionParams {
   readonly handleCloseForkSelector: () => void
   readonly handleSelectForkTarget: (target: SessionForkTarget) => void
   readonly handleCloneToNewSession: () => void
-  readonly handleNavigateSession: (sessionId: SessionId) => void
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSetAuthorizationMode: (
@@ -83,7 +82,6 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloseForkSelector,
     handleSelectForkTarget,
     handleCloneToNewSession,
-    handleNavigateSession,
     handleOpenProject,
     handleSelectProjectPath,
     handleSetAuthorizationMode,
@@ -121,7 +119,6 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onCloseForkSelector: handleCloseForkSelector,
     onSelectForkTarget: handleSelectForkTarget,
     onCloneToNewSession: handleCloneToNewSession,
-    onNavigateSession: handleNavigateSession,
     onOpenProject: handleOpenProject,
     onSelectProjectPath: handleSelectProjectPath,
     onSetAuthorizationMode: handleSetAuthorizationMode,

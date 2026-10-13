@@ -67,7 +67,10 @@ export function hiveTreeMembers(
   return pages?.flatMap((page) => page.members) ?? []
 }
 
-/** Whether any live member, on any page, needs the user; read from the newest page's total. */
+/**
+ * Whether any live member, on any page, needs the user. Every page carries the Hive-wide total
+ * as of its own read; the last page is the most recently read, so its total is the freshest.
+ */
 export function hiveTreeNeedsAttention(pages: readonly HiveTreePage[] | undefined): boolean {
   return (pages?.at(-1)?.attentionCount ?? 0) > 0
 }
