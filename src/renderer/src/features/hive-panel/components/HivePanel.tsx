@@ -93,6 +93,8 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
           currentSessionId={sessionId}
         />
         <HiveArchivedGroup
+          // Its open state belongs to one Hive: moving within the Hive keeps it, another resets it.
+          key={String(model.root?.id ?? '')}
           rows={model.groups.archived}
           onOpen={openSession}
           currentSessionId={sessionId}

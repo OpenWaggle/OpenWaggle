@@ -159,7 +159,7 @@ export function useSidebarState() {
   }).filter((row) => visibleSessionIds.has(String(row.session.id)))
   /*
    * Workers live in the Hive panel (ADR 0050): an unpinned Worker is hidden from its project
-   * group, but a status filter or search that matches one lists it flat, naming its Queen.
+   * group, but a status filter or search that matches one lists it flat, naming its parent.
    */
   const narrowed = !remoteSessions.active && (filterState !== null || normalizedQuery !== '')
   const sessionGroups = buildSidebarProjectGroups({
