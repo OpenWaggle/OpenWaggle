@@ -20,6 +20,7 @@ import { SessionControlAttachmentService } from '../ports/session-control-attach
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 import {
   preserveOutcomeAfterAttachmentCleanup,
+  releaseSessionAttachmentTransitionWhile,
   releaseSessionControlAttachments,
 } from './session-attachment-cleanup'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
@@ -90,17 +91,25 @@ function completeClaimedPromotion(input: {
     const steering =
       attachments._tag === 'Left'
         ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
-        : yield* AgentSteeringService.pipe(
-            Effect.flatMap((service) =>
-              service.steer(
-                promotedSteeringInput(
-                  input.expectedRunId,
-                  input.followUpId,
-                  input.intent,
-                  attachments.right,
+        : yield* releaseSessionAttachmentTransitionWhile({
+            // Durable delivery resolves only once Pi incorporates the steer at its next turn
+            // boundary, which can be minutes into a tool call. The pending promotion already
+            // reserves the queue (`follow_up_reserved`), and its attachments stay referenced by
+            // the queued item until it completes, so other Session changes need not wait.
+            sessionId: input.operation.request.command.sessionId,
+            effect: AgentSteeringService.pipe(
+              Effect.flatMap((service) =>
+                service.steer(
+                  promotedSteeringInput(
+                    input.expectedRunId,
+                    input.followUpId,
+                    input.intent,
+                    attachments.right,
+                  ),
                 ),
               ),
             ),
+          }).pipe(
             Effect.catchAll(() =>
               Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
             ),
