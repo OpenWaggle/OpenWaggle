@@ -1565,6 +1565,40 @@ can still deadlock. GUI/CLI `interrupt` now waits at most `RUN_INTERRUPTION_SETT
 for settlement and then answers `interruption-requested`. The wait must be marked
 `Effect.interruptible`, or the dispatcher's uninterruptible region makes the timeout wait too.
 
+### Session Host stalls had measurable sources: unindexed foreign keys and leaked abort listeners (October 2026)
+
+A live CPU profile of the packaged Host (`kill -USR1 <session-host pid>` opens the inspector on
+127.0.0.1:9229, since no Electron fuse disables it; record with `Profiler.start/stop` over the CDP
+WebSocket and close it again with `inspector.close()`) found the multi-second stalls the earlier
+investigation could not reproduce. The two longest (3.9 s and 2.9 s) were single synchronous
+better-sqlite3 statements during `sessions:delete`. `session_nodes.parent_id` is a self-referencing
+`ON DELETE CASCADE` key with no index, so every node delete scanned all of `session_nodes` (750 MB,
+182k rows in a 1.2 GB user database): about 170 ms per node, 160 s for a 770-node Session, and the
+same per node that snapshot reconciliation drops during a Run. 31 other foreign-key child columns
+had no index either; migration 64 (`session-host-foreign-key-indexes`) adds them all, where the
+table exists, and `database-foreign-key-indexes.integration.test.ts` fails on any new unindexed
+foreign key. The same cascade recursed once per transcript depth, so a Session deeper than about
+1000 nodes (34 in that database) could not be deleted at all ("too many levels of trigger
+recursion", surfaced as "related durable state still depends on it"); `deleteSessionRow` detaches
+`parent_id` first.
+
+The other hot spot was Effect's `runPromise(effect, { signal })`, which adds a `{ once: true }`
+abort listener and never removes it. A Session `wait` re-resolves its caller on every target event
+(streaming deltas included) with one long-lived signal, so listeners piled up and Node's
+`addEventListener` duplicate scan made each add slower (40,000 adds took 36 s). In a 20-minute
+profile it cost 11.7 s. Use `runEffectWithAbortSignal` (`src/main/utils/`) whenever the signal can
+outlive the run. A promotion also held the Session's attachment transition while its steer waited
+for durable delivery, which lasts until Pi's next turn boundary, so queue changes waited minutes
+(a promote 259 s, a follow-up 214 s); `releaseSessionAttachmentTransitionWhile` steps aside for
+that wait, which is safe because a pending promotion durably reserves the queue
+(`follow_up_reserved`). The renderer's Follow-up queue read used `staleTime: Infinity` with the
+app default `retry: false`, so one read that timed out during a stall kept "Follow-up queue
+unavailable" up until a manual Retry; it now retries and re-reads every 5 s while failing.
+Remaining Host CPU in that profile came from Pi's synchronous skill and extension resource scans
+(`loadSkills`, `collectSkillEntries`, jiti), spread out rather than one long stall. An earlier
+4.4-hour Host silence (desktop heartbeat failing every 5 s, no Host log lines, no crash report,
+machine awake) stayed unexplained.
+
 ## Website documentation routing
 
 The user guide starts at `/docs/getting-started/first-run` with the label **Get started**; `/docs` redirects there. `website/src/data/docs-nav.ts` separates user navigation from developer/package references without moving existing content URLs. Page frontmatter still supplies section/order to the installed-docs generator, independently of the website sidebar.

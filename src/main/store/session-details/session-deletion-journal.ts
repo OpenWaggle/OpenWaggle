@@ -5,6 +5,7 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
+import { assertSessionDeleteSatisfiesForeignKeys, deleteSessionRow } from './session-row-deletion'
 
 export type SessionDeletionPhase =
   | 'prepared'
@@ -122,21 +123,6 @@ function assertSessionHasNoWorkers(sql: SqlClient.SqlClient, id: SessionId) {
   })
 }
 
-function assertSessionDeleteSatisfiesForeignKeys(sql: SqlClient.SqlClient, id: SessionId) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe('SAVEPOINT session_deletion_preflight')
-    const deletion = yield* Effect.either(sql`DELETE FROM sessions WHERE id = ${id}`)
-    yield* sql.unsafe('ROLLBACK TO SAVEPOINT session_deletion_preflight')
-    yield* sql.unsafe('RELEASE SAVEPOINT session_deletion_preflight')
-    if (deletion._tag === 'Left') {
-      throw new Error(
-        'Session deletion was refused because related durable state still depends on it.',
-        { cause: deletion.left },
-      )
-    }
-  })
-}
-
 /** `transcriptFile` stands in for a Pi file the Session never recorded, for cleanup to find. */
 export async function prepareSessionDeletion(id: SessionId, transcriptFile?: string | null) {
   return runStoreEffect(
@@ -205,7 +191,7 @@ export async function commitSessionDeletion(id: SessionId): Promise<SessionDelet
           const bindings = yield* sql<{ readonly workspace_id: string }>`
             SELECT workspace_id FROM session_workspace_bindings WHERE session_id = ${id} LIMIT 1
           `
-          yield* sql`DELETE FROM sessions WHERE id = ${id}`
+          yield* deleteSessionRow(sql, id)
           const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
           if (workspaceId) {
             yield* sql`

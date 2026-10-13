@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import type { DesktopFenceRepositoryShape } from '../ports/desktop-fence-repository'
 import type { DesktopOwnerRepositoryShape } from '../ports/desktop-owner-repository'
 import type { DesktopServiceBrokerShape } from '../ports/desktop-service-broker'
+import { runEffectWithAbortSignal } from '../utils/run-effect-with-abort-signal'
 import { DesktopServiceCommandQueue } from './desktop-service-command-queue'
 import { desktopUnavailableError } from './desktop-service-errors'
 import { DesktopServiceFences, isDesktopNativeFree } from './desktop-service-fences'
@@ -56,7 +57,7 @@ export function makeDesktopServiceBroker(input: {
         throw desktopUnavailableError()
       // Durable active fence predates this proof; any subsequent GUI registration must
       // restore that fence before opening native admission. Never infer proof from TTL.
-      return { result: Effect.runPromise(input.offlineExecute(command), { signal }) }
+      return { result: runEffectWithAbortSignal(input.offlineExecute(command), signal) }
     })
     return admitted.result
   }

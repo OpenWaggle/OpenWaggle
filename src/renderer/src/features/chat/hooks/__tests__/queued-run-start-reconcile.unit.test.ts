@@ -90,5 +90,7 @@ describe('reconcileQueuedRunStarts after a Session Host resync', () => {
     await reconcileQueuedRunStarts(queryClient)
 
     expect(marked(IDLE)).toBe('run-1')
+    // A resync reconciles at once; it does not wait out the queue dock's read retries.
+    expect(querySessionControl).toHaveBeenCalledOnce()
   })
 })
