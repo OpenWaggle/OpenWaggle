@@ -17,6 +17,8 @@ import type { HiveSession } from './session-hive-contract'
 export interface HiveTreePage {
   readonly root: HiveSession | null
   readonly members: readonly HiveSession[]
+  /** Members across every page whose Delegation needs the user; each page reports the total. */
+  readonly attentionCount: number
   readonly nextCursor?: string
 }
 
@@ -63,6 +65,11 @@ export function hiveTreeMembers(
   pages: readonly HiveTreePage[] | undefined,
 ): readonly HiveSession[] {
   return pages?.flatMap((page) => page.members) ?? []
+}
+
+/** Whether any live member, on any page, needs the user; read from the newest page's total. */
+export function hiveTreeNeedsAttention(pages: readonly HiveTreePage[] | undefined): boolean {
+  return (pages?.at(-1)?.attentionCount ?? 0) > 0
 }
 
 export function hiveTreeRoot(pages: readonly HiveTreePage[] | undefined): HiveSession | null {

@@ -61,7 +61,7 @@ const workerLineage: SessionLineageSummary = {
 }
 
 function hivePage(members: readonly SessionSummary[], nextCursor?: string) {
-  return { root: queen, members, ...(nextCursor ? { nextCursor } : {}) }
+  return { root: queen, members, attentionCount: 0, ...(nextCursor ? { nextCursor } : {}) }
 }
 
 describe('HivePanel', () => {
@@ -117,6 +117,7 @@ describe('HivePanel', () => {
     listHiveTreeSessionCatalogPage.mockResolvedValue({
       root: summary('queen', { lineage: undefined }),
       members: [summary('active', { lineage: { ...workerLineage, delegationState: 'working' } })],
+      attentionCount: 0,
     })
     renderWithQueryClient(<HivePanel sessionId="elsewhere" onClose={vi.fn()} />)
 
@@ -184,6 +185,37 @@ describe('HivePanel', () => {
     expect(
       await screen.findByRole('button', { name: /Open Worker Session: two/ }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps loaded rows and retries only the page that failed', async () => {
+    listHiveTreeSessionCatalogPage
+      .mockResolvedValueOnce(hivePage([summary('one')], 'cursor-1'))
+      .mockRejectedValueOnce(new Error('Host unavailable'))
+      .mockResolvedValueOnce(hivePage([summary('two')]))
+    renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more Workers' }))
+    const retry = await screen.findByRole('button', {
+      name: 'Could not load more Workers \u2014 Retry',
+    })
+    // The first page stays, with no initial-load alert competing with the page retry.
+    expect(screen.getByRole('button', { name: /Open Worker Session: one/ })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(retry)
+    expect(
+      await screen.findByRole('button', { name: /Open Worker Session: two/ }),
+    ).toBeInTheDocument()
+    expect(listHiveTreeSessionCatalogPage).toHaveBeenLastCalledWith(queen.id, 50, 'cursor-1')
+  })
+
+  it('marks the Queen row current and says when the Hive has no Workers', async () => {
+    listHiveTreeSessionCatalogPage.mockResolvedValue(hivePage([]))
+    renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: /Open Queen Session: queen/ }),
+    ).toHaveAttribute('aria-current', 'true')
+    expect(await screen.findByText('No Workers yet.')).toBeInTheDocument()
   })
 
   it('offers the sidebar session menu, with Unarchive for an archived row', async () => {

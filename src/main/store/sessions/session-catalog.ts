@@ -227,7 +227,7 @@ export async function listHiveTreeSessionCatalogPage(
         WHERE sessions.id = ${sessionId} LIMIT 1
       `
       const rootId = roots[0]?.root_id
-      if (!rootId) return { root: null, members: [] }
+      if (!rootId) return { root: null, members: [], attentionCount: 0 }
       const rootRows = yield* loadSessionRowsById(sql, [rootId])
       // Hydrated like every member, so the root carries its lineage (role, Worker counts).
       const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
@@ -243,9 +243,19 @@ export async function listHiveTreeSessionCatalogPage(
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
       `
       const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
+      const attention = yield* sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM sessions
+        JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
+        WHERE live.hive_root_session_id = ${rootId}
+          AND sessions.id != ${rootId}
+          AND sessions.archived = 0
+          AND delegation_contracts.state IN (${'needs_attention'}, ${'revision_requested'})
+      `
       return {
         root,
         members: memberPage.sessions,
+        attentionCount: attention[0]?.count ?? 0,
         ...(memberPage.nextCursor ? { nextCursor: memberPage.nextCursor } : {}),
       }
     }),

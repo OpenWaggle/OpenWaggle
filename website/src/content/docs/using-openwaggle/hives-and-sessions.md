@@ -9,13 +9,13 @@ Use a Hive when a task has parts that can be assigned to independent agents. For
 
 A Hive is a family of sessions. The session that starts it is the **Queen**; its descendants are **Workers**. These names describe lineage, not blanket authority. A Worker can create more Workers when permitted, and the Queen does not automatically gain permission to control every session.
 
-Each Worker is a saved, independent session with its own transcript, active run, message queue, model settings, and workspace. It can continue after the Queen's current run ends. Workers appear in the normal sidebar. The header shows the Hive role and optional [agent definition](/docs/extending/agent-definitions).
+Each Worker is a saved, independent session with its own transcript, active run, message queue, model settings, and workspace. It can continue after the Queen's current run ends. Workers live in the **Hive** panel, a built-in Right panel surface, rather than the left sidebar. The header shows the Hive role and optional [agent definition](/docs/extending/agent-definitions).
 
 For two agents taking sequential turns in the *same* conversation, use [Waggle Mode](/docs/using-openwaggle/waggle-mode) instead.
 
-![A Queen Session coordinating three Worker Sessions in the OpenWaggle sidebar and Session Summary](/screenshots/hive-sessions.png)
+![A Queen Session in the sidebar with its Hive listed in the Hive panel on the right](/screenshots/hive-sessions.png)
 
-_The Queen and all three Workers remain ordinary Sessions in the left sidebar. The Session Summary's Hive section shows Worker state and provides quick navigation._
+_The Queen stays in the left sidebar; the Hive panel on the right lists the whole Hive from the Queen down, grouped by what each Worker needs._
 
 ## Try a Hive
 
@@ -28,11 +28,13 @@ Do not edit files or commit anything. Give each Worker the relevant paths.
 Review their findings here and identify which claims are supported by code or tests.
 ```
 
-The current Session becomes the Queen. OpenWaggle creates each Worker as a durable Session, adds it to the normal sidebar, and keeps its Run active when you navigate elsewhere. Workers report results to their parent agent. The Queen reviews those reports and returns one combined answer in the original Session.
+The current Session becomes the Queen. OpenWaggle creates each Worker as a durable Session, lists it in the Hive panel, and keeps its Run active when you navigate elsewhere. Workers report results to their parent agent. The Queen reviews those reports and returns one combined answer in the original Session.
 
 You can keep working in the Queen Session while Workers run. The Hive section in Session Summary shows which direct Workers are active and which have finished; it is a navigation and status view, not a separate approval queue. If a Worker needs a correction, tell the Queen what to change. The parent agent can request a revision of that Worker's submission. You can also open any Worker Session and talk to it directly.
 
-Click a Worker in the sidebar or the Session Summary's Hive section to inspect its full transcript. In a Worker Session, the same section links back to its immediate parent. Collapsing the section hides these shortcuts without hiding or stopping any Session. The Summary is available even before a newly spawned Worker has sent its first message.
+Open the **Hive** panel from the ChessQueen icon on the Panel rail (or **Open in Hive panel** in the Session Summary's Hive row). It is available for any Session in a Hive and lists every Session of that Hive from its Queen down, at any depth, as a table of **Session**, **Workspace** and **State**, grouped into **Needs you**, **Review**, **Active**, **Done** and a collapsed **Archived · n**. Workers below the first level are labelled `via <parent>`. The rail icon carries a dot while any Worker needs you. Click a row to open that Session; the panel stays open so you can move across the Hive. While a Worker is open, its Queen's sidebar row keeps a secondary highlight.
+
+Each row has the same ⋯ and right-click menu as a sidebar row. **Pin session** brings a Worker into the sidebar's Pinned section, where its second line names its project and Queen; **Unpin** returns it to the panel only. Status filters and search in the sidebar still find Workers, listing them flat with their Queen named. A Queen row in the sidebar reports hidden Workers that need input. The Summary is available even before a newly spawned Worker has sent its first message.
 
 The Queen's summary is a starting point for review, not a substitute for the Worker transcripts, changed files, or test results. Instructions such as "do not edit" are not access controls. Check each session's approval settings before assigning work, and remember that concurrent Workers can make separate billable provider calls.
 
@@ -100,11 +102,11 @@ Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable
 
 ### Automatic cleanup of finished Workers
 
-When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, reviewing its delegation yourself (accepting, cancelling, reopening, or asking for a revision), branching its conversation, and renaming, archiving, or restoring it, whether from the app or the CLI. Any Worker you have interacted with stays in the sidebar. A pinned Worker is not archived while it is pinned. Archiving is recorded as the parent agent's action, and nothing is deleted.
+When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, reviewing its delegation yourself (accepting, cancelling, reopening, or asking for a revision), branching its conversation, and renaming, archiving, or restoring it, whether from the app or the CLI. Any Worker you have interacted with stays out of cleanup; interacting does not add it to the sidebar, only pinning does. A pinned Worker is not archived while it is pinned. Archiving is recorded as the parent agent's action, and nothing is deleted.
 
 Reading a Worker's transcript is not interaction, but OpenWaggle leaves a Worker alone while it is open in the app, and while it has a terminal, a browser preview, or a running project service that archiving would stop. It checks again the next time a run in the Hive finishes.
 
-Archived Workers stay listed under **Archived** in the Session Summary's Hive section and in **Settings > Archived items**. Use the restore button beside an archived Worker in the Hive section, or **Restore** in Settings, to return it to the sidebar and continue the conversation. Work sent to a Worker that cleanup archived restores it in the same step, so it is back in the sidebar and out of the Hive section's **Archived** list while it runs. That covers a message, Follow-up, `start`, steer, or replace, and reopening or asking for a revision of its delegation, whether you do it or an agent does. The restore is recorded as whoever sent the work. OpenWaggle does not archive a Worker you restored again. A Worker an agent restored stays visible until its delegation is accepted or cancelled again; after that, cleanup can archive it once more. A Worker that you or an agent archived explicitly stays archived when it gets new work, and the parent agent can restore it with `unarchive`.
+Archived Workers stay listed under **Archived · n** in the Hive panel and in **Settings > Archived items**. Choose **Unarchive session** from an archived row's menu in the Hive panel, or **Restore** in Settings, to bring it back and continue the conversation. Work sent to a Worker that cleanup archived restores it in the same step, so it is back among the Hive panel's live rows and out of its **Archived** list while it runs. That covers a message, Follow-up, `start`, steer, or replace, and reopening or asking for a revision of its delegation, whether you do it or an agent does. The restore is recorded as whoever sent the work. OpenWaggle does not archive a Worker you restored again. A Worker an agent restored stays visible until its delegation is accepted or cancelled again; after that, cleanup can archive it once more. A Worker that you or an agent archived explicitly stays archived when it gets new work, and the parent agent can restore it with `unarchive`.
 
 ## How hosted agents coordinate
 
@@ -132,7 +134,7 @@ Keep a later instruction as a **Follow-up** when it should start after the curre
 
 ## External control and live UI updates
 
-The Session Host is the local process that owns session execution and saved state. The desktop app, CLI, MCP server, and native agent tool all use it. A CLI-created Worker therefore appears in the GUI sidebar, and queue, Run, request, delegation, and lineage changes update open windows through the Host event stream. If an event cursor is too old or the Host restarts, clients reload a canonical snapshot before continuing.
+The Session Host is the local process that owns session execution and saved state. The desktop app, CLI, MCP server, and native agent tool all use it. A CLI-created Worker therefore appears in the GUI's Hive panel, and queue, Run, request, delegation, and lineage changes update open windows through the Host event stream. If an event cursor is too old or the Host restarts, clients reload a canonical snapshot before continuing.
 
 An agent already running in OpenWaggle uses the native `sessions` tool directly rather than spawning the CLI. External coding agents use the [Sessions CLI](/docs/developer-workflow/sessions-cli) or the versioned `openwaggle_sessions` MCP tool.
 

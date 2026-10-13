@@ -112,6 +112,11 @@ export interface HiveSessionCatalogPage {
 export interface HiveTreeSessionCatalogPage {
   readonly root: SessionSummary | null
   readonly members: readonly SessionSummary[]
+  /**
+   * Live members, across every page, whose Delegation needs the user (`needs_attention` or
+   * `revision_requested`), so the rail dot is right however far the panel has paged.
+   */
+  readonly attentionCount: number
   readonly nextCursor?: string
 }
 

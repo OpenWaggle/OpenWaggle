@@ -97,20 +97,7 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
           onOpen={openSession}
           currentSessionId={sessionId}
         />
-        {query.hasNextPage ? (
-          <Button
-            variant="unstyled"
-            className="px-2 py-1 text-sm text-text-secondary"
-            disabled={query.isFetching}
-            onClick={() =>
-              void (query.isFetchNextPageError || !query.isError
-                ? query.fetchNextPage()
-                : query.refetch())
-            }
-          >
-            {query.isError ? 'Retry Hive' : 'Load more Workers'}
-          </Button>
-        ) : null}
+        <HiveLoadMore query={query} />
       </div>
     </section>
   )
@@ -169,8 +156,30 @@ function HivePanelHeader({
   )
 }
 
+/**
+ * Pages after the first: a failed page is retried here, in place, so the rows already shown stay
+ * and no second "Retry" competes with the initial-load alert.
+ */
+function HiveLoadMore({ query }: { readonly query: HiveTreeQuery }) {
+  if (!query.hasNextPage) return null
+  const failed = query.isFetchNextPageError
+  return (
+    <Button
+      variant="unstyled"
+      className={
+        failed ? 'px-2 py-1 text-sm text-warning' : 'px-2 py-1 text-sm text-text-secondary'
+      }
+      disabled={query.isFetching}
+      onClick={() => void query.fetchNextPage()}
+    >
+      {failed ? 'Could not load more Workers \u2014 Retry' : 'Load more Workers'}
+    </Button>
+  )
+}
+
+/** The initial load only: once rows are shown, a failure belongs to the page that failed. */
 function HiveTreeLoadState({ query }: { readonly query: HiveTreeQuery }) {
-  if (!query.isError) return null
+  if (!query.isError || query.data !== undefined) return null
   return (
     <div role="alert" className="px-2 py-2 text-sm text-text-secondary">
       <p>Unable to load this Hive.</p>

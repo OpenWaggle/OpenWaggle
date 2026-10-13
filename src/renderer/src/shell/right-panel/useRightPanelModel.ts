@@ -11,8 +11,7 @@ import { useProject, useSessionProjectPath, useSessions } from '@/features/sessi
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { terminalOwnerContext } from '@/features/terminal'
-import { hiveStateNeedsAttention } from '@/queries/session-hive-contract'
-import { hiveTreeMembers, sessionHiveTreeQueryOptions } from '@/queries/session-hive-tree'
+import { hiveTreeNeedsAttention, sessionHiveTreeQueryOptions } from '@/queries/session-hive-tree'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
@@ -60,11 +59,8 @@ function useHiveAttention(sessionId: string | null, enabled: boolean) {
     ...sessionHiveTreeQueryOptions(SessionId(sessionId ?? '')),
     enabled: enabled && sessionId !== null,
   })
-  if (!enabled) return false
-  return hiveTreeMembers(query.data?.pages).some(
-    (member) =>
-      member.archived !== true && hiveStateNeedsAttention(member.lineage?.delegationState),
-  )
+  // The Host counts the whole Hive, so Workers past the first page still light the dot.
+  return enabled && hiveTreeNeedsAttention(query.data?.pages)
 }
 
 export type RightPanelSurfaceGlyph =

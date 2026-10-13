@@ -148,9 +148,24 @@ describe('Hive tree catalog', () => {
       }),
     )
 
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // The older Worker, on the second page, needs the user.
+        yield* sql`
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (${'contract-first'}, ${queen.id}, ${first.id}, ${'needs_attention'}, ${1}, ${1}, ${1})
+        `
+      }),
+    )
+
     const page = await listHiveTreeSessionCatalogPage(queen.id, 1)
     expect(page.members.map((session) => session.id)).toEqual([second.id])
     expect(page.nextCursor).toBeDefined()
+    // The attention total covers the whole Hive, not just the page that was read.
+    expect(page.attentionCount).toBe(1)
 
     const next = await listHiveTreeSessionCatalogPage(queen.id, 1, page.nextCursor)
     expect(next.members.map((session) => session.id)).toEqual([first.id])
