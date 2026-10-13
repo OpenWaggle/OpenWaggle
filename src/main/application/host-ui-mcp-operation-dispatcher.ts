@@ -5,39 +5,39 @@ import {
   type HostBackedMcpGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import * as Effect from 'effect/Effect'
-import { authorizeMcpServerOperation } from './mcp-authorization-operation'
 import {
   callMcpAppToolOperation,
-  getMcpPromptOperation,
-  listMcpCapabilitiesOperation,
-  listMcpEventSubscriptionsOperation,
-  listMcpEventsOperation,
-  operateMcpTaskOperation,
+  listMcpAppCatalogOperation,
   readMcpResourceOperation,
-  reviewMcpRemoteSkillOperation,
-  setMcpEventSubscriptionOperation,
-} from './mcp-capability-operations'
+} from './mcp-app-operations'
 import {
   addMcpServerOperation,
   applyMcpImportsOperation,
-  doctorMcpOperation,
-  getMcpSettingsOperation,
-  installCatalogServerOperation,
-  listMcpSecretsOperation,
-  logoutMcpServerOperation,
-  logoutMcpServerRevision6Operation,
+  getMcpConfigurationOperation,
+  getMcpServerStatusesOperation,
+  inspectMcpServerOperation,
+  installMcpCatalogServerOperation,
   previewMcpImportsOperation,
-  removeMcpSecretOperation,
   removeMcpServerOperation,
-  setMcpProjectServerEnabledOperation,
-  setMcpScopeStateOperation,
-  setMcpSecretOperation,
   setMcpServerEnabledOperation,
-  setMcpServerTrustOperation,
-  writeMcpSourceConfigOperation,
-} from './mcp-management-operations'
-
-const LEGACY_MCP_LOGOUT_REVISION = 6
+  setMcpServerExposureOperation,
+  signInMcpServerOperation,
+  signOutMcpServerOperation,
+} from './mcp-configuration-operations'
+import {
+  getMcpRegistryServerOperation,
+  installMcpRegistryServerOperation,
+  searchMcpRegistryOperation,
+} from './mcp-registry-operations'
+import {
+  listMcpSecretsOperation,
+  removeMcpSecretOperation,
+  setMcpSecretOperation,
+} from './mcp-secret-operations'
+import {
+  getSessionMcpEnabledOperation,
+  setSessionMcpEnabledOperation,
+} from './mcp-session-switch-operations'
 
 function invalid(message: string) {
   return Effect.fail(new Error(message))
@@ -45,13 +45,6 @@ function invalid(message: string) {
 
 function noInput<A, E, R>(args: readonly unknown[], operation: () => Effect.Effect<A, E, R>) {
   return args.length === 0 ? operation() : invalid('Expected 0 Host UI arguments.')
-}
-
-function optionalInput<A, E, R>(
-  args: readonly unknown[],
-  operation: (input?: unknown) => Effect.Effect<A, E, R>,
-) {
-  return args.length <= 1 ? operation(args[0]) : invalid('Expected 0 to 1 Host UI arguments.')
 }
 
 function oneInput<A, E, R>(
@@ -70,42 +63,30 @@ export function isMcpHostUiChannel(
 export function dispatchMcpHostUiOperation(
   channel: HostBackedMcpGuiChannel,
   args: readonly unknown[],
-  negotiatedRevision?: number,
 ) {
   return match(channel)
-    .with('mcp:get-settings', () => optionalInput(args, getMcpSettingsOperation))
-    .with('mcp:set-scope-state', () => oneInput(args, setMcpScopeStateOperation))
+    .with('mcp:get-configuration', () => oneInput(args, getMcpConfigurationOperation))
     .with('mcp:set-server-enabled', () => oneInput(args, setMcpServerEnabledOperation))
-    .with('mcp:set-project-server-enabled', () =>
-      oneInput(args, setMcpProjectServerEnabledOperation),
-    )
-    .with('mcp:write-source-config', () => oneInput(args, writeMcpSourceConfigOperation))
-    .with('mcp:set-server-trust', () => oneInput(args, setMcpServerTrustOperation))
-    .with('mcp:remove-server', () => oneInput(args, removeMcpServerOperation))
-    .with('mcp:logout-server', () =>
-      negotiatedRevision === LEGACY_MCP_LOGOUT_REVISION
-        ? oneInput(args, logoutMcpServerRevision6Operation)
-        : oneInput(args, logoutMcpServerOperation),
-    )
-    .with('mcp:authorize-server', () => oneInput(args, authorizeMcpServerOperation))
+    .with('mcp:set-server-exposure', () => oneInput(args, setMcpServerExposureOperation))
     .with('mcp:add-server', () => oneInput(args, addMcpServerOperation))
+    .with('mcp:remove-server', () => oneInput(args, removeMcpServerOperation))
+    .with('mcp:install-catalog-server', () => oneInput(args, installMcpCatalogServerOperation))
+    .with('mcp:inspect-server', () => oneInput(args, inspectMcpServerOperation))
+    .with('mcp:get-server-statuses', () => oneInput(args, getMcpServerStatusesOperation))
+    .with('mcp:sign-in', () => oneInput(args, signInMcpServerOperation))
+    .with('mcp:sign-out', () => oneInput(args, signOutMcpServerOperation))
+    .with('mcp:get-session-enabled', () => oneInput(args, getSessionMcpEnabledOperation))
+    .with('mcp:set-session-enabled', () => oneInput(args, setSessionMcpEnabledOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))
     .with('mcp:apply-imports', () => oneInput(args, applyMcpImportsOperation))
-    .with('mcp:install-catalog-server', () => oneInput(args, installCatalogServerOperation))
-    .with('mcp:doctor', () => optionalInput(args, doctorMcpOperation))
+    .with('mcp:search-registry', () => oneInput(args, searchMcpRegistryOperation))
+    .with('mcp:get-registry-server', () => oneInput(args, getMcpRegistryServerOperation))
+    .with('mcp:install-registry-server', () => oneInput(args, installMcpRegistryServerOperation))
     .with('mcp:list-secrets', () => noInput(args, listMcpSecretsOperation))
     .with('mcp:set-secret', () => oneInput(args, setMcpSecretOperation))
     .with('mcp:remove-secret', () => oneInput(args, removeMcpSecretOperation))
-    .with('mcp:list-capabilities', () => oneInput(args, listMcpCapabilitiesOperation))
-    .with('mcp:get-prompt', () => oneInput(args, getMcpPromptOperation))
     .with('mcp:read-resource', () => oneInput(args, readMcpResourceOperation))
-    .with('mcp:review-remote-skill', () => oneInput(args, reviewMcpRemoteSkillOperation))
-    .with('mcp:operate-task', () => oneInput(args, operateMcpTaskOperation))
+    .with('mcp:list-app-catalog', () => oneInput(args, listMcpAppCatalogOperation))
     .with('mcp:call-app-tool', () => oneInput(args, callMcpAppToolOperation))
-    .with('mcp:set-event-subscription', () => oneInput(args, setMcpEventSubscriptionOperation))
-    .with('mcp:list-events', () => optionalInput(args, listMcpEventsOperation))
-    .with('mcp:list-event-subscriptions', () =>
-      optionalInput(args, listMcpEventSubscriptionsOperation),
-    )
     .exhaustive()
 }

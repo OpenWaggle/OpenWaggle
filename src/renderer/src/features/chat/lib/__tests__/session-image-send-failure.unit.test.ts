@@ -5,7 +5,10 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
 } from '../message-delivery'
-import { sessionImageSendFailureDisposition } from '../session-image-send-failure'
+import {
+  PI_SESSION_FILE_REFUSAL_NOTICE,
+  sessionImageSendFailureDisposition,
+} from '../session-image-send-failure'
 
 const sessionId = SessionId('existing-session')
 const createdSessionId = SessionId('created-session')
@@ -98,5 +101,17 @@ describe('Session image send failure ownership', () => {
         activeSessionId: null,
       }),
     ).toEqual({ kind: 'retain' })
+  })
+
+  it('restores a send refused for an unusable Pi file, with a toast instead of an error', () => {
+    const cause = new MessageNotDelivered(
+      'refused',
+      "This Session's Pi session file is unavailable (/p/s.jsonl): its folder is missing.",
+    )
+
+    expect(disposition({ cause })).toEqual({
+      kind: 'restore',
+      notice: PI_SESSION_FILE_REFUSAL_NOTICE,
+    })
   })
 })

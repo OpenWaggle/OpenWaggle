@@ -7,11 +7,11 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
+import { isSessionModelActionable } from '@/features/chat/lib'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
-import { isModelActionable } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -74,12 +74,11 @@ async function switchSessionBranch(
 ) {
   const targetSessionId = SessionId(sessionId)
   try {
-    const cached = useChatStore.getState().sessionById.get(targetSessionId)
-    const targetModel =
-      cached?.executionModel ??
-      (await api.getSessionDetail(targetSessionId))?.executionModel ??
-      deps.defaultModel
-    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, targetModel)) {
+    const detail =
+      useChatStore.getState().sessionById.get(targetSessionId) ??
+      (await api.getSessionDetail(targetSessionId))
+    const targetModel = detail?.executionModel ?? deps.defaultModel
+    if (!isSessionModelActionable(detail, targetModel)) {
       deps.showToast('Select a model before switching branches.')
       return
     }
@@ -101,7 +100,7 @@ async function switchSessionBranch(
       refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId)
     }
   } catch (error) {
-    deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
+    deps.showToast(sessionOperationFailureMessage('Failed to switch session branch', error))
   }
 }
 

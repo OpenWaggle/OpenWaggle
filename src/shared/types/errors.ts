@@ -19,6 +19,7 @@ export type AgentErrorCode =
   | 'persist-failed'
   | 'context-overflow'
   | 'runtime-package-manager-unavailable'
+  | 'pi-session-file-deleted'
   | 'unknown'
 
 export interface AgentErrorInfo {

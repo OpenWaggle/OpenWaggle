@@ -6,16 +6,15 @@ import { useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isSelectableModel, useProviderStore } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
-import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { findUserMessageNode } from '../lib/branch-from-message'
 import { setComposerTextValue } from '../lib/composer-text'
 import {
   currentConversationWorkspace,
   resolveCurrentConversationNode,
 } from '../lib/current-conversation-node'
+import { isSessionModelActionable } from '../lib/session-answered-by'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -70,7 +69,7 @@ async function forkNodeToNewSessionAction(
   nodeId: SessionNodeId,
 ) {
   if (!params.activeSessionId) return
-  if (!isModelActionable(params.model)) {
+  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
     params.showToast('Select a model before forking.')
     return
   }
@@ -88,7 +87,7 @@ async function forkNodeToNewSessionAction(
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, result.editorText ?? '')
   } catch (error) {
-    params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
+    params.showToast(sessionOperationFailureMessage('Failed to fork session', error))
   }
 }
 
@@ -98,7 +97,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     return
   }
 
-  if (!isModelActionable(params.model)) {
+  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
     params.showToast('Select a model before cloning.')
     return
   }
@@ -130,7 +129,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, '')
   } catch (error) {
-    params.showToast(`Failed to clone session: ${ipcErrorMessage(error)}`)
+    params.showToast(sessionOperationFailureMessage('Failed to clone session', error))
   }
 }
 
@@ -181,7 +180,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
     async forkMessageToNewSession(messageId: string) {
       const sessionId = params.activeSessionId
       if (!sessionId) return
-      if (!isModelActionable(params.model)) {
+      if (!isSessionModelActionable(sessionId, params.model)) {
         params.showToast('Select a model before forking.')
         return
       }
@@ -197,7 +196,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
         }
         await forkNodeToNewSessionAction(params, node.id)
       } catch (error) {
-        params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
+        params.showToast(sessionOperationFailureMessage('Failed to fork session', error))
       }
     },
     openForkSelector() {
@@ -221,18 +220,4 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       void forkNodeToNewSessionAction(params, target.entryId)
     },
   }
-}
-
-/**
- * The copy actions dispatch with the active session's resolved model; like the composer send
- * gate, they must refuse models the picker can no longer offer (disabled, pruned, unavailable).
- */
-function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
-  const { providerModels, catalogHydrated } = useProviderStore.getState()
-  return isSelectableModel(
-    providerModels,
-    usePreferencesStore.getState().settings,
-    model,
-    catalogHydrated,
-  )
 }

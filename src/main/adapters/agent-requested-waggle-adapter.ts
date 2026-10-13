@@ -23,6 +23,7 @@ import {
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import type { ProviderService } from '../ports/provider-service'
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionRepository } from '../ports/session-repository'
 import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
@@ -76,6 +77,7 @@ type RequestedWaggleDependencies =
   | ExtensionLifecycleRepository
   | ExtensionManagerService
   | ExtensionProjectOverridesRepository
+  | ProviderService
   | SessionProjectionRepository
   | SessionRepository
   | SessionResourceImageValidator

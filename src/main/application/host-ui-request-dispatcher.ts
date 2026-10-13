@@ -10,7 +10,11 @@ import {
   dispatchHostUiAgentDefinitionOperation,
   isHostUiAgentDefinitionChannel,
 } from './host-ui-agent-definition-dispatcher'
-import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
+import {
+  getHostUiAgentContextUsage,
+  listHostUiActiveActivities,
+  listHostUiAgentExtensionCommands,
+} from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
 import { dispatchHostUiExtensionOperation } from './host-ui-extension-dispatcher'
 import * as McpHostUi from './host-ui-mcp-operation-dispatcher'
@@ -122,7 +126,7 @@ function dispatchHostUiChannel(
     return dispatchHostUiSourceControlOperation(channel, args, negotiatedRevision)
   }
   if (McpHostUi.isMcpHostUiChannel(channel))
-    return McpHostUi.dispatchMcpHostUiOperation(channel, args, negotiatedRevision)
+    return McpHostUi.dispatchMcpHostUiOperation(channel, args)
   if (isSettingsChannel(channel)) {
     return dispatchSettingsOperation(channel, args)
   }
@@ -155,6 +159,13 @@ function dispatchHostUiChannel(
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* getHostUiAgentContextUsage(args[0], args[1])
+      }),
+    )
+    .with('agent:list-extension-commands', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
+        const [sessionId, model, projectPath] = args
+        return yield* listHostUiAgentExtensionCommands(sessionId, model, projectPath)
       }),
     )
     .with('providers:get-models', () =>

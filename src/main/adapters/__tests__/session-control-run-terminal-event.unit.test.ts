@@ -110,6 +110,7 @@ function runOnce() {
         sessionCapabilities: [],
         projectPath: '/tmp/project',
         identityContext: '',
+        runIdentityContext: '',
       },
       controller: new AbortController(),
       allowModelMultiAgent: false,

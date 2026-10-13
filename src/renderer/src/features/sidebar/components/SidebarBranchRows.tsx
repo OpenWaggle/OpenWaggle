@@ -29,11 +29,13 @@ interface BranchMenuController {
   readonly setBranchId: (branchId: string | null) => void
 }
 
-function DraftBranchRow({ sourceNodeId }: { readonly sourceNodeId: string }) {
+function DraftBranchRow({ sourceLabel }: { readonly sourceLabel: string | null }) {
   return (
     <div className="mx-2 flex h-7 items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
       <GitBranch className="size-3 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-xs">Draft branch from {sourceNodeId}</span>
+      <span className="min-w-0 flex-1 truncate text-xs" title={sourceLabel ?? undefined}>
+        {sourceLabel ? `Draft branch from “${sourceLabel}”` : 'Draft branch'}
+      </span>
     </div>
   )
 }
@@ -243,7 +245,7 @@ export function SidebarBranchRows({ sessionId, rows, actions }: SidebarBranchRow
     <div className="mb-1 space-y-0.5">
       {rows.map((row) =>
         row.type === 'draft' ? (
-          <DraftBranchRow key="draft" sourceNodeId={String(row.sourceNodeId)} />
+          <DraftBranchRow key="draft" sourceLabel={row.sourceLabel} />
         ) : (
           <SidebarBranchItem
             key={String(row.branch.id)}

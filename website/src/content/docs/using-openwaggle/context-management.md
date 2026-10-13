@@ -13,6 +13,10 @@ You usually do not need to manage this yourself. When a conversation gets long, 
 
 When there is enough space beside the message box, the context ring shows the percentage of the selected model's context window in use. The adjacent number is the window's token limit. Hover for usage details.
 
+With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that produced the latest response, because each real model has its own limit.
+
+The tooltip also shows the session's total tokens and cost, split by the real models that answered. Costs include model calls made from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage nobody can attribute to one model, such as script model calls and summaries, appears as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges; your provider's bill is the final word.
+
 Usage comes from the runtime's context-usage snapshot, not a live estimate of each new word. It may show `?` when usage is not yet known, including after compaction until the next valid response. If loading usage fails, the tooltip says **Context usage unavailable**. The meter reports usage; it is not a control.
 
 ## Manual compaction

@@ -36,8 +36,7 @@ describe('workspace owner handoff fence', () => {
       expect(firstListener).toHaveBeenCalledOnce()
       expect(lastListener).toHaveBeenCalledOnce()
       expect(report).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ errors: [error] }),
+        expect.stringContaining('"errors":["Error: persistent storage is full"]'),
       )
       const releaseNext = beginWorkspaceOwnerHandoff(
         'draft:/failed-reconcile',

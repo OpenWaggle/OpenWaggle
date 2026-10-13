@@ -7,7 +7,6 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const listArchivedSessions = vi.hoisted(() => vi.fn())
-const listMcpEventSubscriptions = vi.hoisted(() => vi.fn())
 const refreshStatus = vi.hoisted(() => vi.fn())
 const useGit = vi.hoisted(() => vi.fn())
 const useStackedGitActions = vi.hoisted(() => vi.fn())
@@ -17,7 +16,6 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources,
     listArchivedSessions,
-    listMcpEventSubscriptions,
   },
 }))
 
@@ -40,7 +38,6 @@ describe('Session Summary Git status race', () => {
   beforeEach(() => {
     listSessionResources.mockReset().mockResolvedValue([])
     listArchivedSessions.mockReset().mockResolvedValue([])
-    listMcpEventSubscriptions.mockReset().mockResolvedValue([])
     refreshStatus.mockReset().mockResolvedValue(undefined)
     useGit.mockReset().mockReturnValue({
       workingPath: WorkingPath('/project'),

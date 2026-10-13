@@ -1,0 +1,235 @@
+/**
+ * This build's encrypted MCP sign-in file (`oauth-states.json`): its format, decryption, atomic
+ * writes, the decoded-layer cache, and taking over the store every build shared before.
+ */
+import { randomUUID } from 'node:crypto'
+import {
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import path from 'node:path'
+import { isRecord } from '@shared/utils/validation'
+import type { McpOAuthEncryption, McpOAuthStateBackendOptions } from './mcp-oauth-state-backend'
+
+type States = Record<string, unknown>
+
+export interface OwnLayer {
+  states: States
+  /** Keys removed in OpenWaggle while Pi's file still has them, with the hash of Pi's value. */
+  tombstones: Record<string, string>
+}
+
+const STORE_VERSION = 1
+const FILE_MODE = 0o600
+const DIRECTORY_MODE = 0o700
+const JSON_INDENT = 2
+
+export function isMissing(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  )
+}
+
+/** The store is sealed by a key this process cannot use now: another build's, or a refused keychain. */
+class StoreDecryptError extends Error {}
+
+function decryptStore(encrypted: string, encryption: McpOAuthEncryption) {
+  try {
+    return encryption.decryptString(Buffer.from(encrypted, 'base64'))
+  } catch (error) {
+    throw new StoreDecryptError('OpenWaggle MCP sign-ins cannot be decrypted.', { cause: error })
+  }
+}
+
+function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer {
+  const file: unknown = JSON.parse(text)
+  if (!isRecord(file) || file.version !== STORE_VERSION || typeof file.encrypted !== 'string') {
+    throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
+  }
+  const layer: unknown = JSON.parse(decryptStore(file.encrypted, encryption))
+  if (!isRecord(layer)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
+  return {
+    states: isRecord(layer.states) ? { ...layer.states } : {},
+    tombstones: stringRecord(layer.tombstones),
+  }
+}
+
+/**
+ * A store that decrypts but cannot be parsed would make every sign-in read fail. It is moved
+ * aside, kept for recovery, and the store starts empty; Pi's own sign-ins still show. Logged once:
+ * the next read finds no file. A store that does not decrypt is never moved: see `readOwnLayer`.
+ */
+function setAsideUnreadableStore(
+  storePath: string,
+  error: unknown,
+  warn: (message: string, context: Record<string, unknown>) => void,
+): OwnLayer {
+  const asidePath = `${storePath}.unreadable-${Date.now()}`
+  try {
+    renameSync(storePath, asidePath)
+  } catch (renameError) {
+    throw new Error('OpenWaggle MCP sign-in storage could not be read or moved aside.', {
+      cause: renameError,
+    })
+  }
+  warn('OpenWaggle MCP sign-ins could not be read; they were moved aside and start empty', {
+    error: error instanceof Error ? error.message : String(error),
+    movedTo: asidePath,
+  })
+  return { states: {}, tombstones: {} }
+}
+
+/** Writes the store file atomically, readable by this user only. */
+function writeStoreText(storePath: string, text: string) {
+  mkdirSync(path.dirname(storePath), { recursive: true, mode: DIRECTORY_MODE })
+  const temporaryPath = `${storePath}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporaryPath, text, { mode: FILE_MODE })
+    renameSync(temporaryPath, storePath)
+  } catch (error) {
+    rmSync(temporaryPath, { force: true })
+    throw error
+  }
+}
+
+/**
+ * Creates the store only when it does not exist yet, atomically and without the store's lock (a
+ * read may run under it): false when another process created it first, whose store is kept.
+ */
+function createStoreTextIfMissing(storePath: string, text: string) {
+  mkdirSync(path.dirname(storePath), { recursive: true, mode: DIRECTORY_MODE })
+  const temporaryPath = `${storePath}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporaryPath, text, { mode: FILE_MODE })
+    linkSync(temporaryPath, storePath)
+    return true
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return false
+    throw error
+  } finally {
+    rmSync(temporaryPath, { force: true })
+  }
+}
+
+type LegacyStoreRead =
+  | { readonly kind: 'taken'; readonly text: string; readonly layer: OwnLayer }
+  /** No shared store, or one this build cannot open (another build's): nothing to take. */
+  | { readonly kind: 'none' }
+  /** The file could not be read right now: try again on the next read. */
+  | { readonly kind: 'retry'; readonly error: string }
+
+/** The shared pre-build store, with its decoded layer, when this build can open it. */
+function readLegacyStore(
+  legacyStorePath: string,
+  encryption: McpOAuthEncryption,
+  warn: (message: string, context: Record<string, unknown>) => void,
+): LegacyStoreRead {
+  let text: string
+  try {
+    text = readFileSync(legacyStorePath, 'utf8')
+  } catch (error) {
+    if (isMissing(error)) return { kind: 'none' }
+    return { kind: 'retry', error: error instanceof Error ? error.message : String(error) }
+  }
+  try {
+    return { kind: 'taken', text, layer: decodeOwnLayer(text, encryption) }
+  } catch (error) {
+    warn('The shared MCP sign-in store is not this build’s; it was left in place', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { kind: 'none' }
+  }
+}
+
+function fileVersion(filePath: string) {
+  const stat = statSync(filePath)
+  return `${stat.ino}:${stat.size}:${stat.mtimeMs}`
+}
+
+/**
+ * This build's encrypted layer on disk. A Pi token read asks for it on every MCP request, so the
+ * decoded layer is kept while the file is unchanged (same inode, size, and mtime) and decrypted
+ * again only after a write, here or in another process.
+ */
+export class OwnLayerFile {
+  private cached: { readonly version: string; readonly layer: OwnLayer } | undefined
+  private legacyChecked = false
+  /** The last read failure warned about: Pi reads the token on every request. */
+  private legacyRetryWarning: string | undefined
+
+  constructor(
+    private readonly options: McpOAuthStateBackendOptions,
+    private readonly warn: (message: string, context: Record<string, unknown>) => void,
+  ) {}
+
+  /** The layer, or undefined while it cannot be decrypted (left untouched until then). */
+  read(): OwnLayer | undefined {
+    let version: string
+    try {
+      version = fileVersion(this.options.storePath)
+    } catch (error) {
+      if (!isMissing(error)) throw error
+      return this.takeLegacyStore()
+    }
+    if (this.cached?.version === version) return structuredClone(this.cached.layer)
+    const text = readFileSync(this.options.storePath, 'utf8')
+    try {
+      const layer = decodeOwnLayer(text, this.options.encryption)
+      this.cached = { version, layer: structuredClone(layer) }
+      return layer
+    } catch (error) {
+      if (error instanceof StoreDecryptError) return undefined
+      return setAsideUnreadableStore(this.options.storePath, error, this.warn)
+    }
+  }
+
+  write(layer: OwnLayer) {
+    const encrypted = this.options.encryption
+      .encryptString(JSON.stringify(layer))
+      .toString('base64')
+    writeStoreText(
+      this.options.storePath,
+      `${JSON.stringify({ version: STORE_VERSION, encrypted }, null, JSON_INDENT)}\n`,
+    )
+    this.cached = { version: fileVersion(this.options.storePath), layer: structuredClone(layer) }
+  }
+
+  /**
+   * Done once per process when it finishes: a store this build cannot open stays the other
+   * build's, but one that could not be read is tried again on the next read.
+   */
+  private takeLegacyStore(): OwnLayer | undefined {
+    const { legacyStorePath } = this.options
+    const legacy =
+      this.legacyChecked || !legacyStorePath
+        ? { kind: 'none' as const }
+        : readLegacyStore(legacyStorePath, this.options.encryption, this.warn)
+    // Undefined, like a store that cannot be decrypted: nothing is read, and no write is saved.
+    if (legacy.kind === 'retry') {
+      if (this.legacyRetryWarning !== legacy.error) {
+        this.legacyRetryWarning = legacy.error
+        this.warn('The shared MCP sign-in store could not be read; it is tried again', {
+          error: legacy.error,
+        })
+      }
+      return undefined
+    }
+    this.legacyChecked = true
+    if (legacy.kind !== 'taken') return { states: {}, tombstones: {} }
+    // Another process of this build may have saved a sign-in since this one found no store.
+    if (!createStoreTextIfMissing(this.options.storePath, legacy.text)) return this.read()
+    return legacy.layer
+  }
+}

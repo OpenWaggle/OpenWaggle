@@ -8,6 +8,7 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
   new Set<HostBackedGuiChannel>([
     'agent:list-active-runs',
     'agent:get-context-usage',
+    'agent:list-extension-commands',
     'sessions:get-detail',
     'sessions:list-by-ids',
     'sessions:list-page',
@@ -30,10 +31,15 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'extensions:list-packages',
     'extensions:list-contributions',
     'mcp:list-secrets',
-    'mcp:list-capabilities',
-    'mcp:list-events',
-    'mcp:list-event-subscriptions',
+    'mcp:get-configuration',
+    // Not `mcp:inspect-server`: it connects to the server and may start its process, so it is
+    // neither replayed after an ambiguous failure nor answered while the Host drains.
+    'mcp:get-server-statuses',
     'mcp:preview-imports',
+    'mcp:search-registry',
+    'mcp:get-registry-server',
+    'mcp:get-session-enabled',
+    'mcp:list-app-catalog',
     'providers:get-models',
     'docs:discover',
     'skills:list',
@@ -49,14 +55,6 @@ function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
   if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
   const operation = args[0].command.operation
   return operation === 'list' || operation === 'import-plan' || operation === 'refresh-plan'
-}
-
-function isReplaySafeMcpSettingsInvocation(args: readonly unknown[]) {
-  if (args.length === 0 || (args.length === 1 && args[0] === undefined)) return true
-  if (args.length !== 1 || !args[0] || typeof args[0] !== 'object' || Array.isArray(args[0])) {
-    return false
-  }
-  return !('reconcileRuntime' in args[0]) || args[0].reconcileRuntime === false
 }
 
 /**
@@ -79,6 +77,5 @@ export function isReadOnlyHostUiInvocation(
     )
   }
   if (channel === 'agent-definitions:manage') return isReplaySafeAgentDefinitionInvocation(args)
-  if (channel === 'mcp:get-settings') return isReplaySafeMcpSettingsInvocation(args)
   return READ_ONLY_HOST_UI_CHANNELS.has(channel)
 }

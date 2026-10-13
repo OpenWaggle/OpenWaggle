@@ -79,4 +79,36 @@ describe('Sessions CLI output contract', () => {
       ),
     ).toBe('authentication')
   })
+
+  it('reports a Session whose Pi file cannot be used as a conflict, whatever it says', () => {
+    for (const message of [
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before forking it.",
+      "This Session's Pi session file is unavailable (/p/s.jsonl): its folder is missing. Reconnect or restore it to continue the Session.",
+    ]) {
+      expect(
+        classifySessionsCliError(
+          new LocalSessionClientProtocolError('pi_session_file_unusable', message),
+        ),
+      ).toBe('conflict')
+    }
+  })
+
+  it('maps no code to a kind by an object property name', () => {
+    for (const code of ['constructor', 'tostring', '__proto__', 'hasownproperty']) {
+      expect(classifySessionsCliError(new LocalSessionClientProtocolError(code, 'Failed'))).toBe(
+        'internal',
+      )
+    }
+  })
+
+  it('reports a Session whose worktree is gone as a conflict', () => {
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError(
+          'session_worktree_missing',
+          "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
+        ),
+      ),
+    ).toBe('conflict')
+  })
 })

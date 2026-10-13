@@ -15,6 +15,7 @@ import {
 import {
   findLifecycleReplay,
   type LifecycleTarget,
+  reservedIdempotencyKeyRejection,
   resolveLifecycleTarget,
 } from './sqlite-session-lifecycle-admission'
 import { lifecycleOutcome } from './sqlite-session-lifecycle-outcome'
@@ -85,6 +86,8 @@ function execute(
   return sql
     .withTransaction(
       Effect.gen(function* () {
+        const reserved = yield* reservedIdempotencyKeyRejection(sql, input)
+        if (reserved) return reserved
         const replay = yield* findLifecycleReplay(sql, input, scope, requestJson)
         if (replay) return replay
 
@@ -174,7 +177,10 @@ function findReplay(
 ) {
   const scope = targetScopeForRequest(input.request)
   const requestJson = canonicalJson(input.request.command)
-  return findLifecycleReplay(sql, input, scope, requestJson).pipe(
+  // A reserved key is refused before anything is prepared for the create.
+  return Effect.flatMap(reservedIdempotencyKeyRejection(sql, input), (reserved) =>
+    reserved ? Effect.succeed(reserved) : findLifecycleReplay(sql, input, scope, requestJson),
+  ).pipe(
     Effect.mapError((cause) =>
       cause instanceof SessionLifecycleRepositoryError
         ? cause

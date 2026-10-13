@@ -26,7 +26,7 @@ Install only the packages your project needs:
 pnpm add @openwaggle/extension-sdk
 pnpm add @openwaggle/extension-react @openwaggle/extension-sdk react react-dom
 pnpm add @openwaggle/waggle-core
-pnpm add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
+pnpm add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
 The packages are public under the `@openwaggle` npm organization. Package guides and API references are versioned by `major.minor`; the unversioned links above always open the latest documentation line.

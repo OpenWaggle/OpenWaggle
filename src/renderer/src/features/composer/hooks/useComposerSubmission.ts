@@ -4,7 +4,7 @@ import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
-import { consumeSendResult } from '../lib/send-result'
+import { consumeSendResult, logExpectedSendRefusal } from '../lib/send-result'
 import { trackComposerSubmission } from '../state/composer-activity-store'
 import {
   discardSessionResourceAttachments,
@@ -52,8 +52,13 @@ interface UseComposerSubmissionInput {
   readonly hasPreparingTextAttachment: boolean
 }
 
+/**
+ * What becomes of the draft of a send that failed. `notice`: the failure is expected and already
+ * explained where the user is, as by a Session's notice; it is said briefly in a toast and logged
+ * as a warning, not an error.
+ */
 export type SendFailureDisposition =
-  | { readonly kind: 'restore'; readonly contextKey?: string | null }
+  | { readonly kind: 'restore'; readonly contextKey?: string | null; readonly notice?: string }
   | { readonly kind: 'discard' | 'retain' }
 
 type DispatchResult =
@@ -191,6 +196,11 @@ export function useComposerSubmission({
           if (clearOnSubmit && disposition.kind === 'discard') {
             unmarkAttachmentsSubmitted(payload.attachments)
             discardSessionResourceAttachments(payload.attachments)
+          }
+          if (disposition.kind === 'restore' && disposition.notice) {
+            onToast?.(disposition.notice)
+            logExpectedSendRefusal(cause)
+            return
           }
           throw cause
         })

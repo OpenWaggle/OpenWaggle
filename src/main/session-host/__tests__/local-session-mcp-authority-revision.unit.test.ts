@@ -4,9 +4,14 @@ import {
   decodeLocalSessionCommandPayloadForRevision,
   decodeLocalSessionNegotiationResult,
 } from '../../../shared/schemas/local-session-protocol'
+import { HOST_UI_REVISION_24_REQUIRED_CHANNELS } from '../../../shared/types/host-ui-protocol'
+import {
+  LOCAL_SESSION_REVISION_23_CAPABILITIES,
+  LOCAL_SESSION_REVISION_24_CAPABILITIES,
+} from '../../../shared/types/local-session-protocol-revisions'
 import { supportedRevisionsForCommand } from '../local-session-client'
 
-function hostUiCommand(channel: 'mcp:get-settings' | 'mcp:logout-server' | 'mcp:authorize-server') {
+function hostUiCommand(channel: string) {
   return decodeLocalSessionCommandPayload({
     contract: 'host-ui-v1',
     request: {
@@ -53,19 +58,52 @@ describe('Local Session MCP authority protocol revision', () => {
     ).toThrow()
   })
 
-  it('accepts legacy logout while rejecting the authorization command added in revision seven', () => {
-    const logout = hostUiCommand('mcp:logout-server')
-    expect(decodeLocalSessionCommandPayloadForRevision(logout, 6)).toEqual(logout)
-    expect(decodeLocalSessionCommandPayloadForRevision(logout, 7)).toEqual(logout)
-
-    const authorize = hostUiCommand('mcp:authorize-server')
-    expect(() => decodeLocalSessionCommandPayloadForRevision(authorize, 6)).toThrow(/revision 7/)
-    expect(decodeLocalSessionCommandPayloadForRevision(authorize, 7)).toEqual(authorize)
+  it('routes the remaining MCP Host operations through any supported Host revision', () => {
+    for (const channel of ['mcp:list-secrets', 'mcp:read-resource', 'mcp:call-app-tool']) {
+      const command = hostUiCommand(channel)
+      expect(decodeLocalSessionCommandPayloadForRevision(command, 6)).toEqual(command)
+      expect(supportedRevisionsForCommand(command)).toEqual([24])
+    }
   })
 
-  it('forces changed authority commands to upgrade a revision-six Host', () => {
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([23])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([23])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([23])
+  it.each([...HOST_UI_REVISION_24_REQUIRED_CHANNELS])(
+    'requires a revision-24 Host for the MCP configuration channel %s',
+    (channel) => {
+      const command = hostUiCommand(channel)
+      expect(supportedRevisionsForCommand(command)).toEqual([24])
+      expect(() => decodeLocalSessionCommandPayloadForRevision(command, 23)).toThrow(/revision 24/)
+      expect(decodeLocalSessionCommandPayloadForRevision(command, 24)).toEqual(command)
+    },
+  )
+
+  it('ships MCP Registry search and install with the revision-24 configuration channels', () => {
+    expect(HOST_UI_REVISION_24_REQUIRED_CHANNELS).toEqual(
+      expect.arrayContaining([
+        'mcp:search-registry',
+        'mcp:get-registry-server',
+        'mcp:install-registry-server',
+      ]),
+    )
+  })
+
+  it('ships the per-Session MCP switch with the revision-24 configuration channels', () => {
+    expect(HOST_UI_REVISION_24_REQUIRED_CHANNELS).toEqual(
+      expect.arrayContaining(['mcp:get-session-enabled', 'mcp:set-session-enabled']),
+    )
+  })
+
+  it('advertises the MCP configuration capability at revision 24 only', () => {
+    expect(LOCAL_SESSION_REVISION_23_CAPABILITIES).not.toContain('host-ui:mcp-configuration-v1')
+    expect(LOCAL_SESSION_REVISION_24_CAPABILITIES).toContain('host-ui:mcp-configuration-v1')
+  })
+
+  it.each([
+    'mcp:get-settings',
+    'mcp:logout-server',
+    'mcp:authorize-server',
+    'mcp:list-capabilities',
+    'mcp:list-events',
+  ])('no longer accepts the removed %s Host operation', (channel) => {
+    expect(() => hostUiCommand(channel)).toThrow()
   })
 })

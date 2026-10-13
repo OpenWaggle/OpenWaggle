@@ -36,7 +36,7 @@ The Session Host sends `install.active` at most once per UTC day, only on a day 
 
 Booleans for the day, sent with `install.active`: `worker_session`, `waggle`, `worktree`, `terminal`, `browser_preview`, `browser_agent_driven`, `project_action`, `inline_visualization`, `attachment`, `voice`, `fork_or_handoff`. Plus:
 
-- `mcp_servers`: MCP catalog IDs connected that day, otherwise `custom`
+- `mcp_servers`: MCP catalog IDs whose tools were called that day, otherwise `custom`; a server counts as a catalog server only when its name matches (`-` and `_` alike, as in Pi tool names) and its configuration, read when the call starts, launches exactly as the catalog entry
 - `skills`: built-in skill names used that day, otherwise `custom`
 - `extensions_enabled`: bucket (`0`, `1`, `2-5`, `>5`), no IDs
 

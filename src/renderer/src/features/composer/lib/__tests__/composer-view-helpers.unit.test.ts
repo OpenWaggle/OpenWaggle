@@ -54,6 +54,34 @@ describe('composer view helpers', () => {
   it('builds context meter display state for loaded, fallback, and failed usage', () => {
     expect(
       buildContextMeterValue({
+        snapshot: {
+          tokens: 50_000,
+          contextWindow: 200_000,
+          percent: 25,
+          session: {
+            tokens: 160_000,
+            cost: 0.4321,
+            models: [
+              { model: 'openai/gpt-6-luna', tokens: 150_000, cost: 0.42 },
+              { model: null, tokens: 10_000, cost: 0.0121 },
+            ],
+          },
+        },
+        fallbackContextWindow: null,
+        hasActiveSession: true,
+        failed: false,
+      }).title,
+    ).toBe(
+      [
+        'Context: 50k / 200k tokens (25.0%)',
+        'Session: 160k tokens, $0.432',
+        '  openai/gpt-6-luna: $0.42 (150k tokens)',
+        '  Tools and summaries: $0.0121 (10k tokens)',
+      ].join('\n'),
+    )
+
+    expect(
+      buildContextMeterValue({
         snapshot: { tokens: 25_000, contextWindow: 100_000, percent: 25 },
         fallbackContextWindow: null,
         hasActiveSession: true,

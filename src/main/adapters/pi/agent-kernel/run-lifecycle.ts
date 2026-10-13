@@ -1,4 +1,8 @@
-import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentSession,
+  ExtensionFactory,
+  InlineExtension,
+} from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -17,6 +21,9 @@ import {
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { notifyModelFallback, type PiInteractionUiContextInput } from './interaction-ui-context'
+import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
+import { idleCacheWarming } from './pi-idle-cache-warming'
 import { createPiRunControl } from './pi-run-control'
 import { createPiSessionForRun } from './pi-run-session'
 import {
@@ -34,6 +41,7 @@ import {
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
 import { createSessionManagerForSession, requireSessionProjectPath } from './session-manager'
+import { sessionFallbackModelReference } from './session-model-fallback'
 import { projectPiSessionSnapshot } from './session-projection'
 
 export { promptPiSession } from './run-prompt'
@@ -50,6 +58,8 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  /** Continue on the last answering model if the selection is gone (never for a Waggle agent). */
+  readonly modelFallback?: 'last-answering-model'
   readonly runAuthorizationOverride?: AgentKernelRunInput['runAuthorizationOverride']
   readonly authorityCallerId?: AgentKernelRunInput['authorityCallerId']
   readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
@@ -58,7 +68,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
@@ -76,15 +86,17 @@ function runSystemPromptAppendices(input: CreatePiRunSessionRuntimeInput) {
 
 function exposePiRunControl(
   input: CreatePiRunSessionRuntimeInput,
-  model: PiModel,
+  runtime: { readonly model: PiModel; readonly modelFallbackMessage?: string },
   session: AgentSession,
+  openWaggleUi: PiInteractionUiContextInput,
 ) {
+  notifyModelFallback(openWaggleUi, input, runtime.modelFallbackMessage)
   input.onControlAvailable?.(
     createPiRunControl(session, input.signal, {
       routeThroughInputHook: input.steeringInputHook === true,
     }),
   )
-  return { model, session }
+  return { model: runtime.model, session }
 }
 
 /** A Run starts with the Session thinking level, clamped to the model the Run uses. */
@@ -100,12 +112,15 @@ function resolvePiRuntimeThinkingLevel(
 export async function createPiRunSessionRuntime(
   input: CreatePiRunSessionRuntimeInput,
 ): Promise<PiRunSessionRuntime> {
+  // Before the Pi file opens; with the mode this Run's runtime resolves, Pi's settings included.
+  await idleCacheWarming.prepareRun(input.session.id)
   // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
   // repository, so this is the Session's project, not the run cwd.
   void notePiRunProjectDefaultForUsageStatistics(input.runId, input.session.projectPath)
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
+    ...(input.modelFallback ? sessionFallbackModelReference(input.session) : {}),
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
@@ -158,7 +173,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
-    return exposePiRunControl(input, selectedRuntime.runtime.model, session)
+    return exposePiRunControl(input, selectedRuntime.runtime, session, openWaggleUi)
   } catch (error) {
     if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
       throw error
@@ -182,7 +197,7 @@ export async function createPiRunSessionRuntime(
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
-    return exposePiRunControl(input, fallbackRuntime.model, session)
+    return exposePiRunControl(input, fallbackRuntime, session, openWaggleUi)
   }
 }
 
@@ -202,6 +217,7 @@ async function abortPiSession(session: AgentSession, warning: string) {
 
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
+  readonly nodeIds: PiEntryNodeIds
   readonly payload: HydratedAgentSendPayload
   readonly appended: readonly unknown[]
   readonly aborted: boolean
@@ -213,19 +229,23 @@ function buildSuccessfulRunResult(input: {
     newMessages: buildPiRunNewMessages(input.payload, input.appended),
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
 }
 
-async function abortPreCancelledRun(session: AgentSession, warning: string) {
+async function abortPreCancelledRun(
+  session: AgentSession,
+  nodeIds: PiEntryNodeIds,
+  warning: string,
+) {
   await abortPiSession(session, warning)
   return {
     newMessages: [],
     piSessionId: session.sessionId,
     piSessionFile: session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(session),
+    sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
     aborted: true,
   } satisfies AgentKernelRunResult
 }
@@ -244,7 +264,11 @@ export async function runSubscribedPiOperation(input: {
   let settlementAttempted = false
 
   if (input.runInput.signal.aborted) {
-    const result = await abortPreCancelledRun(input.session, input.preAbortWarning)
+    const result = await abortPreCancelledRun(
+      input.session,
+      piEntryNodeIds(input.runInput.session),
+      input.preAbortWarning,
+    )
     input.unsubscribe()
     await disposeOpenWagglePiSession(input.session)
     return result
@@ -275,6 +299,7 @@ export async function runSubscribedPiOperation(input: {
 
     return buildSuccessfulRunResult({
       session: input.session,
+      nodeIds: piEntryNodeIds(input.runInput.session),
       payload: input.runInput.payload,
       appended,
       aborted: operationAborted,
@@ -292,6 +317,8 @@ export async function runSubscribedPiOperation(input: {
   } finally {
     input.runInput.signal.removeEventListener('abort', abortListener)
     input.unsubscribe()
-    await disposeOpenWagglePiSession(input.session)
+    await idleCacheWarming.settle(input.runInput.session.id, input.session, {
+      aborted: input.runInput.signal.aborted,
+    })
   }
 }

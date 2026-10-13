@@ -10,15 +10,10 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, type SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import {
-  isInheritedWaggleModelBinding,
-  type WaggleConfig,
-  type WaggleStreamMetadata,
-  type WaggleTurnEvent,
-} from '@shared/types/waggle'
+import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
@@ -34,9 +29,15 @@ import {
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { resolveLatestAssistantNodeId } from './agent-run-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { loadSessionForRun } from './pi-session-projection-refresh'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
+import {
+  configRequiresInheritedModel,
+  resolveInitialWaggleRuntimeModel,
+  resolveWaggleRunModels,
+} from './waggle-run/models'
 import {
   createWaggleSuccessOutcome,
   recoverWaggleRunFailure,
@@ -87,20 +88,6 @@ interface PreparedWaggleRun {
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
 }
 
-function resolveInitialWaggleRuntimeModel(input: {
-  readonly config: WaggleConfig
-  readonly selectedModel: SupportedModelId
-}): SupportedModelId {
-  const firstAgentModel = input.config.agents[0].model
-  return isInheritedWaggleModelBinding(firstAgentModel)
-    ? input.selectedModel
-    : SupportedModelId(firstAgentModel)
-}
-
-function configRequiresInheritedModel(config: WaggleConfig) {
-  return config.agents.some((agent) => isInheritedWaggleModelBinding(agent.model))
-}
-
 function prepareWaggleRun(input: WaggleRunInput) {
   return Effect.gen(function* () {
     if (!safeDecodeUnknown(waggleConfigSchema, input.config).success) {
@@ -112,10 +99,12 @@ function prepareWaggleRun(input: WaggleRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    const session = yield* loadSessionForRun(input.sessionId)
     if (!session) return { ok: false as const, outcome: waggleSessionNotFoundOutcome() }
     if (!session.projectPath) return { ok: false as const, outcome: waggleNoProjectOutcome() }
+
+    const models = yield* resolveWaggleRunModels({ ...input, session })
+    if (!models.ok) return { ok: false as const, outcome: models.outcome }
 
     const assignedTitle = yield* assignPreparedTitle(input, session)
     const hydratedPayload: HydratedAgentSendPayload = {
@@ -132,10 +121,10 @@ function prepareWaggleRun(input: WaggleRunInput) {
       value: {
         assignedTitle,
         hydratedPayload,
-        inheritedModel: input.model,
+        inheritedModel: models.inheritedModel,
         runtimeModel: resolveInitialWaggleRuntimeModel({
           config: input.config,
-          selectedModel: input.model,
+          selectedModel: models.inheritedModel,
         }),
         compactionThresholdPercent: settings.compactionThresholdPercent,
         session,

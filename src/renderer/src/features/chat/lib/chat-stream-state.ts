@@ -28,6 +28,13 @@ function stampStartedMessage(
   )
 }
 
+/** A failed response carries its error live, as its hydrated message does once refreshed. */
+function withMessageError(messages: readonly UIMessage[], messageId: string, error: string) {
+  return messages.map((message) =>
+    message.id === messageId ? { ...message, metadata: { ...message.metadata, error } } : message,
+  )
+}
+
 /**
  * The messages after a transport event. An event that changes no message (lifecycle, queue,
  * compaction, interaction) returns `messages` itself, so callers can tell nothing changed by
@@ -53,7 +60,12 @@ export function applyAgentTransportEvent<Messages extends readonly UIMessage[]>(
     .with('message_update', (value) =>
       stampStartedMessage(messages, applyAssistantMessageEvent(messages, value), value),
     )
-    .with('message_end', 'context_usage', unchanged)
+    .with('message_end', (value) =>
+      value.errorMessage
+        ? withMessageError(messages, value.messageId, value.errorMessage)
+        : unchanged(),
+    )
+    .with('context_usage', unchanged)
     .with('tool_execution_start', (value) =>
       stampStartedMessage(messages, startToolExecution(messages, value), value),
     )

@@ -1,9 +1,14 @@
-import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import * as Effect from 'effect/Effect'
-import { createFilesystemMcpConfigService } from './adapters/mcp/service-factory'
+import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
+import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
+import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
+import { legacyMcpServerAliases } from './domain/mcp/migration/legacy-server-references'
+import { getEnvWithOverrides } from './env'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from './ports/extension-project-overrides-repository'
@@ -18,14 +23,21 @@ const BUILTIN_AND_NATIVE_TOOL_NAMES = [
   'find',
   'ls',
   'sessions',
-  'mcp',
-  'mcp_run',
 ] as const
 
 export interface LoadAgentDefinitionSemanticCatalogInput {
   readonly projectPath: string
   readonly userHome: string
+  /** Pi's agent directory; defaults to `PI_CODING_AGENT_DIR` for the real home, else `~/.pi/agent`. */
+  readonly piAgentDir?: string
   readonly extensionSelectionServices?: OpenWagglePiExtensionSelectionServices
+}
+
+function piAgentDirFor(input: LoadAgentDefinitionSemanticCatalogInput) {
+  if (input.piAgentDir) return input.piAgentDir
+  const configured =
+    input.userHome === homedir() ? getEnvWithOverrides({}).PI_CODING_AGENT_DIR : undefined
+  return configured ?? path.join(input.userHome, '.pi', 'agent')
 }
 
 function message(error: unknown) {
@@ -53,6 +65,8 @@ export async function loadAgentDefinitionSemanticCatalog(
   let tools: readonly string[] | undefined
   let skills: readonly string[] | undefined
   let mcpServers: readonly string[] | undefined
+  // Servers Pi extensions register (`pi.registerMcpServer`), which Runs connect like configured ones.
+  let extensionMcpServers: readonly string[] = []
 
   try {
     const extensionSelectionServices =
@@ -63,21 +77,33 @@ export async function loadAgentDefinitionSemanticCatalog(
     )
     models = services.modelRuntime.getModels().map((model) => `${model.provider}/${model.id}`)
     skills = services.resourceLoader.getSkills().skills.map((skill) => skill.name)
-    const extensionTools = services.resourceLoader
-      .getExtensions()
-      .extensions.flatMap((extension) => [...extension.tools.keys()])
-    tools = [...BUILTIN_AND_NATIVE_TOOL_NAMES, ...extensionTools]
+    const extensions = services.resourceLoader.getExtensions()
+    const extensionTools = extensions.extensions.flatMap((extension) => [...extension.tools.keys()])
+    extensionMcpServers = extensions.runtime.mcpServers.list().map((server) => server.name)
+    // Pi's codemode, tool search, and MCP resource tools load in every Session (ADR 0051).
+    tools = [...BUILTIN_AND_NATIVE_TOOL_NAMES, ...MCP_REACH_TOOL_NAMES, ...extensionTools]
   } catch (error) {
     loadDiagnostics.push(`Pi project resources failed to load: ${message(error)}`)
   }
 
   try {
-    const service = createFilesystemMcpConfigService({
+    // Validation is read-only: it reads the files as they are and never migrates them (the Host
+    // migrates them when it starts; old instance IDs resolve through the recorded aliases).
+    const configured = await listConfiguredMcpServerNames({
       homeDir: input.userHome,
-      createId: randomUUID,
+      piAgentDir: piAgentDirFor(input),
+      projectPath: input.projectPath,
     })
-    const view = await service.getView({ projectPath: input.projectPath })
-    mcpServers = view.servers.flatMap((server) => [server.name, server.instanceId])
+    // An unreadable file leaves the list incomplete; checking names against it would misreport.
+    if (configured.errors.length === 0) {
+      // A definition from before ADR 0051 may name a server by its old instance ID.
+      const legacyNames = await readLegacyMcpServerNames(input.userHome)
+      mcpServers = [
+        ...configured.names,
+        ...legacyMcpServerAliases(configured.names, legacyNames),
+        ...extensionMcpServers,
+      ]
+    } else loadDiagnostics.push(...configured.errors)
   } catch (error) {
     loadDiagnostics.push(`MCP project resources failed to load: ${message(error)}`)
   }

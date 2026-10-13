@@ -1,8 +1,8 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
@@ -50,12 +50,23 @@ function renderPanel(
       mutations: { retry: false },
     },
   })
+  queryClients.push(queryClient)
   return render(
     <QueryClientProvider client={queryClient}>
       <ChatPanel />
     </QueryClientProvider>,
   )
 }
+
+/** Every client a test rendered, cleared once it is unmounted so none of its timers outlive it. */
+const queryClients: QueryClient[] = []
+
+afterEach(async () => {
+  cleanup()
+  for (const queryClient of queryClients.splice(0)) queryClient.clear()
+  // Clearing notifies observers on the next tick; let that run while the DOM is still here.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
 
 describe('ChatPanel', () => {
   beforeEach(() => {

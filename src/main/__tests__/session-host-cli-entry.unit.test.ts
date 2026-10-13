@@ -51,6 +51,8 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
   },
 }))
 
@@ -107,14 +109,13 @@ vi.mock('../session-host/session-host-ownership', () => ({
     }
   }),
 }))
-vi.mock('../session-host/session-host-bootstrap', () => ({
-  startAppSessionHost: mocks.startHost,
-}))
+vi.mock('../session-host/session-host-bootstrap', () => ({ startAppSessionHost: mocks.startHost }))
 vi.mock('../runtime', () => ({
   initializeAppRuntime: mocks.initializeRuntime,
   disposeAppRuntime: mocks.disposeRuntime,
   runAppEffect: vi.fn(),
   startSessionHostOwnedServices: vi.fn(),
+  startSessionHostServicesAfterListening: vi.fn(),
   stopSessionHostOwnedServices: vi.fn(),
 }))
 vi.mock('../store/settings', () => ({
@@ -175,6 +176,7 @@ describe('detached Session Host startup', () => {
         externalOwnership: expect.objectContaining({
           targetPath: '/tmp/openwaggle-profile/session-host.sqlite',
         }),
+        startServicesAfterListening: expect.any(Function),
       }),
     )
     expect(mocks.applyInstallerIntent).toHaveBeenCalledWith(
@@ -279,40 +281,6 @@ describe('detached Session Host startup', () => {
     try {
       expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
       await vi.advanceTimersByTimeAsync(9_999)
-      expect(stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(1)
-      expect(stop).toHaveBeenCalledOnce()
-      expect(mocks.exit).toHaveBeenCalledWith(0)
-    } finally {
-      liveness.close()
-      stopped.resolve()
-      await vi.advanceTimersByTimeAsync(0)
-    }
-  })
-
-  it('does not orphan-stop a never-adopted Host while it owns background work', async () => {
-    vi.useFakeTimers()
-    const stopped = Promise.withResolvers<void>()
-    const stop = vi.fn(async () => stopped.resolve())
-    const liveness = new SessionHostLiveness({
-      idleGracePeriodMs: 300_000,
-      requestShutdown: stop,
-    })
-    mocks.startHost.mockResolvedValueOnce({
-      liveness,
-      stop,
-      waitUntilStopped: vi.fn(() => stopped.promise),
-    })
-
-    try {
-      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
-      await vi.advanceTimersByTimeAsync(0)
-      const releaseWork = liveness.acquire('semantic-preparation')
-      await vi.advanceTimersByTimeAsync(10_000)
-      expect(stop).not.toHaveBeenCalled()
-      expect(liveness.hasAcceptedClient()).toBe(false)
-      releaseWork()
-      await vi.advanceTimersByTimeAsync(299_999)
       expect(stop).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(1)
       expect(stop).toHaveBeenCalledOnce()

@@ -33,6 +33,7 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:begin-project-removal',
   'sessions:set-thinking-level',
   'sessions:get-default-thinking-level',
   'sessions:set-default-thinking-level',

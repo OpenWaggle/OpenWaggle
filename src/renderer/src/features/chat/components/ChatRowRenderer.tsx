@@ -14,6 +14,7 @@ import { ChangedFilesCard } from './ChangedFilesCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionTimelineRow } from './CompactionTimelineRow'
+import { FailedTurnNotice } from './FailedTurnNotice'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
 import { TurnFoldRow } from './TurnFoldRow'
@@ -149,6 +150,7 @@ function WaggleTurnRow({
             actions={context.actions}
           />
         ))}
+        {row.failure ? <FailedTurnNotice error={row.failure} /> : null}
         {turn && terminalMessageId && context.actions.onOpenTurnDiff ? (
           <ChangedFilesCard
             sessionId={context.runtime.sessionId}

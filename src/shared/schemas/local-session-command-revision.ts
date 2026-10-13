@@ -12,6 +12,10 @@ import {
   HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   HOST_UI_REVISION_23_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_24_AGENT_CHANNELS,
+  HOST_UI_REVISION_24_ARGUMENT_COUNTS,
+  HOST_UI_REVISION_24_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_24_SESSION_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -23,6 +27,7 @@ import {
   LOCAL_SESSION_HOST_CONTROL_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
+  LOCAL_SESSION_MCP_CONFIGURATION_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_NATIVE_ACTIONS_REVISION,
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
@@ -38,22 +43,39 @@ import {
   type LocalSessionCommandPayload,
 } from '@shared/types/local-session-protocol'
 
-/** Whether the request passes an argument its channel gained in revision 21. */
-function usesRevision21Argument(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
-  const counts: Partial<Record<HostBackedGuiChannel, number>> = HOST_UI_REVISION_21_ARGUMENT_COUNTS
+/** Whether the request passes an argument its channel gained in the revision with `counts`. */
+function usesArgumentAddedIn(
+  counts: Partial<Record<HostBackedGuiChannel, number>>,
+  request: Pick<HostUiV1Request, 'channel' | 'args'>,
+) {
   const count = counts[request.channel]
   return count !== undefined && request.args.length >= count
+}
+
+/**
+ * MCP configuration, Pi session discovery's project removal, and the slash menu's Pi extension
+ * commands ship with revision 24.
+ */
+function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  const { channel } = request
+  return (
+    HOST_UI_REVISION_24_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
+    HOST_UI_REVISION_24_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
+    HOST_UI_REVISION_24_AGENT_CHANNELS.some((candidate) => candidate === channel) ||
+    usesArgumentAddedIn(HOST_UI_REVISION_24_ARGUMENT_COUNTS, request)
+  )
 }
 
 /** The revision a Host UI request needs: its channel's, or later for an argument added since. */
 export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
+  if (requiresRevision24(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
   if (HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_SOURCE_CONTROL_REVISION
   }
   if (
     HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
-    usesRevision21Argument(request)
+    usesArgumentAddedIn(HOST_UI_REVISION_21_ARGUMENT_COUNTS, request)
   ) {
     return LOCAL_SESSION_SESSION_SETTINGS_REVISION
   }

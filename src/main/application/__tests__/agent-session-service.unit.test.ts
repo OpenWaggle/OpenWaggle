@@ -71,6 +71,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: () => Effect.fail(new Error('run is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: (input) =>
     Effect.tryPromise({
       try: async () => compactMock(input),

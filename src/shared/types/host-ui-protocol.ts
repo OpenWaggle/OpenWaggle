@@ -2,6 +2,46 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
+ * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0051),
+ * including MCP Registry search and install, MCP App resource and prompt listing, and the
+ * per-Session MCP switch, ship with revision 24.
+ */
+export const HOST_UI_REVISION_24_REQUIRED_CHANNELS = [
+  'mcp:get-configuration',
+  'mcp:set-server-enabled',
+  'mcp:set-server-exposure',
+  'mcp:add-server',
+  'mcp:remove-server',
+  'mcp:inspect-server',
+  'mcp:get-server-statuses',
+  'mcp:sign-in',
+  'mcp:sign-out',
+  'mcp:install-catalog-server',
+  'mcp:preview-imports',
+  'mcp:apply-imports',
+  'mcp:search-registry',
+  'mcp:get-registry-server',
+  'mcp:install-registry-server',
+  'mcp:list-app-catalog',
+  'mcp:get-session-enabled',
+  'mcp:set-session-enabled',
+] as const satisfies readonly IpcInvokeChannel[]
+/** Pausing Pi session discovery for a project removal ships with revision 24 (ADR 0051). */
+export const HOST_UI_REVISION_24_SESSION_CHANNELS = [
+  'sessions:begin-project-removal',
+] as const satisfies readonly IpcInvokeChannel[]
+/** Listing a Session's Pi extension commands for the slash menu ships with revision 24. */
+export const HOST_UI_REVISION_24_AGENT_CHANNELS = [
+  'agent:list-extension-commands',
+] as const satisfies readonly IpcInvokeChannel[]
+/**
+ * Arguments existing channels gained in revision 24: `sessions:delete`'s second argument says the
+ * Session is deleted as part of removing its project, which keeps a discovered Pi file listable.
+ */
+export const HOST_UI_REVISION_24_ARGUMENT_COUNTS = {
+  'sessions:delete': 2,
+} as const satisfies Partial<Record<IpcInvokeChannel, number>>
+/**
  * Session-coupled source-control operations ship with revision 23 (ADR 0048): the window's
  * database is isolated, so the Change request inspector, merges, Session working-path checks,
  * and Git Output recording run in the Session Host.
@@ -78,49 +118,26 @@ export const HOST_UI_REVISION_9_REQUIRED_CHANNELS = [
   'inline-visualization:prepare-source',
 ] as const satisfies readonly IpcInvokeChannel[]
 
-export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
-  'mcp:get-settings',
-  'mcp:set-scope-state',
-  'mcp:set-server-enabled',
-  'mcp:set-project-server-enabled',
-  'mcp:write-source-config',
-  'mcp:set-server-trust',
-  'mcp:remove-server',
-  'mcp:logout-server',
-  'mcp:add-server',
-  'mcp:preview-imports',
-  'mcp:apply-imports',
-  'mcp:install-catalog-server',
-  'mcp:doctor',
-  'mcp:list-secrets',
-  'mcp:set-secret',
-  'mcp:remove-secret',
-  'mcp:list-capabilities',
-  'mcp:get-prompt',
-  'mcp:read-resource',
-  'mcp:review-remote-skill',
-  'mcp:operate-task',
-  'mcp:call-app-tool',
-  'mcp:set-event-subscription',
-  'mcp:list-events',
-  'mcp:list-event-subscriptions',
-] as const satisfies readonly IpcInvokeChannel[]
-
 export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
   'agent:list-active-runs',
-  'mcp:logout-server',
-  'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /** Channels introduced in revision 7. Changed channels may still have a legacy dispatcher. */
 export const HOST_UI_REVISION_7_NEW_CHANNELS = [
   'agent:list-active-runs',
-  'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
+/**
+ * MCP operations the Session Host owns after ADR 0051: the secret vault and the MCP App resource
+ * read and tool call (revision 6), and the MCP configuration operations (revision 24).
+ */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
-  ...HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6,
-  'mcp:authorize-server',
+  ...HOST_UI_REVISION_24_REQUIRED_CHANNELS,
+  'mcp:list-secrets',
+  'mcp:set-secret',
+  'mcp:remove-secret',
+  'mcp:read-resource',
+  'mcp:call-app-tool',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**
@@ -128,6 +145,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_24_SESSION_CHANNELS,
   ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_20_REQUIRED_CHANNELS,
@@ -140,6 +158,7 @@ export const HOST_BACKED_GUI_CHANNELS = [
   ...HOST_UI_REVISION_9_REQUIRED_CHANNELS,
   'agent:list-active-runs',
   'agent:get-context-usage',
+  ...HOST_UI_REVISION_24_AGENT_CHANNELS,
   'sessions:get-detail',
   'sessions:create',
   'sessions:fork-to-new',

@@ -3,13 +3,14 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
-import { useComposerStore } from '@/features/composer/state'
+import { carryRemovedSessionDraft, useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { useBackgroundRunStore } from './background-run-store'
+import { customBranchSummaryDraft } from './branch-summary-store'
 import {
   handleStoreError,
   isSameSessionId,
@@ -21,6 +22,8 @@ import {
   toSummary,
 } from './chat-store-helpers'
 import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
+import { beginSessionRead, markSessionMutation } from './chat-store-session-reads'
+import { revalidateCachedSession } from './chat-store-session-revalidation'
 import { applySessionTitle } from './chat-store-title-actions'
 import type { ChatActions, ChatState } from './chat-store-types'
 import {
@@ -32,17 +35,7 @@ import {
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
 
-const latestSessionRefresh = new Map<SessionId, number>()
-const latestSessionMutation = new Map<SessionId, number>()
 let latestSessionLoad = 0
-
-function sessionMutationVersion(id: SessionId) {
-  return latestSessionMutation.get(id) ?? 0
-}
-
-function markSessionMutation(id: SessionId) {
-  latestSessionMutation.set(id, sessionMutationVersion(id) + 1)
-}
 
 const setError = (set: ChatSet) => (error: string) => set({ error })
 
@@ -148,20 +141,22 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
 
   const cached = get().sessionById.get(id) ?? null
   set({ activeSessionId: id, activeSession: cached, draftSession: null })
-
   if (!cached) {
     void get().refreshSession(id)
+    return
   }
+  void revalidateCachedSession(cached, get, beginSessionRead(id).isCurrent)
 }
 
 async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
-  const requestId = (latestSessionRefresh.get(id) ?? 0) + 1
-  latestSessionRefresh.set(id, requestId)
+  const read = beginSessionRead(id)
   try {
     const session = await api.getSessionDetail(id)
-    if (latestSessionRefresh.get(id) !== requestId) return
+    if (!read.isLatest()) return
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
+      // Before the view leaves it, so the text written in it goes to New session.
+      if (wasActiveSession) carryRemovedSessionDraft(id, customBranchSummaryDraft(id))
       removeMissingSession(id, set)
       refreshMissingSessionTree(wasActiveSession)
       return
@@ -169,7 +164,7 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
     get().upsertSession(session)
     refreshSessionStoreForSession(id, get().activeSessionId)
   } catch (err) {
-    if (latestSessionRefresh.get(id) !== requestId) return
+    if (!read.isLatest()) return
     handleStoreError(err, 'refresh session', setError(set))
   }
 }
@@ -275,7 +270,6 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 }
 
 function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: ChatGet) {
-  markSessionMutation(id)
   applySessionTitle(id, title, set)
   refreshSessionStoreForSession(id, get().activeSessionId)
 }

@@ -1,6 +1,6 @@
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createPiWaggleStopPolicyState,
   evaluatePiWaggleStopPolicy,
@@ -110,6 +110,47 @@ describe('pi-waggle stop policy', () => {
       classification: 'stopped',
       reason: 'Provider timeout',
     })
+  })
+
+  it("stops at once, with the agent's error, when the host says the error cannot recover", () => {
+    const unauthorized = assistantMessage({
+      stopReason: 'error',
+      errorMessage: '401 Unauthorized: invalid API key',
+    })
+    const isRecoverableError = vi.fn(() => false)
+
+    const decision = evaluatePiWaggleStopPolicy({
+      config: config(),
+      turnNumber: 1,
+      summary: summarizePiWaggleTurnMessages([unauthorized], { isRecoverableError }),
+      state: createPiWaggleStopPolicyState(),
+      agentLabel: 'Reviewer',
+    })
+
+    expect(isRecoverableError).toHaveBeenCalledWith(unauthorized)
+    expect(decision).toMatchObject({
+      continue: false,
+      turnSucceeded: false,
+      stop: {
+        classification: 'stopped',
+        reason: 'Waggle stopped because Reviewer failed: 401 Unauthorized: invalid API key',
+      },
+    })
+  })
+
+  it('keeps a recoverable error recoverable', () => {
+    const decision = evaluatePiWaggleStopPolicy({
+      config: config(),
+      turnNumber: 0,
+      summary: summarizePiWaggleTurnMessages(
+        [assistantMessage({ stopReason: 'error', errorMessage: '503 Service Unavailable' })],
+        { isRecoverableError: () => true },
+      ),
+      state: createPiWaggleStopPolicyState(),
+      agentLabel: 'Architect',
+    })
+
+    expect(decision).toMatchObject({ continue: true, turnSucceeded: false })
   })
 
   it('stops immediately when an assistant turn is aborted', () => {

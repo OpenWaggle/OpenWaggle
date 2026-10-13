@@ -11,6 +11,7 @@ import type { SessionEnvironmentMode } from '@shared/types/git'
 import type {
   PinnedSession,
   PinnedSessionMove,
+  SessionDeleteOptions,
   SessionDetail,
   SessionSummary,
   SessionWorktreePlan,
@@ -18,6 +19,12 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
+
+/**
+ * `removingProject` keeps a discovered Pi session's file without dismissing it, so it is listed
+ * again if the folder is added back (ADR 0051).
+ */
+export type SessionDeletionOptions = SessionDeleteOptions
 
 export interface SessionProjectionRepositoryShape {
   readonly get: (id: SessionId) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
@@ -37,8 +44,13 @@ export interface SessionProjectionRepositoryShape {
     readonly piSessionFile?: string
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
+    /** The Session a fork or clone copies; it keeps that Session's MCP off when it was off. */
+    readonly copyMcpSwitchFrom?: SessionId
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
-  readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly delete: (
+    id: SessionId,
+    options?: SessionDeletionOptions,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** Resume crash-interrupted Session deletions before the Host starts accepting clients. */
   readonly recoverPendingDeletions?: () => Effect.Effect<void, never>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>

@@ -1,13 +1,19 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
-import { createAgentRunContextExtension } from '../agent-run-context-extension'
+import {
+  agentRunContextAllowlists,
+  createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
+} from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
 import { buildPiRunNewMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { createRunAttributionExtension } from '../run-attribution-extension'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
+import { piResponseUsageInput } from './pi-response-usage'
 import {
   createPiRunSessionRuntime,
   promptPiSession,
@@ -15,7 +21,7 @@ import {
 } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { captureTurnCheckpoint } from './turn-capture'
+import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 
 function sessionDirectories(input: {
   readonly visualizationDirectory?: string
@@ -35,7 +41,7 @@ function runtimeResources(
     readonly trustedExtensionFactories?: readonly ExtensionFactory[]
     readonly systemPromptAppendices?: readonly string[]
   },
-  extensionFactories: readonly ExtensionFactory[],
+  extensionFactories: readonly InlineExtension[],
 ) {
   return {
     ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
@@ -65,9 +71,8 @@ export async function runPiSession(
       readonly workingPath: string
       readonly visualizationDirectory?: string
       readonly scratchDirectory?: string
-      readonly mcpExtensionFactory?: ExtensionFactory
       readonly sessionsExtensionFactory?: ExtensionFactory
-      readonly extensionFactories?: readonly ExtensionFactory[]
+      readonly extensionFactories?: readonly InlineExtension[]
       readonly trustedExtensionFactories?: readonly ExtensionFactory[]
       readonly systemPromptAppendices?: readonly string[]
     },
@@ -90,25 +95,28 @@ export async function runPiSession(
     onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
   })
   const extensionFactories = [
+    // First of the Run's inline extensions, so a refused call never reaches OpenWaggle's approval.
+    createAgentToolAllowlistGuard(agentRunContextAllowlists(input)),
     createRunAttributionExtension(input.runId),
     peerReports.factory,
     orchestrationUpdates.factory,
     specificationUpdates.factory,
     input.sessionsExtensionFactory,
-    input.mcpExtensionFactory,
     ...(input.extensionFactories ?? []),
     ...(input.sessionIdentityContext
       ? [
           createAgentRunContextExtension({
             sessionIdentityContext: input.sessionIdentityContext,
-            runId: input.runId,
+            ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
             ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
-            ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+            ...agentRunContextAllowlists(input),
           }),
         ]
       : []),
-  ].filter((factory): factory is ExtensionFactory => factory !== undefined)
+  ].filter((factory): factory is InlineExtension => factory !== undefined)
   const { model, session } = await createPiRunSessionRuntime({
+    // The Session's own selection may continue on its last answering model (as Pi resumes).
+    modelFallback: 'last-answering-model',
     session: input.session,
     projectPath,
     runId: input.runId,
@@ -143,12 +151,8 @@ export async function runPiSession(
       {
         ...input,
         sessionEntries: session.sessionManager,
-        getContextWindow: (provider, modelId) => {
-          const activeModel = session.model
-          return activeModel?.provider === provider && activeModel.id === modelId
-            ? activeModel.contextWindow
-            : undefined
-        },
+        nodeIds: piEntryNodeIds(input.session),
+        ...piResponseUsageInput(session),
       },
       input.runId,
     ),
@@ -174,6 +178,7 @@ export async function runPiSession(
     projectPath,
     runId: input.runId,
     startedAt,
+    ...piSessionFileOf(session),
   })
 
   return result

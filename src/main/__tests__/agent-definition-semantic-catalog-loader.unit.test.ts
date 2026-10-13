@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -8,6 +11,12 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../ext
 
 const catalogMocks = vi.hoisted(() => ({
   createPiRuntimeServices: vi.fn(),
+  migrateOpenWaggleMcpFilesOnce: vi.fn(async () => undefined),
+}))
+
+vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../adapters/pi/mcp/openwaggle-mcp-migration')>()),
+  migrateOpenWaggleMcpFilesOnce: catalogMocks.migrateOpenWaggleMcpFilesOnce,
 }))
 
 vi.mock('../adapters/pi/pi-provider-catalog', () => ({
@@ -101,6 +110,7 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
           getExtensions: () => ({
             extensions: [{ tools: new Map([['managed_tool', {}]]) }],
             errors: [],
+            runtime: { mcpServers: { list: () => [] } },
           }),
         },
       }),
@@ -126,5 +136,82 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
         { packagePath: extensionPackage.packagePath, resourceRoot: 'pi' },
       ],
     })
+  })
+
+  it('accepts the old instance ID of a configured MCP server, as the migration recorded it', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await mkdir(path.join(home, '.openwaggle', 'mcp'), { recursive: true })
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp.json'),
+      JSON.stringify({ mcpServers: { github: { command: 'github-mcp' } } }),
+    )
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp', 'migration.json'),
+      JSON.stringify({
+        version: 1,
+        files: {},
+        legacyServerNames: { 'gh-1': 'github', 'gone-1': 'removed' },
+      }),
+    )
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            runtime: { mcpServers: { list: () => [] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toEqual(['github', 'gh-1'])
+    await rm(home, { recursive: true, force: true })
+  })
+
+  it('accepts MCP servers a Pi extension registers, as Runs do', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await writeFile(path.join(home, 'empty'), '')
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            // pi.registerMcpServer('jira', …) in a project extension.
+            runtime: { mcpServers: { list: () => [{ name: 'jira' }] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toContain('jira')
+    // Validation reads the MCP files as they are; it never migrates (writes) them.
+    expect(catalogMocks.migrateOpenWaggleMcpFilesOnce).not.toHaveBeenCalled()
+    await rm(home, { recursive: true, force: true })
   })
 })

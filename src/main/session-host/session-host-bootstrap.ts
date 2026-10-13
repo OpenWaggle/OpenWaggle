@@ -34,6 +34,8 @@ export async function startAppSessionHost(input: {
   readonly externalOwnership?: SessionHostOwnership
   readonly runEffect: AppEffectRunner
   readonly startOwnedServices: () => Promise<void>
+  /** Started once the Host serves clients, not awaited. */
+  readonly startServicesAfterListening?: () => Promise<void>
   readonly stopOwnedServices: () => Promise<void>
 }) {
   const localUserCredential = await ensureLocalUserCredential(input.paths.credentialPath)
@@ -92,6 +94,9 @@ export async function startAppSessionHost(input: {
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
     interruptRunsAtDrainDeadline: () => input.runEffect(interruptAllSessionRuns()),
     startOwnedServices: input.startOwnedServices,
+    ...(input.startServicesAfterListening
+      ? { startServicesAfterListening: input.startServicesAfterListening }
+      : {}),
     stopOwnedServices: input.stopOwnedServices,
     dispatch: async ({
       caller,

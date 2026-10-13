@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
@@ -11,6 +12,7 @@ import { attachSessionLineage, loadSessionLineageRows } from '../sessions/sessio
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
+import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
 import {
   getActivePathRows,
@@ -51,6 +53,11 @@ function resumePosition(
   return { nodeId: SessionNodeId(sessionRow.last_active_node_id), piEntryCount }
 }
 
+function sessionTitleSource(raw: string | null | undefined) {
+  const titleSource = SESSION_TITLE_SOURCES.find((source) => source === raw)
+  return titleSource ? { titleSource } : {}
+}
+
 function sessionThinkingLevel(raw: string | null) {
   const executionThinkingLevel = THINKING_LEVELS.find((level) => level === raw)
   return executionThinkingLevel ? { executionThinkingLevel } : {}
@@ -64,6 +71,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
     return {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
+      ...sessionTitleSource(sessionRow.title_source),
       projectPath: sessionRow.project_path,
       piSessionId: sessionRow.pi_session_id,
       piSessionFile: sessionRow.pi_session_file ?? undefined,
@@ -84,6 +92,10 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
         : {}),
       ...sessionThinkingLevel(sessionRow.execution_thinking_level),
       ...(position ? { resumePosition: position } : {}),
+      ...(sessionRow.pi_adopted === 1
+        ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionRow.id) }
+        : {}),
+      ...(sessionRow.pi_cwd ? { piSessionCwd: sessionRow.pi_cwd } : {}),
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -103,6 +115,7 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       sessions.pi_session_file,
       sessions.project_path,
       sessions.title,
+      sessions.title_source,
       sessions.archived,
       sessions.waggle_config_json,
       sessions.created_at,
@@ -116,7 +129,9 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       sessions.authorization_mode_override,
       json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
       json_extract(session_execution_profiles.profile_json, '$.thinkingLevel')
-        AS execution_thinking_level
+        AS execution_thinking_level,
+      EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_adopted,
+      (SELECT cwd FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_cwd
     FROM sessions
     LEFT JOIN session_execution_profiles
       ON session_execution_profiles.session_id = sessions.id

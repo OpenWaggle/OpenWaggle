@@ -1,5 +1,9 @@
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentKernelMissingEntryError } from '../../../../ports/agent-kernel-service'
 import {
   compactPiSession,
@@ -26,6 +30,7 @@ interface FakeSession {
     options: { readonly summarize: boolean; readonly customInstructions?: string },
   ) => Promise<{ readonly editorText?: string; readonly cancelled: boolean }>
   readonly subscribe: (listener: unknown) => () => void
+  readonly sessionManager: { readonly getEntries: () => unknown[] }
 }
 
 type SessionOperation = (session: FakeSession) => unknown
@@ -37,11 +42,20 @@ const operationMocks = vi.hoisted(() => ({
   projectPiSessionSnapshot: vi.fn(),
   withOpenWagglePiSessionLifecycleContext: vi.fn(),
   withPiSession: vi.fn(),
+  withReadOnlyPiSession: vi.fn(),
+  readOnlySessionFile: vi.fn((): string | undefined => undefined),
+  existingSessionFile: vi.fn((): string | undefined => '/repo/session.jsonl'),
+  unsearchableFolder: vi.fn((): string | undefined => undefined),
+}))
+
+vi.mock('../pi-session-search', () => ({
+  unsearchablePiSessionFolder: operationMocks.unsearchableFolder,
 }))
 
 vi.mock('../session-runtime', () => ({
   createPiSessionRuntime: operationMocks.createPiSessionRuntime,
   withPiSession: operationMocks.withPiSession,
+  withReadOnlyPiSession: operationMocks.withReadOnlyPiSession,
 }))
 
 vi.mock('../../pi-session-lifecycle', () => ({
@@ -51,6 +65,16 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 vi.mock('../session-listener', () => ({
   createSessionListener: operationMocks.createSessionListener,
+}))
+
+vi.mock('../session-manager', () => ({
+  createReadOnlySessionManagerForSession: async () => ({
+    getSessionId: () => 'pi-session-1',
+    getSessionFile: operationMocks.readOnlySessionFile,
+    isPersisted: () => false,
+  }),
+  resolveSessionWorkingPath: () => '/repo',
+  findExistingPiSessionFile: operationMocks.existingSessionFile,
 }))
 
 vi.mock('../session-projection', () => ({
@@ -76,6 +100,14 @@ function input() {
   }
 }
 
+/** A Session whose projection holds a transcript. */
+function withTranscript() {
+  return {
+    ...input(),
+    session: { ...input().session, messages: [fromPartial<Message>({ id: 'm1', role: 'user' })] },
+  }
+}
+
 function createSession(overrides: Partial<FakeSession> = {}): FakeSession {
   return {
     sessionId: 'pi-session-1',
@@ -89,6 +121,7 @@ function createSession(overrides: Partial<FakeSession> = {}): FakeSession {
     getContextUsage: vi.fn(() => ({ tokens: 40, contextWindow: 100, percent: 40 })),
     navigateTree: vi.fn(async () => ({ editorText: 'selected prompt', cancelled: false })),
     subscribe: vi.fn(() => vi.fn()),
+    sessionManager: { getEntries: () => [] },
     ...overrides,
   }
 }
@@ -104,8 +137,12 @@ describe('Pi session operations', () => {
     operationMocks.projectPiSessionSnapshot.mockReset()
     operationMocks.withOpenWagglePiSessionLifecycleContext.mockReset()
     operationMocks.withPiSession.mockReset()
+    operationMocks.withReadOnlyPiSession.mockReset()
     operationMocks.projectPiSessionSnapshot.mockReturnValue({ activeNodeId: 'node-2', nodes: [] })
     operationMocks.withPiSession.mockImplementation(
+      async (_input: unknown, operation: SessionOperation) => operation(session),
+    )
+    operationMocks.withReadOnlyPiSession.mockImplementation(
       async (_input: unknown, operation: SessionOperation) => operation(session),
     )
     operationMocks.withOpenWagglePiSessionLifecycleContext.mockImplementation(
@@ -119,10 +156,52 @@ describe('Pi session operations', () => {
       contextWindow: 100,
       percent: 40,
     })
+    // A snapshot projects the file's entries without an agent session, which would add a
+    // thinking level change the file does not hold.
     await expect(getPiSessionSnapshot(input())).resolves.toEqual({
       piSessionId: 'pi-session-1',
       piSessionFile: '/repo/session.jsonl',
       sessionSnapshot: { activeNodeId: 'node-2', nodes: [] },
+    })
+    expect(operationMocks.withReadOnlyPiSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes no snapshot of a Session with a transcript whose Pi file cannot be found', async () => {
+    // At Host start, an empty snapshot would replace the transcript the Session shows.
+    const transcript = withTranscript()
+
+    await expect(getPiSessionSnapshot(transcript)).rejects.toThrow(
+      /^This Session's Pi session file /,
+    )
+    expect(operationMocks.projectPiSessionSnapshot).not.toHaveBeenCalled()
+  })
+
+  it("adds the Session's cost per answering model to its context usage", async () => {
+    session = createSession({
+      sessionManager: {
+        getEntries: () => [
+          {
+            type: 'message',
+            message: {
+              role: 'assistant',
+              provider: 'openai',
+              model: 'gpt-6-luna',
+              usage: { input: 30, output: 10, cacheRead: 0, cacheWrite: 0, cost: { total: 0.2 } },
+            },
+          },
+        ],
+      },
+    })
+
+    await expect(getPiContextUsage(input())).resolves.toEqual({
+      tokens: 40,
+      contextWindow: 100,
+      percent: 40,
+      session: {
+        tokens: 40,
+        cost: 0.2,
+        models: [{ model: 'openai/gpt-6-luna', tokens: 40, cost: 0.2 }],
+      },
     })
   })
 
@@ -132,7 +211,7 @@ describe('Pi session operations', () => {
     const onEvent = vi.fn()
 
     const result = await compactPiSession({
-      ...input(),
+      ...withTranscript(),
       customInstructions: 'keep recent decisions',
       signal: controller.signal,
       onEvent,
@@ -189,9 +268,39 @@ describe('Pi session operations', () => {
     ).rejects.toBeInstanceOf(AgentKernelMissingEntryError)
   })
 
+  describe("on a created Session whose Pi file was deleted and a folder that may hold a copy can't be read", () => {
+    const deletedFile = path.join(tmpdir(), `ow-deleted-${process.pid}-${Date.now()}.jsonl`)
+    const COPIES =
+      /^This Session's Pi session file is unavailable \(.+\): it was deleted, and a folder that may hold a copy of it \(\/pi\/locked\) cannot be read\. Make it readable/
+
+    beforeEach(() => {
+      operationMocks.existingSessionFile.mockReturnValue(undefined)
+      operationMocks.unsearchableFolder.mockReturnValue('/pi/locked')
+    })
+    afterEach(() => {
+      operationMocks.existingSessionFile.mockReturnValue('/repo/session.jsonl')
+      operationMocks.unsearchableFolder.mockReturnValue(undefined)
+    })
+
+    function deleted() {
+      const transcript = withTranscript()
+      return { ...transcript, session: { ...transcript.session, piSessionFile: deletedFile } }
+    }
+
+    it.each<[string, () => Promise<unknown>]>([
+      ['forking', () => forkPiSession({ ...deleted(), targetNodeId: 'm1', position: 'before' })],
+      ['compacting', () => compactPiSession(deleted())],
+      ['navigating', () => navigatePiSessionTree({ ...deleted(), targetNodeId: 'm1' })],
+      ['taking a snapshot of', () => getPiSessionSnapshot(deleted())],
+    ])('refuses %s, naming the folder, not offering a new transcript', async (_action, run) => {
+      await expect(run()).rejects.toThrow(COPIES)
+    })
+  })
+
   it('disposes the fork runtime and reports a missing entry when the target is invalid', async () => {
     // The successful fork path, which re-keys the new Pi file, is covered with a real Pi
     // session file in fork-entry-identity.unit.test.ts.
+    operationMocks.readOnlySessionFile.mockReturnValueOnce('/repo/source.jsonl')
     const runtimeSession = { sessionId: 'pi-session-2', sessionFile: '/repo/fork.jsonl' }
     const invalidFork = vi.fn(async () => {
       throw new Error('Invalid entry ID for forking')

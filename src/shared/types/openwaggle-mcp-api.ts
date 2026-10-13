@@ -1,75 +1,66 @@
 import type {
-  McpAddServerInput,
+  McpAppCatalogInput,
+  McpAppCatalogResult,
   McpAppToolCallInput,
   McpAppToolCallResult,
-  McpAuthorizeServerInput,
-  McpAuthorizeServerResult,
-  McpCapabilityCatalog,
-  McpDoctorInput,
-  McpDoctorResult,
-  McpEventRecord,
-  McpEventSubscriptionState,
-  McpGetPromptInput,
-  McpGetSettingsInput,
-  McpImportApplyInput,
-  McpImportApplyResult,
-  McpImportPreview,
-  McpImportPreviewInput,
-  McpInstallCatalogServerInput,
-  McpListCapabilitiesInput,
-  McpPromptResult,
   McpReadResourceInput,
-  McpRemoteSkillReview,
   McpRemoveSecretInput,
-  McpRemoveServerInput,
   McpResourceResult,
-  McpReviewRemoteSkillInput,
   McpSecretSummary,
-  McpSetEventSubscriptionInput,
-  McpSetProjectServerEnabledInput,
-  McpSetScopeStateInput,
   McpSetSecretInput,
-  McpSetServerEnabledInput,
-  McpSetServerTrustInput,
-  McpSettingsView,
-  McpTaskOperationInput,
-  McpTaskRecord,
-  McpWriteSourceConfigInput,
 } from './mcp'
+import type {
+  McpConfigurationView,
+  McpServerInspection,
+  McpServerStatusView,
+} from './mcp-configuration'
+import type {
+  McpAddServerRequest,
+  McpConfigurationScopeRequest,
+  McpImportApplyRequest,
+  McpImportApplyResultView,
+  McpImportPreviewRequest,
+  McpImportPreviewView,
+  McpInstallCatalogServerRequest,
+  McpRemoveServerRequest,
+  McpServerNameRequest,
+  McpSessionRequest,
+  McpSetServerEnabledRequest,
+  McpSetServerExposureRequest,
+  McpSetSessionEnabledRequest,
+  McpSignInResultView,
+} from './mcp-configuration-operations'
+import type {
+  McpRegistryInstallRequest,
+  McpRegistryInstallResultView,
+  McpRegistrySearchRequest,
+  McpRegistrySearchResultView,
+  McpRegistryServerRequest,
+  McpRegistryServerView,
+} from './mcp-registry'
 
 export interface OpenWaggleMcpApi {
-  getMcpSettings(input?: McpGetSettingsInput): Promise<McpSettingsView>
-  setMcpScopeState(input: McpSetScopeStateInput): Promise<McpSettingsView>
-  setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
-  setMcpProjectServerEnabled(input: McpSetProjectServerEnabledInput): Promise<McpSettingsView>
-  setMcpServerTrust(input: McpSetServerTrustInput): Promise<McpSettingsView>
-  writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
-  removeMcpServer(input: McpRemoveServerInput): Promise<McpSettingsView>
-  authorizeMcpServer(input: McpAuthorizeServerInput): Promise<McpAuthorizeServerResult>
-  logoutMcpServer(input: McpAuthorizeServerInput): Promise<{
-    removedSecrets: readonly string[]
-    retainedSharedSecrets: readonly string[]
-    retainedUnverifiedSecrets: readonly string[]
-    unreadableSources: readonly string[]
-    oauthRemoved: boolean
-  }>
-  addMcpServer(input: McpAddServerInput): Promise<McpSettingsView>
-  previewMcpImports(input: McpImportPreviewInput): Promise<McpImportPreview>
-  applyMcpImports(input: McpImportApplyInput): Promise<McpImportApplyResult>
-  installMcpCatalogServer(input: McpInstallCatalogServerInput): Promise<McpSettingsView>
-  doctorMcp(input?: McpDoctorInput): Promise<McpDoctorResult>
+  getMcpConfiguration(input: McpConfigurationScopeRequest): Promise<McpConfigurationView>
+  setMcpServerEnabled(input: McpSetServerEnabledRequest): Promise<McpConfigurationView>
+  setMcpServerExposure(input: McpSetServerExposureRequest): Promise<McpConfigurationView>
+  addMcpServer(input: McpAddServerRequest): Promise<McpConfigurationView>
+  removeMcpServer(input: McpRemoveServerRequest): Promise<McpConfigurationView>
+  installMcpCatalogServer(input: McpInstallCatalogServerRequest): Promise<McpConfigurationView>
+  inspectMcpServer(input: McpServerNameRequest): Promise<McpServerInspection>
+  getMcpServerStatuses(input: McpConfigurationScopeRequest): Promise<readonly McpServerStatusView[]>
+  signInMcpServer(input: McpServerNameRequest): Promise<McpSignInResultView>
+  signOutMcpServer(input: McpServerNameRequest): Promise<void>
+  getSessionMcpEnabled(input: McpSessionRequest): Promise<boolean>
+  setSessionMcpEnabled(input: McpSetSessionEnabledRequest): Promise<boolean>
+  previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>
+  applyMcpImports(input: McpImportApplyRequest): Promise<McpImportApplyResultView>
+  searchMcpRegistry(input: McpRegistrySearchRequest): Promise<McpRegistrySearchResultView>
+  getMcpRegistryServer(input: McpRegistryServerRequest): Promise<McpRegistryServerView>
+  installMcpRegistryServer(input: McpRegistryInstallRequest): Promise<McpRegistryInstallResultView>
   listMcpSecrets(): Promise<readonly McpSecretSummary[]>
   setMcpSecret(input: McpSetSecretInput): Promise<readonly McpSecretSummary[]>
   removeMcpSecret(input: McpRemoveSecretInput): Promise<readonly McpSecretSummary[]>
-  listMcpCapabilities(input: McpListCapabilitiesInput): Promise<McpCapabilityCatalog>
-  getMcpPrompt(input: McpGetPromptInput): Promise<McpPromptResult>
   readMcpResource(input: McpReadResourceInput): Promise<McpResourceResult>
-  reviewMcpRemoteSkill(input: McpReviewRemoteSkillInput): Promise<McpRemoteSkillReview>
-  operateMcpTask(input: McpTaskOperationInput): Promise<readonly McpTaskRecord[]>
+  listMcpAppCatalog(input: McpAppCatalogInput): Promise<McpAppCatalogResult>
   callMcpAppTool(input: McpAppToolCallInput): Promise<McpAppToolCallResult>
-  setMcpEventSubscription(input: McpSetEventSubscriptionInput): Promise<McpEventSubscriptionState>
-  listMcpEvents(input?: McpGetSettingsInput): Promise<readonly McpEventRecord[]>
-  listMcpEventSubscriptions(
-    input?: McpGetSettingsInput,
-  ): Promise<readonly McpEventSubscriptionState[]>
 }

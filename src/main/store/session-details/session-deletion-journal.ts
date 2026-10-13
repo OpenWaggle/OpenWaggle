@@ -1,11 +1,17 @@
-import { randomUUID } from 'node:crypto'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
+import type { SessionDeleteOptions } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
-import { assertSessionDeleteSatisfiesForeignKeys, deleteSessionRow } from './session-row-deletion'
+import * as PiSessionDismissals from './pi-session-dismissals'
+import {
+  assertSessionDeletable,
+  assertSessionHasNoForks,
+  assertSessionHasNoWorkers,
+} from './session-deletion-preflight'
+import { deleteSessionRow } from './session-row-deletion'
 
 export type SessionDeletionPhase =
   | 'prepared'
@@ -81,50 +87,13 @@ export async function getSessionDeletion(id: SessionId): Promise<SessionDeletion
   )
 }
 
-function assertSessionHasNoForks(sql: SqlClient.SqlClient, id: SessionId) {
-  return Effect.gen(function* () {
-    const rows = yield* sql<{ readonly derived_session_id: string }>`
-      SELECT derived_session_id
-      FROM session_derivations
-      WHERE source_session_id = ${id}
-      ORDER BY created_at, derived_session_id
-      LIMIT 1
-    `
-    const fork = rows[EMPTY_INDEX]
-    if (fork) {
-      throw new Error(
-        `Session deletion was refused because fork ${fork.derived_session_id} still depends on it.`,
-      )
-    }
-  })
-}
-
-function assertSessionHasNoWorkers(sql: SqlClient.SqlClient, id: SessionId) {
-  return Effect.gen(function* () {
-    const rows = yield* sql<{ readonly child_session_id: string }>`
-      SELECT child_session_id FROM (
-        SELECT child_session_id, created_at
-        FROM session_spawn_lineage
-        WHERE parent_session_id = ${id} OR hive_root_session_id = ${id}
-        UNION ALL
-        SELECT session_id AS child_session_id, created_at
-        FROM session_lineage
-        WHERE parent_session_id = ${id}
-      )
-      ORDER BY created_at, child_session_id
-      LIMIT 1
-    `
-    const worker = rows[EMPTY_INDEX]
-    if (worker) {
-      throw new Error(
-        `Session deletion was refused because worker ${worker.child_session_id} still depends on it.`,
-      )
-    }
-  })
-}
-
 /** `transcriptFile` stands in for a Pi file the Session never recorded, for cleanup to find. */
-export async function prepareSessionDeletion(id: SessionId, transcriptFile?: string | null) {
+/** Journals a Session's deletion; see `journaledPiSessionFile` for a discovered Pi file. */
+export async function prepareSessionDeletion(
+  id: SessionId,
+  transcriptFile?: string | null,
+  options: SessionDeleteOptions = {},
+) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -132,9 +101,7 @@ export async function prepareSessionDeletion(id: SessionId, transcriptFile?: str
         Effect.gen(function* () {
           const existing = yield* readDeletion(sql, id)
           if (existing[EMPTY_INDEX]) return deletionRecord(existing[EMPTY_INDEX], true)
-          yield* assertSessionHasNoForks(sql, id)
-          yield* assertSessionHasNoWorkers(sql, id)
-          yield* assertSessionDeleteSatisfiesForeignKeys(sql, id)
+          yield* assertSessionDeletable(sql, id)
           const sessions = yield* sql<{
             readonly project_path: string | null
             readonly pi_session_file: string | null
@@ -154,7 +121,12 @@ export async function prepareSessionDeletion(id: SessionId, transcriptFile?: str
           const session = sessions[EMPTY_INDEX]
           if (!session) throw new Error(`Session ${id} does not exist.`)
           const now = Date.now()
-          const piSessionFile = session.pi_session_file ?? transcriptFile ?? null
+          const piSessionFile = yield* PiSessionDismissals.journaledPiSessionFile(sql, {
+            id,
+            piSessionFile: session.pi_session_file ?? transcriptFile ?? null,
+            removingProject: options.removingProject === true,
+            now,
+          })
           yield* sql`
             INSERT INTO session_deletion_operations (
               session_id, phase, project_path, worktree_project_path, worktree_path,
@@ -242,7 +214,7 @@ export async function prepareSessionPiFileCleanup(
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const stagedPiSessionFile = piSessionFile ? `${piSessionFile}.${randomUUID()}.delete` : null
+      const stagedPiSessionFile = yield* PiSessionDismissals.stagedPiSessionFile(sql, piSessionFile)
       yield* sql`
         UPDATE session_deletion_operations
         SET phase = ${'pi-file-cleanup-pending'}, pi_session_file = ${piSessionFile},
@@ -287,7 +259,7 @@ export async function abandonSessionDeletion(id: SessionId): Promise<void> {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`DELETE FROM session_deletion_operations WHERE session_id = ${id}`
+      yield* PiSessionDismissals.abandonSessionDeletionWithSql(sql, id)
     }),
   )
 }

@@ -64,6 +64,8 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI): void;
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -99,6 +101,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;
@@ -122,6 +128,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {
@@ -132,6 +140,25 @@ export declare function createPiWaggleTurnCompletionHandlers<TMeta>(input: PiWag
 export declare function createPiWaggleTurnEndHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleTurnEndHandler;
 export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleExtensionApi): void;
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
+```
+
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
 ```
 
 ### Declarations from `dist/mode-state.d.ts`
@@ -278,6 +305,9 @@ export {};
 ```ts
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleConsensusCheckResult } from '@openwaggle/waggle-core';
+type PiAssistantMessage = Extract<AgentEndEvent['messages'][number], {
+    readonly role: 'assistant';
+}>;
 interface UnresolvedToolCall {
     readonly id: string;
     readonly name: string;
@@ -288,6 +318,18 @@ export interface PiWaggleTurnSummary {
     readonly unresolvedToolCalls: readonly UnresolvedToolCall[];
     readonly aborted: boolean;
     readonly terminalError?: string;
+    /**
+     * Whether the turn's error can recover on a later turn. False for an error that would fail
+     * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+     */
+    readonly terminalErrorRecoverable?: boolean;
+}
+export interface PiWaggleTurnSummaryOptions {
+    /**
+     * Classifies a turn's final error. A host decides with its provider's error rules, such as
+     * Pi's retryable-error check; without it every error counts as recoverable.
+     */
+    readonly isRecoverableError?: (message: PiAssistantMessage) => boolean;
 }
 export interface PiWaggleStopPolicyState {
     readonly consecutiveErrorTurns: number;
@@ -305,7 +347,7 @@ export interface PiWaggleStopPolicyDecision {
     };
 }
 export declare function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState;
-export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][]): PiWaggleTurnSummary;
+export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][], options?: PiWaggleTurnSummaryOptions): PiWaggleTurnSummary;
 export declare function evaluatePiWaggleStopPolicy(input: {
     readonly config: WaggleConfig;
     readonly turnNumber: number;
@@ -369,6 +411,8 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI): void;
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -404,6 +448,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;
@@ -427,6 +475,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {
@@ -439,6 +489,25 @@ export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMe
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
 ```
 
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
+```
+
 ## Export `./loop`
 
 Types: `dist/loop.d.ts`
@@ -448,6 +517,8 @@ Types: `dist/loop.d.ts`
 ```ts
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext, ExtensionFactory, TurnEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core';
+import { onPiWaggleSettledAgentEnd } from './settled-run.js';
+export { onPiWaggleSettledAgentEnd };
 export type PiWaggleModel = NonNullable<ReturnType<ExtensionContext['modelRegistry']['find']>>;
 export type PiWaggleCustomMessage = Parameters<ExtensionAPI['sendMessage']>[0];
 export type PiWaggleSendMessageOptions = NonNullable<Parameters<ExtensionAPI['sendMessage']>[1]>;
@@ -483,6 +554,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;
@@ -506,6 +581,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
     readonly factory: ExtensionFactory;
     readonly done: Promise<void>;
+    /** Ends the loop with `error`, such as a turn the host could not start. */
+    readonly fail: (error: unknown) => void;
 }
 export declare function createPiWaggleLoopHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleAgentEndHandler;
 export interface PiWaggleTurnCompletionHandlers {
@@ -516,6 +593,25 @@ export declare function createPiWaggleTurnCompletionHandlers<TMeta>(input: PiWag
 export declare function createPiWaggleTurnEndHandler<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleLoopApi): PiWaggleTurnEndHandler;
 export declare function registerPiWaggleLoop<TMeta>(input: PiWaggleLoopInput<TMeta>, api: PiWaggleExtensionApi): void;
 export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>): PiWaggleExtensionController;
+```
+
+### Declarations from `dist/settled-run.d.ts`
+
+```ts
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
+/**
+ * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
+ * failed request it is about to retry, after overflow compaction, and before a queued
+ * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
+ * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
+ */
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
 ```
 
 ## Export `./mode-state`
@@ -713,6 +809,9 @@ Types: `dist/stop-policy.d.ts`
 ```ts
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent';
 import type { WaggleConfig, WaggleConsensusCheckResult } from '@openwaggle/waggle-core';
+type PiAssistantMessage = Extract<AgentEndEvent['messages'][number], {
+    readonly role: 'assistant';
+}>;
 interface UnresolvedToolCall {
     readonly id: string;
     readonly name: string;
@@ -723,6 +822,18 @@ export interface PiWaggleTurnSummary {
     readonly unresolvedToolCalls: readonly UnresolvedToolCall[];
     readonly aborted: boolean;
     readonly terminalError?: string;
+    /**
+     * Whether the turn's error can recover on a later turn. False for an error that would fail
+     * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+     */
+    readonly terminalErrorRecoverable?: boolean;
+}
+export interface PiWaggleTurnSummaryOptions {
+    /**
+     * Classifies a turn's final error. A host decides with its provider's error rules, such as
+     * Pi's retryable-error check; without it every error counts as recoverable.
+     */
+    readonly isRecoverableError?: (message: PiAssistantMessage) => boolean;
 }
 export interface PiWaggleStopPolicyState {
     readonly consecutiveErrorTurns: number;
@@ -740,7 +851,7 @@ export interface PiWaggleStopPolicyDecision {
     };
 }
 export declare function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState;
-export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][]): PiWaggleTurnSummary;
+export declare function summarizePiWaggleTurnMessages(messages: readonly AgentEndEvent['messages'][number][], options?: PiWaggleTurnSummaryOptions): PiWaggleTurnSummary;
 export declare function evaluatePiWaggleStopPolicy(input: {
     readonly config: WaggleConfig;
     readonly turnNumber: number;

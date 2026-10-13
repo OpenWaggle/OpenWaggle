@@ -1,7 +1,9 @@
 import { SESSION_TITLE_MODEL_OFF, type SessionTitleModelSetting } from '@shared/session-title-model'
 import type { SessionTitleSource } from '@shared/session-title-source'
-import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import { type SessionId, SupportedModelId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import { lastAnsweringModelReference } from '../domain/session-model-fallback'
 import type { SessionTitleContextAttachment } from '../domain/session-title/session-title-context'
 import { parseGeneratedSessionTitle } from '../domain/session-title/session-title-output'
 import { buildSessionTitlePrompt } from '../domain/session-title/session-title-prompts'
@@ -74,6 +76,12 @@ export function isWithinTitleWorkWindow(at: number, now: number) {
   return now - at <= TITLE_WORK_WINDOW_MS
 }
 
+/** The fallback a Title request of a loaded Session carries: the model that answered it last. */
+export function sessionTitleFallbackModel(session: Pick<SessionDetail, 'messages'>) {
+  const fallbackModel = lastAnsweringModelReference(session)
+  return fallbackModel ? { fallbackModel: SupportedModelId(fallbackModel) } : {}
+}
+
 /**
  * Sends one title request. Background work takes one of `TITLE_REQUEST_CONCURRENCY` Host-wide
  * permits; a request a person is waiting for (`priority: 'user'`) skips the queue, so a burst of
@@ -82,6 +90,8 @@ export function isWithinTitleWorkWindow(at: number, now: number) {
 export function generateTitle(input: {
   readonly state: SessionTitleState
   readonly sessionModel: SupportedModelId | null
+  /** The model that answered the Session last, used when the Session model is gone. */
+  readonly fallbackModel?: SupportedModelId
   readonly message: string
   readonly previousTitle?: string
   readonly attachments?: readonly SessionTitleContextAttachment[]
@@ -104,7 +114,9 @@ export function generateTitle(input: {
         )
       }
       return yield* generator.generate({
+        projectPath: input.state.projectPath,
         sessionModel: input.sessionModel ?? input.state.executionModel,
+        ...(input.fallbackModel ? { fallbackModel: input.fallbackModel } : {}),
         titleModel,
         ...prompt,
       })

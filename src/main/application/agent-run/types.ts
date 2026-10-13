@@ -25,6 +25,7 @@ export interface AgentRunInput {
   readonly authorityCallerId?: string
   readonly agentInstructions?: string
   readonly sessionIdentityContext?: string
+  readonly runIdentityContext?: string
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]

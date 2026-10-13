@@ -1,7 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { type AgentSessionEvent, calculateContextTokens } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
-import { createModelRef } from '@shared/types/llm'
 import type { AgentTransportUserMessage } from '@shared/types/stream'
 import { classifyAgentError } from '../../../agent/error-classifier'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
@@ -9,6 +8,7 @@ import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
 import {
   observePiAssistantMessageForUsageStatistics,
   observePiCompactionForUsageStatistics,
+  observePiToolResultForUsageStatistics,
   observePiToolUseForUsageStatistics,
 } from '../pi-usage-statistics'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
@@ -28,6 +28,7 @@ import type {
   ToolExecutionStartSessionEvent,
   ToolExecutionUpdateSessionEvent,
 } from './listener-types'
+import { responseContextUsageEvent } from './pi-response-usage'
 import { emitEvent } from './transport-emitter'
 import {
   incorporatedUserMessageDisplay,
@@ -35,6 +36,11 @@ import {
   isVisibleWaggleUserRequest,
   type PiUserMessageEntrySource,
 } from './user-message-events'
+
+/** Nested calls (Pi `ctx.executeTool()`) name their calling tool call; model-issued calls do not. */
+function parentToolCall(event: { readonly parentToolCallId?: string }) {
+  return event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {}
+}
 
 function emitAgentStart(state: SessionListenerState) {
   emitEvent(state.input.onEvent, {
@@ -58,6 +64,7 @@ function handleToolExecutionStart(
     toolName: event.toolName,
     args: toolInput,
     parentMessageId: state.currentMessageId ?? undefined,
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -75,6 +82,7 @@ function handleToolExecutionUpdate(
     toolName: event.toolName,
     args: toolInput,
     partialResult: toJsonValue(event.partialResult),
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -88,6 +96,7 @@ function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutio
     args: state.toolCallInputs.get(event.toolCallId),
     result: toJsonValue(event.result),
     isError: event.isError,
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -134,6 +143,9 @@ function handleIncorporatedUserMessage(
 
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
   if (handleIncorporatedUserMessage(state, event.message)) return
+  if (event.message.role === 'toolResult') {
+    return observePiToolResultForUsageStatistics(state.runId, event.message)
+  }
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }
@@ -145,24 +157,12 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
     role: 'assistant',
     timestamp: Date.now(),
     model: state.input.model,
+    ...(event.message.stopReason === 'error' && event.message.errorMessage
+      ? { errorMessage: event.message.errorMessage }
+      : {}),
   })
-  const contextTokens = calculateContextTokens(event.message.usage)
-  const contextWindow = state.input.getContextWindow?.(event.message.provider, event.message.model)
-  if (
-    event.message.stopReason !== 'error' &&
-    event.message.stopReason !== 'aborted' &&
-    contextTokens > 0 &&
-    contextWindow &&
-    contextWindow > 0
-  ) {
-    emitEvent(state.input.onEvent, {
-      type: 'context_usage',
-      tokens: contextTokens,
-      contextWindow,
-      timestamp: Date.now(),
-      model: createModelRef(event.message.provider, event.message.model),
-    })
-  }
+  const contextUsage = responseContextUsageEvent(state.input, event.message)
+  if (contextUsage) emitEvent(state.input.onEvent, contextUsage)
   state.currentMessageId = null
 }
 
@@ -185,9 +185,10 @@ function emitCompactionStart(state: SessionListenerState, event: CompactionStart
   })
 }
 
-function compactionTransportResult(event: CompactionEndSessionEvent) {
+function compactionTransportResult(state: SessionListenerState, event: CompactionEndSessionEvent) {
   const entryId = event.result?.entryId
-  return typeof entryId === 'string' ? { entryId } : null
+  if (typeof entryId !== 'string') return null
+  return { entryId: state.input.nodeIds ? state.input.nodeIds.toNodeId(entryId) : entryId }
 }
 
 function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSessionEvent) {
@@ -195,7 +196,7 @@ function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSess
   emitEvent(state.input.onEvent, {
     type: 'compaction_end',
     reason: event.reason,
-    result: compactionTransportResult(event),
+    result: compactionTransportResult(state, event),
     aborted: event.aborted,
     willRetry: event.willRetry,
     ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),

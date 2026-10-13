@@ -109,8 +109,11 @@ User sends prompt
   -> Waggle extension sees active Waggle mode
   -> before_agent_start prepares Agent A turn
   -> Agent A runs
-  -> final turn_end / agent_end completion handler fires
-  -> extension evaluates stop policy
+  -> Pi settles the run (agent_settled): no automatic retry, overflow compaction, or queued
+     continuation follows; the run's agent_end messages, without attempts a later response
+     replaced, are the turn's
+  -> extension evaluates stop policy (an error no later turn can recover from, by Pi's
+     retryable-error and context-overflow rules, stops the collaboration)
   -> extension switches model to Agent B
   -> after the current Pi run settles, extension appends the Agent B turn marker and sends the next automatic user message
   -> Agent B runs
@@ -307,7 +310,7 @@ Known limitation to validate: Pi TUI supports custom message renderers, but may 
   - command parsing
   - state restoration from Pi session entries
 - Fake `ExtensionAPI` harness tests:
-  - `agent_end` schedules the next turn with `pi.sendMessage(...)`
+  - `agent_settled`, not a failed attempt's `turn_end` or `agent_end`, schedules the next turn with `pi.sendMessage(...)`
   - model switching uses provider-qualified model refs
   - `/waggle off` and `/standard` append disabled mode state
 - OpenWaggle main tests:

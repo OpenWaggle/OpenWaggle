@@ -106,6 +106,32 @@ function registryWithToolRenderer(toolName: string): ExtensionContributionRegist
 // Tests
 // ---------------------------------------------------------------------------
 describe('ToolCallRouter', () => {
+  it('renders the codemode card for a codemode call, with its live child calls', () => {
+    const part = makeToolCallPart(
+      'codemode',
+      JSON.stringify({ code: 'return 1' }),
+      'tc-1',
+      'executing',
+    )
+    render(
+      <ToolCallRouter
+        part={{
+          ...part,
+          partialOutput: {
+            content: [],
+            details: { calls: [{ id: 'tc-1/?', name: 'read', args: '{}', status: 'running' }] },
+          },
+        }}
+        toolResults={emptyResults()}
+        sessionId={defaultSessionId}
+        isStreaming
+      />,
+    )
+    expect(screen.queryByTestId('tool-call-block')).not.toBeInTheDocument()
+    expect(screen.getByText('Running a script…')).toBeInTheDocument()
+    expect(screen.getByText('read')).toBeInTheDocument()
+  })
+
   it('renders ToolCallBlock for generic tool calls', () => {
     const part = makeToolCallPart('read')
     render(

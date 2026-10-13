@@ -13,7 +13,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 
 | Section | Use it to |
 |---------|-----------|
-| General | Choose where links open, adjust automatic context compaction, check for updates, and turn off usage statistics. |
+| General | Choose where links open, adjust automatic context compaction, turn codemode and prompt cache warming on or off, check for updates, and turn off usage statistics. |
 | Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
 | Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
 | Shortcuts | View and customize keyboard bindings. |
@@ -23,10 +23,19 @@ Most settings apply across the app. Sections with a project picker let you inspe
 | Skills | Browse skills for a selected project. |
 | Agents | Configure agent-created Workers and browse Markdown agent definitions. |
 | Permissions | Set default and project access modes, and revoke saved approvals. |
-| MCP | Connect external tools and services, review their access, and diagnose connection problems. |
+| MCP | Connect external tools and services, choose how the agent reaches their tools, and diagnose connection problems. |
 | Worktrees | Choose the default checkout mode and manage Git worktrees. |
 | Archived items | Restore archived sessions or conversation branches, and permanently delete archived sessions. |
 | Connections | Connect provider accounts and choose which models appear beside the message box. |
+
+## Agent tools
+
+**Settings > General > Agent tools** holds two settings that OpenWaggle passes to Pi, the agent runtime. OpenWaggle keeps them in its own settings and does not change your Pi settings files, so the Pi command line keeps its own choices.
+
+- **Codemode** lets the agent write short scripts that call several tools in one step. It is on by default. See [Codemode](/docs/using-openwaggle/codemode).
+- **Keep prompt caches warm** decides whether Pi refreshes the provider's prompt cache during long tool calls, so the next request does not pay to rebuild it. **While working** (the default) refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. **Between runs** also keeps refreshing for up to 30 minutes after the agent finishes, in case you reply. Pi expects a reply less often than a next tool call, so it refreshes less often than while working. Starting a new run, compacting, branching, archiving, or deleting the session stops these refreshes, and so does quitting OpenWaggle. Refreshes count toward the session's usage and show in the context meter's session cost the next time it is read.
+
+Until you change them here, both settings follow your own Pi settings (`defaultTools` and `cacheWarming` in `~/.pi/agent/settings.json`) when you have set them there, and OpenWaggle's defaults otherwise. OpenWaggle reads your Pi settings again for each run, so a change you make there while OpenWaggle is open applies to the next run. Once you choose here, your OpenWaggle choice wins. OpenWaggle does not write either value to Pi's files.
 
 ## Agents and permissions
 
@@ -110,7 +119,7 @@ If configured cleanup fails, the worktree stays in the list with its output and 
 
 ## Connections
 
-Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider.
+Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider. Enabling a model only adds it to the selector. A session that already uses another model, such as one you continue from the `pi` CLI, keeps that model while its provider is signed in, as `pi --resume` does. If the session's model is gone, such as a virtual model whose extension was removed, the session continues on the model that answered last and the run says so. Otherwise, if its provider is not signed in or the project does not have the model, sending says which model is missing and where to connect it. Models enabled from one project's extensions stay enabled when you open another project, though they show only where that project's catalog lists them.
 
 **Title model** chooses the model that writes [session titles](/docs/using-openwaggle/chat-and-tools#session-titles):
 
@@ -120,15 +129,13 @@ Expand **API Key Providers** to save a key or **OAuth Providers** to sign in thr
 | A specific model | That model writes every title. Each session's opening message and each Worker's task are sent to that model's provider, and so is the conversation, up to about 8,000 characters, when a title is refined or regenerated. If that model fails, the session's own model is tried instead. |
 | **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
 
-A provider that a project's Pi extension adds is not available for titles. Sessions on such a model keep their opening message as the title unless you choose a specific Title model.
+Titles use the models of each session's project, so a provider or virtual model that a project's Pi extension adds works for its sessions, under **Automatic** or chosen as the Title model.
 
 See [Providers and models](/docs/providers/overview) for the full setup.
 
 ## MCP
 
-MCP connects the agent to tools and services outside its built-in file and command tools. It starts globally off. In **Settings > MCP**, review each server's definition and requested access before trusting or enabling it.
-
-Activation can differ by session and project. Changes during agent work may remain pending until the turn finishes. Turning a server off does not prove a job already submitted to a remote service has stopped. See [Model Context Protocol](/docs/configuration/mcp) for setup, credentials, and cancellation limits.
+MCP connects the agent to tools and services outside its built-in file and command tools. OpenWaggle reads the same MCP files as Pi, so servers you set up for Pi appear in **Settings > MCP** too. Add, turn off, or sign in to servers there. See [Model Context Protocol](/docs/configuration/mcp) for setup and credentials.
 
 ## Archived items
 
@@ -149,9 +156,9 @@ Other files have separate locations:
 | User Waggle presets | `~/.pi/agent/waggle-presets.json` |
 | Project Waggle presets | `<project>/.pi/waggle-presets.json` |
 | Provider credentials saved through Pi | `~/.pi/agent/auth.json` |
-| Global MCP definitions | `~/.openwaggle/mcp.json` |
-| Project MCP definitions | `<project>/.mcp.json` and `<project>/.openwaggle/mcp.json` |
-| User-owned MCP trust, secret references, OAuth state, and remote task records | `~/.openwaggle/mcp/` |
+| Global MCP servers | `~/.pi/agent/mcp.json` and `~/.openwaggle/mcp.json` |
+| Project MCP servers | `<project>/.mcp.json`, `<project>/.pi/mcp.json`, and `<project>/.openwaggle/mcp.json` |
+| MCP secrets and sign-ins (encrypted) | `mcp/` in OpenWaggle's application data folder, separate for each build |
 
 Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
 

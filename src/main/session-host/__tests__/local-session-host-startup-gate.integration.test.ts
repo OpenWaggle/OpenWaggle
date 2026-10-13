@@ -108,4 +108,31 @@ describe('Local Session Host startup gate', () => {
     const successor = await acquireSessionHostOwnership(databasePath)
     await successor.release()
   })
+
+  // A keychain prompt during the MCP sign-in migration took minutes; it must not hold up start.
+  it('starts services that may be slow once it serves clients, without waiting for them', async () => {
+    const endpoint = endpointFor('after-listening')
+    let connectableWhenStarted: boolean | undefined
+    const startServicesAfterListening = vi.fn(() => {
+      void canConnect(endpoint).then((connected) => {
+        connectableWhenStarted = connected
+      })
+      // Never settles, as a keychain prompt nobody answers would not.
+      return new Promise<void>(() => undefined)
+    })
+
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'after-listening.sqlite'),
+      idleGracePeriodMs: 60_000,
+      startOwnedServices: async () => undefined,
+      startServicesAfterListening,
+      stopOwnedServices: async () => undefined,
+      authenticate: async () => ({ callerId: 'local-user' }),
+      dispatch: async () => ({ accepted: true }),
+    })
+
+    expect(startServicesAfterListening).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(connectableWhenStarted).toBe(true))
+  })
 })

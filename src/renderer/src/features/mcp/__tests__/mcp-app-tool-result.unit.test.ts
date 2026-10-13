@@ -2,34 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { getMcpAppLaunch } from '../mcp-app-tool-result'
 
 describe('MCP App transcript launch projection', () => {
-  it('extracts only attributed gateway App payloads', () => {
+  it('opens the App that the MCP layer attached to a Pi MCP tool result', () => {
     const launch = getMcpAppLaunch(
       {
         content: [{ type: 'text', text: 'done' }],
         details: {
-          kind: 'gateway',
-          result: {
-            app: {
-              descriptor: {
-                serverInstanceId: 'server-1',
-                serverLabel: 'maps',
-                serverConfigHash: 'config-1',
-                toolHandle: 'mcp_handle',
-                toolName: 'show_map',
-                toolTitle: 'Show map',
-                resourceUri: 'ui://maps/app',
-                allowedNetworkDomains: [],
-              },
-              toolResult: {
-                content: [{ type: 'text', text: 'done' }],
-                structuredContent: { latitude: 1 },
-                isError: false,
-              },
+          server: 'maps',
+          tool: 'show_map',
+          mcpApp: {
+            descriptor: {
+              serverInstanceId: 'server-1',
+              serverLabel: 'maps',
+              serverConfigHash: 'config-1',
+              toolHandle: 'mcp__maps__show_map',
+              toolName: 'show_map',
+              toolTitle: 'Show map',
+              resourceUri: 'ui://maps/app',
+              allowedNetworkDomains: [],
+            },
+            toolResult: {
+              content: [{ type: 'text', text: 'done' }],
+              structuredContent: { latitude: 1 },
+              isError: false,
             },
           },
         },
       },
-      { operation: 'call', arguments: { city: 'Madrid' } },
+      { city: 'Madrid' },
     )
 
     expect(launch).toEqual({

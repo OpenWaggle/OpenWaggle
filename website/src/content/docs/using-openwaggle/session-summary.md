@@ -24,7 +24,6 @@ The Summary floats over the conversation rather than narrowing it. It may open a
 | Workspace preparation | Review setup progress and output, retry a failed setup, or adopt a newer preparation profile. |
 | Hive | Open the parent or direct Worker sessions and check their progress. |
 | Pull requests or Merge requests | Open additional requests created by this session. The label starts with Other when the current branch's request is already shown under Environment. |
-| Subscriptions | Check this session's active MCP event subscriptions and retry a failed refresh. |
 
 Sections appear when relevant, except Sources, which keeps its add action available even when empty. Extensions can add sections of their own. An error in one extension section does not prevent the others from working.
 

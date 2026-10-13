@@ -149,6 +149,22 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
+  it("names a continued Session's model by its catalog name though it is not enabled", () => {
+    usePreferencesStore.setState((state) => ({
+      settings: { ...state.settings, enabledModels: [CURRENT_MODEL] },
+    }))
+    const sessionId = SessionId('session-from-pi-cli')
+    const continued = sessionDetail(sessionId, NEXT_MODEL)
+    useChatStore.setState({
+      activeSessionId: sessionId,
+      activeSession: continued,
+      sessionById: new Map([[sessionId, continued]]),
+    })
+    renderComposerModelControls()
+
+    expect(screen.getByRole('button', { name: 'Claude Sonnet' })).toBeInTheDocument()
+  })
+
   it('locks the picker while a Run is active, since the Host refuses a model change then', () => {
     const sessionId = SessionId('session-mid-turn-model')
     openSession(sessionId, CURRENT_MODEL)
@@ -209,5 +225,93 @@ describe('ComposerModelPicker for an existing Session', () => {
       message: expect.stringContaining('Host unavailable'),
       variant: 'error',
     })
+  })
+})
+
+describe('ComposerModelPicker with a virtual model', () => {
+  const AUTO = SupportedModelId('router/auto')
+
+  beforeEach(() => {
+    useChatStore.setState(useChatStore.getInitialState())
+    useBackgroundRunStore.setState(useBackgroundRunStore.getInitialState())
+    usePreferencesStore.setState({
+      ...usePreferencesStore.getInitialState(),
+      settings: { ...DEFAULT_SETTINGS, selectedModel: AUTO, enabledModels: [AUTO] },
+      isLoaded: true,
+    })
+    useProviderStore.setState({
+      ...useProviderStore.getInitialState(),
+      providerModels: [
+        {
+          provider: 'router',
+          displayName: 'router',
+          auth: AUTH,
+          models: [
+            {
+              id: AUTO,
+              modelId: 'auto',
+              name: 'Auto',
+              provider: 'router',
+              available: true,
+              availableThinkingLevels: ['low', 'high'],
+              virtual: true,
+            },
+          ],
+        },
+        ...PROVIDER_MODELS,
+      ],
+    })
+  })
+
+  it('shows the physical model the virtual model routed the latest response to', () => {
+    const sessionId = SessionId('session-virtual-model')
+    const session = {
+      ...sessionDetail(sessionId, AUTO),
+      messages: [
+        fromPartial<SessionDetail['messages'][number]>({ role: 'user', parts: [] }),
+        fromPartial<SessionDetail['messages'][number]>({
+          role: 'assistant',
+          parts: [],
+          model: CURRENT_MODEL,
+          metadata: { selectedModel: AUTO },
+        }),
+      ],
+    }
+    useChatStore.setState({
+      activeSessionId: sessionId,
+      activeSession: session,
+      sessionById: new Map([[sessionId, session]]),
+    })
+    renderComposerModelControls()
+
+    expect(screen.getByRole('button', { name: 'Auto' })).toBeInTheDocument()
+    expect(screen.getByText('→ GPT 5')).toHaveAttribute(
+      'title',
+      'Auto sent the latest request to GPT 5',
+    )
+  })
+
+  it('shows no route right after switching to the virtual model, until it answers', () => {
+    const sessionId = SessionId('session-just-switched')
+    const session = {
+      ...sessionDetail(sessionId, AUTO),
+      messages: [
+        fromPartial<SessionDetail['messages'][number]>({
+          role: 'assistant',
+          parts: [],
+          model: CURRENT_MODEL,
+          metadata: { selectedModel: CURRENT_MODEL },
+        }),
+      ],
+    }
+    useChatStore.setState({
+      activeSessionId: sessionId,
+      activeSession: session,
+      sessionById: new Map([[sessionId, session]]),
+    })
+    renderComposerModelControls()
+
+    expect(screen.getByRole('button', { name: 'Auto' })).toBeInTheDocument()
+    expect(screen.queryByText(/^→/u)).not.toBeInTheDocument()
   })
 })

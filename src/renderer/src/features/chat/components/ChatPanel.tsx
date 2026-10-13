@@ -22,6 +22,7 @@ import { ArchivedSessionNotice } from './ArchivedSessionNotice'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
+import { DeletedPiSessionFileNotice } from './DeletedPiSessionFileNotice'
 
 const SESSION_SUMMARY_WIDTH_PX = 300
 const SESSION_SUMMARY_RIGHT_INSET_PX = 16
@@ -116,6 +117,19 @@ function matchesHiveSession(candidate: SessionSummary | null | undefined, sessio
   )
 }
 
+/** Whether the active Session belongs to a Hive the session store knows. */
+function useHiveAvailable(activeSessionId: string | null) {
+  return useSessionStore((state) => {
+    if (!activeSessionId) return false
+    return [
+      state.activeSessionTree?.session,
+      ...state.hiveSessions,
+      ...state.sessions,
+      ...state.archivedSessions,
+    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
+  })
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -128,15 +142,7 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
-  const hiveAvailable = useSessionStore((state) => {
-    if (!activeSessionId) return false
-    return [
-      state.activeSessionTree?.session,
-      ...state.hiveSessions,
-      ...state.sessions,
-      ...state.archivedSessions,
-    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
-  })
+  const hiveAvailable = useHiveAvailable(activeSessionId)
   useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
@@ -221,6 +227,7 @@ export function ChatPanelContent({
           </PanelErrorBoundary>
 
           <ArchivedSessionNotice />
+          <DeletedPiSessionFileNotice />
           <PanelErrorBoundary name="Composer">
             <ChatComposerStack
               agentInteractions={sections.agentInteractions}

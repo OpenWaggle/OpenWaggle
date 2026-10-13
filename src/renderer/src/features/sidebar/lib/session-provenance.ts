@@ -70,7 +70,9 @@ export function buildSessionProvenance(
 
   const clonedFrom = clonedFromSessionDescription(session)
   if (clonedFrom !== null) {
-    indicators.push({ kind: 'cloned-from', description: `Cloned from ${clonedFrom}` })
+    // A fork starts before the chosen message (`before`); a clone keeps it (`at`).
+    const verb = session.derivation?.position === 'before' ? 'Forked' : 'Cloned'
+    indicators.push({ kind: 'cloned-from', description: `${verb} from ${clonedFrom}` })
   }
 
   const branchCount = visibleBranchCount(session)

@@ -30,6 +30,9 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
   SessionManager: { create: runtimeMocks.sessionManagerCreate },
 }))
 
+vi.mock('../../pi-session-directory', () => ({
+  resolvePiSessionDirectory: (cwd: string) => `${cwd}/.pi-sessions`,
+}))
 vi.mock('../../pi-provider-catalog', () => ({
   createPiProjectModelRuntime: runtimeMocks.createPiProjectModelRuntime,
   getPiAgentDir: runtimeMocks.getPiAgentDir,
@@ -145,6 +148,7 @@ describe('Pi session runtime', () => {
       piSessionId: 'new-pi-session',
       piSessionFile: '/repo/new-pi-session.jsonl',
     })
-    expect(runtimeMocks.sessionManagerCreate).toHaveBeenCalledWith('/repo')
+    // In the directory `pi` keeps this folder's sessions in, so `pi --resume` finds it.
+    expect(runtimeMocks.sessionManagerCreate).toHaveBeenCalledWith('/repo', '/repo/.pi-sessions')
   })
 })

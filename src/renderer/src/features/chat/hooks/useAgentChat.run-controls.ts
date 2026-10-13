@@ -4,20 +4,19 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
-import {
-  MessageDeliveredRunFailed,
-  MessageNotDelivered,
-} from '@/features/chat/lib/message-delivery'
-import { isModelActionable } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
+import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import {
   beginForegroundRun,
+  clearRunPointers,
+  forgetIfRefusedForPiSessionFile,
   forgetQueuedSend,
+  normalizeError,
   offerRunCompletion,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
@@ -74,16 +73,6 @@ interface AgentRunControlParams {
   readonly addOptimisticUserMessage: (sessionId: SessionId, message: UIMessage) => void
   readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly upsertSession: (session: SessionDetail) => void
-}
-
-function normalizeError(error: unknown) {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function clearRunPointers(refs: AgentRunControlRefs) {
-  refs.foregroundStreamActiveRef.current = false
-  refs.foregroundSessionIdRef.current = null
-  refs.terminalRunErrorRef.current = undefined
 }
 
 function resetRunUiState(params: AgentRunControlParams) {
@@ -174,6 +163,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
     const targetSessionId = sessionId
     const run = beginForegroundRun(refs, params, targetSessionId)
+    const sent = { refs, setters: params, targetSessionId, run, optimisticMessageId }
     const runPromise = run.promise
     // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
     await settledSessionSettingWrites(targetSessionId)
@@ -212,6 +202,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
+      const refused = forgetIfRefusedForPiSessionFile(sent, normalizedError)
+      if (refused) {
+        void refreshSessionSnapshot(targetSessionId)
+        throw refused
+      }
       // A later send may already own the foreground: this Run's completion was passed back to it
       // after that send began. Its state is not this send's to clear or to mark failed.
       const ownsForeground =
@@ -243,7 +238,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
     if (queued) {
-      forgetQueuedSend({ refs, setters: params, targetSessionId, run, optimisticMessageId })
+      forgetQueuedSend(sent)
       return
     }
     /*
@@ -260,8 +255,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     // Transcript retries and diff follow-ups bypass the composer gate; validate before the
     // optimistic turn is appended, so a refused send leaves no phantom message behind.
     const model = params.model
-    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, model)) {
-      params.setError(new Error('Select a model before sending.'))
+    const unavailable = sessionModelActionError(refs.sessionRef.current, model)
+    if (unavailable || !model) {
+      params.setError(unavailable ?? new Error('Select a model before sending.'))
       return
     }
 

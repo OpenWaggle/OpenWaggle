@@ -42,24 +42,31 @@ export function useContextUsageSnapshot({
       typeof api.onAgentEvent === 'function'
         ? api.onAgentEvent((payload) => {
             const event = payload.event
-            if (
-              cancelled ||
-              payload.sessionId !== activeSessionId ||
-              event.model !== selectedModel
-            ) {
+            // A virtual selection's usage arrives under the model its router chose, with that
+            // model's own window, and names the selection it was routed from.
+            const forSelectedModel =
+              event.model === selectedModel ||
+              (event.type === 'context_usage' && event.routedFrom === selectedModel)
+            if (cancelled || payload.sessionId !== activeSessionId || !forSelectedModel) {
               return
             }
 
             if (event.type === 'context_usage') {
               receivedLiveUpdate = true
-              setRequestState({
-                key: currentRequestKey,
-                snapshot: {
-                  tokens: event.tokens,
-                  contextWindow: event.contextWindow,
-                  percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
-                },
-                failed: false,
+              // Live usage carries no Session totals; the last read ones stay until the next read.
+              setRequestState((current) => {
+                const session =
+                  current.key === currentRequestKey ? current.snapshot?.session : undefined
+                return {
+                  key: currentRequestKey,
+                  snapshot: {
+                    tokens: event.tokens,
+                    contextWindow: event.contextWindow,
+                    percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
+                    ...(session ? { session } : {}),
+                  },
+                  failed: false,
+                }
               })
               return
             }

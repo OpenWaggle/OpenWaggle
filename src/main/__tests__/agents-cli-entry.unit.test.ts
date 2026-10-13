@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
   app: { exit: mocks.exit, whenReady: mocks.whenReady },
 }))
 vi.mock('../agents-cli', () => ({ runAgentsCli: mocks.run }))
+vi.mock('../runtime-pi-integration', () => ({ installPiRuntimeIntegration: vi.fn() }))
 vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 vi.mock('../env', () => ({ env: {} }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))

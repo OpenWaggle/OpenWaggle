@@ -26,6 +26,7 @@ import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState, PendingSend } from '../model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
+import { useReplacedTranscriptRefresh } from './useReplacedTranscriptRefresh'
 
 function resolveLastUserMessage(messages: UIMessage[]) {
   let lastUserMessage: UIMessage | undefined
@@ -168,6 +169,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   // The agent is done while the Host settles its Run: the reply is not streaming any more.
   const isFinishing = useIsRunFinishing(activeSessionId)
   const transcriptLoading = isTranscriptLoading({ isLoading, isFinishing, isSteering })
+  useReplacedTranscriptRefresh({ activeSessionId, activeSession, activeWorkspace, isLoading })
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
     activeSessionUpdatedAt: activeSession?.updatedAt,

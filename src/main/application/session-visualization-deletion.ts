@@ -6,7 +6,10 @@ import {
   type InlineVisualizationDeletionStage,
   InlineVisualizationService,
 } from '../ports/inline-visualization-service'
-import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import {
+  type SessionDeletionOptions,
+  SessionProjectionRepository,
+} from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { TerminalService } from '../ports/terminal-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
@@ -62,7 +65,10 @@ function settleFailedDeletion(sessionId: SessionId, stage: InlineVisualizationDe
 }
 
 /** Caller holds the Session tree writer until persistence and file cleanup settle. */
-export function deleteSessionWithVisualizations(sessionId: SessionId) {
+export function deleteSessionWithVisualizations(
+  sessionId: SessionId,
+  options: SessionDeletionOptions = {},
+) {
   return withInlineVisualizationOwnerOperation(
     sessionId,
     Effect.gen(function* () {
@@ -70,7 +76,7 @@ export function deleteSessionWithVisualizations(sessionId: SessionId) {
       const projection = yield* SessionProjectionRepository
       return yield* Effect.acquireUseRelease(
         visualizations.stageSessionDeletion(sessionId),
-        () => projection.delete(sessionId),
+        () => projection.delete(sessionId, options),
         (stage, exit) =>
           Exit.isFailure(exit)
             ? settleFailedDeletion(sessionId, stage)

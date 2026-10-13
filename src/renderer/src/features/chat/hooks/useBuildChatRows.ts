@@ -17,7 +17,7 @@ import {
 } from '../lib/compaction-chat-row-model'
 import { applyTurnFolds, type TurnFoldInput } from '../lib/turn-fold'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
-import { groupWaggleTurnRows } from '../lib/waggle-turn-rows'
+import { groupWaggleTurnRows, withWaggleTurnFailures } from '../lib/waggle-turn-rows'
 import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 
@@ -159,5 +159,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   rows.push(...cards.withoutMessages)
   appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
   appendInterruptedRunRow(rows, params)
-  return applyTurnFolds(groupWaggleTurnRows(rows), toTurnFoldInput(params))
+  return applyTurnFolds(
+    withWaggleTurnFailures(groupWaggleTurnRows(rows), { isLoading: params.isLoading }),
+    toTurnFoldInput(params),
+  )
 }

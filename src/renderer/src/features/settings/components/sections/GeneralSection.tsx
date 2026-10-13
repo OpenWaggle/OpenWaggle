@@ -8,6 +8,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { SegmentedRadioGroup } from '@/shared/ui/SegmentedRadioGroup'
+import { AgentToolsSettings } from './AgentToolsSettings'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
 import { UpdateChannelSetting } from './UpdateChannelSetting'
 import { UsageStatisticsSetting } from './UsageStatisticsSetting'
@@ -166,6 +167,8 @@ export function GeneralSection() {
       <BrowserLinkTargetSettings />
 
       <CompactionThresholdSetting />
+
+      <AgentToolsSettings />
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">

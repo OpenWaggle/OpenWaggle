@@ -28,3 +28,8 @@ The fork keeps its provenance in `session_derivations`, whose `source_node_id` i
 Forks and clones save, and a forked Session is an ordinary Pi session with ids of its own, so a later run, branch, or compaction in it cannot collide with its source either. A forked node has a different id from the node it was copied from, and the derivation row records the fork point. The fork result maps each new id to its source node, so per-node data that lives only in the projection can follow the copy. Inline visualizations use it: they are stored with the Session that rendered them, and a copied message keeps that Session as its visualization owner, through any number of copies. Deleting that Session deletes its visualizations, so its forks can no longer show them; archiving keeps them.
 
 Independent Sessions still share the global node key. Pi's ids are random, so a collision between unrelated Sessions is unlikely but possible, and would fail that Session's snapshot. Keying nodes by Session remains the complete fix if that ever happens.
+
+## Amendment: discovered Pi sessions (ADR 0051)
+
+Re-keying is only for files OpenWaggle has just written. A Pi session discovered from the `pi` CLI may be a CLI fork that shares its source's entry ids, and its file belongs to another program that may still have it open, so it is never rewritten. Instead its nodes are keyed under a per-Session prefix (`<sessionId>/<entryId>`), which the Pi adapter translates back to entry ids wherever it hands a node to Pi: navigation and fork targets, the resume position, and the entry ids Pi reports. Ids inside projected content get the same prefix, so they name nodes of the same Session: a compaction's `firstKeptEntryId`, a branch summary's `fromId`, and a label's `targetId`.
+

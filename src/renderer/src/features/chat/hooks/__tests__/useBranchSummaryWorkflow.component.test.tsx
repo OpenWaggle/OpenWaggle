@@ -172,6 +172,43 @@ describe('useBranchSummaryWorkflow', () => {
     expect(useBranchSummaryStore.getState().prompt?.draftComposerText).toBe('custom summary')
   })
 
+  it.each<[string, string, string]>([
+    [
+      'a Session whose Pi file cannot be used, as the sentence that says why',
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it.",
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it.",
+    ],
+    [
+      'any other failure, without transport text',
+      'Session is busy',
+      'Failed to summarize the branch: Session is busy',
+    ],
+  ])('says why the branch summary failed for %s', async (_case, reason, toast) => {
+    openPrompt()
+    branchSummaryMocks.navigateSessionTree.mockRejectedValue(
+      new Error(`Error invoking remote method 'sessions:navigate-tree': Error: ${reason}`),
+    )
+    const params = workflowParams()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(params.showToast).toHaveBeenCalledWith(toast)
+  })
+
+  it('says what failed once the summary was saved, not that summarizing failed', async () => {
+    openPrompt()
+    useSessionStore.setState({ activeWorkspace: null })
+    const params = workflowParams()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(params.showToast).toHaveBeenCalledWith(
+      'The summarized branch workspace is not available. Please try again.',
+    )
+  })
+
   it('blocks draft sends when the branch source is no longer available', async () => {
     branchSummaryMocks.navigateSessionTree.mockResolvedValue({ cancelled: true })
     const params = workflowParams()

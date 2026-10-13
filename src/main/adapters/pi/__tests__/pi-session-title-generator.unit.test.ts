@@ -1,7 +1,15 @@
-import type { Api, Model } from '@earendil-works/pi-ai'
+import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
+import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { SESSION_TITLE_MODEL_AUTOMATIC } from '@shared/session-title-model'
+import { SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { describe, expect, it } from 'vitest'
-import { modelVendorLine, selectAutomaticTitleModel } from '../pi-session-title-generator'
+import * as Effect from 'effect/Effect'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  createPiSessionTitleGenerator,
+  modelVendorLine,
+  selectAutomaticTitleModel,
+} from '../pi-session-title-generator'
 
 function model(
   id: string,
@@ -100,5 +108,136 @@ describe('modelVendorLine', () => {
     expect(modelVendorLine('meta-llama/llama-4-scout:free')).toBe('meta-llama/')
     expect(modelVendorLine('gpt-5.5')).toBe('')
     expect(modelVendorLine('claude-sonnet-4-6')).toBe('')
+  })
+})
+
+describe('the Title model of a Session on an extension model', () => {
+  const ROUTER = model('auto', 0, 0, { provider: 'router' })
+
+  function generatorWith(runtimeFor: (projectPath: string | null) => Promise<ModelRuntime>) {
+    return createPiSessionTitleGenerator({
+      modelRuntime: async (projectPath) => ({
+        modelRuntime: await runtimeFor(projectPath),
+        release: () => undefined,
+      }),
+    })
+  }
+
+  function fakeRuntime() {
+    return fromPartial<ModelRuntime>({
+      getModel: (provider: string, id: string) =>
+        provider === ROUTER.provider && id === ROUTER.id ? ROUTER : undefined,
+      getAvailable: async () => [ROUTER],
+      completeSimple: vi.fn(async () =>
+        fromPartial<AssistantMessage>({
+          stopReason: 'stop',
+          content: [{ type: 'text', text: '{"title":"Routed title"}' }],
+        }),
+      ),
+    })
+  }
+
+  it.each([
+    ['Automatic', SESSION_TITLE_MODEL_AUTOMATIC],
+    ['the extension model', SupportedModelId('router/auto')],
+  ] as const)('reaches it under %s through the project runtime', async (_label, titleModel) => {
+    const runtime = fakeRuntime()
+    const runtimeFor = vi.fn(async () => runtime)
+
+    const response = await Effect.runPromise(
+      generatorWith(runtimeFor).generate({
+        projectPath: '/repo',
+        sessionModel: SupportedModelId('router/auto'),
+        titleModel,
+        systemPrompt: 'Title it.',
+        prompt: 'Hello',
+      }),
+    )
+
+    expect(runtimeFor).toHaveBeenCalledWith('/repo')
+    expect(response.modelRef).toBe('router/auto')
+    expect(runtime.completeSimple).toHaveBeenCalledWith(
+      ROUTER,
+      expect.anything(),
+      expect.anything(),
+    )
+  })
+})
+
+describe('the Title model of a Session whose model is gone', () => {
+  const ANSWERED_BY = model('gpt-5-mini', 1, 2, { provider: 'openai' })
+
+  it('resolves Automatic against the model that answered last, as its Runs do', async () => {
+    const runtime = fromPartial<ModelRuntime>({
+      getModel: (provider: string, id: string) =>
+        provider === ANSWERED_BY.provider && id === ANSWERED_BY.id ? ANSWERED_BY : undefined,
+      getAvailable: async () => [ANSWERED_BY],
+      completeSimple: vi.fn(async () =>
+        fromPartial<AssistantMessage>({
+          stopReason: 'stop',
+          content: [{ type: 'text', text: '{"title":"Fallback title"}' }],
+        }),
+      ),
+    })
+
+    const response = await Effect.runPromise(
+      createPiSessionTitleGenerator({
+        modelRuntime: async () => ({ modelRuntime: runtime, release: () => undefined }),
+      }).generate({
+        projectPath: '/repo',
+        sessionModel: SupportedModelId('qa-router/auto'),
+        fallbackModel: SupportedModelId('openai/gpt-5-mini'),
+        titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+        systemPrompt: 'Title it.',
+        prompt: 'Hello',
+      }),
+    )
+
+    expect(response.modelRef).toBe('openai/gpt-5-mini')
+  })
+})
+
+describe('the Title model registry of a request', () => {
+  const MODEL = model('gpt-5-mini', 1, 2, { provider: 'openai' })
+
+  async function generateWith(reply: () => Promise<AssistantMessage>) {
+    const release = vi.fn()
+    const runtime = fromPartial<ModelRuntime>({
+      getModel: () => MODEL,
+      getAvailable: async () => [MODEL],
+      completeSimple: vi.fn(reply),
+    })
+    const outcome = await Effect.runPromise(
+      Effect.either(
+        createPiSessionTitleGenerator({
+          modelRuntime: async () => ({ modelRuntime: runtime, release }),
+        }).generate({
+          projectPath: '/repo',
+          sessionModel: SupportedModelId('openai/gpt-5-mini'),
+          titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+          systemPrompt: 'Title it.',
+          prompt: 'Hello',
+        }),
+      ),
+    )
+    return { outcome, release }
+  }
+
+  it('is released when the request fails', async () => {
+    const { outcome, release } = await generateWith(async () => {
+      throw new Error('503 Service Unavailable')
+    })
+
+    expect(outcome._tag).toBe('Left')
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('is released when the model answers with nothing', async () => {
+    const { outcome, release } = await generateWith(async () =>
+      fromPartial<AssistantMessage>({ stopReason: 'stop', content: [] }),
+    )
+
+    expect(outcome._tag).toBe('Left')
+    expect(release).toHaveBeenCalledOnce()
   })
 })

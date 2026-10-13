@@ -39,9 +39,9 @@ Pi installs the package and provides its Pi SDK peer dependencies. After install
 
 If you are importing the package APIs into another project instead of installing the Pi extension, use your package manager:
 
-<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui"></package-install>
+<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui"></package-install>
 
-`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
+`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 

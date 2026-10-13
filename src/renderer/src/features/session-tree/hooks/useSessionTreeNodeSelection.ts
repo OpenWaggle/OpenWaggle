@@ -3,16 +3,16 @@ import type { SessionNode, SessionTree, SessionWorkspace } from '@shared/types/s
 import { useNavigate } from '@tanstack/react-router'
 import {
   createBranchDraftSelectionFromNode,
+  isSessionModelActionable,
   maybeOpenBranchSummaryPrompt,
   setComposerTextValue,
 } from '@/features/chat/lib'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 
 interface SessionTreeNodeSelectionInput {
   readonly activeWorkspace: SessionWorkspace | null
@@ -54,15 +54,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     if (!tree) {
       return
     }
-    const { providerModels, catalogHydrated } = useProviderStore.getState()
-    if (
-      !isSelectableModel(
-        providerModels,
-        usePreferencesStore.getState().settings,
-        input.selectedModel,
-        catalogHydrated,
-      )
-    ) {
+    if (!isSessionModelActionable(tree.session.id, input.selectedModel)) {
       input.showToast('Select a model before switching branches.')
       return
     }
@@ -81,8 +73,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     void api
       .navigateSessionTree(tree.session.id, input.selectedModel, node.id, { summarize: false })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
-        input.showToast(`Failed to switch session branch: ${message}`)
+        input.showToast(sessionOperationFailureMessage('Failed to switch session branch', error))
       })
       .finally(() => {
         void refreshSessionWorkspace(tree.session.id, {

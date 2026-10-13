@@ -46,7 +46,7 @@ The same applies to an unknown short option such as `-x`, a mistyped or differen
 | `delegations` | List, review, and resolve Worker Delegations |
 | `agents` | List, validate, and manage [Agent definitions](/docs/extending/agent-definitions) |
 | `access` | Manage named access profiles for agents and scripts |
-| `mcp` | Manage [MCP servers](/docs/configuration/mcp), or serve OpenWaggle over MCP |
+| `mcp` | Add, list, and sign in to [MCP servers](/docs/configuration/mcp#command-line), or serve OpenWaggle over MCP |
 | `update` | Check for and install updates |
 | `recovery` | Inspect or restore the pre-migration database copy |
 

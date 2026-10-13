@@ -99,6 +99,20 @@ function insertInitialTreeUiState(sql: SqlClient.SqlClient, sessionId: SessionId
   `
 }
 
+/** A fork or clone of a Session with MCP switched off starts with MCP off too. */
+export function copySessionMcpSwitch(
+  sql: SqlClient.SqlClient,
+  sourceSessionId: string,
+  sessionId: string,
+  now: number,
+) {
+  return sql`
+    INSERT INTO session_mcp_disabled (session_id, disabled_at)
+    SELECT ${sessionId}, ${now} FROM session_mcp_disabled WHERE session_id = ${sourceSessionId}
+    ON CONFLICT (session_id) DO NOTHING
+  `
+}
+
 export async function createSession(input: CreateSessionInput): Promise<SessionDetail> {
   const now = Date.now()
   const id = SessionId(input.piSessionId)
@@ -115,6 +129,9 @@ export async function createSession(input: CreateSessionInput): Promise<SessionD
           yield* insertMainBranchRow(sql, sessionId, branchId, now)
           yield* insertInitialBranchState(sql, branchId, now)
           yield* insertInitialTreeUiState(sql, sessionId, now)
+          if (input.copyMcpSwitchFrom) {
+            yield* copySessionMcpSwitch(sql, input.copyMcpSwitchFrom, sessionId, now)
+          }
         }),
       )
     }),

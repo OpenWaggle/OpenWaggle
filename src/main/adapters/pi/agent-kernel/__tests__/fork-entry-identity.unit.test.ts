@@ -61,34 +61,46 @@ function sourceSession() {
   return { sessionManager, firstUser, secondUser }
 }
 
-/** A runtime whose fork is Pi's own: copy the path into a new session, keeping the entry ids. */
-function mockForkRuntime(sessionManager: SessionManager, selectedText: string) {
-  const runtimeSession: {
-    sessionId: string
-    sessionFile: string | undefined
-    sessionManager: SessionManager
-  } = { sessionId: 'source', sessionFile: sessionManager.getSessionFile(), sessionManager }
-  const fork = vi.fn(async (targetNodeId: string, options: { readonly position: string }) => {
-    const leaf =
-      options.position === 'at' ? targetNodeId : sessionManager.getEntry(targetNodeId)?.parentId
-    if (!leaf) throw new Error('The test forks below the first entry')
-    runtimeSession.sessionFile = sessionManager.createBranchedSession(leaf)
-    return { cancelled: false, selectedText }
-  })
-  runtimeMocks.createPiSessionRuntime.mockResolvedValue({
-    cwd: directory,
-    session: runtimeSession,
-    fork,
-  })
+/**
+ * A runtime whose fork is Pi's: it branches the path in the read-only copy of the source, which
+ * keeps the entry ids, and lets OpenWaggle write the fork before the fork's session starts.
+ */
+function mockForkRuntime(selectedText: string) {
+  const runtimeSession = { sessionId: 'source' }
+  const fork = vi.fn()
+  runtimeMocks.createPiSessionRuntime.mockImplementation(
+    async (
+      _input: unknown,
+      hooks: {
+        readonly sessionManager: SessionManager
+        readonly beforeForkStarts: (sessionManager: SessionManager) => Promise<unknown>
+      },
+    ) => {
+      fork.mockImplementation(
+        async (targetNodeId: string, options: { readonly position: string }) => {
+          const copy = hooks.sessionManager
+          const leaf =
+            options.position === 'at' ? targetNodeId : copy.getEntry(targetNodeId)?.parentId
+          if (!leaf) throw new Error('The test forks below the first entry')
+          copy.createBranchedSession(leaf)
+          await hooks.beforeForkStarts(copy)
+          return { cancelled: false, selectedText }
+        },
+      )
+      return { cwd: directory, session: runtimeSession, fork }
+    },
+  )
   return { fork, runtimeSession }
 }
 
-function forkInput(targetNodeId: string, position: 'at' | 'before') {
+function forkInput(source: SessionManager, targetNodeId: string, position: 'at' | 'before') {
   return {
     session: {
       id: SessionId('source'),
       title: 'Source',
       projectPath: directory,
+      piSessionId: source.getSessionId(),
+      piSessionFile: source.getSessionFile(),
       messages: [],
       createdAt: 0,
       updatedAt: 0,
@@ -149,9 +161,9 @@ describe('forked Pi session identity', () => {
   it('returns a fork snapshot whose nodes do not reuse the source session ids', async () => {
     const { sessionManager, secondUser } = sourceSession()
     const sourceIds = new Set(sessionManager.getEntries().map((entry) => entry.id))
-    const { fork, runtimeSession } = mockForkRuntime(sessionManager, 'second')
+    const { fork, runtimeSession } = mockForkRuntime('second')
 
-    const result = await forkPiSession(forkInput(secondUser, 'at'))
+    const result = await forkPiSession(forkInput(sessionManager, secondUser, 'at'))
 
     const nodes = result.sessionSnapshot.nodes
     expect(fork).toHaveBeenCalledWith(secondUser, { position: 'at' })
@@ -174,11 +186,11 @@ describe('forked Pi session identity', () => {
     expect(compaction?.type === 'compaction' && forkIds.has(compaction.firstKeptEntryId)).toBe(true)
   })
 
-  it('saves a fork of the first message, which Pi has not written to disk', async () => {
+  it('writes a fork of the first message, which Pi would not write without a reply', async () => {
     const { sessionManager, firstUser } = sourceSession()
-    mockForkRuntime(sessionManager, 'first')
+    mockForkRuntime('first')
 
-    const result = await forkPiSession(forkInput(firstUser, 'before'))
+    const result = await forkPiSession(forkInput(sessionManager, firstUser, 'before'))
 
     // Only the model change precedes the first message, and Pi writes no file without a reply.
     expect(result).toMatchObject({ cancelled: false, editorText: 'first' })

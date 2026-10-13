@@ -12,14 +12,14 @@ describe('Local Session protocol negotiation', () => {
   it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8],
+      supportedRevisions: [24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 23,
+      revision: 24,
       hostInstanceId: 'host-current',
       capabilities: expect.arrayContaining([
         'waggle:run-v1',
@@ -42,6 +42,7 @@ describe('Local Session protocol negotiation', () => {
         'sessions:follow-up-edit-v1',
         'events:run-snapshot-content-v1',
         'host-ui:source-control-v1',
+        'host-ui:mcp-configuration-v1',
       ]),
     })
   })
@@ -63,7 +64,7 @@ describe('Local Session protocol negotiation', () => {
         accepted: false,
         protocol: 'openwaggle-local-session',
         code: 'incompatible_protocol',
-        supportedRevisions: [23],
+        supportedRevisions: [24],
       })
     },
   )
@@ -73,7 +74,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [25, 24],
+          supportedRevisions: [26, 25],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -132,7 +133,7 @@ describe('Local Session protocol negotiation', () => {
       accepted: false,
       protocol: 'openwaggle-local-session',
       code: 'incompatible_protocol',
-      supportedRevisions: [23],
+      supportedRevisions: [24],
     })
     expect(() =>
       decodeLocalSessionNegotiationResult({
@@ -264,7 +265,7 @@ describe('Local Session protocol negotiation', () => {
       request: {
         contractVersion: 1,
         requestId: 'request-mcp-host-ui',
-        channel: 'mcp:get-settings',
+        channel: 'mcp:list-secrets',
         args: [],
       },
     }

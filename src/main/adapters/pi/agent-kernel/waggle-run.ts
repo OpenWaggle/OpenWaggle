@@ -14,10 +14,13 @@ import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { onExtensionTurnStartFailure } from './extension-turn-start-failure'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
+import { piResponseUsageInput } from './pi-response-usage'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import { createSessionListener } from './session-listener'
-import { captureTurnCheckpoint } from './turn-capture'
+import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
 import { createWaggleRunExtensions, type PiWaggleKernelRunInput } from './waggle-run-extensions'
 import {
@@ -25,6 +28,7 @@ import {
   buildWaggleTurnMetadata,
   sendInitialWaggleMessages,
 } from './waggle-run-messages'
+import { isRecoverableWaggleTurnError } from './waggle-turn-error'
 
 function appendEnabledWaggleModeState(input: {
   readonly session: AgentSession
@@ -115,7 +119,9 @@ function createConfiguredWaggleExtension(input: {
         waggleSessionId: input.waggleSessionId,
       }),
     onTurnComplete: ({ meta, messages, turn }) => {
-      const summary = summarizePiWaggleTurnMessages(messages)
+      const summary = summarizePiWaggleTurnMessages(messages, {
+        isRecoverableError: isRecoverableWaggleTurnError,
+      })
       const evaluation = evaluatePiWaggleStopPolicy({
         config: input.runtimeConfig,
         turnNumber: turn.turnNumber,
@@ -234,18 +240,17 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     signal: input.signal,
     routeThroughInputHook: true,
   })
+  // A turn the Waggle loop asked for that could not start ends the Run with its error, so its
+  // finally (restoring the initial model) runs and nothing waits for the turn.
+  const stopFailingOnTurnStart = onExtensionTurnStartFailure(session, waggleExtension.fail)
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
         ...input,
         sessionEntries: session.sessionManager,
+        nodeIds: piEntryNodeIds(input.session),
         model: initialRuntimeModel,
-        getContextWindow: (provider, modelId) => {
-          const activeModel = session.model
-          return activeModel?.provider === provider && activeModel.id === modelId
-            ? activeModel.contextWindow
-            : undefined
-        },
+        ...piResponseUsageInput(session),
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },
@@ -269,6 +274,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
   }).finally(() => {
+    stopFailingOnTurnStart()
     extensions.close()
     unregisterLiveRun()
   })
@@ -277,6 +283,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     projectPath,
     runId: input.runId,
     startedAt,
+    ...piSessionFileOf(session),
   })
   return result
 }

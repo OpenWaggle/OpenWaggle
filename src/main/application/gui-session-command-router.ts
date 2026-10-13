@@ -15,7 +15,6 @@ import { refreshLocalSessionHostEndpoint } from '../session-host/local-session-p
 import { userFacingErrorDetail } from '../utils/describe-error'
 import { executeConfiguredHostUi } from './configured-host-ui-client'
 import { isReadOnlyHostUiInvocation } from './host-ui-read-only-invocation'
-import { reconcileMcpOwnerRuntime } from './mcp-owner-runtime-reconciliation'
 
 type GuiSessionClientInput = Omit<
   LocalSessionClientConnectionInput,
@@ -122,17 +121,6 @@ export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
     const result = await executeConfiguredHostUi({ client: recoveredClient, channel, args })
     return { handled: true, result }
   }
-}
-
-export async function reconcileConfiguredMcpOwnerRuntime(projectPath: string | null | undefined) {
-  const route = guiSessionCommandRoute
-  if (route.mode === 'local') return false
-  if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
-  const expectedEpoch = guiSessionCommandRouteEpoch
-  const paths = await refreshLocalSessionHostEndpoint(route.client.paths)
-  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
-  await reconcileMcpOwnerRuntime({ ...activeRoute.client, paths, clientKind: 'gui' }, projectPath)
-  return true
 }
 
 export function dispatchConfiguredGuiSessionCommand(

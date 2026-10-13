@@ -76,6 +76,7 @@ function executionContext(
     authorityCallerId: input.request.intent.callerId,
     agentInstructions: input.execution.agentInstructions,
     sessionIdentityContext: input.execution.identityContext,
+    runIdentityContext: input.execution.runIdentityContext,
     peerAgentReports: context.pendingReports,
     onPeerAgentReportsDelivered: (reportIds) => {
       markReportsDelivered(context.reports, input.request, reportIds)

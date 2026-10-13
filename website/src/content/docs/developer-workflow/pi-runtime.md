@@ -5,7 +5,7 @@ order: 4
 section: "Developer docs"
 ---
 
-Pi is the coding-agent runtime inside OpenWaggle. The current source pins Pi **0.87.1** in `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
+Pi is the coding-agent runtime inside OpenWaggle. The current source pins Pi **1.2.0** in `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
 
 This page is for developers tracing agent execution or extending the app. You do not need to configure Pi separately to use OpenWaggle. For everyday use, start with [Conversations and tools](/docs/using-openwaggle/chat-and-tools); for adding runtime behavior, see [Pi extensions](/docs/extending/pi-extensions).
 
@@ -21,6 +21,24 @@ When you send a message:
 6. The SQLite projection stores session nodes, branches, and UI read models.
 
 Pi executes the tools enabled for the run. OpenWaggle renders their events in the transcript and applies its session policy through the Pi adapter.
+
+## Session files
+
+OpenWaggle keeps each session in a normal Pi session file where the `pi` CLI keeps them: by default under Pi's agent directory (`~/.pi/agent/sessions/`, one folder per working directory), or in the directory named by `PI_CODING_AGENT_SESSION_DIR` or the `sessionDir` setting in the project's `.pi/settings.json` or the global Pi settings. The SQLite projection is a read model built from that file.
+
+The Session Host also lists Pi sessions that other programs, such as the `pi` CLI, created in an OpenWaggle project or a folder inside it. Every few seconds it looks in those directories for files it does not know and reads only their first lines: the header, an early `/name`, and the first user message. It finds the header the way Pi does, skipping blank or malformed lines for up to 1 MiB, and does not read a file again until the file changes. A file written in the last few seconds waits for the next pass, and one pass lists at most 100 sessions. A file whose Session cannot be created, for example because the project's settings file is broken, is tried again after a minute, then less often. While a project is being removed, discovery leaves it alone.
+
+A listed session is projected the first time it is opened. OpenWaggle keeps the size and modification time of the file each projection came from, so before a session is shown, read through the Sessions tool, or continued, one `stat` tells it whether another program changed the file; if so, it reads the file again. Nothing locks the file between programs.
+
+Viewing a listed session never changes its file. The projection, the context meter, and other reads load the file's entries into memory and bind no extensions. A Run continues the file through Pi, as `pi --resume` would, so a file in an older Pi format is upgraded to Pi's current format when you first continue it. Runs work in the folder the session ran in when that folder is inside the project, and start with the model and thinking level `pi --resume` would pick: the branch's model selection, and its last thinking level or Pi's `defaultThinkingLevel` for the session's folder (project over global), clamped to the model. A listed session's title follows its latest `/name` until the user renames it.
+
+A `pi` CLI fork copies the entry ids of the session it came from, and OpenWaggle stores every Session's nodes under one key. The projection therefore stores a listed session's entries under ids prefixed with its Session id, and translates them back whenever it hands an entry to Pi. Deleting a listed session removes it from OpenWaggle and records the file as dismissed, so it is not listed again; the file stays. Removing the project deletes its sessions from OpenWaggle without dismissing their files, so they are listed again if the folder is added back.
+
+Forking a listed session never opens its file for writing. Pi branches from an in-memory copy of it, and OpenWaggle writes the fork next to the source before the fork's session starts. Extensions see the files this way:
+
+- `session_before_fork`: `ctx.sessionManager.getSessionFile()` is the source.
+- `session_shutdown` of the source session: `targetSessionFile` is also the source, not the fork. Pi reports the file the in-memory copy names, and the fork has no file of its own yet at that point.
+- The fork's `session_start` (`reason: "fork"`): `previousSessionFile` is the source, and `ctx.sessionManager.getSessionFile()` and `getSessionId()` are the fork's own. What the fork's session appends from then on, such as `appendEntry`, goes to the fork's file.
 
 ## Tool surface
 
@@ -43,13 +61,9 @@ Pi documents its default tool controls in the [coding-agent README](https://gith
 
 ## MCP integration
 
-OpenWaggle owns MCP configuration, trust, authentication, protocol negotiation, transports, lifecycle, and capability policy behind `McpConfigService` and `McpRuntimeService`. The first-party runtime negotiates the current MCP revision and supported legacy revisions, then exposes a compact `mcp` gateway, confined `mcp_run` orchestration, and explicitly opted-in direct tools to Pi through an internal extension factory.
+MCP runs on Pi's built-in MCP extension. Pi's SDK sessions do not load built-in extensions, so OpenWaggle adds Pi's MCP, codemode, and tool-search extensions to every session it creates, and supplies the extension's plug-in points: the configuration files it reads, the transports it connects with, the store for sign-ins, how the sign-in page opens, and where changes are saved.
 
-`mcp_run` parses a documented JavaScript-like DSL; it never evaluates JavaScript or exposes Node/Electron authority. The DSL supports immutable variables, sequential calls, bounded parallel groups, result-property flow, conditions, and return values. Its wall-time, step, call-count, depth, memory, output, and concurrency budgets are hard limits, and every child call keeps its own approval and provenance. See [Bounded `mcp_run` orchestration](/docs/configuration/mcp#bounded-mcp_run-orchestration) for the exact grammar and limits.
-
-The bundled Pi model contract does not expose a per-model tool-support flag. `Model<Api>` is the tool-capable chat-model contract: `Context` carries tools, Pi's coding agent supplies them by default, and all installed built-in API implementations consume them. OpenWaggle therefore gates agent MCP tools on successful `ModelRegistry` resolution and never guesses from provider or model names. A custom API registered as a Pi model must honor the same tool and tool-call event contract or its run fails visibly.
-
-The turn snapshot is immutable. Scope or server changes made during an active turn apply at the next safe boundary. Pi remains the agent/model loop and OpenWaggle does not create a second agent runtime; MCP calls are infrastructure used by the Pi-backed run.
+Underneath Pi's MCP client, OpenWaggle keeps each session's server connections open between messages, answers server requests for sampling and input, and serves MCP Apps. Every MCP and codemode child call passes through Pi's `tool_call` hook, where OpenWaggle asks for approval. See [Model Context Protocol](/docs/configuration/mcp) for what users see, and `docs/mcp-runtime.md` in the repository for the internals.
 
 ## Context and compaction
 

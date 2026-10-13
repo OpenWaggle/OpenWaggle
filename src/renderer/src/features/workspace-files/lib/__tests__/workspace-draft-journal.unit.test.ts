@@ -73,8 +73,9 @@ describe('workspace draft journal path changes', () => {
 
     expect(readDraftJournal(storage, '/project', 'src/file.ts')).toBeNull()
     expect(warning).toHaveBeenCalledWith(
-      '[workspace-draft-journal] Could not read a workspace draft journal',
-      expect.objectContaining({ projectPath: '/project', path: 'src/file.ts' }),
+      expect.stringContaining(
+        '[workspace-draft-journal] Could not read a workspace draft journal {"projectPath":"/project","path":"src/file.ts"',
+      ),
     )
   })
 })

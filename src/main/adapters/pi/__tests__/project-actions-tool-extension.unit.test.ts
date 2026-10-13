@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
@@ -29,7 +29,7 @@ describe('Pi project_actions shares GUI executions', () => {
   function registration(approved: boolean) {
     let tool: ToolDefinition | undefined
     const authorize = vi.fn(async () => approved)
-    const ctx = fromPartial<ExtensionContext>({
+    const ctx = fromPartial<ExtensionToolContext>({
       hasUI: true,
       ui: Object.assign({ confirm: async () => false }, { [OPENWAGGLE_AUTHORIZE_KEY]: authorize }),
     })

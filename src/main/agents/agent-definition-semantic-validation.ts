@@ -1,4 +1,11 @@
 import type { AgentDefinitionDocument } from '@shared/types/agent-definition'
+import {
+  agentMcpToolReferenceNamespace,
+  isAgentMcpToolReference,
+  LEGACY_AGENT_MCP_TOOL_NAMES,
+  MCP_REACH_TOOL_NAMES,
+} from '../domain/agents/agent-tool-allowlist'
+import { mcpNamespace } from '../domain/mcp/config/mcp-server-config'
 
 export type AgentDefinitionSemanticResource = 'model' | 'tool' | 'skill' | 'mcp-server'
 
@@ -86,11 +93,49 @@ function validateReferences(input: {
   return diagnostics
 }
 
+/**
+ * The tool names a definition may list: the project's tools, Pi's tools that reach MCP tools,
+ * the legacy `mcp`/`mcp_run` entries, and `mcp__<namespace>__…` names and patterns whose
+ * namespace is a configured MCP server. Unknown until both catalogs loaded.
+ */
+function availableTools(
+  references: readonly string[] | undefined,
+  catalog: AgentDefinitionSemanticCatalog,
+) {
+  if (!catalog.tools) return undefined
+  const mcp = (references ?? []).filter(isAgentMcpToolReference)
+  if (mcp.length === 0) return catalog.tools
+  const namespaces = new Set((catalog.mcpServers ?? []).map(mcpNamespace))
+  const configured = mcp.filter((reference) => {
+    const namespace = agentMcpToolReferenceNamespace(reference)
+    return namespace !== undefined && namespaces.has(namespace)
+  })
+  return [...catalog.tools, ...MCP_REACH_TOOL_NAMES, ...LEGACY_AGENT_MCP_TOOL_NAMES, ...configured]
+}
+
+/**
+ * `mcp__…` tool names cannot be checked while the MCP configuration failed to load. They are
+ * reported as that unavailable catalog, with its error, instead of as unknown tools.
+ */
+function splitUncheckableMcpTools(
+  definition: AgentDefinitionDocument,
+  catalog: AgentDefinitionSemanticCatalog,
+) {
+  const tools = definition.tools ?? []
+  if (catalog.mcpServers !== undefined) return { tools: definition.tools, mcpTools: [] }
+  return {
+    tools: tools.filter((tool) => !isAgentMcpToolReference(tool)),
+    // One catalog-unavailable diagnostic covers the MCP servers when they are listed too.
+    mcpTools: definition.mcpServers?.length ? [] : tools.filter(isAgentMcpToolReference),
+  }
+}
+
 export function validateAgentDefinitionSemantics(
   definition: AgentDefinitionDocument,
   catalog: AgentDefinitionSemanticCatalog,
 ): AgentDefinitionSemanticValidation {
   const catalogDiagnostics = catalog.loadDiagnostics ?? []
+  const { tools, mcpTools } = splitUncheckableMcpTools(definition, catalog)
   const diagnostics = [
     ...validateReferences({
       resource: 'model',
@@ -100,8 +145,14 @@ export function validateAgentDefinitionSemantics(
     }),
     ...validateReferences({
       resource: 'tool',
-      references: definition.tools,
-      available: catalog.tools,
+      references: tools,
+      available: availableTools(tools, catalog),
+      catalogDiagnostics,
+    }),
+    ...validateReferences({
+      resource: 'mcp-server',
+      references: mcpTools,
+      available: undefined,
       catalogDiagnostics,
     }),
     ...validateReferences({

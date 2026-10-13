@@ -8,6 +8,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
+import { piWorkerBundlesPlugin } from './scripts/vite/pi-worker-bundles'
 import { resolveBuildIdentity } from './scripts/build-identity'
 
 // Bake this build's Build identity (docs/adr/0032) into the bundles so the
@@ -42,6 +43,7 @@ const BUNDLED_DEPS = [
   '@earendil-works/pi-coding-agent',
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
+  '@earendil-works/pi-mcp',
   '@earendil-works/pi-tui',
   'jiti',
   '@modelcontextprotocol/client',
@@ -167,7 +169,7 @@ export default defineConfig({
       ...BUILD_DEFINE,
       PI_BUNDLED_NODE: 'true',
     },
-    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
+    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin(), piWorkerBundlesPlugin()],
     build: {
       minify: false,
       externalizeDeps: {

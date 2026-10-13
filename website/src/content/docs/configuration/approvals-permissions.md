@@ -51,6 +51,6 @@ Failed setup pauses the first agent turn in a new worktree. **Continue anyway** 
 
 An instruction such as "don't edit files" is guidance to the model, not an enforced permission boundary. Review changes in the diff, work on a development branch or separate worktree, and keep backups appropriate to the task.
 
-Your terminal is still an ordinary shell. Commands and tools can access data available to their process, including environment credentials. MCP servers have additional trust and capability settings, and agent browser access has a separate switch in **Settings > Browser**.
+Your terminal is still an ordinary shell. Commands and tools can access data available to their process, including environment credentials. MCP servers run with your user's access too; in **Ask for approval** mode every MCP tool call asks first. Agent browser access has a separate switch in **Settings > Browser**.
 
 See [Security and privacy](/docs/configuration/security-privacy) for data handling and [MCP](/docs/configuration/mcp) for external-tool access.

@@ -3,11 +3,30 @@
  * listed in src/shared/usage-statistics/catalog.generated.ts, which the endpoint enforces too.
  */
 import { MCP_CATALOG_SERVERS } from '@shared/constants/mcp'
-import type { McpServerDefinition } from '@shared/types/mcp'
 import { USAGE_STATISTICS_CATALOG_MCP_SERVERS } from '@shared/usage-statistics/catalog.generated'
 import { USAGE_STATISTICS_CUSTOM_IDENTIFIER } from '@shared/usage-statistics/contract'
+import { mcpNamespace } from '../mcp/config/mcp-server-config'
 
-function sameLaunch(left: McpServerDefinition, right: McpServerDefinition) {
+/** How a server is launched: its command and arguments, or its URL. */
+export interface UsageStatisticsMcpServerLaunch {
+  readonly command?: string
+  readonly args?: readonly string[]
+  readonly url?: string
+}
+
+/** The launch fields of a catalog entry, whatever else it holds. */
+function catalogLaunch(entry: Readonly<Record<string, unknown>>): UsageStatisticsMcpServerLaunch {
+  const args = Array.isArray(entry.args)
+    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
+    : undefined
+  return {
+    ...(typeof entry.command === 'string' ? { command: entry.command } : {}),
+    ...(args ? { args } : {}),
+    ...(typeof entry.url === 'string' ? { url: entry.url } : {}),
+  }
+}
+
+function sameLaunch(left: UsageStatisticsMcpServerLaunch, right: UsageStatisticsMcpServerLaunch) {
   return (
     left.command === right.command &&
     left.url === right.url &&
@@ -16,20 +35,22 @@ function sameLaunch(left: McpServerDefinition, right: McpServerDefinition) {
 }
 
 /**
- * The catalog name of a connected server, or `custom`. A server counts as a catalog server only
- * when it carries the catalog name and was installed from the catalog or launches exactly as the
- * catalog entry does, so a user's own server that happens to share a name stays `custom`.
+ * The catalog name of the server a tool call reached, or `custom`. A server counts as a catalog
+ * server only when its name matches a catalog entry as Pi names tools (`-` and `_` are the same)
+ * and its configuration launches exactly as that entry does, so a user's own server that happens
+ * to share a catalog name stays `custom`.
  */
 export function usageStatisticsMcpServerIdentifier(server: {
   readonly name: string
-  readonly definition: McpServerDefinition
+  readonly launch: UsageStatisticsMcpServerLaunch | undefined
 }) {
-  const entry = MCP_CATALOG_SERVERS.find((candidate) => candidate.name === server.name)
-  if (!entry || !USAGE_STATISTICS_CATALOG_MCP_SERVERS.includes(entry.name)) {
+  const entry = MCP_CATALOG_SERVERS.find(
+    (candidate) => mcpNamespace(candidate.name) === mcpNamespace(server.name),
+  )
+  if (!entry || !server.launch || !USAGE_STATISTICS_CATALOG_MCP_SERVERS.includes(entry.name)) {
     return USAGE_STATISTICS_CUSTOM_IDENTIFIER
   }
-  return server.definition.provenance?.source === 'catalog' ||
-    sameLaunch(server.definition, entry.definition)
+  return sameLaunch(server.launch, catalogLaunch(entry.entry))
     ? entry.name
     : USAGE_STATISTICS_CUSTOM_IDENTIFIER
 }

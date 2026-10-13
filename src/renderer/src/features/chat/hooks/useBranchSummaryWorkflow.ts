@@ -10,11 +10,11 @@ import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { setComposerTextValue } from '../lib/composer-text'
+import { isSessionModelActionable } from '../lib/session-answered-by'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -172,7 +172,7 @@ async function navigateWithBranchSummary(
   prompt: BranchSummaryPromptState,
   customInstructions: string | undefined,
 ) {
-  if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
+  if (!isSessionModelActionable(prompt.sessionId, params.model)) {
     return { cancelled: true }
   }
   const trimmedInstructions = customInstructions?.trim()
@@ -217,21 +217,27 @@ async function materializeBranchSummaryAction(
   const prompt = useBranchSummaryStore.getState().prompt
   if (!prompt) return
 
-  try {
-    const navigation = await navigateWithBranchSummary(params, prompt, customInstructions)
+  const failed = (message: string) => {
     if (!isCurrentBranchSummaryPrompt(prompt)) return
-    if (navigation.cancelled) {
-      params.showToast('Branch summarization cancelled.')
-      cancelBranchSummary(prompt, previousMode)
-      return
-    }
-
-    await finishBranchSummary(params, prompt)
-  } catch (error) {
-    if (!isCurrentBranchSummaryPrompt(prompt)) return
-    params.showToast(error instanceof Error ? error.message : String(error))
+    params.showToast(message)
     restoreBranchSummaryChoice(prompt, previousMode)
   }
+  const navigation = await navigateWithBranchSummary(params, prompt, customInstructions).catch(
+    (error: unknown) => {
+      failed(sessionOperationFailureMessage('Failed to summarize the branch', error))
+      return null
+    },
+  )
+  if (!navigation || !isCurrentBranchSummaryPrompt(prompt)) return
+  if (navigation.cancelled) {
+    params.showToast('Branch summarization cancelled.')
+    cancelBranchSummary(prompt, previousMode)
+    return
+  }
+  // The summary is saved by now: what fails after is showing it, said as it is.
+  await finishBranchSummary(params, prompt).catch((error: unknown) => {
+    failed(error instanceof Error ? error.message : String(error))
+  })
 }
 
 export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {

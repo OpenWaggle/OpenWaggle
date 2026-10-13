@@ -128,7 +128,7 @@ describe('production Session Resource web and site capture', () => {
     )
   })
 
-  it('uses MCP attribution instead of collapsing distinct provider tools into the gateway', async () => {
+  it('catalogs a Pi MCP server tool under its own tool name', async () => {
     const upserts: UpsertSessionResourceInput[] = []
 
     await Effect.runPromise(
@@ -138,23 +138,9 @@ describe('production Session Resource web and site capture', () => {
         payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
-            name: 'mcp',
-            args: { operation: 'call', handle: 'opaque' },
-            result: {
-              content: [],
-              details: {
-                kind: 'gateway',
-                result: {
-                  operation: 'call',
-                  text: 'Found the pull request.',
-                  attribution: {
-                    serverInstanceId: 'github-1',
-                    serverLabel: 'GitHub',
-                    toolName: 'get_pull_request',
-                  },
-                },
-              },
-            },
+            name: 'mcp__github__get_pull_request',
+            args: { number: 1 },
+            result: { content: [{ type: 'text', text: 'Found the pull request.' }] },
           }),
         ],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
@@ -162,13 +148,11 @@ describe('production Session Resource web and site capture', () => {
 
     expect(upserts).toContainEqual(
       expect.objectContaining({
-        canonicalKey: 'tool:github-1:get_pull_request',
+        canonicalKey: 'tool:mcp__github__get_pull_request',
         kind: 'tool',
-        title: 'get_pull_request · GitHub',
-        occurrence: expect.objectContaining({ label: 'get_pull_request · GitHub' }),
+        title: 'mcp__github__get_pull_request',
       }),
     )
-    expect(upserts).not.toContainEqual(expect.objectContaining({ canonicalKey: 'tool:mcp' }))
   })
 
   it('attributes an explicit resource link in a tool result to that tool', async () => {
@@ -214,83 +198,5 @@ describe('production Session Resource web and site capture', () => {
         locator: 'https://docs.example/session-summary',
       },
     })
-  })
-
-  it('keeps completed MCP orchestration children when a sibling makes the outer tool fail', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-
-    await Effect.runPromise(
-      captureSuccessfulRunResources({
-        sessionId: SessionId('session-1'),
-        runId: 'run-partial-orchestration',
-        payload: { text: '', attachments: [] },
-        messages: [
-          assistantToolResultMessage(true, {
-            name: 'mcp_run',
-            details: {
-              kind: 'orchestration',
-              result: [
-                {
-                  id: 'docs',
-                  handle: 'opaque-docs',
-                  status: 'completed',
-                  provenance: {
-                    handle: 'opaque-docs',
-                    serverInstanceId: 'docs-1',
-                    serverLabel: 'Documentation',
-                    toolName: 'lookup_docs',
-                  },
-                  result: {
-                    operation: 'call',
-                    text: 'Found documentation.',
-                    result: [
-                      {
-                        type: 'resource_link',
-                        uri: 'https://docs.example/orchestrated',
-                        title: 'Orchestrated docs',
-                      },
-                    ],
-                  },
-                },
-                {
-                  id: 'failed',
-                  handle: 'opaque-failed',
-                  status: 'failed',
-                  provenance: {
-                    handle: 'opaque-failed',
-                    serverInstanceId: 'failed-1',
-                    serverLabel: 'Failed server',
-                    toolName: 'failed_tool',
-                  },
-                  error: 'failed',
-                },
-              ],
-            },
-          }),
-        ],
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
-    )
-
-    expect(upserts).toContainEqual(
-      expect.objectContaining({
-        canonicalKey: 'tool:docs-1:lookup_docs',
-        kind: 'tool',
-        title: 'lookup_docs · Documentation',
-      }),
-    )
-    expect(upserts).toContainEqual(
-      expect.objectContaining({
-        canonicalKey: 'url:https://docs.example/orchestrated',
-        occurrence: expect.objectContaining({
-          actor: 'tool',
-          activity: 'read',
-          label: 'lookup_docs · Documentation',
-          locator: 'https://docs.example/orchestrated',
-        }),
-      }),
-    )
-    expect(upserts).not.toContainEqual(
-      expect.objectContaining({ canonicalKey: 'tool:failed-1:failed_tool' }),
-    )
   })
 })

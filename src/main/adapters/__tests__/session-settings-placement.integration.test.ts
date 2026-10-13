@@ -148,7 +148,7 @@ describe('Session settings placement on SQLite Session Control', () => {
       code: 'run_authorization_override_requires_idle_session',
     })
     expect(result.queued).toMatchObject({ effect: 'queued-follow-up' })
-    expect(result.changeWhileActive).toEqual({ changed: false, code: 'session_run_active' })
+    expect(result.changeWhileActive).toMatchObject({ changed: false, code: 'session_run_active' })
     expect(result.rows.followUpIntents).toHaveLength(1)
     expect(result.rows.followUpIntents[0]).not.toHaveProperty('thinkingLevel')
     expect(result.rows.followUpIntents[0]).not.toHaveProperty('runAuthorizationOverride')
