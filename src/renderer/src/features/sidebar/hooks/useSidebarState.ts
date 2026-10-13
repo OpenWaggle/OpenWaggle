@@ -9,7 +9,7 @@ import { projectName } from '@/shared/lib/format'
 import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
-import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
+import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../lib/sidebar-project-groups'
 import { isAttentionState, mergeExactTerminalCounts } from '../lib/sidebar-row-state'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
@@ -161,7 +161,7 @@ export function useSidebarState() {
    * Workers live in the Hive panel (ADR 0050): an unpinned Worker is hidden from its project
    * group, but a status filter or search that matches one lists it flat, naming its parent.
    */
-  const narrowed = !remoteSessions.active && (filterState !== null || normalizedQuery !== '')
+  const narrowed = sidebarListsWorkersFlat({ filterState, normalizedQuery })
   const sessionGroups = buildSidebarProjectGroups({
     sessions: visibleSessions,
     currentProjectPath: project.projectPath,

@@ -241,11 +241,16 @@ function HiveArchivedGroup({
       <Button
         variant="unstyled"
         className="flex min-h-7 items-center gap-1 rounded px-2 text-xs font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
-        aria-label={expanded ? 'Collapse archived Workers' : 'Expand archived Workers'}
+        // The visible text is the name, so the count reaches screen readers; aria-expanded says
+        // whether the group is open.
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
       >
-        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+        {expanded ? (
+          <ChevronDown aria-hidden="true" className="size-3" />
+        ) : (
+          <ChevronRight aria-hidden="true" className="size-3" />
+        )}
         Archived · {rows.length}
       </Button>
       {expanded ? (

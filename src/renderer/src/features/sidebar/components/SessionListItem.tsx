@@ -246,7 +246,7 @@ export function SessionListItem({
 
       {/* The rename field spans the title line; its actions would sit under its text. */}
       {rename.isEditing ? null : (
-        <SessionRowHoverActions isActive={isActive} menuOpen={menu.menuOpen}>
+        <SessionRowHoverActions onActiveBackground={highlight !== 'none'} menuOpen={menu.menuOpen}>
           <SessionPinButton
             isPinned={isPinned}
             session={session}

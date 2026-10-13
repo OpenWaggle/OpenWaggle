@@ -219,11 +219,12 @@ function Separator() {
  * passes underneath.
  */
 export function SessionRowHoverActions({
-  isActive,
+  onActiveBackground,
   menuOpen,
   children,
 }: {
-  readonly isActive: boolean
+  /** The row wears `bg-bg-active` (open row or Hive home), so the gradient must blend into it. */
+  readonly onActiveBackground: boolean
   readonly menuOpen: boolean
   readonly children: React.ReactNode
 }) {
@@ -233,7 +234,7 @@ export function SessionRowHoverActions({
         'absolute top-1.5 right-2 z-10 flex gap-px pl-3.5 transition-opacity',
         'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         menuOpen ? 'opacity-100' : null,
-        isActive
+        onActiveBackground
           ? '[background:linear-gradient(90deg,transparent,var(--color-bg-active)_22%)]'
           : '[background:linear-gradient(90deg,transparent,var(--color-bg-hover)_22%)]',
       )}

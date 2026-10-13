@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { buildSidebarProjectGroups } from '../sidebar-project-groups'
+import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../sidebar-project-groups'
 
 const CREATED_AT = 10
 const UPDATED_AT_OLD = 20
@@ -67,6 +67,17 @@ describe('buildSidebarProjectGroups Worker exclusion (ADR 0050)', () => {
     const [group] = buildSidebarProjectGroups({ ...input, excludeUnpinnedWorkers: false }).projects
     expect(group?.sessions.map((session) => String(session.id))).toEqual(['queen', 'hidden'])
     expect(group?.hoistedPinnedCount).toBe(1)
+  })
+})
+
+describe('sidebarListsWorkersFlat', () => {
+  it('leaves Workers to the Hive panel only while nothing narrows the sidebar', () => {
+    expect(sidebarListsWorkersFlat({ filterState: null, normalizedQuery: '' })).toBe(false)
+  })
+
+  it('lists Workers flat for a status filter or a search', () => {
+    expect(sidebarListsWorkersFlat({ filterState: 'working', normalizedQuery: '' })).toBe(true)
+    expect(sidebarListsWorkersFlat({ filterState: null, normalizedQuery: 'audit' })).toBe(true)
   })
 })
 

@@ -102,6 +102,18 @@ function addUniqueProjectPath(paths: string[], path: string | null) {
   return true
 }
 
+/**
+ * Whether the sidebar is narrowed to a status filter or search, which lists matching Workers
+ * flat instead of leaving them to the Hive panel (ADR 0050). Remote results are no exception:
+ * a narrowed list must never hide a Worker its chip count included.
+ */
+export function sidebarListsWorkersFlat(input: {
+  readonly filterState: string | null
+  readonly normalizedQuery: string
+}) {
+  return input.filterState !== null || input.normalizedQuery !== ''
+}
+
 export function buildSidebarProjectGroups({
   sessions,
   currentProjectPath,

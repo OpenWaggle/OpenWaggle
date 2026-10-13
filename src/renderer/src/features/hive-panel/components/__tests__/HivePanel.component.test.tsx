@@ -245,7 +245,10 @@ describe('HivePanel', () => {
       await screen.findByRole('button', { name: 'Open session actions for live' }),
     ).toBeInTheDocument()
     // Archived rows live in the collapsed group; expanding it exposes the row and its menu.
-    fireEvent.click(screen.getByRole('button', { name: 'Expand archived Workers' }))
+    const archivedToggle = screen.getByRole('button', { name: 'Archived · 1' })
+    expect(archivedToggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(archivedToggle)
+    expect(archivedToggle).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Open session actions for archived' }))
     expect(await screen.findByRole('button', { name: 'Unarchive session' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive session' })).toBeNull()
