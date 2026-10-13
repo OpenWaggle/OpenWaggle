@@ -11,7 +11,7 @@ import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../lib/sidebar-project-groups'
 import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
-import { workerAttentionByQueen } from '../lib/worker-attention'
+import { hiveHomeQueenId, workerAttentionByQueen } from '../lib/worker-attention'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
@@ -192,10 +192,7 @@ export function useSidebarState() {
   const activeHiveRootId = useMemo(() => {
     const id = activeSession.activeSessionId
     if (id === null) return null
-    const active = sessions.sessions.find((session) => String(session.id) === String(id))
-    if (active?.lineage?.role !== 'worker') return null
-    const queenId = active.lineage.hiveRootSessionId ?? active.lineage.parentSessionId
-    return queenId === undefined ? null : String(queenId)
+    return hiveHomeQueenId(sessions.sessions.find((session) => String(session.id) === String(id)))
   }, [activeSession.activeSessionId, sessions.sessions])
 
   function displayProjectName(path: string) {

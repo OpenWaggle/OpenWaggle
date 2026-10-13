@@ -3,7 +3,7 @@ import type { SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import type { HiveDelegationState } from '@/queries/session-hive-contract'
 import type { SidebarRowState } from '../sidebar-row-state'
-import { workerAttentionByQueen } from '../worker-attention'
+import { hiveHomeQueenId, workerAttentionByQueen } from '../worker-attention'
 
 function worker(
   id: string,
@@ -59,5 +59,25 @@ describe('workerAttentionByQueen', () => {
       new Set(['pinned']),
     )
     expect([...counts]).toEqual([['queen', 1]])
+  })
+})
+
+describe('hiveHomeQueenId', () => {
+  it('names the Hive root of an open Spawn-lineage Worker', () => {
+    expect(hiveHomeQueenId(worker('open', 'working'))).toBe('queen')
+  })
+
+  it('gives no Hive home to a legacy Worker, a non-Worker or no Session', () => {
+    expect(hiveHomeQueenId(worker('legacy', 'working', { historical: true }))).toBeNull()
+    expect(
+      hiveHomeQueenId({
+        id: SessionId('solo'),
+        title: 'solo',
+        projectPath: '/project',
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    ).toBeNull()
+    expect(hiveHomeQueenId(undefined)).toBeNull()
   })
 })

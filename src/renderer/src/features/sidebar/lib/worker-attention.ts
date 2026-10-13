@@ -34,3 +34,15 @@ export function workerAttentionByQueen(
   }
   return byQueen
 }
+
+/**
+ * The Queen whose sidebar row keeps the Hive-home highlight while this Session is open
+ * (ADR 0051), or null. Only a Spawn-lineage Worker has one; a legacy task-runner Worker is not
+ * in the Hive panel, so its parent is no Hive home.
+ */
+export function hiveHomeQueenId(session: SessionSummary | undefined): string | null {
+  const lineage = session?.lineage
+  if (lineage?.role !== 'worker' || lineage.historical === true) return null
+  const queenId = lineage.hiveRootSessionId ?? lineage.parentSessionId
+  return queenId === undefined ? null : String(queenId)
+}
