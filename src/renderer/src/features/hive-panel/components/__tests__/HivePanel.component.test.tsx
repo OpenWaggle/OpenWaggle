@@ -96,6 +96,12 @@ describe('HivePanel', () => {
     expect(screen.getByText('State')).toBeInTheDocument()
     // The State cell uses the group's short form.
     expect(screen.getByText('You')).toBeInTheDocument()
+    // The current Session is marked, and each row's name carries its cells for screen readers.
+    const current = screen.getByRole('button', { name: /Open Worker Session: active/ })
+    expect(current).toHaveAttribute('aria-current', 'true')
+    expect(current).toHaveAccessibleName(
+      'Open Worker Session: active, state Working, workspace Checkout',
+    )
     expect(screen.getByRole('group', { name: 'Needs you Hive sessions' })).toHaveTextContent(
       'needs-you',
     )
@@ -118,6 +124,31 @@ describe('HivePanel', () => {
       await screen.findByRole('button', { name: /Open Queen Session: queen/ }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Open Worker Session: queen/ })).toBeNull()
+  })
+
+  it('renames a row in place from its menu', async () => {
+    listHiveTreeSessionCatalogPage.mockResolvedValue(hivePage([summary('live')]))
+    registerSidebarSessionActions({
+      select: vi.fn(),
+      delete: vi.fn(),
+      archive: vi.fn(),
+      markUnread: vi.fn(),
+      clone: vi.fn(),
+      togglePin: vi.fn(),
+    })
+    renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open session actions for live' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+
+    const input = await screen.findByRole('textbox', { name: 'Session title' })
+    expect(input).toHaveValue('live')
+    expect(screen.queryByRole('button', { name: /Open Worker Session: live/ })).toBeNull()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(
+      await screen.findByRole('button', { name: /Open Worker Session: live/ }),
+    ).toBeInTheDocument()
+    registerSidebarSessionActions(null)
   })
 
   it('labels deeper members via their parent and navigates with the panel kept', async () => {

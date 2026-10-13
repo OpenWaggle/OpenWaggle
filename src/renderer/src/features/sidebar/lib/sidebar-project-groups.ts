@@ -168,7 +168,9 @@ export function buildSidebarProjectGroups({
         sessions: sortSessions(unpinnedSessions, sortMode),
         firstSessionCreatedAt: firstSessionCreatedAt(projectSessions),
         latestUpdatedAt: latestUpdatedAt(projectSessions),
-        hoistedPinnedCount: projectSessions.length - unpinnedSessions.length,
+        // Only Pinned rows are "pinned above"; hidden Workers live in the Hive panel instead.
+        hoistedPinnedCount: projectSessions.filter((session) => pinned.has(String(session.id)))
+          .length,
         allSessions: sortSessions(allByProject.get(projectPath) ?? projectSessions, sortMode),
       }
     }),

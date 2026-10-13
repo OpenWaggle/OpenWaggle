@@ -229,7 +229,8 @@ export async function listHiveTreeSessionCatalogPage(
       const rootId = roots[0]?.root_id
       if (!rootId) return { root: null, members: [] }
       const rootRows = yield* loadSessionRowsById(sql, [rootId])
-      const root = hydrateSessionRows(rootRows)?.[0] ?? null
+      // Hydrated like every member, so the root carries its lineage (role, Worker counts).
+      const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
       const memberRows = yield* sql<SessionSummaryRow>`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
         JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id

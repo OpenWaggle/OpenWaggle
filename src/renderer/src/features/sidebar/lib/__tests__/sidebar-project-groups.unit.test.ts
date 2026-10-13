@@ -27,6 +27,49 @@ function makeSession(
   }
 }
 
+function makeWorker(id: string, updatedAt: number): SessionSummary {
+  return {
+    ...makeSession(id, `Worker ${id}`, '/repo/current', updatedAt),
+    lineage: {
+      role: 'worker',
+      parentSessionId: SessionId('queen'),
+      hiveRootSessionId: SessionId('queen'),
+      directWorkerCount: 0,
+      activeDirectWorkerCount: 0,
+    },
+  }
+}
+
+describe('buildSidebarProjectGroups Worker exclusion (ADR 0050)', () => {
+  const sessions = [
+    makeSession('queen', 'Queen', '/repo/current', UPDATED_AT_NEW),
+    makeWorker('hidden', UPDATED_AT_MIDDLE),
+    makeWorker('pinned', UPDATED_AT_OLD),
+  ]
+  const input = {
+    currentProjectPath: '/repo/current',
+    recentProjects: [],
+    sortMode: 'recent' as const,
+    sessions,
+    pinnedSessionIds: ['pinned'],
+  }
+
+  it('lists only the Queen while unpinned Workers live in the Hive panel', () => {
+    const [group] = buildSidebarProjectGroups({ ...input, excludeUnpinnedWorkers: true }).projects
+    expect(group?.sessions.map((session) => String(session.id))).toEqual(['queen'])
+    // Only the Pinned Worker is "pinned above"; the hidden one is not counted as pinned.
+    expect(group?.hoistedPinnedCount).toBe(1)
+    // Project-wide actions still see every Session, Workers included.
+    expect(group?.allSessions.map((session) => String(session.id))).toContain('hidden')
+  })
+
+  it('lists unpinned Workers flat when the sidebar is narrowed', () => {
+    const [group] = buildSidebarProjectGroups({ ...input, excludeUnpinnedWorkers: false }).projects
+    expect(group?.sessions.map((session) => String(session.id))).toEqual(['queen', 'hidden'])
+    expect(group?.hoistedPinnedCount).toBe(1)
+  })
+})
+
 describe('buildSidebarProjectGroups', () => {
   it('groups Pi session summaries under current and recent project sections', () => {
     const grouped = buildSidebarProjectGroups({

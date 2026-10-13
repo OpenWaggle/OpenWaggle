@@ -29,6 +29,15 @@ function makeSession(overrides?: Partial<SessionSummary>) {
   }
 }
 
+const NOOP_ACTIONS = {
+  select: vi.fn(),
+  delete: vi.fn(),
+  archive: vi.fn(),
+  clone: vi.fn(),
+  markUnread: vi.fn(),
+  togglePin: vi.fn(),
+}
+
 function renderSessionItem(options?: { readonly highlight?: SessionRowHighlight }) {
   const callbacks = {
     onArchive: vi.fn(),
@@ -74,6 +83,49 @@ describe('SessionListItem', () => {
     expect(row?.className).toContain('ring-accent/40')
     expect(row?.getAttribute('aria-current')).toBeNull()
     expect(row?.getAttribute('title')).toContain('Worker of this Queen')
+  })
+
+  it('keeps the row description in the Hive home title', () => {
+    render(
+      <SessionListItem
+        session={makeSession()}
+        highlight="hive-home"
+        actions={NOOP_ACTIONS}
+        isPinned
+        pinnedRow={{
+          projectLabel: 'Repo',
+          shortcutIndex: null,
+          draggable: false,
+          onMoveUp: null,
+          onMoveDown: null,
+        }}
+      />,
+    )
+
+    const row = document.querySelector('[data-qa="sidebar-session-row-hive-home"]')
+    expect(row?.getAttribute('title')).toBe(
+      'Repo \u2014 A Worker of this Queen\u2019s Hive is open',
+    )
+  })
+
+  it('reports hidden Workers that need input on a Queen row', () => {
+    const queen = makeSession({
+      lineage: { role: 'queen', directWorkerCount: 3, activeDirectWorkerCount: 2 },
+    })
+    const { rerender } = render(
+      <SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={2} />,
+    )
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
+      '2 need input',
+    )
+
+    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={1} />)
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
+      '1 needs input',
+    )
+
+    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={0} />)
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')).toBeNull()
   })
 
   it('does not mark an ordinary row as the Hive home', () => {

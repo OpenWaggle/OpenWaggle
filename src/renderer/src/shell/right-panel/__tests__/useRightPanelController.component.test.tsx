@@ -131,6 +131,19 @@ describe('useRightPanelController', () => {
     expect(mocks.route.open).not.toHaveBeenCalled()
   })
 
+  it('keeps a disabled surface closed when its rail entry is activated', () => {
+    const disabled = model({
+      surfaces: model().surfaces.map((surface) =>
+        surface.id === 'session-tree'
+          ? { ...surface, disabledReason: 'Available after the first message' }
+          : surface,
+      ),
+    })
+    const { result } = renderHook(() => useRightPanelController(disabled, '/repo'))
+    act(() => result.current.toggleSurface('session-tree'))
+    expect(mocks.route.open).not.toHaveBeenCalled()
+  })
+
   it('restores the Session’s remembered surface once its claims settle', () => {
     remember('changes')
     renderHook(() => useRightPanelController(model(), '/repo'))

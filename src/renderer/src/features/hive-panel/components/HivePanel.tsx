@@ -123,7 +123,9 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
  */
 function HiveColumnHeader() {
   return (
+    // Visual only: every row's accessible name already carries its Workspace and state.
     <div
+      aria-hidden="true"
       className="pt-1 pr-9 pb-1 pl-2 text-xs font-semibold uppercase tracking-wide text-text-muted"
       style={HIVE_ROW_GRID_STYLE}
     >
@@ -236,12 +238,8 @@ function HiveArchivedGroup({
         Archived · {rows.length}
       </Button>
       {expanded ? (
-        /*
-         * The toggle row is the group's only label: repeating "Archived" inside the expanded
-         * list said the same thing twice (ADR 0050 review). A fieldset would demand a legend,
-         * so the rows sit in a plain labelled container.
-         */
-        <section aria-label="Archived Hive sessions">
+        // The toggle row is the group's only visible label (ADR 0050 review): no repeated heading.
+        <fieldset aria-label="Archived Hive sessions" className="m-0 min-w-0 border-0 p-0">
           {rows.map((row) => (
             <HiveTreeListItem
               key={String(row.session.id)}
@@ -250,7 +248,7 @@ function HiveArchivedGroup({
               onOpen={() => onOpen(String(row.session.id))}
             />
           ))}
-        </section>
+        </fieldset>
       ) : null}
     </div>
   )

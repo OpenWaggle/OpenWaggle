@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import { IDLE_ROW_COLOR_VAR, resolveSessionStatusPill } from '@shared/types/session-status'
 import { ChessQueen, Pickaxe } from 'lucide-react'
 import { useState } from 'react'
-import { useSessionTitleRename } from '@/features/session-title'
+import { SessionTitleInput, useSessionTitleRename } from '@/features/session-title'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { SessionItemContextMenu } from '@/features/sidebar/components'
 import { usePinnedSessionsStore } from '@/features/sidebar/state'
@@ -51,12 +51,49 @@ function useRowMenu() {
   }
 }
 
+const ROW_CLASS =
+  'min-h-9 w-full items-center rounded-md py-1.5 pr-9 pl-2 text-left transition-colors group-hover:bg-bg-hover'
+
+/** Everything a Hive row shows, from its Session and the live stores it subscribes to. */
+function useHiveRowView(row: HiveTreeRow, isRoot: boolean) {
+  const session = row.session
+  const sessionId = SessionId(String(session.id))
+  const status = useSessionStatusStore((store) => store.statuses.get(sessionId) ?? 'idle')
+  const statusView = resolveSessionStatusPill(status)
+  const isPinned = usePinnedSessionsStore((store) =>
+    store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
+  )
+  return {
+    session,
+    sessionId,
+    via: row.via,
+    isPinned,
+    statusColor: statusView?.colorVar ?? IDLE_ROW_COLOR_VAR,
+    state: hiveRowStateLabel(session, statusView?.shortLabel ?? 'Idle'),
+    role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
+    workspace: session.worktreePath ? lastSegment(session.worktreePath) : 'Checkout',
+  }
+}
+
+type HiveRowView = ReturnType<typeof useHiveRowView>
+
+/**
+ * The row's accessible name. It carries every cell, because a name set on the row replaces its
+ * content for assistive technology: without the state and Workspace here, they would be silent.
+ */
+function hiveRowAccessibleName(view: HiveRowView) {
+  const via = view.via === null ? '' : `, via ${view.via}`
+  const pinned = view.isPinned ? ', pinned' : ''
+  return `Open ${view.role.label} Session: ${view.session.title}${via}${pinned}, state ${view.state.label}, workspace ${view.workspace}`
+}
+
 /**
  * One Hive panel row: state, Workspace placement, and the sidebar's own ⋯ menu (ADR 0050).
  *
  * The menu is the same `SessionItemContextMenu` the sidebar renders, registered by the Sidebar,
- * so every action behaves identically in both places. An archived row offers Restore instead of
- * Archive, and Move up / Move down stay Pinned-only.
+ * so every action behaves identically in both places. Rename edits the title in place, as in the
+ * sidebar; an archived row offers Unarchive instead of Archive, and Move up / Move down stay
+ * Pinned-only.
  */
 export function HiveTreeListItem({
   row,
@@ -70,118 +107,125 @@ export function HiveTreeListItem({
   /** The hive root is the Queen even when it has no lineage row of its own (ADR 0030). */
   readonly isRoot?: boolean
 }) {
-  const session = row.session
-  const sessionId = SessionId(String(session.id))
-  const status = useSessionStatusStore((store) => store.statuses.get(sessionId) ?? 'idle')
-  const statusView = resolveSessionStatusPill(status)
-  const {
-    short: stateShort,
-    needsAttention,
-    hint: stateHint,
-  } = hiveRowStateLabel(session, statusView?.shortLabel ?? 'Idle')
+  const view = useHiveRowView(row, isRoot)
   const menu = useRowMenu()
-  const isPinned = usePinnedSessionsStore((store) =>
-    store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
-  )
-  const { Icon, roleLabel } = isRoot
-    ? { Icon: ChessQueen, roleLabel: 'Queen' }
-    : hiveRolePresentation(session)
-  const worktree = session.worktreePath ? lastSegment(session.worktreePath) : 'Checkout'
+  const rename = useSessionTitleRename(view.sessionId, view.session.title)
 
   return (
     <div className="group relative">
-      <Button
-        type="button"
-        variant="unstyled"
-        className="min-h-9 w-full items-center rounded-md py-1.5 pr-9 pl-2 text-left transition-colors group-hover:bg-bg-hover"
-        style={HIVE_ROW_GRID_STYLE}
-        aria-current={isCurrent ? 'true' : undefined}
-        aria-label={`Open ${roleLabel} Session: ${session.title}`}
-        onClick={onOpen}
-        onContextMenu={menu.openAtPointer}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <Icon
-            aria-hidden="true"
-            className={
-              needsAttention
-                ? 'size-3.5 shrink-0 text-warning'
-                : 'size-3.5 shrink-0 text-text-tertiary'
-            }
-          />
-          <span
-            aria-hidden="true"
-            className="size-1.5 shrink-0 rounded-full"
-            style={{ backgroundColor: statusView?.colorVar ?? IDLE_ROW_COLOR_VAR }}
-          />
-          <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">
-            {session.title}
-            {row.via !== null ? <span className="text-text-tertiary"> · via {row.via}</span> : null}
+      {rename.isEditing ? (
+        // An input cannot live inside the row's button, so the editing row is a plain grid.
+        <div className={ROW_CLASS} style={HIVE_ROW_GRID_STYLE}>
+          <span className="flex min-w-0 items-center">
+            <SessionTitleInput rename={rename} className="text-sm" />
           </span>
-          {isPinned ? (
-            <span className="shrink-0 rounded border border-border-light bg-bg-tertiary px-1 py-0.5 text-xs text-text-tertiary">
-              Pinned
-            </span>
-          ) : null}
-        </span>
-        <span
-          className="truncate text-right text-xs text-text-tertiary"
-          title={
-            session.worktreePath
-              ? `Workspace: ${session.worktreePath}`
-              : 'Workspace: the project checkout'
-          }
+          <HiveWorkspaceCell view={view} />
+          <HiveStateCell view={view} />
+        </div>
+      ) : (
+        <Button
+          ref={rename.returnFocusRef}
+          type="button"
+          variant="unstyled"
+          className={ROW_CLASS}
+          style={HIVE_ROW_GRID_STYLE}
+          aria-current={isCurrent ? 'true' : undefined}
+          aria-label={hiveRowAccessibleName(view)}
+          onClick={onOpen}
+          onContextMenu={menu.openAtPointer}
         >
-          {worktree}
-        </span>
-        <span
-          className={
-            needsAttention
-              ? 'truncate text-right text-xs text-warning'
-              : 'truncate text-right text-xs text-text-tertiary'
-          }
-          title={stateHint}
-        >
-          {stateShort}
-        </span>
-      </Button>
-      <HiveRowMenu
-        sessionId={sessionId}
-        title={session.title}
-        isPinned={isPinned}
-        archived={session.archived === true}
-        menu={menu}
-      />
+          <HiveSessionCell view={view} />
+          <HiveWorkspaceCell view={view} />
+          <HiveStateCell view={view} />
+        </Button>
+      )}
+      <HiveRowMenu view={view} menu={menu} onRename={rename.start} />
     </div>
+  )
+}
+
+function HiveSessionCell({ view }: { readonly view: HiveRowView }) {
+  const Icon = view.role.Icon
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <Icon
+        aria-hidden="true"
+        className={
+          view.state.needsAttention
+            ? 'size-3.5 shrink-0 text-warning'
+            : 'size-3.5 shrink-0 text-text-tertiary'
+        }
+      />
+      <span
+        aria-hidden="true"
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: view.statusColor }}
+      />
+      <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">
+        {view.session.title}
+        {view.via !== null ? <span className="text-text-tertiary"> · via {view.via}</span> : null}
+      </span>
+      {view.isPinned ? (
+        <span className="shrink-0 rounded border border-border-light bg-bg-tertiary px-1 py-0.5 text-xs text-text-tertiary">
+          Pinned
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function HiveWorkspaceCell({ view }: { readonly view: HiveRowView }) {
+  return (
+    <span
+      className="truncate text-right text-xs text-text-tertiary"
+      title={
+        view.session.worktreePath
+          ? `Workspace: ${view.session.worktreePath}`
+          : 'Workspace: the project checkout'
+      }
+    >
+      {view.workspace}
+    </span>
+  )
+}
+
+function HiveStateCell({ view }: { readonly view: HiveRowView }) {
+  return (
+    <span
+      className={
+        view.state.needsAttention
+          ? 'truncate text-right text-xs text-warning'
+          : 'truncate text-right text-xs text-text-tertiary'
+      }
+      title={view.state.hint}
+    >
+      {view.state.short}
+    </span>
   )
 }
 
 /** The row's ⋯ menu, hidden until a Sidebar has registered the shared session actions. */
 function HiveRowMenu({
-  sessionId,
-  title,
-  isPinned,
-  archived,
+  view,
   menu,
+  onRename,
 }: {
-  readonly sessionId: SessionId
-  readonly title: string
-  readonly isPinned: boolean
-  readonly archived: boolean
+  readonly view: HiveRowView
   readonly menu: ReturnType<typeof useRowMenu>
+  readonly onRename: () => void
 }) {
   const actions = useHivePanelSessionActions()
-  const rename = useSessionTitleRename(sessionId, title)
   const unarchive = useUnarchiveSessionMutation()
   if (actions === null) return null
+  const { sessionId, session } = view
 
-  function restore() {
+  function unarchiveSession() {
     menu.close()
     void unarchive
       .mutateAsync(sessionId)
       .then(() => useSessionStore.getState().loadSessions())
       .catch(() => {
-        // A failed restore leaves the row where it is; the row keeps offering Restore.
+        // A failed unarchive leaves the row where it is; the row keeps offering Unarchive.
       })
   }
   return (
@@ -189,7 +233,7 @@ function HiveRowMenu({
       <Button
         type="button"
         variant="unstyled"
-        aria-label={`Open session actions for ${title}`}
+        aria-label={`Open session actions for ${session.title}`}
         onClick={menu.openUnderButton}
         className="absolute top-1/2 right-1.5 hidden size-6 -translate-y-1/2 items-center justify-center rounded-md text-text-secondary hover:bg-bg-tertiary group-hover:flex group-focus-within:flex"
       >
@@ -199,10 +243,10 @@ function HiveRowMenu({
         open={menu.open}
         position={menu.pos}
         sessionId={sessionId}
-        isPinned={isPinned}
+        isPinned={view.isPinned}
         actions={actions}
-        archived={archived}
-        commands={{ rename: rename.start, moveUp: null, moveDown: null, restore }}
+        archived={session.archived === true}
+        commands={{ rename: onRename, moveUp: null, moveDown: null, restore: unarchiveSession }}
         onClose={menu.close}
       />
     </>
@@ -212,7 +256,7 @@ function HiveRowMenu({
 /** The row's role glyph and label, from the lineage role. */
 function hiveRolePresentation(session: { readonly lineage?: { readonly role?: string } | null }) {
   const isQueen = session.lineage?.role === 'queen'
-  return { Icon: isQueen ? ChessQueen : Pickaxe, roleLabel: isQueen ? 'Queen' : 'Worker' }
+  return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
 }
 
 function lastSegment(path: string) {

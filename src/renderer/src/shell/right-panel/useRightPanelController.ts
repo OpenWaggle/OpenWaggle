@@ -104,6 +104,11 @@ function openExtensionSurface(input: {
   )
 }
 
+/** Disabled surfaces stay closed; their aria-disabled rail entry only explains why. */
+function isDisabledSurface(model: RightPanelModel, id: RightPanelSurfaceId) {
+  return model.surfaces.some((surface) => surface.id === id && surface.disabledReason !== null)
+}
+
 /**
  * Implements Right panel surface commands for the mounted chat context and keeps each
  * Session's panel memory (ADR 0043). Mounted once, beside the Panel rail.
@@ -206,6 +211,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       closePanel()
       return
     }
+    if (isDisabledSurface(model, id)) return
     showSurface(id)
   }
 

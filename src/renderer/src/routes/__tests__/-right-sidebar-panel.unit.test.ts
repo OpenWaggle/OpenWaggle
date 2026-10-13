@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { resolveRightSidebarPanel } from '../-right-sidebar-panel'
 
 describe('resolveRightSidebarPanel', () => {
+  it('renders the Hive panel while it is open', () => {
+    expect(
+      resolveRightSidebarPanel({
+        hiveOpen: true,
+        diffOpen: false,
+        extensionSidePanel: null,
+        lastPanel: 'diff',
+        sessionTreeOpen: false,
+      }),
+    ).toBe('hive')
+  })
+
   it('keeps the active change-request inspector rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({

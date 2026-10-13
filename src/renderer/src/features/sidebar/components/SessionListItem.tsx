@@ -46,7 +46,7 @@ function sessionRowPresentation(highlight: SessionRowHighlight, rowDescription: 
   if (highlight === 'hive-home') {
     return {
       className: HIVE_HOME_ROW_CLASS,
-      title: rowDescription === '' ? HIVE_HOME_TITLE : `{rowDescription} — {HIVE_HOME_TITLE}`,
+      title: rowDescription === '' ? HIVE_HOME_TITLE : `${rowDescription} — ${HIVE_HOME_TITLE}`,
       testId: 'sidebar-session-row-hive-home',
     }
   }

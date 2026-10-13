@@ -114,6 +114,9 @@ describe('Hive tree catalog', () => {
     expect(own.root?.id).toBe(stranger.id)
     expect(own.members).toEqual([])
 
+    // The root is hydrated like its members, so it carries its own lineage.
+    expect(fromQueen.root?.lineage).toMatchObject({ role: 'queen', directWorkerCount: 1 })
+
     // Lineage metadata survives hydration, so rows can name their parent.
     expect(fromQueen.members[0]?.lineage).toMatchObject({
       parentSessionId: direct.id,

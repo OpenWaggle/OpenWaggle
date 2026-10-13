@@ -107,7 +107,7 @@ const HIVE_STATE_SHORT_LABELS = {
   waiting: 'Waiting',
   needs_attention: 'You',
   ready_for_review: 'Review',
-  revision_requested: 'Revised',
+  revision_requested: 'Revision',
   accepted: 'Accepted',
   cancelled: 'Cancelled',
 } as const satisfies Readonly<Record<HiveDelegationState, string>>
