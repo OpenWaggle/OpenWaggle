@@ -125,7 +125,6 @@ function useChatIndexSidebarActions() {
 }
 
 export function ChatIndexRouteView() {
-  const navigate = useNavigate()
   const search = useSearch({ from: '/_chat/' })
   const actions = useChatIndexSidebarActions()
 
@@ -156,9 +155,6 @@ export function ChatIndexRouteView() {
               : null,
         }}
         rightSidebarActions={actions}
-        onNavigateSession={(targetSessionId) => {
-          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
-        }}
       />
     </Suspense>
   )

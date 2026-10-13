@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { ChessQueen, ChevronDown, ChevronRight, X } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   type HiveTreePage,
   hiveTreeMembers,
@@ -235,6 +235,7 @@ function HiveArchivedGroup({
   readonly currentSessionId: string | null
 }) {
   const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   if (rows.length === 0) return null
   return (
     <div>
@@ -244,6 +245,7 @@ function HiveArchivedGroup({
         // The visible text is the name, so the count reaches screen readers; aria-expanded says
         // whether the group is open.
         aria-expanded={expanded}
+        aria-controls={expanded ? listId : undefined}
         onClick={() => setExpanded((current) => !current)}
       >
         {expanded ? (
@@ -255,7 +257,11 @@ function HiveArchivedGroup({
       </Button>
       {expanded ? (
         // The toggle row is the group's only visible label (ADR 0050 review): no repeated heading.
-        <fieldset aria-label="Archived Hive sessions" className="m-0 min-w-0 border-0 p-0">
+        <fieldset
+          id={listId}
+          aria-label="Archived Hive sessions"
+          className="m-0 min-w-0 border-0 p-0"
+        >
           {rows.map((row) => (
             <HiveTreeListItem
               key={String(row.session.id)}

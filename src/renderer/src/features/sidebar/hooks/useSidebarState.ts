@@ -10,7 +10,8 @@ import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../lib/sidebar-project-groups'
-import { isAttentionState, mergeExactTerminalCounts } from '../lib/sidebar-row-state'
+import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
+import { workerAttentionByQueen } from '../lib/worker-attention'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
@@ -172,23 +173,11 @@ export function useSidebarState() {
     allSessions: sessions.sessions,
     excludeUnpinnedWorkers: !narrowed,
   })
-  /*
-   * Per-Queen attention roll-up from the same resolved states the chips use, keyed by Hive
-   * root so a Queen's second line reports Workers the sidebar no longer lists (ADR 0050).
-   */
-  const workerAttentionByQueen = useMemo(() => {
-    const byQueen = new Map<string, number>()
-    for (const session of sessions.sessions) {
-      if (session.archived === true) continue
-      if (session.lineage?.role !== 'worker') continue
-      if (!isAttentionState(rowStates.stateOf(session))) continue
-      const queenId = session.lineage.hiveRootSessionId ?? session.lineage.parentSessionId
-      if (queenId === undefined) continue
-      const key = String(queenId)
-      byQueen.set(key, (byQueen.get(key) ?? 0) + 1)
-    }
-    return byQueen
-  }, [sessions.sessions, rowStates])
+  // A Queen's second line reports hidden Workers that need the user (ADR 0050).
+  const workerAttention = useMemo(
+    () => workerAttentionByQueen(sessions.sessions, rowStates.stateOf),
+    [sessions.sessions, rowStates],
+  )
 
   /*
    * The Queen of the Hive the open Worker belongs to (ADR 0050). Her row keeps a secondary
@@ -240,7 +229,7 @@ export function useSidebarState() {
     projectExpandedByPath,
     sessionGroups,
     sessions,
-    workerAttentionByQueen,
+    workerAttentionByQueen: workerAttention,
     narrowed,
     setPinnedSortMenuOpen,
     setPinnedSortMode,

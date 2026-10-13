@@ -249,6 +249,9 @@ describe('HivePanel', () => {
     expect(archivedToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(archivedToggle)
     expect(archivedToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      document.getElementById(archivedToggle.getAttribute('aria-controls') ?? ''),
+    ).toHaveAccessibleName('Archived Hive sessions')
     fireEvent.click(screen.getByRole('button', { name: 'Open session actions for archived' }))
     expect(await screen.findByRole('button', { name: 'Unarchive session' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive session' })).toBeNull()

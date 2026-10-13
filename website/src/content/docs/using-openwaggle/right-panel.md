@@ -1,11 +1,11 @@
 ---
 title: "Right panel and panel rail"
-description: "Open Changes, Project Actions, Browser, Files, the Session tree, Resources and extension panels from one rail, and arrange it the way you work."
+description: "Open Changes, Project Actions, Browser, Files, the Session tree, Resources, the Hive panel and extension panels from one rail, and arrange it the way you work."
 order: 3
 section: "Using OpenWaggle"
 ---
 
-The right panel shows one panel at a time beside the conversation: Changes, Project Actions, Browser, Files, the Session tree, Resources, or a panel added by an extension. The **panel rail** on its right edge is how you move between them.
+The right panel shows one panel at a time beside the conversation: Changes, Project Actions, Browser, Files, the Session tree, Resources, the Hive panel, or a panel added by an extension. The **panel rail** on its right edge is how you move between them.
 
 ## Showing and hiding the panel
 
@@ -27,7 +27,7 @@ The terminal is not on the rail. The terminal button in the header and `Cmd+J` /
 
 - **Reorder:** press and hold an icon until it lifts, then drag it. A quick click only opens the panel. With an icon focused, `Option+Up` / `Option+Down` (`Alt+Up` / `Alt+Down`) moves it too.
 - **Remove or add:** use the pin in All panels, or right-click an icon and choose **Remove from rail**. A removed panel stays in All panels.
-- **Reset:** choose **Reset rail** in All panels or in the right-click menu to return to the default order: Changes, Project Actions, Browser, Files, Session tree, Resources, then extension panels in the order you installed them.
+- **Reset:** choose **Reset rail** in All panels or in the right-click menu to return to the default order: Changes, Project Actions, Browser, Files, Session tree, Resources, Hive, then extension panels in the order you installed them.
 
 ## Keeping the rail visible
 

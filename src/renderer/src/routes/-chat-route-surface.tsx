@@ -75,7 +75,6 @@ interface ChatRouteSurfaceProps {
   readonly workspace: ChatRouteWorkspaceState
   readonly rightSidebar: ChatRightSidebarRouteState
   readonly rightSidebarActions: ChatRightSidebarRouteActions
-  readonly onNavigateSession?: (sessionId: string) => void
 }
 
 function isChatRightSidebarOpen(state: ChatRightSidebarRouteState) {
@@ -125,7 +124,6 @@ export function ChatRouteSurface({
   workspace,
   rightSidebar,
   rightSidebarActions,
-  onNavigateSession,
 }: ChatRouteSurfaceProps) {
   const sections = useChatPanelSections()
   const lastRightSidebarPanel = useUIStore((state) => state.lastRightSidebarPanel)
@@ -232,7 +230,6 @@ export function ChatRouteSurface({
               handleResourcesTargetChange(target)
             }
             onOpenSessionTree={() => handleSessionTreeOpenChange(true)}
-            onNavigateSession={onNavigateSession}
             onOpenExtensionSidePanel={(target) => handleExtensionSidePanelOpenChange(true, target)}
           />
         </RightSidebarLayout>

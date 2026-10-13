@@ -185,7 +185,6 @@ function useChatSessionSidebarActions(sessionId: string) {
 }
 
 export function ChatSessionRouteView() {
-  const navigate = useNavigate()
   const { sessionId } = useParams({ from: '/sessions/$sessionId' })
   const search = useSearch({ from: '/sessions/$sessionId' })
   const rightSidebarActions = useChatSessionSidebarActions(sessionId)
@@ -210,9 +209,6 @@ export function ChatSessionRouteView() {
         workspace: { branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId },
         rightSidebar,
         rightSidebarActions,
-        onNavigateSession: (targetSessionId) => {
-          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
-        },
       }}
     />
   )

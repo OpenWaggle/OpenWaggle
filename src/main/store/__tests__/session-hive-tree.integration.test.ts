@@ -171,4 +171,43 @@ describe('Hive tree catalog', () => {
     expect(next.members.map((session) => session.id)).toEqual([first.id])
     expect(next.nextCursor).toBeUndefined()
   })
+
+  it('counts Needs you Workers only: live, needing the user, by Delegation state', async () => {
+    const queen = await createSession({ projectPath: '/repo/hive', piSessionId: 'pi-count-queen' })
+    const states = ['needs_attention', 'revision_requested', 'ready_for_review', 'needs_attention']
+    const workers = []
+    for (const [index, state] of states.entries()) {
+      const child = await spawnChild({
+        childId: `count-${String(index)}`,
+        parentId: queen.id,
+        rootId: queen.id,
+        depth: 1,
+      })
+      workers.push(child)
+      await runStoreEffect(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`
+            INSERT INTO delegation_contracts (
+              id, parent_session_id, child_session_id, state,
+              current_specification_revision, created_at, updated_at
+            ) VALUES (${`contract-count-${String(index)}`}, ${queen.id}, ${child.id}, ${state}, ${1}, ${1}, ${1})
+          `
+        }),
+      )
+    }
+    const archivedWorker = workers[3]
+    if (archivedWorker === undefined) throw new Error('missing seeded Worker')
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // An archived Worker leaves Needs you, whatever its Delegation state.
+        yield* sql`UPDATE sessions SET archived = 1 WHERE id = ${archivedWorker.id}`
+      }),
+    )
+
+    const page = await listHiveTreeSessionCatalogPage(queen.id, 50)
+    // needs_attention + revision_requested; ready_for_review and the archived Worker do not count.
+    expect(page.attentionCount).toBe(2)
+  })
 })
