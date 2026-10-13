@@ -37,6 +37,8 @@ function surfaceTooltip(surface: RightPanelSurfaceEntry) {
   const parts = [surface.title]
   if (surface.extension !== null) parts.push(surface.extension.extensionName)
   if (surface.running) parts.push('running')
+  // The attention dot is aria-hidden, so the name carries it for screen readers.
+  if (surface.attention) parts.push('needs attention')
   if (surface.isNew) parts.push('new')
   const label = parts.join(' · ')
   const withShortcut = surface.shortcutLabel ? `${label} (${surface.shortcutLabel})` : label

@@ -120,6 +120,7 @@ describe('Hive tree catalog', () => {
     // Lineage metadata survives hydration, so rows can name their parent.
     expect(fromQueen.members[0]?.lineage).toMatchObject({
       parentSessionId: direct.id,
+      parentTitle: direct.title,
       hiveRootSessionId: queen.id,
     })
   })

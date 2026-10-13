@@ -68,6 +68,17 @@ describe('PanelRail', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
+  it('names attention for screen readers, since the dot itself is hidden', () => {
+    const hive = entry('hive', Globe2, { title: 'Hive', attention: true })
+    renderRail({
+      surfaces: [hive],
+      railSurfaces: [hive],
+      knownRailIds: ['hive'],
+      listedRailIds: ['hive'],
+    })
+    expect(screen.getByRole('button', { name: 'Hive · needs attention' })).toBeVisible()
+  })
+
   it('lists All panels first, marks the shown surface and names shortcuts and reasons', () => {
     renderRail()
     const rail = screen.getByRole('navigation', { name: 'Panels' })

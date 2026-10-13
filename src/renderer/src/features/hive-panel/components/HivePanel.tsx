@@ -41,6 +41,7 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
     members: hiveTreeMembers(query.data?.pages),
     currentSessionId: sessionId,
   })
+  const root = model.root
   const navigate = useNavigate()
 
   function openSession(target: string) {
@@ -57,11 +58,11 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {model.root !== null ? <HiveColumnHeader /> : null}
         <HiveTreeLoadState query={query} />
-        {model.root !== null ? (
+        {root !== null ? (
           <HiveTreeListItem
-            row={{ session: model.root, via: null }}
-            isCurrent={sessionId !== null && String(model.root.id) === sessionId}
-            onOpen={() => openSession(String(model.root?.id ?? ''))}
+            row={{ session: root, via: null }}
+            isCurrent={sessionId !== null && String(root.id) === sessionId}
+            onOpen={() => openSession(String(root.id))}
             isRoot
           />
         ) : null}
