@@ -15,17 +15,22 @@ async function readSession(cached: SessionDetail) {
 
 /**
  * The cached transcript shows at once; the Host's copy follows, as the `pi` CLI may have continued
- * a discovered Session while another was shown. Only a changed copy replaces it, and one the Host
- * no longer has is refreshed as any other.
+ * a discovered Session while another was shown, or its Pi file's notice changed. A copy the Host
+ * no longer has is refreshed as any other; a reply a newer read or change overtook, or older than
+ * the copy shown, is dropped.
  */
-export async function revalidateCachedSession(cached: SessionDetail, get: ChatGet) {
+export async function revalidateCachedSession(
+  cached: SessionDetail,
+  get: ChatGet,
+  isCurrent: () => boolean,
+) {
   const session = await readSession(cached)
-  if (session === undefined) return
+  if (session === undefined || !isCurrent()) return
   if (!session) {
     void get().refreshSession(cached.id)
     return
   }
-  const unchanged =
-    session.updatedAt === cached.updatedAt && session.messages.length === cached.messages.length
-  if (!unchanged) get().upsertSession(session)
+  const current = get().sessionById.get(cached.id)
+  if (current && session.updatedAt < current.updatedAt) return
+  get().upsertSession(session)
 }

@@ -22,6 +22,7 @@ import {
   toSummary,
 } from './chat-store-helpers'
 import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
+import { beginSessionRead, markSessionMutation } from './chat-store-session-reads'
 import { revalidateCachedSession } from './chat-store-session-revalidation'
 import { applySessionTitle } from './chat-store-title-actions'
 import type { ChatActions, ChatState } from './chat-store-types'
@@ -34,17 +35,7 @@ import {
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
 
-const latestSessionRefresh = new Map<SessionId, number>()
-const latestSessionMutation = new Map<SessionId, number>()
 let latestSessionLoad = 0
-
-function sessionMutationVersion(id: SessionId) {
-  return latestSessionMutation.get(id) ?? 0
-}
-
-function markSessionMutation(id: SessionId) {
-  latestSessionMutation.set(id, sessionMutationVersion(id) + 1)
-}
 
 const setError = (set: ChatSet) => (error: string) => set({ error })
 
@@ -154,15 +145,14 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
     void get().refreshSession(id)
     return
   }
-  void revalidateCachedSession(cached, get)
+  void revalidateCachedSession(cached, get, beginSessionRead(id).isCurrent)
 }
 
 async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
-  const requestId = (latestSessionRefresh.get(id) ?? 0) + 1
-  latestSessionRefresh.set(id, requestId)
+  const read = beginSessionRead(id)
   try {
     const session = await api.getSessionDetail(id)
-    if (latestSessionRefresh.get(id) !== requestId) return
+    if (!read.isLatest()) return
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
       // Before the view leaves it, so the text written in it goes to New session.
@@ -174,7 +164,7 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
     get().upsertSession(session)
     refreshSessionStoreForSession(id, get().activeSessionId)
   } catch (err) {
-    if (latestSessionRefresh.get(id) !== requestId) return
+    if (!read.isLatest()) return
     handleStoreError(err, 'refresh session', setError(set))
   }
 }
