@@ -59,6 +59,38 @@ function describeFailure(failure: unknown, depth = 0): string | undefined {
 /** Shown when a failure names nothing safe to show; its details stay in the Host. */
 const UNDESCRIBED_FAILURE = 'The Session Host could not complete the request.'
 
+/**
+ * The peer of the Local Session socket went away while a frame was written, so the write failed
+ * with a disconnect verdict such as EPIPE. This is how a client exits, not an anomaly: callers
+ * treat it as the end of the connection instead of reporting it.
+ */
+export class LocalSessionClientDisconnectedError extends Error {
+  constructor() {
+    super('The Local Session client disconnected before its frame was written.')
+  }
+}
+
+/** Write failures that mean the peer is gone, rather than that something went wrong. */
+const CLIENT_DISCONNECT_ERROR_CODES = new Set([
+  'EPIPE',
+  'ECONNRESET',
+  'ESHUTDOWN',
+  'ERR_STREAM_DESTROYED',
+  'ERR_STREAM_WRITE_AFTER_END',
+  'ERR_STREAM_ALREADY_FINISHED',
+  'ERR_SOCKET_CLOSED',
+])
+
+function isClientDisconnect(error: unknown, socket: Socket) {
+  const code: unknown =
+    typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
+  return (
+    (typeof code === 'string' && CLIENT_DISCONNECT_ERROR_CODES.has(code)) ||
+    socket.destroyed ||
+    !socket.writable
+  )
+}
+
 export function describeLocalSessionServerError(error: unknown) {
   const described = describeServerError(error)
   return described.trim() === '' ? UNDESCRIBED_FAILURE : described
@@ -80,8 +112,12 @@ function describeServerError(error: unknown) {
 function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   return new Promise((resolve, reject) => {
     socket.write(segment, (error) => {
-      if (error) reject(error)
-      else resolve()
+      if (!error) {
+        resolve()
+        return
+      }
+      if (isClientDisconnect(error, socket)) reject(new LocalSessionClientDisconnectedError())
+      else reject(error)
     })
   })
 }
@@ -103,6 +139,11 @@ export async function writeLocalSessionSocketFrame(input: {
       throw new Error('Local Session client disconnected before its response was written.')
     }
     for (const segment of encodeLocalSessionFrameSegments(lease.payload)) {
+      // The guard above ran before the first segment; a large frame spans several writes, and
+      // the peer can go away in between, where the next write would only fail with EPIPE.
+      if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
+        throw new LocalSessionClientDisconnectedError()
+      }
       await writeSocketSegment(input.socket, segment)
     }
   } finally {

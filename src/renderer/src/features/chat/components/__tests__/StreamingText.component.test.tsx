@@ -245,6 +245,7 @@ describe('StreamingText', () => {
       <ChatDisplayPathProvider
         projectPath="/Users/diego/Projects/OpenWaggle"
         worktreePath={worktreePath}
+        workingPath={worktreePath}
       >
         <StreamingText text={`Read ${worktreePath}/.agents/skills/grill-me/SKILL.md`} />
       </ChatDisplayPathProvider>,
@@ -262,6 +263,7 @@ describe('StreamingText', () => {
       <ChatDisplayPathProvider
         projectPath="/Users/diego/Projects/OpenWaggle"
         worktreePath={worktreePath}
+        workingPath={worktreePath}
       >
         <StreamingText
           text={[
@@ -294,6 +296,7 @@ describe('StreamingText', () => {
       <ChatDisplayPathProvider
         projectPath="/Users/diego/Projects/OpenWaggle"
         worktreePath={worktreePath}
+        workingPath={worktreePath}
       >
         <StreamingText text={`Read ${sourcePath}\n\n${indentation}${sourceLine}`} />
       </ChatDisplayPathProvider>,

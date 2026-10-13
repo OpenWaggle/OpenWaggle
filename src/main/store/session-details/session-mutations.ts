@@ -7,6 +7,7 @@ import type { SessionEnvironmentMode } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
+import { deleteSessionRow } from './session-row-deletion'
 import type { UpdateSessionRuntimeInput } from './types'
 
 export interface SessionWorktreeRefRow {
@@ -188,7 +189,7 @@ export async function deleteSession(id: SessionId): Promise<void> {
             WHERE session_id = ${id}
             LIMIT 1
           `
-          yield* sql`DELETE FROM sessions WHERE id = ${id}`
+          yield* deleteSessionRow(sql, id)
           const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
           if (workspaceId) {
             yield* sql`

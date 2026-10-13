@@ -17,7 +17,11 @@ export async function reconcileQueuedRunStarts(queryClient: QueryClient): Promis
   await Promise.all(
     marks.map(async ([sessionId, runId]) => {
       try {
-        const queue = await queryClient.query(sessionFollowUpQueueOptions(sessionId))
+        // One read, no retries: a failure keeps the mark, and the next event or resync clears it.
+        const queue = await queryClient.query({
+          ...sessionFollowUpQueueOptions(sessionId),
+          retry: false,
+        })
         if (queue.activeRunId === null)
           useQueuedRunStartStore.getState().settleIdle(sessionId, runId)
       } catch (error) {

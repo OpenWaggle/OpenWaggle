@@ -11,15 +11,11 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { cn } from '@/shared/lib/cn'
 import { pierreLanguageId } from '@/shared/lib/syntax/pierre-syntax-runtime'
+import { PIERRE_WORKER_POOL_OPTIONS } from '@/shared/lib/syntax/pierre-worker-pool'
 
 const EDITOR_OVERSCROLL_PX = 600
 const EDITOR_OBSERVER_MARGIN_PX = 1_200
-const EDITOR_AST_CACHE_ENTRIES = 24
 const EDITOR_OPTIONS: EditorOptions<'file', undefined, undefined> = {}
-
-function createPierreWorker() {
-  return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
-}
 
 function toWorkspaceChange(change: EditorChange): WorkspaceDocumentChange {
   return {
@@ -104,11 +100,7 @@ export function FocusedSourceEditor({
       onKeyDownCapture={handleKeyDown}
     >
       <WorkerPoolContextProvider
-        poolOptions={{
-          workerFactory: createPierreWorker,
-          poolSize: 1,
-          totalASTLRUCacheSize: EDITOR_AST_CACHE_ENTRIES,
-        }}
+        poolOptions={PIERRE_WORKER_POOL_OPTIONS}
         highlighterOptions={{ langs: [editorLanguage], theme: shikiTheme }}
       >
         <FocusedEditorWorkerTheme theme={shikiTheme} />

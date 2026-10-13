@@ -217,7 +217,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
       </span>
       {showDock ? (
         <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
-          {queueUnavailable ? <QueueUnavailableNotice onRetry={refresh} /> : null}
+          {queueUnavailable ? <QueueUnavailableNotice error={error} onRetry={refresh} /> : null}
 
           {queue.length > 0 ? (
             <>

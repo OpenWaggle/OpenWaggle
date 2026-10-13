@@ -22,32 +22,13 @@ export interface ToolCallResultPayload {
   readonly error?: string
 }
 
-export interface UnifiedDiffLine {
-  readonly type: 'add' | 'remove' | 'context' | 'meta'
-  readonly content: string
-  /**
-   * 0-based position in the parsed diff. A diff line has no other identity
-   * (content repeats — blank context lines, identical edits), so position IS its
-   * identity; carrying it in the data gives React a stable key without keying on
-   * the render index (react-doctor/no-array-index-as-key).
-   */
-  readonly lineIndex: number
-}
-
-export interface UnifiedDiffData {
-  readonly text: string
-  readonly lines: readonly UnifiedDiffLine[]
-  readonly additions: number
-  readonly deletions: number
-}
-
-function isTextContentBlock(
+export function isTextContentBlock(
   value: unknown,
 ): value is { readonly type: 'text'; readonly text: string } {
   return isMatching({ type: 'text', text: P.string }, value)
 }
 
-function parseResultPayload(content: unknown) {
+export function parseResultPayload(content: unknown) {
   return normalizeToolResultPayload(content)
 }
 
@@ -62,7 +43,7 @@ function formatUnknownContent(content: unknown, serialized?: string | null) {
   }
 }
 
-function getToolResultDetails(content: unknown) {
+export function getToolResultDetails(content: unknown) {
   const parsed = parseResultPayload(content)
   return match(parsed)
     .with({ details: P.select() }, (details) => details)
@@ -170,53 +151,6 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
   if (isRecord(parsed) && typeof parsed.error === 'string') {
     return parsed.error
   }
-  return null
-}
-
-function parseUnifiedDiff(diffText: string): UnifiedDiffData {
-  let additions = 0
-  let deletions = 0
-  const lines = diffText.split(LINE_SPLIT_SEPARATOR).map((line, lineIndex): UnifiedDiffLine => {
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
-      return { type: 'meta', content: line, lineIndex }
-    }
-    if (line.startsWith('+')) {
-      additions += 1
-      return { type: 'add', content: line, lineIndex }
-    }
-    if (line.startsWith('-')) {
-      deletions += 1
-      return { type: 'remove', content: line, lineIndex }
-    }
-    return { type: 'context', content: line, lineIndex }
-  })
-
-  return { text: diffText, lines, additions, deletions }
-}
-
-export function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | null {
-  if (name !== 'edit') {
-    return null
-  }
-
-  const details = getToolResultDetails(content)
-  const diff = match(details)
-    .with({ diff: P.select('diff', P.string) }, ({ diff }) => diff)
-    .otherwise(() => null)
-  if (diff?.trim()) {
-    return parseUnifiedDiff(diff)
-  }
-
-  const parsed = parseResultPayload(content)
-  if (
-    isRecord(parsed) &&
-    typeof parsed.beforeContent === 'string' &&
-    typeof parsed.afterContent === 'string' &&
-    parsed.beforeContent !== parsed.afterContent
-  ) {
-    return null
-  }
-
   return null
 }
 

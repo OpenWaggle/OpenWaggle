@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 import type { AgentToolResult, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 import type { Effect as EffectType } from 'effect/Effect'
-import * as Effect from 'effect/Effect'
+import { runEffectWithAbortSignal } from '../../utils/run-effect-with-abort-signal'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 
 const PREVIEW_REQUESTER_ID = 'openwaggle:browser-preview'
@@ -89,5 +89,5 @@ export function runBrowserPreviewEffect<A>(
   effect: EffectType<A, Error>,
   signal?: AbortSignal,
 ): Promise<A> {
-  return Effect.runPromise(effect, signal ? { signal } : undefined)
+  return runEffectWithAbortSignal(effect, signal)
 }

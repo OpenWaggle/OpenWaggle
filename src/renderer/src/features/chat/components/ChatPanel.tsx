@@ -165,6 +165,7 @@ export function ChatPanelContent({
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}
           worktreePath={sections.transcript.worktreePath}
+          workingPath={sections.transcript.workingPath}
         >
           <SessionSummaryHub
             key={activeSessionId ?? 'no-session-summary'}

@@ -72,6 +72,7 @@ function createSection(
     isLoading: false,
     projectPath: PROJECT_PATH,
     worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: null,
     turnsByAnchorNodeId: new Map(),

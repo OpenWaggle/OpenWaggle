@@ -6,6 +6,7 @@ import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
@@ -243,6 +244,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     isLoading: transcriptLoading,
     projectPath,
     worktreePath: activeSession?.worktreePath ?? null,
+    workingPath: resolveSessionWorkingDir(activeSession, projectPath),
     recentProjects,
     activeSessionId,
     activeBranchId: displayedSelection.branchId,
