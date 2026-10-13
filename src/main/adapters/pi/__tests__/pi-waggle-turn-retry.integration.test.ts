@@ -37,6 +37,9 @@ const CONFIG: WaggleConfig = {
 
 type Reply = (context: TranscriptContext) => AssistantMessage
 
+/** The Pi session of the Waggle Run under test, which a reply can abort as Escape does. */
+let activeSession: { abort: () => Promise<void> } | undefined
+
 /** A three-turn Waggle Run through pi-waggle's own loop, with Pi's automatic retry on. */
 async function waggleRun(replies: readonly Reply[]) {
   const directory = mkdtempSync(path.join(tmpdir(), 'openwaggle-waggle-retry-'))
@@ -95,6 +98,7 @@ async function waggleRun(replies: readonly Reply[]) {
     noTools: 'all',
   })
   cleanups.push(() => session.dispose())
+  activeSession = session
   const requests: string[] = []
   faux.setResponses(
     replies.map((reply) => (context: TranscriptContext) => {
@@ -142,5 +146,21 @@ describe('a Waggle turn Pi retries', () => {
     expect(requests).toHaveLength(4)
     expect(requests[2]).not.toContain('Turn 2')
     expect(requests[3]).toContain('Turn 2')
+  })
+
+  it('ends with a turn the user aborts, without judging it or starting the next', async () => {
+    const aborted: Reply = () => {
+      void activeSession?.abort()
+      return fauxAssistantMessage('Partial', { stopReason: 'aborted' })
+    }
+
+    const { completedTurns, requests } = await waggleRun([
+      answer('Turn 0 answer'),
+      aborted,
+      answer('Never requested'),
+    ])
+
+    expect(completedTurns).toEqual([{ turn: 0, stopReasons: ['stop'] }])
+    expect(requests).toHaveLength(2)
   })
 })

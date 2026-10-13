@@ -306,6 +306,8 @@ export function createPiWaggleExtension<TMeta>(
     done: completion.promise,
     fail: completion.reject,
     factory: (pi) => {
+      // A run the user aborted ends the Waggle: no later run is one of its turns.
+      let aborted = false
       registerPiWaggleLoop(
         {
           ...input,
@@ -313,7 +315,17 @@ export function createPiWaggleExtension<TMeta>(
           onError: completion.reject,
         },
         {
-          onAgentEnd: (handler) => onPiWaggleSettledAgentEnd(pi, handler),
+          onAgentEnd: (handler) =>
+            onPiWaggleSettledAgentEnd(
+              pi,
+              (event, ctx) => (aborted ? undefined : handler(event, ctx)),
+              {
+                onAborted: () => {
+                  aborted = true
+                  completion.resolve()
+                },
+              },
+            ),
           sendMessage: (message, options) => pi.sendMessage(message, options),
           setModel: (model) => pi.setModel(model),
         },

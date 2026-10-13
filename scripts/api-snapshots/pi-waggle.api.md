@@ -142,15 +142,19 @@ export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionI
 
 ```ts
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { PiWaggleAgentEndHandler } from './loop.js';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
 /**
  * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
  * failed request it is about to retry, after overflow compaction, and before a queued
  * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
  * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
- * failed attempt, so every `agent_end` until then is gathered into one.
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
  */
-export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
 ```
 
 ### Declarations from `dist/mode-state.d.ts`
@@ -481,15 +485,19 @@ export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionI
 
 ```ts
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { PiWaggleAgentEndHandler } from './loop.js';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
 /**
  * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
  * failed request it is about to retry, after overflow compaction, and before a queued
  * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
  * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
- * failed attempt, so every `agent_end` until then is gathered into one.
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
  */
-export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
 ```
 
 ## Export `./loop`
@@ -579,15 +587,19 @@ export declare function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionI
 
 ```ts
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { PiWaggleAgentEndHandler } from './loop.js';
+import type { PiWaggleAgentEndHandler, PiWaggleExtensionContext } from './loop.js';
 /**
  * Runs `handler` with a turn's messages once Pi has settled its run. Pi emits `agent_end` for a
  * failed request it is about to retry, after overflow compaction, and before a queued
  * continuation, each with only that attempt's new messages; only `agent_settled` means nothing
  * follows. Advancing earlier would steer the next turn into the retry and judge the turn by its
- * failed attempt, so every `agent_end` until then is gathered into one.
+ * failed attempt, so every `agent_end` until then is gathered into one. A run the user aborted
+ * (Escape) settles with `aborted`: its turn is not judged and no next turn starts; `onAborted`
+ * runs instead, and the run's messages are dropped, so they never join a later turn.
  */
-export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler): void;
+export declare function onPiWaggleSettledAgentEnd(pi: Pick<ExtensionAPI, 'on'>, handler: PiWaggleAgentEndHandler, options?: {
+    readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void>;
+}): void;
 ```
 
 ## Export `./mode-state`
