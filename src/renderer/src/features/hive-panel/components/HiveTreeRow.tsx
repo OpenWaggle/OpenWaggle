@@ -139,7 +139,8 @@ export function HiveTreeListItem({
           <HiveStateCell view={view} />
         </Button>
       )}
-      <HiveRowMenu view={view} menu={menu} onRename={rename.start} />
+      {/* No row actions while renaming: the input owns the row, as in the sidebar. */}
+      {rename.isEditing ? null : <HiveRowMenu view={view} menu={menu} onRename={rename.start} />}
     </div>
   )
 }

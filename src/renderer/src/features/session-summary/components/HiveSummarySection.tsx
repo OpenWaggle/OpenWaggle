@@ -41,14 +41,17 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
             {model.activeCount} active · {model.totalCount} total
           </span>
         ) : null}
-        <Button
-          variant="unstyled"
-          className="rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          aria-label="Open in Hive panel"
-          onClick={() => showRightPanelSurface('hive')}
-        >
-          Open in Hive panel
-        </Button>
+        {/* Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them. */}
+        {model.lineage.historical === true ? null : (
+          <Button
+            variant="unstyled"
+            className="rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            aria-label="Open in Hive panel"
+            onClick={() => showRightPanelSurface('hive')}
+          >
+            Open in Hive panel
+          </Button>
+        )}
       </div>
     </section>
   )

@@ -145,6 +145,8 @@ describe('HivePanel', () => {
     const input = await screen.findByRole('textbox', { name: 'Session title' })
     expect(input).toHaveValue('live')
     expect(screen.queryByRole('button', { name: /Open Worker Session: live/ })).toBeNull()
+    // The row's actions step aside while the input owns the row.
+    expect(screen.queryByRole('button', { name: 'Open session actions for live' })).toBeNull()
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(
       await screen.findByRole('button', { name: /Open Worker Session: live/ }),

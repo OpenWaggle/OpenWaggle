@@ -84,6 +84,26 @@ describe('HiveSummarySection', () => {
     expect(counts.className).toContain('text-warning')
   })
 
+  it('does not offer the Hive panel for a historical Hive it cannot list', async () => {
+    getSessionHiveRelations.mockResolvedValue(
+      hiveRelations({
+        ...worker('working'),
+        lineage: {
+          role: 'worker',
+          parentSessionId: SessionId('queen'),
+          directWorkerCount: 0,
+          activeDirectWorkerCount: 0,
+          delegationState: 'working',
+          historical: true,
+        },
+      }),
+    )
+    renderHive('worker')
+
+    expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Hive panel' })).toBeNull()
+  })
+
   it('shows nothing for an unrelated opened session', async () => {
     getSessionHiveRelations.mockResolvedValue(hiveRelations(null))
     renderHive('another-session')
