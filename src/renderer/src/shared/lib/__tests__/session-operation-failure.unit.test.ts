@@ -33,4 +33,26 @@ describe('sessionOperationFailureMessage', () => {
       ),
     ).toBe('Failed to fork session: Session is busy')
   })
+
+  it("names the provider's reason once, in its words, for a summary it refused", () => {
+    const providerError =
+      '401: {"error":{"message":"Incorrect API key provided: qa-***fake","type":"invalid_request_error","code":"invalid_api_key"}}'
+    const error = new Error(
+      `Error invoking remote method 'sessions:navigate-tree': Error: Branch summarization failed: ${providerError}`,
+    )
+
+    expect(sessionOperationFailureMessage('Failed to summarize the branch', error)).toBe(
+      'Failed to summarize the branch: Incorrect API key provided: qa-***fake',
+    )
+  })
+
+  it('keeps a reason that is not JSON as it is, without a second failure clause', () => {
+    const error = new Error(
+      "Error invoking remote method 'sessions:navigate-tree': Error: Branch summarization failed: the model is overloaded",
+    )
+
+    expect(sessionOperationFailureMessage('Failed to summarize the branch', error)).toBe(
+      'Failed to summarize the branch: the model is overloaded',
+    )
+  })
 })
