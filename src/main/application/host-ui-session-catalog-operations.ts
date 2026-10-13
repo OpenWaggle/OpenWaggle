@@ -1,10 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionCatalogPage, SessionSummary } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
   HiveTreeSessionCatalogPage,
-  SessionCatalogPage,
-  SessionSummary,
-} from '@shared/types/session'
+} from '@shared/types/session-hive-catalog'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'

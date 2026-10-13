@@ -1,12 +1,10 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
   HiveTreeSessionCatalogPage,
-  SessionCatalogPage,
-  SessionProjectPage,
-  SessionSummary,
-} from '@shared/types/session'
+} from '@shared/types/session-hive-catalog'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import {

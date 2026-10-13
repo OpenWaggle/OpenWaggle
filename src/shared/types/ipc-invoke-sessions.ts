@@ -2,8 +2,6 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SupportedModelId } from './llm'
 import type {
-  HiveSessionCatalogPage,
-  HiveTreeSessionCatalogPage,
   SessionCatalogPage,
   SessionCopyToNewResult,
   SessionDeleteOptions,
@@ -18,6 +16,7 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
+import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
 import type { SessionTitleRegenerationResult } from './session-title'
 import type { ThinkingLevel } from './settings'
 
