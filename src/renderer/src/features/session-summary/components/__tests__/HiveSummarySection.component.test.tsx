@@ -1,26 +1,18 @@
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSidebarSessionActions } from '@/features/sidebar/hooks'
-import { queryKeys } from '@/queries/query-keys'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
-import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
 import { HiveSummarySection } from '../HiveSummarySection'
 
 const getSessionHiveRelations = vi.hoisted(() => vi.fn())
-const archiveSession = vi.hoisted(() => vi.fn())
-const showConfirm = vi.hoisted(() => vi.fn())
-const unregisterBrowserPreviewOwner = vi.hoisted(() => vi.fn())
+const showRightPanelSurface = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { archiveSession, getSessionHiveRelations, showConfirm, unregisterBrowserPreviewOwner },
-}))
+vi.mock('@/shared/lib/ipc', () => ({ api: { getSessionHiveRelations } }))
+vi.mock('@/shared/lib/right-panel-surfaces', () => ({ showRightPanelSurface }))
 
-function renderHive(sessionId: string, onNavigateSession = vi.fn()) {
-  return renderWithQueryClient(
-    <HiveSummarySection sessionId={sessionId} onNavigateSession={onNavigateSession} />,
-  )
+function renderHive(sessionId: string) {
+  return renderWithQueryClient(<HiveSummarySection sessionId={sessionId} />)
 }
 
 function queen(activeDirectWorkerCount: number): SessionSummary {
@@ -68,230 +60,66 @@ function hiveRelations(
 
 describe('HiveSummarySection', () => {
   beforeEach(() => {
-    localStorage.clear()
-    useSessionSummaryUIStore.setState({ toggleFocusTargetSessionId: null })
     getSessionHiveRelations.mockReset().mockResolvedValue(hiveRelations(null))
-    archiveSession.mockReset().mockResolvedValue(undefined)
-    showConfirm.mockReset().mockResolvedValue(true)
-    unregisterBrowserPreviewOwner.mockReset().mockResolvedValue(undefined)
+    showRightPanelSurface.mockReset()
   })
 
-  it('expands active Hive work by default and navigates to the selected worker', async () => {
+  it('summarizes the Hive in one row and opens the Hive panel', async () => {
     getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('working')]))
-    const onNavigateSession = vi.fn()
-    renderHive('queen', onNavigateSession)
+    renderHive('queen')
 
     expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
     expect(screen.getByText('1 active · 1 total')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Worker.*Worker session/ }))
-    expect(onNavigateSession).toHaveBeenCalledWith('worker')
-    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('worker')
+    expect(screen.queryByText('Worker session')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Hive panel' }))
+    expect(showRightPanelSurface).toHaveBeenCalledWith('hive')
   })
 
-  it('collapses an all-done Hive by default while honoring a per-session override', async () => {
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0), [worker('accepted')]))
-    const first = renderHive('queen')
-    const trigger = await screen.findByRole('button', { name: /Hive/ })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(trigger)
-    expect(screen.getByText('Worker session')).toBeInTheDocument()
-    first.unmount()
-
-    renderHive('queen')
-    expect(await screen.findByRole('button', { name: /Hive/ })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
-  })
-
-  it('shows a completed submission in Review rather than Active', async () => {
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0), [worker('ready_for_review')]))
+  it('reports attention in the warning colour', async () => {
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0), [worker('needs_attention')]))
     renderHive('queen')
 
-    expect(await screen.findByText('0 active · 1 total')).toBeInTheDocument()
-    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
-    expect(screen.getByText('Ready for review')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse Hive' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
+    // A Worker needing input still counts as active; the count carries the attention colour.
+    const counts = await screen.findByText('1 active · 1 total')
+    expect(counts.className).toContain('text-warning')
+  })
+
+  it('does not offer the Hive panel for a historical Hive it cannot list', async () => {
+    getSessionHiveRelations.mockResolvedValue(
+      hiveRelations({
+        ...worker('working'),
+        lineage: {
+          role: 'worker',
+          parentSessionId: SessionId('queen'),
+          directWorkerCount: 0,
+          activeDirectWorkerCount: 0,
+          delegationState: 'working',
+          historical: true,
+        },
+      }),
     )
+    renderHive('worker')
+
+    expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Hive panel' })).toBeNull()
   })
 
-  it('moves a Worker from Active through Review to Done as delegation settles', async () => {
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('working')]))
-    const view = renderHive('queen')
-    expect(await screen.findByLabelText('Active Hive sessions')).toBeInTheDocument()
-
-    act(() => {
-      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
-        pages: [hiveRelations(queen(0), [worker('ready_for_review')])],
-        pageParams: [undefined],
-      })
-    })
-    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
-    expect(screen.getByText('0 active · 1 total')).toBeInTheDocument()
-
-    act(() => {
-      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
-        pages: [hiveRelations(queen(0), [worker('accepted')])],
-        pageParams: [undefined],
-      })
-    })
-    expect(await screen.findByLabelText('Done Hive sessions')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Review Hive sessions')).toBeNull()
-  })
-
-  it('does not show Hive information for an unrelated opened session', async () => {
+  it('shows nothing for an unrelated opened session', async () => {
     getSessionHiveRelations.mockResolvedValue(hiveRelations(null))
     renderHive('another-session')
     await waitFor(() => expect(getSessionHiveRelations).toHaveBeenCalledOnce())
     expect(screen.queryByRole('region', { name: 'Hive' })).toBeNull()
   })
 
-  it('groups archived workers separately and keeps them navigable', async () => {
-    getSessionHiveRelations.mockResolvedValue(
-      hiveRelations(queen(0), [
-        worker('accepted'),
-        {
-          ...worker('accepted'),
-          id: SessionId('archived-worker'),
-          title: 'Archived worker',
-          archived: true,
-        },
-      ]),
-    )
-    const onNavigateSession = vi.fn()
-    renderHive('queen', onNavigateSession)
-    fireEvent.click(await screen.findByRole('button', { name: /Hive/ }))
-
-    expect(screen.queryByText('Archived worker')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand archived Workers' }))
-    expect(await screen.findByLabelText('Archived Hive sessions')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Open Worker Session: Archived worker/ }))
-    expect(onNavigateSession).toHaveBeenCalledWith('archived-worker')
-  })
-
-  it('moves a live worker into the mounted Hive archived group immediately after archiving', async () => {
-    const liveWorker = worker('accepted')
-    let isArchived = false
-    getSessionHiveRelations.mockImplementation(async () =>
-      hiveRelations(queen(0), [{ ...liveWorker, ...(isArchived ? { archived: true } : {}) }]),
-    )
-    archiveSession.mockImplementation(async () => {
-      isArchived = true
-    })
-    const view = renderHive('queen')
-    fireEvent.click(await screen.findByRole('button', { name: /Hive/ }))
-    expect(screen.getByLabelText('Done Hive sessions')).toBeInTheDocument()
-    const navigate: Parameters<typeof createSidebarSessionActions>[0]['navigate'] = vi.fn()
-    const showToast = vi.fn()
-
-    const actions = createSidebarSessionActions({
-      activeSessionId: null,
-      removalNavigation: {
-        getActiveSessionId: () => null,
-        hasDraftSession: () => false,
-        getVisibleSessionIds: () => [liveWorker.id],
-        isSessionListed: () => true,
-        selectSession: vi.fn(),
-        clearActiveSession: vi.fn(),
-      },
-      matchingActiveSessionTree: null,
-      matchingActiveWorkspace: null,
-      navigate,
-      projectPath: '/project',
-      queryClient: view.client,
-      selectedModel: SupportedModelId('openai/gpt-5'),
-      showToast,
-      clearTransientDraftContext: vi.fn(),
-      deleteSession: vi.fn().mockResolvedValue(undefined),
-      loadChatSessions: vi.fn().mockResolvedValue(undefined),
-      loadSessionTrees: vi.fn().mockResolvedValue(undefined),
-      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-      togglePin: vi.fn(),
-    })
-    actions.archive(liveWorker.id)
-
-    await waitFor(() => expect(archiveSession).toHaveBeenCalledWith(liveWorker.id))
-    expect(
-      await screen.findByRole('button', { name: 'Expand archived Workers' }),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand archived Workers' }))
-    expect(await screen.findByLabelText('Archived Hive sessions')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Open Worker Session: Worker session/ }),
-    ).toBeInTheDocument()
-    expect(screen.queryByLabelText('Done Hive sessions')).toBeNull()
-    expect(unregisterBrowserPreviewOwner).toHaveBeenCalledWith(liveWorker.id)
-    expect(showToast).not.toHaveBeenCalled()
-  })
-
-  it('keeps an archived parent navigable from an active worker', async () => {
-    getSessionHiveRelations.mockResolvedValue(
-      hiveRelations(worker('working'), [], { ...queen(0), archived: true }),
-    )
-    const onNavigateSession = vi.fn()
-    renderHive('worker', onNavigateSession)
-
-    const parent = await screen.findByRole('button', { name: /Open Queen Session: Queen session/ })
-    fireEvent.click(parent)
-    expect(onNavigateSession).toHaveBeenCalledWith('queen')
-  })
-
-  it('keeps Hive navigation available when the opened worker is archived', async () => {
-    getSessionHiveRelations.mockResolvedValue(
-      hiveRelations({ ...worker('accepted'), archived: true }, [], queen(0)),
-    )
-    const onNavigateSession = vi.fn()
-    renderHive('worker', onNavigateSession)
-
-    expect(await screen.findByRole('button', { name: /Hive/ })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
-    const parent = await screen.findByRole('button', { name: /Open Queen Session: Queen session/ })
-    fireEvent.click(parent)
-    expect(onNavigateSession).toHaveBeenCalledWith('queen')
-  })
-
-  it('batches large worker groups instead of mounting every row at once', async () => {
-    const workers = Array.from({ length: 8 }, (_, index) => ({
-      ...worker('working'),
-      id: SessionId(`worker-${String(index + 1)}`),
-      title: `Worker ${String(index + 1)}`,
-    }))
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(workers.length), workers))
+  it('offers a retry when the Hive cannot load', async () => {
+    getSessionHiveRelations.mockRejectedValue(new Error('Host unavailable'))
     renderHive('queen')
 
-    expect(await screen.findByText('Worker 6')).toBeInTheDocument()
-    expect(screen.queryByText('Worker 7')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Show 2 more' }))
-    expect(screen.getByText('Worker 8')).toBeInTheDocument()
-  })
-
-  it('keeps completed work visible briefly before automatically collapsing it', async () => {
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('working')]))
-    const view = renderHive('queen')
-    const trigger = await screen.findByRole('button', { name: /Hive/ })
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-
-    vi.useFakeTimers()
-    act(() => {
-      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
-        pages: [hiveRelations(queen(0), [worker('accepted')])],
-        pageParams: [undefined],
-      })
-    })
-    act(() => vi.advanceTimersByTime(0))
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    screen.getByRole('button', { name: /Open Worker Session: Worker session/ }).focus()
-    act(() => vi.advanceTimersByTime(2_499))
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    act(() => vi.advanceTimersByTime(1))
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveFocus()
-    vi.useRealTimers()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Unable to load this session's Hive.",
+    )
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0)))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Hive' }))
+    expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
   })
 })

@@ -37,7 +37,6 @@ interface ChatPanelContentProps {
   readonly onOpenDiff?: () => void
   readonly onOpenChangeRequest?: (url: string) => void
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
-  readonly onNavigateSession?: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean
 }
@@ -137,7 +136,6 @@ export function ChatPanelContent({
   onOpenDiff = () => {},
   onOpenChangeRequest = () => {},
   onOpenResources = () => {},
-  onNavigateSession = () => {},
   onOpenExtensionSidePanel = () => {},
   rightSidebarOpen = false,
 }: ChatPanelContentProps) {
@@ -191,7 +189,6 @@ export function ChatPanelContent({
               onOpenDiff,
               onOpenChangeRequest,
               onOpenResources,
-              onNavigateSession,
               onOpenExtensionSidePanel,
             }}
           />

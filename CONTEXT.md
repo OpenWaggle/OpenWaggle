@@ -231,8 +231,8 @@ The mandatory pre-release QA workflow that uses a real configured model provider
 _Avoid_: ordinary CI, mocked integration test, manual happy-path note
 
 **Hive activity surface**:
-The unified composer-adjacent projection of a Session's immediate parent and direct Workers, with Workers grouped by active, completed, and archived state.
-_Avoid_: child activity surface, subagent store, hidden session list, child transcript copy
+The Session Hub's one-row summary of a Session's Hive: its role, Worker count and attention, opening the **Hive panel**, which is the only place Workers are listed.
+_Avoid_: child activity surface, subagent store, hidden session list, child transcript copy, second Worker list
 
 **Session identity header**:
 The persistent top-of-session title and metadata surface that identifies the selected Session's Hive role and optional Resolved Agent snapshot without becoming a navigation or management panel.
@@ -1345,7 +1345,7 @@ The single container beside the chat that shows one **Right panel surface** at a
 _Avoid_: right sidebar, inspector, side panel (an extension contributes a side panel; the container is the Right panel)
 
 **Right panel surface**:
-One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, or Resources, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
+One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, Resources, or Hive, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
 _Avoid_: tab, view, tool
 
 **Right panel toggle**:
@@ -1355,6 +1355,10 @@ _Avoid_: panel launcher, sidebar button
 **Panel rail**:
 The vertical strip of icons on the **Right panel**'s edge: the fixed **All panels** entry first, then the surfaces the user keeps on the rail in the user's order. Choosing an icon shows that surface, and choosing the shown surface's icon again closes the **Right panel**; pressing and holding one picks it up to reorder. By default the rail stays visible while the **Right panel** is closed; the user can choose to hide it with the panel. A surface opened from elsewhere, such as a file link or a change request, highlights the rail entry it belongs to. The rail appears only beside a Session's chat; a built-in entry that cannot work yet stays in place, disabled with its reason.
 _Avoid_: activity bar, toolbar, dock
+
+**Hive panel**:
+The built-in **Right panel surface** that lists every Session of the current **Hive** from its **Queen Session** down, at any depth, and is the home of Worker Sessions that are not Pinned.
+_Avoid_: Hive sidebar, orchestration dashboard, Worker tree
 
 **Panel rail icon**:
 The glyph that represents a **Right panel surface** on the **Panel rail** and in **All panels**. An extension side panel may name a bundled Lucide icon or point to a single-colour SVG inside its package; OpenWaggle draws either one in the rail's own colours, as it draws built-in icons, and falls back to a letter tile when the icon is missing or invalid.
@@ -1744,9 +1748,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Cross-session report** never starts, steers, interrupts, replaces, or reopens a Run and never creates, submits, accepts, reopens, or requests revision of a **Delegation Contract**.
 - Spawn establishes only the narrow write-only lineage reporting routes required for a Worker to report to its immediate parent or Queen and for an authorized parent to report to its managed child; these routes grant no reciprocal Session read or management authority.
 - Reports to any other sibling, descendant, unrelated Session, or multi-target set require `sessions:report` authorization for every explicit target; no natural-language mention silently broadens the route.
-- The **Hive activity surface** projects **Spawn lineage** upward to the immediate parent and downward to direct Workers inside one collapsible block, groups Workers into Active and Done, keeps archived Workers under a collapsed `Archived · n` disclosure, and links to each Session instead of duplicating its transcript.
-- The **Hive activity surface** classifies `working`, `waiting`, `needs_attention`, `ready_for_review`, and `revision_requested` **Delegation states** as Active, and classifies only `accepted` and `cancelled` as Done, independently of whether a Worker currently has an executing Run.
-- Archiving an Active Worker changes only its organization: it remains in the Hive's active count, and the collapsed Archived disclosure reports its active and attention state without opening itself automatically.
+- The **Hive panel** lists the whole **Hive** under its root rather than one Session's parent and direct Workers, labels Workers below the first level `via ⟨parent⟩` instead of nesting them, keeps archived Workers under a collapsed `Archived · n` disclosure, and links to each Session instead of duplicating its transcript; the **Hive activity surface** only summarizes it.
+- A **Worker Session** appears in the Session sidebar only as a **Pinned session**; the **Hive panel** always lists it, and interacting with it exempts it from Hive cleanup without adding it to the sidebar. While a Worker Session is open, its **Queen Session**'s sidebar row keeps a secondary highlight (the active background under an accent ring, without `aria-current`).
+- The **Hive panel** groups live Workers by **Delegation state**: **Needs you** (`needs_attention`, `revision_requested`), **Review** (`ready_for_review`), **Active** (`working`, `waiting`, or no Delegation yet), and **Done** (`accepted`, `cancelled`), independently of whether a Worker currently has an executing Run.
+- Archiving an Active Worker changes only its organization: the Session Hub's Hive row still counts it as active, while the **Hive panel** moves it to the collapsed `Archived · n` group, which never opens itself; expanding the group shows the Worker's state, and its menu offers **Unarchive**.
 - Completing a child does not archive or hide its durable session automatically.
 - Child completion persists its full result in the child and produces an **Orchestration update** for the parent without creating a **Steering message** or **Follow-up message**.
 - A parent **Run interruption**, replacement, completion, or session archival does not interrupt child runs automatically; child sessions and their active work remain independently controllable and durable.

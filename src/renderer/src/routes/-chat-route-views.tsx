@@ -108,7 +108,15 @@ function useChatSessionSidebarActions(sessionId: string) {
   }
 
   function setSessionTreeOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+    setExclusivePanel(open ? 'session-tree' : undefined)
+  }
+
+  function setHiveOpen(open: boolean) {
+    setExclusivePanel(open ? 'hive' : undefined)
+  }
+
+  /** Swaps the route's panel, clearing every other panel's route state with it. */
+  function setExclusivePanel(panel: ChatRouteSearch['panel']) {
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId },
@@ -171,12 +179,12 @@ function useChatSessionSidebarActions(sessionId: string) {
     onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
     onResourcesTargetChange: setResourcesTarget,
     onSessionTreeOpenChange: setSessionTreeOpen,
+    onHiveOpenChange: setHiveOpen,
     onWorkspaceFileOpenChange: setWorkspaceFileOpen,
   } satisfies LazyChatRouteSurfaceInput['rightSidebarActions']
 }
 
 export function ChatSessionRouteView() {
-  const navigate = useNavigate()
   const { sessionId } = useParams({ from: '/sessions/$sessionId' })
   const search = useSearch({ from: '/sessions/$sessionId' })
   const rightSidebarActions = useChatSessionSidebarActions(sessionId)
@@ -187,6 +195,7 @@ export function ChatSessionRouteView() {
     extensionSidePanel: extensionSidePanelTargetFromSearch(search),
     resourcesTarget: resourceBrowserTargetFromSearch(search),
     sessionTreeOpen: search.panel === 'session-tree',
+    hiveOpen: search.panel === 'hive',
     // Files without a path is the navigator on its own (ADR 0043).
     workspaceFile:
       search.panel === 'file'
@@ -200,9 +209,6 @@ export function ChatSessionRouteView() {
         workspace: { branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId },
         rightSidebar,
         rightSidebarActions,
-        onNavigateSession: (targetSessionId) => {
-          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
-        },
       }}
     />
   )

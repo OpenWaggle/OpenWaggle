@@ -199,7 +199,6 @@ export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
           onOpenDiff: vi.fn(),
           onOpenResources: props.onOpenResources ?? vi.fn(),
           ...(props.onOpenChangeRequest ? { onOpenChangeRequest: props.onOpenChangeRequest } : {}),
-          onNavigateSession: vi.fn(),
           extensionRegistry: null,
           extensionProjectPaths: ['/project'],
         }}

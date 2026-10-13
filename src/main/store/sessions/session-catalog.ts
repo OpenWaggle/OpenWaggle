@@ -1,11 +1,10 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
-  SessionCatalogPage,
-  SessionProjectPage,
-  SessionSummary,
-} from '@shared/types/session'
+  HiveTreeSessionCatalogPage,
+} from '@shared/types/session-hive-catalog'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import {
@@ -204,6 +203,58 @@ export async function listHiveSessionCatalogPage(
         context,
         workers: workerPage.sessions,
         ...(workerPage.nextCursor ? { nextCursor: workerPage.nextCursor } : {}),
+      }
+    }),
+  )
+}
+
+/** Keyset page of every Session of a Hive under its Queen, at any depth (ADR 0051). */
+export async function listHiveTreeSessionCatalogPage(
+  sessionId: SessionId,
+  limit: number,
+  encodedCursor?: string,
+): Promise<HiveTreeSessionCatalogPage> {
+  const cursor = decodeCatalogCursor(encodedCursor)
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const roots = yield* sql<{ readonly root_id: string | null }>`
+        SELECT COALESCE(live.hive_root_session_id, sessions.id) AS root_id
+        FROM sessions
+        LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        WHERE sessions.id = ${sessionId} LIMIT 1
+      `
+      const rootId = roots[0]?.root_id
+      if (!rootId) return { root: null, members: [], attentionCount: 0 }
+      const rootRows = yield* loadSessionRowsById(sql, [rootId])
+      // Hydrated like every member, so the root carries its lineage (role, Worker counts).
+      const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
+      const memberRows = yield* sql<SessionSummaryRow>`
+        SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
+        JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        WHERE live.hive_root_session_id = ${rootId}
+          AND sessions.id != ${rootId}
+          AND (${cursor?.updatedAt ?? null} IS NULL
+            OR sessions.updated_at < ${cursor?.updatedAt ?? null}
+            OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
+              AND sessions.id < ${cursor?.sessionId ?? null}))
+        ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
+      `
+      const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
+      const attention = yield* sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM sessions
+        JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
+        WHERE live.hive_root_session_id = ${rootId}
+          AND sessions.id != ${rootId}
+          AND sessions.archived = 0
+          AND delegation_contracts.state IN (${'needs_attention'}, ${'revision_requested'})
+      `
+      return {
+        root,
+        members: memberPage.sessions,
+        attentionCount: attention[0]?.count ?? 0,
+        ...(memberPage.nextCursor ? { nextCursor: memberPage.nextCursor } : {}),
       }
     }),
   )

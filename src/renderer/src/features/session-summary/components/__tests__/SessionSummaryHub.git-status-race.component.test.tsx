@@ -90,7 +90,6 @@ describe('Session Summary Git status race', () => {
           rightSidebarOpen: false,
           onOpenDiff: vi.fn(),
           onOpenResources: vi.fn(),
-          onNavigateSession: vi.fn(),
           extensionRegistry: null,
           extensionProjectPaths: ['/project'],
         }}
@@ -161,7 +160,6 @@ describe('Session Summary Git status race', () => {
           rightSidebarOpen: false,
           onOpenDiff: vi.fn(),
           onOpenResources: vi.fn(),
-          onNavigateSession: vi.fn(),
           extensionRegistry: null,
           extensionProjectPaths: ['/project'],
         }}

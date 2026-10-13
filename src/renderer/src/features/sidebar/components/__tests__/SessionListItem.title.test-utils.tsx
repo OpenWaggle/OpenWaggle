@@ -37,7 +37,6 @@ function StoreBackedRow() {
   return (
     <SessionListItem
       session={session}
-      isActive={false}
       actions={{
         select: vi.fn(),
         delete: vi.fn(),

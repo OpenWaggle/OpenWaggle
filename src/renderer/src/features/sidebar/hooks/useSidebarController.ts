@@ -8,6 +8,7 @@ import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
+import { useRegisterSidebarSessionActions } from './useRegisterSidebarSessionActions'
 import { useSidebarState } from './useSidebarState'
 
 /**
@@ -198,5 +199,8 @@ export function useSidebarController() {
     refreshAfterSessionMutation,
     queryClient,
   )
+  // Hive panel rows reuse these exact handlers (ADR 0051); registration is a side effect of the
+  // Sidebar owning the domain actions, so the registry never creates a second source of truth.
+  useRegisterSidebarSessionActions(actions.session)
   return buildControllerOutput(state, actions, clearTransientDraftContext)
 }

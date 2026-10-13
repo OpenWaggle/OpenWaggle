@@ -2,9 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { resolveRightSidebarPanel } from '../-right-sidebar-panel'
 
 describe('resolveRightSidebarPanel', () => {
+  it('renders the Hive panel while it is open', () => {
+    expect(
+      resolveRightSidebarPanel({
+        hiveOpen: true,
+        diffOpen: false,
+        extensionSidePanel: null,
+        lastPanel: 'diff',
+        sessionTreeOpen: false,
+      }),
+    ).toBe('hive')
+  })
+
   it('keeps the active change-request inspector rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         changeRequestOpen: true,
         diffOpen: false,
         extensionSidePanel: null,
@@ -16,6 +29,7 @@ describe('resolveRightSidebarPanel', () => {
   it('keeps the active Session Tree panel rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         diffOpen: false,
         extensionSidePanel: null,
         lastPanel: 'diff',
@@ -27,6 +41,7 @@ describe('resolveRightSidebarPanel', () => {
   it('keeps the active Diff panel rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         diffOpen: true,
         extensionSidePanel: null,
         lastPanel: 'session-tree',
@@ -38,6 +53,7 @@ describe('resolveRightSidebarPanel', () => {
   it('keeps session resources rendered while their route panel is open', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         diffOpen: false,
         extensionSidePanel: null,
         lastPanel: 'diff',
@@ -50,6 +66,7 @@ describe('resolveRightSidebarPanel', () => {
   it('keeps the active extension side panel rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         diffOpen: false,
         extensionSidePanel: {
           extensionId: 'sample-extension',
@@ -72,6 +89,7 @@ describe('resolveRightSidebarPanel', () => {
   it('preserves the last panel content while the shared sidebar closes', () => {
     expect(
       resolveRightSidebarPanel({
+        hiveOpen: false,
         diffOpen: false,
         extensionSidePanel: null,
         lastPanel: 'session-tree',

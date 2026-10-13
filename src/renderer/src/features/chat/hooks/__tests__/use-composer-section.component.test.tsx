@@ -71,7 +71,6 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     handleCloseForkSelector: vi.fn(),
     handleSelectForkTarget: vi.fn(),
     handleCloneToNewSession: vi.fn(),
-    handleNavigateSession: vi.fn(),
     handleOpenProject: vi.fn().mockResolvedValue(undefined),
     handleSelectProjectPath: vi.fn(),
     handleSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),

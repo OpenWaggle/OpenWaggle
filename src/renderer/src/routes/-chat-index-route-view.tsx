@@ -35,7 +35,15 @@ function useChatIndexSidebarActions() {
   }
 
   function setSessionTreeOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+    setExclusivePanel(open ? 'session-tree' : undefined)
+  }
+
+  function setHiveOpen(open: boolean) {
+    setExclusivePanel(open ? 'hive' : undefined)
+  }
+
+  /** Swaps the route's panel, clearing every other panel's route state with it. */
+  function setExclusivePanel(panel: ChatRouteSearch['panel']) {
     void navigate({
       to: '/',
       search: {
@@ -111,12 +119,12 @@ function useChatIndexSidebarActions() {
     onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
     onResourcesTargetChange: setResourcesTarget,
     onSessionTreeOpenChange: setSessionTreeOpen,
+    onHiveOpenChange: setHiveOpen,
     onWorkspaceFileOpenChange: setWorkspaceFileOpen,
   }
 }
 
 export function ChatIndexRouteView() {
-  const navigate = useNavigate()
   const search = useSearch({ from: '/_chat/' })
   const actions = useChatIndexSidebarActions()
 
@@ -139,6 +147,7 @@ export function ChatIndexRouteView() {
           extensionSidePanel: extensionSidePanelTargetFromSearch(search),
           resourcesTarget: resourceBrowserTargetFromSearch(search),
           sessionTreeOpen: search.panel === 'session-tree',
+          hiveOpen: search.panel === 'hive',
           // Files without a path is the navigator on its own (ADR 0043).
           workspaceFile:
             search.panel === 'file'
@@ -146,9 +155,6 @@ export function ChatIndexRouteView() {
               : null,
         }}
         rightSidebarActions={actions}
-        onNavigateSession={(targetSessionId) => {
-          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
-        }}
       />
     </Suspense>
   )

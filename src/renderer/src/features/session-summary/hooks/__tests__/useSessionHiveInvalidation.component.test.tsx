@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { HiveHostEvent } from '@/queries/session-hive-events'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
@@ -35,11 +35,10 @@ const worker = {
 
 function Harness() {
   useSessionHiveInvalidation()
-  return <HiveSummarySection sessionId="queen" onNavigateSession={vi.fn()} />
+  return <HiveSummarySection sessionId="queen" />
 }
 
 beforeEach(() => {
-  localStorage.clear()
   listHiveSessionCatalogPage.mockReset()
   onSessionHostEvent.mockReset().mockReturnValue(vi.fn())
   onSessionHostResyncRequired.mockReset().mockReturnValue(vi.fn())
@@ -50,7 +49,8 @@ it('refreshes the focused Hive for newly spawned workers without refreshing for 
     .mockResolvedValueOnce({ context: [queen], workers: [] })
     .mockResolvedValueOnce({ context: [queen], workers: [worker] })
   renderWithQueryClient(<Harness />)
-  expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
+  // The compact row derives its counts from lineage, not from the loaded page.
+  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
   const receive = onSessionHostEvent.mock.calls[0]?.[0]
   if (!receive) throw new Error('Host subscription missing')
   await act(async () => {
@@ -70,25 +70,22 @@ it('refreshes the focused Hive for newly spawned workers without refreshing for 
     })
     await Promise.resolve()
   })
-  expect(await screen.findByText(worker.title)).toBeInTheDocument()
-  expect(listHiveSessionCatalogPage).toHaveBeenCalledTimes(2)
+  await waitFor(() => expect(listHiveSessionCatalogPage).toHaveBeenCalledTimes(2))
 })
 
 it('discards loaded continuation pages and starts at page one after Host resync', async () => {
   listHiveSessionCatalogPage
     .mockResolvedValueOnce({ context: [queen], workers: [], nextCursor: 'old-page' })
-    .mockResolvedValueOnce({ context: [queen], workers: [worker] })
     .mockResolvedValueOnce({ context: [queen], workers: [] })
   renderWithQueryClient(<Harness />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Load more workers' }))
-  expect(await screen.findByText(worker.title)).toBeInTheDocument()
+  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
   await act(async () => {
     onSessionHostResyncRequired.mock.calls[0]?.[0]()
     await Promise.resolve()
   })
-  await waitFor(() => expect(listHiveSessionCatalogPage).toHaveBeenCalledTimes(3))
+  await waitFor(() => expect(listHiveSessionCatalogPage).toHaveBeenCalledTimes(2))
+  // The resync drops continuation cursors: the refetch starts at page one.
   expect(listHiveSessionCatalogPage).toHaveBeenLastCalledWith(queen.id, 50, undefined)
-  expect(screen.queryByText(worker.title)).not.toBeInTheDocument()
 })
 
 it('keeps the visible Hive mounted while a Host resync refetches its first page', async () => {
@@ -106,7 +103,7 @@ it('keeps the visible Hive mounted while a Host resync refetches its first page'
     .mockResolvedValueOnce({ context: [queen], workers: [worker] })
     .mockReturnValueOnce(pendingRefresh)
   renderWithQueryClient(<Harness />)
-  expect(await screen.findByText(worker.title)).toBeInTheDocument()
+  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
 
   await act(async () => {
     onSessionHostResyncRequired.mock.calls[0]?.[0]()
@@ -114,7 +111,6 @@ it('keeps the visible Hive mounted while a Host resync refetches its first page'
   })
 
   expect(screen.getByRole('region', { name: 'Hive' })).toBeInTheDocument()
-  expect(screen.getByText(worker.title)).toBeInTheDocument()
   await act(async () => {
     finishRefresh({ context: [queen], workers: [worker] })
     await pendingRefresh

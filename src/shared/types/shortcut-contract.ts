@@ -24,6 +24,7 @@ export const SHORTCUT_COMMANDS = [
   'rightPanel.projectActions',
   'rightPanel.files',
   'rightPanel.resources',
+  'rightPanel.hive',
 ] as const
 
 export type ShortcutCommand = (typeof SHORTCUT_COMMANDS)[number]

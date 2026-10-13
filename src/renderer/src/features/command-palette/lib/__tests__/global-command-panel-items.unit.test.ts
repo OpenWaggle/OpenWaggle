@@ -72,6 +72,7 @@ describe('createPanelCommandItems', () => {
       ['Files', 'Panels', undefined],
       ['Session Tree', 'Panels', 'Ctrl + Shift + Y'],
       ['Resources', 'Panels', undefined],
+      ['Hive', 'Panels', undefined],
       ['Notes', 'Panels', 'Ctrl + Shift + G'],
     ])
     expect(items.at(-1)).toMatchObject({ description: 'Acme Notes', trailingBadge: 'Global' })

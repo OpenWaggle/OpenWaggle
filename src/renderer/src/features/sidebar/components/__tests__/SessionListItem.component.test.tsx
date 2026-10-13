@@ -3,7 +3,7 @@ import type { SessionSummary } from '@shared/types/session'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
-import { SessionListItem } from '../SessionListItem'
+import { SessionListItem, type SessionRowHighlight } from '../SessionListItem'
 
 const { showConfirmMock } = vi.hoisted(() => ({
   showConfirmMock: vi.fn(),
@@ -29,7 +29,16 @@ function makeSession(overrides?: Partial<SessionSummary>) {
   }
 }
 
-function renderSessionItem(options?: { readonly isActive?: boolean }) {
+const NOOP_ACTIONS = {
+  select: vi.fn(),
+  delete: vi.fn(),
+  archive: vi.fn(),
+  clone: vi.fn(),
+  markUnread: vi.fn(),
+  togglePin: vi.fn(),
+}
+
+function renderSessionItem(options?: { readonly highlight?: SessionRowHighlight }) {
   const callbacks = {
     onArchive: vi.fn(),
     onClone: vi.fn(),
@@ -42,7 +51,7 @@ function renderSessionItem(options?: { readonly isActive?: boolean }) {
   render(
     <SessionListItem
       session={makeSession()}
-      isActive={options?.isActive ?? false}
+      highlight={options?.highlight ?? 'none'}
       actions={{
         select: callbacks.onSelect,
         delete: callbacks.onDelete,
@@ -65,6 +74,67 @@ function expectFullSessionActionMenu() {
 }
 
 describe('SessionListItem', () => {
+  it('keeps a Queen row secondarily highlighted while a Worker of her Hive is open', () => {
+    renderSessionItem({ highlight: 'hive-home' })
+
+    const row = document.querySelector('[data-qa="sidebar-session-row-hive-home"]')
+    expect(row).not.toBeNull()
+    // A distinct highlight: the active background plus an accent ring, no aria-current.
+    expect(row?.className).toContain('ring-accent/40')
+    expect(row?.getAttribute('aria-current')).toBeNull()
+    expect(row?.getAttribute('title')).toContain('Worker of this Queen')
+  })
+
+  it('keeps the row description in the Hive home title', () => {
+    render(
+      <SessionListItem
+        session={makeSession()}
+        highlight="hive-home"
+        actions={NOOP_ACTIONS}
+        isPinned
+        pinnedRow={{
+          projectLabel: 'Repo',
+          shortcutIndex: null,
+          draggable: false,
+          onMoveUp: null,
+          onMoveDown: null,
+        }}
+      />,
+    )
+
+    const row = document.querySelector('[data-qa="sidebar-session-row-hive-home"]')
+    expect(row?.getAttribute('title')).toBe(
+      'Repo \u2014 A Worker of this Queen\u2019s Hive is open',
+    )
+  })
+
+  it('reports hidden Workers that need input on a Queen row', () => {
+    const queen = makeSession({
+      lineage: { role: 'queen', directWorkerCount: 3, activeDirectWorkerCount: 2 },
+    })
+    const { rerender } = render(
+      <SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={2} />,
+    )
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
+      '2 need input',
+    )
+
+    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={1} />)
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
+      '1 needs input',
+    )
+
+    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={0} />)
+    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')).toBeNull()
+  })
+
+  it('does not mark an ordinary row as the Hive home', () => {
+    renderSessionItem({})
+
+    expect(document.querySelector('[data-qa="sidebar-session-row"]')).not.toBeNull()
+    expect(document.querySelector('[data-qa="sidebar-session-row-hive-home"]')).toBeNull()
+  })
+
   beforeEach(() => {
     showConfirmMock.mockReset()
     useSessionStatusStore.setState({
@@ -75,7 +145,7 @@ describe('SessionListItem', () => {
   })
 
   it('shows every session action from the context menu even when the session is active', async () => {
-    const callbacks = renderSessionItem({ isActive: true })
+    const callbacks = renderSessionItem({ highlight: 'active' })
     expect(screen.getByRole('listitem')).toHaveAttribute('data-session-id', SESSION_ID)
     showConfirmMock.mockResolvedValueOnce(true)
 

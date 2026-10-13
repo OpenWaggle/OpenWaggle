@@ -1,10 +1,6 @@
 import type { SessionId } from './brand'
-import type {
-  HiveSessionCatalogPage,
-  SessionCatalogPage,
-  SessionProjectPage,
-  SessionSummary,
-} from './session'
+import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from './session'
+import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
 
 export interface OpenWaggleSessionCatalogApi {
   listSessionsByIds(sessionIds: SessionId[]): Promise<SessionSummary[]>
@@ -23,4 +19,9 @@ export interface OpenWaggleSessionCatalogApi {
     limit: number,
     cursor?: string,
   ): Promise<HiveSessionCatalogPage>
+  listHiveTreeSessionCatalogPage(
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ): Promise<HiveTreeSessionCatalogPage>
 }

@@ -9,8 +9,9 @@ import { projectName } from '@/shared/lib/format'
 import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
-import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
+import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../lib/sidebar-project-groups'
 import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
+import { hiveHomeQueenId, workerAttentionByQueen } from '../lib/worker-attention'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
@@ -157,6 +158,11 @@ export function useSidebarState() {
     sessions: sessions.sessions,
     sortMode: pinnedSortMode,
   }).filter((row) => visibleSessionIds.has(String(row.session.id)))
+  /*
+   * Workers live in the Hive panel (ADR 0051): an unpinned Worker is hidden from its project
+   * group, but a status filter or search that matches one lists it flat, naming its parent.
+   */
+  const narrowed = sidebarListsWorkersFlat({ filterState, normalizedQuery })
   const sessionGroups = buildSidebarProjectGroups({
     sessions: visibleSessions,
     currentProjectPath: project.projectPath,
@@ -165,7 +171,29 @@ export function useSidebarState() {
     pinnedSessionIds: pinnedRows.map((row) => String(row.session.id)),
     // Project-wide actions act on the project, not on what the filter happens to show.
     allSessions: sessions.sessions,
+    excludeUnpinnedWorkers: !narrowed,
   })
+  // A Queen's second line reports hidden Workers that need the user (ADR 0051).
+  const workerAttention = useMemo(
+    () =>
+      workerAttentionByQueen(
+        sessions.sessions,
+        rowStates.stateOf,
+        new Set(pins.map((pin) => String(pin.sessionId))),
+      ),
+    [sessions.sessions, rowStates, pins],
+  )
+
+  /*
+   * The Queen of the Hive the open Worker belongs to (ADR 0051). Her row keeps a secondary
+   * highlight while one of her Workers is displayed, so the Hive's context stays visible; the
+   * open Worker itself keeps aria-current.
+   */
+  const activeHiveRootId = useMemo(() => {
+    const id = activeSession.activeSessionId
+    if (id === null) return null
+    return hiveHomeQueenId(sessions.sessions.find((session) => String(session.id) === String(id)))
+  }, [activeSession.activeSessionId, sessions.sessions])
 
   function displayProjectName(path: string) {
     return projectDisplayNames[path]?.trim() || projectName(path)
@@ -174,6 +202,7 @@ export function useSidebarState() {
   return {
     activeBranchId: activeSession.activeBranchId,
     activeSessionId: activeSession.activeSessionId,
+    activeHiveRootId,
     activeView: activeViewFromPathname(pathname),
     chat,
     chipCounts: mergeExactTerminalCounts(rowStates.chipCounts, remoteSessions.terminalCounts),
@@ -202,6 +231,8 @@ export function useSidebarState() {
     projectExpandedByPath,
     sessionGroups,
     sessions,
+    workerAttentionByQueen: workerAttention,
+    narrowed,
     setPinnedSortMenuOpen,
     setPinnedSortMode,
     setProjectExpanded,

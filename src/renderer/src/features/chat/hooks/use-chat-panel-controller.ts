@@ -48,7 +48,6 @@ export function useChatPanelSections(): ChatPanelSections {
     handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
-    handleSelectSession,
     loadSessions,
     model,
     navigate,
@@ -252,7 +251,6 @@ export function useChatPanelSections(): ChatPanelSections {
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
-    handleNavigateSession: (sessionId) => void handleSelectSession(sessionId),
     handleOpenProject,
     handleSelectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>

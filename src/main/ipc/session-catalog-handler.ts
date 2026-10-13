@@ -14,4 +14,7 @@ export function registerSessionCatalogHandlers() {
   typedHandle('sessions:list-hive-page', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list-hive-page', args),
   )
+  typedHandle('sessions:list-hive-tree-page', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:list-hive-tree-page', args),
+  )
 }

@@ -8,6 +8,7 @@ export type ChatBuiltInRightPanel =
   | 'file'
   | 'resources'
   | 'session-tree'
+  | 'hive'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -70,6 +71,7 @@ function parseRightPanel(value: unknown) {
       'file',
       'resources',
       'session-tree',
+      'hive',
       EXTENSION_SIDE_PANEL_ROUTE_PANEL,
     ),
     value,

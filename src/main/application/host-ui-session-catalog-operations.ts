@@ -1,9 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionCatalogPage, SessionSummary } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
-  SessionCatalogPage,
-  SessionSummary,
-} from '@shared/types/session'
+  HiveTreeSessionCatalogPage,
+} from '@shared/types/session-hive-catalog'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
@@ -73,6 +73,17 @@ function attachHivePendingInteractions(
     ...page,
     context: attachPendingInteractions(page.context, heldAtBySessionId),
     workers: attachPendingInteractions(page.workers, heldAtBySessionId),
+  }
+}
+
+function attachHiveTreePendingInteractions(
+  page: HiveTreeSessionCatalogPage,
+  heldAtBySessionId: ReadonlyMap<string, number>,
+): HiveTreeSessionCatalogPage {
+  return {
+    ...page,
+    root: page.root === null ? null : attachPendingInteractions([page.root], heldAtBySessionId)[0],
+    members: attachPendingInteractions(page.members, heldAtBySessionId),
   }
 }
 
@@ -154,6 +165,20 @@ export function listHiveSessionCatalogPage(args: readonly unknown[]) {
     const repository = yield* SessionRepository
     const page = yield* repository.listHiveCatalogPage(sessionId, limit, cursor)
     return attachHivePendingInteractions(page, yield* followUpEditHeldSessions)
+  })
+}
+
+export function listHiveTreeSessionCatalogPage(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    if (args.length < TWO_ARGUMENTS || args.length > THREE_ARGUMENTS) {
+      return yield* invalid('Expected 2 or 3 arguments.')
+    }
+    const sessionId: SessionId = yield* validateSessionId(args[0])
+    const limit = yield* validateLimit(args[1])
+    const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
+    const repository = yield* SessionRepository
+    const page = yield* repository.listHiveTreeCatalogPage(sessionId, limit, cursor)
+    return attachHiveTreePendingInteractions(page, yield* followUpEditHeldSessions)
   })
 }
 
