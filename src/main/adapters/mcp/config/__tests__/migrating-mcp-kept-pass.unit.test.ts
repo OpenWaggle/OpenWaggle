@@ -1,9 +1,19 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { Effect } from 'effect'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { McpConfigurationServiceShape } from '../../../../ports/mcp-configuration-service'
-import type { PendingMcpFileMigration } from '../../migration/migration-health'
+import {
+  forgetMcpFileMigrationOutcomes,
+  type PendingMcpFileMigration,
+  pendingKeptProjects,
+  pendingMcpFileMigration,
+  recordMcpFileMigrationOutcome,
+} from '../../migration/migration-health'
 import { migrateBeforeEachCall } from '../migrating-mcp-configuration-service'
+
+afterEach(() => {
+  forgetMcpFileMigrationOutcomes()
+})
 
 const VIEWED = '/work/viewed'
 const OTHER = '/work/other'
@@ -66,5 +76,26 @@ describe('migrating kept projects again in a Settings call', () => {
     await expect(Effect.runPromise(service.getView({ projectPath: VIEWED }))).resolves.toBeDefined()
     // Started for the next write, which then finds the project migrated or waits no more.
     expect(migrate.mock.calls).toEqual([[VIEWED], [OTHER]])
+  })
+
+  it("still waits for a kept project when the viewed one's own wait keeps no old state", async () => {
+    const home = '/scratch/home'
+    // Kept project A waited for the lock at Host start; the viewed project, added later, too.
+    recordMcpFileMigrationOutcome(`${OTHER}/.openwaggle/mcp.json`, 'lock held', { cause: 'wait' })
+    recordMcpFileMigrationOutcome(`${VIEWED}/.openwaggle/mcp.json`, 'lock held', {
+      cause: 'wait',
+      keepsLegacyState: false,
+    })
+    const addServer = vi.fn(() => Effect.void)
+    const inner: McpConfigurationServiceShape = fromPartial({ addServer })
+    const service = migrateBeforeEachCall(inner, async () => undefined, {
+      pendingMigration: (projectPath, scope) => pendingMcpFileMigration(home, projectPath, scope),
+      pendingKeptProjects: () => pendingKeptProjects(home),
+    })
+
+    const refused = await Effect.runPromise(Effect.flip(service.addServer(fromPartial(addGlobal))))
+
+    expect(refused.message).toContain(`${OTHER}/.openwaggle/mcp.json`)
+    expect(addServer).not.toHaveBeenCalled()
   })
 })

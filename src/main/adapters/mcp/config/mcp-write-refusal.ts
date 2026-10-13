@@ -138,7 +138,8 @@ export type PendingKeptProjects = () => ReadonlyArray<{
  * holds the write back. It stops at the first that waited again (another process migrates) and
  * returns that failure, so the write is refused with "try again shortly" instead of waiting for
  * each. `viewed` is the scope the call migrated just before: not migrated twice, and when its
- * own migration waited, nothing else is tried, as it would wait as long.
+ * own migration waited, nothing else is tried, as it would wait as long; its failure is returned
+ * only when it keeps old state, so one that does not leaves the caller to look up what waits.
  */
 export async function migratePendingKeptProjects(
   scope: McpWriteScope,
@@ -147,7 +148,10 @@ export async function migratePendingKeptProjects(
   viewed?: { readonly projectPath: string | null; readonly pending?: PendingMcpFileMigration },
 ) {
   if (scope === 'all' || !pendingProjects) return undefined
-  if (viewed?.pending?.cause === 'wait') return viewed.pending
+  if (viewed?.pending?.cause === 'wait') {
+    // One that keeps no old state refuses nothing itself: the caller looks up what else waits.
+    return viewed.pending.keepsLegacyState ? viewed.pending : undefined
+  }
   const viewedProject = viewed?.projectPath
   const projects = pendingProjects()
     .map((kept) => kept.projectPath)
