@@ -73,6 +73,8 @@ let migrationQueue: Promise<unknown> = Promise.resolve()
 let signInMigrationStopped = false
 /** The last time another process kept the migration lock past the wait. */
 let lastLockTimeout: ProcessFileLockTimeoutError | undefined
+/** The last lock timeout, so a Settings call can tell whether its own migration waited. */
+export const lastMcpMigrationLockTimeout = () => lastLockTimeout
 let signInsAfterHostStart: Promise<void> | undefined
 
 function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string | null) {

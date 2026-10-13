@@ -18,7 +18,11 @@ import { createFilesystemMcpImportService } from '../../mcp/filesystem-mcp-impor
 import { migrateBeforeImports } from '../../mcp/migrating-mcp-import-service'
 import { pendingKeptProjects, pendingMcpFileMigration } from '../../mcp/migration/migration-health'
 import { getPiAgentDir } from '../pi-provider-catalog'
-import { durableMcpProjectPaths, migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
+import {
+  durableMcpProjectPaths,
+  lastMcpMigrationLockTimeout,
+  migrateOpenWaggleMcpFilesOnce,
+} from './openwaggle-mcp-migration'
 
 let service: McpConfigurationServiceShape | undefined
 
@@ -53,7 +57,12 @@ export function getOpenWaggleMcpConfigurationService() {
         knownProjectPaths: durableMcpProjectPaths,
       }),
       migrateOpenWaggleMcpFilesOnce,
-      { skipReadsWhile: isMcpHostDraining, pendingMigration, pendingKeptProjects: keptPending },
+      {
+        skipReadsWhile: isMcpHostDraining,
+        pendingMigration,
+        pendingKeptProjects: keptPending,
+        lockTimeouts: lastMcpMigrationLockTimeout,
+      },
     ),
     async (projectPath) => {
       const config = await loadMcpRuntimeConfig({
@@ -77,7 +86,12 @@ export const OpenWaggleMcpImportServiceLive = Layer.sync(McpImportService, () =>
     migrateBeforeImports(
       createFilesystemMcpImportService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
       migrateOpenWaggleMcpFilesOnce,
-      { skipReadsWhile: isMcpHostDraining, pendingMigration, pendingKeptProjects: keptPending },
+      {
+        skipReadsWhile: isMcpHostDraining,
+        pendingMigration,
+        pendingKeptProjects: keptPending,
+        lockTimeouts: lastMcpMigrationLockTimeout,
+      },
     ),
   ),
 )

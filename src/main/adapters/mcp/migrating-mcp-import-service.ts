@@ -1,7 +1,9 @@
 import { Effect } from 'effect'
 import type { McpImportServiceShape } from '../../ports/mcp-import-service'
 import {
+  type McpLockTimeouts,
   mcpWriteRefusal,
+  migrateNoting,
   migratePendingKeptProjects,
   type PendingKeptProjects,
   type PendingMcpMigrationLookup,
@@ -25,6 +27,8 @@ export function migrateBeforeImports(
     readonly pendingMigration?: PendingMcpMigrationLookup
     /** Kept projects whose migration fails, which a global import migrates again first. */
     readonly pendingKeptProjects?: PendingKeptProjects
+    /** The last migration lock timeout (`McpLockTimeouts`), to tell whether a call waited. */
+    readonly lockTimeouts?: McpLockTimeouts
   } = {},
 ): McpImportServiceShape {
   const migrated = (projectPath: string | null) =>
@@ -40,18 +44,20 @@ export function migrateBeforeImports(
       ),
     apply: (input, write) => {
       const scope = input.target === 'global' ? 'global' : 'all'
-      const again = () =>
+      const again = (waitedForLock: boolean) =>
         migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects, {
           projectPath: input.projectPath,
-          pending: options.pendingMigration?.(input.projectPath, 'all'),
+          waitedForLock,
         })
-      return migrated(input.projectPath).pipe(
-        Effect.zipRight(Effect.promise(again)),
+      const viewed = () => migrateNoting(options.lockTimeouts, () => migrate(input.projectPath))
+      return Effect.promise(viewed).pipe(
+        Effect.flatMap((waitedForLock) => Effect.promise(() => again(waitedForLock))),
         Effect.flatMap((waited) =>
           Effect.suspend(() => {
             // An import written before the migration succeeds would be undone by it.
-            const pending = waited ?? options.pendingMigration?.(input.projectPath, scope)
-            const refusal = mcpWriteRefusal(pending)
+            const refusal =
+              mcpWriteRefusal(waited) ??
+              mcpWriteRefusal(options.pendingMigration?.(input.projectPath, scope))
             return refusal ? Effect.fail(refusal) : service.apply(input, write)
           }),
         ),

@@ -137,21 +137,17 @@ export type PendingKeptProjects = () => ReadonlyArray<{
  * project whose migration waited for the lock, so one the lock was freed for since no longer
  * holds the write back. It stops at the first that waited again (another process migrates) and
  * returns that failure, so the write is refused with "try again shortly" instead of waiting for
- * each. `viewed` is the scope the call migrated just before: not migrated twice, and when its
- * own migration waited, nothing else is tried, as it would wait as long; its failure is returned
- * only when it keeps old state, so one that does not leaves the caller to look up what waits.
+ * each. `viewed` is the scope the call migrated just before: not migrated twice, and when that
+ * migration hit a lock timeout in this call (whether or not it recorded a failure), nothing else
+ * is tried, as it would wait as long. The caller then refuses from what is recorded as waiting.
  */
 export async function migratePendingKeptProjects(
   scope: McpWriteScope,
   migrate: (projectPath: string | null) => Promise<unknown>,
   pendingProjects: PendingKeptProjects | undefined,
-  viewed?: { readonly projectPath: string | null; readonly pending?: PendingMcpFileMigration },
+  viewed?: { readonly projectPath: string | null; readonly waitedForLock: boolean },
 ) {
-  if (scope === 'all' || !pendingProjects) return undefined
-  if (viewed?.pending?.cause === 'wait') {
-    // One that keeps no old state refuses nothing itself: the caller looks up what else waits.
-    return viewed.pending.keepsLegacyState ? viewed.pending : undefined
-  }
+  if (scope === 'all' || !pendingProjects || viewed?.waitedForLock) return undefined
   const viewedProject = viewed?.projectPath
   const projects = pendingProjects()
     .map((kept) => kept.projectPath)
@@ -164,4 +160,21 @@ export async function migratePendingKeptProjects(
     if (waited) return waited.pending
   }
   return undefined
+}
+
+/** The last migration lock timeout this process saw, compared before and after a migration. */
+export type McpLockTimeouts = () => unknown
+
+/**
+ * Runs `migrate` (never failing) and says whether it hit a lock timeout: the last timeout seen
+ * changed meanwhile. A scope with nothing to gate records no failure after its wait, so the
+ * recorded failures cannot tell.
+ */
+export async function migrateNoting(
+  lockTimeouts: McpLockTimeouts | undefined,
+  migrate: () => Promise<unknown>,
+) {
+  const before = lockTimeouts?.()
+  await migrate().catch(() => undefined)
+  return lockTimeouts !== undefined && lockTimeouts() !== before
 }

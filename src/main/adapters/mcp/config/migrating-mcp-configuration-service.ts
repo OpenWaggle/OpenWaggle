@@ -6,8 +6,10 @@ import type {
 } from '../../../ports/mcp-configuration-service'
 import {
   fileWriteScope,
+  type McpLockTimeouts,
   type McpWriteScope,
   mcpWriteRefusal,
+  migrateNoting,
   migratePendingKeptProjects,
   type PendingKeptProjects,
   type PendingMcpMigrationLookup,
@@ -33,21 +35,28 @@ export function migrateBeforeEachCall(
     readonly pendingMigration?: PendingMcpMigrationLookup
     /** Kept projects whose migration fails, which a global write migrates again first. */
     readonly pendingKeptProjects?: PendingKeptProjects
+    /** The last migration lock timeout (`McpLockTimeouts`), to tell whether a call waited. */
+    readonly lockTimeouts?: McpLockTimeouts
   } = {},
 ): McpConfigurationServiceShape {
+  /** Migrates the viewed scope, then `call` with whether that hit a lock timeout. */
   function first<A, E>(
     input: McpConfigurationScopeInput,
-    call: () => Effect.Effect<A, E>,
+    call: (waitedForLock: boolean) => Effect.Effect<A, E>,
   ): Effect.Effect<A, E> {
-    return Effect.promise(() => migrate(input.projectPath).catch(() => undefined)).pipe(
-      Effect.zipRight(Effect.suspend(call)),
-    )
+    return Effect.promise(() =>
+      migrateNoting(options.lockTimeouts, () => migrate(input.projectPath)),
+    ).pipe(Effect.flatMap((waitedForLock) => Effect.suspend(() => call(waitedForLock))))
   }
   /** The kept projects' pass after the viewed scope's migration (`migratePendingKeptProjects`). */
-  const keptPass = (input: McpConfigurationScopeInput, scope: McpWriteScope) =>
+  const keptPass = (
+    input: McpConfigurationScopeInput,
+    scope: McpWriteScope,
+    waitedForLock: boolean,
+  ) =>
     migratePendingKeptProjects(scope, migrate, options.pendingKeptProjects, {
       projectPath: input.projectPath,
-      pending: options.pendingMigration?.(input.projectPath, 'all'),
+      waitedForLock,
     })
   /** A write, once the files it may change are migrated: one made before would be undone. */
   function write(
@@ -55,12 +64,13 @@ export function migrateBeforeEachCall(
     scope: Effect.Effect<McpWriteScope, McpConfigurationError>,
     call: () => Effect.Effect<void, McpConfigurationError>,
   ) {
-    return first(input, () =>
+    return first(input, (waitedForLock) =>
       Effect.flatMap(scope, (writeScope) =>
-        Effect.promise(() => keptPass(input, writeScope)).pipe(
+        Effect.promise(() => keptPass(input, writeScope, waitedForLock)).pipe(
           Effect.flatMap((waited) => {
-            const pending = waited ?? options.pendingMigration?.(input.projectPath, writeScope)
-            const refusal = mcpWriteRefusal(pending)
+            const refusal =
+              mcpWriteRefusal(waited) ??
+              mcpWriteRefusal(options.pendingMigration?.(input.projectPath, writeScope))
             return refusal ? Effect.fail(refusal) : call()
           }),
         ),
@@ -79,10 +89,10 @@ export function migrateBeforeEachCall(
       Effect.suspend(() =>
         options.skipReadsWhile?.()
           ? service.getView(input)
-          : first(input, () => {
+          : first(input, (waitedForLock) => {
               // Started, not awaited: the view never waits for the lock twice, and a later
               // write finds a kept project migrated by then ("open Settings again").
-              void keptPass(input, 'global').catch(() => undefined)
+              void keptPass(input, 'global', waitedForLock).catch(() => undefined)
               return service.getView(input)
             }),
       ),

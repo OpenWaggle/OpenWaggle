@@ -577,9 +577,10 @@ are migrated again (`migratePendingKeptProjects`) before a global or everywhere 
 Settings or the CLI and before a global import, awaited; when Settings > MCP opens (`getView`),
 started without waiting; and in the background when Pi's `/mcp` change to a global file is
 refused, since Pi asks synchronously (one retry at a time, so the next `/mcp` can go through).
-Each pass skips the project the call has just migrated, does nothing when the call's own scope
-just waited for the lock, and stops at the first project whose migration waits for the lock
-again, refusing with "try again shortly". So one call waits for the lock at most once. The
+Each pass skips the project the call has just migrated, does nothing when the call's own
+migration hit a lock timeout (`lastMcpMigrationLockTimeout` changed, whether or not it recorded
+a failure), and stops at the first project whose migration waits for the lock again, refusing
+with "try again shortly". So one call waits for the lock at most once. The
 refusal says "try again shortly" when the migration waited for a lock, and "Fix <file>" when a
 file it reads cannot be read; an unreadable state.json or migration.json is named as that file
 (`migration-start.ts`). Whether old state waits is decided per file: the global file's when
