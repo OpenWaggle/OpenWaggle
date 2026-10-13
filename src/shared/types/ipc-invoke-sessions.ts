@@ -5,6 +5,7 @@ import type {
   HiveSessionCatalogPage,
   SessionCatalogPage,
   SessionCopyToNewResult,
+  SessionDeleteOptions,
   SessionDetail,
   SessionNavigateTreeOptions,
   SessionProjectPage,
@@ -46,7 +47,19 @@ export interface IpcSessionInvokeChannelMap {
     args: [sessionId: SessionId, runId: string]
     return: undefined
   }
-  'sessions:delete': { args: [id: SessionId]; return: undefined }
+  /**
+   * `removingProject` deletes the Session as part of removing its project: a Pi session discovered
+   * from the `pi` CLI keeps its file and is listed again if the folder is added back (ADR 0051).
+   */
+  'sessions:delete': {
+    args: [id: SessionId, options?: SessionDeleteOptions]
+    return: undefined
+  }
+  /**
+   * The desktop app is about to remove a project and read the Sessions it deletes: Pi session
+   * discovery stops listing the project's `pi` sessions until the removal is done (ADR 0051).
+   */
+  'sessions:begin-project-removal': { args: [projectPath: string]; return: undefined }
   'sessions:archive': { args: [id: SessionId]; return: undefined }
   'sessions:unarchive': { args: [id: SessionId]; return: undefined }
   'sessions:update-title': { args: [id: SessionId, title: string]; return: undefined }

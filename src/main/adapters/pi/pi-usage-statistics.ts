@@ -1,7 +1,7 @@
 /**
  * Usage statistics hooks inside the Pi adapter. Pi details are reduced here to published values:
  * provider and model only when they are Pi built-in catalog identifiers, built-in skill names,
- * feature flags and token counts. Everything else becomes `custom` or is not recorded.
+ * curated MCP catalog server names, feature flags and token counts. Everything else becomes `custom` or is not recorded.
  *
  * Catalog identifiers come from src/shared/usage-statistics/catalog.generated.ts, the same file
  * the statistics endpoint enforces, so the app and the endpoint cannot disagree on what is
@@ -20,6 +20,7 @@ import { USAGE_STATISTICS_CUSTOM_IDENTIFIER } from '@shared/usage-statistics/con
 import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import { includes, isRecord } from '@shared/utils/validation'
 import { getProjectPreferencesStrict } from '../../config/project-config'
+import { usageStatisticsMcpServerIdentifier } from '../../domain/usage-statistics/usage-statistics-mcp'
 import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
 import { recordUsageStatistics } from '../../usage-statistics/usage-statistics-recorder'
 import {
@@ -159,6 +160,17 @@ export function withUsageStatisticsAccessMode(
   }
 }
 
+/** A Run's tool call reached an MCP server (counted where the server's configuration is known). */
+export function observePiMcpServerUseForUsageStatistics(
+  server: Parameters<typeof usageStatisticsMcpServerIdentifier>[0],
+): void {
+  if (!isUsageStatisticsEnabled()) return
+  recordUsageStatistics({
+    kind: 'mcp-server',
+    identifier: usageStatisticsMcpServerIdentifier(server),
+  })
+}
+
 /** Pi started a tool for the Run. */
 export function observePiToolUseForUsageStatistics(toolName: string, args: unknown): void {
   if (!isUsageStatisticsEnabled()) return
@@ -183,25 +195,39 @@ function usageNumber(usage: Readonly<Record<string, unknown>>, key: string) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+function addRunTokens(runId: string, usage: unknown) {
+  if (!isRecord(usage)) return
+  addUsageStatisticsRunTokens(
+    runId,
+    usageNumber(usage, 'input') +
+      usageNumber(usage, 'cacheRead') +
+      usageNumber(usage, 'cacheWrite'),
+    usageNumber(usage, 'output'),
+  )
+}
+
 /** One assistant response completed. Input counts every prompt token, cached or not. */
 export function observePiAssistantMessageForUsageStatistics(
   runId: string,
   message: { readonly usage?: unknown; readonly content?: unknown },
 ): void {
   if (!isUsageStatisticsEnabled()) return
-  if (isRecord(message.usage)) {
-    const usage = message.usage
-    addUsageStatisticsRunTokens(
-      runId,
-      usageNumber(usage, 'input') +
-        usageNumber(usage, 'cacheRead') +
-        usageNumber(usage, 'cacheWrite'),
-      usageNumber(usage, 'output'),
-    )
-  }
+  addRunTokens(runId, message.usage)
   if (containsInlineVisualizationReference(assistantText(message.content))) {
     recordUsageStatistics({ kind: 'feature', flag: 'inline_visualization' })
   }
+}
+
+/**
+ * A tool result completed. Pi puts the usage of models a tool ran itself on it, such as codemode's
+ * `models.classify()` and `models.generateImages()`, so those tokens count like a response's.
+ */
+export function observePiToolResultForUsageStatistics(
+  runId: string,
+  message: { readonly usage?: unknown; readonly content?: unknown },
+): void {
+  if (!isUsageStatisticsEnabled()) return
+  addRunTokens(runId, message.usage)
 }
 
 /** A compaction finished. Pi's portable mechanism is the published `fallback`. */

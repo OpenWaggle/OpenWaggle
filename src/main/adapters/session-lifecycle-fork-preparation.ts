@@ -7,6 +7,7 @@ import { reserveSessionTreeMutation } from '../application/active-session-runs'
 import { attributeCopiedVisualizationSources } from '../application/inline-visualization-ownership'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { AgentKernelServiceShape } from '../ports/agent-kernel-service'
+import { discoveredPiEntryNodeIdPrefix } from '../store/session-details/discovered-pi-entry-node-ids'
 
 interface ForkSourceRow {
   readonly id: string
@@ -23,6 +24,8 @@ interface ForkSourceRow {
   readonly worktree_start_from_origin: number
   readonly authorization_mode_override: 'yolo' | 'ask-for-approval' | null
   readonly last_active_node_id: string | null
+  readonly pi_adopted: number
+  readonly pi_cwd: string | null
 }
 
 function forkError(operation: string, cause: unknown) {
@@ -47,14 +50,42 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
     ...(row.authorization_mode_override
       ? { authorizationMode: row.authorization_mode_override }
       : {}),
+    // A discovered Pi session keys its nodes under a prefix and runs in its own folder (ADR 0051);
+    // without them the fork target would reach Pi still prefixed.
+    ...(row.pi_adopted === 1
+      ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(command.sourceSessionId) }
+      : {}),
+    ...(row.pi_cwd ? { piSessionCwd: row.pi_cwd } : {}),
   }
 }
+
+/** Names the Pi file a preparation attempt made, so a failed or interrupted one is cleaned up. */
+export function recordPreparedSessionFile(
+  sql: SqlClient.SqlClient,
+  attemptId: string,
+  piSessionFile: string | undefined,
+) {
+  return sql`
+    UPDATE session_lifecycle_preparation_attempts
+    SET pi_session_file = ${piSessionFile ?? null}, updated_at = ${Date.now()}
+    WHERE attempt_id = ${attemptId}
+  `
+}
+
+/** The desktop app's caller; it clones a Session as a fork that keeps the target. */
+const DESKTOP_APP_CALLER_ID = 'gui:local-user'
 
 export function prepareLifecycleFork(input: {
   readonly sql: SqlClient.SqlClient
   readonly kernel: AgentKernelServiceShape
   readonly command: ForkSessionCommand
+  /** Who asked: only the desktop app's clone is a clone; the CLI and Sessions tool fork. */
+  readonly callerId: string
   readonly modelId: string
+  /** The preparation attempt the fork's file is recorded under before it is written. */
+  readonly attemptId: string
+  /** Told the fork's file once it is recorded, so a failed preparation removes it. */
+  readonly onForkFile: (piSessionFile: string) => void
 }) {
   return Effect.gen(function* () {
     const writer = yield* Effect.sync(() =>
@@ -66,7 +97,9 @@ export function prepareLifecycleFork(input: {
         id, title, project_path, pi_session_id, pi_session_file, archived,
         created_at, updated_at, environment_mode, worktree_path,
         worktree_base_ref, worktree_start_from_origin,
-        authorization_mode_override, last_active_node_id
+        authorization_mode_override, last_active_node_id,
+        EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_adopted,
+        (SELECT cwd FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_cwd
       FROM sessions WHERE id = ${input.command.sourceSessionId} LIMIT 1
     `
       const row = rows[0]
@@ -88,6 +121,18 @@ export function prepareLifecycleFork(input: {
         model: SupportedModelId(input.modelId),
         targetNodeId,
         position: input.command.position ?? 'at',
+        copy:
+          input.callerId === DESKTOP_APP_CALLER_ID && input.command.position === 'at'
+            ? 'clone'
+            : 'fork',
+        // OpenWaggle names the fork's file, so it is recorded before it is written: a stop between
+        // the two leaves an attempt that names it, which discovery never lists.
+        beforeWritingFork: (file) =>
+          recordPreparedSessionFile(input.sql, input.attemptId, file).pipe(
+            Effect.tap(() => Effect.sync(() => input.onForkFile(file))),
+            Effect.asVoid,
+            Effect.mapError((cause) => new Error(String(cause), { cause })),
+          ),
       })
       if (result.cancelled) {
         return yield* Effect.fail(

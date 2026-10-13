@@ -23,9 +23,9 @@ function createTempDirectory() {
 
 function createAppPathManager(defaultUserDataPath: string): {
   readonly appPathManager: AppPathManager
-  readonly getRecordedPath: (name: 'userData' | 'sessionData') => string | undefined
+  readonly getRecordedPath: (name: 'userData' | 'sessionData' | 'logs') => string | undefined
 } {
-  const recordedPaths = new Map<'userData' | 'sessionData', string>()
+  const recordedPaths = new Map<'userData' | 'sessionData' | 'logs', string>()
 
   return {
     appPathManager: {
@@ -38,6 +38,9 @@ function createAppPathManager(defaultUserDataPath: string): {
       },
       setPath(name, value) {
         recordedPaths.set(name, value)
+      },
+      setAppLogsPath(value) {
+        if (value !== undefined) recordedPaths.set('logs', value)
       },
     },
     getRecordedPath(name) {
@@ -117,5 +120,25 @@ describe('configureAppStoragePaths', () => {
     configureAppStoragePaths(appPathManager)
 
     expect(existsSync(preservedDipsPath)).toBe(true)
+  })
+
+  // QA and test runs point OPENWAGGLE_USER_DATA_DIR at a scratch profile; Electron's logs, and the
+  // Host's log file under them, must not land in the real ~/Library/Logs/<app> meanwhile.
+  it('keeps the logs of an overridden profile inside it', () => {
+    const userDataPath = createTempDirectory()
+    const { appPathManager, getRecordedPath } = createAppPathManager('/default/profile')
+
+    configureAppStoragePaths(appPathManager, userDataPath)
+
+    expect(getRecordedPath('logs')).toBe(join(userDataPath, 'logs'))
+  })
+
+  it("leaves Electron's own logs location for the default profile", () => {
+    const userDataPath = createTempDirectory()
+    const { appPathManager, getRecordedPath } = createAppPathManager(userDataPath)
+
+    configureAppStoragePaths(appPathManager)
+
+    expect(getRecordedPath('logs')).toBeUndefined()
   })
 })

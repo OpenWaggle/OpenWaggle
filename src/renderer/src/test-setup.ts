@@ -1,6 +1,6 @@
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
 
 const TEST_OBJECT_URL_PREFIX = 'blob:openwaggle-test-object-url-'
 const INITIAL_TEST_OBJECT_URL_SEQUENCE = 0
@@ -33,6 +33,9 @@ if (typeof URL.revokeObjectURL === 'undefined') {
   URL.revokeObjectURL = function revokeObjectURL() {}
 }
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  // Unmounting notifies TanStack Query observers on a timer of its own; let it run while the
+  // DOM is still here, so it never fires once the test environment is torn down.
+  if (!vi.isFakeTimers()) await new Promise((resolve) => setTimeout(resolve, 0))
 })

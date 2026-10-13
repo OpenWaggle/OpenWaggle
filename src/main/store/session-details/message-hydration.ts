@@ -25,6 +25,21 @@ const toolCallRequestSchema = Schema.Struct({
   state: Schema.optional(Schema.Literal('input-complete')),
 })
 
+const nestedToolCallsSchema = Schema.Struct({
+  calls: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      args: Schema.optional(sessionJsonObjectSchema),
+      argsBytes: Schema.optional(Schema.Number),
+      status: Schema.Literal('ok', 'error', 'unfinished'),
+      durationMs: Schema.optional(Schema.Number),
+      error: Schema.optional(Schema.String),
+    }),
+  ),
+  complete: Schema.Boolean,
+})
+
 const toolCallResultSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -33,6 +48,7 @@ const toolCallResultSchema = Schema.Struct({
   isError: Schema.Boolean,
   duration: Schema.Number,
   details: Schema.optional(sessionJsonValueSchema),
+  nestedCalls: Schema.optional(nestedToolCallsSchema),
 })
 
 const messagePartSchema = Schema.Union(
@@ -64,6 +80,10 @@ const messageMetadataSchema = Schema.Struct({
   visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
+  selectedModel: Schema.optional(Schema.String),
+  stopReason: Schema.optional(Schema.String),
+  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
+  omittedFromContext: Schema.optional(Schema.Boolean),
 })
 
 const messageNodeContentSchema = Schema.Struct({
@@ -98,6 +118,7 @@ function transformPart(part: ParsedPart) {
         isError: value.toolResult.isError,
         duration: value.toolResult.duration,
         details: value.toolResult.details,
+        ...(value.toolResult.nestedCalls ? { nestedCalls: value.toolResult.nestedCalls } : {}),
       },
     }))
     .exhaustive()
@@ -109,10 +130,17 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
+  const { stopReason, errorMessage, omittedFromContext, ...metadata } = parsedMetadata.data
+  // An attempt Pi retried and dropped from the context is not the turn's failure.
+  const failed = stopReason === 'error' && errorMessage && omittedFromContext !== true
   return {
-    ...parsedMetadata.data,
+    ...metadata,
+    ...(failed ? { error: errorMessage } : {}),
     visualizationSessionId: parsedMetadata.data.visualizationSessionId
       ? SessionId(parsedMetadata.data.visualizationSessionId)
+      : undefined,
+    selectedModel: parsedMetadata.data.selectedModel
+      ? SupportedModelId(parsedMetadata.data.selectedModel)
       : undefined,
     waggle: parsedMetadata.data.waggle
       ? {

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed · Amends [0013](0013-adopt-first-party-mcp-integration.md)
+Superseded by [ADR 0051](0051-openwaggle-is-the-gui-for-the-pi-ecosystem.md) · Amended [0013](0013-adopt-first-party-mcp-integration.md)
 
 ## Context
 

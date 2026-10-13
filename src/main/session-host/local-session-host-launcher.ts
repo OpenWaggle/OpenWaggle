@@ -3,6 +3,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
+import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
 import {
   type LocalSessionClientConnectionInput,
@@ -10,7 +11,8 @@ import {
 } from './local-session-client-connection'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
-import { acquireSessionHostOwnership } from './session-host-ownership'
+import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
+import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const HOST_POLL_INTERVAL_MS = 50
@@ -30,11 +32,21 @@ export function sessionHostLaunchCommand(input: {
   readonly appPath: string
   readonly appImagePath?: string
   readonly parentNoSandbox?: boolean
+  /** Chromium's --use-mock-keychain on the GUI: QA keeps credential prompts off the screen. */
+  readonly parentUseMockKeychain?: boolean
+  /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
+  readonly parentPasswordStore?: string
 }) {
   // Restricted Linux environments may launch the GUI with this explicit Electron switch.
   // Its detached authority needs the same policy; never disable the sandbox by default.
-  const electronArguments =
-    input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []
+  // The Host reads and writes credentials too, so it uses the GUI's credential store switches.
+  const electronArguments = [
+    ...(input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []),
+    ...(input.parentUseMockKeychain ? ['--use-mock-keychain'] : []),
+    ...(input.platform === 'linux' && input.parentPasswordStore
+      ? [`--password-store=${input.parentPasswordStore}`]
+      : []),
+  ]
   if (
     input.platform === 'linux' &&
     input.isPackaged &&
@@ -47,6 +59,21 @@ export function sessionHostLaunchCommand(input: {
     command: input.executablePath,
     args: [...electronArguments, ...sessionHostLaunchArguments(input)],
   }
+}
+
+/** The command that launches a Host with the switches this process was started with. */
+export function currentSessionHostLaunchCommand() {
+  const passwordStore = app.commandLine.getSwitchValue('password-store')
+  return sessionHostLaunchCommand({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    executablePath: process.execPath,
+    appPath: app.getAppPath(),
+    parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
+    parentUseMockKeychain: app.commandLine.hasSwitch('use-mock-keychain'),
+    ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
+    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+  })
 }
 
 /**
@@ -124,34 +151,18 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
     try {
       return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'ELOCKED'
-      ) {
-        return null
-      }
+      if (isSessionHostOwnershipHeld(error)) return null
       throw error
     }
   },
-  launch: () => {
-    const launch = sessionHostLaunchCommand({
-      platform: process.platform,
-      isPackaged: app.isPackaged,
-      executablePath: process.execPath,
-      appPath: app.getAppPath(),
-      parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
-      ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
-    })
-    return launchHeadlessBackgroundProcess({
-      ...launch,
+  launch: () =>
+    launchHeadlessBackgroundProcess({
+      ...currentSessionHostLaunchCommand(),
       environment: sessionHostChildEnvironment({
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
       }),
-    })
-  },
+    }),
   now: Date.now,
   wait: (milliseconds, signal) =>
     new Promise((resolve, reject) => {
@@ -167,31 +178,6 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       signal?.addEventListener('abort', abort, { once: true })
     }),
   refreshPaths: refreshLocalSessionHostEndpoint,
-}
-
-function awaitWithSignal<T>(operation: Promise<T>, signal?: AbortSignal) {
-  if (!signal) return operation
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    let settled = false
-    const abort = () => {
-      if (settled) return
-      settled = true
-      reject(signal.reason)
-    }
-    const finish = (settle: () => void) => {
-      if (settled) return
-      settled = true
-      signal.removeEventListener('abort', abort)
-      settle()
-    }
-    operation.then(
-      (value) => finish(() => resolve(value)),
-      (error: unknown) => finish(() => reject(error)),
-    )
-    signal.addEventListener('abort', abort, { once: true })
-    if (signal.aborted) abort()
-  })
 }
 
 async function waitForCondition(input: {
@@ -297,6 +283,13 @@ async function waitForLocalSessionHostAuthority(
   throw new Error('Timed out waiting for Local Session Host authority.')
 }
 
+/**
+ * Every client that loses its Host looks for authority at once, and finds the ownership file free
+ * until the Host one of them launched boots; each would launch its own Host, and all but one would
+ * stop on ELOCKED. Clients in one process therefore share one launch per Host database.
+ */
+const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
+
 export async function ensureLocalSessionHost(
   input: LocalSessionClientConnectionInput & { readonly takeoverTimeoutMs?: number },
   dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
@@ -305,10 +298,11 @@ export async function ensureLocalSessionHost(
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
   if (authority.status === 'connected') return authority.negotiation
 
-  input.signal?.throwIfAborted()
-  await dependencies.launch()
-  input.signal?.throwIfAborted()
-  await waitForCompatibleHost(input, takeoverTimeoutMs, dependencies)
+  await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
+    await dependencies.launch()
+    signal.throwIfAborted()
+    await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
+  })
   const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
   return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
 }

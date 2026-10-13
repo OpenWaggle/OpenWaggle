@@ -2,8 +2,8 @@ import { HOST_UI_REVISION_11_REQUIRED_CHANNELS } from '@shared/types/host-ui-pro
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it, vi } from 'vitest'
-import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
+import { describe, expect, it } from 'vitest'
+import { McpConfigurationService } from '../../ports/mcp-configuration-service'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { SettingsService } from '../../services/settings-service'
 import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
@@ -160,6 +160,35 @@ describe('Host UI request dispatcher', () => {
     })
   })
 
+  it('lets the local-machine CLI read the MCP configuration, but not a named profile', async () => {
+    const view = { projectPath: null, files: [], servers: [], errors: [] }
+    const configuration = McpConfigurationService.of(
+      fromPartial({ getView: () => Effect.succeed(view) }),
+    )
+    const mcpRequest = {
+      contractVersion: 1,
+      requestId: 'request-mcp-configuration',
+      channel: 'mcp:get-configuration',
+      args: [{ kind: 'value', value: { projectPath: null } }],
+    } as const
+
+    const result = await runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'local-user:machine' },
+        request: mcpRequest,
+      }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+    )
+    expect(result).toMatchObject({ response: { result: { kind: 'value', value: view } } })
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'local-user:machine', profileAuthority: fromPartial({}) },
+          request: mcpRequest,
+        }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
+
   it('validates the Host transport argument count before executing an operation', async () => {
     await expect(
       runWithoutRequirements(
@@ -190,7 +219,7 @@ describe('Host UI request dispatcher', () => {
     await expect(pending).rejects.toThrow('client disconnected')
   })
 
-  it('finishes secret invalidation after a client disconnects during the durable write', async () => {
+  it('finishes a secret write after a client disconnects during the durable write', async () => {
     let releaseWrite: (() => void) | undefined
     let reportWriteStarted: (() => void) | undefined
     const writeStarted = new Promise<void>((resolve) => {
@@ -199,19 +228,16 @@ describe('Host UI request dispatcher', () => {
     const writeRelease = new Promise<void>((resolve) => {
       releaseWrite = resolve
     })
+    let writeFinished = false
     const vault = McpSecretVaultService.of({
       ...mcpSecretVaultService,
       set: () =>
         Effect.promise(async () => {
           reportWriteStarted?.()
           await writeRelease
+          writeFinished = true
           return []
         }),
-    })
-    const reconcileIdleConnections = vi.fn(() => Effect.void)
-    const runtime = fromPartial<McpRuntimeServiceShape>({
-      reconcileIdleConnections,
-      forgetToolCatalog: () => Effect.void,
     })
     const controller = new AbortController()
     const pending = runWithoutRequirements(
@@ -224,10 +250,7 @@ describe('Host UI request dispatcher', () => {
           args: [{ kind: 'value', value: { name: 'TOKEN', value: 'changed' } }],
         },
         signal: controller.signal,
-      }).pipe(
-        Effect.provideService(McpSecretVaultService, vault),
-        Effect.provideService(McpRuntimeService, runtime),
-      ),
+      }).pipe(Effect.provideService(McpSecretVaultService, vault)),
     )
 
     await writeStarted
@@ -235,6 +258,6 @@ describe('Host UI request dispatcher', () => {
     releaseWrite?.()
 
     await expect(pending).rejects.toThrow('client disconnected')
-    expect(reconcileIdleConnections).toHaveBeenCalledOnce()
+    expect(writeFinished).toBe(true)
   })
 })

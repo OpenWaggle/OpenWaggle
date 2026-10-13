@@ -26,6 +26,8 @@ interface ToolCallBlockProps {
   result?: ToolCallResultPayload
   isStreaming?: boolean
   onBranchFromMessage?: (messageId: string) => void
+  /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
+  resultNotRecorded?: boolean
 }
 
 interface ToolCallViewModelInput {
@@ -131,6 +133,7 @@ export function ToolCallBlock({
   result,
   isStreaming = false,
   onBranchFromMessage,
+  resultNotRecorded = false,
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const startTime = useRef<number | null>(null)
@@ -158,7 +161,15 @@ export function ToolCallBlock({
         onToggleExpanded={() => setExpanded(!expanded)}
       />
       <CollapsedToolPreview view={view} expanded={expanded} />
-      {expanded && <ExpandedToolDetails name={name} args={args} result={result} view={view} />}
+      {expanded && (
+        <ExpandedToolDetails
+          name={name}
+          args={args}
+          result={result}
+          view={view}
+          resultNotRecorded={resultNotRecorded}
+        />
+      )}
     </div>
   )
 }
@@ -168,11 +179,13 @@ function ExpandedToolDetails({
   args,
   result,
   view,
+  resultNotRecorded,
 }: {
   readonly name: string
   readonly args: string
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
+  readonly resultNotRecorded: boolean
 }) {
   if (view.diff) {
     return (
@@ -191,7 +204,15 @@ function ExpandedToolDetails({
         <div className="text-sm text-text-tertiary mb-1">Arguments</div>
         <ToolArgs name={name} args={view.parsedArgs} rawArgs={args} path={view.path} />
       </div>
-      <ExpandedResultSection name={name} result={result} view={view} />
+      {resultNotRecorded ? (
+        !view.isError && (
+          <p className="border-t border-border px-3 py-2 text-xs text-text-muted">
+            Result not recorded
+          </p>
+        )
+      ) : (
+        <ExpandedResultSection name={name} result={result} view={view} />
+      )}
       <ExpandedErrorSection name={name} result={result} view={view} />
     </div>
   )

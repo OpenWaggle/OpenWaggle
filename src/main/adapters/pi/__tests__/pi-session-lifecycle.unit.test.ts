@@ -149,4 +149,37 @@ describe('Pi session lifecycle', () => {
 
     await disposeOpenWagglePiSession(session)
   })
+
+  it("logs an extension's errors, so a turn it could not start is not lost", async () => {
+    const warn = vi.fn()
+    vi.doMock('../../../logger', () => ({
+      createLogger: () => ({ warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+    }))
+    vi.resetModules()
+    try {
+      const lifecycle = await import('../pi-session-lifecycle')
+      const projectPath = await createTempProject()
+      const services = await createPiRuntimeServices(projectPath)
+      const { session } = await lifecycle.createOpenWaggleAgentSessionFromServices({
+        services,
+        sessionManager: SessionManager.inMemory(projectPath),
+      })
+
+      session.extensionRunner.emitError({
+        extensionPath: '<runtime>',
+        event: 'send_message',
+        error: 'Sign-in expired',
+      })
+
+      expect(warn).toHaveBeenCalledWith('Pi extension failed', {
+        extensionPath: '<runtime>',
+        event: 'send_message',
+        error: 'Sign-in expired',
+      })
+      await lifecycle.disposeOpenWagglePiSession(session)
+    } finally {
+      vi.doUnmock('../../../logger')
+      vi.resetModules()
+    }
+  })
 })

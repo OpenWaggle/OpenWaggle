@@ -2,6 +2,7 @@ import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
 } from '@openwaggle/pi-waggle/protocol'
+import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
 import {
@@ -49,10 +50,16 @@ function isHiddenCustomMessageRow(row: SessionNodeRow) {
   )
 }
 
+/** State entries that are never part of the conversation shown in the Session tree. */
+const HIDDEN_STATE_CUSTOM_TYPES = new Set<string>([
+  PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
+  OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE,
+])
+
 function isHiddenCustomStateRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== 'custom') return false
   const content = parseJson(row.content_json, `node:${row.id}:content`)
-  return isRecord(content) && content.customType === PI_WAGGLE_MODE_STATE_CUSTOM_TYPE
+  return isRecord(content) && HIDDEN_STATE_CUSTOM_TYPES.has(String(content.customType))
 }
 
 function buildVisibleParentByRowId(rows: readonly SessionNodeRow[]) {

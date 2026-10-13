@@ -30,13 +30,32 @@ describe('createRendererLogger', () => {
     expect(console.warn).toHaveBeenCalledWith('[net] timeout')
   })
 
-  it('routes error calls to console.error with data', () => {
+  it('writes error data into the line, so a text log shows it rather than [object Object]', () => {
     const logger = createRendererLogger('db')
     logger.error('failed', { reason: 'timeout' })
-    expect(console.error).toHaveBeenCalledWith('[db] failed', { reason: 'timeout' })
+    expect(console.error).toHaveBeenCalledWith('[db] failed {"reason":"timeout"}')
   })
 
-  it('passes structured data without eager serialization', () => {
+  it('reads errors and structured failures in warn and error data', () => {
+    const logger = createRendererLogger('composer')
+    logger.error('Composer send failed', {
+      error: new Error('Unknown model: qa-router/auto'),
+      cause: { code: 'invalid-model', message: 'Unknown model: qa-router/auto' },
+    })
+    const circular: Record<string, unknown> = { reason: 'loop' }
+    circular.self = circular
+    logger.warn('retrying', circular)
+
+    expect(console.error).toHaveBeenCalledWith(
+      '[composer] Composer send failed {"error":"Error: Unknown model: qa-router/auto","cause":{"code":"invalid-model","message":"Unknown model: qa-router/auto"}}',
+    )
+    expect(console.warn).toHaveBeenCalledWith(
+      '[composer] retrying {"reason":"loop","self":"[Circular]"}',
+    )
+    expect(String(vi.mocked(console.error).mock.calls[0])).not.toContain('[object Object]')
+  })
+
+  it('passes debug and info data without eager serialization', () => {
     const logger = createRendererLogger('cycle')
     const circular: Record<string, unknown> = {}
     circular.self = circular

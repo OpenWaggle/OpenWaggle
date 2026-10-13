@@ -234,16 +234,29 @@ describe('assignSessionTitleFromUserText', () => {
     expect(requestInitialSessionTitleMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does nothing once the Session has messages', async () => {
+  it('titles a Session whose messages came from an extension command, which left no title', async () => {
     const title = await runTitleAssignment(
-      makeSessionDetail({ messages: [makeMessage()] }),
+      makeSessionDetail({ titleSource: 'default', messages: [makeMessage()] }),
       'Hello world',
     )
 
-    expect(title).toBeNull()
-    expect(assignProvisionalTitleMock).not.toHaveBeenCalled()
-    expect(requestInitialSessionTitleMock).not.toHaveBeenCalled()
+    expect(title).toBe('Hello world')
+    expect(requestInitialSessionTitleMock).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['provisional', 'generated', 'manual'] as const)(
+    'does nothing once a Session with messages has a %s title',
+    async (source) => {
+      const title = await runTitleAssignment(
+        makeSessionDetail({ titleSource: source, messages: [makeMessage()] }),
+        'Hello world',
+      )
+
+      expect(title).toBeNull()
+      expect(assignProvisionalTitleMock).not.toHaveBeenCalled()
+      expect(requestInitialSessionTitleMock).not.toHaveBeenCalled()
+    },
+  )
 
   it('writes no Provisional title for blank text', async () => {
     const title = await runTitleAssignment(makeSessionDetail(), '   ')

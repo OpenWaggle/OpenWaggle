@@ -120,7 +120,8 @@ export async function createNativeSession(options: {
   const extension: ExtensionFactory = (pi) => {
     if (options.beforeAgentStartSystemPrompt) {
       pi.on('before_agent_start', (event) => {
-        const systemPrompt = options.beforeAgentStartSystemPrompt?.(event.prompt)
+        const prompt = event.messageType === 'user' ? event.prompt : ''
+        const systemPrompt = options.beforeAgentStartSystemPrompt?.(prompt)
         return systemPrompt === undefined ? undefined : { systemPrompt }
       })
     }

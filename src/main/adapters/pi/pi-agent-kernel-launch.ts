@@ -6,28 +6,10 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
-import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
 import { prepareSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
 import { prepareSessionScratchDirectory } from '../../utils/session-scratch-directory'
 
 const logger = createLogger('pi-agent-kernel')
-
-/**
- * The finished MCP step's label when not every server it waited for connected. The turn goes ahead
- * without those servers' direct tools, and a check mark beside "Connecting MCP servers: figma"
- * would claim a connection that never happened.
- */
-function settledToolsLabel(outcome: McpDirectToolWaitOutcome) {
-  const parts = [
-    ...(outcome.connected.length > 0 ? [`${outcome.connected.join(', ')} connected`] : []),
-    ...(outcome.stillConnecting.length > 0
-      ? [`${outcome.stillConnecting.join(', ')} still connecting`]
-      : []),
-    ...(outcome.unavailable.length > 0 ? [`${outcome.unavailable.join(', ')} unavailable`] : []),
-  ]
-  const incomplete = outcome.stillConnecting.length > 0 || outcome.unavailable.length > 0
-  return incomplete ? `MCP servers: ${parts.join('; ')}` : undefined
-}
 
 /**
  * Reports what a run does before Pi starts, so a first send is never silent.
@@ -40,8 +22,6 @@ export function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
   let didReport = false
   const environment: WorktreeLaunchEnvironment =
     input.session.environmentMode === 'worktree' ? 'worktree' : 'local'
-  const firstRun = input.session.messages.length === 0
-  let reportedTools = false
   let closed = false
   const onWorktreeLaunch = input.onWorktreeLaunch
     ? (progress: WorktreeLaunchProgress) => {
@@ -56,26 +36,6 @@ export function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
     report: onWorktreeLaunch,
     close() {
       closed = true
-    },
-    reportConnectingTools(serverNames: readonly string[]) {
-      if (!firstRun && !didReport) return
-      reportedTools = true
-      onWorktreeLaunch?.({
-        stage: 'connecting-tools',
-        parallel: true,
-        label: `Connecting MCP servers: ${serverNames.join(', ')}`,
-        details: [`Connecting ${serverNames.join(', ')}`],
-      })
-    },
-    reportToolsConnected(outcome: McpDirectToolWaitOutcome) {
-      if (!reportedTools) return
-      const label = settledToolsLabel(outcome)
-      onWorktreeLaunch?.({
-        stage: 'connecting-tools',
-        completesStep: true,
-        ...(label ? { label } : {}),
-        details: label ? [label] : [],
-      })
     },
     reportTaskStarting(executionPath: string) {
       if (!didReport) return

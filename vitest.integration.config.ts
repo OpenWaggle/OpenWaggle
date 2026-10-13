@@ -14,6 +14,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: [
+      'scripts/test-support/isolate-user-home.ts',
+      'src/main/test-support/isolate-user-mcp-files.ts',
+    ],
     env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
     include: ['src/**/*.integration.test.ts', 'scripts/**/*.integration.test.ts'],
     // Real-Git integration tests shell out to `git` many times (worktree add, commit,

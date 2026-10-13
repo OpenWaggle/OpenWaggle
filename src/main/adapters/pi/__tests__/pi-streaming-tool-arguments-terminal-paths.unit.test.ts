@@ -1,9 +1,11 @@
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import {
-  JSON_ARGUMENTS,
-  STREAMING_TOOL_CALL_PROVIDERS,
-} from './streaming-provider-cases.test-utils'
+  runAzureResponsesToolCall,
+  runOpenAiResponsesToolCall,
+} from './responses-streaming-cases.test-utils'
+import { STREAMING_TOOL_CALL_PROVIDERS } from './streaming-provider-cases.test-utils'
+import { JSON_ARGUMENTS } from './streaming-provider-wire.test-utils'
 
 /**
  * Pi parses streamed tool-call JSON at a bounded rate, so a block's `arguments` can lag its
@@ -37,4 +39,24 @@ describe('Pi streaming tool-call arguments on terminal paths', () => {
       expectExactToolCall(message)
     })
   }
+
+  it('OpenAI Responses: refuses a call whose output_item.done never arrived, as Pi does since 1.0.4', async () => {
+    const message = await runOpenAiResponsesToolCall('unfinished')
+
+    expect(message.stopReason).toBe('error')
+    expect(message.errorMessage).toContain('unfinished tool call: write')
+  })
+
+  // The parse at the end of processResponsesStream is the only one this ending reaches: the
+  // call never got output_item.done, and a message that stops on length is not refused.
+  it.each([
+    ['OpenAI Responses', runOpenAiResponsesToolCall],
+    ['Azure OpenAI Responses', runAzureResponsesToolCall],
+  ])('%s: exact when the output token limit cuts the stream off', async (_name, run) => {
+    const message = await run('length')
+
+    expect(message.errorMessage).toBeUndefined()
+    expect(message.stopReason).toBe('length')
+    expectExactToolCall(message)
+  })
 })

@@ -149,6 +149,7 @@ const TestAgentKernelLayer = Layer.succeed(
     run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
     getContextUsage: () =>
       Effect.fail(new Error('context usage not used by session detail handler tests')),
+    listExtensionCommands: () => Effect.succeed([]),
     compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),
     navigateTree: () =>
       Effect.fail(new Error('tree navigation not used by session detail handler tests')),

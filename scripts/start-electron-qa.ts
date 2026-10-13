@@ -52,8 +52,9 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
 
 /**
  * The QA app's environment. Automation disables executable Pi extensions, which also hides the
- * first-party tools (the MCP gateway and direct tools, `sessions`) from the model; a caller that
- * sets `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run can drive them.
+ * first-party tools (MCP server tools from Pi's MCP extension, `sessions`) from the model; a
+ * caller that sets `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run
+ * can drive them. Codemode and tool search load either way.
  */
 export function electronEnvironment(
   lease: Pick<QaLease, 'automationIdentity' | 'metadata'>,
@@ -68,6 +69,10 @@ export function electronEnvironment(
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
+      : {}),
+    // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
+      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
       : {}),
   })
 }

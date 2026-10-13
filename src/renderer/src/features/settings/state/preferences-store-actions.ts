@@ -7,7 +7,7 @@ import {
   type ShortcutCommand,
   type ShortcutRules,
 } from '@shared/types/shortcuts'
-import { useProviderStore } from '@/features/providers/state'
+import { firstRunnableModel, useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -86,9 +86,12 @@ async function setProjectPath(path: string | null, set: PreferencesSet, get: Pre
 async function setEnabledModels(models: string[], set: PreferencesSet, get: PreferencesGet) {
   const { settings } = get()
   const enabledModels = models.map(SupportedModelId)
+  // A new Session's model must be one this project can run, not merely the first enabled.
   const selectedModel = enabledModels.includes(settings.selectedModel)
     ? settings.selectedModel
-    : (enabledModels[0] ?? DEFAULT_SETTINGS.selectedModel)
+    : (firstRunnableModel(useProviderStore.getState().providerModels, enabledModels) ??
+      enabledModels[0] ??
+      DEFAULT_SETTINGS.selectedModel)
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
@@ -101,8 +104,24 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   mergeSettings(set, { enabledModels, selectedModel })
 }
 
+/**
+ * A project whose preferences cannot be read, as one whose `.openwaggle` is a link to nothing,
+ * keeps the current settings; opening it does not fail for that.
+ */
+async function readProjectPreferences(projectPath: string) {
+  try {
+    return await api.getProjectPreferences(projectPath)
+  } catch (error) {
+    logger.warn('Could not read the project preferences; keeping the current settings', {
+      projectPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
 async function loadProjectPreferences(projectPath: string, set: PreferencesSet) {
-  const prefs = await api.getProjectPreferences(projectPath)
+  const prefs = await readProjectPreferences(projectPath)
   if (!prefs) return
 
   if (!prefs.model) return

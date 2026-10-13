@@ -25,6 +25,15 @@ async function bindSessionExtensions(
 ) {
   const baseUiContext = session.extensionRunner.getUIContext()
   await session.bindExtensions({
+    // Pi reports extension failures only to this listener, such as a `pi.sendMessage` turn that
+    // could not start; a Run fails on those itself (`runPiOperation`).
+    onError: (error) => {
+      logger.warn('Pi extension failed', {
+        extensionPath: error.extensionPath,
+        event: error.event,
+        error: error.error,
+      })
+    },
     ...(input.openWaggleUi
       ? { uiContext: createPiInteractionUiContext(input.openWaggleUi, baseUiContext) }
       : {}),
@@ -46,7 +55,8 @@ export async function createOpenWaggleAgentSessionFromServices(
   }
 }
 
-export async function disposeOpenWagglePiSession(
+/** Lets the session's extensions release what they hold, such as MCP connections. */
+export async function emitOpenWagglePiSessionShutdown(
   session: AgentSession,
   reason: SessionShutdownEvent['reason'] = 'quit',
 ): Promise<void> {
@@ -57,6 +67,15 @@ export async function disposeOpenWagglePiSession(
     logger.warn('Pi session shutdown hook failed during disposal', {
       error: error instanceof Error ? error.message : String(error),
     })
+  }
+}
+
+export async function disposeOpenWagglePiSession(
+  session: AgentSession,
+  reason: SessionShutdownEvent['reason'] = 'quit',
+): Promise<void> {
+  try {
+    await emitOpenWagglePiSessionShutdown(session, reason)
   } finally {
     session.dispose()
   }

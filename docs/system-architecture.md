@@ -68,7 +68,7 @@ Pi's resource loader is the runtime source of truth for skills and context files
 
 ## MCP
 
-MCP is a first-party main-process subsystem behind `McpConfigService` and `McpRuntimeService`. Configuration resolves from `~/.openwaggle/mcp.json`, project `.mcp.json`, and project `.openwaggle/mcp.json`; user state separately owns scope, enablement, trust, grants, secrets, OAuth, and durable remote Tasks. The runtime negotiates current and legacy MCP revisions, owns transports and server lifecycle, and projects an OpenWaggle-owned gateway into Pi with an internal extension factory. No MCP extension package is installed or persisted in Pi settings.
+OpenWaggle has no MCP client of its own (ADR 0051). Every Pi session it creates loads Pi's built-in MCP, codemode, and tool-search extensions, and OpenWaggle supplies their plug-in points: configuration read from `~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, project `.mcp.json`, `.pi/mcp.json`, and `.openwaggle/mcp.json`, with vault secrets resolved; transports leased from a per-Session connection pool in the Session Host (the MCP transport layer, which adds sampling, elicitation, roots, and MCP App resources); vault-first OAuth state; and a companion Pi extension for approval and MCP App descriptors. There is no trust layer: adding a project is the only trust decision. Main-process code reaches MCP through the `McpConfigurationService`, `McpServerRuntimeService`, `McpAppRuntimeService`, `McpImportService`, `McpRegistryService`, and `McpSecretVaultService` ports. See `docs/mcp-runtime.md`.
 
 ## OpenWaggle Extensions
 

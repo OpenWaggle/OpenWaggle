@@ -1,0 +1,194 @@
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
+import { migrationBackupPath } from '../migration-paths'
+import { allConnectedState, NOW, oldFingerprint } from './migration-fixtures'
+
+const roots: string[] = []
+
+async function writeJson(filePath: string, value: unknown) {
+  await mkdir(path.dirname(filePath), { recursive: true })
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+async function readJson(filePath: string): Promise<unknown> {
+  return JSON.parse(await readFile(filePath, 'utf8'))
+}
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+describe('migrateOpenWaggleMcpFiles on disk', () => {
+  it('migrates a global and a project file once, with backups, using the real file system', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+    roots.push(root)
+    const homeDir = path.join(root, 'home')
+    const projectPath = path.join(root, 'project')
+    const piGlobal = path.join(homeDir, '.pi', 'agent', 'mcp.json')
+    const openwaggleGlobal = path.join(homeDir, '.openwaggle', 'mcp.json')
+    const projectFile = path.join(projectPath, '.openwaggle', 'mcp.json')
+    const normalized = { command: 'npx', args: ['tools-mcp'] }
+    await writeJson(piGlobal, { mcpServers: { tools: { command: 'npx', args: ['tools-mcp'] } } })
+    const openwaggleGlobalContent = {
+      mcpServers: {
+        tools: {
+          ...normalized,
+          directTools: true,
+          provenance: {
+            source: 'pi',
+            sourcePath: piGlobal,
+            fingerprint: oldFingerprint(piGlobal, 'tools', normalized),
+          },
+        },
+      },
+    }
+    const projectContent = { mcpServers: { local: { command: 'local', required: true } } }
+    await writeJson(openwaggleGlobal, openwaggleGlobalContent)
+    await writeJson(projectFile, projectContent)
+    // MCP was on and both servers were turned on, so the migration keeps them on.
+    await writeJson(
+      path.join(homeDir, '.openwaggle', 'mcp', 'state.json'),
+      allConnectedState({
+        [openwaggleGlobal]: openwaggleGlobalContent,
+        [projectFile]: projectContent,
+      }),
+    )
+
+    const first = await migrateOpenWaggleMcpFiles({
+      homeDir,
+      projectPaths: [projectPath],
+      now: () => NOW,
+    })
+    const second = await migrateOpenWaggleMcpFiles({
+      homeDir,
+      projectPaths: [projectPath],
+      now: () => NOW,
+    })
+
+    expect(first.files.map((file) => file.status)).toEqual(['migrated', 'migrated'])
+    expect(second.files.map((file) => file.status)).toEqual([
+      'already-migrated',
+      'already-migrated',
+    ])
+    expect(await readJson(openwaggleGlobal)).toEqual({
+      mcpServers: { tools: { exposure: 'direct' } },
+    })
+    expect(await readJson(projectFile)).toEqual({ mcpServers: { local: { command: 'local' } } })
+    // The project's backup is kept in the user's OpenWaggle data, never in the repository.
+    expect(await readdir(path.dirname(projectFile))).toEqual(['mcp.json'])
+    expect(await readJson(migrationBackupPath(projectFile, homeDir))).toEqual({
+      mcpServers: { local: { command: 'local', required: true } },
+    })
+    expect(path.relative(homeDir, migrationBackupPath(projectFile, homeDir))).toMatch(
+      /^\.openwaggle\/mcp\/backups\/[^/]+\/mcp\.json\.pre-adr-0048\.bak$/,
+    )
+    expect((await readdir(path.join(homeDir, '.openwaggle'))).sort()).toEqual([
+      'mcp',
+      'mcp.json',
+      'mcp.json.pre-adr-0048.bak',
+    ])
+    expect(await readdir(path.join(homeDir, '.pi', 'agent'))).toEqual(['mcp.json'])
+  })
+
+  it("keeps a project's choices out of the global file when its .openwaggle links to it", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+    roots.push(root)
+    const homeDir = path.join(root, 'home')
+    const projectPath = path.join(root, 'project')
+    const openwaggleGlobal = path.join(homeDir, '.openwaggle', 'mcp.json')
+    const files = { [openwaggleGlobal]: { mcpServers: { own: { command: 'own-mcp' } } } }
+    await writeJson(openwaggleGlobal, files[openwaggleGlobal])
+    const state = allConnectedState(files)
+    // The project turned "own" off for itself only.
+    await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+      ...state,
+      projectStates: { [projectPath]: 'inherit' },
+      projectServerStates: { [projectPath]: { 'own-id': 'off' } },
+    })
+    await mkdir(projectPath, { recursive: true })
+    await symlink(path.join(homeDir, '.openwaggle'), path.join(projectPath, '.openwaggle'))
+
+    const report = await migrateOpenWaggleMcpFiles({
+      homeDir,
+      projectPaths: [projectPath],
+      now: () => NOW,
+    })
+
+    expect(report.files.map((file) => file.path)).toEqual([openwaggleGlobal])
+    expect(await readJson(openwaggleGlobal)).toEqual({
+      mcpServers: { own: { command: 'own-mcp' } },
+    })
+    // The global file's backup is the one beside it, whichever path reaches it.
+    expect(migrationBackupPath(path.join(projectPath, '.openwaggle', 'mcp.json'), homeDir)).toBe(
+      migrationBackupPath(openwaggleGlobal, homeDir),
+    )
+  })
+
+  describe('with a link whose target is missing, such as an unmounted dotfiles checkout', () => {
+    async function setUp() {
+      const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-migration-'))
+      roots.push(root)
+      const homeDir = path.join(root, 'home')
+      const projectPath = path.join(root, 'project')
+      // MCP was off: a server the old OpenWaggle never connected stays off.
+      await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+        version: 1,
+        globalState: 'off',
+        projectStates: {},
+        sessionStates: {},
+        projectServerStates: {},
+        servers: {},
+      })
+      await mkdir(projectPath, { recursive: true })
+      const migrate = () =>
+        migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [projectPath], now: () => NOW })
+      return { root, projectPath, migrate }
+    }
+
+    const LEGACY = { mcpServers: { legacy: { command: 'legacy-server', directTools: true } } }
+
+    it('fails the file under a linked folder, and migrates it once the folder is back', async () => {
+      const { root, projectPath, migrate } = await setUp()
+      const dotfiles = path.join(root, 'dotfiles', 'openwaggle')
+      await symlink(dotfiles, path.join(projectPath, '.openwaggle'))
+
+      const first = await migrate()
+      expect(first.files.find((file) => file.path.startsWith(projectPath))).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('links to a missing folder'),
+      })
+
+      await writeJson(path.join(dotfiles, 'mcp.json'), LEGACY)
+      const second = await migrate()
+
+      expect(second.files.find((file) => file.path.startsWith(projectPath))?.status).toBe(
+        'migrated',
+      )
+      expect(await readJson(path.join(dotfiles, 'mcp.json'))).toMatchObject({
+        mcpServers: { legacy: { command: 'legacy-server', enabled: false } },
+      })
+    })
+
+    it('fails a linked file, creating nothing where the link points', async () => {
+      const { root, projectPath, migrate } = await setUp()
+      const target = path.join(root, 'dotfiles', 'openwaggle', 'mcp.json')
+      await mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+      await symlink(target, path.join(projectPath, '.openwaggle', 'mcp.json'))
+      // A Pi project file the migration would otherwise write an override file for.
+      await writeJson(path.join(projectPath, '.pi', 'mcp.json'), {
+        mcpServers: { pitool: { command: 'echo' } },
+      })
+
+      const report = await migrate()
+
+      expect(report.files.find((file) => file.path.startsWith(projectPath))).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('links to a missing file'),
+      })
+      await expect(readdir(path.join(root, 'dotfiles'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+  })
+})

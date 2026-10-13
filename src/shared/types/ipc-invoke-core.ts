@@ -18,6 +18,7 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
+import type { AgentExtensionCommand } from './extension-command'
 import type {
   ExtensionFrameRegisterInput,
   ExtensionFrameRegisterResult,
@@ -120,6 +121,11 @@ export interface IpcCoreInvokeChannelMap
   'agent:get-context-usage': {
     args: [sessionId: SessionId, model: SupportedModelId]
     return: ContextUsageSnapshot | null
+  }
+  /** With no Session, as for a New session draft, those of `projectPath`. */
+  'agent:list-extension-commands': {
+    args: [sessionId: SessionId | null, model: SupportedModelId, projectPath?: string]
+    return: readonly AgentExtensionCommand[]
   }
   'agent:compact-session': {
     args: [sessionId: SessionId, model: SupportedModelId, customInstructions?: string]

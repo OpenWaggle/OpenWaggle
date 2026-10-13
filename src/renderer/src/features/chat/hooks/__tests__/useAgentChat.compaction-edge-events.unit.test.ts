@@ -82,6 +82,29 @@ describe('useAgentChat compaction event edges', () => {
     })
   })
 
+  it('clears the retry status as soon as the retried response starts streaming', async () => {
+    const { result } = renderAgentChat()
+    await act(async () => {
+      emit({
+        type: 'auto_retry_start',
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 5000,
+        errorMessage: '503 Service Unavailable',
+        timestamp: 1,
+      })
+    })
+    expect(result.current.compactionStatus).toMatchObject({ type: 'retrying' })
+
+    // Pi reports the retry's success only when the retried response ends.
+    await act(async () => {
+      emit({ type: 'message_start', messageId: 'retry-1', role: 'assistant', timestamp: 2 })
+    })
+
+    expect(result.current.compactionStatus).toBeNull()
+    expect(result.current.status).toBe('streaming')
+  })
+
   it('retains an earlier completion when a later compaction is aborted or fails', async () => {
     const { result } = renderAgentChat()
     await act(async () => {

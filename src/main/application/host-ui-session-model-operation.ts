@@ -12,6 +12,7 @@ import {
   validateOptionalModel,
   validateSessionId,
 } from './host-ui-session-operation-validation'
+import { forgetRefusedContinuation } from './pi-session-refused-continuations'
 
 const TWO_ARGUMENTS = 2
 const logger = createLogger('host-ui-session-settings')
@@ -46,6 +47,7 @@ export function setSessionModel(args: readonly unknown[]) {
           : 'Session has no execution profile whose model can be switched.',
       )
     }
+    forgetRefusedContinuation(sessionId)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
   })
 }
@@ -72,7 +74,9 @@ export function setSessionThinkingLevel(
     const sessionId = yield* validateSessionId(args[0])
     const level = yield* validateThinkingLevel(args[1])
     const change = yield* (yield* SessionSettingsRepository).setThinkingLevel(sessionId, level)
-    if (!change.changed) return change
+    if (!change.changed) return { changed: false, code: change.code }
+    // The user's choice wins over Pi settings a Run held off (ADR 0051).
+    forgetRefusedContinuation(sessionId)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     yield* setGlobalDefaultThinkingLevel(level).pipe(
       Effect.catchAll((error) =>

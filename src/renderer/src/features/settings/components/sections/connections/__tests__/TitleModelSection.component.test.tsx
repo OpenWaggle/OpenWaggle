@@ -127,4 +127,15 @@ describe('TitleModelSection', () => {
       within(titleModelSelect()).getByRole('option', { name: 'GPT Unlisted' }),
     ).toBeInTheDocument()
   })
+
+  it("lists only the enabled models this project's catalog has", () => {
+    // Enabled in another project, whose extension provides it.
+    seed([HAIKU, SupportedModelId('qa-faux/luna'), MINI])
+    render(<TitleModelSection />)
+
+    const options = within(titleModelSelect())
+      .getAllByRole('option')
+      .map((option) => option.textContent)
+    expect(options).toEqual(['Automatic', 'Off', 'Claude Haiku', 'GPT Mini'])
+  })
 })

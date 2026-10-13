@@ -44,6 +44,10 @@ describe('managed Electron QA launcher', () => {
     expect(
       electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }),
     ).toMatchObject({ OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+    expect(electronEnvironment(lease, {})).not.toHaveProperty('OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
+    expect(
+      electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: '/tmp/qa/router.js' }),
+    ).toMatchObject({ OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: '/tmp/qa/router.js' })
   })
 
   it('validates lease metadata before trusting cleanup paths', () => {

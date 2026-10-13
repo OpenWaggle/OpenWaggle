@@ -1,5 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionId } from '@shared/types/brand'
+import { RunId, type SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { SessionRunAvailability } from '../domain/session-control/message-submission'
@@ -7,6 +7,7 @@ import { canChangeSessionSettings } from '../domain/session-control/run-start-se
 import { SessionControlRepositoryError } from '../errors'
 import {
   type SessionSettingChange,
+  type SessionSettingChangeOptions,
   SessionSettingsRepository,
 } from '../ports/session-settings-repository'
 
@@ -25,20 +26,31 @@ function setProfileField(
   sessionId: SessionId,
   path: '$.modelId' | '$.thinkingLevel',
   value: string,
+  options: SessionSettingChangeOptions = {},
 ) {
   return sql
     .withTransaction(
       Effect.gen(function* () {
-        const runs = yield* sql<{ readonly status: string | null }>`
-          SELECT session_runs.status
+        const runs = yield* sql<{ readonly status: string | null; readonly run_id: string }>`
+          SELECT session_runs.status, session_runs.id AS run_id
           FROM session_control_states
           JOIN session_runs ON session_runs.id = session_control_states.active_run_id
           WHERE session_control_states.session_id = ${sessionId}
           LIMIT 1
         `
         const status = runs[0]?.status ?? null
-        if (!canChangeSessionSettings({ state: runState(status) })) {
-          return { changed: false, code: 'session_run_active' } satisfies SessionSettingChange
+        // The Run that holds the Session may set what it is about to start with.
+        const ownRun =
+          options.forRun !== undefined &&
+          runs[0]?.run_id === options.forRun &&
+          status !== 'stopping'
+        if (!ownRun && !canChangeSessionSettings({ state: runState(status) })) {
+          const holder = runs[0]?.run_id
+          return {
+            changed: false,
+            code: 'session_run_active',
+            ...(holder ? { activeRunId: RunId(holder) } : {}),
+          } satisfies SessionSettingChange
         }
         const rows = yield* sql<{ readonly session_id: string }>`
           UPDATE session_execution_profiles
@@ -64,9 +76,10 @@ export const SqliteSessionSettingsRepositoryLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionSettingsRepository.of({
-      setModel: (sessionId, model) => setProfileField(sql, sessionId, '$.modelId', model),
-      setThinkingLevel: (sessionId, thinkingLevel) =>
-        setProfileField(sql, sessionId, '$.thinkingLevel', thinkingLevel),
+      setModel: (sessionId, model, options) =>
+        setProfileField(sql, sessionId, '$.modelId', model, options),
+      setThinkingLevel: (sessionId, thinkingLevel, options) =>
+        setProfileField(sql, sessionId, '$.thinkingLevel', thinkingLevel, options),
     })
   }),
 )

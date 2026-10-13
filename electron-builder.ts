@@ -4,6 +4,10 @@ import {
   resolveIconBasePath,
   resolveMacIconPath,
 } from './scripts/build-identity'
+import {
+  forceIncludePiPackageAsset,
+  PI_PACKAGE_ASSET_FILE_PATTERNS,
+} from './scripts/electron-builder-pi-assets'
 import { resolveMacSigning } from './scripts/mac-signing'
 
 /**
@@ -52,7 +56,17 @@ const config = {
   },
   // sharp dlopens libvips (libvips-cpp.so on Linux) from its native package; a
   // dlopen cannot read a shared library trapped inside app.asar, so unpack them.
-  asarUnpack: ['**/node_modules/sharp/**', '**/node_modules/@img/**'],
+  // electron-builder drops every module's top-level README and examples; Pi's are model-facing.
+  onNodeModuleFile: forceIncludePiPackageAsset,
+  asarUnpack: [
+    '**/node_modules/sharp/**',
+    '**/node_modules/@img/**',
+    // Pi's workers beside the main bundle and the wasm they run (codemode QuickJS, image Photon).
+    'out/main/codemode-worker.js',
+    'out/main/image-resize-worker.js',
+    '**/node_modules/quickjs-wasi/**',
+    '**/node_modules/@silvia-odwyer/photon-node/**',
+  ],
   files: [
     'out/main/**/*',
     'out/preload/**/*',
@@ -93,6 +107,9 @@ const config = {
     '!node_modules/@openwaggle/*/tsconfig*.json',
     // Exclude unused ONNX training WASM files (only inference is needed)
     '!node_modules/onnxruntime-web/dist/ort-training*',
+    // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
+    // its package directory; keep them although other packages' docs are excluded above.
+    ...PI_PACKAGE_ASSET_FILE_PATTERNS,
   ],
   extraResources: [
     // Ship the channel icon as the runtime icon resource so the Windows/Linux

@@ -3,11 +3,19 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
   '--no-sandbox',
   '--disable-logging',
   '--log-level=3',
+  // Credential store switches QA starts the GUI with, which the GUI forwards to its Host.
+  '--use-mock-keychain',
 ])
+/** Linux Chromium's credential store choice, such as --password-store=basic. */
+const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
+
+function isRuntimePrefixSwitch(argument: string) {
+  return ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) || PASSWORD_STORE_SWITCH.test(argument)
+}
 
 function afterRuntimePrefix(argv: readonly string[], start: number) {
   let offset = start
-  while (ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argv[offset] ?? '')) offset += 1
+  while (isRuntimePrefixSwitch(argv[offset] ?? '')) offset += 1
   return offset
 }
 

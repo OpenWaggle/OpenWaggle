@@ -1,40 +1,43 @@
 # Pi runtime upgrades
 
-Pi publishes seven packages as one matched release. OpenWaggle keeps its direct Pi dependencies in the `pi-runtime` pnpm catalog and patches `pi-ai` plus `pi-coding-agent` for ADR 0025 compaction behavior.
+Pi publishes its runtime as one matched release: seven packages (`pi-agent-core`, `pi-ai`, `pi-codemode`, `pi-coding-agent`, `pi-mcp`, `pi-telemetry`, `pi-tui`). Pi 1.2.0 removed `pi-client` and `pi-protocol` (and the unreleased `pi-server`) and no longer depends on `@earendil-works/chord`; `check:pi-runtime` reports any of them left in the catalog or the lockfile. OpenWaggle keeps its direct Pi dependencies in the `pi-runtime` pnpm catalog, patches `pi-ai` and `pi-coding-agent`, and bundles Pi into the Electron main process. `pnpm check:pi-runtime` (`scripts/check-pi-runtime-alignment.ts`) enforces the matched set, the direct pins, the patch registrations, and the release-age exceptions described below.
+
+## What the patches carry
+
+The patches are larger than ADR 0025's compaction behaviour. Re-port every part on each upgrade, and keep every change additive to Pi's public contracts.
+
+- **Native Responses compaction (ADR 0025).** `compactResponses` in pi-ai, the compaction-capable model id lists in `openai.models.js` and `openai-codex.models.js` (audit them against the new catalog; drop ids the catalog no longer has), the Native endpoint fallback (404/405/501, and 400/401/403 under Sign in with ChatGPT), credential fingerprinting, request-model refresh, reconstruction fit, compaction threshold injection (`compaction.thresholdPercent`, declared in Pi's settings schema since 1.2.0 moved the settings types there), and the retry policy and callbacks. The compaction request fails at once on the Native endpoint statuses through Pi's own `noRetryStatuses` (added in 1.2.0, replacing the patch's `nonRetryableStatuses`). The compat fields `supportsCompaction` and `compactionBaseUrl` live on `OpenAIResponsesCompat` in `providers/compat-schema.d.ts` since 1.2.0.
+- **Session projection.** `buildSessionProjection(targetModel)` and the reconstruction entries in the session manager.
+- **Provider attribution.** Prepared provider headers for Native compaction requests (`withPreparedProviderHeaders`).
+- **Prompt and steer.** The input hook runs before extension-command dispatch, `PromptOptions.transformExpandedText` rewrites the expanded text, `prompt()` resolves to the text it queued while streaming, and `steer(text, images, transform)` resolves to the exact queued text (or undefined when an input handler consumed it). The options form of `steer()` keeps Pi's `queued`/`handled` disposition. `PromptOptions.streamingOnly` makes `prompt()` reject with code `agent_not_streaming` instead of starting a new turn when the active turn ended while input handlers ran.
+- **Run preparation.** Pi 1.2.0 prepares every run in `_prepareRun`, for a prompt and for `sendCustomMessage(message, { triggerTurn: true })` alike, so a Waggle turn (which Pi starts that way) gets `before_agent_start`, its prompt sections, and its tool loadout, on its later tool-loop requests too; OpenWaggle's 1.0.4 `_runCustomMessageTurn` hunk is gone. The patch keeps two things on top. `_prepareNewTurn` refreshes request auth and runs the pre-prompt compaction check after `before_agent_start`, against the final request model, instead of Pi's check before it. And when a custom message's preparation throws, such as request auth that no longer resolves, `_startRun` still runs the message as a turn whose first request fails (`PreparedRunError` carries the turn's messages once `before_agent_start` has run), so the turn ends with an error turn and `agent_end` instead of rejecting a `pi.sendMessage` nobody awaits, and Pi's automatic retry of a retryable failure sends the turn's own prompt. Pi 1.2.0 still rethrows there; drop that hunk once Pi ends such a run itself.
+- **Model selection.** `setModel`/`cycleModel` check Pi's provider auth first and accept providers whose auth resolves without an API key (Amazon Bedrock through `AWS_PROFILE`, an ECS task role, web identity).
+- **Virtual models.** A virtual selection stays unresolved in agent state, its compactions always use the Portable mechanism, and a routed native-capable model never reaches the Native endpoint.
+- **MCP exports.** pi-coding-agent's `dist/index.js` and `dist/index.d.ts` also export Pi's MCP sign-in (`createMcpAuthProvider`, `McpOAuthCredentialStore`, `McpSignInCancelledError`, `signInMcpServer`), validation (`getMcpToolExposure`, `isMcpToolName`, `mcpNamespace`, `validateMcpServerConfig`), and value resolution (`resolveConfigValueOrThrow`, `resolveHeadersOrThrow`) for ADR 0051. Exports only, no behaviour change, but re-add them on every upgrade: the hunk sits at the end of `dist/index.js` and does not apply with git's default context, so check the module paths still exist in the new release.
+
+## Bundled main process
+
+Pi resolves several files from `import.meta.url`, which in the bundle is OpenWaggle's `out/main`. Check each of these still works after an upgrade; `pnpm pi-main-bundle:smoke` (part of `pnpm check`) and `pnpm packaged-app:smoke` cover them.
+
+- `scripts/vite/pi-worker-bundles.ts` emits Pi's codemode sandbox worker (`codemode-worker.js`, an ES module run from a `data:` URL) and image-resize worker (`image-resize-worker.js`) beside the main bundle. A new Pi worker entry needs an entry there.
+- QuickJS (`quickjs-wasi`) and Photon (`@silvia-odwyer/photon-node`) are root dependencies pinned to the exact versions Pi depends on, because their wasm is read from the installed package. On each upgrade, set both root pins to the versions in the new `pi-codemode` and `pi-coding-agent` package.json files; `check:pi-runtime` fails when a pin drifts or the lockfile resolves more than one version.
+- `src/main/apply-pi-package-directory.ts` sets Pi's `PI_PACKAGE_DIR` to Pi's installed package before any Pi module loads, so Pi's README, docs, themes, export templates, and `VERSION` come from Pi and not from OpenWaggle's package.json. Shells OpenWaggle starts get the user's own value back.
+- electron-builder keeps Pi's README, docs, and examples (`scripts/electron-builder-pi-assets.ts`), and `asarUnpack` keeps both workers and both wasm packages unpacked.
+- Bundler-opaque lazy loaders (OAuth flows, the Bedrock implementation) need static registration (`pi-bundled-oauth.ts`, `pi-bundled-bedrock.ts`).
 
 ## Update procedure
 
-1. Check that all seven packages publish the same newest version:
+1. Check that every package publishes the same newest version:
 
    ```bash
-   for package in pi-agent-core pi-ai pi-client pi-coding-agent pi-protocol pi-telemetry pi-tui; do
+   for package in pi-agent-core pi-ai pi-codemode pi-coding-agent pi-mcp pi-telemetry pi-tui; do
      pnpm view "@earendil-works/$package" version
    done
    ```
 
-2. Review every Pi changelog section since the pinned release. Pay special attention to provider context, compaction, retry, queue, prompt, steering, and session-format changes.
-3. Update all seven entries in `catalogs.pi-runtime` and all seven exact `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`. Keep temporary age exceptions only until the normal seven-day window passes.
-4. Remove the two old `patchedDependencies` registrations, install the unpatched target release, and extract fresh patch workspaces:
-
-   ```bash
-   pnpm install --ignore-scripts
-   pnpm patch @earendil-works/pi-ai@VERSION --ignore-existing --edit-dir /tmp/openwaggle-pi-ai
-   pnpm patch @earendil-works/pi-coding-agent@VERSION --ignore-existing --edit-dir /tmp/openwaggle-pi-coding-agent
-   ```
-
-5. Port the changes into those fresh package trees. Do not rename an old patch. Reconcile the target release's code first, including Pi's canonical session context and compaction-budget behavior, then regenerate both patches:
-
-   ```bash
-   pnpm patch-commit /tmp/openwaggle-pi-ai
-   pnpm patch-commit /tmp/openwaggle-pi-coding-agent
-   ```
-
-6. Delete the superseded patch files, run `pnpm install --ignore-scripts` to refresh `pnpm-lock.yaml`, and verify alignment:
-
-   ```bash
-   pnpm check:pi-runtime
-   ```
-
-7. Run the focused Pi compaction, reconstruction, retry, prompt, steering, scheduling, and settlement tests before the repository verification matrix. Re-audit the patched model capability lists against the target release instead of carrying model names forward without review.
-
-`pnpm patch-commit` owns patch filenames and patch hashes. Review both generated diffs before accepting the lockfile update.
+2. Review every Pi changelog section since the pinned release. Pay special attention to provider context, compaction, retry, queue, prompt, steering, model selection, virtual models, MCP, codemode, session-format changes, and provider renames (stored provider references need an OpenWaggle migration, as for Azure in 1.0.3).
+3. Update every entry in `catalogs.pi-runtime`. If the release is younger than pnpm's seven-day `minimumReleaseAge`, add exact `minimumReleaseAgeExclude` entries for exactly the matched-release packages the lockfile resolves (`check:pi-runtime` rejects missing and unneeded entries) and a `# pi-runtime-release-age-exclusions-expire: YYYY-MM-DDTHH:MM:SSZ` line naming a UTC time at or after the moment the last-published package of the release is seven days old (`npm view <package> time`; a bare `YYYY-MM-DD` means midnight UTC). `check:pi-runtime` fails from then until the entries and the line are removed, and also when the line outlives its entries.
+4. Remove the two old `patchedDependencies` registrations and install the unpatched target release with `pnpm install --ignore-scripts`.
+5. Port the patches. `pnpm patch` prompts interactively when a package is installed as more than one peer variant, so do not rely on it. Instead, copy the pristine target tarball into a scratch git repository, apply the old patch with `git apply --reject`, resolve every rejected hunk by reading the target release's code (never by fuzz), and write the new patch with `git diff --full-index --src-prefix=a/ --dst-prefix=b/` restricted to the changed `dist` files. Save it as `patches/@earendil-works__<package>@VERSION.patch` and register it in `patchedDependencies`.
+6. Delete the superseded patch files, run `pnpm install --ignore-scripts` to refresh `pnpm-lock.yaml` and the patch hashes, and verify alignment with `pnpm check:pi-runtime`.
+7. Run the focused Pi compaction, reconstruction, retry, prompt, steering, model-switch, virtual-model, scheduling, and settlement tests, then `pnpm pi-main-bundle:smoke`, before the repository verification matrix. For packaging changes, also run `pnpm build:unpack` and `pnpm packaged-app:smoke`.

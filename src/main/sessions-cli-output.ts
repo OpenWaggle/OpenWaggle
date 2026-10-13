@@ -80,15 +80,22 @@ function includesAny(message: string, fragments: readonly string[]) {
   return fragments.some((fragment) => message.includes(fragment))
 }
 
+const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
+  ['authentication_failed', 'authentication'],
+  ['credential_rejected', 'authentication'],
+  ['profile_revoked', 'authentication'],
+  ['host_draining', 'host_unavailable'],
+  // A Session whose Pi file cannot be used is refused until the file is back or a message
+  // starts a new transcript.
+  ['pi_session_file_unusable', 'conflict'],
+  // A worktree Session whose worktree is gone is refused until it is recreated.
+  ['session_worktree_missing', 'conflict'],
+])
+
 export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind | undefined {
   const normalized = code.toLowerCase()
-  if (
-    normalized === 'authentication_failed' ||
-    normalized === 'credential_rejected' ||
-    normalized === 'profile_revoked'
-  ) {
-    return 'authentication'
-  }
+  const exact = KIND_OF_CODE.get(normalized)
+  if (exact) return exact
   if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
   if (
     normalized.includes('authoriz') ||
@@ -99,11 +106,7 @@ export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind 
     return 'authorization'
   }
   if (normalized.includes('timeout')) return 'timeout'
-  if (
-    normalized.includes('host_stopped') ||
-    normalized.includes('host_lost') ||
-    normalized === 'host_draining'
-  ) {
+  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
     return 'host_unavailable'
   }
   if (normalized.endsWith('_failed')) return 'internal'

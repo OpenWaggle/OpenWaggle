@@ -25,6 +25,30 @@ describe('Agent definition semantic validation', () => {
     ).toEqual({ valid: true, diagnostics: [] })
   })
 
+  it('accepts MCP tools by Pi name or pattern for configured servers, and legacy mcp entries', () => {
+    const definition = (tools: readonly string[]) => ({
+      schemaVersion: 1 as const,
+      name: 'reviewer',
+      description: 'Reviews changes.',
+      tools,
+      instructions: 'Review changes.',
+    })
+    const catalog = { tools: ['read'], mcpServers: ['dev-radius', 'github'] }
+
+    expect(
+      validateAgentDefinitionSemantics(
+        definition(['read', 'mcp__dev_radius__*', 'mcp__github__get_issue', 'codemode']),
+        catalog,
+      ),
+    ).toEqual({ valid: true, diagnostics: [] })
+    expect(validateAgentDefinitionSemantics(definition(['mcp', 'mcp_run']), catalog).valid).toBe(
+      true,
+    )
+    expect(
+      validateAgentDefinitionSemantics(definition(['mcp__unknown__*']), catalog).diagnostics,
+    ).toMatchObject([{ code: 'unknown-reference', resource: 'tool', value: 'mcp__unknown__*' }])
+  })
+
   it('returns structured, actionable diagnostics for unknown and duplicate references', () => {
     const validation = validateAgentDefinitionSemantics(
       {
@@ -82,5 +106,27 @@ describe('Agent definition semantic validation', () => {
         },
       ],
     })
+  })
+
+  it('reports the MCP configuration error, not unknown tools, when MCP servers did not load', () => {
+    const mcpError = 'mcp.json: Unexpected token } in JSON at position 42'
+    const validation = validateAgentDefinitionSemantics(
+      {
+        schemaVersion: 1,
+        name: 'reviewer',
+        description: 'Reviews changes.',
+        tools: ['read', 'mcp__github__search_issues'],
+        instructions: 'Review changes.',
+      },
+      { tools: ['read'], loadDiagnostics: [mcpError] },
+    )
+
+    expect(validation.diagnostics).toEqual([
+      {
+        code: 'catalog-unavailable',
+        resource: 'mcp-server',
+        message: expect.stringContaining(mcpError),
+      },
+    ])
   })
 })

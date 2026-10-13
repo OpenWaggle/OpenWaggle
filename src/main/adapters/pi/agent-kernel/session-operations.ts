@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { type ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
-import type { ContextUsageSnapshot } from '@shared/types/context-usage'
+import {
+  type AgentSession,
+  type ContextUsage,
+  createMcpExtension,
+  type InlineExtension,
+  type SessionManager,
+} from '@earendil-works/pi-coding-agent'
+import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
+import type { SessionDetail } from '@shared/types/session'
 import {
   AgentKernelMissingEntryError,
   type AgentKernelSessionInput,
@@ -12,13 +19,33 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
-import { writeRekeyedForkedSession } from './fork-entry-identity'
+import { projectWrittenFork, type WrittenFork, writeForkBeforeItStarts } from './fork-files'
+import {
+  hasProjectedEntries,
+  missingPiSessionFileError,
+  type PiSessionFileAction,
+} from './missing-session-file'
+import { piEntryNodeIds } from './pi-entry-node-ids'
+import { piExtensionCommands } from './pi-extension-commands'
+import { idleCacheWarming } from './pi-idle-cache-warming'
+import { piResponseUsageInput } from './pi-response-usage'
+import { unsearchablePiSessionFolder } from './pi-session-search'
+import { summarizePiSessionUsage } from './pi-session-usage'
+import { withRunExtensionCommands } from './run-extension-commands'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
+import {
+  createReadOnlySessionManagerForSession,
+  findExistingPiSessionFile,
+  resolveSessionWorkingPath,
+} from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
-import { createPiSessionRuntime, withPiSession } from './session-runtime'
+import { createPiSessionRuntime, withPiSession, withReadOnlyPiSession } from './session-runtime'
 
-function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSnapshot | null {
+function toContextUsageSnapshot(
+  usage: ContextUsage | undefined,
+  session: SessionUsageSummary,
+): ContextUsageSnapshot | null {
   if (!usage) {
     return null
   }
@@ -27,27 +54,111 @@ function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSn
     tokens: usage.tokens,
     contextWindow: usage.contextWindow,
     percent: usage.percent,
+    ...(session.models.length > 0 ? { session } : {}),
+  }
+}
+
+/**
+ * Reads use the Session's warming session while it has one. Otherwise they read an in-memory
+ * copy of the Pi file, so looking at a Session never writes its file (ADR 0051).
+ */
+async function readPiSession<T>(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  read: (session: AgentSession) => T,
+  extensionFactories?: readonly InlineExtension[],
+) {
+  const warming = idleCacheWarming.borrow(input.session.id)
+  if (warming && warming.sessionFile === input.session.piSessionFile) return read(warming)
+  return withReadOnlyPiSession(input, read, extensionFactories)
+}
+
+/**
+ * Pi's MCP extension, with no server, for the slash menu: every Run loads it with the project's
+ * servers, so its `/mcp` is listed before a Run did, as for a New session draft.
+ */
+function mcpCommandsExtension(): InlineExtension {
+  return {
+    name: 'mcp',
+    factory: createMcpExtension({ loadConfig: () => ({ servers: [], errors: [] }) }),
+    replaceable: true,
+    builtin: true,
   }
 }
 
 export async function getPiContextUsage(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withPiSession(input, (session) => toContextUsageSnapshot(session.getContextUsage()))
+  return readPiSession(input, (session) =>
+    toContextUsageSnapshot(session.getContextUsage(), summarizePiSessionUsage(session)),
+  )
 }
 
+/** The commands the Session's Pi extensions register, which the slash menu lists. */
+export async function getPiExtensionCommands(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
+  return withRunExtensionCommands(
+    input.session.id,
+    await readPiSession(input, piExtensionCommands, [mcpCommandsExtension()]),
+  )
+}
+
+/**
+ * Projects the Session's Pi file as it is. It reads the warming session while there is one;
+ * otherwise only a session manager over the file's entries, with no agent session: creating one
+ * records a thinking level change when the branch has none, which the file does not hold.
+ */
 export async function getPiSessionSnapshot(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withPiSession(input, (session) => ({
-    piSessionId: session.sessionId,
-    piSessionFile: session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(session),
-  }))
+  const nodeIds = piEntryNodeIds(input.session)
+  const warming = idleCacheWarming.borrow(input.session.id)
+  if (warming && warming.sessionFile === input.session.piSessionFile) {
+    return {
+      piSessionId: warming.sessionId,
+      piSessionFile: warming.sessionFile,
+      sessionSnapshot: projectPiSessionSnapshot(warming, nodeIds),
+    }
+  }
+  const sessionManager = await createReadOnlySessionManagerForSession(
+    input.session,
+    resolveSessionWorkingPath(input.session),
+  )
+  // Without its file, the snapshot would be empty and replace the transcript the Session shows.
+  if (!sessionManager.getSessionFile() && hasProjectedEntries(input.session)) {
+    throw piSessionFileRefusal(input.session)
+  }
+  return {
+    piSessionId: sessionManager.getSessionId(),
+    // An in-memory manager has no file of its own; it read the Session's.
+    piSessionFile: sessionManager.getSessionFile() ?? input.session.piSessionFile ?? undefined,
+    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }, nodeIds),
+  }
 }
+/** Why the Session's Pi file, not found, cannot be used, naming a folder a copy may be in. */
+function piSessionFileRefusal(session: SessionDetail, action?: PiSessionFileAction) {
+  return missingPiSessionFileError(session, action, unsearchablePiSessionFolder(session))
+}
+
+/** What Pi says for a session too small to compact. */
+const NOTHING_TO_COMPACT = 'Nothing to compact (session too small)'
+
+/**
+ * Refuses an operation on a Session whose transcript has no Pi file to work on: without it, Pi
+ * would compact an empty transcript, or find no branch to go to and cancel without a word.
+ */
+function assertPiSessionFileFor(session: SessionDetail, action: PiSessionFileAction) {
+  if (!hasProjectedEntries(session)) return
+  if (findExistingPiSessionFile(session, resolveSessionWorkingPath(session))) return
+  throw piSessionFileRefusal(session, action)
+}
+
 export async function compactPiSession(
   input: CompactAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  // A Session never run holds nothing to compact, and Pi is not opened for it.
+  if (!hasProjectedEntries(input.session)) throw new Error(NOTHING_TO_COMPACT)
+  assertPiSessionFileFor(input.session, 'compacting')
   return withPiSession(input, async (session) => {
     const unsubscribe = input.onEvent
       ? session.subscribe(
@@ -55,12 +166,8 @@ export async function compactPiSession(
             {
               model: input.model,
               sessionEntries: null,
-              getContextWindow: (provider, modelId) => {
-                const activeModel = session.model
-                return activeModel?.provider === provider && activeModel.id === modelId
-                  ? activeModel.contextWindow
-                  : undefined
-              },
+              nodeIds: piEntryNodeIds(input.session),
+              ...piResponseUsageInput(session),
               onEvent: input.onEvent,
             },
             randomUUID(),
@@ -80,11 +187,11 @@ export async function compactPiSession(
       const result = await session.compact(input.customInstructions)
       return {
         summary: result.summary,
-        firstKeptEntryId: result.firstKeptEntryId,
+        firstKeptEntryId: piEntryNodeIds(input.session).toNodeId(result.firstKeptEntryId),
         tokensBefore: result.tokensBefore,
         piSessionId: session.sessionId,
         piSessionFile: session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(session),
+        sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
       }
     } finally {
       input.signal?.removeEventListener('abort', abortListener)
@@ -96,21 +203,24 @@ export async function compactPiSession(
 export async function navigatePiSessionTree(
   input: NavigateAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  const nodeIds = piEntryNodeIds(input.session)
+  assertPiSessionFileFor(input.session, 'going to another branch in')
   return withPiSession(input, async (session) => {
+    const targetEntryId = nodeIds.toEntryId(input.targetNodeId)
     try {
-      const result = await session.navigateTree(input.targetNodeId, {
+      const result = await session.navigateTree(targetEntryId, {
         summarize: input.summarize ?? false,
         customInstructions: input.customInstructions,
       })
       return {
         piSessionId: session.sessionId,
         piSessionFile: session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(session),
+        sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
         editorText: result.editorText,
         cancelled: result.cancelled,
       }
     } catch (error) {
-      if (error instanceof Error && error.message === `Entry ${input.targetNodeId} not found`) {
+      if (error instanceof Error && error.message === `Entry ${targetEntryId} not found`) {
         throw new AgentKernelMissingEntryError(input.targetNodeId)
       }
       throw error
@@ -118,63 +228,58 @@ export async function navigatePiSessionTree(
   })
 }
 
-/**
- * Pi's fork keeps the copied entry ids, so the fork is written again with ids of its own before it
- * is projected, after the runtime that created it is disposed.
- */
-async function projectForkedSession(fork: ForkedPiSession, cwd: string) {
-  const sourceNodeIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
-  const sessionManager = SessionManager.open(fork.sessionFile, undefined, cwd)
-  return {
-    piSessionId: sessionManager.getSessionId(),
-    piSessionFile: fork.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
-    sourceNodeIdByNodeId,
-  }
-}
-
-interface ForkedPiSession {
-  readonly sessionFile: string
-  readonly lines: readonly unknown[]
-  readonly editorText?: string
-}
-
-function forkedPiSession(
-  session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
-  selectedText: string | undefined,
-): ForkedPiSession {
-  const header = session.sessionManager.getHeader()
-  if (!session.sessionFile || !header) throw new Error('Pi did not create the forked session.')
-  return {
-    sessionFile: session.sessionFile,
-    lines: [header, ...session.sessionManager.getEntries()],
-    ...(selectedText ? { editorText: selectedText } : {}),
-  }
-}
-
 export async function forkPiSession(
   input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  const runtime = await createPiSessionRuntime(input)
-  let forked: ForkedPiSession | undefined
+  const sourceNodeIds = piEntryNodeIds(input.session)
+  const targetEntryId = sourceNodeIds.toEntryId(input.targetNodeId)
+  // The source is forked from a copy that does not persist: opening it as a Pi session would
+  // record a thinking level in it and migrate an older format in place (ADR 0051). A warming
+  // session ends first, so the copy holds everything it wrote.
+  await idleCacheWarming.release(input.session.id)
+  const copy = await createReadOnlySessionManagerForSession(
+    input.session,
+    resolveSessionWorkingPath(input.session),
+  )
+  // The file the copy loaded, found by Pi session id when the recorded path is missing or stale.
+  // Without one there is nothing to fork from: the file was deleted or its folder is missing.
+  const sourceFile = copy.getSessionFile()
+  // Named as the caller asked: a fork, or a clone.
+  if (!sourceFile) {
+    throw piSessionFileRefusal(input.session, input.copy === 'clone' ? 'cloning' : 'forking')
+  }
+  let written: WrittenFork | undefined
+  const runtime = await createPiSessionRuntime(input, {
+    sessionManager: copy,
+    beforeForkStarts: async (sessionManager: SessionManager) => {
+      const fork = await writeForkBeforeItStarts(
+        sessionManager,
+        sourceFile,
+        input.beforeWritingFork,
+      )
+      written = fork
+      return fork.sessionManager
+    },
+  })
+  let editorText: string | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
-      runtime.fork(input.targetNodeId, { position: input.position }),
+      runtime.fork(targetEntryId, { position: input.position }),
     )
     if (result.cancelled) {
       return {
         cancelled: true,
         piSessionId: runtime.session.sessionId,
-        piSessionFile: runtime.session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(runtime.session),
+        piSessionFile: sourceFile,
+        sessionSnapshot: projectPiSessionSnapshot(runtime.session, sourceNodeIds),
       }
     }
-    forked = forkedPiSession(runtime.session, result.selectedText)
+    editorText = result.selectedText
   } catch (error) {
     if (
       error instanceof Error &&
       (error.message === 'Invalid entry ID for forking' ||
-        error.message === `Entry ${input.targetNodeId} not found`)
+        error.message === `Entry ${targetEntryId} not found`)
     ) {
       throw new AgentKernelMissingEntryError(input.targetNodeId)
     }
@@ -183,9 +288,15 @@ export async function forkPiSession(
     await disposeOpenWagglePiSession(runtime.session)
   }
 
+  if (!written) throw new Error('Pi did not create the forked session.')
   return {
     cancelled: false,
-    ...(await projectForkedSession(forked, runtime.cwd)),
-    ...(forked.editorText ? { editorText: forked.editorText } : {}),
+    ...projectWrittenFork(
+      written.sessionFile,
+      written.sourceEntryIdByNodeId,
+      runtime.cwd,
+      sourceNodeIds,
+    ),
+    ...(editorText ? { editorText } : {}),
   }
 }

@@ -14,6 +14,8 @@ export interface ProviderModelRecord {
   readonly contextWindow: number
   readonly maxTokens: number
   readonly api: string
+  /** A virtual model routes each request to a physical model (Pi virtual models). */
+  readonly virtual: boolean
 }
 
 export interface ProviderCatalogRecord {
@@ -44,4 +46,6 @@ export interface PiModelRuntime {
 
 export interface PiProjectModelRuntime extends PiModelRuntime {
   readonly services: AgentSessionServices
+  /** Set when the selected model did not resolve and the fallback model is used, in Pi's words. */
+  readonly modelFallbackMessage?: string
 }

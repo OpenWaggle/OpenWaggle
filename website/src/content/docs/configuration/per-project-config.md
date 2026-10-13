@@ -90,17 +90,17 @@ Discovering shared setup or cleanup does not enable it. Review and enable the de
 
 ## MCP config precedence
 
-MCP server definitions have their own files. OpenWaggle merges them by server name in this order, with later sources winning:
+MCP servers have their own files. OpenWaggle reads them in this order, and for the same server name a later file wins and a project file beats a global one:
 
 ```text
+~/.pi/agent/mcp.json
 ~/.openwaggle/mcp.json
 <project>/.mcp.json
+<project>/.pi/mcp.json
 <project>/.openwaggle/mcp.json
 ```
 
-A project file can define a server but cannot silently enable it. Enabling a server in Settings also records trust; OpenWaggle keeps those choices outside the project configuration. Turning off a server does not delete its definition.
-
-Older Pi, `.agents`, and `.openwaggle/agent/mcp.json` files are migration sources, not the current active precedence chain. Use **Settings > MCP > Migrate existing MCP configuration** to inspect and import them. See [MCP configuration](/docs/configuration/mcp#configuration-files) for examples and secret handling.
+See [MCP configuration](/docs/configuration/mcp#where-servers-are-configured) for examples and secrets.
 
 ## Thinking level
 

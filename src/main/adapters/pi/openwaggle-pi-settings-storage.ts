@@ -5,6 +5,11 @@ import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import {
+  type OpenWagglePiAppSettings,
+  withOpenWagglePiAppSettings,
+  withStoredPiAppSettings,
+} from './openwaggle-pi-settings-app-overlay'
+import {
   withReportedInstallTelemetry,
   withStoredInstallTelemetry,
 } from './openwaggle-pi-settings-install-telemetry'
@@ -20,6 +25,7 @@ import {
   PI_CONFIG_DIR,
   withOpenWaggleResourcePrecedence,
 } from './openwaggle-pi-settings-resources'
+import { renameLegacyProviderPiSettings } from './pi-provider-renames'
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -37,6 +43,8 @@ interface OpenWagglePiSettingsManagerOptions extends OpenWaggleResourcePrecedenc
   readonly excludedGlobalPackageSources?: readonly string[]
   readonly excludedProjectPackageSources?: readonly string[]
   readonly runtimeExcludedNpmPackageNames?: readonly string[]
+  /** OpenWaggle settings with a Pi equivalent, reported to Pi in the global layer. */
+  readonly appSettings?: OpenWagglePiAppSettings
 }
 
 function getOpenWaggleProjectSettingsPath(projectPath: string) {
@@ -105,6 +113,14 @@ function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
+/** Pi settings content as Pi reads it, with providers Pi renamed under their new ids. */
+function withRenamedLegacyProviders(content: string | undefined) {
+  if (content === undefined || content.trim().length === 0) return content
+  const settings = parseJsonObject(content)
+  const renamed = renameLegacyProviderPiSettings(settings)
+  return renamed === settings ? content : serializeJsonObject(renamed)
+}
+
 function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
@@ -165,7 +181,11 @@ function readProjectPiSettings(projectPath: string, options: OpenWagglePiSetting
     ? mergeJsonObjects(piProjectSettings, openWagglePiSettings)
     : piProjectSettings
   return withOpenWaggleCompactionThreshold(
-    withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options),
+    withOpenWaggleResourcePrecedence(
+      projectPath,
+      renameLegacyProviderPiSettings(mergedSettings),
+      options,
+    ),
     options.compactionThresholdPercent,
   )
 }
@@ -248,9 +268,18 @@ function withGlobalPiSettingsLock(
     options.excludedGlobalPackageSources,
     options.runtimeExcludedNpmPackageNames,
   )
+  const app = options.appSettings
+  const renamed = withRenamedLegacyProviders(visibleCurrent)
+  const reported = withReportedInstallTelemetry(
+    app ? withOpenWagglePiAppSettings(renamed, app) : renamed,
+  )
+  const written = fn(reported)
   const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
     current,
-    withStoredInstallTelemetry(current, fn(withReportedInstallTelemetry(visibleCurrent))),
+    withStoredInstallTelemetry(
+      current,
+      app ? withStoredPiAppSettings(current, written, app) : written,
+    ),
     options.excludedGlobalPackageSources,
   )
   const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(

@@ -73,7 +73,7 @@ export function refreshFirstRunBranch(
   }
   return Effect.tryPromise({
     /*
-     * The pull runs beside the MCP connections, so a failed connection interrupts this fiber. The
+     * The pull runs beside other launch preparation, so a failed sibling interrupts this fiber. The
      * interruption signal must stop the pull too: an orphaned pull kept running after the launch had
      * failed, then reported its step done and revived a failed launch as a running one.
      */

@@ -4,6 +4,7 @@ import { classifyAgentError } from '../../../agent/error-classifier'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { getPiAssistantStopReason } from '../pi-run-result'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { waitForPostRunSettlement } from './post-run-settlement'
 import { projectPiSessionSnapshot } from './session-projection'
 
@@ -58,6 +59,7 @@ export async function collectSettledPiMessages(session: AgentSession, boundary: 
 
 function buildFailedRunResult(input: {
   readonly session: AgentSession
+  readonly runInput: AgentKernelRunInput
   readonly newMessages: readonly Message[]
   readonly aborted: boolean
   readonly message: string
@@ -66,7 +68,10 @@ function buildFailedRunResult(input: {
     newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    sessionSnapshot: projectPiSessionSnapshot(
+      input.session,
+      piEntryNodeIds(input.runInput.session),
+    ),
     ...(input.aborted ? { aborted: true } : { terminalError: input.message }),
   }
 }
@@ -112,6 +117,7 @@ export function buildFailedSubscribedRunResult(input: {
 
   return buildFailedRunResult({
     session: input.session,
+    runInput: input.runInput,
     newMessages: input.buildErrorMessages(input.appended),
     aborted,
     message,

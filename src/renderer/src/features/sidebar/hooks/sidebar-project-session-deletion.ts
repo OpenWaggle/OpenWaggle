@@ -1,6 +1,10 @@
 import { SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE } from '@shared/constants/session-lifecycle'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { forgoRemovedSessionDraft } from '@/features/composer/state'
+import { api } from '@/shared/lib/ipc'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { clearComposerDraftForSession } from './sidebar-action-utils'
 
 /** Validate the whole Hive before deleting anything, then remove Workers before their parents. */
 export async function deleteProjectSessionsChildrenFirst(
@@ -54,4 +58,29 @@ export async function deleteProjectSessionsChildrenFirst(
     }
   }
   for (const id of deletionOrder) await deleteSession(id)
+}
+
+/** A Session whose deletion may have been committed although it failed is gone if not found. */
+async function sessionStillExists(id: SessionId) {
+  try {
+    return (await api.getSessionDetail(id)) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Deletes one of a removed project's Sessions, with its draft, which is not carried to the
+ * project's New session meanwhile. A Session the Host still has after a failed deletion keeps its
+ * draft, carried as any other's if the Host removes it later.
+ */
+export async function deleteRemovedProjectSession(id: SessionId, releaseDrafts: (() => void)[]) {
+  const releaseDraft = forgoRemovedSessionDraft(id)
+  releaseDrafts.push(releaseDraft)
+  await api.deleteSession(id, { removingProject: true }).catch(async (error: unknown) => {
+    if (await sessionStillExists(id)) releaseDraft()
+    throw error
+  })
+  clearComposerDraftForSession(id)
+  await deleteWorkspaceOwner(String(id))
 }

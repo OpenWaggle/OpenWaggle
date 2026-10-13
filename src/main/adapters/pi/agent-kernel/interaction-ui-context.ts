@@ -246,6 +246,42 @@ function createDeclaredConfirmChannel(
   }
 }
 
+/** The selection each Session last warned about, so the warning shows once until it changes. */
+const modelFallbackNoticeBySession = new Map<string, string>()
+
+/** A removed Session's warning is forgotten. */
+export function forgetModelFallbackNotice(sessionId: string) {
+  modelFallbackNoticeBySession.delete(sessionId)
+}
+
+/**
+ * The Run says, in its transcript, that it answers on another model than the one selected: once
+ * per Session and selection. A classic Run on its selected model forgets the warning; a Waggle
+ * agent's pinned model says nothing about the Session's selection.
+ */
+export function notifyModelFallback(
+  context: PiInteractionUiContextInput,
+  run: { readonly modelReference: string; readonly modelFallback?: string },
+  message: string | undefined,
+) {
+  const sessionId = String(context.sessionId)
+  const selection = run.modelReference
+  if (!message) {
+    // Only a classic Run, which may fall back, runs on the Session's selection.
+    if (run.modelFallback !== undefined) modelFallbackNoticeBySession.delete(sessionId)
+    return
+  }
+  if (modelFallbackNoticeBySession.get(sessionId) === selection) return
+  modelFallbackNoticeBySession.set(sessionId, selection)
+  const interaction = {
+    ...baseInteraction({ context }),
+    kind: 'notify',
+    message,
+    level: 'warning',
+  } satisfies AgentLoopNotifyInteraction
+  void requestInteraction({ interaction, onEvent: context.onEvent, signal: context.signal })
+}
+
 export function createPiInteractionUiContext(
   context: PiInteractionUiContextInput,
   base: ExtensionUIContext,

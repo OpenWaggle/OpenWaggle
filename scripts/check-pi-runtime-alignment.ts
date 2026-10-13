@@ -1,62 +1,34 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
+import { EXPECTED_PATCH_PATHS } from './pi-runtime-patch-paths'
+import { releaseAgeExclusionProblems } from './pi-runtime-release-age'
 const PI_CATALOG = 'pi-runtime'
 const PI_PACKAGES = [
   'pi-agent-core',
   'pi-ai',
-  'pi-client',
+  'pi-codemode',
   'pi-coding-agent',
-  'pi-protocol',
+  'pi-mcp',
   'pi-telemetry',
   'pi-tui',
 ] as const
+/** The matched release: since Pi 1.2.0, exactly the catalog packages. */
+const PI_RELEASE_SET = PI_PACKAGES
+/**
+ * Packages earlier Pi releases included that Pi 1.2.0 removed (`pi-client`, `pi-protocol`,
+ * `pi-server`) or stopped depending on (`chord`). Nothing may pin or resolve them any more.
+ */
+const RETIRED_PI_PACKAGES = ['chord', 'pi-client', 'pi-protocol', 'pi-server'] as const
 const PATCHED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent'] as const
+const ROOT_PINNED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent', 'pi-mcp'] as const
 const BEFORE_PATCH_PATH_CAPTURE = 1
 const AFTER_PATCH_PATH_CAPTURE = 2
-const EXPECTED_PATCH_PATHS = {
-  'pi-ai': [
-    'dist/api/anthropic-messages.js',
-    'dist/api/azure-openai-responses.js',
-    'dist/api/bedrock-converse-stream.js',
-    'dist/api/mistral-conversations.js',
-    'dist/api/openai-codex-responses.js',
-    'dist/api/openai-completions.js',
-    'dist/api/openai-responses-shared.js',
-    'dist/api/openai-responses.d.ts',
-    'dist/api/openai-responses.js',
-    'dist/api/pi-messages.js',
-    'dist/providers/openai-codex.models.js',
-    'dist/providers/openai.models.js',
-    'dist/types.d.ts',
-    'dist/utils/json-parse.d.ts',
-    'dist/utils/json-parse.js',
-    'dist/utils/provider-retry.d.ts',
-    'dist/utils/provider-retry.js',
-    'dist/utils/retry.d.ts',
-    'dist/utils/retry.js',
-  ],
-  'pi-coding-agent': [
-    'dist/core/agent-session.d.ts',
-    'dist/core/agent-session.js',
-    'dist/core/compaction/compaction.d.ts',
-    'dist/core/compaction/compaction.js',
-    'dist/core/messages.d.ts',
-    'dist/core/messages.js',
-    'dist/core/model-runtime.d.ts',
-    'dist/core/model-runtime.js',
-    'dist/core/sdk.js',
-    'dist/core/session-manager.d.ts',
-    'dist/core/session-manager.js',
-    'dist/core/settings-manager.d.ts',
-    'dist/core/settings-manager.js',
-    'dist/index.d.ts',
-    'dist/index.js',
-  ],
-} as const
 
 export interface PiRuntimeAlignmentInput {
   readonly lockfile: string
+  /** The current time, to retire temporary release-age exclusions. */
+  readonly now: Date
   readonly patchContents: Readonly<Record<string, string>>
   readonly patchFiles: readonly string[]
   readonly piWaggleDevDependencies: Readonly<Record<string, string>>
@@ -103,7 +75,7 @@ function versionsFor(lockfile: string, packageName: string) {
 function directPinProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
   const catalogSpecifier = `catalog:${PI_CATALOG}`
-  for (const packageName of ['pi-ai', 'pi-coding-agent'] as const) {
+  for (const packageName of ROOT_PINNED_PI_PACKAGES) {
     if (input.rootDependencies[packageRef(packageName)] !== catalogSpecifier) {
       problems.push(`package.json must pin ${packageRef(packageName)} through ${catalogSpecifier}.`)
     }
@@ -113,6 +85,39 @@ function directPinProblems(input: PiRuntimeAlignmentInput) {
       problems.push(
         `packages/pi-waggle/package.json must pin ${packageRef(packageName)} through ${catalogSpecifier}.`,
       )
+    }
+  }
+  return problems
+}
+
+/**
+ * WASM packages OpenWaggle installs at the root for Pi's bundled main process (see
+ * `scripts/vite/pi-worker-bundles.ts`): QuickJS for codemode, whose JavaScript is bundled from
+ * Pi's own dependency while its wasm comes from the root, and Photon for image reads, which loads
+ * its wasm beside its own entry. Each must be the exact build Pi depends on.
+ */
+const PI_WASM_PACKAGES = [
+  { name: 'quickjs-wasi', owner: 'Pi codemode' },
+  { name: '@silvia-odwyer/photon-node', owner: 'Pi coding agent' },
+] as const
+
+function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
+  const problems: string[] = []
+  for (const { name, owner } of PI_WASM_PACKAGES) {
+    const versions = new Set(
+      [
+        ...input.lockfile.matchAll(
+          new RegExp(`^ {2}'?${escapeRegex(name)}@(\\d+\\.\\d+\\.\\d+)'?:`, 'gm'),
+        ),
+      ].map((match) => match[1]),
+    )
+    if (versions.size !== 1) {
+      problems.push(`pnpm-lock.yaml must resolve exactly one ${name} version, found ${versions.size}.`)
+      continue
+    }
+    const [version] = versions
+    if (input.rootDependencies[name] !== version) {
+      problems.push(`package.json must pin ${name} at ${owner}'s ${version}.`)
     }
   }
   return problems
@@ -178,21 +183,30 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
     }
   }
 
-  problems.push(...directPinProblems(input))
-
-  const ageEntries = [...input.workspace.matchAll(/^ {2}- ["']?(@earendil-works\/pi-[^"'\s]+@[^"'\s]+)["']?$/gm)].map(
-    (match) => match[1],
-  )
-  const expectedAgeEntries = PI_PACKAGES.map((packageName) => `${packageRef(packageName)}@${version}`)
-  if (
-    ageEntries.length > 0 &&
-    (ageEntries.length !== expectedAgeEntries.length ||
-      expectedAgeEntries.some((entry) => !ageEntries.includes(entry)))
-  ) {
-    problems.push(`minimumReleaseAgeExclude must be empty or contain the seven matched Pi packages at ${version}.`)
+  for (const packageName of RETIRED_PI_PACKAGES) {
+    if (catalogVersion(input.workspace, packageName) !== undefined) {
+      problems.push(
+        `${packageRef(packageName)} is no longer part of the Pi release; remove it from catalogs.${PI_CATALOG}.`,
+      )
+    }
+    if (versionsFor(input.lockfile, packageName).size > 0) {
+      problems.push(
+        `pnpm-lock.yaml still resolves ${packageRef(packageName)}, which the Pi release no longer includes.`,
+      )
+    }
   }
 
-  for (const packageName of PI_PACKAGES) {
+  problems.push(...directPinProblems(input))
+  problems.push(...piWasmPackageProblems(input))
+
+  const expectedAgeEntries = new Set(
+    PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
+      (packageName) => `${packageRef(packageName)}@${version}`,
+    ),
+  )
+  problems.push(...releaseAgeExclusionProblems(input, version, expectedAgeEntries))
+
+  for (const packageName of PI_RELEASE_SET) {
     const versions = versionsFor(input.lockfile, packageName)
     if (versions.size > 0 && (versions.size !== 1 || !versions.has(version))) {
       problems.push(`${packageRef(packageName)} lockfile versions must align at ${version}.`)
@@ -220,6 +234,7 @@ async function main() {
   )
   const problems = collectPiRuntimeAlignmentProblems({
     lockfile,
+    now: new Date(),
     patchContents,
     patchFiles,
     piWaggleDevDependencies: manifestDependencies(piWagglePackageText, 'devDependencies'),

@@ -4,18 +4,21 @@ import {
   createAgentSessionServices,
   type ExtensionFactory,
   getAgentDir,
+  type InlineExtension,
   ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../migrations/legacy-pi-mcp-adapter'
+import { currentOpenWagglePiAppSettings } from './openwaggle-pi-app-settings'
 import { OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES } from './openwaggle-pi-package-policy'
 import {
   createOpenWaggleGlobalPiSettingsManager,
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
 import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
+import { findPiToolCapableModel } from './pi-model-reference'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
@@ -23,14 +26,15 @@ import {
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
+import { isPiVirtualModel } from './pi-virtual-models'
 import { ensurePiVisualizeSkill } from './pi-visualize-skill'
 
+export { findPiToolCapableModel } from './pi-model-reference'
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
 const logger = createLogger('pi-provider-catalog')
 
 import type {
-  PiModel,
   PiProjectModelRuntime,
   ProviderCatalogSnapshot,
   ProviderModelRecord,
@@ -80,6 +84,7 @@ function listPiProviderModelsFromRuntime(modelRuntime: ModelRuntime) {
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
     api: model.api,
+    virtual: isPiVirtualModel(model),
   }))
 }
 
@@ -145,7 +150,7 @@ function buildProviderNameMap(modelRuntime: ModelRuntime) {
   return new Map(modelRuntime.getProviders().map((provider) => [provider.id, provider.name]))
 }
 
-async function createPiProviderCatalogSnapshotFromRuntime(services: AgentSessionServices) {
+export async function createPiProviderCatalogSnapshotFromServices(services: AgentSessionServices) {
   const { modelRuntime } = services
   return {
     providers: listPiProvidersFromModels(listPiProviderModelsFromRuntime(modelRuntime)),
@@ -179,6 +184,7 @@ export async function createPiRuntimeServices(
     excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     excludedProjectPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,
+    appSettings: options.appSettings ?? currentOpenWagglePiAppSettings(),
   })
   const services = await withNpmCompatibleProcessEnv(() =>
     createAgentSessionServices({
@@ -224,14 +230,14 @@ export async function createPiProviderCatalogSnapshot(
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
-    return await createPiProviderCatalogSnapshotFromRuntime(services)
+    return await createPiProviderCatalogSnapshotFromServices(services)
   }
 
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
   })
-  return await createPiProviderCatalogSnapshotFromRuntime(services)
+  return await createPiProviderCatalogSnapshotFromServices(services)
 }
 
 export async function setPiProviderApiKey(providerId: string, apiKey: string) {
@@ -253,38 +259,30 @@ export async function setPiProviderApiKey(providerId: string, apiKey: string) {
   await modelRuntime.logout(provider)
 }
 
-function findExplicitProviderModelReference(modelRuntime: ModelRuntime, modelReference: string) {
-  const separatorIndex = modelReference.indexOf('/')
-  if (separatorIndex <= 0 || separatorIndex === modelReference.length - 1) {
-    return null
-  }
-
-  const provider = modelReference.slice(0, separatorIndex)
-  const modelId = modelReference.slice(separatorIndex + 1)
-  return modelRuntime.getModel(provider, modelId) ?? null
-}
-
-export function findPiToolCapableModel(
-  modelRuntime: ModelRuntime,
-  modelReference: string,
-): PiModel | null {
-  const trimmedReference = modelReference.trim()
-  if (!trimmedReference) {
-    return null
-  }
-
-  return findExplicitProviderModelReference(modelRuntime, trimmedReference)
+function fallbackModel(
+  modelRuntime: PiProjectModelRuntime['services']['modelRuntime'],
+  input: { readonly modelReference: string; readonly fallbackModelReference?: string },
+) {
+  if (!input.fallbackModelReference) return undefined
+  const model = findPiToolCapableModel(modelRuntime, input.fallbackModelReference)
+  if (!model) return undefined
+  // Pi's own wording when it resumes a session whose model is gone.
+  const modelFallbackMessage = `Could not restore model ${input.modelReference} (model no longer exists). Using ${model.provider}/${model.id}.`
+  logger.warn(modelFallbackMessage)
+  return { model, modelFallbackMessage }
 }
 
 export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
+  /** Used when `modelReference` no longer resolves, such as a removed virtual model. */
+  readonly fallbackModelReference?: string
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
@@ -312,13 +310,11 @@ export async function createPiProjectModelRuntime(input: {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
   })
-  const model = findPiToolCapableModel(services.modelRuntime, input.modelReference)
-  if (!model) {
+  const selected = findPiToolCapableModel(services.modelRuntime, input.modelReference)
+  if (selected) return { model: selected, services }
+  const fallback = fallbackModel(services.modelRuntime, input)
+  if (!fallback) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }
-
-  return {
-    model,
-    services,
-  }
+  return { model: fallback.model, services, modelFallbackMessage: fallback.modelFallbackMessage }
 }

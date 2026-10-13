@@ -126,7 +126,11 @@ export function applyCompactionSnapshotEvent(
       previousCompactionStatus: getTimelineCompactionStatus(status),
     }
   }
-  if (event.type === 'auto_retry_end') {
+  // Pi reports a retry's success only when the retried response ends; its start ends the wait.
+  if (
+    event.type === 'auto_retry_end' ||
+    (event.type === 'message_start' && event.role === 'assistant')
+  ) {
     return status?.type === 'retrying' ? status.previousCompactionStatus : status
   }
   if (event.type !== 'compaction_end') return status

@@ -10,6 +10,8 @@ export interface SessionRow {
   readonly pi_session_file: string | null
   readonly project_path: string | null
   readonly title: string
+  /** Read where a caller needs the title's provenance, such as the Run preflight. */
+  readonly title_source?: string | null
   readonly archived: number
   readonly waggle_config_json: string | null
   readonly created_at: number
@@ -23,6 +25,10 @@ export interface SessionRow {
   readonly authorization_mode_override: string | null
   readonly execution_model_id: string | null
   readonly execution_thinking_level: string | null
+  /** 1 when the Session uses a discovered Pi session file (ADR 0051). */
+  readonly pi_adopted?: number
+  /** The working directory a discovered Pi session ran in (ADR 0051). */
+  readonly pi_cwd?: string | null
 }
 
 export interface SessionSummaryRow {
@@ -95,6 +101,8 @@ export interface CreateSessionInput {
   readonly environmentMode?: SessionEnvironmentMode
   /** Authorization mode the session is born with (defaults to YOLO when omitted). */
   readonly authorizationMode?: AgentAuthorizationMode
+  /** The Session a fork or clone copies; it keeps that Session's MCP off when it was off. */
+  readonly copyMcpSwitchFrom?: SessionId
 }
 
 export interface DerivedSessionBranch {

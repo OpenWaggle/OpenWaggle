@@ -75,20 +75,23 @@ function result(value: unknown, app: McpAppDescriptor): McpAppToolCallResult | n
 }
 
 function argumentsFromToolCall(args: JsonObject) {
-  const value = json(args.arguments)
+  const value = json(args)
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 
+/**
+ * The MCP App a tool result opens. OpenWaggle's MCP layer adds `details.mcpApp` to the result of
+ * a Pi MCP tool (`mcp__<server>__<tool>`) whose tool names a `ui://` resource.
+ */
 export function getMcpAppLaunch(content: unknown, args: JsonObject): McpAppLaunch | null {
   const payload = normalizeToolResultPayload(content)
-  if (!isRecord(payload) || !isRecord(payload.details) || payload.details.kind !== 'gateway') {
+  if (!isRecord(payload) || !isRecord(payload.details) || !isRecord(payload.details.mcpApp)) {
     return null
   }
-  const gatewayResult = payload.details.result
-  if (!isRecord(gatewayResult) || !isRecord(gatewayResult.app)) return null
-  const app = descriptor(gatewayResult.app.descriptor)
+  const mcpApp = payload.details.mcpApp
+  const app = descriptor(mcpApp.descriptor)
   if (!app) return null
-  const initialResult = result(gatewayResult.app.toolResult, app)
+  const initialResult = result(mcpApp.toolResult, app)
   if (!initialResult) return null
   return { descriptor: app, initialArguments: argumentsFromToolCall(args), initialResult }
 }

@@ -34,6 +34,11 @@ export interface ModelDisplayInfo {
   readonly availableThinkingLevels: readonly ThinkingLevel[]
   /** Context window size in tokens (e.g., 200000, 1000000). Populated from provider metadata. */
   readonly contextWindow?: number
+  /**
+   * A virtual model (a Pi router) picks a physical model for each request. Its own context window
+   * is often unknown, so the context meter uses the window of the model that answered.
+   */
+  readonly virtual?: boolean
 }
 
 /** Provider metadata exposed to the renderer via IPC */

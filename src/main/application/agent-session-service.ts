@@ -10,13 +10,13 @@ import {
   type AgentKernelSessionSnapshot,
   isAgentKernelMissingEntryError,
 } from '../ports/agent-kernel-service'
-import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
+import { isSessionModelRunnable } from './session-model-availability'
 
 export { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
 
@@ -65,9 +65,7 @@ function loadSessionForCommand(input: AgentSessionCommandInput) {
       return yield* Effect.fail(new Error('Session not found'))
     }
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) {
+    if (!(yield* isSessionModelRunnable(input.model, session))) {
       return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
     }
 
@@ -116,9 +114,7 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
       return null
     }
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) {
+    if (!(yield* isSessionModelRunnable(input.model, session))) {
       return null
     }
 
@@ -168,6 +164,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
         compactionThresholdPercent,
         targetNodeId: String(input.targetNodeId),
         position: input.position,
+        copy: input.position === 'at' ? 'clone' : 'fork',
         ...(skillToggles ? { skillToggles } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths
           ? { enabledOpenWaggleExtensionPackagePaths }
@@ -195,6 +192,8 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
         // A fork inherits both: this branch's environment mode, and main's authorization mode.
         ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
         authorizationMode: session.authorizationMode,
+        // And the source Session's MCP switch: a copy of a Session with MCP off stays off.
+        copyMcpSwitchFrom: session.id,
       })
 
       yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), {

@@ -15,7 +15,10 @@ import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { getAgentContextUsage } from '../application/agent-session-service'
-import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
+import {
+  listHostUiActiveActivities,
+  listHostUiAgentExtensionCommands,
+} from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { interruptSessionRun } from '../application/session-run-interruption'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
@@ -205,6 +208,12 @@ function registerAgentStateHandlers() {
 
   hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
+  )
+
+  hostHandle(
+    'agent:list-extension-commands',
+    (_event, sessionId: SessionId | null, model: SupportedModelId, projectPath?: string) =>
+      listHostUiAgentExtensionCommands(sessionId, model, projectPath),
   )
 }
 

@@ -61,7 +61,7 @@ export function fakeRuntimeServices() {
 }
 
 export interface FakePi {
-  readonly on: (event: 'agent_end', handler: AgentEndHandler) => void
+  readonly on: (event: 'agent_end' | 'agent_settled', handler: AgentEndHandler) => void
   readonly sendMessage: (message: unknown, options: unknown) => void
   readonly setModel: (model: FakeModel) => Promise<boolean>
 }
@@ -81,6 +81,10 @@ export interface FakeRunSession {
     readonly hasQueuedMessages: () => boolean
   }
   readonly isCompacting: boolean
+  readonly extensionRunner: {
+    readonly onError: () => () => void
+    readonly getRegisteredCommands: () => readonly never[]
+  }
   readonly isStreaming: boolean
   readonly sessionManager: {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
@@ -149,19 +153,25 @@ function shouldTriggerTurn(options: unknown) {
 export function createFakePi(
   recordMessage: (message: unknown) => void = () => undefined,
 ): FakePiHarness {
-  let agentEndHandler: AgentEndHandler | null = null
+  const handlers = new Map<string, AgentEndHandler>()
+  // Pi settles a turn after its agent_end, once no retry or continuation follows; the Waggle
+  // loop advances on that.
+  const agentEndHandler: AgentEndHandler = async (event, ctx) => {
+    await handlers.get('agent_end')?.(event, ctx)
+    await handlers.get('agent_settled')?.(event, ctx)
+  }
   const modelRegistry: FakeModelRegistry = {
     find: (provider, modelId) => modelFromReference(`${provider}/${modelId}`),
   }
   const pi: FakePi = {
-    on: vi.fn((_event, handler) => {
-      agentEndHandler = handler
+    on: vi.fn((event, handler) => {
+      handlers.set(event, handler)
     }),
     sendMessage: vi.fn((message, options) => {
       if (shouldTriggerTurn(options)) {
         recordMessage(message)
         recordMessage(assistantMessage('second turn'))
-        void agentEndHandler?.(
+        void agentEndHandler(
           { messages: [message, assistantMessage('second turn')] },
           { modelRegistry },
         )
@@ -169,7 +179,11 @@ export function createFakePi(
     }),
     setModel: vi.fn(async () => true),
   }
-  return { pi, getAgentEndHandler: () => agentEndHandler, modelRegistry }
+  return {
+    pi,
+    getAgentEndHandler: () => (handlers.size > 0 ? agentEndHandler : null),
+    modelRegistry,
+  }
 }
 
 export function createFakeSession(
@@ -187,6 +201,7 @@ export function createFakeSession(
     },
     isCompacting: false,
     isStreaming: false,
+    extensionRunner: { onError: vi.fn(() => () => undefined), getRegisteredCommands: () => [] },
     sessionManager: {
       appendCustomEntry: vi.fn(() => 'mode-state-entry'),
       buildSessionContext: () => ({ messages: [] }),

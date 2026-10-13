@@ -16,6 +16,7 @@ import { Sidebar } from '../Sidebar'
 const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
   apiMock: {
     archiveSession: vi.fn(),
+    beginProjectRemoval: vi.fn().mockResolvedValue(undefined),
     cancelAgent: vi.fn(),
     closeBrowserPreview: vi.fn(),
     deleteSession: vi.fn(),
@@ -45,9 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
   }) => options.select({ location: { pathname: routerState.pathname } }),
 }))
 
-vi.mock('@/shell/useFullscreen', () => ({
-  useFullscreen: () => false,
-}))
+vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
@@ -55,13 +54,8 @@ const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
 const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
 function makeSession(): SessionSummary {
-  return {
-    id: SESSION_ID,
-    title: 'Existing project session',
-    projectPath: PROJECT_PATH,
-    createdAt: 10,
-    updatedAt: 20,
-  }
+  const title = 'Existing project session'
+  return { id: SESSION_ID, title, projectPath: PROJECT_PATH, createdAt: 10, updatedAt: 20 }
 }
 
 function makeArchivedSession(): SessionSummary {
@@ -82,7 +76,8 @@ function mockProjectSessions(sessions: readonly SessionSummary[]) {
           .filter(
             (session) =>
               !request.query.interrupted &&
-              Boolean(session.archived) === Boolean(request.query.archived),
+              Boolean(session.archived) === Boolean(request.query.archived) &&
+              !apiMock.deleteSession.mock.calls.some(([id]) => id === session.id),
           )
           .map((session) => ({
             sessionId: session.id,
@@ -316,13 +311,13 @@ describe('Sidebar project actions', () => {
 
     await waitFor(() => {
       expect(apiMock.showConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('permanently delete 2 sessions'),
-        'Project: OpenWaggle Local\nThis cannot be undone.',
+        expect.stringContaining('delete its 2 sessions'),
+        expect.stringContaining('Sessions from the pi command keep their Pi files'),
       )
       expect(apiMock.showConfirm.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
-      expect(apiMock.deleteSession).toHaveBeenCalledWith(SESSION_ID)
-      expect(apiMock.deleteSession).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)
+      for (const id of [SESSION_ID, ARCHIVED_SESSION_ID])
+        expect(apiMock.deleteSession).toHaveBeenCalledWith(id, { removingProject: true })
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(SESSION_ID))
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(
         String(ARCHIVED_SESSION_ID),

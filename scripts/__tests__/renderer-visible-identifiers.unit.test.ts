@@ -94,6 +94,20 @@ function visibleLabels(source: string) {
   return [...jsxText, ...labelAttributes].join('\n')
 }
 
+/**
+ * OpenWaggle is the GUI for the Pi ecosystem (ADR 0051), so the UI may name Pi where it refers to
+ * something Pi owns: Pi's files, sessions, settings, packages, or ecosystem. Each allowed phrase
+ * names that resource ("Pi, all projects", "Pi sessions", "Pi's settings"). Pi as the runtime doing
+ * something ("Pi did not report…", "Powered by Pi") is still refused. Paths such as
+ * `~/.pi/agent/mcp.json` are lowercase and never match.
+ */
+const PI_OWNED_RESOURCE =
+  /\bPi(?:, (?:all projects|this project)\b|(?:'s|’s)? (?:files?|sessions?|settings|packages?|extensions?|skills?|ecosystem)\b)/g
+
+function namesPiAsRuntime(text: string) {
+  return /\bPi\b/.test(text.replace(PI_OWNED_RESOURCE, ''))
+}
+
 describe('no internal identifier is visible in renderer UI', () => {
   const sources = readRendererSources()
 
@@ -113,13 +127,35 @@ describe('no internal identifier is visible in renderer UI', () => {
     expect(offenders).toEqual([])
   })
 
-  it('never renders the word Pi as a product name', () => {
-    // Allowed: identifiers such as `piSessionId`. Disallowed: user-facing prose naming the runtime.
+  it('names Pi only for resources Pi owns', () => {
+    // Allowed: identifiers such as `piSessionId`, and Pi-owned resources. Disallowed: user-facing
+    // prose naming Pi as the runtime.
     const offenders = sources
-      .filter(({ source }) => /\bPi\b(?!\w)/.test(visibleLabels(source)))
+      .filter(({ source }) => namesPiAsRuntime(visibleLabels(source)))
       .map(({ path }) => path)
 
     expect(offenders).toEqual([])
+  })
+
+  it('sees the Pi file labels of Settings > MCP, and allows them', () => {
+    const labels = sources.map(({ source }) => visibleLabels(source)).join('\n')
+
+    expect(labels).toContain('Pi, all projects')
+    expect(labels).toContain('Pi, this project')
+  })
+
+  it.each([
+    ['Pi, all projects', false],
+    ['Remove docs from Pi, this project?', false],
+    ['Pi sessions in this project', false],
+    ["Pi's settings", false],
+    ['Install from the Pi ecosystem', false],
+    ['Saved to ~/.pi/agent/mcp.json', false],
+    ['Pi did not report any OAuth providers.', true],
+    ['Powered by Pi', true],
+    ['Pi, the runtime', true],
+  ])('treats %j as naming Pi as the runtime: %s', (text, refused) => {
+    expect(namesPiAsRuntime(text)).toBe(refused)
   })
 
   it('never renders a raw interaction id or lifecycle state token', () => {

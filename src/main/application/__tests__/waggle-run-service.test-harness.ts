@@ -3,12 +3,14 @@ import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
+import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
@@ -65,9 +67,12 @@ const assistantMessage: Message = {
   createdAt: 10,
 }
 
+/** What the Run reads: the Session, and the models its project's catalog lacks. */
+export const harnessState = { session, modelsNotInCatalog: new Set<string>() }
+
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
-  get: () => Effect.succeed(session),
-  getOptional: () => Effect.succeed(session),
+  get: () => Effect.sync(() => harnessState.session),
+  getOptional: () => Effect.sync(() => harnessState.session),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
@@ -248,6 +253,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     }),
   getContextUsage: () => Effect.fail(new Error('context usage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compaction is not used')),
   navigateTree: () => Effect.fail(new Error('tree navigation is not used')),
   forkSession: () => Effect.fail(new Error('session fork is not used')),
@@ -255,6 +261,13 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
 })
 
 export const TestLayer = Layer.mergeAll(
+  Layer.succeed(
+    ProviderService,
+    fromPartial({
+      isKnownModel: (model: string) =>
+        Effect.sync(() => !harnessState.modelsNotInCatalog.has(model)),
+    }),
+  ),
   TestSessionProjectionLayer,
   TestSettingsLayer,
   TestSessionLayer,
@@ -263,6 +276,8 @@ export const TestLayer = Layer.mergeAll(
 )
 
 export function resetWaggleRunServiceMocks() {
+  harnessState.session = session
+  harnessState.modelsNotInCatalog.clear()
   runMock.mockReset()
   persistSnapshotMock.mockReset()
   getTreeMock.mockReset()

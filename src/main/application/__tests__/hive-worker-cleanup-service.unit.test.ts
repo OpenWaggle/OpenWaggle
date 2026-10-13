@@ -8,6 +8,7 @@ import {
 } from '../../adapters/__tests__/hive-worker-cleanup-fixture'
 import { reserveActiveSessionRun } from '../active-session-runs'
 import { reconcileHiveWorkerCleanup } from '../hive-worker-cleanup-service'
+import { onSessionRemoved } from '../session-removal-hooks'
 import {
   archivedState,
   unarchive,
@@ -48,6 +49,25 @@ describe('Hive Worker cleanup service', () => {
     expect(service.events).toEqual([
       { kind: 'session-list-changed', sessionId: 'worker', change: 'archived' },
     ])
+  })
+
+  it('runs Session removal cleanup, such as closing MCP servers, for an auto-archived Worker', async () => {
+    const removed: string[] = []
+    const unregister = onSessionRemoved(async (sessionId) => {
+      removed.push(sessionId)
+    })
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          yield* seedHiveWorker(yield* SqlClient.SqlClient)
+          yield* reconcileHiveWorkerCleanup(SessionId('queen'))
+        }).pipe(Effect.provide(service.store('archive'))),
+      )
+    } finally {
+      unregister()
+    }
+
+    expect(removed).toEqual(['worker'])
   })
 
   it('never re-archives a Worker the user restored', async () => {

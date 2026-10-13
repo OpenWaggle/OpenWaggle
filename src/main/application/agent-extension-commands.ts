@@ -1,0 +1,104 @@
+import type { AgentSendPayload } from '@shared/types/agent'
+import { SessionId, type SupportedModelId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
+import * as Effect from 'effect/Effect'
+import { createLogger } from '../logger'
+import { AgentKernelService } from '../ports/agent-kernel-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SettingsService } from '../services/settings-service'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { isSessionModelRunnable } from './session-model-availability'
+
+const logger = createLogger('agent-extension-commands')
+
+/**
+ * The command a message invokes, if any, parsed as Pi's `prompt()` does: the message starts with
+ * `/`, and the name runs to the first space.
+ */
+function invokedCommandName(text: string) {
+  if (!text.startsWith('/')) return undefined
+  const space = text.indexOf(' ')
+  return space === -1 ? text.slice(1) : text.slice(1, space)
+}
+
+/** The commands a Session's Pi extensions register, with the Session's extensions and skills. */
+function sessionExtensionCommands(session: SessionDetail, model: SupportedModelId) {
+  return Effect.gen(function* () {
+    const settings = yield* (yield* SettingsService).get()
+    const skillToggles = session.projectPath
+      ? settings.skillTogglesByProject[session.projectPath]
+      : undefined
+    const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+      : undefined
+    return yield* (yield* AgentKernelService).listExtensionCommands({
+      session,
+      model,
+      ...(skillToggles ? { skillToggles } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
+    })
+  })
+}
+
+/** The commands the slash menu lists for a Session: none while its model cannot run. */
+export function listAgentExtensionCommands(input: {
+  readonly sessionId: SessionId
+  readonly model: SupportedModelId
+}) {
+  return Effect.gen(function* () {
+    const session = yield* (yield* SessionProjectionRepository).getOptional(input.sessionId)
+    if (!session || !(yield* isSessionModelRunnable(input.model, session))) return []
+    return yield* sessionExtensionCommands(session, input.model)
+  })
+}
+
+/**
+ * The commands a New session draft's slash menu lists, before there is a Session: those a Session
+ * in the project would have, read as one with no transcript yet.
+ */
+export function listProjectExtensionCommands(input: {
+  readonly projectPath: string
+  readonly model: SupportedModelId
+}) {
+  return Effect.gen(function* () {
+    const now = Date.now()
+    const draft: SessionDetail = {
+      id: SessionId(`draft:${input.projectPath}`),
+      title: '',
+      projectPath: input.projectPath,
+      messages: [],
+      createdAt: now,
+      updatedAt: now,
+    }
+    if (!(yield* isSessionModelRunnable(input.model, draft))) return []
+    return yield* sessionExtensionCommands(draft, input.model)
+  })
+}
+
+/**
+ * Whether a message invokes one of the Session's extension commands, which Pi runs instead of
+ * prompting the model. Pi parses the prompt OpenWaggle sends it (`buildAgentPromptText`): the
+ * trimmed text with each attachment appended. Commands that cannot be listed count as none: the
+ * message is then treated as the prompt it most likely is.
+ */
+export function invokesExtensionCommand(input: {
+  readonly session: SessionDetail
+  readonly model: SupportedModelId
+  readonly payload: Pick<AgentSendPayload, 'text' | 'attachments'>
+}) {
+  const name = invokedCommandName(buildAgentPromptText(input.payload))
+  if (name === undefined) return Effect.succeed(false)
+  return sessionExtensionCommands(input.session, input.model).pipe(
+    Effect.map((commands) => commands.some((command) => command.name === name)),
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        logger.warn('Could not list the extension commands a message may invoke', {
+          sessionId: input.session.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return false
+      }),
+    ),
+  )
+}

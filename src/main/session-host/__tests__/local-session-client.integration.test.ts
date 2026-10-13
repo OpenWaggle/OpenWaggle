@@ -114,8 +114,8 @@ describe('Local Session client', () => {
           contract: 'host-ui-v1',
           request: {
             contractVersion: 1,
-            requestId: 'request-mcp-authorization',
-            channel: 'mcp:authorize-server',
+            requestId: 'request-active-runs',
+            channel: 'agent:list-active-runs',
             args: [],
           },
         },

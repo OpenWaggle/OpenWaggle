@@ -6,8 +6,11 @@ import * as Layer from 'effect/Layer'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../../services/database-schema'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from '../../services/database-session-lineage-schema'
+import { PI_SESSION_ADOPTION_MIGRATION } from '../../services/pi-session-adoption-migration'
+import { PI_SESSION_FILE_STATE_MIGRATION } from '../../services/pi-session-file-state-migration'
 import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-search-schema'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
+import { SESSION_MCP_SWITCH_MIGRATION } from '../../services/session-mcp-switch-migration'
 import { SqliteSessionDelegationRepositoryLive } from '../sqlite-session-delegation-repository'
 import { SqliteSessionLifecycleRepositoryLive } from '../sqlite-session-lifecycle-repository'
 import { SqliteSessionReportRepositoryLive } from '../sqlite-session-report-repository'
@@ -44,6 +47,15 @@ export function makeSessionLifecycleTestLayer(filename: string) {
         yield* sql.unsafe(statement)
       }
       for (const statement of SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      // A fork reads whether its source is a discovered Pi session (ADR 0051).
+      for (const statement of [
+        ...PI_SESSION_ADOPTION_MIGRATION.statements,
+        ...PI_SESSION_FILE_STATE_MIGRATION.statements,
+        // A fork copies its source's MCP switch.
+        ...SESSION_MCP_SWITCH_MIGRATION.statements,
+      ]) {
         yield* sql.unsafe(statement)
       }
       yield* sql`

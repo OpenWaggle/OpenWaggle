@@ -1,6 +1,7 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
 import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
 import type { UIMessagePart } from '@shared/types/chat-ui'
+import { mergeNestedToolCalls } from '@shared/utils/nested-tool-calls'
 
 /*
  * The parts of an answer both a reconnect's buffer and the shown transcript hold. The buffer has
@@ -63,10 +64,23 @@ function identityIndex(parts: readonly UIMessagePart[], part: UIMessagePart) {
     .exhaustive()
 }
 
+type ToolCallPart = Extract<UIMessagePart, { readonly type: 'tool-call' }>
+
+/**
+ * Two copies of one tool call: the later state, with the nested-call records merged call by call.
+ * A stall can keep either copy from seeing a call start or finish, and a call's status changes
+ * without changing how many calls a record holds, so neither record is newer as a whole.
+ */
+function mergeToolCalls(existing: ToolCallPart, incoming: ToolCallPart): ToolCallPart {
+  const later = toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
+  const nestedCalls = mergeNestedToolCalls(existing.nestedCalls, incoming.nestedCalls)
+  return nestedCalls ? { ...later, nestedCalls } : later
+}
+
 /** Two copies of one part: a tool call in its later state, a thought with the longer text. */
 function mergeIdentical(existing: UIMessagePart, incoming: UIMessagePart): UIMessagePart {
   if (existing.type === 'tool-call' && incoming.type === 'tool-call') {
-    return toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
+    return mergeToolCalls(existing, incoming)
   }
   if (existing.type === 'thinking' && incoming.type === 'thinking') {
     const longer = incoming.content.includes(existing.content) ? incoming : existing

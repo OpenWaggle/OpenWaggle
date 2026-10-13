@@ -1,27 +1,26 @@
 import * as Effect from 'effect/Effect'
-import * as Exit from 'effect/Exit'
 import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
+import { createLogger } from '../../logger'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
 } from '../../ports/agent-kernel-service'
 import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-preview-automation-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
-import type { McpConfigServiceShape } from '../../ports/mcp-config-service'
-import type {
-  McpDirectToolWaitOutcome,
-  McpRuntimeServiceShape,
-} from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
+import { isSessionMcpEnabled } from '../../store/session-mcp-switch'
+import type { McpConnectionPool } from '../mcp/pool/mcp-connection-pool-api'
 import { runPiSession } from './agent-kernel/classic-run'
-import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
-import { createMcpGatewayExtension } from './mcp-gateway-extension'
+import { resolveLegacyMcpServerAllowlist } from './mcp/legacy-mcp-server-allowlist'
+import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
+import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
+import { migrateOpenWaggleMcpFilesOnce } from './mcp/openwaggle-mcp-migration'
 import {
   createWorktreeLaunchReporter,
   prepareScratchDirectory,
@@ -34,6 +33,41 @@ import {
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
 import { createSourceControlToolExtension } from './source-control-tool-extension'
+
+const logger = createLogger('pi-agent-kernel-run')
+
+/**
+ * Pi's MCP extension for this Run. A configuration that cannot be prepared is logged and the Run
+ * goes ahead without MCP, rather than failing the user's message.
+ */
+function prepareMcpExtensions(
+  input: AgentKernelRunInput,
+  projectPath: string,
+  pool: McpConnectionPool,
+) {
+  return Effect.tryPromise(async () => {
+    // The migration carries an old MCP-off Session switch over, so it runs before the switch is read.
+    await migrateOpenWaggleMcpFilesOnce(projectPath)
+    return createOpenWaggleMcpExtensions({
+      pool,
+      sessionId: input.session.id,
+      projectPath,
+      sessionMcpEnabled: await isSessionMcpEnabled(input.session.id),
+      onConfigChanged: (filePath) => getOpenWaggleMcpConfigurationService().changed(filePath),
+      ...(input.mcpServerAllowlist ? { serverAllowlist: input.mcpServerAllowlist } : {}),
+    })
+  }).pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        logger.error('MCP could not be prepared for the Run', {
+          sessionId: input.session.id,
+          error: error.message,
+        })
+        return []
+      }),
+    ),
+  )
+}
 
 export function createBrowserPreviewRuntimeResources(input: {
   readonly enabled: boolean
@@ -85,138 +119,62 @@ function createRunSessionsExtension(
   })
 }
 
-export function prepareMcpTurn(input: {
-  readonly projectPath: string
-  readonly executionPath: string
-  readonly sessionId: string
-  readonly config: McpConfigServiceShape
-  readonly runtime: McpRuntimeServiceShape
-  readonly serverAllowlist?: readonly string[]
-  /**
-   * Called with the servers the turn waits for before Pi starts, when it waits for any: required
-   * servers, and optional ones with no cached tool list during their short grace.
-   */
-  readonly onConnecting?: (serverNames: readonly string[]) => void
-  /** Called once that wait is over. A failure leaves the step open so the error lands on it. */
-  readonly onConnected?: (outcome: McpDirectToolWaitOutcome) => void
-}) {
-  return Effect.gen(function* () {
-    const snapshot = restrictMcpSnapshot(
-      yield* input.config.createTurnSnapshot(input),
-      input.serverAllowlist,
-    )
-    yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
-    return yield* Effect.gen(function* () {
-      const directTools = snapshot
-        ? yield* input.runtime.listDirectTools(snapshot, {
-            ...(input.onConnecting ? { onWaiting: input.onConnecting } : {}),
-            ...(input.onConnected ? { onWaitSettled: input.onConnected } : {}),
-          })
-        : []
-      const extensionFactory = snapshot
-        ? createMcpGatewayExtension({
-            snapshot,
-            directTools,
-            executeGateway: (request, signal, interactions) =>
-              Effect.runPromise(
-                input.runtime.executeGateway({
-                  snapshot,
-                  request,
-                  ...(signal ? { signal } : {}),
-                  ...(interactions ? { interactions } : {}),
-                }),
-              ),
-          })
-        : undefined
-      const finish = Effect.gen(function* () {
-        const nextSnapshot = restrictMcpSnapshot(
-          yield* input.config.createTurnSnapshot(input),
-          input.serverAllowlist,
-        )
-        yield* input.runtime.completeTurn({ sessionId: input.sessionId, nextSnapshot })
-      }).pipe(Effect.catchAllCause(() => input.runtime.disposeSession(input.sessionId)))
-      return { extensionFactory, finish }
-    }).pipe(
-      Effect.onError(() =>
-        input.runtime.disposeSession(input.sessionId).pipe(Effect.catchAllCause(() => Effect.void)),
-      ),
-    )
-  })
-}
-
 export function runPiAgentKernel(
   input: AgentKernelRunInput,
   dependencies: {
     readonly preparation: WorkspacePreparationServiceShape
     readonly projectActions: ProjectActionToolServices
     readonly runtimeExtensionIsolation: PiRuntimeExtensionIsolationInput
-    readonly mcpConfig: McpConfigServiceShape
-    readonly mcpRuntime: McpRuntimeServiceShape
     readonly inlineVisualization: InlineVisualizationServiceShape
     readonly terminal: TerminalServiceShape
     readonly browserPreviewAutomation: BrowserPreviewAutomationServiceShape
     readonly enableBrowserPreviewAutomation: boolean
+    /** The Host's MCP connection pool, which keeps the Session's servers across Runs. */
+    readonly mcpPool: McpConnectionPool
   },
 ) {
-  return withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies))
+  // A Session's MCP connections stay warm while it has a Run and close 5 minutes after its last.
+  return Effect.acquireUseRelease(
+    Effect.sync(() => dependencies.mcpPool.beginRun(input.session.id)),
+    () => withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies)),
+    (endRun) => Effect.sync(endRun),
+  )
+}
+
+/**
+ * The Run's input with old MCP instance IDs in its server allowlist replaced by server names. The
+ * migration records those names, so it runs first; the allowlist is kept as is when it fails.
+ */
+function withLegacyMcpServerNames(input: AgentKernelRunInput, projectPath: string) {
+  if (!input.mcpServerAllowlist?.length) return Effect.succeed(input)
+  return Effect.tryPromise(async () => {
+    await migrateOpenWaggleMcpFilesOnce(projectPath)
+    const mcpServerAllowlist = await resolveLegacyMcpServerAllowlist(input.mcpServerAllowlist)
+    return { ...input, ...(mcpServerAllowlist ? { mcpServerAllowlist } : {}) }
+  }).pipe(Effect.orElseSucceed(() => input))
 }
 
 function runPiAgentKernelTurn(
-  input: AgentKernelRunInput,
+  originalInput: AgentKernelRunInput,
   dependencies: Parameters<typeof runPiAgentKernel>[1],
 ) {
   return Effect.gen(function* () {
-    const launchReporter = createWorktreeLaunchReporter(input)
+    const launchReporter = createWorktreeLaunchReporter(originalInput)
     const { projectPath, executionPath, preparedEnvironment } = yield* prepareActionWorkspace(
       launchReporter.runInput,
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
-    /*
-     * The first-run branch sync and the MCP connections are both network waits, and running them
-     * one after another made a first send wait for both. They are not fully independent: project
-     * MCP config is read from the checkout being pulled, and stdio servers start in it. A first turn
-     * can therefore use the pre-pull MCP config; the turn's `finish` re-reads it, so the next turn
-     * reconnects with whatever the pull brought in.
-     */
-    let preparedMcpTurn: Effect.Effect.Success<ReturnType<typeof prepareMcpTurn>> | undefined
-    const [, visualizationDirectory, scratchDirectory, mcpTurn] = yield* Effect.all(
+    const input = yield* withLegacyMcpServerNames(originalInput, projectPath)
+    const [, visualizationDirectory, scratchDirectory, extensionFactories] = yield* Effect.all(
       [
         refreshFirstRunBranch(input, executionPath, launchReporter.report),
         prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
         prepareScratchDirectory(input.session.id),
-        prepareMcpTurn({
-          projectPath,
-          executionPath,
-          sessionId: input.session.id,
-          config: dependencies.mcpConfig,
-          runtime: dependencies.mcpRuntime,
-          ...(input.mcpServerAllowlist !== undefined
-            ? { serverAllowlist: input.mcpServerAllowlist }
-            : {}),
-          onConnecting: launchReporter.reportConnectingTools,
-          onConnected: launchReporter.reportToolsConnected,
-        }).pipe(
-          Effect.tap((turn) =>
-            Effect.sync(() => {
-              preparedMcpTurn = turn
-            }),
-          ),
-        ),
+        prepareMcpExtensions(input, projectPath, dependencies.mcpPool),
       ],
       { concurrency: 'unbounded' },
-    ).pipe(
-      // A sibling can fail after MCP connected; release that turn, and drop late launch reports.
-      Effect.onExit((exit) =>
-        Exit.isSuccess(exit)
-          ? Effect.void
-          : Effect.suspend(() => {
-              launchReporter.close()
-              return preparedMcpTurn?.finish ?? Effect.void
-            }),
-      ),
-    )
+    ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
     const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
-    const extensionFactories = mcpTurn.extensionFactory ? [mcpTurn.extensionFactory] : []
     const browserPreviewResources = createBrowserPreviewRuntimeResources({
       enabled: dependencies.enableBrowserPreviewAutomation,
       sessionId: input.session.id,
@@ -245,9 +203,9 @@ function runPiAgentKernelTurn(
               workingPath: executionPath,
               preparedEnvironment,
               sessionsExtensionFactory,
+              extensionFactories,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               ...(scratchDirectory ? { scratchDirectory } : {}),
-              extensionFactories,
               ...browserPreviewResources,
               trustedExtensionFactories,
             })
@@ -257,13 +215,13 @@ function runPiAgentKernelTurn(
               workingPath: executionPath,
               preparedEnvironment,
               sessionsExtensionFactory,
+              extensionFactories,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               ...(scratchDirectory ? { scratchDirectory } : {}),
-              extensionFactories,
               ...browserPreviewResources,
               trustedExtensionFactories,
             }),
       catch: toAgentKernelError,
-    }).pipe(Effect.ensuring(mcpTurn.finish))
+    })
   })
 }

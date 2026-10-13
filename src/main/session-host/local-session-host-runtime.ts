@@ -37,6 +37,8 @@ export interface StartLocalSessionHostInput {
   readonly subscriberCapacity?: number
   readonly recover?: () => Promise<void>
   readonly startOwnedServices?: () => Promise<void>
+  /** Started once the Host serves clients, never awaited: work that may wait on the keychain. */
+  readonly startServicesAfterListening?: () => Promise<void>
   readonly stopOwnedServices?: () => Promise<void>
   readonly authenticate: LocalSessionServerDependencies['authenticate']
   readonly authorizeEvent?: LocalSessionServerDependencies['authorizeEvent']
@@ -283,6 +285,11 @@ export async function startLocalSessionHost(
       input.startupGracePeriodMs ??
         Math.max(input.idleGracePeriodMs, SESSION_HOST_STARTUP_GRACE_PERIOD_MS),
     )
+    void input.startServicesAfterListening?.().catch((error: unknown) => {
+      logger.error('A Session Host service started after listening failed.', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
     return runtime
   } catch (error) {
     try {

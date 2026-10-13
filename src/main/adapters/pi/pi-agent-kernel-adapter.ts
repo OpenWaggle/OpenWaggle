@@ -16,17 +16,17 @@ import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-re
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
-import { McpConfigService } from '../../ports/mcp-config-service'
-import { McpRuntimeService } from '../../ports/mcp-runtime-service'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { TerminalService } from '../../ports/terminal-service'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { SettingsService } from '../../services/settings-service'
+import type { McpConnectionPool } from '../mcp/pool/mcp-connection-pool-api'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import {
   compactPiSession,
   forkPiSession,
   getPiContextUsage,
+  getPiExtensionCommands,
   getPiSessionSnapshot,
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
@@ -37,8 +37,6 @@ import {
 } from './openwaggle-pi-extension-selection'
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
 import { runPiAgentKernel } from './pi-agent-kernel-run'
-
-export { prepareMcpTurn } from './pi-agent-kernel-run'
 
 const logger = createLogger('pi-agent-kernel')
 
@@ -100,119 +98,130 @@ function loadPiRuntimeExtensionIsolationInput(
   )
 }
 
-export const PiAgentKernelLive = Layer.effect(
-  AgentKernelService,
-  Effect.gen(function* () {
-    const extensionSelectionServices = {
-      manager: yield* ExtensionManagerService,
-      lifecycleRepository: yield* ExtensionLifecycleRepository,
-      projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
-    } satisfies OpenWagglePiExtensionSelectionServices
-    const mcpConfigService = yield* McpConfigService
-    const mcpRuntimeService = yield* McpRuntimeService
-    const inlineVisualizationService = yield* InlineVisualizationService
-    const projectActions = {
-      catalog: yield* ActionCatalogService,
-      runs: yield* ActionRunService,
-      workspaces: yield* SessionWorkspaceResourceRepository,
-    }
-    const preparation = yield* WorkspacePreparationService
-    const terminalService = yield* TerminalService
-    const browserPreviewAutomationService = yield* BrowserPreviewAutomationService
-    const settingsService = yield* SettingsService
+/** The agent kernel; its Runs lease MCP connections from the Host's pool. */
+export const piAgentKernelLayer = (mcpPool: McpConnectionPool) =>
+  Layer.effect(
+    AgentKernelService,
+    Effect.gen(function* () {
+      const extensionSelectionServices = {
+        manager: yield* ExtensionManagerService,
+        lifecycleRepository: yield* ExtensionLifecycleRepository,
+        projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
+      } satisfies OpenWagglePiExtensionSelectionServices
+      const inlineVisualizationService = yield* InlineVisualizationService
+      const projectActions = {
+        catalog: yield* ActionCatalogService,
+        runs: yield* ActionRunService,
+        workspaces: yield* SessionWorkspaceResourceRepository,
+      }
+      const preparation = yield* WorkspacePreparationService
+      const terminalService = yield* TerminalService
+      const browserPreviewAutomationService = yield* BrowserPreviewAutomationService
+      const settingsService = yield* SettingsService
 
-    return AgentKernelService.of({
-      createSession: (input) =>
-        Effect.tryPromise({
-          try: () => createPiSession(input.projectPath),
-          catch: toAgentKernelError,
-        }),
-
-      run: (input: AgentKernelRunInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
-          const enableBrowserPreviewAutomation =
-            yield* readBrowserPreviewAutomationEnabled(settingsService)
-          return yield* runPiAgentKernel(input, {
-            runtimeExtensionIsolation,
-            projectActions,
-            preparation,
-            mcpConfig: mcpConfigService,
-            mcpRuntime: mcpRuntimeService,
-            inlineVisualization: inlineVisualizationService,
-            terminal: terminalService,
-            browserPreviewAutomation: browserPreviewAutomationService,
-            enableBrowserPreviewAutomation,
-          })
-        }),
-
-      getContextUsage: (input: AgentKernelSessionInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
-
-          return yield* Effect.tryPromise({
-            try: () => getPiContextUsage({ ...input, ...runtimeExtensionIsolation }),
+      return AgentKernelService.of({
+        createSession: (input) =>
+          Effect.tryPromise({
+            try: () => createPiSession(input.projectPath),
             catch: toAgentKernelError,
-          })
-        }),
+          }),
 
-      getSessionSnapshot: (input: AgentKernelSessionInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
+        run: (input: AgentKernelRunInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
+            const enableBrowserPreviewAutomation =
+              yield* readBrowserPreviewAutomationEnabled(settingsService)
+            return yield* runPiAgentKernel(input, {
+              runtimeExtensionIsolation,
+              projectActions,
+              preparation,
+              inlineVisualization: inlineVisualizationService,
+              terminal: terminalService,
+              browserPreviewAutomation: browserPreviewAutomationService,
+              enableBrowserPreviewAutomation,
+              mcpPool,
+            })
+          }),
 
-          return yield* Effect.tryPromise({
-            try: () => getPiSessionSnapshot({ ...input, ...runtimeExtensionIsolation }),
-            catch: toAgentKernelError,
-          })
-        }),
+        listExtensionCommands: (input: AgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
+            return yield* Effect.tryPromise({
+              try: () => getPiExtensionCommands({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
 
-      compact: (input: CompactAgentKernelSessionInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
+        getContextUsage: (input: AgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
 
-          return yield* Effect.tryPromise({
-            try: () => compactPiSession({ ...input, ...runtimeExtensionIsolation }),
-            catch: toAgentKernelError,
-          })
-        }),
+            return yield* Effect.tryPromise({
+              try: () => getPiContextUsage({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
 
-      navigateTree: (input: NavigateAgentKernelSessionInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
+        getSessionSnapshot: (input: AgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
 
-          return yield* Effect.tryPromise({
-            try: () => navigatePiSessionTree({ ...input, ...runtimeExtensionIsolation }),
-            catch: toAgentKernelError,
-          })
-        }),
+            return yield* Effect.tryPromise({
+              try: () => getPiSessionSnapshot({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
 
-      forkSession: (input: ForkAgentKernelSessionInput) =>
-        Effect.gen(function* () {
-          const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
-            input,
-            extensionSelectionServices,
-          )
+        compact: (input: CompactAgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
 
-          return yield* Effect.tryPromise({
-            try: () => forkPiSession({ ...input, ...runtimeExtensionIsolation }),
-            catch: toAgentKernelError,
-          })
-        }),
-    })
-  }),
-)
+            return yield* Effect.tryPromise({
+              try: () => compactPiSession({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
+
+        navigateTree: (input: NavigateAgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
+
+            return yield* Effect.tryPromise({
+              try: () => navigatePiSessionTree({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
+
+        forkSession: (input: ForkAgentKernelSessionInput) =>
+          Effect.gen(function* () {
+            const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
+              input,
+              extensionSelectionServices,
+            )
+
+            return yield* Effect.tryPromise({
+              try: () => forkPiSession({ ...input, ...runtimeExtensionIsolation }),
+              catch: toAgentKernelError,
+            })
+          }),
+      })
+    }),
+  )

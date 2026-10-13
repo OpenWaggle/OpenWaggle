@@ -1,9 +1,13 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
 } from '../../../ports/agent-kernel-service'
-import { createAgentRunContextExtension } from '../agent-run-context-extension'
+import {
+  agentRunContextAllowlists,
+  createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
+} from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
@@ -21,9 +25,8 @@ export type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly workingPath: string
   readonly visualizationDirectory?: string
   readonly scratchDirectory?: string
-  readonly mcpExtensionFactory?: ExtensionFactory
   readonly sessionsExtensionFactory?: ExtensionFactory
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
 } & PiRuntimeExtensionIsolationInput
@@ -48,22 +51,24 @@ export function createWaggleRunExtensions(
     onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
   })
 
+  // First of the Run's inline extensions, so a refused call never reaches OpenWaggle's approval.
+  const allowlistGuard = createAgentToolAllowlistGuard(agentRunContextAllowlists(input))
   return {
     factories: [
+      ...(allowlistGuard ? [allowlistGuard] : []),
       createRunAttributionExtension(input.runId),
       peerReports.factory,
       orchestrationUpdates.factory,
       specificationUpdates.factory,
       ...(input.sessionsExtensionFactory ? [input.sessionsExtensionFactory] : []),
-      ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
       ...(input.extensionFactories ?? []),
       ...(input.sessionIdentityContext
         ? [
             createAgentRunContextExtension({
               sessionIdentityContext: input.sessionIdentityContext,
-              runId: input.runId,
+              ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
               ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
-              ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+              ...agentRunContextAllowlists(input),
             }),
           ]
         : []),

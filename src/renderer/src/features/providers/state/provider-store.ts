@@ -1,29 +1,12 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
+import { parseModelRef } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('provider-store')
-
-/**
- * Build a set of canonical "provider/modelId" refs from the current Pi model catalog.
- * Used to validate enabledModels entries against what actually exists.
- */
-/** @internal Exported for testing */
-export function buildModelCatalogSet(providerModels: readonly ProviderInfo[]): Set<string> {
-  const catalog = new Set<string>()
-  for (const group of providerModels) {
-    for (const model of group.models) {
-      const trimmedId = model.id.trim()
-      if (trimmedId) {
-        catalog.add(trimmedId)
-      }
-    }
-  }
-  return catalog
-}
 
 function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
   const available = new Set<string>()
@@ -37,58 +20,109 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
   return available
 }
 
+/** The first of `models` the catalog lists and can run. */
+export function firstRunnableModel(
+  providerModels: readonly ProviderInfo[],
+  models: readonly SupportedModelId[],
+) {
+  const available = buildAvailableModelSet(providerModels)
+  return models.find((model) => available.has(model))
+}
+
 /**
- * Whether the picker can actually select this model: enabled in settings and currently
- * available in the Pi catalog. Before the catalog has hydrated, the model is left as-is rather
- * than gated during startup.
+ * Whether the stored selection may stay. Enabled models a catalog does not list stay enabled and
+ * are only not shown, since enabledModels holds every project's choices. The selection is
+ * project-scoped work, though:
+ * - one the catalog lists must be enabled and available;
+ * - a project's catalog lists everything that project can run, so one it lacks is unusable there;
+ * - without a project, one the catalog lacks may be another project's extension or virtual model,
+ *   unless the catalog lists its provider but not the model: Pi dropped that model (0.x ids).
+ */
+function selectionUsable(
+  providerModels: readonly ProviderInfo[],
+  settings: Pick<Settings, 'enabledModels' | 'selectedModel' | 'projectPath'>,
+) {
+  const selected = settings.selectedModel
+  if (!selected) return false
+  const listed = catalogModel(providerModels, selected)
+  if (listed) return listed.available && settings.enabledModels.includes(selected)
+  if (settings.projectPath) return false
+  const provider = parseModelRef(selected)?.provider
+  return !providerModels.some((group) => group.provider === provider)
+}
+
+/** The model of a Session's latest response, which a gone selection's Runs fall back to. */
+export function latestAnsweringModel(
+  messages: readonly { readonly role: string; readonly model?: SupportedModelId }[],
+) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === 'assistant' && message.model) return message.model
+  }
+  return undefined
+}
+
+/**
+ * Whether a Session can run on `model`: Pi has it and can sign in to its provider. Enabled models
+ * only decide what the picker offers. A Session continued from the `pi` CLI keeps its own model,
+ * as `pi --resume` does, though the user never enabled it in OpenWaggle. A Session whose model is
+ * gone from the catalog, such as a removed virtual model, can still send while the model that
+ * answered last is available: the Run falls back to it and says so. Before the catalog has
+ * hydrated, the model is left as-is rather than gated during startup.
  */
 export function isSelectableModel(
   providerModels: readonly ProviderInfo[],
-  settings: Pick<Settings, 'enabledModels'>,
   model: SupportedModelId | undefined,
   catalogHydrated: boolean,
+  lastAnsweringModel?: SupportedModelId,
 ): model is SupportedModelId {
   if (!model) return false
   if (!catalogHydrated) return true
-  if (providerModels.length === 0) return false
-  if (!settings.enabledModels.includes(model)) return false
-  return providerModels.some((group) =>
-    group.models.some((candidate) => candidate.id === model && candidate.available),
+  const listed = catalogModel(providerModels, model)
+  if (listed) return listed.available
+  return (
+    lastAnsweringModel !== undefined &&
+    catalogModel(providerModels, lastAnsweringModel)?.available === true
   )
 }
 
-/** Catalog check against the live provider store; callers supply the current enabled models. */
-export function isModelActionable(
-  enabledModels: readonly SupportedModelId[],
+/** Why the live catalog cannot run `model`, as an error to show, or undefined when it can. */
+export function modelActionError(
   model: SupportedModelId | undefined,
-): model is SupportedModelId {
-  const state = useProviderStore.getState()
-  return isSelectableModel(state.providerModels, { enabledModels }, model, state.catalogHydrated)
+  lastAnsweringModel?: SupportedModelId,
+) {
+  if (isModelActionable(model, lastAnsweringModel)) return undefined
+  return new Error(modelUnavailableMessage(useProviderStore.getState().providerModels, model))
 }
 
-/**
- * Remove enabledModels entries that reference models no longer in the provider
- * catalog (stale version suffixes, removed models, or providerless IDs).
- */
-/** @internal Exported for testing */
-export function pruneStaleEnabledModels(
-  enabledModels: readonly string[],
-  catalog: ReadonlySet<string>,
-): SupportedModelId[] | null {
-  const pruned: SupportedModelId[] = []
-  let changed = false
+/** Catalog check against the live provider store. */
+export function isModelActionable(
+  model: SupportedModelId | undefined,
+  lastAnsweringModel?: SupportedModelId,
+): model is SupportedModelId {
+  const state = useProviderStore.getState()
+  return isSelectableModel(state.providerModels, model, state.catalogHydrated, lastAnsweringModel)
+}
 
-  for (const key of enabledModels) {
-    const normalized = key.trim()
-    if (!catalog.has(normalized)) {
-      changed = true
-      continue
-    }
-
-    pruned.push(SupportedModelId(normalized))
+function catalogModel(providerModels: readonly ProviderInfo[], model: SupportedModelId) {
+  for (const group of providerModels) {
+    const found = group.models.find((candidate) => candidate.id === model)
+    if (found) return { ...found, providerName: group.displayName }
   }
+  return undefined
+}
 
-  return changed ? pruned : null
+/** Why a Session cannot run on `model`, and what the user can do about it. */
+export function modelUnavailableMessage(
+  providerModels: readonly ProviderInfo[],
+  model: SupportedModelId | undefined,
+) {
+  if (!model) return 'Select a model before sending.'
+  const found = catalogModel(providerModels, model)
+  if (!found) {
+    return `${model} is not available in this project. Add its provider in Settings > Connections, or choose another model.`
+  }
+  return `${found.name} needs a sign-in to ${found.providerName}. Connect ${found.providerName} in Settings > Connections, or choose another model.`
 }
 
 function dedupeProviderModels(
@@ -113,6 +147,7 @@ function dedupeProviderModels(
       available: model.available,
       availableThinkingLevels: model.availableThinkingLevels,
       contextWindow: model.contextWindow,
+      ...(model.virtual ? { virtual: true } : {}),
     })
   }
 
@@ -167,24 +202,13 @@ export const useProviderStore = create<ProviderState>((set) => ({
       if (baseProviderModels.length === 0) {
         return null
       }
-      const catalog = buildModelCatalogSet(baseProviderModels)
-      const available = buildAvailableModelSet(baseProviderModels)
-      const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
-      const enabledModels = pruned ?? currentSettings.enabledModels
+      const { enabledModels, selectedModel: selected } = currentSettings
+      if (selectionUsable(baseProviderModels, currentSettings)) return null
       const selectedModel =
-        currentSettings.selectedModel &&
-        enabledModels.includes(currentSettings.selectedModel) &&
-        available.has(currentSettings.selectedModel)
-          ? currentSettings.selectedModel
-          : (enabledModels.find((modelRef) => available.has(modelRef)) ??
-            DEFAULT_SETTINGS.selectedModel)
-
-      if (pruned !== null || selectedModel !== currentSettings.selectedModel) {
-        const modelSettings = { enabledModels, selectedModel }
-        await api.updateSettings(modelSettings)
-        return { ...currentSettings, ...modelSettings }
-      }
-      return null
+        firstRunnableModel(baseProviderModels, enabledModels) ?? DEFAULT_SETTINGS.selectedModel
+      if (selectedModel === selected) return null
+      await api.updateSettings({ selectedModel })
+      return { ...currentSettings, selectedModel }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Failed to load provider models', { message })

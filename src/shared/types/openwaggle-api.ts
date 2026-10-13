@@ -19,6 +19,7 @@ import type {
   DocsResolveTopicInput,
   FirstPartyDocsTopicSummary,
 } from './docs'
+import type { AgentExtensionCommand } from './extension-command'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -48,6 +49,7 @@ import type {
   PinnedSessionMove,
   SessionCatalogPage,
   SessionCopyToNewResult,
+  SessionDeleteOptions,
   SessionDetail,
   SessionNavigateTreeOptions,
   SessionThinkingLevelChange,
@@ -111,6 +113,15 @@ export interface OpenWaggleApi
     sessionId: SessionId,
     model: SupportedModelId,
   ): Promise<ContextUsageSnapshot | null>
+  /**
+   * The commands the Session's Pi extensions register, for the slash menu; with no Session, as
+   * for a New session draft, those a Session in `projectPath` would have.
+   */
+  listExtensionCommands(
+    sessionId: SessionId | null,
+    model: SupportedModelId,
+    projectPath?: string,
+  ): Promise<readonly AgentExtensionCommand[]>
   compactSession(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -176,7 +187,10 @@ export interface OpenWaggleApi
     model: SupportedModelId,
     targetNodeId: SessionNodeId,
   ): Promise<SessionCopyToNewResult>
-  deleteSession(id: SessionId): Promise<void>
+  /** `removingProject` keeps a discovered Pi session listable if its folder is added back. */
+  deleteSession(id: SessionId, options?: SessionDeleteOptions): Promise<void>
+  /** Stops Pi session discovery for a project the user is removing, before its Sessions are read. */
+  beginProjectRemoval(projectPath: string): Promise<void>
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>
   updateSessionTitle(id: SessionId, title: string): Promise<void>

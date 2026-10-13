@@ -139,6 +139,61 @@ describe('Pi message part projection helpers', () => {
     })
   })
 
+  it('keeps the nested calls Pi recorded on a tool result', () => {
+    const part = piToolResultContentToPart({
+      toolCallId: 'code-1',
+      toolName: 'codemode',
+      content: [{ type: 'text', text: 'done' }],
+      isError: false,
+      nestedCalls: {
+        complete: false,
+        calls: [
+          {
+            id: 'code-1/1',
+            name: 'read',
+            arguments: { path: 'a.ts' },
+            status: 'ok',
+            durationMs: 3,
+          },
+          {
+            id: 'code-1/2',
+            name: 'write',
+            argumentsBytes: 90_000,
+            status: 'error',
+            error: 'denied',
+          },
+          { id: 'code-1/3', name: 'bash', arguments: {}, status: 'unfinished' },
+        ],
+      },
+    })
+
+    expect(part).toMatchObject({
+      type: 'tool-result',
+      toolResult: {
+        id: 'code-1',
+        nestedCalls: {
+          complete: false,
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok', durationMs: 3 },
+            { id: 'code-1/2', name: 'write', argsBytes: 90_000, status: 'error', error: 'denied' },
+            { id: 'code-1/3', name: 'bash', args: {}, status: 'unfinished' },
+          ],
+        },
+      },
+    })
+  })
+
+  it('records no nested calls on a tool result that made none', () => {
+    const part = piToolResultContentToPart({
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      content: [],
+      isError: false,
+    })
+
+    expect(part.type === 'tool-result' && part.toolResult).not.toHaveProperty('nestedCalls')
+  })
+
   it('serializes message node content and raw metadata as JSON strings', () => {
     expect(
       JSON.parse(buildMessageNodeContentJson([{ type: 'text', text: 'hello' }], 'anthropic/model')),

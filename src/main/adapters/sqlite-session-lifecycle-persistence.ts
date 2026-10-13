@@ -17,6 +17,8 @@ import {
   TREE_SIDEBAR_EXPANDED,
 } from '../store/session-details/constants'
 import { persistSessionSnapshotWithSql } from '../store/session-details/persist-snapshot'
+import { copySessionMcpSwitch } from '../store/session-details/session-creation'
+import { sessionAgentSourceId } from './session-lifecycle-execution-profile'
 import type { LifecycleWorkspaceRow } from './sqlite-session-lifecycle-support'
 import { persistSessionReportReferences } from './sqlite-session-report-reference-catalog'
 
@@ -56,6 +58,18 @@ function initialRunIntent(input: ExecuteInput) {
     acceptedAt: input.now,
     idempotencyKey: input.request.idempotencyKey,
   }
+}
+
+/**
+ * The Session whose MCP switch a new Session starts with: a fork's source, as a desktop fork or
+ * clone does, a Worker's parent, and the Session whose agent launched a root. A root the user
+ * creates or launches starts with MCP on.
+ */
+function mcpSwitchSourceSessionId(command: ExecuteInput['request']['command'], callerId: string) {
+  if (command.operation === 'fork') return command.sourceSessionId
+  if (command.operation === 'spawn') return command.parentSessionId
+  if (command.operation === 'launch') return sessionAgentSourceId(callerId)
+  return undefined
 }
 
 function persistSessionMetadata(
@@ -146,6 +160,10 @@ function persistSessionMetadata(
         ${input.executionSnapshot.authorizationCeiling}, ${input.now}, ${input.now}
       )
     `
+    const mcpSwitchSource = mcpSwitchSourceSessionId(command, input.callerId)
+    if (mcpSwitchSource) {
+      yield* copySessionMcpSwitch(sql, mcpSwitchSource, input.session.sessionId, input.now)
+    }
     const selectedAgentDefinitionName = agentDefinitionName(input.executionSnapshot.profile)
     yield* persistSessionReportReferences(sql, {
       sessionId: input.session.sessionId,
@@ -200,8 +218,9 @@ function lifecycleTitleFromCommand(
 
 /**
  * An untitled fork is named after its source, marked as a fork or a copy, and keeps that title like
- * a rename. Titles are generated only for a Session with no messages, so a fork left as
- * "New session" never got a name.
+ * a rename. A fork of a Session still titled "New session" keeps the default title instead: a
+ * `default` title is owed a generated one whatever the message count (`sessionTitleOwed`), so
+ * the fork is titled from its next message rather than named "New session (copy)".
  */
 function defaultLifecycleTitle(
   sql: SqlClient.SqlClient,
@@ -214,7 +233,7 @@ function defaultLifecycleTitle(
       SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
     `
     const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
-    if (!source) return DEFAULT_LIFECYCLE_TITLE
+    if (!source || source === DEFAULT_SESSION_TITLE) return DEFAULT_LIFECYCLE_TITLE
     return {
       title: assertSessionTitle(
         `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,

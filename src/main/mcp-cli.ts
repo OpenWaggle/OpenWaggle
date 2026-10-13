@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app } from 'electron'
+import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
 import {
   formatMcpCliOutput,
@@ -13,6 +14,8 @@ import {
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
 import { runMcpManagementCommand } from './mcp-cli-management'
+import { isMcpManagementCommand } from './mcp-cli-management-arguments'
+import { createMcpCliHost } from './mcp-cli-management-host'
 import {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
@@ -26,14 +29,20 @@ function usage() {
   return `OpenWaggle MCP
 
 Usage:
-  openwaggle mcp add <name> --url <https-url> [--scope global|project]
-  openwaggle mcp add <name> [options] -- <command> [args...]
-  openwaggle mcp list|get|enable|disable|trust|remove <name> [options]
-  openwaggle mcp auth <name> [--secret <name>] [--secret-stdin]
-  openwaggle mcp logout <name>
-  openwaggle mcp import [--from codex,claude-code,opencode,pi,vscode] [--apply]
-  openwaggle mcp registry search|get|add <query-or-name> [--package npm|pypi|nuget|oci|mcpb]
-  openwaggle mcp doctor
+  openwaggle mcp add <server> [options] -- <command> [args...]
+  openwaggle mcp add <server> [options] --url <url>
+  openwaggle mcp remove <server> [-l]
+  openwaggle mcp list [--json] [-l]
+  openwaggle mcp enable|disable <server> [-l] [--in-project]
+  openwaggle mcp login|logout <server> [-l]
+  openwaggle mcp import [--from <tools>] [--apply] [--server <name>]...
+                        [--conflict skip|replace|rename] [--json] [-l]
+  openwaggle mcp registry search [<query>] [--json]
+  openwaggle mcp registry get <name> [--version <version>] [--json]
+  openwaggle mcp registry add <name> [--package npm|pypi|nuget|oci|mcpb]
+                              [--name <server>] [--version <version>]
+                              [--scope global|project] [--exposure <mode>] [-l]
+  openwaggle mcp doctor [--json] [-l]
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
                        [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
@@ -48,9 +57,46 @@ Usage:
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
-Common options: --project <path>, --scope global|project, --json
-Unexpected positional and -- passthrough input fail before configuration changes; only mcp add
-accepts passthrough after -- as the configured server command and arguments.`
+Unexpected positional and -- passthrough input fail before the server starts.
+
+Servers are read from ~/.pi/agent/mcp.json and ~/.openwaggle/mcp.json, and with -l
+(or --project <path>) also from the project's .mcp.json, .pi/mcp.json, and
+.openwaggle/mcp.json. New servers go to OpenWaggle's file: ~/.openwaggle/mcp.json, or
+.openwaggle/mcp.json with -l. Changes to a server are saved to the file that defines it.
+
+Options for add:
+  --url <url>                    Streamable HTTP server URL (instead of a command)
+  --env <KEY=VALUE>              Environment variable for a stdio server (repeatable)
+  --env-secret <KEY=NAME>        Environment variable from the vault (OpenWaggle files only)
+  --cwd <dir>                    Working directory for a stdio server
+  --header <KEY=VALUE>           HTTP header (repeatable)
+  --header-secret <KEY=NAME>     HTTP header from the vault (OpenWaggle files only)
+  --bearer-token-env-var <NAME>  Send "Authorization: Bearer \${NAME}"
+  --oauth-client-id <id>, --oauth-client-secret <secret>,
+  --oauth-callback-port <port>, --oauth-client-name <name>
+  --exposure <mode>              codemode (default), deferred, direct, or hidden
+  --description <text>           What the server offers
+  --file <file>                  pi-global, openwaggle-global, project-mcp-json,
+                                 project-pi, or project-openwaggle
+
+Options for enable and disable:
+  --in-project                   Switch a global server for this project only
+
+Options for import:
+  --from <tools>                 codex, claude-code, claude-desktop, cursor, vscode,
+                                 opencode, zed, windsurf (comma-separated)
+  --apply                        Import new servers, or those named with --server
+
+Options for registry:
+  --package <type>               Run a package instead of the hosted URL
+  --name <server>                Name in the MCP file (default: the last part of <name>)
+  --registry <url>               Another MCP Registry (HTTPS)
+  Registry servers are saved to OpenWaggle's file like any other new server. Bundles
+  (mcpb) are checked against their SHA-256 and unpacked under ~/.openwaggle/mcp.
+
+doctor lists the MCP files, the errors found in them, and each server's state,
+connecting to every enabled server.
+`
 }
 
 function parseServeGrants(values: readonly string[] | undefined) {
@@ -138,16 +184,12 @@ function exitCodeForError(message: string) {
   const usagePrefixes = [
     'Usage:',
     'Unknown option',
-    'Unsupported MCP scope',
-    'Unsupported MCP transport',
-    'Unsupported MCP compatibility',
     'Unsupported MCP command',
     'MCP ',
     'Missing value',
   ]
   if (usagePrefixes.some((prefix) => message.startsWith(prefix))) return EXIT.USAGE
-  if (message.includes('requires a server name')) return EXIT.USAGE
-  if (message.includes('Cannot trust') || message.includes('require')) return EXIT.POLICY
+  if (message.includes('require')) return EXIT.POLICY
   return EXIT.FAILURE
 }
 
@@ -157,6 +199,24 @@ export function getMcpCliArguments(argv: readonly string[]) {
 }
 
 export async function runMcpCli(args: readonly string[]) {
+  const [first, ...rest] = args
+  if (isMcpManagementCommand(first)) {
+    const end = rest.indexOf('--')
+    const options = end < 0 ? rest : rest.slice(0, end)
+    if (options.includes('--help') || options.includes('-h')) {
+      await writeOutput(usage(), false)
+      return EXIT.SUCCESS
+    }
+    return runMcpManagementCommand(first, rest, {
+      host: createMcpCliHost(),
+      output: {
+        log: (text) => void writeCliStdout(`${text}\n`),
+        error: (text) => process.stderr.write(`${text}\n`),
+      },
+      workingDirectory: process.cwd(),
+      resolveProjectPath: resolveCliProjectPath,
+    })
+  }
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
   const commandArguments = { ...parsed, positionals: parsed.positionals.slice(1) }
@@ -167,11 +227,7 @@ export async function runMcpCli(args: readonly string[]) {
       await writeOutput(usage(), false)
       return EXIT.SUCCESS
     }
-    const result =
-      command === 'serve'
-        ? await runServeCommand(commandArguments)
-        : await runMcpManagementCommand(command, commandArguments)
-    if (command !== 'serve') await writeOutput(result, json)
+    await runServeCommand(commandArguments)
     return EXIT.SUCCESS
   } catch (error) {
     writeError(error, command === 'serve' ? false : json)

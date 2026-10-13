@@ -125,3 +125,32 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
     )
   }
 }
+
+/**
+ * Every package of the Pi release OpenWaggle is built on, at that release's version: the
+ * `pi-runtime` catalog, which since Pi 1.2.0 is the whole matched set. The consumer smoke
+ * overrides them all, so a newer Pi release (or one still being published) cannot be mixed in
+ * through a transitive range.
+ */
+export function piRuntimeSmokePins(workspaceConfig: string): Record<string, string> {
+  const workspace: unknown = parse(workspaceConfig)
+  const catalogs = isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
+  const catalog = catalogs && isObject(catalogs['pi-runtime']) ? catalogs['pi-runtime'] : {}
+  const pins: Record<string, string> = {}
+  for (const [name, version] of Object.entries(catalog)) {
+    if (typeof version === 'string' || typeof version === 'number') pins[name] = String(version)
+  }
+  return Object.fromEntries(Object.entries(pins).sort(([a], [b]) => a.localeCompare(b)))
+}
+
+/** The consumer smoke's pnpm workspace: the Pi release pins plus the packed tarballs. */
+export function smokePnpmWorkspaceConfig(
+  pins: Readonly<Record<string, string>>,
+  packedPackages: readonly { readonly name: string; readonly tarballPath: string }[],
+) {
+  const overrideLines = [
+    ...Object.entries(pins).map(([name, version]) => `  "${name}": "${version}"`),
+    ...packedPackages.map((packed) => `  "${packed.name}": "file:${packed.tarballPath}"`),
+  ]
+  return ['packages: []', '', 'overrides:', ...overrideLines, ''].join('\n')
+}

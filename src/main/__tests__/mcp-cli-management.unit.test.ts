@@ -1,165 +1,291 @@
-import type { McpSettingsView } from '@shared/types/mcp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseMcpCliArguments } from '../mcp-cli-arguments'
-import { runMcpManagementCommand } from '../mcp-cli-management'
-import type { McpCliManagementRuntime } from '../mcp-cli-management-runtime'
+import { describe, expect, it } from 'vitest'
+import { CWD, run, server, view } from './mcp-cli-management.test-fixtures'
 
-const PROJECT_PATH = '/project'
-const view: McpSettingsView = {
-  integration: {
-    desired: {
-      global: 'on',
-      project: 'inherit',
-      session: 'inherit',
-      effective: 'on',
-      source: 'global',
-    },
-    applied: 'on',
-    applyState: 'applied',
-  },
-  sources: [
-    {
-      id: 'project-standard',
-      label: 'Project MCP',
-      path: '/project/.mcp.json',
-      scope: 'project',
-      kind: 'standard',
-      exists: true,
-      editable: true,
-      serverCount: 1,
-      rawJson: JSON.stringify({
-        mcpServers: {
-          'private-docs': {
-            url: 'https://docs.example.com/mcp',
-            auth: { type: 'oauth' },
-          },
-        },
-      }),
-      ignoredFields: [],
-    },
-  ],
-  servers: [
-    {
-      instanceId: 'server-1',
-      name: 'private-docs',
-      enabled: true,
-      projectEnabled: true,
-      trusted: 'trusted',
-      required: false,
-      sourceId: 'project-standard',
-      sourceLabel: 'Project MCP',
-      sourcePath: '/project/.mcp.json',
-      configHash: 'config-1',
-      url: 'https://docs.example.com/mcp',
-      transport: 'streamable-http',
-      compatibility: 'auto',
-      directTools: 'disabled',
-      auth: 'oauth',
-      requestedPermissions: { readRoots: [], writeRoots: [], allowNetwork: true },
-      connectionState: 'disconnected',
-      capabilities: [],
-    },
-  ],
-  notices: [],
-  projectStates: {},
-  projectPath: PROJECT_PATH,
-  sessionId: null,
-}
-
-function runtime(): McpCliManagementRuntime {
-  return {
-    service: {
-      getView: vi.fn(async () => view),
-      setScopeState: vi.fn(async () => view),
-      setServerEnabled: vi.fn(async () => view),
-      setProjectServerEnabled: vi.fn(async () => view),
-      setServerTrust: vi.fn(async () => view),
-      writeSourceConfig: vi.fn(async () => view),
-      removeServer: vi.fn(async () => view),
-      addServer: vi.fn(async () => view),
-      previewImports: vi.fn(async () => ({ candidates: [], unavailableSources: [] })),
-      applyImports: vi.fn(async () => ({ imported: [], skipped: [], view })),
-    },
-    vault: {
-      list: vi.fn(async () => []),
-      set: vi.fn(async () => []),
-      remove: vi.fn(async () => []),
-    },
-    authorizeServer: vi.fn(async () => ({ authorized: true, browserOpened: true })),
-    logoutServer: vi.fn(async () => ({ oauthRemoved: true })),
-    dispose: vi.fn(async () => undefined),
-  }
-}
-
-describe('runMcpManagementCommand', () => {
-  let owner: McpCliManagementRuntime
-  let createRuntime: ReturnType<typeof vi.fn<(args: unknown) => Promise<McpCliManagementRuntime>>>
-
-  beforeEach(() => {
-    owner = runtime()
-    createRuntime = vi.fn(async () => owner)
-  })
-
-  it('reads settings through the Session Host owner', async () => {
-    const result = await runMcpManagementCommand(
-      'list',
-      parseMcpCliArguments(['--project', PROJECT_PATH]),
-      { createRuntime },
+describe('openwaggle mcp add', () => {
+  it("adds a stdio server to OpenWaggle's global file and keeps the command's own flags", async () => {
+    const result = await run(
+      'add',
+      ['tools', '--env', 'API=1', '--', 'npx', '-y', 'tools', '--port', '1'],
+      {
+        'mcp:get-configuration': () => view([]),
+        'mcp:add-server': () => view([server({ name: 'tools' })]),
+      },
     )
 
-    expect(result).toBe(view)
-    expect(owner.service.getView).toHaveBeenCalledWith({ projectPath: PROJECT_PATH })
+    expect(result.exitCode).toBe(0)
+    expect(result.calls[1]).toEqual({
+      channel: 'mcp:add-server',
+      input: {
+        projectPath: null,
+        name: 'tools',
+        scope: 'global',
+        entry: { command: 'npx', args: ['-y', 'tools', '--port', '1'], env: { API: '1' } },
+      },
+    })
+    expect(result.logs).toContain('Added global MCP server "tools" in /home/.openwaggle/mcp.json.')
   })
 
-  it('routes durable server additions through the owner runtime', async () => {
-    await runMcpManagementCommand(
+  it('treats arguments after the server command as the command, as pi mcp add does', async () => {
+    const result = await run('add', ['files', 'uvx', 'files-mcp', '--stdio'], {
+      'mcp:get-configuration': () => view([]),
+      'mcp:add-server': () => view([]),
+    })
+
+    expect(result.calls[1]?.input).toMatchObject({
+      entry: { command: 'uvx', args: ['files-mcp', '--stdio'] },
+    })
+  })
+
+  it('adds an HTTP server to the project file with -l and builds its headers and OAuth', async () => {
+    const result = await run(
       'add',
-      parseMcpCliArguments([
+      [
+        '-l',
         'docs',
         '--url',
-        'https://docs.example.com/mcp',
-        '--scope',
-        'global',
-        '--project',
-        PROJECT_PATH,
-      ]),
-      { createRuntime },
+        'https://docs.example/mcp',
+        '--bearer-token-env-var',
+        'DOCS_TOKEN',
+        '--header-secret',
+        'X-Key=docs-key',
+        '--oauth-callback-port',
+        '8765',
+        '--exposure',
+        'deferred',
+      ],
+      {
+        'mcp:get-configuration': () => view([]),
+        'mcp:add-server': () => view([server({ name: 'docs', usesOAuth: true })]),
+      },
     )
 
-    expect(owner.service.addServer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectPath: PROJECT_PATH,
-        name: 'docs',
-        target: 'global',
-      }),
-    )
-  })
-
-  it('does not mutate when the current-revision owner cannot be acquired', async () => {
-    createRuntime.mockRejectedValueOnce(new Error('Host upgrade is still draining'))
-
-    await expect(
-      runMcpManagementCommand(
-        'remove',
-        parseMcpCliArguments(['private-docs', '--project', PROJECT_PATH]),
-        { createRuntime },
-      ),
-    ).rejects.toThrow('Host upgrade is still draining')
-
-    expect(owner.service.removeServer).not.toHaveBeenCalled()
-  })
-
-  it('runs OAuth and logout inside the owning Host', async () => {
-    const args = parseMcpCliArguments(['private-docs', '--project', PROJECT_PATH])
-
-    await expect(runMcpManagementCommand('auth', args, { createRuntime })).resolves.toEqual({
-      authorized: true,
-      browserOpened: true,
+    expect(result.calls[1]?.input).toEqual({
+      projectPath: CWD,
+      name: 'docs',
+      scope: 'project',
+      entry: {
+        url: 'https://docs.example/mcp',
+        headers: { 'X-Key': { secret: 'docs-key' }, Authorization: `Bearer \${DOCS_TOKEN}` },
+        oauth: { callbackPort: 8765 },
+        exposure: 'deferred',
+      },
     })
-    await runMcpManagementCommand('logout', args, { createRuntime })
+    expect(result.logs).toContain('openwaggle mcp login docs -l')
+  })
 
-    const expected = { projectPath: PROJECT_PATH, instanceId: 'server-1' }
-    expect(owner.authorizeServer).toHaveBeenCalledWith(expected)
-    expect(owner.logoutServer).toHaveBeenCalledWith(expected)
+  it('keeps --project in the hints it prints', async () => {
+    const result = await run(
+      'add',
+      ['--project', 'repo', 'docs', '--url', 'https://docs.example/mcp'],
+      {
+        'mcp:get-configuration': () => view([]),
+        'mcp:add-server': () => view([server({ name: 'docs', usesOAuth: true })]),
+      },
+    )
+
+    expect(result.calls[1]?.input).toMatchObject({ projectPath: '/resolved/repo' })
+    expect(result.logs).toContain(
+      'Check it with: openwaggle mcp list --project /resolved/repo. If it requires sign-in: openwaggle mcp login docs --project /resolved/repo',
+    )
+  })
+
+  it('writes to the file picked with --file', async () => {
+    const result = await run('add', ['tools', '--file', 'pi-global', '--', 'npx', 'tools'], {
+      'mcp:get-configuration': () => view([]),
+      'mcp:add-server': () => view([]),
+    })
+
+    expect(result.calls[1]?.input).toMatchObject({ scope: 'global', destination: 'pi-global' })
+  })
+
+  it.each([
+    [['tools'], 'Usage: openwaggle mcp add'],
+    [['tools', '--url', 'https://x', '--', 'npx'], 'Usage: openwaggle mcp add'],
+    [['tools', '--header', 'A=1', '--', 'npx'], '--header only applies to HTTP servers'],
+    [['tools', '--url', 'https://x', '--cwd', '/tmp'], '--cwd only applies to stdio servers'],
+    [['tools', '--env', 'NOEQUALS', '--', 'npx'], '--env expects KEY=VALUE'],
+    [['tools', '--file', '/etc/mcp.json', '--', 'npx'], '--file must be one of'],
+    [['tools', '--trust', '--', 'npx'], 'Unknown option --trust.'],
+    [['tools', '--url'], '--url needs a value.'],
+  ])('rejects %j as a usage error before reaching the Host', async (args, message) => {
+    const result = await run('add', args, {})
+
+    expect(result.exitCode).toBe(2)
+    expect(result.errors).toContain(message)
+    expect(result.calls).toEqual([])
+  })
+})
+
+describe('openwaggle mcp list', () => {
+  it('connects only to enabled servers and fails when one is not connected', async () => {
+    const result = await run('list', [], {
+      'mcp:get-configuration': () =>
+        view([
+          server({ name: 'docs', exposure: 'deferred' }),
+          server({ name: 'off', enabled: false }),
+        ]),
+      'mcp:inspect-server': (input) => ({
+        name: input.name,
+        state: 'connected',
+        tools: [
+          { name: 'search', exposure: 'direct', hasApp: false },
+          { name: 'read', exposure: 'deferred', hasApp: false },
+        ],
+      }),
+    })
+
+    expect(result.calls.filter((call) => call.channel === 'mcp:inspect-server')).toHaveLength(1)
+    expect(result.logs).toContain('docs: connected, 2 tools (deferred, global)')
+    expect(result.logs).toContain('tools: search [direct], read')
+    expect(result.logs).toContain('off: disabled (codemode, global)')
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('lists every server when one check fails outright, and exits 1', async () => {
+    const result = await run('list', [], {
+      'mcp:get-configuration': () => view([server({ name: 'bad' }), server({ name: 'docs' })]),
+      'mcp:inspect-server': (input) => {
+        if (input.name === 'bad') throw new Error('MCP_TOKEN is not set')
+        return { name: input.name, state: 'connected', tools: [] }
+      },
+    })
+
+    expect(result.logs).toContain('bad: failed')
+    expect(result.logs).toContain('MCP_TOKEN is not set')
+    expect(result.logs).toContain('docs: connected, 0 tools')
+    expect(result.exitCode).toBe(1)
+  })
+
+  it('says a server needs a secret, as Settings and doctor do, rather than that it failed', async () => {
+    const missing =
+      'server "api": env "TOKEN" names vault secret "API_TOKEN", which could not be read'
+    const result = await run('list', [], {
+      'mcp:get-configuration': () => ({
+        ...view([server({ name: 'api' })], [missing]),
+        missingSecretErrors: [missing],
+        missingSecretServers: ['api'],
+      }),
+      'mcp:inspect-server': ({ name }) => ({ name, state: 'failed', tools: [], error: missing }),
+    })
+
+    expect(result.logs).toContain('api: needs secret (codemode, global)')
+    expect(result.logs).toContain('  add the secret under Settings > MCP > Secrets')
+    expect(result.logs).not.toContain('api: failed')
+    expect(result.exitCode).toBe(1)
+  })
+
+  it('reports sign-in, errors, and config errors as JSON and exits 1', async () => {
+    const result = await run('list', ['--json'], {
+      'mcp:get-configuration': () =>
+        view([server({ name: 'sentry', usesOAuth: true })], ['bad: invalid entry']),
+      'mcp:inspect-server': () => ({
+        name: 'sentry',
+        state: 'needs-sign-in',
+        tools: [],
+        error: 'Sign in required',
+      }),
+    })
+    const parsed: unknown = JSON.parse(result.logs)
+
+    expect(result.exitCode).toBe(1)
+    expect(parsed).toMatchObject({
+      servers: [{ name: 'sentry', state: 'needs-sign-in', error: 'Sign in required' }],
+      errors: ['bad: invalid entry'],
+    })
+  })
+
+  it('reads the project files for --project', async () => {
+    const result = await run('list', ['--project', 'repo'], {
+      'mcp:get-configuration': () => view([]),
+    })
+
+    expect(result.calls[0]?.input).toEqual({ projectPath: '/resolved/repo' })
+    expect(result.logs).toContain('No MCP servers configured.')
+  })
+})
+
+describe('openwaggle mcp list overrides', () => {
+  it('labels an override in a global file as an override, not a project override', async () => {
+    const result = await run('list', [], {
+      'mcp:get-configuration': () =>
+        view([
+          server({
+            name: 'docs',
+            enabled: false,
+            override: { fileId: 'openwaggle-global', path: '/home/.openwaggle/mcp.json' },
+          }),
+        ]),
+    })
+
+    expect(result.logs).toContain('  override: /home/.openwaggle/mcp.json')
+    expect(result.logs).not.toContain('project override')
+  })
+})
+
+describe('openwaggle mcp enable, disable, remove, login, logout', () => {
+  it('switches a global server for this project only with --in-project', async () => {
+    const result = await run('disable', ['docs', '--in-project'], {
+      'mcp:set-server-enabled': () =>
+        view([
+          server({
+            name: 'docs',
+            enabled: false,
+            override: { fileId: 'project-openwaggle', path: `${CWD}/.openwaggle/mcp.json` },
+          }),
+        ]),
+    })
+
+    expect(result.calls[0]?.input).toEqual({
+      projectPath: CWD,
+      name: 'docs',
+      enabled: false,
+      target: 'project',
+    })
+    expect(result.logs).toBe(
+      `Disabled MCP server "docs" in this project; saved to ${CWD}/.openwaggle/mcp.json.`,
+    )
+  })
+
+  it('removes a server from the file that defines it and names configured ones when missing', async () => {
+    const removed = await run('remove', ['docs'], {
+      'mcp:get-configuration': () => view([server({ name: 'docs' })]),
+      'mcp:remove-server': () => view([]),
+    })
+    const missing = await run('remove', ['nope'], {
+      'mcp:get-configuration': () => view([server({ name: 'docs' })]),
+    })
+
+    expect(removed.logs).toBe('Removed global MCP server "docs" from /home/.openwaggle/mcp.json.')
+    expect(missing.exitCode).toBe(1)
+    expect(missing.errors).toContain('No MCP server named "nope". Configured: docs.')
+  })
+
+  it('refuses to sign in to a server that does not use OAuth', async () => {
+    const result = await run('login', ['tools'], {
+      'mcp:get-configuration': () => view([server({ name: 'tools' })]),
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.errors).toContain('does not use OAuth')
+  })
+
+  it('shows the authorization page when the Host could not open it', async () => {
+    const result = await run('login', ['sentry'], {
+      'mcp:get-configuration': () => view([server({ name: 'sentry', usesOAuth: true })]),
+      'mcp:sign-in': () => ({ signedIn: false, authorizationUrl: 'https://auth.example/start' }),
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.errors).toContain('https://auth.example/start')
+  })
+
+  it('signs out through the Host', async () => {
+    const result = await run('logout', ['sentry'], {
+      'mcp:get-configuration': () => view([server({ name: 'sentry', usesOAuth: true })]),
+      'mcp:sign-out': () => undefined,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.logs).toBe('Signed out of MCP server "sentry".')
   })
 })

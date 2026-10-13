@@ -1,5 +1,9 @@
 import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
-import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import {
+  createAgentSessionFromServices,
+  ModelRuntime,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { SESSION_TITLE_MODEL_AUTOMATIC } from '@shared/session-title-model'
 import { SupportedModelId } from '@shared/types/brand'
 import { createModelRef, parseModelRef } from '@shared/types/llm'
@@ -7,11 +11,18 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionTitleGenerationError } from '../../errors'
 import { createLogger } from '../../logger'
+import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
+import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import {
   type SessionTitleGenerationRequest,
   SessionTitleGenerator,
 } from '../../ports/session-title-generator'
+import type { OpenWagglePiExtensionSelectionServices } from './openwaggle-pi-extension-selection'
 import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
+import { loadWithProjectExtensions } from './pi-project-runtime-load'
+import { createPiRuntimeServices } from './pi-provider-catalog'
+import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 
 const logger = createLogger('pi-session-title-generator')
 
@@ -83,7 +94,8 @@ function findModel(runtime: ModelRuntime, reference: string | null) {
 }
 
 async function candidateModels(runtime: ModelRuntime, request: SessionTitleGenerationRequest) {
-  const sessionModel = findModel(runtime, request.sessionModel)
+  const sessionModel =
+    findModel(runtime, request.sessionModel) ?? findModel(runtime, request.fallbackModel ?? null)
   const preferred =
     request.titleModel === SESSION_TITLE_MODEL_AUTOMATIC
       ? sessionModel
@@ -128,9 +140,31 @@ async function requestTitle(
   return responseText(response)
 }
 
-async function generateTitle(request: SessionTitleGenerationRequest) {
-  registerPiBundledBedrockProvider()
-  const runtime = await ModelRuntime.create()
+/** The model registry title requests resolve against, and what releases it afterwards. */
+interface TitleModelRegistry {
+  readonly modelRuntime: ModelRuntime
+  readonly release: () => void
+}
+
+/** The model registry title requests resolve against for a Session's project. */
+type TitleModelRuntime = (projectPath: string | null) => Promise<TitleModelRegistry>
+
+async function generateTitle(
+  request: SessionTitleGenerationRequest,
+  modelRuntime: TitleModelRuntime,
+) {
+  const registry = await modelRuntime(request.projectPath)
+  try {
+    return await requestFromCandidates(registry.modelRuntime, request)
+  } finally {
+    registry.release()
+  }
+}
+
+async function requestFromCandidates(
+  runtime: ModelRuntime,
+  request: SessionTitleGenerationRequest,
+) {
   const candidates = await candidateModels(runtime, request)
   if (candidates.length === 0) {
     throw new SessionTitleGenerationError({
@@ -160,12 +194,11 @@ async function generateTitle(request: SessionTitleGenerationRequest) {
   })
 }
 
-export const PiSessionTitleGeneratorLive = Layer.succeed(
-  SessionTitleGenerator,
-  SessionTitleGenerator.of({
+export function createPiSessionTitleGenerator(deps: { readonly modelRuntime: TitleModelRuntime }) {
+  return SessionTitleGenerator.of({
     generate: (request) =>
       Effect.tryPromise({
-        try: () => generateTitle(request),
+        try: () => generateTitle(request, deps.modelRuntime),
         catch: (cause) =>
           cause instanceof SessionTitleGenerationError
             ? cause
@@ -175,5 +208,52 @@ export const PiSessionTitleGeneratorLive = Layer.succeed(
                 cause,
               }),
       }),
+  })
+}
+
+/**
+ * The project's own model registry, built like a Run's: Pi's extensions and the OpenWaggle
+ * extensions the project runs register their providers, virtual models included, so Automatic
+ * and a picked extension Title model resolve and route as the Session's model does.
+ */
+export function projectTitleModelRuntime(
+  extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
+): TitleModelRuntime {
+  return async (projectPath) => {
+    if (!projectPath) {
+      registerPiBundledBedrockProvider()
+      return { modelRuntime: await ModelRuntime.create(), release: () => undefined }
+    }
+    const services = await Effect.runPromise(
+      loadWithProjectExtensions({
+        projectPath,
+        extensionSelectionServices,
+        operation: 'Pi Title model',
+        load: (options) => createPiRuntimeServices(projectPath, options),
+        loadErrors: getPiRuntimeExtensionLoadErrors,
+      }),
+    )
+    // A virtual model routes each request with an extension context, which Pi creates only once
+    // an agent session binds the extension runner. This session binds it and nothing else: it is
+    // never started, so extensions see no session_start, and it is disposed after the request.
+    const { session } = await createAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(projectPath),
+    })
+    return { modelRuntime: services.modelRuntime, release: () => session.dispose() }
+  }
+}
+
+export const PiSessionTitleGeneratorLive = Layer.effect(
+  SessionTitleGenerator,
+  Effect.gen(function* () {
+    const extensionSelectionServices = {
+      manager: yield* ExtensionManagerService,
+      lifecycleRepository: yield* ExtensionLifecycleRepository,
+      projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
+    } satisfies OpenWagglePiExtensionSelectionServices
+    return createPiSessionTitleGenerator({
+      modelRuntime: projectTitleModelRuntime(extensionSelectionServices),
+    })
   }),
 )

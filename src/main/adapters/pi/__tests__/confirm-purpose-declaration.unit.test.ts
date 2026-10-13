@@ -17,7 +17,6 @@ function read(relativePath: string) {
   return readFileSync(join(REPO_ROOT, relativePath), 'utf-8')
 }
 
-const toolExecution = read('src/main/adapters/pi/mcp-tool-execution.ts')
 const clientInteractions = read('src/main/adapters/pi/mcp-client-interactions.ts')
 const sessionsTool = read('src/main/adapters/pi/sessions-tool-extension.ts')
 const uiContext = read('src/main/adapters/pi/agent-kernel/interaction-ui-context.ts')
@@ -37,23 +36,6 @@ describe('declared confirmation purpose', () => {
     // auto-granted, so a new call site is safe before anyone thinks about its purpose.
     expect(uiContext).toContain("purpose: 'user-input'")
     expect(uiContext).not.toContain("purpose: 'authorization'")
-  })
-
-  it('routes the MCP tool call through the authorization channel, keyed on server and tool', () => {
-    expect(toolExecution).toContain('Allow MCP tool call?')
-    expect(toolExecution).toContain('getOpenWaggleAuthorize')
-    expect(toolExecution).toContain("capability: 'mcp.tool-call'")
-    expect(toolExecution).toContain('requester: attribution.serverLabel')
-    expect(toolExecution).toContain('resource: attribution.toolName')
-  })
-
-  it('keeps the tool call arguments out of the grant key', () => {
-    // Arguments belong in the message a human reads, never in the identity of a kept approval.
-    const scopeKeyBlock = toolExecution.slice(
-      toolExecution.indexOf('scopeKey: {'),
-      toolExecution.indexOf("capability: 'mcp.tool-call'") + 200,
-    )
-    expect(scopeKeyBlock).not.toContain('arguments')
   })
 
   it('routes MCP sampling through the authorization channel, keyed on the server alone', () => {
@@ -135,11 +117,11 @@ describe('declared confirmation purpose', () => {
     expect(presetManagement).not.toContain('getOpenWaggleAuthorize')
   })
 
-  it('has exactly five authorization call sites in the whole application', () => {
-    const authorizationSites = [toolExecution, clientInteractions, sessionsTool].reduce(
+  it('has exactly four authorization call sites in the whole application', () => {
+    const authorizationSites = [clientInteractions, sessionsTool].reduce(
       (total, source) => total + source.split('getOpenWaggleAuthorize(').length - 1,
       0,
     )
-    expect(authorizationSites).toBe(5)
+    expect(authorizationSites).toBe(4)
   })
 })

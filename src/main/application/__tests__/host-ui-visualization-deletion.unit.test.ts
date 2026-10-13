@@ -10,6 +10,7 @@ import { makeFilesystemInlineVisualizationService } from '../../adapters/filesys
 import { SessionProjectionRepositoryError } from '../../errors'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import {
+  type SessionDeletionOptions,
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../../ports/session-projection-repository'
@@ -45,6 +46,7 @@ async function prepareDeletion(
   const sourcePath = path.join(directory, 'private-map.html')
   await fs.writeFile(sourcePath, '<main>Session data</main>')
   let ownerExists = true
+  const deleteOptions: unknown[] = []
   const layer = Layer.mergeAll(
     UnboundWorkspaceTestLayer,
     NoopSessionDesktopLayer,
@@ -66,8 +68,9 @@ async function prepareDeletion(
     Layer.succeed(
       SessionProjectionRepository,
       fromPartial<SessionProjectionRepositoryShape>({
-        delete: () =>
+        delete: (_id: SessionId, options?: SessionDeletionOptions) =>
           deleteProjection.pipe(
+            Effect.tap(() => Effect.sync(() => deleteOptions.push(options))),
             Effect.tap(() =>
               Effect.sync(() => {
                 ownerExists = false
@@ -86,9 +89,14 @@ async function prepareDeletion(
     markOwnerDeleted: () => {
       ownerExists = false
     },
+    deleteOptions,
     deleteFromHost: dispatchHostBackedSessionGuiOperation('sessions:delete', [sessionId]).pipe(
       Effect.provide(layer),
     ),
+    deleteForProjectRemoval: dispatchHostBackedSessionGuiOperation('sessions:delete', [
+      sessionId,
+      { removingProject: true },
+    ]).pipe(Effect.provide(layer)),
     prepareOwner: prepareInlineVisualizationSourceOwner(sessionId).pipe(Effect.provide(layer)),
   }
 }
@@ -100,6 +108,16 @@ it('removes visualization files through the actual Host Session deletion command
 
   await expect(fs.stat(directory)).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await fs.readdir(path.dirname(directory))).toEqual([])
+})
+
+it("tells the Session's deletion that its project is being removed", async () => {
+  const { deleteForProjectRemoval, deleteFromHost, deleteOptions } = await prepareDeletion()
+
+  await Effect.runPromise(deleteForProjectRemoval)
+  await Effect.runPromise(deleteFromHost)
+
+  // A discovered Pi file then stays listable for when the folder is added back (ADR 0051).
+  expect(deleteOptions).toEqual([{ removingProject: true }, {}])
 })
 
 it('restores staged visualization files when Host persistence rejects deletion', async () => {

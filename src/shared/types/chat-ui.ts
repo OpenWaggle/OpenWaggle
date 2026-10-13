@@ -1,4 +1,5 @@
 import type { SessionId } from './brand'
+import type { NestedToolCalls } from './tools'
 import type { WaggleInvocationMetadata } from './waggle'
 
 export type ChatMessageRole = 'system' | 'user' | 'assistant'
@@ -22,6 +23,11 @@ export interface ChatToolCallPart {
   readonly state: string
   readonly output?: unknown
   readonly partialOutput?: unknown
+  /**
+   * Calls this tool made through Pi `ctx.executeTool()`, seen live while it ran, in a record with
+   * Pi's limits. They have no transcript entry of their own and render under this call's card.
+   */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 export interface ChatToolResultPart {
@@ -32,6 +38,8 @@ export interface ChatToolResultPart {
   readonly sourceMessageId?: string
   readonly error?: string
   readonly output?: unknown
+  /** Nested calls Pi recorded on the persisted tool result. */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 interface ChatBinarySource {
@@ -89,6 +97,8 @@ export interface UIMessageMetadata {
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
+  /** The provider error this response ended with. */
+  readonly error?: string
   readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
   /**
    * A user row the Run published when it incorporated the message, before its node was persisted:

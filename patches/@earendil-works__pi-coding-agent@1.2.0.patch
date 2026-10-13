@@ -1,0 +1,2571 @@
+diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
+index 2a947fab50c4d2456c53aac5b58b37f47c8e9c5a..13bbd6ba9d247411a131a9058af687e89298537a 100644
+--- a/dist/core/agent-session.d.ts
++++ b/dist/core/agent-session.d.ts
+@@ -111,6 +111,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
+ export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
+ export interface AgentSessionConfig {
+     agent: Agent;
++    /** Stable catalog/scoped model before credential-specific endpoint resolution. */
++    selectedModel?: Model<any>;
++    /** Whether provider requests flow through ModelRuntime and consume prepared auth snapshots. */
++    usesModelRuntimeStream?: boolean;
+     sessionManager: SessionManager;
+     settingsManager: SettingsManager;
+     cwd: string;
+@@ -184,6 +188,14 @@ export interface PromptOptions {
+     source?: InputSource;
+     /** Internal hook used by RPC mode to observe how an accepted prompt was dispatched. Not called if the prompt is rejected. */
+     preflightResult?: (disposition: PromptDisposition) => void;
++    /** Transform the canonical expanded text immediately before it is delivered. */
++    transformExpandedText?: (text: string) => string;
++    /**
++     * Only queue the message into the active turn. When the agent stopped streaming while input
++     * handlers ran, reject with an error whose `code` is `"agent_not_streaming"` instead of
++     * starting a new turn.
++     */
++    streamingOnly?: boolean;
+ }
+ /** Options for model/thinking mutations. */
+ export interface ModelMutationOptions {
+@@ -224,6 +236,7 @@ export declare class AgentSession {
+     private _unsubscribeAgent?;
+     private _eventListeners;
+     private _isAgentRunActive;
++    private _requestRequiresReconstructionFit;
+     private _agentRunAbortRequested;
+     private _idleWaitPromise;
+     private _resolveIdleWait;
+@@ -291,6 +304,8 @@ export declare class AgentSession {
+     private _extensionErrorListener?;
+     private _extensionErrorUnsubscriber?;
+     private _modelRuntime;
++    private _selectedModel;
++    private _usesModelRuntimeStream;
+     private _cacheWarmer?;
+     private _toolRegistry;
+     /** Created on the first `ctx.executeTool()` call. */
+@@ -307,6 +322,9 @@ export declare class AgentSession {
+     get modelRuntime(): ModelRuntime;
+     private _getRequiredRequestAuth;
+     private _getSummarizationRequestAuth;
++    private _refreshRequestModelContext;
++    private _requestModelForSelection;
++    private _prepareCompactionRequestAuth;
+     /**
+      * The model whose limits apply to `message`, or undefined when the message came from another
+      * model. Under a virtual selection, that is the physical model that produced it.
+@@ -531,6 +549,7 @@ export declare class AgentSession {
+      * system patch first when the prompt changed.
+      */
+     private _prepareRun;
++    private _prepareNewTurn;
+     private _handlePostAgentRun;
+     private _runBeforeSettleBoundary;
+     private _runInputHandlers;
+@@ -544,7 +563,8 @@ export declare class AgentSession {
+      * @throws Error if streaming and no streamingBehavior specified
+      * @throws Error if no model selected or no API key available (when not streaming)
+      */
+-    prompt(text: string, options?: PromptOptions): Promise<void>;
++    /** Resolves to the exact expanded text when the prompt was queued during streaming. */
++    prompt(text: string, options?: PromptOptions): Promise<string | undefined>;
+     /**
+      * Try to execute an extension command. Returns true if command was found and executed.
+      */
+@@ -568,6 +588,11 @@ export declare class AgentSession {
+     steer(text: string, images?: ImageContent[], options?: {
+         source?: InputSource;
+     }): Promise<QueuedInputDisposition>;
++    /**
++     * Queue a steering message and transform its canonical expanded text immediately before it is
++     * delivered. Resolves to the exact queued text, or undefined when an input handler consumed it.
++     */
++    steer(text: string, images: ImageContent[] | undefined, transformExpandedText: (text: string) => string): Promise<string | undefined>;
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+      * Delivered only when agent has no more tool calls or steering messages.
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index c16f5da1b0902b04152e4d550f3fe601249e3b42..d71766ac42ea846502639133577fe246686451dc 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -25,7 +25,7 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
+ import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
+ import { executeBashWithOperations } from "./bash-executor.js";
+ import { generateBugReportSummary } from "./bug-report.js";
+-import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
++import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact } from "./compaction/index.js";
+ import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.js";
+ import { exportSessionToHtml } from "./export-html/index.js";
+ import { createToolHtmlRenderer } from "./export-html/tool-renderer.js";
+@@ -36,8 +36,9 @@ import { convertToLlm } from "./messages.js";
+ import { ModelRegistry } from "./model-registry.js";
+ import { NestedToolCallRunner } from "./nested-tool-calls.js";
+ import { expandPromptTemplate } from "./prompt-templates.js";
++import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
+ import { exportSessionToJsonl } from "./session-export.js";
+-import { getLatestCompactionEntry, SessionManager, } from "./session-manager.js";
++import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, SessionManager, withNativeCredentialFingerprint, withPreparedProviderHeaders, } from "./session-manager.js";
+ import { applyToolModifiers, DEFAULT_TOOL_NAMES, } from "./settings-manager.js";
+ import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath } from "./source-info.js";
+ import { buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
+@@ -76,6 +77,53 @@ function estimateMessagesTokens(messages) {
+     }
+     return tokens;
+ }
++/** OpenWaggle patch: a custom-message run whose preparation failed after before_agent_start. */
++class PreparedRunError extends Error {
++    messages;
++    constructor(messages, cause) {
++        super(cause instanceof Error ? cause.message : String(cause), { cause });
++        this.messages = messages;
++    }
++}
++function estimateRequestOverheadTokens(systemPrompt, tools, messages) {
++    let toolSchema = "";
++    try {
++        toolSchema = JSON.stringify(tools ?? []);
++    }
++    catch {
++        // Cyclic extension metadata is not part of the provider-facing JSON schema.
++    }
++    const estimateTextTokens = (text) => Math.max(text.length, Math.ceil(new TextEncoder().encode(text).length / 2));
++    const requestMessages = Array.isArray(messages) ? messages : [messages];
++    return estimateTextTokens(systemPrompt ?? "") + estimateTextTokens(toolSchema) + requestMessages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++}
++function isRequestTurnStart(message) {
++    return message.role === "user" || message.role === "custom" || message.role === "bashExecution" ||
++        message.role === "branchSummary" || message.role === "compactionSummary";
++}
++function fitMessagesToRequestBudget(messages, model, systemPrompt, tools) {
++    if (!model || !Number.isFinite(model.contextWindow))
++        return messages;
++    const units = [];
++    const lastAssistantIndex = messages.findLastIndex((message) => message.role === "assistant");
++    const mandatorySuffixIndex = messages.findIndex((message, index) => index > lastAssistantIndex && (message.role === "user" || message.role === "custom"));
++    for (const [index, message] of messages.entries()) {
++        const isMandatoryRequestSuffix = mandatorySuffixIndex >= 0 && index >= mandatorySuffixIndex;
++        if ((!isMandatoryRequestSuffix && isRequestTurnStart(message)) || index === mandatorySuffixIndex || units.length === 0)
++            units.push([]);
++        units[units.length - 1].push(message);
++    }
++    const framingTokens = estimateRequestOverheadTokens(systemPrompt, tools, []);
++    const safetyReserve = Math.ceil(Math.max(0, model.contextWindow) * 0.25);
++    const outputReserve = Number.isFinite(model.maxTokens) ? Math.max(0, model.maxTokens) : 0;
++    const inputBudget = Math.max(0, model.contextWindow - Math.max(safetyReserve, outputReserve + framingTokens));
++    const estimateUnitTokens = (unit) => unit.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++    let totalTokens = units.reduce((total, unit) => total + estimateUnitTokens(unit), 0);
++    while (totalTokens > inputBudget && units.length > 1) {
++        totalTokens -= estimateUnitTokens(units.shift());
++    }
++    return units.flat();
++}
+ // ============================================================================
+ // AgentSession Class
+ // ============================================================================
+@@ -88,6 +136,7 @@ export class AgentSession {
+     _unsubscribeAgent;
+     _eventListeners = [];
+     _isAgentRunActive = false;
++    _requestRequiresReconstructionFit = false;
+     _agentRunAbortRequested = false;
+     _idleWaitPromise;
+     _resolveIdleWait;
+@@ -160,6 +209,8 @@ export class AgentSession {
+     _extensionErrorListener;
+     _extensionErrorUnsubscriber;
+     _modelRuntime;
++    _selectedModel;
++    _usesModelRuntimeStream;
+     _cacheWarmer;
+     // Tool registry for extension getTools/setTools
+     _toolRegistry = new Map();
+@@ -182,6 +233,8 @@ export class AgentSession {
+         this._customTools = config.customTools ?? [];
+         this._cwd = config.cwd;
+         this._modelRuntime = config.modelRuntime;
++        this._selectedModel = config.selectedModel ?? config.agent.state.model;
++        this._usesModelRuntimeStream = config.usesModelRuntimeStream === true;
+         this._cacheWarmer = config.cacheWarmer;
+         if (this._cacheWarmer) {
+             this._cacheWarmer.onWarmed = (entry) => this._emit({ type: "entry_appended", entry });
+@@ -230,11 +283,13 @@ export class AgentSession {
+             throw error;
+         }
+         if (result && (result.auth.apiKey || result.auth.headers)) {
+-            const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
++            const resolvedModel = { ...model, baseUrl: result.auth.baseUrl ?? model.baseUrl };
++            const headers = withoutDeletedHeaders(result.auth.headers);
++            const requestModel = withNativeCredentialFingerprint(resolvedModel, result.auth.apiKey, headers);
+             return {
+                 model: requestModel,
+                 apiKey: result.auth.apiKey,
+-                headers: withoutDeletedHeaders(result.auth.headers),
++                headers,
+                 env: result.env,
+             };
+         }
+@@ -259,15 +314,13 @@ export class AgentSession {
+             return { ...(await this._getRequiredRequestAuth(model, signal)), thinkingLevel };
+         }
+         try {
+-            const result = await this._modelRuntime.getAuth(model, { signal });
+-            if (!result)
+-                return { model, thinkingLevel };
+-            const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
++            const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model, { signal });
++            const headers = withoutDeletedHeaders(resolution.auth.headers);
+             return {
+-                model: requestModel,
+-                apiKey: result.auth.apiKey,
+-                headers: withoutDeletedHeaders(result.auth.headers),
+-                env: result.env,
++                model: withNativeCredentialFingerprint(requestModel, resolution.auth.apiKey, headers),
++                apiKey: resolution.auth.apiKey,
++                headers,
++                env: resolution.env,
+                 thinkingLevel,
+             };
+         }
+@@ -277,6 +330,96 @@ export class AgentSession {
+             return { model, thinkingLevel };
+         }
+     }
++    async _refreshRequestModelContext(onPreparedCompactionAuth, preserveCurrentNativeCredential = false) {
++        const currentModel = this.model;
++        if (!currentModel)
++            return false;
++        const selectedModel = this._selectedModel ?? currentModel;
++        // A virtual selection is routed per request in prepareRequest; keep it unresolved in agent
++        // state. Its projection never replays an identity-bound native checkpoint.
++        if (isVirtualModel(selectedModel)) {
++            const identityChanged = currentModel !== selectedModel;
++            this.agent.state.model = selectedModel;
++            const projectedContext = this.sessionManager.buildSessionProjection(selectedModel);
++            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
++            if (identityChanged)
++                this.agent.state.messages = projectedContext.messages;
++            return identityChanged;
++        }
++        let requestModel;
++        let apiKey;
++        let headers;
++        let env;
++        if (this._usesModelRuntimeStream) {
++            const prepared = await this._modelRuntime.prepareModelRequest(selectedModel);
++            apiKey = prepared.resolution.auth.apiKey;
++            headers = withoutDeletedHeaders(prepared.resolution.auth.headers);
++            env = prepared.resolution.env;
++            requestModel = withNativeCredentialFingerprint(prepared.model, apiKey, headers);
++        }
++        else {
++            const requestAuth = await this._getSummarizationRequestAuth(selectedModel);
++            requestModel = requestAuth.model;
++            apiKey = requestAuth.apiKey;
++            headers = requestAuth.headers;
++            env = requestAuth.env;
++        }
++        const requestIdentityChanged = currentModel.api !== requestModel.api ||
++            currentModel.provider !== requestModel.provider ||
++            currentModel.id !== requestModel.id ||
++            currentModel.baseUrl !== requestModel.baseUrl ||
++            (currentModel.compat?.compactionBaseUrl ?? currentModel.baseUrl) !==
++                (requestModel.compat?.compactionBaseUrl ?? requestModel.baseUrl) ||
++            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction;
++        if (preserveCurrentNativeCredential && !requestIdentityChanged &&
++            selectCompactionMechanism(currentModel) === "native")
++            return false;
++        if (selectCompactionMechanism(requestModel) === "native") {
++            let requestHeaders = mergeProviderAttributionHeaders(requestModel, this.settingsManager, this.sessionManager.getSessionId(), headers);
++            if (this._extensionRunner.hasHandlers("before_provider_headers"))
++                requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
++            requestModel = withNativeCredentialFingerprint(requestModel, apiKey, requestHeaders);
++            if (this._usesModelRuntimeStream) {
++                requestModel = withPreparedProviderHeaders(requestModel, requestHeaders);
++            }
++            onPreparedCompactionAuth?.({
++                model: requestModel,
++                apiKey,
++                headers,
++                env,
++                thinkingLevel: this.thinkingLevel,
++                nativeRequestHeaders: requestHeaders,
++            });
++        }
++        const identityChanged = requestIdentityChanged ||
++            getNativeCredentialFingerprint(currentModel) !==
++                getNativeCredentialFingerprint(requestModel);
++        this.agent.state.model = requestModel;
++        const projectedContext = this.sessionManager.buildSessionProjection(requestModel);
++        this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
++        if (identityChanged) {
++            this.agent.state.messages = projectedContext.messages;
++        }
++        return identityChanged;
++    }
++    async _prepareCompactionRequestAuth(model, signal) {
++        const requestAuth = await this._getSummarizationRequestAuth(model, signal);
++        // A virtual selection routes each request, so a native checkpoint bound to one routed
++        // endpoint could not be replayed reliably; summarize it with the portable mechanism.
++        if (isVirtualModel(model)) {
++            const portableModel = { ...requestAuth.model, compat: { ...requestAuth.model.compat, supportsCompaction: false } };
++            return { ...requestAuth, model: withNativeCredentialFingerprint(portableModel, requestAuth.apiKey, requestAuth.headers) };
++        }
++        let nativeRequestHeaders;
++        if (selectCompactionMechanism(requestAuth.model) === "native") {
++            nativeRequestHeaders = mergeProviderAttributionHeaders(requestAuth.model, this.settingsManager, this.sessionManager.getSessionId(), requestAuth.headers);
++            if (this._extensionRunner.hasHandlers("before_provider_headers")) {
++                nativeRequestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(nativeRequestHeaders ?? {});
++            }
++            withNativeCredentialFingerprint(requestAuth.model, requestAuth.apiKey, nativeRequestHeaders);
++        }
++        return { ...requestAuth, nativeRequestHeaders };
++    }
+     /**
+      * The model whose limits apply to `message`, or undefined when the message came from another
+      * model. Under a virtual selection, that is the physical model that produced it.
+@@ -421,26 +564,28 @@ export class AgentSession {
+             return false;
+         return shouldCompact(estimateProjectedContextTokens(projection, this.sessionManager.getBranch()).tokens, model.contextWindow, this.settingsManager.getCompactionSettings(this.model));
+     }
+-    async _compactBeforeNextAssistantResponse(context) {
+-        const projection = this.sessionManager.buildSessionProjection();
++    async _compactBeforeNextAssistantResponse(context, preparedCompactionAuth) {
++        const projection = this.sessionManager.buildSessionProjection(this.model);
+         // A virtual selection is checked in prepareRequest, against the model the request is routed to.
+         const model = this.model;
+         if (!model || isVirtualModel(model) || !this._exceedsCompactionThreshold(model, projection)) {
+             return { ...context, messages: projection.messages };
+         }
+-        await this._runAutoCompaction("threshold", false);
+-        return { ...context, messages: this.sessionManager.buildSessionProjection().messages };
++        await this._runAutoCompaction("threshold", false, preparedCompactionAuth, true);
++        return { ...context, messages: this.sessionManager.buildSessionProjection(this.model).messages };
+     }
+     _installAgentRequestProjection() {
+         const previousPrepareRequest = this.agent.prepareRequest;
+         this.agent.prepareRequest = async (request, signal) => {
+             const failed = this._failedResponse;
+             this._failedResponse = undefined;
+-            const prepare = async () => {
+-                const projection = this.sessionManager.buildSessionProjection();
++            const prepare = async (afterCompaction = false) => {
++                const projection = this.sessionManager.buildSessionProjection(this.model);
+                 const canonicalContext = {
+                     ...request.context,
+-                    messages: projection.messages,
++                    // Agent state starts from the canonical projection; retain this request snapshot
++                    // so user and queued messages that have not settled into the session tree are not lost.
++                    messages: afterCompaction ? projection.messages : request.context.messages,
+                     // Messages declare the provider-visible loadout; context.tools keeps executable implementations.
+                     tools: this.agent.state.tools.slice(),
+                 };
+@@ -480,7 +625,7 @@ export class AgentSession {
+             // the projection.
+             if (this._exceedsCompactionThreshold(route.model, projection)) {
+                 await this._runAutoCompaction("threshold", false);
+-                ({ previous, context } = await prepare());
++                ({ previous, context } = await prepare(true));
+             }
+             return { ...previous, context, model: route.model, thinkingLevel: route.thinkingLevel };
+         };
+@@ -533,12 +678,18 @@ export class AgentSession {
+         };
+     }
+     _installAgentNextTurnRefresh() {
++        const previousTransformContext = this.agent.transformContext;
+         const previousPrepareNextTurnWithContext = this.agent.prepareNextTurnWithContext ??
+             (this.agent.prepareNextTurn
+                 ? async (_turn, signal) => await this.agent.prepareNextTurn?.(signal)
+                 : undefined);
+         this.agent.prepareNextTurnWithContext = async (turn, signal) => {
+-            const context = await this._compactBeforeNextAssistantResponse(turn.context);
++            let preparedCompactionAuth;
++            await this._refreshRequestModelContext((prepared) => { preparedCompactionAuth = prepared; });
++            const context = await this._compactBeforeNextAssistantResponse({
++                ...turn.context,
++                messages: this.sessionManager.buildSessionProjection(this.model).messages,
++            }, preparedCompactionAuth);
+             const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
+             const nextContext = previousSnapshot?.context ?? context;
+             const runOptions = this._runSystemPromptOptions ?? this._baseSystemPromptOptions;
+@@ -564,12 +715,18 @@ export class AgentSession {
+                 thinkingLevel: this.agent.state.thinkingLevel,
+             };
+         };
++        this.agent.transformContext = async (messages, signal) => {
++            const transformed = previousTransformContext ? await previousTransformContext(messages, signal) : messages;
++            return this._requestRequiresReconstructionFit
++                ? fitMessagesToRequestBudget(transformed, this.model, this.systemPrompt, this.agent.state.tools)
++                : transformed;
++        };
+     }
+     // =========================================================================
+     // Event Subscription
+     // =========================================================================
+-    _refreshFinalizedContext() {
+-        const projection = this.sessionManager.buildSessionProjection();
++    _refreshFinalizedContext(targetModel = this.model) {
++        const projection = this.sessionManager.buildSessionProjection(targetModel);
+         for (const entry of projection.entries) {
+             for (const message of entry.messages)
+                 this._entryIdsByMessage.set(message, entry.sourceEntry.id);
+@@ -591,7 +748,7 @@ export class AgentSession {
+                     entryId = manager.appendContextEdit(draft.targetId, draft.replacement);
+                     break;
+                 case "compaction": {
+-                    const tokensBefore = estimateProjectedContextTokens(manager.buildSessionProjection(), manager.getBranch()).tokens;
++                    const tokensBefore = estimateProjectedContextTokens(manager.buildSessionProjection(this.model), manager.getBranch()).tokens;
+                     entryId = manager.appendCompaction(draft.summary, draft.firstKeptEntryId, tokensBefore, draft.details, true, draft.usage);
+                     break;
+                 }
+@@ -614,7 +771,7 @@ export class AgentSession {
+         return [...this.agent.peekQueuedMessages(), ...this._pendingCustomMessages];
+     }
+     _buildBoundaryContext(drafts, boundary) {
+-        const projection = this._createBoundaryPreviewManager(drafts).buildSessionProjection();
++        const projection = this._createBoundaryPreviewManager(drafts).buildSessionProjection(this.model);
+         const pendingMessages = this._getPendingBoundaryMessages();
+         const llmMessages = convertToLlm(projection.messages);
+         const finalRole = llmMessages[llmMessages.length - 1]?.role;
+@@ -824,7 +981,7 @@ export class AgentSession {
+         const messageIndex = this.agent.state.messages.indexOf(message);
+         if (messageIndex < 0)
+             return undefined;
+-        const projection = this.sessionManager.buildSessionProjection();
++        const projection = this.sessionManager.buildSessionProjection(this.model);
+         let projectedIndex = 0;
+         for (const entry of projection.entries) {
+             for (let i = 0; i < entry.messages.length; i++) {
+@@ -1372,7 +1529,7 @@ export class AgentSession {
+      */
+     _restoreToolsFromTranscript() {
+         this._pendingToolNames.clear();
+-        const current = getCurrentSystemMessage(this.sessionManager.buildSessionContext().messages);
++        const current = getCurrentSystemMessage(this.sessionManager.buildSessionProjection(this.model).messages);
+         if (!current)
+             return;
+         const names = (current.toolsAdded ?? []).map((tool) => tool.name);
+@@ -1392,15 +1549,29 @@ export class AgentSession {
+         this._isAgentRunActive = true;
+         this._agentRunAbortRequested = false;
+         let messages;
++        let preparationError;
+         try {
+             messages = await this._prepareRun(trigger);
+         }
+         catch (error) {
+-            this._isAgentRunActive = false;
+-            this._flushPendingBashMessages();
+-            this._flushPendingCustomMessages();
+-            this._resolveIdleWaitIfIdle();
+-            throw error;
++            // OpenWaggle patch: a custom message that starts a run (pi.sendMessage with
++            // triggerTurn, which nobody awaits, such as a Waggle turn) runs even when its
++            // preparation fails, such as request auth that no longer resolves. The message starts
++            // the run and an error turn ends it, the way a failed request does, so a caller that
++            // waits for agent_end sees the failure. Once before_agent_start has run, the run and
++            // Pi's retry of it keep the prompt and tool loadout it set.
++            if (trigger.messageType !== "custom") {
++                this._isAgentRunActive = false;
++                this._flushPendingBashMessages();
++                this._flushPendingCustomMessages();
++                this._resolveIdleWaitIfIdle();
++                throw error;
++            }
++            const prepared = error instanceof PreparedRunError ? error : undefined;
++            if (!prepared)
++                this._runSystemPromptOptions = undefined;
++            messages = prepared?.messages ?? [trigger.message];
++            preparationError = prepared ? prepared.cause : error;
+         }
+         // Messages held while the run was starting go before its starting messages, as they would
+         // have while idle. No run exists yet, so they cannot split a tool call from its result.
+@@ -1413,7 +1584,19 @@ export class AgentSession {
+         // The run records the loadout in the transcript; restored tools that did not register by now
+         // are dropped, so a tool that never registers does not stay pending.
+         this._pendingToolNames.clear();
++        const transformContext = this.agent.transformContext;
++        if (preparationError !== undefined) {
++            // The run's first request fails with the preparation error, once.
++            this.agent.transformContext = async () => {
++                this.agent.transformContext = transformContext;
++                throw preparationError;
++            };
++        }
+         try {
++            const requestOverheadTokens = estimateRequestOverheadTokens(this.systemPrompt, this.agent.state.tools, messages);
++            const projectedContext = this.sessionManager.buildSessionProjection(this.model, { requestOverheadTokens });
++            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
++            this.agent.state.messages = projectedContext.messages;
+             await this.agent.prompt(messages);
+             while (!this._agentRunAbortRequested) {
+                 if (await this._handlePostAgentRun()) {
+@@ -1430,6 +1613,8 @@ export class AgentSession {
+             }
+         }
+         finally {
++            if (this.agent.transformContext !== transformContext)
++                this.agent.transformContext = transformContext;
+             if (this._agentRunAbortRequested)
+                 this._finishCancelledRetry();
+             this._failedResponse = undefined;
+@@ -1446,12 +1631,6 @@ export class AgentSession {
+      * system patch first when the prompt changed.
+      */
+     async _prepareRun(trigger) {
+-        // Check if we need to compact before sending (catches aborted responses).
+-        // The starting message is sent below, so do not call agent.continue() here.
+-        const lastAssistant = this._findLastAssistantMessage();
+-        if (lastAssistant) {
+-            await this._checkCompaction(lastAssistant, false);
+-        }
+         const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
+         const result = await this._extensionRunner.emitBeforeAgentStart(trigger, this._baseSystemPromptOptions);
+         // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
+@@ -1461,6 +1640,19 @@ export class AgentSession {
+             result.systemPromptOptions.selectedTools.some((name, index) => name !== selectedToolsBefore[index]);
+         if (!handlerEditedTools)
+             result.systemPromptOptions.selectedTools = this.getActiveToolNames();
++        // OpenWaggle patch: refresh request auth and check whether to compact before sending
++        // (catches aborted responses) against the final request model, after before_agent_start
++        // may have switched it. The starting message is sent below, so do not call
++        // agent.continue() here.
++        let preparationError;
++        try {
++            await this._prepareNewTurn();
++        }
++        catch (error) {
++            if (trigger.messageType !== "custom")
++                throw error;
++            preparationError = error;
++        }
+         const messages = [];
+         if (trigger.messageType === "custom") {
+             messages.push(trigger.message);
+@@ -1494,8 +1686,20 @@ export class AgentSession {
+         this._runSystemPromptOptions = result.systemPromptOptions;
+         if (updateMessage)
+             messages.unshift(updateMessage);
++        if (preparationError !== undefined)
++            throw new PreparedRunError(messages, preparationError);
+         return messages;
+     }
++    async _prepareNewTurn() {
++        let preparedCompactionAuth;
++        await this._refreshRequestModelContext((prepared) => {
++            preparedCompactionAuth = prepared;
++        });
++        const lastAssistant = this._findLastAssistantMessage();
++        if (lastAssistant) {
++            await this._checkCompaction(lastAssistant, false, [], true, preparedCompactionAuth);
++        }
++    }
+     async _handlePostAgentRun() {
+         const message = this._lastAssistantMessage;
+         const toolResults = this._lastAssistantToolResults;
+@@ -1526,7 +1730,8 @@ export class AgentSession {
+             });
+             this._retryAttempt = 0;
+         }
+-        if (await this._checkCompaction(message, true, toolResults)) {
++        const hasQueuedMessages = this.agent.hasQueuedMessages();
++        if (await this._checkCompaction(message, true, toolResults, hasQueuedMessages)) {
+             return !this._agentRunAbortRequested;
+         }
+         // The low-level loop drains both queues before agent_end. Messages queued by
+@@ -1605,10 +1810,17 @@ export class AgentSession {
+         }
+         const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+         const preflightResult = options?.preflightResult;
+-        // Handle extension commands first (execute immediately, even during streaming)
+-        // Extension commands manage their own LLM interaction via pi.sendMessage()
+-        if (expandPromptTemplates && text.startsWith("/")) {
+-            const handled = await this._tryExecuteExtensionCommand(text);
++        // Emit input event for extension interception (before command dispatch and skill/template expansion)
++        const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
++        if (!processedInput) {
++            preflightResult?.("handled");
++            return;
++        }
++        const { text: currentText, images: currentImages } = processedInput;
++        // Transformed input decides command dispatch so extensions can stop or rewrite active work.
++        // Extension commands execute immediately, even during streaming, and manage their own LLM interaction.
++        if (expandPromptTemplates && currentText.startsWith("/")) {
++            const handled = await this._tryExecuteExtensionCommand(currentText);
+             if (handled) {
+                 // Extension command executed, no prompt to send
+                 preflightResult?.("handled");
+@@ -1618,19 +1830,15 @@ export class AgentSession {
+         if (this._compactionAbortController !== undefined) {
+             throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+         }
+-        // Emit input event for extension interception (before skill/template expansion)
+-        const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
+-        if (!processedInput) {
+-            preflightResult?.("handled");
+-            return;
+-        }
+-        const { text: currentText, images: currentImages } = processedInput;
+         // Expand skill commands (/skill:name args) and prompt templates (/template args)
+         let expandedText = currentText;
+         if (expandPromptTemplates) {
+             expandedText = this._expandSkillCommand(expandedText);
+             expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+         }
++        if (options?.transformExpandedText) {
++            expandedText = options.transformExpandedText(expandedText);
++        }
+         // If streaming, queue via steer() or followUp() based on option
+         if (this.isStreaming) {
+             if (!options?.streamingBehavior) {
+@@ -1643,7 +1851,12 @@ export class AgentSession {
+                 await this._queueSteer(expandedText, currentImages);
+             }
+             preflightResult?.("queued");
+-            return;
++            return expandedText;
++        }
++        // The caller only wanted to steer the active turn, which ended while input handlers ran:
++        // refuse instead of starting a new turn the caller does not own.
++        if (options?.streamingOnly) {
++            throw Object.assign(new Error("The agent stopped streaming before the message could be queued."), { code: "agent_not_streaming" });
+         }
+         // Validate model
+         if (!this.model) {
+@@ -1719,22 +1932,24 @@ export class AgentSession {
+             return text; // Return original on error
+         }
+     }
+-    async _queueUserInput(text, images, behavior, source) {
++    async _queueUserInput(text, images, behavior, source, transformExpandedText) {
+         if (text.startsWith("/")) {
+             this._throwIfExtensionCommand(text);
+         }
+         const processedInput = await this._runInputHandlers(text, images, source, this.isStreaming ? behavior : undefined);
+         if (!processedInput)
+-            return "handled";
++            return { disposition: "handled" };
+         let expandedText = this._expandSkillCommand(processedInput.text);
+         expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
++        if (transformExpandedText)
++            expandedText = transformExpandedText(expandedText);
+         if (behavior === "steer") {
+             await this._queueSteer(expandedText, processedInput.images);
+         }
+         else {
+             await this._queueFollowUp(expandedText, processedInput.images);
+         }
+-        return "queued";
++        return { disposition: "queued", expandedText };
+     }
+     /**
+      * Queue a steering message while the agent is running.
+@@ -1746,7 +1961,13 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async steer(text, images, options) {
+-        return this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
++        // A transform function selects the expanded-text contract: resolve to the exact text that was
++        // queued, or undefined when an input handler consumed the message.
++        if (typeof options === "function") {
++            const queued = await this._queueUserInput(text, images, "steer", "interactive", options);
++            return queued.disposition === "queued" ? queued.expandedText : undefined;
++        }
++        return (await this._queueUserInput(text, images, "steer", options?.source ?? "interactive")).disposition;
+     }
+     /**
+      * Queue a follow-up message to be processed after the agent finishes.
+@@ -1757,7 +1978,7 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async followUp(text, images, options) {
+-        return this._queueUserInput(text, images, "followUp", options?.source ?? "interactive");
++        return (await this._queueUserInput(text, images, "followUp", options?.source ?? "interactive")).disposition;
+     }
+     /**
+      * Internal: Queue a steering message (already expanded, no extension command check).
+@@ -1975,14 +2196,29 @@ export class AgentSession {
+      * Persists to global defaults only when options.persist is true.
+      * @throws Error if no auth is configured for the model
+      */
+-    async setModel(model, options = {}) {
++    /**
++     * Resolve the credential-bound request model for a selection. Virtual selections are routed per
++     * request, so they keep Pi's provider check and stay in agent state unresolved.
++     */
++    async _requestModelForSelection(model) {
++        // Pi's own provider check first: a provider can be configured without an API key or
++        // headers (Amazon Bedrock through AWS_PROFILE, an ECS task role, or web identity).
+         if (!(await this._modelRuntime.checkAuth(model.provider))) {
+             throw new Error(`No API key for ${model.provider}/${model.id}`);
+         }
++        if (isVirtualModel(model))
++            return model;
++        const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model);
++        return withNativeCredentialFingerprint(requestModel, resolution.auth.apiKey, withoutDeletedHeaders(resolution.auth.headers));
++    }
++    async setModel(model, options = {}) {
++        const requestModel = await this._requestModelForSelection(model);
+         const previousModel = this.model;
+         const thinkingLevel = this._getThinkingLevelForModelSwitch(model);
+-        this.agent.state.model = model;
++        this._selectedModel = model;
++        this.agent.state.model = requestModel;
+         this.sessionManager.appendModelChange(model.provider, model.id);
++        this._refreshFinalizedContext(requestModel);
+         if (options.persist) {
+             this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
+             this._addPersistedDefaultToNonEmptyScope(model);
+@@ -1991,7 +2227,7 @@ export class AgentSession {
+         // Per-model thinking level overrides take priority over the global default.
+         // Model persistence does not implicitly rewrite the global thinking default.
+         this.setThinkingLevel(thinkingLevel);
+-        await this._emitModelSelect(model, previousModel, "set");
++        await this._emitModelSelect(requestModel, previousModel, "set");
+     }
+     _addPersistedDefaultToNonEmptyScope(model) {
+         if (this._scopedModels.length === 0)
+@@ -2031,10 +2267,13 @@ export class AgentSession {
+         const len = scopedModels.length;
+         const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
+         const next = scopedModels[nextIndex];
++        const requestModel = await this._requestModelForSelection(next.model);
+         const thinkingLevel = this._getThinkingLevelForModelSwitch(next.model, next.thinkingLevel);
+         // Apply model
+-        this.agent.state.model = next.model;
++        this._selectedModel = next.model;
++        this.agent.state.model = requestModel;
+         this.sessionManager.appendModelChange(next.model.provider, next.model.id);
++        this._refreshFinalizedContext(requestModel);
+         if (options.persist) {
+             this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
+             this._addPersistedDefaultToNonEmptyScope(next.model);
+@@ -2045,8 +2284,8 @@ export class AgentSession {
+         // setThinkingLevel clamps to model capabilities.
+         // Model persistence does not implicitly rewrite the global thinking default.
+         this.setThinkingLevel(thinkingLevel);
+-        await this._emitModelSelect(next.model, currentModel, "cycle");
+-        return { model: next.model, thinkingLevel: this.thinkingLevel, isScoped: true };
++        await this._emitModelSelect(requestModel, currentModel, "cycle");
++        return { model: requestModel, thinkingLevel: this.thinkingLevel, isScoped: true };
+     }
+     async _cycleAvailableModel(direction, options) {
+         const availableModels = this._modelRuntime.getAvailableSnapshot();
+@@ -2059,9 +2298,12 @@ export class AgentSession {
+         const len = availableModels.length;
+         const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
+         const nextModel = availableModels[nextIndex];
++        const requestModel = await this._requestModelForSelection(nextModel);
+         const thinkingLevel = this._getThinkingLevelForModelSwitch(nextModel);
+-        this.agent.state.model = nextModel;
++        this._selectedModel = nextModel;
++        this.agent.state.model = requestModel;
+         this.sessionManager.appendModelChange(nextModel.provider, nextModel.id);
++        this._refreshFinalizedContext(requestModel);
+         if (options.persist) {
+             this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
+             this._addPersistedDefaultToNonEmptyScope(nextModel);
+@@ -2069,8 +2311,8 @@ export class AgentSession {
+         // Apply thinking level for the new model.
+         // Model persistence does not implicitly rewrite the global thinking default.
+         this.setThinkingLevel(thinkingLevel);
+-        await this._emitModelSelect(nextModel, currentModel, "cycle");
+-        return { model: nextModel, thinkingLevel: this.thinkingLevel, isScoped: false };
++        await this._emitModelSelect(requestModel, currentModel, "cycle");
++        return { model: requestModel, thinkingLevel: this.thinkingLevel, isScoped: false };
+     }
+     // =========================================================================
+     // Thinking Level Management
+@@ -2173,10 +2415,42 @@ export class AgentSession {
+     // Compaction
+     // =========================================================================
+     /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
+-    async _runDefaultCompaction(preparation, model, customInstructions, signal, reason) {
+-        // Resolve the request only when Pi summarizes itself: routing may call models or fail.
+-        const request = await this._getSummarizationRequestAuth(model, signal);
+-        return compact(preparation, request.model, request.apiKey, request.headers, customInstructions, signal, request.thinkingLevel, this.agent.streamFunction, request.env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
++    async _runDefaultCompaction(preparation, request, customInstructions, signal, reason, willRetry) {
++        // The request was resolved before preparation: the credential-resolved endpoint selects the
++        // native or portable mechanism, and with it the compaction preparation itself.
++        const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = request;
++        const transformPreparation = this.agent.transformCompactionContext || this.agent.transformContext
++            ? async (candidate, mechanism) => {
++                const referenceMessages = willRetry
++                    ? (this._compactionReferenceMessages ?? this.agent.state.messages)
++                    : candidate.messagesForNativeCompaction;
++                const transformMessages = (messages) => messages.length === 0 || (mechanism !== "native" && !this.agent.transformCompactionContext)
++                    ? messages
++                    : this.agent.transformCompactionContext ? this.agent.transformCompactionContext(messages, referenceMessages, { willRetry }, signal) : this.agent.transformContext(messages, signal);
++                return mechanism === "native"
++                    ? {
++                        ...candidate,
++                        messagesForNativeCompaction: await transformMessages(candidate.messagesForNativeCompaction),
++                    }
++                    : {
++                        ...candidate,
++                        messagesToSummarize: await transformMessages(candidate.messagesToSummarize),
++                        turnPrefixMessages: await transformMessages(candidate.turnPrefixMessages),
++                    };
++            }
++            : undefined;
++        let nativeRequestOptions;
++        if (selectCompactionMechanism(requestModel) === "native") {
++            const httpIdleTimeoutMs = this.settingsManager.getHttpIdleTimeoutMs();
++            nativeRequestOptions = {
++                headers: nativeRequestHeaders,
++                timeoutMs: this.settingsManager.getProviderRetrySettings().timeoutMs ?? (httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs),
++                onPayload: this.agent.onPayload,
++                onResponse: this.agent.onResponse,
++                convertMessages: async (messages) => this.agent.convertToLlm(messages),
++            };
++        }
++        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, request.thinkingLevel ?? this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.systemPrompt, transformPreparation, nativeRequestOptions);
+     }
+     _clearManualCompactionState() {
+         this._compactionAbortController = undefined;
+@@ -2208,9 +2482,26 @@ export class AgentSession {
+             if (!model) {
+                 throw new Error(formatNoModelSelectedMessage());
+             }
+-            const settings = this.settingsManager.getCompactionSettings(model);
++            const compactionRequest = await this._prepareCompactionRequestAuth(this._selectedModel ?? model, this._compactionAbortController.signal);
++            const requestModel = compactionRequest.model;
++            if (!isVirtualModel(this._selectedModel ?? model))
++                this.agent.state.model = requestModel;
++            const nativeInstructions = customInstructions?.trim()
++                ? `${this.systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
++                : this.systemPrompt;
++            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(nativeInstructions, [], []);
++            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
++                ? nativeRequestOverheadTokens
++                : estimatePortableCompactionRequestOverheadTokens(customInstructions);
++            const projection = this.sessionManager.buildSessionProjection(requestModel, { requestOverheadTokens });
++            this.agent.state.messages = projection.messages;
++            this._requestRequiresReconstructionFit = projection.reconstruction !== undefined;
+             const pathEntries = this.sessionManager.getBranch();
+-            const preparation = prepareCompaction(pathEntries, settings);
++            const settings = this.settingsManager.getCompactionSettings(requestModel);
++            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
++                nativeRequestOverheadTokens,
++                portableCustomInstructions: customInstructions,
++            });
+             if (!preparation) {
+                 // Check why we can't compact
+                 const lastEntry = pathEntries[pathEntries.length - 1];
+@@ -2254,7 +2545,7 @@ export class AgentSession {
+             }
+             else {
+                 // Shared default summary generator, also used by automatic compaction.
+-                const result = await this._runDefaultCompaction(preparation, model, customInstructions, this._compactionAbortController.signal, "manual");
++                const result = await this._runDefaultCompaction(preparation, compactionRequest, customInstructions, this._compactionAbortController.signal, "manual", false);
+                 summary = result.summary;
+                 firstKeptEntryId = result.firstKeptEntryId;
+                 tokensBefore = result.tokensBefore;
+@@ -2264,12 +2555,11 @@ export class AgentSession {
+             if (this._compactionAbortController.signal.aborted) {
+                 throw new Error("Compaction cancelled");
+             }
+-            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
+-            const newEntries = this.sessionManager.getEntries();
+-            this._refreshFinalizedContext();
+-            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection().messages);
++            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, "manual");
++            this._refreshFinalizedContext(requestModel);
++            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection(requestModel).messages);
+             // Get the saved compaction entry for the extension event
+-            const savedCompactionEntry = newEntries.find((e) => e.type === "compaction" && e.summary === summary);
++            const savedCompactionEntry = this.sessionManager.getEntry(savedCompactionEntryId);
+             if (this._extensionRunner && savedCompactionEntry) {
+                 await this._extensionRunner.emit({
+                     type: "session_compact",
+@@ -2280,6 +2570,7 @@ export class AgentSession {
+                 });
+             }
+             const compactionResult = {
++                entryId: savedCompactionEntryId,
+                 summary,
+                 firstKeptEntryId,
+                 tokensBefore,
+@@ -2358,7 +2649,7 @@ export class AgentSession {
+      * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
+      * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
+      */
+-    async _checkCompaction(assistantMessage, skipAbortedCheck = true, toolResults = []) {
++    async _checkCompaction(assistantMessage, skipAbortedCheck = true, toolResults = [], hasFollowUpCall = true, preparedCompactionAuth) {
+         const settings = this.settingsManager.getCompactionSettings(this.model);
+         if (!settings.enabled)
+             return false;
+@@ -2384,7 +2675,7 @@ export class AgentSession {
+         // Automatic cases 1 and 2: context overflow.
+         // A length stop is recoverable when output ended below the model's original desired limit,
+         // independent of the configured context size or any context-clamped provider request limit.
+-        const currentProjection = this.sessionManager.buildSessionProjection();
++        const currentProjection = this.sessionManager.buildSessionProjection(this.model);
+         const assistantEntryId = this._findPersistedMessageEntryId(assistantMessage);
+         const assistantIsProjected = assistantEntryId === undefined ||
+             currentProjection.entries.some((entry) => entry.sourceEntry.id === assistantEntryId &&
+@@ -2410,7 +2701,10 @@ export class AgentSession {
+             // Case 2: the response completed successfully. Compact, but do not retry because
+             // agent.continue() cannot continue from a completed assistant response.
+             if (!willRetry) {
+-                return await this._runAutoCompaction("overflow", false);
++                if (!hasFollowUpCall) {
++                    return false;
++                }
++                return await this._runAutoCompaction("overflow", false, preparedCompactionAuth);
+             }
+             if (this._overflowRecoveryAttempted) {
+                 const errorMessage = contextOverflow
+@@ -2435,8 +2729,9 @@ export class AgentSession {
+             }
+             // Persistently omit the selected final attempt before post-run recovery compaction.
+             this._overflowRecoveryAttempted = true;
++            this._compactionReferenceMessages = this.agent.state.messages.slice();
+             this._omitRecoveryAttempt(assistantMessage, toolResults);
+-            const retry = await this._runAutoCompaction("overflow", willRetry);
++            const retry = await this._runAutoCompaction("overflow", willRetry, preparedCompactionAuth);
+             if (retry)
+                 this._failedResponse = assistantMessage;
+             return retry;
+@@ -2473,8 +2768,8 @@ export class AgentSession {
+         else {
+             contextTokens = directContextTokens;
+         }
+-        if (shouldCompact(contextTokens, contextWindow, settings)) {
+-            return await this._runAutoCompaction("threshold", false);
++        if (hasFollowUpCall && shouldCompact(contextTokens, contextWindow, settings)) {
++            return await this._runAutoCompaction("threshold", false, preparedCompactionAuth);
+         }
+         return false;
+     }
+@@ -2488,27 +2783,42 @@ export class AgentSession {
+      * @param willRetry Whether to continue the interrupted turn after overflow compaction
+      * @returns Whether the post-run loop should call `agent.continue()`
+      */
+-    async _runAutoCompaction(reason, willRetry) {
++    async _runAutoCompaction(reason, willRetry, preparedCompactionAuth, preservePreparedAuth = false) {
+         const model = this.model;
+-        const settings = this.settingsManager.getCompactionSettings(model);
+         let abortController;
+         let started = false;
+         let fromExtension = false;
+         let cancelledByExtension = false;
++        let preserveCompactionAuth = preservePreparedAuth;
++        let completedWithNativeCheckpoint = false;
+         try {
+             if (!model) {
+                 return false;
+             }
+-            const pathEntries = this.sessionManager.getBranch();
+-            const preparation = prepareCompaction(pathEntries, settings);
+-            if (!preparation) {
+-                return false;
+-            }
+             abortController = new AbortController();
+             this._autoCompactionAbortController = abortController;
++            const selectedModel = this._selectedModel ?? model;
++            const compactionRequest = preparedCompactionAuth ??
++                (await this._prepareCompactionRequestAuth(selectedModel, abortController.signal));
++            const requestModel = compactionRequest.model;
++            abortController.signal.throwIfAborted();
++            preserveCompactionAuth ||= selectCompactionMechanism(requestModel) === "native" && this._extensionRunner.hasHandlers("before_provider_headers");
++            if (!isVirtualModel(selectedModel))
++                this.agent.state.model = requestModel;
++            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.systemPrompt, [], []);
++            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native" ? nativeRequestOverheadTokens : estimatePortableCompactionRequestOverheadTokens();
++            const projection = this.sessionManager.buildSessionProjection(requestModel, { requestOverheadTokens });
++            this.agent.state.messages = projection.messages;
++            this._requestRequiresReconstructionFit = projection.reconstruction !== undefined;
++            const pathEntries = this.sessionManager.getBranch();
++            const settings = this.settingsManager.getCompactionSettings(requestModel);
++            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
++                nativeRequestOverheadTokens,
++            });
++            if (!preparation)
++                return false;
+             started = true;
+             this._emit({ type: "compaction_start", reason });
+-            abortController.signal.throwIfAborted();
+             let extensionCompaction;
+             if (this._extensionRunner.hasHandlers("session_before_compact")) {
+                 const extensionResult = (await this._extensionRunner.emit({
+@@ -2545,7 +2855,7 @@ export class AgentSession {
+             }
+             else {
+                 // Shared default summary generator, also used by manual compaction.
+-                const compactResult = await this._runDefaultCompaction(preparation, model, undefined, abortController.signal, reason);
++                const compactResult = await this._runDefaultCompaction(preparation, compactionRequest, undefined, abortController.signal, reason, willRetry);
+                 summary = compactResult.summary;
+                 firstKeptEntryId = compactResult.firstKeptEntryId;
+                 tokensBefore = compactResult.tokensBefore;
+@@ -2553,12 +2863,12 @@ export class AgentSession {
+                 details = compactResult.details;
+             }
+             abortController.signal.throwIfAborted();
+-            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
+-            const newEntries = this.sessionManager.getEntries();
+-            this._refreshFinalizedContext();
+-            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection().messages);
++            completedWithNativeCheckpoint = details?.schemaVersion === 1 && details?.mechanism === "native";
++            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, reason);
++            this._refreshFinalizedContext(requestModel);
++            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection(requestModel).messages);
+             // Get the saved compaction entry for the extension event
+-            const savedCompactionEntry = newEntries.find((e) => e.type === "compaction" && e.summary === summary);
++            const savedCompactionEntry = this.sessionManager.getEntry(savedCompactionEntryId);
+             if (this._extensionRunner && savedCompactionEntry) {
+                 await this._extensionRunner.emit({
+                     type: "session_compact",
+@@ -2569,6 +2879,7 @@ export class AgentSession {
+                 });
+             }
+             const result = {
++                entryId: savedCompactionEntryId,
+                 summary,
+                 firstKeptEntryId,
+                 tokensBefore,
+@@ -2611,10 +2922,16 @@ export class AgentSession {
+             return false;
+         }
+         finally {
+-            if (this._autoCompactionAbortController === abortController) {
+-                this._autoCompactionAbortController = undefined;
++            try {
++                if (this.model && !preserveCompactionAuth)
++                    await this._refreshRequestModelContext(undefined, completedWithNativeCheckpoint);
++            }
++            finally {
++                if (this._autoCompactionAbortController === abortController)
++                    this._autoCompactionAbortController = undefined;
++                this._compactionReferenceMessages = undefined;
++                this._resolveIdleWaitIfIdle();
+             }
+-            this._resolveIdleWaitIfIdle();
+         }
+     }
+     /**
+@@ -2707,7 +3024,7 @@ export class AgentSession {
+         if (!refreshedModel || refreshedModel === currentModel) {
+             return;
+         }
+-        this.agent.state.model = refreshedModel;
++        this._selectedModel = refreshedModel;
+     }
+     _bindExtensionCore(runner) {
+         const getCommands = () => {
+@@ -3302,7 +3619,7 @@ export class AgentSession {
+                 const signal = this._branchSummaryAbortController.signal;
+                 const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
+                 const result = await generateBranchSummary(entriesToSummarize, {
+-                    ...(await this._getSummarizationRequestAuth(this.model, signal)),
++                    ...(await this._getSummarizationRequestAuth(this._selectedModel ?? this.model, signal)),
+                     signal,
+                     customInstructions,
+                     replaceInstructions,
+@@ -3477,7 +3794,7 @@ export class AgentSession {
+         // After compaction, the last assistant usage reflects pre-compaction context size.
+         // We can only trust usage from an assistant that responded after the latest compaction.
+         // If no such assistant exists, context token count is unknown until the next LLM response.
+-        const projection = this.sessionManager.buildSessionProjection();
++        const projection = this.sessionManager.buildSessionProjection(this.model);
+         const branch = this.sessionManager.getBranch();
+         const latestCompaction = getLatestCompactionEntry(branch);
+         if (latestCompaction) {
+diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
+index 04416da43184fce4dc2fc33afeb920e2edddedc9..b90908774b8ba2116736f3ef76a1f9bb086abce4 100644
+--- a/dist/core/compaction/compaction.d.ts
++++ b/dist/core/compaction/compaction.d.ts
+@@ -6,7 +6,7 @@
+  */
+ import type { AgentMessage, StreamFn, ThinkingLevel } from "@earendil-works/pi-agent-core";
+ import { type RetryCallbacks, type RetryPolicy } from "@earendil-works/pi-ai";
+-import type { AssistantMessage, Model, SimpleStreamOptions, TranscriptContext, Usage } from "@earendil-works/pi-ai/compat";
++import type { AssistantMessage, Message, Model, SimpleStreamOptions, TranscriptContext, Usage } from "@earendil-works/pi-ai/compat";
+ import { type SessionEntry, type SessionProjection } from "../session-manager.ts";
+ import { type FileOperations } from "./utils.ts";
+ /** Details stored in CompactionEntry.details for file tracking */
+@@ -16,6 +16,8 @@ export interface CompactionDetails {
+ }
+ /** Result from compact() - SessionManager adds uuid/parentUuid when saving */
+ export interface CompactionResult<T = unknown> {
++    /** Persisted compaction entry ID, populated by AgentSession lifecycle results. */
++    entryId?: string;
+     summary: string;
+     firstKeptEntryId: string;
+     tokensBefore: number;
+@@ -25,10 +27,12 @@ export interface CompactionResult<T = unknown> {
+     /** Extension-specific data (e.g., ArtifactIndex, version markers for structured compaction) */
+     details?: T;
+ }
++export type NativeCompactionRequestOptions = Pick<SimpleStreamOptions, "headers" | "onPayload" | "onResponse" | "timeoutMs"> & { convertMessages?: (messages: AgentMessage[]) => Promise<Message[]> };
+ export interface CompactionSettings {
+     enabled: boolean;
+     reserveTokens: number;
+     keepRecentTokens: number;
++    thresholdPercent: number;
+ }
+ export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
+ /**
+@@ -57,6 +61,7 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
+  * Check if compaction should trigger based on context usage.
+  */
+ export declare function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean;
++export declare function selectCompactionMechanism(model: Model<any>): "native" | "portable";
+ /**
+  * Estimate token count for a message using chars/4 heuristic.
+  * This is conservative (overestimates tokens).
+@@ -120,6 +125,8 @@ export interface CompactionPreparation {
+     firstKeptEntryId: string;
+     /** Messages that will be summarized and discarded */
+     messagesToSummarize: AgentMessage[];
++    /** Complete active context used by a native replacement checkpoint. */
++    messagesForNativeCompaction: AgentMessage[];
+     /** Messages that will be turned into turn prefix summary (if splitting) */
+     turnPrefixMessages: AgentMessage[];
+     /** Whether this is a split turn (cut point in middle of turn) */
+@@ -131,8 +138,16 @@ export interface CompactionPreparation {
+     fileOps: FileOperations;
+     /** Compaction settions from settings.jsonl	*/
+     settings: CompactionSettings;
++    /** Raw-history preparation used only when a declared Native endpoint is unavailable. */
++    portableFallback?: CompactionPreparation;
+ }
+-export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings): CompactionPreparation | undefined;
++export interface CompactionPreparationOptions {
++    nativeRequestOverheadTokens?: number;
++    portableCustomInstructions?: string;
++}
++export type CompactionPreparationTransform = (preparation: CompactionPreparation, mechanism: "native" | "portable") => Promise<CompactionPreparation>;
++export declare function estimatePortableCompactionRequestOverheadTokens(customInstructions?: string, previousSummary?: string, messages?: AgentMessage[]): number;
++export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings, model?: Model<any>, requestOptions?: CompactionPreparationOptions): CompactionPreparation | undefined;
+ /**
+  * Generate summaries for compaction using prepared data.
+  * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
+@@ -141,5 +156,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+  * @param customInstructions - Optional custom focus for the summary
+  * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
+  */
+-export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
++export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string, transformPreparation?: CompactionPreparationTransform, nativeRequestOptions?: NativeCompactionRequestOptions): Promise<CompactionResult>;
+ //# sourceMappingURL=compaction.d.ts.map
+\ No newline at end of file
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..cffebc371c8a9dccf6ac6d3a331ce507bf1a8a46 100644
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -4,10 +4,11 @@
+  * Pure functions for compaction logic. The session manager handles I/O,
+  * and after compaction the session is reloaded.
+  */
+-import { contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
++import { calculateCost, contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
++import { compactResponses, isChatGPTSignInRequest } from "@earendil-works/pi-ai/api/openai-responses";
+ import { completeSimple } from "@earendil-works/pi-ai/compat";
+ import { convertToLlm } from "../messages.js";
+-import { buildSessionProjection, sessionEntryToContextMessages, } from "../session-manager.js";
++import { buildSessionProjection, estimateReconstructionMessageTokens, getNativeCredentialFingerprint, nativeCredentialFingerprint, sessionEntryToContextMessages, } from "../session-manager.js";
+ import { combineUsage } from "../usage-totals.js";
+ import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, SUMMARIZATION_SYSTEM_PROMPT, serializeConversation, } from "./utils.js";
+ /**
+@@ -54,6 +55,7 @@ export const DEFAULT_COMPACTION_SETTINGS = {
+     enabled: true,
+     reserveTokens: 16384,
+     keepRecentTokens: 20000,
++    thresholdPercent: 80,
+ };
+ // ============================================================================
+ // Token calculation
+@@ -173,7 +175,53 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
+ export function shouldCompact(contextTokens, contextWindow, settings) {
+     if (!settings.enabled)
+         return false;
+-    return contextTokens > contextWindow - settings.reserveTokens;
++    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
++    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
++    return contextTokens >= Math.min(configuredThreshold, reserveThreshold);
++}
++export function selectCompactionMechanism(model) {
++    const responsesApi = model.api === "openai-responses" ||
++        model.api === "openai-codex-responses";
++    return responsesApi && model.compat?.supportsCompaction === true ? "native" : "portable";
++}
++function nativeCompactionIdentity(model, apiKey, headers) {
++    return {
++        api: model.api,
++        provider: model.provider,
++        baseUrl: model.baseUrl,
++        compactionBaseUrl: model.compat?.compactionBaseUrl ?? model.baseUrl,
++        modelId: model.id,
++        credentialFingerprint: nativeCredentialFingerprint(apiKey, headers),
++    };
++}
++function isCompatibleNativeDetails(details, model) {
++    if (details?.schemaVersion !== 1 || details?.mechanism !== "native")
++        return true;
++    if (!model)
++        return true;
++    if (selectCompactionMechanism(model) !== "native")
++        return false;
++    const identity = details.identity;
++    return identity?.api === model.api &&
++        identity?.provider === model.provider &&
++        identity?.baseUrl === model.baseUrl &&
++        identity?.compactionBaseUrl === (model.compat?.compactionBaseUrl ?? model.baseUrl) &&
++        identity?.modelId === model.id &&
++        identity?.credentialFingerprint === getNativeCredentialFingerprint(model);
++}
++function nativeCompactionUsage(usage, model) {
++    const cached = usage.input_tokens_details?.cached_tokens ?? 0;
++    const normalized = {
++        input: Math.max(0, usage.input_tokens - cached),
++        output: usage.output_tokens,
++        cacheRead: cached,
++        cacheWrite: 0,
++        reasoning: usage.output_tokens_details?.reasoning_tokens ?? 0,
++        totalTokens: usage.total_tokens,
++        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
++    };
++    normalized.cost = calculateCost(model, normalized);
++    return normalized;
+ }
+ // ============================================================================
+ // Cut point detection
+@@ -376,76 +424,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+ // ============================================================================
+ // Summarization
+ // ============================================================================
+-const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
+-
+-Use this EXACT format:
+-
+-## Goal
+-[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+-
+-## Constraints & Preferences
+-- [Any constraints, preferences, or requirements mentioned by user]
+-- [Or "(none)" if none were mentioned]
+-
+-## Progress
+-### Done
+-- [x] [Completed tasks/changes]
+-
+-### In Progress
+-- [ ] [Current work]
+-
+-### Blocked
+-- [Issues preventing progress, if any]
+-
+-## Key Decisions
+-- **[Decision]**: [Brief rationale]
+-
+-## Next Steps
+-1. [Ordered list of what should happen next]
+-
+-## Critical Context
+-- [Any data, examples, or references needed to continue]
+-- [Or "(none)" if not applicable]
+-
+-Keep each section concise. Preserve exact file paths, function names, and error messages.`;
+-const UPDATE_SUMMARIZATION_INSTRUCTIONS = `Update the existing structured summary with new information. RULES:
+-- PRESERVE all existing information from the previous summary
+-- ADD new progress, decisions, and context from the new messages
+-- UPDATE the Progress section: move items from "In Progress" to "Done" when completed
+-- UPDATE "Next Steps" based on what was accomplished
+-- PRESERVE exact file paths, function names, and error messages
+-- If something is no longer relevant, you may remove it
+-
+-Use this EXACT format:
+-
+-## Goal
+-[Preserve existing goals, add new ones if the task expanded]
+-
+-## Constraints & Preferences
+-- [Preserve existing, add new ones discovered]
+-
+-## Progress
+-### Done
+-- [x] [Include previously done items AND newly completed items]
+-
+-### In Progress
+-- [ ] [Current work - update based on progress]
+-
+-### Blocked
+-- [Current blockers - remove if resolved]
+-
+-## Key Decisions
+-- **[Decision]**: [Brief rationale] (preserve all previous, add new)
+-
+-## Next Steps
+-1. [Update based on current state]
+-
+-## Critical Context
+-- [Preserve important context, add new if needed]
+-
+-Keep each section concise. Preserve exact file paths, function names, and error messages.`;
++const SUMMARIZATION_PROMPT = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
++Include:
++- Current progress and key decisions made
++- Important context, constraints, or user preferences
++- What remains to be done (clear next steps)
++- Any critical data, examples, or references needed to continue
++Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
++const UPDATE_SUMMARIZATION_INSTRUCTIONS = `Update the existing handoff summary with the new conversation messages while preserving the same four-part contract.
++Include:
++- Current progress and key decisions made
++- Important context, constraints, or user preferences
++- What remains to be done (clear next steps)
++- Any critical data, examples, or references needed to continue
++Preserve still-relevant details from the previous summary, including exact file paths, function names, and error messages. Remove only information that is no longer relevant. Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
+ const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to incorporate into the existing summary provided in <previous-summary> tags.
+-
+ ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
+ /**
+  * Returns an error message when a summarization response cannot safely be persisted.
+@@ -507,24 +500,22 @@ function buildSummarizationContext(promptText) {
+         ],
+     });
+ }
+-/** Generate or update a conversation summary and return its provider usage. */
+-export async function generateSummaryWithUsage(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
+-    const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
+-    // Use update prompt if we have a previous summary, otherwise initial prompt
++function buildSummaryPrompt(currentMessages, customInstructions, previousSummary) {
+     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
+     if (customInstructions) {
+         basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
+     }
+-    // Serialize conversation to text so model doesn't try to continue it
+-    // Convert to LLM messages first (handles custom types like bashExecution, custom, etc.)
+-    const llmMessages = convertToLlm(currentMessages);
+-    const conversationText = serializeConversation(llmMessages);
+-    // Build the prompt with conversation wrapped in tags
++    const conversationText = serializeConversation(convertToLlm(currentMessages));
+     let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
+     if (previousSummary) {
+         promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
+     }
+-    promptText += basePrompt;
++    return promptText + basePrompt;
++}
++/** Generate or update a conversation summary and return its provider usage. */
++export async function generateSummaryWithUsage(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
++    const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
++    const promptText = buildSummaryPrompt(currentMessages, customInstructions, previousSummary);
+     const completionOptions = createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId);
+     const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
+     const failure = getSummarizationFailure(response, "Summarization");
+@@ -556,9 +547,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+         if (entry.sourceEntry.type !== "compaction" && entry.messages.some(isCutPointMessage))
+             cutPoints.push(i);
+     }
+-    if (cutPoints.length === 0) {
++    if (cutPoints.length === 0)
+         return { firstKeptEntryIndex: startIndex, turnStartIndex: -1, isSplitTurn: false };
+-    }
+     let accumulatedTokens = 0;
+     let exceededBudget = false;
+     let cutIndex = cutPoints[0];
+@@ -573,9 +563,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+             break;
+         }
+     }
+-    // A recovery attempt and its omission edits are context-invisible after the last
+-    // visible input. Advance only for a closed suffix containing an omitted assistant
+-    // attempt; arbitrary metadata must not move the cut past unsent input.
+     const suffix = entries.slice(cutIndex + 1, endIndex);
+     const isIntrinsicallyVisible = (entry) => entry.sourceEntry.type !== "context_edit" && sessionEntryToContextMessages(entry.sourceEntry).length > 0;
+     const isOmitted = (entry) => isIntrinsicallyVisible(entry) && entry.messages.length === 0;
+@@ -597,58 +584,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+     }
+     const startsTurn = isProjectedTurnStart(entries[cutIndex]);
+     const turnStartIndex = startsTurn ? -1 : findProjectedTurnStartIndex(entries, cutIndex, startIndex);
+-    return {
+-        firstKeptEntryIndex: cutIndex,
+-        turnStartIndex,
+-        isSplitTurn: !startsTurn && turnStartIndex !== -1,
+-    };
++    return { firstKeptEntryIndex: cutIndex, turnStartIndex, isSplitTurn: !startsTurn && turnStartIndex !== -1 };
+ }
+-export function prepareCompaction(pathEntries, settings) {
+-    if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
++function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection, requestOptions) {
++    if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction")
+         return undefined;
++    const projectionModel = !allowNativeProjection && model
++        ? { ...model, compat: { ...(model.compat ?? {}), supportsCompaction: false } }
++        : model;
++    const nativeCompaction = allowNativeProjection && model && selectCompactionMechanism(model) === "native";
++    let requestOverheadTokens = nativeCompaction
++        ? requestOptions.nativeRequestOverheadTokens
++        : estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions);
++    let projection = buildSessionProjection(pathEntries, undefined, undefined, projectionModel, { requestOverheadTokens });
++    let previousSummary = projection.entries.find((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0)?.sourceEntry.summary;
++    if (!nativeCompaction) {
++        const maxPortableRefits = projection.messages.length + 1;
++        for (let attempt = 0; attempt < maxPortableRefits; attempt++) {
++            const serializedOverhead = estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary, projection.messages.filter((message) => message.role !== "system"));
++            if (serializedOverhead <= requestOverheadTokens)
++                break;
++            requestOverheadTokens = serializedOverhead;
++            projection = buildSessionProjection(pathEntries, undefined, undefined, projectionModel, { requestOverheadTokens });
++            previousSummary = projection.entries.find((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0)?.sourceEntry.summary;
++        }
+     }
+-    const projection = buildSessionProjection(pathEntries);
+     const projectedEntries = projection.entries;
+     const sourceEntries = projectedEntries.map((entry) => entry.sourceEntry);
+-    // The newest compaction is projected first. Older compaction entries can still
+-    // occur in its retained raw range, but their projected contribution is empty.
+     const prevCompactionIndex = projectedEntries.findIndex((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0);
+-    let previousSummary;
+     let boundaryStart = 0;
+     if (prevCompactionIndex >= 0) {
+         previousSummary = projectedEntries[prevCompactionIndex].sourceEntry.summary;
+-        // The canonical projection has already selected the previous compaction's retained tail.
+         boundaryStart = prevCompactionIndex + 1;
+     }
+     const boundaryEnd = projectedEntries.length;
+     const tokensBefore = estimateProjectedContextTokens(projection, pathEntries).tokens;
+-    const cutPoint = findProjectedCutPoint(projectedEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
++    const hardTailAllowance = model && Number.isFinite(model.contextWindow) && model.contextWindow > 0
++        ? Math.max(0, model.contextWindow - Math.min(settings.reserveTokens, model.contextWindow))
++        : settings.keepRecentTokens;
++    const cutPoint = findProjectedCutPoint(projectedEntries, boundaryStart, boundaryEnd, Math.min(settings.keepRecentTokens, hardTailAllowance));
+     const firstKeptEntry = projectedEntries[cutPoint.firstKeptEntryIndex]?.sourceEntry;
+     if (!firstKeptEntry?.id)
+         return undefined;
+-    const firstKeptEntryId = firstKeptEntry.id;
+     const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
+-    const messagesToSummarize = projectedEntries
+-        .slice(boundaryStart, historyEnd)
+-        .flatMap(getMessagesFromProjectedEntryForCompaction);
++    const messagesToSummarize = projectedEntries.slice(boundaryStart, historyEnd).flatMap(getMessagesFromProjectedEntryForCompaction);
+     const turnPrefixMessages = cutPoint.isSplitTurn
+-        ? projectedEntries
+-            .slice(cutPoint.turnStartIndex, cutPoint.firstKeptEntryIndex)
+-            .flatMap(getMessagesFromProjectedEntryForCompaction)
++        ? projectedEntries.slice(cutPoint.turnStartIndex, cutPoint.firstKeptEntryIndex).flatMap(getMessagesFromProjectedEntryForCompaction)
+         : [];
+-    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0)
++    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0 && !nativeCompaction)
+         return undefined;
+-    // Extract file operations from edited model-visible messages and the previous compaction.
+     const fileOps = extractFileOperations(messagesToSummarize, sourceEntries, prevCompactionIndex);
+-    // Also extract file ops from turn prefix if splitting
+-    if (cutPoint.isSplitTurn) {
+-        for (const msg of turnPrefixMessages) {
+-            extractFileOpsFromMessage(msg, fileOps);
+-        }
+-    }
++    for (const message of turnPrefixMessages)
++        extractFileOpsFromMessage(message, fileOps);
+     return {
+-        firstKeptEntryId,
++        firstKeptEntryId: firstKeptEntry.id,
+         messagesToSummarize,
++        messagesForNativeCompaction: projection.messages,
+         turnPrefixMessages,
+         isSplitTurn: cutPoint.isSplitTurn,
+         tokensBefore,
+@@ -657,6 +648,26 @@ export function prepareCompaction(pathEntries, settings) {
+         settings,
+     };
+ }
++export function estimatePortableCompactionRequestOverheadTokens(customInstructions, previousSummary, messages = []) {
++    const summaryPrompt = buildSummaryPrompt(messages, customInstructions, previousSummary);
++    const conversationText = serializeConversation(convertToLlm(messages));
++    const turnPrefixPrompt = `<conversation>
++${conversationText}
++</conversation>
++
++${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
++    const estimateTextTokens = (text) => Math.ceil(Math.max(text.length, new TextEncoder().encode(text).length) / 4);
++    const serializedRequestTokens = estimateTextTokens(SUMMARIZATION_SYSTEM_PROMPT) +
++        Math.max(estimateTextTokens(summaryPrompt), estimateTextTokens(turnPrefixPrompt));
++    const reconstructionTokens = messages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++    return Math.max(0, serializedRequestTokens - reconstructionTokens);
++}
++export function prepareCompaction(pathEntries, settings, model, requestOptions = {}) {
++    const preparation = prepareCompactionProjection(pathEntries, settings, model, true, requestOptions);
++    if (!preparation || !model || selectCompactionMechanism(model) !== "native")
++        return preparation;
++    return { ...preparation, portableFallback: prepareCompactionProjection(pathEntries, settings, model, false, requestOptions) };
++}
+ // ============================================================================
+ // Main compaction function
+ // ============================================================================
+@@ -673,7 +684,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
+ ## Context Needed to Continue
+ - [Information from these messages needed to understand the later work]
+ 
+-Only summarize information explicitly present above. Do not infer or recreate later messages.`;
++Only summarize information explicitly present above. Do not infer or recreate later messages. Be concise. Focus on what's needed to understand the kept suffix.`;
++const NATIVE_REPLACEMENT_IMAGE_DETAILS = new Set(["low", "high", "auto", "original"]);
++const NATIVE_REPLACEMENT_FILE_DETAILS = new Set(["low", "high"]);
++const NATIVE_REPLACEMENT_STATUSES = new Set(["in_progress", "completed", "incomplete"]);
++function isRecord(value) {
++    return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++function hasOptionalString(record, key, nullable = false) {
++    return (record[key] === undefined ||
++        (nullable && record[key] === null) ||
++        typeof record[key] === "string");
++}
++function isNativeReplacementContent(content) {
++    if (!isRecord(content) || typeof content.type !== "string")
++        return false;
++    switch (content.type) {
++        case "input_text":
++            return typeof content.text === "string";
++        case "input_image":
++            return (NATIVE_REPLACEMENT_IMAGE_DETAILS.has(content.detail) &&
++                hasOptionalString(content, "file_id", true) &&
++                hasOptionalString(content, "image_url", true) &&
++                (typeof content.file_id === "string" || typeof content.image_url === "string"));
++        case "input_file":
++            return ((content.detail === undefined || NATIVE_REPLACEMENT_FILE_DETAILS.has(content.detail)) &&
++                hasOptionalString(content, "file_data") &&
++                hasOptionalString(content, "file_id", true) &&
++                hasOptionalString(content, "file_url") &&
++                hasOptionalString(content, "filename") &&
++                (typeof content.file_data === "string" ||
++                    typeof content.file_id === "string" ||
++                    typeof content.file_url === "string"));
++        default:
++            return false;
++    }
++}
++function isNativeReplacementMessage(item) {
++    return (item.type === "message" &&
++        typeof item.id === "string" &&
++        item.role === "user" &&
++        (item.status === undefined || NATIVE_REPLACEMENT_STATUSES.has(item.status)) &&
++        Array.isArray(item.content) &&
++        item.content.length > 0 &&
++        item.content.every(isNativeReplacementContent));
++}
++function isNativeCompactionItem(item) {
++    return (item.type === "compaction" &&
++        typeof item.id === "string" &&
++        typeof item.encrypted_content === "string" &&
++        hasOptionalString(item, "created_by"));
++}
++function toNativeCompactionRequestItem(item) {
++    return {
++        type: "compaction",
++        id: item.id,
++        encrypted_content: item.encrypted_content,
++    };
++}
++function toNativeReplacementRequestContent(content) {
++    switch (content.type) {
++        case "input_text":
++            return { type: "input_text", text: content.text };
++        case "input_image":
++            return {
++                type: "input_image",
++                detail: content.detail,
++                ...(content.file_id !== undefined ? { file_id: content.file_id } : {}),
++                ...(content.image_url !== undefined ? { image_url: content.image_url } : {}),
++            };
++        case "input_file":
++            return {
++                type: "input_file",
++                ...(content.detail !== undefined ? { detail: content.detail } : {}),
++                ...(content.file_data !== undefined ? { file_data: content.file_data } : {}),
++                ...(content.file_id !== undefined ? { file_id: content.file_id } : {}),
++                ...(content.file_url !== undefined ? { file_url: content.file_url } : {}),
++                ...(content.filename !== undefined ? { filename: content.filename } : {}),
++            };
++        default:
++            throw new Error("Native compaction response contained unsupported retained content");
++    }
++}
++function toNativeReplacementRequestMessage(item) {
++    return {
++        type: "message",
++        role: "user",
++        ...(item.status !== undefined ? { status: item.status } : {}),
++        content: item.content.map(toNativeReplacementRequestContent),
++    };
++}
++function toNativeReplacementRequestItem(item) {
++    return isNativeCompactionItem(item)
++        ? toNativeCompactionRequestItem(item)
++        : toNativeReplacementRequestMessage(item);
++}
++function isNativeReplacementItem(item) {
++    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
++}
++const NATIVE_ENDPOINT_UNAVAILABLE_STATUSES = new Set([404, 405, 501]);
++/**
++ * A Sign in with ChatGPT token is a subscription credential the public Responses Compaction
++ * endpoint may refuse. A refusal means this login cannot compact natively, not that the request is
++ * wrong, so it falls back to the portable mechanism, which uses the same credential and still
++ * surfaces a genuine authentication failure.
++ */
++const CHATGPT_SIGN_IN_REFUSED_STATUSES = new Set([400, 401, 403]);
++function isNativeEndpointUnavailable(error, model, apiKey) {
++    if (!isRecord(error) || typeof error.status !== "number")
++        return false;
++    return (NATIVE_ENDPOINT_UNAVAILABLE_STATUSES.has(error.status) ||
++        (CHATGPT_SIGN_IN_REFUSED_STATUSES.has(error.status) && isChatGPTSignInRequest(model, apiKey)));
++}
+ /**
+  * Generate summaries for compaction using prepared data.
+  * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
+@@ -682,8 +804,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
+  * @param customInstructions - Optional custom focus for the summary
+  * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
+  */
+-export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
+-    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
++export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId, systemPrompt = "", transformPreparation, nativeRequestOptions) {
++    let selectedPreparation = preparation;
++    if (selectCompactionMechanism(model) === "native") {
++        const nativePreparation = transformPreparation
++            ? await transformPreparation(preparation, "native")
++            : preparation;
++        try {
++            const nativeMessages = nativeRequestOptions?.convertMessages
++                ? await nativeRequestOptions.convertMessages(nativePreparation.messagesForNativeCompaction)
++                : convertToLlm(nativePreparation.messagesForNativeCompaction);
++            const existingSystem = getCurrentSystemMessage(nativeMessages);
++            const nativeInstructions = [
++                existingSystem ? undefined : systemPrompt,
++                customInstructions?.trim()
++                    ? `Additional compaction instructions:\n${customInstructions.trim()}`
++                    : undefined,
++            ].filter(Boolean).join("\n\n");
++            const response = await compactResponses(model, normalizeContext({
++                systemPrompt: nativeInstructions || undefined,
++                messages: nativeMessages,
++            }), {
++                onPayload: nativeRequestOptions?.onPayload, onResponse: nativeRequestOptions?.onResponse, timeoutMs: nativeRequestOptions?.timeoutMs,
++                apiKey,
++                headers: nativeRequestOptions?.headers ?? headers,
++                signal,
++                env,
++                sessionId,
++                retryPolicy: retry,
++                retryCallbacks: callbacks,
++            });
++            if (!Array.isArray(response.output) ||
++                !response.output.some((item) => isRecord(item) && isNativeCompactionItem(item))) {
++                throw new Error("Native compaction response did not contain a valid compaction item");
++            }
++            const compactionItemCount = response.output.filter((item) => isRecord(item) && isNativeCompactionItem(item)).length;
++            if (!response.output.every(isNativeReplacementItem) ||
++                compactionItemCount !== 1 ||
++                !isNativeCompactionItem(response.output.at(-1))) {
++                throw new Error("Native compaction response did not contain only valid replacement items");
++            }
++            return {
++                summary: "Native compaction checkpoint",
++                firstKeptEntryId: "native-replacement",
++                tokensBefore: preparation.tokensBefore,
++                usage: nativeCompactionUsage(response.usage, model),
++                details: {
++                    schemaVersion: 1,
++                    mechanism: "native",
++                    identity: nativeCompactionIdentity(model, apiKey, nativeRequestOptions?.headers ?? headers),
++                    items: response.output.map(toNativeReplacementRequestItem),
++                },
++            };
++        }
++        catch (error) {
++            if (signal?.aborted || !isNativeEndpointUnavailable(error, model, apiKey) || !preparation.portableFallback) {
++                throw error;
++            }
++            selectedPreparation = transformPreparation
++                ? await transformPreparation(preparation.portableFallback, "portable")
++                : preparation.portableFallback;
++        }
++    }
++    else if (transformPreparation) {
++        selectedPreparation = await transformPreparation(preparation, "portable");
++    }
++    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = selectedPreparation;
+     // Generate summaries and merge into one
+     let summary;
+     let summaryUsage;
+@@ -717,7 +903,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+         firstKeptEntryId,
+         tokensBefore,
+         usage: summaryUsage,
+-        details: { readFiles, modifiedFiles },
++        details: {
++            schemaVersion: 1,
++            mechanism: "portable",
++            contract: "codex-handoff-v1",
++            readFiles,
++            modifiedFiles,
++        },
+     };
+ }
+ /**
+diff --git a/dist/core/messages.d.ts b/dist/core/messages.d.ts
+index 9cdda75154578d3460d6507715ae59b2c7704873..2f06a8ba569081ca949dd695cd3ba6b0b051c312 100644
+--- a/dist/core/messages.d.ts
++++ b/dist/core/messages.d.ts
+@@ -47,6 +47,8 @@ export interface CompactionSummaryMessage {
+     role: "compactionSummary";
+     summary: string;
+     tokensBefore: number;
++    details?: unknown;
++    reason?: "manual" | "threshold" | "overflow";
+     timestamp: number;
+ }
+ declare module "@earendil-works/pi-agent-core" {
+@@ -62,7 +64,7 @@ declare module "@earendil-works/pi-agent-core" {
+  */
+ export declare function bashExecutionToText(msg: BashExecutionMessage): string;
+ export declare function createBranchSummaryMessage(summary: string, fromId: string, timestamp: string): BranchSummaryMessage;
+-export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string): CompactionSummaryMessage;
++export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string, details?: unknown, reason?: "manual" | "threshold" | "overflow"): CompactionSummaryMessage;
+ /** Convert CustomMessageEntry to AgentMessage format */
+ export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
+ /**
+diff --git a/dist/core/messages.js b/dist/core/messages.js
+index bcaeaae631aa9992e07cfc43baca2edbe4d6ab30..c136d2007445beb13113807b903c7682f1b04fb6 100644
+--- a/dist/core/messages.js
++++ b/dist/core/messages.js
+@@ -45,11 +45,13 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
+         timestamp: new Date(timestamp).getTime(),
+     };
+ }
+-export function createCompactionSummaryMessage(summary, tokensBefore, timestamp) {
++export function createCompactionSummaryMessage(summary, tokensBefore, timestamp, details, reason) {
+     return {
+         role: "compactionSummary",
+         summary: summary,
+         tokensBefore,
++        details,
++        reason,
+         timestamp: new Date(timestamp).getTime(),
+     };
+ }
+@@ -101,6 +103,31 @@ export function convertToLlm(messages) {
+                     timestamp: m.timestamp,
+                 };
+             case "compactionSummary":
++                if (m.details?.schemaVersion === 1 && m.details?.mechanism === "native" &&
++                    Array.isArray(m.details.items)) {
++                    const identity = m.details.identity;
++                    return {
++                        role: "assistant",
++                        content: m.details.items.map((item) => ({
++                            type: "thinking",
++                            thinking: "",
++                            thinkingSignature: JSON.stringify(item),
++                        })),
++                        api: identity.api,
++                        provider: identity.provider,
++                        model: identity.modelId,
++                        usage: {
++                            input: 0,
++                            output: 0,
++                            cacheRead: 0,
++                            cacheWrite: 0,
++                            totalTokens: 0,
++                            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
++                        },
++                        stopReason: "stop",
++                        timestamp: m.timestamp,
++                    };
++                }
+                 return {
+                     role: "user",
+                     content: [
+diff --git a/dist/core/model-runtime.d.ts b/dist/core/model-runtime.d.ts
+index 5bf6433f7061292741966e0b424574730510c765..21e93175f09552b4226da45c4e441931642ca405 100644
+--- a/dist/core/model-runtime.d.ts
++++ b/dist/core/model-runtime.d.ts
+@@ -52,6 +52,7 @@ export declare class ModelRuntime implements Models {
+     private readonly providerAvailabilitySeq;
+     private availabilityError;
+     private readonly credentialOperations;
++    private readonly preparedRequestAuth;
+     private constructor();
+     static create(options?: CreateModelRuntimeOptions): Promise<ModelRuntime>;
+     private configureRadiusProviders;
+@@ -94,6 +95,10 @@ export declare class ModelRuntime implements Models {
+     removeRuntimeApiKey(providerId: string, options?: AuthOperationOptions): Promise<void>;
+     listCredentials(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]>;
+     getProviderAuthStatus(providerId: string): AuthStatus;
++    prepareModelRequest<TApi extends Api>(model: Model<TApi>, overrides?: ModelRuntimeAuthOverrides): Promise<{
++        model: Model<TApi>;
++        resolution: AuthResult;
++    }>;
+     private prepareRequest;
+     stream<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): AssistantMessageEventStream;
+     complete<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): Promise<AssistantMessage>;
+diff --git a/dist/core/model-runtime.js b/dist/core/model-runtime.js
+index 835de9763c964ff2577ab4e38384b684ab4970d1..ccd77b2f6a73647c4b7871e5720cb1cf189e9932 100644
+--- a/dist/core/model-runtime.js
++++ b/dist/core/model-runtime.js
+@@ -65,6 +65,7 @@ export class ModelRuntime {
+     providerAvailabilitySeq = new Map();
+     availabilityError;
+     credentialOperations = new Map();
++    preparedRequestAuth = new WeakMap();
+     constructor(credentials, config, modelsPath, modelsStore, providers, modelNetworkEnabled) {
+         this.credentials = credentials;
+         this.config = config;
+@@ -449,15 +450,30 @@ export class ModelRuntime {
+         const check = this.snapshot.auth.get(providerId);
+         return check ? { configured: true, source: "environment", label: check.source } : { configured: false };
+     }
++    async prepareModelRequest(model, overrides = {}) {
++        const resolution = await this.getAuth(model, overrides);
++        if (!resolution)
++            throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
++        const requestModel = {
++            ...model,
++            baseUrl: resolution.auth.baseUrl || model.baseUrl,
++        };
++        this.preparedRequestAuth.set(requestModel, resolution);
++        return { model: requestModel, resolution };
++    }
+     async prepareRequest(model, options) {
+         const provider = this.models.getProvider(model.provider);
+         if (!provider)
+             throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
+-        const resolution = await this.getAuth(model, {
+-            apiKey: options?.apiKey,
+-            env: options?.env,
+-            signal: options?.signal,
+-        });
++        const preparedResolution = this.preparedRequestAuth.get(model);
++        if (preparedResolution)
++            this.preparedRequestAuth.delete(model);
++        const resolution = preparedResolution ??
++            (await this.getAuth(model, {
++                apiKey: options?.apiKey,
++                env: options?.env,
++                signal: options?.signal,
++            }));
+         if (!resolution)
+             throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
+         const { transformHeaders, ...rawProviderOptions } = options ?? {};
+diff --git a/dist/core/sdk.js b/dist/core/sdk.js
+index b1d632f79734053eed23b059c72f351da3eb44a4..2a613ef7e60c80dca646d9d67aad2efa189b0a21 100644
+--- a/dist/core/sdk.js
++++ b/dist/core/sdk.js
+@@ -13,7 +13,7 @@ import { findInitialModel } from "./model-resolver.js";
+ import { ModelRuntime } from "./model-runtime.js";
+ import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
+ import { DefaultResourceLoader } from "./resource-loader.js";
+-import { getDefaultSessionDir, SessionManager } from "./session-manager.js";
++import { buildSessionContext, getDefaultSessionDir, SessionManager, takePreparedProviderHeaders, withNativeCredentialFingerprint, } from "./session-manager.js";
+ import { applyToolModifiers, DEFAULT_TOOL_NAMES, getToolListError, isToolModifier, SettingsManager, } from "./settings-manager.js";
+ import { time } from "./timings.js";
+ import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
+@@ -81,9 +81,11 @@ export async function createAgentSession(options = {}) {
+         time("resourceLoader.reload");
+     }
+     // Check if session has existing data to restore
+-    const existingSession = sessionManager.buildSessionContext();
+-    const hasExistingSession = existingSession.messages.length > 0;
+-    const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
++    const branchEntries = sessionManager.getBranch();
++    const projectSession = (targetModel, forceNativeReconstruction = false) => buildSessionContext(branchEntries, sessionManager.getLeafId(), undefined, targetModel, { forceNativeReconstruction });
++    const existingSession = projectSession(options.model);
++    const hasExistingSession = branchEntries.length > 0;
++    const hasThinkingEntry = branchEntries.some((entry) => entry.type === "thinking_level_change");
+     let model = options.model;
+     let modelFallbackMessage;
+     // Assistant messages name the physical model that answered, so a virtual selection is only in
+@@ -142,6 +144,40 @@ export async function createAgentSession(options = {}) {
+     else {
+         thinkingLevel = clampThinkingLevel(model, thinkingLevel);
+     }
++    const selectedModel = model;
++    const latestCompaction = [...sessionManager.getBranch()]
++        .reverse()
++        .find((entry) => entry.type === "compaction");
++    const hasNativeCheckpoint = latestCompaction?.details?.schemaVersion === 1 &&
++        latestCompaction.details.mechanism === "native";
++    let forceNativeReconstruction = false;
++    // Credential resolution may select a provider-specific endpoint (for
++    // example, a subscription backend). Resolve it only when an identity-bound
++    // native checkpoint is active. If credentials cannot be refreshed, restore
++    // raw history so read-only session inspection remains available offline.
++    if (model && hasNativeCheckpoint) {
++        try {
++            const auth = await modelRuntime.getAuth(model);
++            if (auth?.auth.baseUrl) {
++                model = { ...model, baseUrl: auth.auth.baseUrl };
++            }
++            if (auth) {
++                model = withNativeCredentialFingerprint({ ...model }, auth.auth.apiKey, auth.auth.headers);
++            }
++            else {
++                forceNativeReconstruction = true;
++            }
++        }
++        catch {
++            forceNativeReconstruction = true;
++        }
++    }
++    // Rebuild model-visible history only after the final target model is known.
++    // Native compaction checkpoints are identity-bound; a restored fallback model
++    // must receive append-only raw reconstruction instead of the source checkpoint.
++    const resolvedExistingSession = model
++        ? projectSession(model, forceNativeReconstruction)
++        : existingSession;
+     const toolListError = options.tools ? getToolListError(options.tools) : undefined;
+     if (toolListError)
+         throw new Error(`Invalid tools option: ${toolListError}`);
+@@ -202,6 +238,9 @@ export async function createAgentSession(options = {}) {
+             maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
+             maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+             transformHeaders: async (requestHeaders) => {
++                const preparedHeaders = takePreparedProviderHeaders(requestModel);
++                if (preparedHeaders)
++                    return preparedHeaders;
+                 const headers = mergeProviderAttributionHeaders(requestModel, settingsManager, options.sessionId, requestHeaders);
+                 return headerRunner?.hasHandlers("before_provider_headers")
+                     ? headerRunner.emitBeforeProviderHeaders(headers ?? {})
+@@ -256,7 +295,7 @@ export async function createAgentSession(options = {}) {
+             model,
+             thinkingLevel,
+             tools: [],
+-            messages: existingSession.messages,
++            messages: resolvedExistingSession.messages,
+         },
+         convertToLlm: convertToLlmWithBlockImages,
+         streamFn: async (model, context, options) => {
+@@ -302,6 +341,8 @@ export async function createAgentSession(options = {}) {
+     }
+     const session = new AgentSession({
+         agent,
++        selectedModel,
++        usesModelRuntimeStream: true,
+         sessionManager,
+         settingsManager,
+         cwd,
+diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
+index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215a00b142b 100644
+--- a/dist/core/session-manager.d.ts
++++ b/dist/core/session-manager.d.ts
+@@ -1,5 +1,5 @@
+ import type { AgentMessage } from "@earendil-works/pi-agent-core";
+-import { type AssistantMessage, type ImageContent, type Message, type SystemMessage, type TextContent, type ToolResultMessage, type Usage, type UserMessage } from "@earendil-works/pi-ai";
++import { type AssistantMessage, type ImageContent, type Message, type Model, type SystemMessage, type TextContent, type ToolResultMessage, type Usage, type UserMessage } from "@earendil-works/pi-ai";
+ import { type BashExecutionMessage, type CustomMessage } from "./messages.ts";
+ export declare const CURRENT_SESSION_VERSION = 3;
+ export interface SessionHeader {
+@@ -54,6 +54,8 @@ export interface CompactionEntry<T = unknown> extends SessionEntryBase {
+     usage?: Usage;
+     /** True if generated by an extension, undefined/false if pi-generated (backward compatible) */
+     fromHook?: boolean;
++    /** Why compaction ran. Missing on sessions created before reason tracking. */
++    reason?: "manual" | "threshold" | "overflow";
+     /** Complete prompt and tool state at this compaction boundary. */
+     systemMessage?: SystemMessage;
+ }
+@@ -151,6 +153,7 @@ export interface SessionProjection {
+         provider: string;
+         modelId: string;
+     } | null;
++    reconstruction?: SessionContext["reconstruction"];
+ }
+ export interface SessionContext {
+     messages: AgentMessage[];
+@@ -159,7 +162,30 @@ export interface SessionContext {
+         provider: string;
+         modelId: string;
+     } | null;
++    reconstruction?: {
++        schemaVersion: 1;
++        sourceCompactionId: string;
++        firstKeptEntryId: string | null;
++        droppedThroughEntryId: string | null;
++        targetIdentity: {
++            api: string;
++            provider: string;
++            baseUrl: string;
++            compactionBaseUrl: string;
++            modelId: string;
++            credentialFingerprint?: string;
++        };
++    };
+ }
++export interface BuildSessionContextOptions {
++    forceNativeReconstruction?: boolean;
++    requestOverheadTokens?: number;
++}
++export declare function nativeCredentialFingerprint(apiKey?: string, headers?: Record<string, string>): string | undefined;
++export declare function withNativeCredentialFingerprint<T extends Model<any>>(model: T, apiKey?: string, headers?: Record<string, string>): T;
++export declare function getNativeCredentialFingerprint(model?: Model<any>): string | undefined;
++export declare function withPreparedProviderHeaders<T extends Model<any>>(model: T, headers: Record<string, string>): T;
++export declare function takePreparedProviderHeaders(model: Model<any>): Record<string, string> | undefined;
+ export interface SessionInfo {
+     path: string;
+     id: string;
+@@ -195,11 +221,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+  * by the kept entries starting at firstKeptEntryId and all entries after the
+  * compaction entry. Older summarized entries are omitted.
+  */
+-export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionEntry[];
++export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>): SessionEntry[];
++/** Conservative model-facing token estimate used while fitting reconstructed history. */
++export declare function estimateReconstructionMessageTokens(message: AgentMessage): number;
+ /** Build provenance-preserving, compaction-aware model context. */
+-export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionProjection;
++export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionProjection;
+ /** Build the finalized model context from the canonical session projection. */
+-export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
++export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
+ export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
+ /** Exported for testing */
+ export declare function loadEntriesFromFile(filePath: string): FileEntry[];
+@@ -268,7 +296,7 @@ export declare class SessionManager {
+     /** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
+     appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry;
+     /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
+-    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string | null, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage): string;
++    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string | null, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage, reason?: "manual" | "threshold" | "overflow"): string;
+     /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
+     appendCustomEntry(customType: string, data?: unknown): string;
+     /** Append a session info entry (e.g., display name). Returns entry id. */
+@@ -313,13 +341,13 @@ export declare class SessionManager {
+      * Build the active, compaction-aware entry list for context/rendering.
+      * Uses tree traversal from current leaf.
+      */
+-    buildContextEntries(): SessionEntry[];
++    buildContextEntries(targetModel?: Model<any>): SessionEntry[];
+     /**
+      * Build the session context (what gets sent to the LLM).
+      * Uses tree traversal from current leaf.
+      */
+-    buildSessionProjection(): SessionProjection;
+-    buildSessionContext(): SessionContext;
++    buildSessionProjection(targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionProjection;
++    buildSessionContext(targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
+     /**
+      * Get session header.
+      */
+diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..243c0209531172e0078290f636dd8d37c19b7d6f 100644
+--- a/dist/core/session-manager.js
++++ b/dist/core/session-manager.js
+@@ -1,5 +1,5 @@
+-import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
+-import { randomUUID } from "crypto";
++import { getCurrentSystemMessage, uuidv7 } from "@earendil-works/pi-ai";
++import { createHash, randomUUID } from "crypto";
+ import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
+ import { readdir, stat } from "fs/promises";
+ import { basename, join, resolve } from "path";
+@@ -9,6 +9,71 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
+ import { normalizePath, resolvePath } from "../utils/paths.js";
+ import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
+ export const CURRENT_SESSION_VERSION = 3;
++const NATIVE_CREDENTIAL_FINGERPRINT = Symbol.for("pi.nativeCredentialFingerprint");
++const PREPARED_PROVIDER_HEADERS = new WeakMap();
++function codexAccountId(apiKey) {
++    try {
++        const parts = apiKey.split(".");
++        if (parts.length !== 3)
++            return undefined;
++        const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
++        const accountId = payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
++        return typeof accountId === "string" && accountId.length > 0 ? accountId : undefined;
++    }
++    catch {
++        return undefined;
++    }
++}
++function headerValue(headers, name) {
++    const expectedName = name.toLowerCase();
++    for (const [headerName, value] of Object.entries(headers ?? {})) {
++        if (headerName.toLowerCase() === expectedName && value.trim().length > 0)
++            return value.trim();
++    }
++    return undefined;
++}
++export function nativeCredentialFingerprint(apiKey, headers) {
++    const explicitAccountId = headerValue(headers, "chatgpt-account-id");
++    const authorization = headerValue(headers, "authorization");
++    const authorizationToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
++    const accountId = explicitAccountId ?? (authorizationToken ? codexAccountId(authorizationToken) : undefined) ??
++        (apiKey ? codexAccountId(apiKey) : undefined);
++    const headerEntries = Object.entries(headers ?? {}).sort(([left], [right]) => left.localeCompare(right));
++    const credentialMaterial = accountId
++        ? `codex-account:${accountId}`
++        : authorization
++            ? `authorization:${authorization}`
++            : apiKey
++                ? `api-key:${apiKey}`
++            : headerEntries.length > 0
++                ? `headers:${JSON.stringify(headerEntries)}`
++                : undefined;
++    return credentialMaterial
++        ? createHash("sha256").update(credentialMaterial).digest("hex")
++        : undefined;
++}
++export function withNativeCredentialFingerprint(model, apiKey, headers) {
++    const fingerprint = nativeCredentialFingerprint(apiKey, headers);
++    if (fingerprint) {
++        Object.defineProperty(model, NATIVE_CREDENTIAL_FINGERPRINT, { configurable: true, value: fingerprint });
++    }
++    else {
++        delete model[NATIVE_CREDENTIAL_FINGERPRINT];
++    }
++    return model;
++}
++export function getNativeCredentialFingerprint(model) {
++    return model?.[NATIVE_CREDENTIAL_FINGERPRINT];
++}
++export function withPreparedProviderHeaders(model, headers) {
++    PREPARED_PROVIDER_HEADERS.set(model, headers);
++    return model;
++}
++export function takePreparedProviderHeaders(model) {
++    const headers = PREPARED_PROVIDER_HEADERS.get(model);
++    PREPARED_PROVIDER_HEADERS.delete(model);
++    return headers;
++}
+ function createSessionId() {
+     return uuidv7();
+ }
+@@ -19,13 +84,15 @@ export function assertValidSessionId(id) {
+ }
+ /** Generate a unique short ID (8 hex chars, collision-checked) */
+ function generateId(byId) {
+-    for (let i = 0; i < 100; i++) {
+-        const id = randomUUID().slice(0, 8);
++    // OpenWaggle projects the entries of every session into one node table keyed by entry id, so
++    // an id must be unique across sessions, not only within this file. Eight hex characters
++    // collide across a large session history; a full random UUID cannot equal an existing
++    // eight-character id and does not collide in practice.
++    while (true) {
++        const id = randomUUID();
+         if (!byId.has(id))
+             return id;
+     }
+-    // Fallback to full UUID if somehow we have collisions
+-    return randomUUID();
+ }
+ /** Migrate v1 → v2: add id/parentId tree structure. Mutates in place. */
+ function migrateV1ToV2(entries) {
+@@ -185,7 +252,7 @@ export function sessionEntryToContextMessages(entry) {
+         return [createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp)];
+     }
+     if (entry.type === "compaction") {
+-        const summary = createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp);
++        const summary = createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp, entry.details, entry.reason);
+         return entry.systemMessage ? [entry.systemMessage, summary] : [summary];
+     }
+     return [];
+@@ -198,7 +265,27 @@ export function sessionEntryToContextMessages(entry) {
+  * by the kept entries starting at firstKeptEntryId and all entries after the
+  * compaction entry. Older summarized entries are omitted.
+  */
+-export function buildContextEntries(entries, leafId, byId) {
++function isCompatibleNativeCompaction(compaction, targetModel) {
++    const details = compaction.details;
++    if (details?.schemaVersion !== 1 || details?.mechanism !== "native")
++        return true;
++    if (!targetModel)
++        return true;
++    const supportsNativeCompaction = (targetModel.api === "openai-responses" ||
++        targetModel.api === "openai-codex-responses") &&
++        targetModel.compat?.supportsCompaction === true;
++    if (!supportsNativeCompaction)
++        return false;
++    const identity = details.identity;
++    return identity?.api === targetModel.api &&
++        identity?.provider === targetModel.provider &&
++        identity?.baseUrl === targetModel.baseUrl &&
++        identity?.compactionBaseUrl ===
++            (targetModel.compat?.compactionBaseUrl ?? targetModel.baseUrl) &&
++        identity?.modelId === targetModel.id &&
++        identity?.credentialFingerprint === getNativeCredentialFingerprint(targetModel);
++}
++export function buildContextEntries(entries, leafId, byId, targetModel) {
+     const path = buildSessionPath(entries, leafId, byId);
+     let compaction = null;
+     for (const entry of path) {
+@@ -209,6 +296,9 @@ export function buildContextEntries(entries, leafId, byId) {
+     if (!compaction) {
+         return path;
+     }
++    if (!isCompatibleNativeCompaction(compaction, targetModel)) {
++        return path.filter((entry) => entry.type !== "compaction");
++    }
+     const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
+     if (compactionIdx < 0) {
+         return path;
+@@ -227,6 +317,110 @@ export function buildContextEntries(entries, leafId, byId) {
+     contextEntries.push(...path.slice(compactionIdx + 1));
+     return contextEntries;
+ }
++export function estimateReconstructionMessageTokens(message) {
++    const textTokens = (text) => Math.max(text.length, Math.ceil(new TextEncoder().encode(text).length / 2));
++    const contentChars = (content) => {
++        if (typeof content === "string")
++            return textTokens(content);
++        if (!Array.isArray(content))
++            return 0;
++        return content.reduce((chars, block) => {
++            if (block.type === "text")
++                return chars + textTokens(block.text ?? "");
++            if (block.type === "image")
++                return chars + 4800;
++            return chars;
++        }, 0);
++    };
++    let chars = 0;
++    if (message.role === "user" || message.role === "toolResult" || message.role === "custom") {
++        chars = contentChars(message.content);
++    }
++    else if (message.role === "assistant") {
++        for (const block of message.content ?? []) {
++            if (block.type === "text")
++                chars += textTokens(block.text ?? "");
++            else if (block.type === "thinking")
++                chars += textTokens(block.thinking ?? "") + textTokens(block.thinkingSignature ?? "");
++            else if (block.type === "toolCall")
++                chars += textTokens(block.name ?? "") + textTokens(JSON.stringify(block.arguments ?? {}));
++        }
++    }
++    else if (message.role === "bashExecution") {
++        chars = textTokens(message.command ?? "") + textTokens(message.output ?? "");
++    }
++    else if (message.role === "branchSummary" || message.role === "compactionSummary") {
++        chars = textTokens(message.summary ?? "");
++    }
++    return chars;
++}
++function targetModelIdentity(model) {
++    return {
++        api: model.api,
++        provider: model.provider,
++        baseUrl: model.baseUrl,
++        compactionBaseUrl: model.compat?.compactionBaseUrl ?? model.baseUrl,
++        modelId: model.id,
++        credentialFingerprint: getNativeCredentialFingerprint(model),
++    };
++}
++function startsReconstructionUnit(messages, currentUnit) {
++    if (messages.some((message) => message.role === "bashExecution" ||
++        message.role === "branchSummary" ||
++        message.role === "compactionSummary"))
++        return true;
++    if (messages.some((message) => message.role === "user"))
++        return currentUnit.some((item) => item.messages.some((message) => message.role !== "custom"));
++    if (!messages.some((message) => message.role === "custom"))
++        return false;
++    return currentUnit.some((item) => item.messages.some((message) => message.role === "assistant" || message.role === "toolResult"));
++}
++function fitNativeReconstruction(entries, sourceCompaction, targetModel, requestOverheadTokens = 0) {
++    const units = [];
++    let currentUnit = [];
++    for (const projectedEntry of entries) {
++        const { sourceEntry: entry, messages } = projectedEntry;
++        const startsTurn = startsReconstructionUnit(messages, currentUnit);
++        if (startsTurn && currentUnit.some((item) => item.messages.length > 0)) {
++            units.push(currentUnit);
++            currentUnit = [];
++        }
++        currentUnit.push({ entry, messages, projectedEntry });
++    }
++    if (currentUnit.length > 0)
++        units.push(currentUnit);
++    const unitTokens = units.map((unit) => unit.reduce((total, item) => total + item.messages.reduce((subtotal, message) => subtotal + estimateReconstructionMessageTokens(message), 0), 0));
++    const contextWindow = Number.isFinite(targetModel.contextWindow) ? Math.max(0, targetModel.contextWindow) : Number.POSITIVE_INFINITY;
++    const outputReserve = Number.isFinite(targetModel.maxTokens) ? Math.max(0, targetModel.maxTokens) : 0;
++    const safetyReserve = Number.isFinite(contextWindow) ? Math.ceil(contextWindow * 0.25) : 0;
++    const requestReserve = Number.isFinite(requestOverheadTokens) ? Math.max(0, requestOverheadTokens) : 0;
++    const inputBudget = Number.isFinite(contextWindow)
++        ? Math.max(0, contextWindow - Math.max(outputReserve + requestReserve, safetyReserve))
++        : Number.POSITIVE_INFINITY;
++    let totalTokens = unitTokens.reduce((total, tokens) => total + tokens, 0);
++    let firstKeptUnit = 0;
++    while (totalTokens > inputBudget && firstKeptUnit < units.length) {
++        totalTokens -= unitTokens[firstKeptUnit];
++        firstKeptUnit++;
++    }
++    const keptItems = units.slice(firstKeptUnit).flat();
++    const messages = keptItems.flatMap((item) => item.messages);
++    const keptEntries = keptItems.map((item) => item.projectedEntry);
++    const droppedItems = units.slice(0, firstKeptUnit).flat();
++    const firstKeptEntry = keptItems.find((item) => item.messages.length > 0)?.entry;
++    const droppedThroughEntry = [...droppedItems].reverse().find((item) => item.messages.length > 0)?.entry;
++    return {
++        entries: keptEntries,
++        messages,
++        reconstruction: {
++            schemaVersion: 1,
++            sourceCompactionId: sourceCompaction.id,
++            firstKeptEntryId: firstKeptEntry?.id ?? null,
++            droppedThroughEntryId: droppedThroughEntry?.id ?? null,
++            targetIdentity: targetModelIdentity(targetModel),
++        },
++    };
++}
+ /**
+  * Build the session context from entries using tree traversal.
+  * If leafId is provided, walks from that entry to root.
+@@ -253,16 +447,20 @@ function projectContextEntry(entry, edit) {
+     });
+ }
+ /** Build provenance-preserving, compaction-aware model context. */
+-export function buildSessionProjection(entries, leafId, byId) {
++export function buildSessionProjection(entries, leafId, byId, targetModel, options = {}) {
+     const path = buildSessionPath(entries, leafId, byId);
+     const { thinkingLevel, model } = getSessionContextSettings(path);
+-    const contextEntries = buildContextEntries(entries, leafId, byId);
++    const sourceCompaction = [...path].reverse().find((entry) => entry.type === "compaction");
++    const forceNativeReconstruction = options.forceNativeReconstruction === true;
++    const contextEntries = forceNativeReconstruction
++        ? path.filter((entry) => entry.type !== "compaction")
++        : buildContextEntries(entries, leafId, byId, targetModel);
+     const edits = new Map();
+     for (const entry of contextEntries) {
+         if (entry.type === "context_edit")
+             edits.set(entry.targetId, entry);
+     }
+-    const projectedEntries = contextEntries.map((sourceEntry, index) => ({
++    let projectedEntries = contextEntries.map((sourceEntry, index) => ({
+         sourceEntry,
+         // buildContextEntries() may retain an older compaction entry because its
+         // raw ID lies inside the newest retained range. Only the newest compaction
+@@ -271,6 +469,18 @@ export function buildSessionProjection(entries, leafId, byId) {
+             ? []
+             : projectContextEntry(sourceEntry, edits.get(sourceEntry.id)),
+     }));
++    if (targetModel && sourceCompaction &&
++        (forceNativeReconstruction || !isCompatibleNativeCompaction(sourceCompaction, targetModel))) {
++        const fitted = fitNativeReconstruction(projectedEntries, sourceCompaction, targetModel, options.requestOverheadTokens);
++        projectedEntries = fitted.entries;
++        return {
++            entries: projectedEntries,
++            messages: fitted.messages,
++            thinkingLevel,
++            model,
++            reconstruction: fitted.reconstruction,
++        };
++    }
+     return {
+         entries: projectedEntries,
+         messages: projectedEntries.flatMap((entry) => entry.messages),
+@@ -279,9 +489,9 @@ export function buildSessionProjection(entries, leafId, byId) {
+     };
+ }
+ /** Build the finalized model context from the canonical session projection. */
+-export function buildSessionContext(entries, leafId, byId) {
+-    const { messages, thinkingLevel, model } = buildSessionProjection(entries, leafId, byId);
+-    return { messages, thinkingLevel, model };
++export function buildSessionContext(entries, leafId, byId, targetModel, options = {}) {
++    const { messages, thinkingLevel, model, reconstruction } = buildSessionProjection(entries, leafId, byId, targetModel, options);
++    return { messages, thinkingLevel, model, ...(reconstruction ? { reconstruction } : {}) };
+ }
+ /**
+  * Compute the default session directory for a cwd.
+@@ -877,7 +1087,7 @@ export class SessionManager {
+         return entry;
+     }
+     /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
+-    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage) {
++    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage, reason) {
+         const timestamp = new Date().toISOString();
+         const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
+         const id = generateId(this.byId);
+@@ -892,6 +1102,7 @@ export class SessionManager {
+             details,
+             usage,
+             fromHook,
++            reason,
+             ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
+         };
+         this._appendEntry(entry);
+@@ -1074,19 +1285,37 @@ export class SessionManager {
+      * Build the active, compaction-aware entry list for context/rendering.
+      * Uses tree traversal from current leaf.
+      */
+-    buildContextEntries() {
+-        return buildContextEntries(this.getEntries(), this.leafId, this.byId);
++    buildContextEntries(targetModel) {
++        return buildContextEntries(this.getEntries(), this.leafId, this.byId, targetModel);
+     }
+     /**
+      * Build the session context (what gets sent to the LLM).
+      * Uses tree traversal from current leaf.
+      */
+-    buildSessionProjection() {
+-        return buildSessionProjection(this.getEntries(), this.leafId, this.byId);
+-    }
+-    buildSessionContext() {
+-        const { messages, thinkingLevel, model } = this.buildSessionProjection();
+-        return { messages, thinkingLevel, model };
++    buildSessionProjection(targetModel, options) {
++        const projection = buildSessionProjection(this.getEntries(), this.leafId, this.byId, targetModel, options);
++        const reconstruction = projection.reconstruction;
++        if (reconstruction) {
++            const alreadyRecorded = this.getBranch().some((entry) => entry.type === "custom" &&
++                entry.customType === "pi.compaction_reconstruction" &&
++                entry.data?.schemaVersion === reconstruction.schemaVersion &&
++                entry.data?.sourceCompactionId === reconstruction.sourceCompactionId &&
++                entry.data?.firstKeptEntryId === reconstruction.firstKeptEntryId &&
++                entry.data?.droppedThroughEntryId === reconstruction.droppedThroughEntryId &&
++                entry.data?.targetIdentity?.api === reconstruction.targetIdentity.api &&
++                entry.data?.targetIdentity?.provider === reconstruction.targetIdentity.provider &&
++                entry.data?.targetIdentity?.baseUrl === reconstruction.targetIdentity.baseUrl &&
++                entry.data?.targetIdentity?.compactionBaseUrl === reconstruction.targetIdentity.compactionBaseUrl &&
++                entry.data?.targetIdentity?.modelId === reconstruction.targetIdentity.modelId &&
++                entry.data?.targetIdentity?.credentialFingerprint === reconstruction.targetIdentity.credentialFingerprint);
++            if (!alreadyRecorded)
++                this.appendCustomEntry("pi.compaction_reconstruction", reconstruction);
++        }
++        return projection;
++    }
++    buildSessionContext(targetModel, options) {
++        const { messages, thinkingLevel, model, reconstruction } = this.buildSessionProjection(targetModel, options);
++        return { messages, thinkingLevel, model, ...(reconstruction ? { reconstruction } : {}) };
+     }
+     /**
+      * Get session header.
+diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
+index 1200f7c10402b95c2457945aeb451857d24b189d..b275f2da6f237a2b7a4ff1152587e9722818ccda 100644
+--- a/dist/core/settings-manager.d.ts
++++ b/dist/core/settings-manager.d.ts
+@@ -124,11 +124,13 @@ export declare class SettingsManager {
+     private getCompactionTokenSetting;
+     getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number;
+     getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number;
++    getCompactionThresholdPercent(): number;
+     /** Resolve each token setting through model override, ordinary setting, then built-in default. */
+     getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
+         enabled: boolean;
+         reserveTokens: number;
+         keepRecentTokens: number;
++        thresholdPercent: number;
+     };
+     getBranchSummarySettings(): {
+         reserveTokens: number;
+diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
+index 392823fdbb92352c14868ab55a573485b5696435..c5ff3a1d442ad9b0a9dd702222c8a2a130c7e051 100644
+--- a/dist/core/settings-manager.js
++++ b/dist/core/settings-manager.js
+@@ -652,12 +652,16 @@ export class SettingsManager {
+     getCompactionKeepRecentTokens(model) {
+         return this.getCompactionTokenSetting("keepRecentTokens", model);
+     }
++    getCompactionThresholdPercent() {
++        return this.settings.compaction?.thresholdPercent ?? 80;
++    }
+     /** Resolve each token setting through model override, ordinary setting, then built-in default. */
+     getCompactionSettings(model) {
+         return {
+             enabled: this.getCompactionEnabled(),
+             reserveTokens: this.getCompactionReserveTokens(model),
+             keepRecentTokens: this.getCompactionKeepRecentTokens(model),
++            thresholdPercent: this.getCompactionThresholdPercent(),
+         };
+     }
+     getBranchSummarySettings() {
+diff --git a/dist/core/settings-schema.d.ts b/dist/core/settings-schema.d.ts
+index b811503462276efed6b430430982648d76eaffd2..1706fc494322284a0f525da5295cc005b0f3cf82 100644
+--- a/dist/core/settings-schema.d.ts
++++ b/dist/core/settings-schema.d.ts
+@@ -7,6 +7,7 @@ declare const CompactionSettingsSchema: Type.TObject<{
+     enabled: Type.TOptional<Type.TBoolean>;
+     reserveTokens: Type.TOptional<Type.TInteger>;
+     keepRecentTokens: Type.TOptional<Type.TInteger>;
++    thresholdPercent: Type.TOptional<Type.TNumber>;
+     modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+         reserveTokens: Type.TOptional<Type.TInteger>;
+         keepRecentTokens: Type.TOptional<Type.TInteger>;
+@@ -87,6 +88,7 @@ export declare const SettingsSchema: Type.TObject<{
+         enabled: Type.TOptional<Type.TBoolean>;
+         reserveTokens: Type.TOptional<Type.TInteger>;
+         keepRecentTokens: Type.TOptional<Type.TInteger>;
++        thresholdPercent: Type.TOptional<Type.TNumber>;
+         modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+             reserveTokens: Type.TOptional<Type.TInteger>;
+             keepRecentTokens: Type.TOptional<Type.TInteger>;
+diff --git a/dist/core/settings-schema.js b/dist/core/settings-schema.js
+index 27ac45a633294cce464f5bd671110d5f21438933..b9f617d48c28111438c059bba0926c84845e9a09 100644
+--- a/dist/core/settings-schema.js
++++ b/dist/core/settings-schema.js
+@@ -15,6 +15,8 @@ const CompactionSettingsSchema = Type.Object({
+     enabled: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.compaction.enabled })),
+     reserveTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.reserveTokens })),
+     keepRecentTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.keepRecentTokens })),
++    // OpenWaggle patch: percent of the model's context window at which compaction runs.
++    thresholdPercent: Type.Optional(Type.Number({ description: "Percent of the model's context window at which compaction runs.", default: 80 })),
+     modelOverrides: Type.Optional(Type.Record(Type.String(), CompactionModelOverrideSchema, {
+         description: 'Per-model overrides keyed by exact "provider/modelId" strings.',
+     })),
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 4a4e958c645bdf8b292c6e8076ac51e85dc1e0e2..210d357cec0563d22c1646863a212c944de41674 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
+ export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
+ export { readStoredCredential } from "./core/auth-storage.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
+-export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
+ export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
+ export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
+@@ -18,7 +18,7 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
+ export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
+ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
+ export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
+-export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
++export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
+ export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
+ export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
+ export { createSyntheticSourceInfo } from "./core/source-info.ts";
+@@ -41,4 +41,9 @@ export { convertToPng } from "./utils/image-convert.ts";
+ export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.ts";
+ export { getPowerShellConfig, getShellConfig } from "./utils/shell.ts";
++// OpenWaggle: exports only, so OpenWaggle reuses Pi's MCP validation, value resolution, and sign-in code (ADR 0051).
++export type { AuthStorageBackend } from "./core/auth-storage.ts";
++export { createMcpAuthProvider, type McpAuthProvider, McpOAuthCredentialStore, type McpOAuthServerStore, type McpOAuthSettings, McpSignInCancelledError, type McpSignInPrompt, signInMcpServer, } from "./extensions/mcp/oauth.ts";
++export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.ts";
++export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.ts";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/dist/index.js b/dist/index.js
+index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..c6083f7634170cb6183a7b04b181046f0ae65cb8 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
+ export { AgentSession, parseSkillBlock, } from "./core/agent-session.js";
+ export { readStoredCredential } from "./core/auth-storage.js";
+ // Compaction
+-export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
++export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
+ export { createEventBus } from "./core/event-bus.js";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
+ export { convertToLlm } from "./core/messages.js";
+@@ -20,7 +20,7 @@ export { AgentSessionRuntime,
+ createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, 
+ // Tool factories (for custom cwd)
+ createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
+-export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
++export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
+ export { SettingsManager, } from "./core/settings-manager.js";
+ // Skills
+ export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";
+@@ -50,4 +50,10 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.js";
+ // Shell utilities
+ export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";
++// OpenWaggle: exports only, no behaviour change. OpenWaggle supplies the MCP extension's plug-in
++// points (ADR 0051) and reuses Pi's own server validation, value resolution, and OAuth sign-in
++// code instead of reimplementing them.
++export { createMcpAuthProvider, McpOAuthCredentialStore, McpSignInCancelledError, signInMcpServer } from "./extensions/mcp/oauth.js";
++export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";
++export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.js";
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file

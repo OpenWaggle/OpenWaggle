@@ -13,7 +13,9 @@ import {
   assertBrowserBundleContent,
   findPackageDependencyVersion,
   isPackageSmokeDevDependency,
+  piRuntimeSmokePins,
   resolvePackageSmokeCatalogVersion,
+  smokePnpmWorkspaceConfig,
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
@@ -40,6 +42,7 @@ import {
   type PackageSpec,
   validatePackedPackage,
 } from './package-smoke-tarballs'
+import { SMOKE_PROJECT_SCRIPTS, SMOKE_SCRIPTS_BEFORE_BROWSER } from './package-smoke-scripts'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
@@ -58,6 +61,7 @@ const PUBLISHABLE_PACKAGES: readonly PackageSpec[] = [
 ]
 
 const SMOKE_REGISTRY_DEPENDENCIES = [
+  '@earendil-works/pi-ai',
   '@earendil-works/pi-coding-agent',
   '@earendil-works/pi-tui',
   '@types/node',
@@ -147,10 +151,11 @@ async function smokeDependencyVersion(
 export function createSmokePackageJson(
   packedPackages: readonly PackedPackageReference[],
   smokeDependencyVersions: readonly SmokeDependencyVersion[],
+  registryPins: Readonly<Record<string, string>> = {},
 ) {
   const dependencies: { [name: string]: string } = {}
   const devDependencies: { [name: string]: string } = {}
-  const packedDependencyOverrides: { [name: string]: string } = {}
+  const packedDependencyOverrides: { [name: string]: string } = { ...registryPins }
   for (const packedPackage of packedPackages) {
     const tarballReference = `file:${packedPackage.tarballPath}`
     dependencies[packedPackage.name] = tarballReference
@@ -170,13 +175,7 @@ export function createSmokePackageJson(
   return {
     private: true,
     type: 'module',
-    scripts: {
-      typecheck: 'tsc -p tsconfig.json --noEmit',
-      'import:cjs': 'tsx require-smoke.ts',
-      'import:esm': 'tsx import-smoke.ts',
-      'browser:bundle': 'vite build --config vite.config.ts',
-      'pi:discovery': 'tsx pi-discovery-smoke.ts',
-    },
+    scripts: SMOKE_PROJECT_SCRIPTS,
     dependencies,
     devDependencies,
     overrides: packedDependencyOverrides,
@@ -196,7 +195,8 @@ async function writeSmokePackageJson(
       version: await smokeDependencyVersion(projectRoot, name, workspaceConfig),
     })),
   )
-  const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions)
+  const pins = piRuntimeSmokePins(workspaceConfig)
+  const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions, pins)
   await fs.writeFile(
     path.join(smokeProjectRoot, 'package.json'),
     `${JSON.stringify(packageJson, null, JSON_INDENT_SPACES)}\n`,
@@ -209,15 +209,13 @@ export function packageManagerInstallArgs(packageManager: PackageManagerName) {
 }
 
 async function writeSmokeWorkspaceConfig(
+  projectRoot: string,
   smokeProjectRoot: string,
   packedPackages: readonly PackedPackage[],
 ) {
-  const overrideLines = packedPackages.map(
-    (packedPackage) => `  "${packedPackage.name}": "file:${packedPackage.tarballPath}"`,
-  )
-  const workspaceConfig = ['packages: []', '', 'overrides:', ...overrideLines, ''].join('\n')
-
-  await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), workspaceConfig, 'utf8')
+  const workspace = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const config = smokePnpmWorkspaceConfig(piRuntimeSmokePins(workspace), packedPackages)
+  await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), config, 'utf8')
 }
 
 async function writeYarnTrustPolicy(projectRoot: string, smokeProjectRoot: string) {
@@ -238,7 +236,7 @@ async function prepareSmokeProject(
   const smokeProjectRoot = path.join(smokeRoot, SMOKE_PROJECT_DIR)
   await fs.cp(path.join(projectRoot, FIXTURE_DIR), smokeProjectRoot, { recursive: true })
   await writeSmokePackageJson(projectRoot, smokeProjectRoot, packedPackages)
-  await writeSmokeWorkspaceConfig(smokeProjectRoot, packedPackages)
+  await writeSmokeWorkspaceConfig(projectRoot, smokeProjectRoot, packedPackages)
   await writeYarnTrustPolicy(projectRoot, smokeProjectRoot)
   return smokeProjectRoot
 }
@@ -269,10 +267,9 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
         ['install', ...packageManagerInstallArgs(packageManager.name)],
         smokeProjectRoot,
       )
-      await runCommand(packageManager.command, ['run', 'typecheck'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'import:esm'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'import:cjs'], smokeProjectRoot)
-      await runCommand(packageManager.command, ['run', 'browser:bundle'], smokeProjectRoot)
+      for (const script of SMOKE_SCRIPTS_BEFORE_BROWSER) {
+        await runCommand(packageManager.command, ['run', script], smokeProjectRoot)
+      }
       const bundlePath = path.join(smokeProjectRoot, 'dist/browser-smoke.js')
       assertBrowserBundleContent(await fs.readFile(bundlePath, 'utf8'))
       if (environment.browserSmokeEnabled) {

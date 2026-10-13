@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { createLogger } from '../../../logger'
@@ -14,7 +15,7 @@ import {
 } from '../../../store/session-details'
 import { createGitWorktree } from '../../git/worktree'
 import { resolveFreshWorktreeBaseRef } from './session-branch-freshness'
-import { requireSessionProjectPath } from './session-manager'
+import { requireSessionProjectPath, resolveLocalWorkingPath } from './session-manager'
 import { validateWorkspaceBirthAuthority } from './session-worktree-birth-authority'
 import {
   applyPendingHandoffSeed,
@@ -39,7 +40,7 @@ export async function ensureSessionWorktreeProjectPath(
   options: SessionWorktreeBirthOptions = {},
 ): Promise<string> {
   const primaryPath = requireSessionProjectPath(session)
-  if (session.environmentMode !== 'worktree') return primaryPath
+  if (session.environmentMode !== 'worktree') return resolveLocalWorkingPath(session, primaryPath)
   const workspace =
     (await getBoundWorkspaceResource(session.id)) ?? fallbackWorkspace(session, primaryPath)
   const key = workspace.id
@@ -115,9 +116,7 @@ async function recoverRecordedWorktree(input: {
     sessionId: String(input.session.id),
     missingWorktreePath: input.existing,
   })
-  throw new Error(
-    "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
-  )
+  throw new Error(SESSION_WORKTREE_MISSING_MESSAGE)
 }
 
 function requireBirthableWorkspace(workspace: BoundWorkspaceResource) {

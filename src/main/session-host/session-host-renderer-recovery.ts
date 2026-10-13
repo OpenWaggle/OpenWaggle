@@ -2,6 +2,7 @@ import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import type { Logger } from '@shared/types/logger'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import { awaitWithSignal } from './await-with-signal'
 import type { watchLocalSessionEvents } from './local-session-client'
 import { LocalSessionClientProtocolError } from './local-session-client-protocol-error'
 import type { ensureLocalSessionHost } from './local-session-host-launcher'
@@ -77,30 +78,6 @@ function logRecoveryAttempt(
   if (!isLoggedRecoveryAttempt(attempt)) return false
   logger.warn('Remote Session Host renderer connection is degraded; retrying.', details)
   return true
-}
-
-function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal) {
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    let settled = false
-    const abort = () => {
-      if (settled) return
-      settled = true
-      reject(signal.reason)
-    }
-    const finish = (settle: () => void) => {
-      if (settled) return
-      settled = true
-      signal.removeEventListener('abort', abort)
-      settle()
-    }
-    operation.then(
-      (value) => finish(() => resolve(value)),
-      (error: unknown) => finish(() => reject(error)),
-    )
-    signal.addEventListener('abort', abort, { once: true })
-    if (signal.aborted) abort()
-  })
 }
 
 function remoteRecoveryDelay(attempt: number, error: unknown) {

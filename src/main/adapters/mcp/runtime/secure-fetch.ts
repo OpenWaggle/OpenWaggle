@@ -2,7 +2,14 @@ import { lookup } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { FetchLike } from '@modelcontextprotocol/client'
 import { Agent, Dispatcher1Wrapper } from 'undici'
+import {
+  assertSecureMcpProtocol,
+  isAllowedMcpHostname,
+  isLoopbackMcpHostname,
+  normalizeMcpAllowedHosts,
+} from './mcp-network-hosts'
 import { limitMcpResponseBytes } from './response-byte-limit'
+import { McpFetchRequests } from './secure-fetch-close'
 import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -24,7 +31,7 @@ export interface ValidatedMcpNetworkTarget {
   readonly family: 4 | 6
 }
 
-type PinnedFetch = (
+export type PinnedFetch = (
   url: URL,
   init: RequestInit,
   target: ValidatedMcpNetworkTarget,
@@ -74,41 +81,6 @@ for (const [network, prefix] of [
   blockedIpv6Addresses.addSubnet(network, prefix, 'ipv6')
 }
 
-export function isLoopbackMcpHostname(hostname: string) {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
-}
-
-function normalizedAllowedHostname(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  try {
-    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
-    if (!['https:', 'wss:', 'http:', 'ws:'].includes(url.protocol)) return null
-    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null
-    return url.hostname.toLowerCase()
-  } catch {
-    return null
-  }
-}
-
-export function normalizeMcpAllowedHosts(values: readonly string[]) {
-  return new Set(
-    values
-      .map(normalizedAllowedHostname)
-      .filter((hostname): hostname is string => hostname !== null),
-  )
-}
-
-export function isAllowedMcpHostname(allowedHosts: ReadonlySet<string>, hostname: string) {
-  const normalized = hostname.toLowerCase()
-  if (allowedHosts.has(normalized)) return true
-  for (const allowed of allowedHosts) {
-    if (allowed.startsWith('*.') && normalized.endsWith(allowed.slice(1))) return true
-  }
-  return false
-}
-
 function isPrivateAddress(address: string) {
   const family = isIP(address)
   if (family === IP_FAMILY_V4) return blockedIpv4Addresses.check(address, 'ipv4')
@@ -133,11 +105,23 @@ function assertLoopbackAllowed(url: URL, allowLoopback: boolean | undefined) {
   }
 }
 
+function assertProtocolAllowed(input: {
+  readonly url: URL
+  readonly allowPlainHttp?: boolean
+  readonly websocket?: boolean
+}) {
+  const plain = ['http:', 'ws:'].includes(input.url.protocol)
+  if (input.allowPlainHttp === true && plain) return
+  assertSecureMcpProtocol(input.url, input.websocket === true)
+}
+
 export async function validateMcpNetworkTarget(input: {
   readonly url: URL
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
   readonly allowLoopback?: boolean
+  /** Plain `http:` (or `ws:`) to any host: only for an endpoint the user configured, as Pi allows. */
+  readonly allowPlainHttp?: boolean
   readonly websocket?: boolean
   readonly resolveHostname?: HostnameResolver
 }) {
@@ -145,7 +129,7 @@ export async function validateMcpNetworkTarget(input: {
     throw new Error('MCP network URLs cannot contain credentials.')
   }
   assertLoopbackAllowed(input.url, input.allowLoopback)
-  assertSecureMcpProtocol(input.url, input.websocket === true)
+  assertProtocolAllowed(input)
   if (!isAllowedMcpHostname(input.allowedHosts, input.url.hostname)) {
     throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
   }
@@ -215,15 +199,7 @@ function dispatcherFor(
 
 export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
 
-export function assertSecureMcpProtocol(url: URL, websocket: boolean) {
-  const secureProtocol = websocket ? 'wss:' : 'https:'
-  if (url.protocol === secureProtocol) return
-  const loopbackProtocol = websocket ? 'ws:' : 'http:'
-  if (url.protocol === loopbackProtocol && isLoopbackMcpHostname(url.hostname)) return
-  throw new Error(
-    `MCP network connections require ${secureProtocol} except for explicit loopback URLs.`,
-  )
-}
+export { MCP_FETCH_CLOSE_GRACE_MS } from './secure-fetch-close'
 
 function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   if (
@@ -254,6 +230,7 @@ export function createSecureMcpFetch(input: {
   readonly allowPublicRedirects?: boolean
   readonly allowInsecurePrivateNetwork?: boolean
   readonly allowLoopback?: boolean
+  readonly allowPlainHttp?: boolean
   readonly maxResponseBytes?: number
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
@@ -263,16 +240,21 @@ export function createSecureMcpFetch(input: {
     ...(input.allowedDomains ?? []),
   ])
   const dispatchers = new Map<string, Dispatcher1Wrapper>()
-  const pinnedFetch: PinnedFetch = async (url, init, target) => {
-    const requestInit: DispatcherRequestInit = {
-      ...init,
-      dispatcher: dispatcherFor(target, dispatchers),
-    }
-    return fetch(url, requestInit)
-  }
+  const requests = new McpFetchRequests()
+  // Closing can end a request, or a body still streaming, that would otherwise wait out a host.
+  const pinnedFetch: PinnedFetch = (url, init, target) =>
+    requests.send(init, (signal) => {
+      const requestInit: DispatcherRequestInit = {
+        ...init,
+        signal,
+        dispatcher: dispatcherFor(target, dispatchers),
+      }
+      return fetch(url, requestInit)
+    })
 
   return Object.assign(
     async (urlInput: Parameters<FetchLike>[0], requestInit: RequestInit = {}) => {
+      requests.assertOpen()
       let url = new URL(typeof urlInput === 'string' ? urlInput : urlInput.toString())
       let init: RequestInit = { ...requestInit, redirect: 'manual' }
 
@@ -282,6 +264,7 @@ export function createSecureMcpFetch(input: {
           allowedHosts,
           allowInsecurePrivateNetwork: input.allowInsecurePrivateNetwork === true,
           ...(input.allowLoopback !== undefined ? { allowLoopback: input.allowLoopback } : {}),
+          ...(input.allowPlainHttp ? { allowPlainHttp: true } : {}),
           ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
         })
         const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)
@@ -314,7 +297,7 @@ export function createSecureMcpFetch(input: {
       async close() {
         const activeDispatchers = [...dispatchers.values()]
         dispatchers.clear()
-        await Promise.all(activeDispatchers.map((dispatcher) => dispatcher.close()))
+        await requests.close(activeDispatchers)
       },
     },
   )

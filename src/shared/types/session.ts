@@ -1,3 +1,4 @@
+import type { SessionTitleSource } from '../session-title-source'
 import type { Message, MessageRole } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
@@ -120,6 +121,8 @@ export interface SessionInterruptedRun {
 export interface SessionDetail {
   readonly id: SessionId
   readonly title: string
+  /** Where the title came from (ADR 0043); absent where the store does not read it. */
+  readonly titleSource?: SessionTitleSource
   readonly projectPath: string | null
   readonly piSessionId?: string
   readonly piSessionFile?: string
@@ -147,6 +150,23 @@ export interface SessionDetail {
   readonly executionThinkingLevel?: ThinkingLevel
   /** Conversation position the Session resumes from; see {@link SessionResumePosition}. */
   readonly resumePosition?: SessionResumePosition
+  /**
+   * Set for a Pi session OpenWaggle discovered rather than created (ADR 0051): its node ids are
+   * its Pi entry ids under this prefix, because such a file may share entry ids with another
+   * Session's (a `pi` CLI fork copies them) and OpenWaggle never rewrites it.
+   */
+  readonly piEntryNodeIdPrefix?: string
+  /**
+   * The working directory a discovered Pi session ran in, when it is a folder inside the project.
+   * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0051).
+   */
+  readonly piSessionCwd?: string
+  /**
+   * Set when an opened Session's Pi file was deleted outside OpenWaggle: for a discovered Session,
+   * why it cannot be continued, as its Runs are refused; for one OpenWaggle created, that its next
+   * message starts a new transcript. Only a Session read for the chat view carries it.
+   */
+  readonly piSessionFileDeleted?: string
 }
 
 /**
@@ -267,6 +287,12 @@ export interface SessionTree {
 export interface SessionWorkspaceSelection {
   readonly branchId?: SessionBranchId | null
   readonly nodeId?: SessionNodeId | null
+}
+
+/** How the desktop user deletes a Session. */
+export interface SessionDeleteOptions {
+  /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
+  readonly removingProject?: boolean
 }
 
 export interface SessionNavigateTreeOptions {

@@ -9,6 +9,7 @@ This file is the entrypoint for OpenWaggle architecture documentation. It is int
 - `docs/system-architecture.md` describes the current whole-system shape.
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
 - `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
+- `docs/mcp-runtime.md` explains how the MCP runtime of ADR 0051 fits together: Pi's MCP client, the MCP transport layer, configuration files, and ports.
 
 ## Decision Records
 
@@ -47,6 +48,26 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0032-coexisting-build-identities-and-channel-keyed-updates.md`
 - `docs/adr/0033-remove-the-merge-queue.md`
 - `docs/adr/0035-native-project-actions.md`
+- `docs/adr/0036-bounded-sliding-transcript-window.md`
+- `docs/adr/0037-derived-projections-never-cost-a-durable-turn.md`
+- `docs/adr/0038-guided-action-panel.md`
+- `docs/adr/0039-stop-the-session-host-from-the-command-line.md`
+- `docs/adr/0040-adopt-the-v1-release-policy.md`
+- `docs/adr/0041-forked-sessions-get-their-own-pi-entry-ids.md`
+- `docs/adr/0042-cross-project-session-reach-and-session-scratch-directories.md`
+- `docs/adr/0043-generated-session-titles-follow-t3code.md`
+- `docs/adr/0043-unified-right-panel-with-a-panel-rail.md`
+- `docs/adr/0044-follow-up-edits-keep-their-identity-and-hold-the-queue.md`
+- `docs/adr/0044-usage-statistics-carry-no-persistent-identifier.md`
+- `docs/adr/0045-usage-statistics-go-through-an-openwaggle-endpoint.md`
+- `docs/adr/0046-usage-statistics-are-on-by-default.md`
+- `docs/adr/0047-installing-an-update-releases-the-session-host.md`
+- `docs/adr/0048-compacted-history-stays-visible-in-the-transcript.md`
+- `docs/adr/0048-source-control-resolution-lives-in-the-session-host.md`
+- `docs/adr/0049-pi-entry-ids-are-full-uuids.md`
+- `docs/adr/0049-users-can-recover-desktop-tools-after-an-unclean-quit.md`
+- `docs/adr/0050-edit-rows-show-their-diff-on-demand.md`
+- `docs/adr/0051-openwaggle-is-the-gui-for-the-pi-ecosystem.md`
 
 ## Testing
 

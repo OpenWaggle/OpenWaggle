@@ -1,31 +1,21 @@
-import type { AssistantMessage, AssistantMessageEventStream, Model } from '@earendil-works/pi-ai'
+import type { AssistantMessage, Model } from '@earendil-works/pi-ai'
 import { stream as streamAnthropic } from '@earendil-works/pi-ai/api/anthropic-messages'
 import { stream as streamMistral } from '@earendil-works/pi-ai/api/mistral-conversations'
 import { stream as streamOpenAiCompletions } from '@earendil-works/pi-ai/api/openai-completions'
-import { stream as streamOpenAiResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import { stream as streamPiMessages } from '@earendil-works/pi-ai/api/pi-messages'
 import { ANTHROPIC_MODELS } from '@earendil-works/pi-ai/providers/anthropic.models'
 import { MISTRAL_MODELS } from '@earendil-works/pi-ai/providers/mistral.models'
-import { OPENAI_MODELS } from '@earendil-works/pi-ai/providers/openai.models'
 import { OPENROUTER_MODELS } from '@earendil-works/pi-ai/providers/openrouter.models'
-import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import {
   bedrockEventFrame,
-  splitIntoDeltas,
   streamBedrockFrames,
   toolCallFrames,
   withLoopbackServer,
-  writeFileArguments,
 } from './bedrock-event-stream.test-utils'
+import { runOpenAiResponsesToolCall } from './responses-streaming-cases.test-utils'
+import { CONTEXT, DELTAS, finalMessage, sse, USAGE } from './streaming-provider-wire.test-utils'
 
 /** One write call streamed by each patched Pi provider from a loopback server, in its wire format. */
-
-export const JSON_ARGUMENTS = writeFileArguments(64 * 1024)
-const DELTAS = splitIntoDeltas(JSON_ARGUMENTS)
-const CONTEXT = normalizeContext({
-  messages: [{ role: 'user', content: 'write the file', timestamp: 0 }],
-})
-const USAGE = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 }
 
 export type Ending = 'normal' | 'failure'
 
@@ -34,25 +24,6 @@ export interface ProviderCase {
   /** What a normal ending omits: the provider's own close event for the tool block. */
   readonly normalEnding: string
   readonly run: (ending: Ending) => Promise<AssistantMessage>
-}
-
-function sse(events: readonly unknown[], options: { readonly named?: boolean } = {}) {
-  return events
-    .map((event) => {
-      const data = `data: ${JSON.stringify(event)}\n\n`
-      if (!options.named || typeof event !== 'object' || event === null || !('type' in event)) {
-        return data
-      }
-      return `event: ${String(event.type)}\n${data}`
-    })
-    .join('')
-}
-
-async function finalMessage(events: AssistantMessageEventStream) {
-  for await (const _event of events) {
-    // Drain the stream; only the final message matters here.
-  }
-  return events.result()
 }
 
 const anthropicCase: ProviderCase = {
@@ -110,59 +81,8 @@ const anthropicCase: ProviderCase = {
 
 const openAiResponsesCase: ProviderCase = {
   name: 'OpenAI Responses',
-  normalEnding: 'response.completed without output_item.done',
-  run: (ending) =>
-    withLoopbackServer(
-      sse(
-        [
-          {
-            type: 'response.created',
-            response: { id: 'resp_1', status: 'in_progress', output: [] },
-          },
-          {
-            type: 'response.output_item.added',
-            output_index: 0,
-            item: {
-              type: 'function_call',
-              id: 'fc_1',
-              call_id: 'tool-1',
-              name: 'write',
-              arguments: '',
-            },
-          },
-          ...DELTAS.map((delta) => ({
-            type: 'response.function_call_arguments.delta',
-            output_index: 0,
-            item_id: 'fc_1',
-            delta,
-          })),
-          ending === 'normal'
-            ? {
-                type: 'response.completed',
-                response: {
-                  id: 'resp_1',
-                  status: 'completed',
-                  output: [],
-                  usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
-                },
-              }
-            : { type: 'error', code: 'server_error', message: 'Upstream failed' },
-        ],
-        { named: true },
-      ),
-      'text/event-stream',
-      (baseUrl) =>
-        finalMessage(
-          streamOpenAiResponses(
-            { ...OPENAI_MODELS['gpt-4.1'], baseUrl: `${baseUrl}/v1` },
-            CONTEXT,
-            {
-              apiKey: 'test-key',
-              maxRetries: 0,
-            },
-          ),
-        ),
-    ),
+  normalEnding: 'output_item.done without arguments, then response.completed',
+  run: runOpenAiResponsesToolCall,
 }
 
 function chatCompletionChunk(delta: unknown, finishReason: string | null) {
