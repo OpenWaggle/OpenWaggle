@@ -7,6 +7,7 @@ import { useSessionStatusStore, useSessionStore } from '@/features/sessions/stat
 import { SessionItemContextMenu } from '@/features/sidebar/components'
 import { usePinnedSessionsStore } from '@/features/sidebar/state'
 import { useUnarchiveSessionMutation } from '@/queries/archived-sessions'
+import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
@@ -72,7 +73,8 @@ function useHiveRowView(row: HiveTreeRow, isRoot: boolean) {
     statusColor: statusView?.colorVar ?? IDLE_ROW_COLOR_VAR,
     state: hiveRowStateLabel(session, statusView?.shortLabel ?? 'Idle'),
     role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
-    workspace: session.worktreePath ? lastSegment(session.worktreePath) : 'Checkout',
+    // projectName takes the last segment of either separator, so Windows paths shorten too.
+    workspace: session.worktreePath ? projectName(session.worktreePath) : 'Checkout',
   }
 }
 
@@ -262,10 +264,4 @@ function HiveRowMenu({
 function hiveRolePresentation(session: { readonly lineage?: { readonly role?: string } | null }) {
   const isQueen = session.lineage?.role === 'queen'
   return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
-}
-
-function lastSegment(path: string) {
-  const withoutTrailingSlash = path.replace(/\/+$/, '')
-  const index = withoutTrailingSlash.lastIndexOf('/')
-  return index === -1 ? withoutTrailingSlash : withoutTrailingSlash.slice(index + 1)
 }

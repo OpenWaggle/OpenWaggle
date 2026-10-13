@@ -8,7 +8,7 @@ import { workerAttentionByQueen } from '../worker-attention'
 function worker(
   id: string,
   delegationState: HiveDelegationState,
-  extra: { readonly archived?: boolean } = {},
+  extra: { readonly archived?: boolean; readonly historical?: boolean } = {},
 ): SessionSummary {
   return {
     id: SessionId(id),
@@ -16,7 +16,7 @@ function worker(
     projectPath: '/project',
     createdAt: 1,
     updatedAt: 1,
-    ...extra,
+    ...(extra.archived === undefined ? {} : { archived: extra.archived }),
     lineage: {
       role: 'worker',
       parentSessionId: SessionId('parent'),
@@ -24,6 +24,7 @@ function worker(
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
       delegationState,
+      ...(extra.historical === undefined ? {} : { historical: extra.historical }),
     },
   }
 }
@@ -41,8 +42,22 @@ describe('workerAttentionByQueen', () => {
         worker('gone', 'needs_attention', { archived: true }),
       ],
       (session) => states.get(String(session.id)) ?? 'idle',
+      new Set(),
     )
     // Keyed by the Hive root, not the direct parent; archived and calm Workers do not count.
     expect([...counts]).toEqual([['queen', 3]])
+  })
+
+  it('skips Workers that are not hidden in the Hive panel: pinned or historical', () => {
+    const counts = workerAttentionByQueen(
+      [
+        worker('pinned', 'needs_attention'),
+        worker('legacy', 'needs_attention', { historical: true }),
+        worker('hidden', 'needs_attention'),
+      ],
+      () => 'idle',
+      new Set(['pinned']),
+    )
+    expect([...counts]).toEqual([['queen', 1]])
   })
 })

@@ -3,7 +3,7 @@ import { hiveStateNeedsAttention } from '@/queries/session-hive-contract'
 import { isAttentionState, type SidebarRowState } from './sidebar-row-state'
 
 /**
- * Per-Queen count of hidden Workers that need the user, keyed by Hive root (ADR 0051).
+ * Per-Queen count of hidden (unpinned, Spawn-lineage) Workers that need the user, keyed by Hive root (ADR 0051).
  *
  * A Worker counts when its row state needs a person (the vocabulary the status chips use, which
  * covers a parked request) or when its Delegation state puts it in the Hive panel's Needs you
@@ -13,12 +13,17 @@ import { isAttentionState, type SidebarRowState } from './sidebar-row-state'
 export function workerAttentionByQueen(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
+  pinnedSessionIds: ReadonlySet<string>,
 ) {
   const byQueen = new Map<string, number>()
   for (const session of sessions) {
     if (session.archived === true) continue
+    // A pinned Worker is not hidden: its own Pinned row already shows its state.
+    if (pinnedSessionIds.has(String(session.id))) continue
     const lineage = session.lineage
     if (lineage?.role !== 'worker') continue
+    // Legacy task-runner Workers are not Spawn lineage, so they are not in the Hive panel.
+    if (lineage.historical === true) continue
     const needsUser =
       isAttentionState(stateOf(session)) || hiveStateNeedsAttention(lineage.delegationState)
     if (!needsUser) continue

@@ -175,8 +175,13 @@ export function useSidebarState() {
   })
   // A Queen's second line reports hidden Workers that need the user (ADR 0051).
   const workerAttention = useMemo(
-    () => workerAttentionByQueen(sessions.sessions, rowStates.stateOf),
-    [sessions.sessions, rowStates],
+    () =>
+      workerAttentionByQueen(
+        sessions.sessions,
+        rowStates.stateOf,
+        new Set(pins.map((pin) => String(pin.sessionId))),
+      ),
+    [sessions.sessions, rowStates, pins],
   )
 
   /*
