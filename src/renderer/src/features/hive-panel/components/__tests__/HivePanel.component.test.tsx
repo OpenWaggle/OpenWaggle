@@ -108,10 +108,9 @@ describe('HivePanel', () => {
   it('presents the root as the Queen even when it has no lineage row of its own', async () => {
     // A top-level Queen never spawned as a Worker has no session_spawn_lineage row, so its
     // summary carries no lineage role; the hive root is still the Queen (ADR 0030).
-    const xLineage = summary('x').lineage
     listHiveTreeSessionCatalogPage.mockResolvedValue({
       root: summary('queen', { lineage: undefined }),
-      members: [summary('active', { lineage: { ...xLineage, delegationState: 'working' } })],
+      members: [summary('active', { lineage: { ...workerLineage, delegationState: 'working' } })],
     })
     renderWithQueryClient(<HivePanel sessionId="elsewhere" onClose={vi.fn()} />)
 
