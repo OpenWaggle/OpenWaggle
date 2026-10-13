@@ -6,6 +6,7 @@ import {
   type RightPanelSurfaceId,
 } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { useUIStore } from '@/shell/ui-store'
 import type { RightPanelModel, RightPanelSurfaceEntry } from '../useRightPanelModel'
 
 const mocks = vi.hoisted(() => {
@@ -131,7 +132,7 @@ describe('useRightPanelController', () => {
     expect(mocks.route.open).not.toHaveBeenCalled()
   })
 
-  it('keeps a disabled surface closed when its rail entry is activated', () => {
+  it('keeps a disabled surface closed and explains why when it is toggled', () => {
     const disabled = model({
       surfaces: model().surfaces.map((surface) =>
         surface.id === 'session-tree'
@@ -142,6 +143,8 @@ describe('useRightPanelController', () => {
     const { result } = renderHook(() => useRightPanelController(disabled, '/repo'))
     act(() => result.current.toggleSurface('session-tree'))
     expect(mocks.route.open).not.toHaveBeenCalled()
+    // A shortcut gives no hover tooltip, so the reason arrives as a toast.
+    expect(useUIStore.getState().toastData?.message).toBe('Available after the first message')
   })
 
   it('restores the Session’s remembered surface once its claims settle', () => {
