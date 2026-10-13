@@ -94,6 +94,8 @@ export interface McpMigrationReport {
   readonly droppedSessionStates: number
   /** Set when the migration could not start (unreadable record or old state). */
   readonly error?: string
+  /** Projects left alone as their folder is gone; each migrates once it is back. */
+  readonly goneProjects?: readonly string[]
 }
 
 const defaultLogger = createLogger('mcp-migration')
@@ -222,7 +224,7 @@ export async function migrateOpenWaggleMcpFiles(
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
-  const projects = await presentMigrationProjects(
+  const { present: projects, gone } = await presentMigrationProjects(
     fs,
     await migrationProjects({
       ...input,
@@ -297,5 +299,5 @@ export async function migrateOpenWaggleMcpFiles(
   })
   // A sign-in run reads the old sign-ins' servers from the old state: tried again later.
   const error = input.oauth && unreadableState ? { error: unreadableState.message } : {}
-  return { files, oauth, droppedSessionStates, ...error }
+  return { files, oauth, droppedSessionStates, goneProjects: gone, ...error }
 }

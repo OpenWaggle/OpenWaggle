@@ -12,6 +12,7 @@ import {
 import { gateUnmigratedMcpFiles } from '../../mcp/migration/migration-gate'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
 import { SIGN_IN_NOT_READ_YET } from '../../mcp/migration/oauth-state-migration'
+import { sameMigrationLocation } from '../../mcp/migration/project-spellings'
 import { ProcessFileLockTimeoutError, withProcessFileLock } from '../../mcp/process-file-lock'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
@@ -188,9 +189,14 @@ async function runMigration(
     await gateUnmigratedMcpFiles({ homeDir: homedir(), projectPaths: [projectPath], error })
     return undefined
   })
-  // What a failed start or file left unmigrated is tried again on a later call.
+  // What a failed start or file left unmigrated is tried again on a later call, and so is a
+  // project whose folder was gone: cloned again while the Host runs, it migrates before it loads.
+  const gone =
+    projectPath !== null &&
+    report?.goneProjects?.some((gonePath) => sameMigrationLocation(gonePath, projectPath))
   if (
     !report ||
+    gone ||
     report.error ||
     report.files.some((file) => file.status === 'failed') ||
     report.oauth.some((signIn) => signIn.status === 'failed')

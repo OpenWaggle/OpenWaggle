@@ -126,12 +126,14 @@ export function keepsEnablement(kept: readonly string[] | null, projectPath: str
  */
 export async function presentMigrationProjects(fs: McpMigrationFs, projects: readonly string[]) {
   const present: string[] = []
+  const gone: string[] = []
   for (const projectPath of projects) {
     if (await fs.projectFolderGone?.(projectPath)) {
       recordMcpFileMigrationOutcome(projectMcpPaths(projectPath).openwaggle)
+      gone.push(projectPath)
     } else {
       present.push(projectPath)
     }
   }
-  return present
+  return { present, gone }
 }

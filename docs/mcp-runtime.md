@@ -589,7 +589,10 @@ waits, so nothing is refused. A failed start gates only the files the record doe
 migrated. A broken state.json is not needed once the decision is made and every old MCP-off
 Session switch was carried over (`sessionSwitchesDone`): the run goes on without it, and only a
 file still waiting for old state fails. A project folder the old state names that is gone
-(deleted, not cloned again yet) is skipped: nothing is created, recorded or gated. Only an unreadable migration.json fails closed for everything. While a scope
+(deleted, not cloned again yet) is skipped: nothing is created, recorded or gated. The run reports
+it (`goneProjects`), and a run for that project is not cached as done, so a folder cloned again
+while the Host runs is migrated before it loads (after `MCP_MIGRATION_RETRY_MS`). A folder below a
+link whose target is missing (an unmounted volume) is not gone: it fails closed. Only an unreadable migration.json fails closed for everything. While a scope
 is closed, Check connection fails with the reason instead of "No MCP server named", and a Run
 shows one notice per failing file, worded by cause. Unchanged copies of Pi entries are
 removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
