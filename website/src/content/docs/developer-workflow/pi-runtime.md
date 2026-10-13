@@ -5,7 +5,7 @@ order: 4
 section: "Developer docs"
 ---
 
-Pi is the coding-agent runtime inside OpenWaggle. The current source pins Pi **1.0.4** in `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
+Pi is the coding-agent runtime inside OpenWaggle. The current source pins Pi **1.2.0** in `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
 
 This page is for developers tracing agent execution or extending the app. You do not need to configure Pi separately to use OpenWaggle. For everyday use, start with [Conversations and tools](/docs/using-openwaggle/chat-and-tools); for adding runtime behavior, see [Pi extensions](/docs/extending/pi-extensions).
 
