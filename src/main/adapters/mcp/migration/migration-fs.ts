@@ -20,7 +20,7 @@ export interface McpMigrationFs {
   createTextExclusive(filePath: string, content: string): Promise<boolean>
   /**
    * Whether the project folder is gone (deleted, or not cloned again yet). A link to a folder
-   * that is not mounted is not gone. Without it, every folder counts as there.
+   * that is not mounted is not gone, nor is a folder below such a link. Without it, every folder counts as there.
    */
   projectFolderGone?(projectPath: string): Promise<boolean>
 }
@@ -87,7 +87,9 @@ export const nodeMcpMigrationFs: McpMigrationFs = {
   projectFolderGone(projectPath) {
     return lstat(projectPath).then(
       () => false,
-      (error: unknown) => errorCode(error) === 'ENOENT',
+      // Below a folder link whose target is missing (an unmounted volume) it is not gone.
+      (error: unknown) =>
+        errorCode(error) === 'ENOENT' && danglingMcpFileLink(projectPath) === undefined,
     )
   },
 }

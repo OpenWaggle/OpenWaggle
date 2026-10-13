@@ -36,7 +36,7 @@ async function setUp() {
   const migrate = () => migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [], now: () => NOW })
   const record = () =>
     JSON.parse(readFileSync(path.join(homeDir, '.openwaggle', 'mcp', 'migration.json'), 'utf8'))
-  return { root, project, migrate, record }
+  return { root, homeDir, project, migrate, record }
 }
 
 describe('a project the old state names whose folder is gone', () => {
@@ -69,6 +69,22 @@ describe('a project the old state names whose folder is gone', () => {
     await symlink(path.join(root, 'unmounted'), project)
 
     await migrate()
+
+    expect(existsSync(path.join(root, 'unmounted'))).toBe(false)
+    expect(mcpFileMigrationPending(path.join(project, '.openwaggle', 'mcp.json'))).toBeDefined()
+  })
+
+  it('is not "gone" below a folder link to a volume that is not mounted: that still fails', async () => {
+    const { root, homeDir } = await setUp()
+    await symlink(path.join(root, 'unmounted'), path.join(root, 'dotfiles'))
+    const project = path.join(root, 'dotfiles', 'proj')
+    await writeJson(path.join(homeDir, '.openwaggle', 'mcp', 'state.json'), {
+      version: 1,
+      globalState: 'on',
+      projectStates: { [project]: 'off' },
+    })
+
+    await migrateOpenWaggleMcpFiles({ homeDir, projectPaths: [project], now: () => NOW })
 
     expect(existsSync(path.join(root, 'unmounted'))).toBe(false)
     expect(mcpFileMigrationPending(path.join(project, '.openwaggle', 'mcp.json'))).toBeDefined()
