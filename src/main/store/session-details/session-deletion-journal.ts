@@ -11,6 +11,7 @@ import {
   assertSessionHasNoForks,
   assertSessionHasNoWorkers,
 } from './session-deletion-preflight'
+import { deleteSessionRow } from './session-row-deletion'
 
 export type SessionDeletionPhase =
   | 'prepared'
@@ -162,7 +163,7 @@ export async function commitSessionDeletion(id: SessionId): Promise<SessionDelet
           const bindings = yield* sql<{ readonly workspace_id: string }>`
             SELECT workspace_id FROM session_workspace_bindings WHERE session_id = ${id} LIMIT 1
           `
-          yield* sql`DELETE FROM sessions WHERE id = ${id}`
+          yield* deleteSessionRow(sql, id)
           const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
           if (workspaceId) {
             yield* sql`

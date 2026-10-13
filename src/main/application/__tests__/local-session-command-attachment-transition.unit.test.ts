@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { interruptExactSessionRun, reserveActiveSessionRun } from '../active-session-runs'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
+import { withSessionAttachmentTransition } from '../session-attachment-cleanup'
 import { noUndeliveredSteers } from './agent-steering-test-layer'
 import {
   controlPayload,
@@ -90,6 +91,84 @@ describe('Local Session attachment transition dispatch', () => {
       contract: 'session-control-v2',
       response: { outcome: { effect: 'promoted-follow-up' } },
     })
+    expect(setup.release).toHaveBeenCalledOnce()
+  })
+
+  it('admits other Session work while a promotion waits for Pi to incorporate its steer', async () => {
+    // A promoted Follow-up is steered with durable delivery: the steer resolves only once Pi
+    // incorporates it at the next turn boundary, which can be minutes into a long tool call.
+    // The promotion held the Session's attachment transition all that time, so every queue
+    // change for the Session waited behind it (a follow-up waited 214 s in the field).
+    const sessionId = SessionId('session-promotion-waits-for-delivery')
+    const steeringEntered = Promise.withResolvers<void>()
+    const delivered = Promise.withResolvers<void>()
+    const setup = makePromotionReplacementLayer({
+      sessionId,
+      revision: 5,
+      run: { state: 'active', runId: RunId('run-active') },
+      followUpQueue: {
+        state: 'running',
+        revision: 2,
+        items: [
+          {
+            id: FollowUpId('follow-up-next'),
+            deliveryState: 'pending',
+            intent: {
+              text: 'Promote this now.',
+              attachmentIds: ['attachment-promote'],
+              callerId: localUser.callerId,
+              acceptedAt: 1_000,
+              idempotencyKey: 'follow-up',
+            },
+          },
+        ],
+      },
+    })
+    const layer = Layer.mergeAll(
+      settingsLayer,
+      unusedDispatcherCommandDependencies(),
+      setup.layer,
+      Layer.succeed(AgentSteeringService, {
+        ...noUndeliveredSteers,
+        steer: () =>
+          Effect.promise(async () => {
+            steeringEntered.resolve()
+            await delivered.promise
+            return { accepted: true as const, receipt: { delivery: 'handled' as const } }
+          }),
+      }),
+    )
+    const promote = Effect.runPromise(
+      dispatchAdmittedSessionControlCommand({
+        caller: localUser,
+        payload: controlPayload({
+          operation: 'promote',
+          sessionId,
+          expectedRunId: 'run-active',
+          followUpId: 'follow-up-next',
+        }),
+      }).pipe(Effect.provide(layer)),
+    )
+    try {
+      await steeringEntered.promise
+      const otherWork = vi.fn()
+      await Effect.runPromise(
+        withSessionAttachmentTransition({ sessionId, effect: Effect.sync(otherWork) }).pipe(
+          Effect.timeoutFail({
+            duration: '1 second',
+            onTimeout: () => new Error('Session work waited behind the promotion.'),
+          }),
+        ),
+      )
+      expect(otherWork).toHaveBeenCalledOnce()
+    } finally {
+      delivered.resolve()
+    }
+
+    await expect(promote).resolves.toMatchObject({
+      response: { outcome: { effect: 'promoted-follow-up' } },
+    })
+    expect(setup.state().followUpQueue.items).toHaveLength(0)
     expect(setup.release).toHaveBeenCalledOnce()
   })
 

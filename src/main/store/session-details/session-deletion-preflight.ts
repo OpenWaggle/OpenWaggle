@@ -2,6 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { EMPTY_INDEX } from './constants'
+import { assertSessionDeleteSatisfiesForeignKeys } from './session-row-deletion'
 
 export function assertSessionHasNoForks(sql: SqlClient.SqlClient, id: SessionId) {
   return Effect.gen(function* () {
@@ -40,21 +41,6 @@ export function assertSessionHasNoWorkers(sql: SqlClient.SqlClient, id: SessionI
     if (worker) {
       throw new Error(
         `Session deletion was refused because worker ${worker.child_session_id} still depends on it.`,
-      )
-    }
-  })
-}
-
-function assertSessionDeleteSatisfiesForeignKeys(sql: SqlClient.SqlClient, id: SessionId) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe('SAVEPOINT session_deletion_preflight')
-    const deletion = yield* Effect.either(sql`DELETE FROM sessions WHERE id = ${id}`)
-    yield* sql.unsafe('ROLLBACK TO SAVEPOINT session_deletion_preflight')
-    yield* sql.unsafe('RELEASE SAVEPOINT session_deletion_preflight')
-    if (deletion._tag === 'Left') {
-      throw new Error(
-        'Session deletion was refused because related durable state still depends on it.',
-        { cause: deletion.left },
       )
     }
   })

@@ -5,14 +5,12 @@ import {
   SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION,
   SESSION_RESOURCE_MIGRATIONS,
 } from './database-session-resource-migrations'
-import { PI_SESSION_ADOPTION_MIGRATION } from './pi-session-adoption-migration'
-import { PI_SESSION_DISCOVERY_CREATE_MIGRATION } from './pi-session-discovery-create-migration'
-import { PI_SESSION_FILE_STATE_MIGRATION } from './pi-session-file-state-migration'
+import { PI_ECOSYSTEM_MIGRATIONS } from './pi-ecosystem-migrations'
 import { PINNED_SESSIONS_MIGRATION } from './pinned-sessions-migration'
 import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
+import { SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION } from './session-host-foreign-key-index-migration'
 import { SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION } from './session-host-queue-pause-reason-migration'
-import { SESSION_MCP_SWITCH_MIGRATION } from './session-mcp-switch-migration'
 import { SESSION_TITLE_PROVENANCE_MIGRATION } from './session-title-provenance-migration'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
@@ -294,8 +292,6 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   ...PROJECT_ACTION_MIGRATIONS,
   SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION,
   SESSION_TITLE_PROVENANCE_MIGRATION,
-  PI_SESSION_ADOPTION_MIGRATION,
-  PI_SESSION_FILE_STATE_MIGRATION,
-  SESSION_MCP_SWITCH_MIGRATION,
-  PI_SESSION_DISCOVERY_CREATE_MIGRATION,
+  SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION,
+  ...PI_ECOSYSTEM_MIGRATIONS,
 ]
