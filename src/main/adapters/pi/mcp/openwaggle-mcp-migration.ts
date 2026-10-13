@@ -196,15 +196,14 @@ async function runMigration(
   const gone =
     projectPath !== null &&
     report?.goneProjects?.some((gonePath) => sameMigrationLocation(gonePath, projectPath))
-  if (
+  const failed =
     !report ||
-    gone ||
     report.error ||
     report.files.some((file) => file.status === 'failed') ||
     report.oauth.some((signIn) => signIn.status === 'failed')
-  ) {
-    attempt.failedAt = Date.now()
-  }
+  if (failed || gone) attempt.failedAt = Date.now()
+  // Only gone: the next call runs at once, as the folder may be back before the retry wait ends.
+  if (gone && !failed) attempt.retryAfterMs = 0
   return report
 }
 

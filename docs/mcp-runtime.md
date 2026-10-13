@@ -592,7 +592,8 @@ Session switch was carried over (`sessionSwitchesDone`): the run goes on without
 file still waiting for old state fails. A project folder the old state names that is gone
 (deleted, not cloned again yet) is skipped: nothing is created, recorded or gated. The run reports
 it (`goneProjects`), and a run for that project is not cached as done, so a folder cloned again
-while the Host runs is migrated before it loads (after `MCP_MIGRATION_RETRY_MS`). A folder below a
+while the Host runs is migrated before it loads: when nothing else failed, the next call runs at
+once, without the `MCP_MIGRATION_RETRY_MS` wait. A folder below a
 link whose target is missing (an unmounted volume) is not gone: it fails closed. Only an unreadable migration.json fails closed for everything. While a scope
 is closed, Check connection fails with the reason instead of "No MCP server named", and a Run
 shows one notice per failing file, worded by cause. Unchanged copies of Pi entries are
