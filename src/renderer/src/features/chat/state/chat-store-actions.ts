@@ -270,7 +270,6 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 }
 
 function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: ChatGet) {
-  markSessionMutation(id)
   applySessionTitle(id, title, set)
   refreshSessionStoreForSession(id, get().activeSessionId)
 }

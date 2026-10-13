@@ -179,4 +179,19 @@ describe('Selecting a cached Session', () => {
     expect(shown()).toBe(cached)
     expect(useChatStore.getState().error).toBeNull()
   })
+
+  it('keeps a title written while the Host’s copy was read', async () => {
+    useChatStore.getState().upsertSession(detail(A, 1, 2, { title: 'Old title' }))
+    const slow = deferred<SessionDetail>()
+    mockApi.getSessionDetail.mockReturnValueOnce(slow.promise)
+
+    useChatStore.getState().setActiveSession(A)
+    // A rename, or a generated title; neither changes the Session's time.
+    useChatStore.getState().applySessionTitle(A, 'New title')
+    slow.resolve(detail(A, 1, 2, { title: 'Old title' }))
+    await vi.waitFor(() => expect(mockApi.getSessionDetail).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(shown()?.title).toBe('New title')
+  })
 })
