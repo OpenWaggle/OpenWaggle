@@ -180,7 +180,9 @@ describe('pi-waggle package extension', () => {
       expect.objectContaining({ customType: 'pi-waggle.turn', display: true }),
       { triggerTurn: false },
     )
-    expect(harness.sendUserMessage).toHaveBeenCalledWith('Review this migration')
+    expect(harness.sendUserMessage).toHaveBeenCalledWith('Review this migration', {
+      deliverAs: 'followUp',
+    })
     const context = harness.eventHandlers.get('context')
     if (!context) throw new Error('Expected context handler')
     const contextResult = context(
@@ -243,7 +245,7 @@ describe('pi-waggle package extension', () => {
         },
         harness.ctx,
       )
-      await agentSettled({ type: 'agent_settled' }, harness.ctx)
+      await agentSettled({ type: 'agent_settled', aborted: false }, harness.ctx)
 
       expect(harness.sendUserMessage).not.toHaveBeenCalled()
 
@@ -255,6 +257,7 @@ describe('pi-waggle package extension', () => {
       )
       expect(harness.sendUserMessage).toHaveBeenLastCalledWith(
         'Continue Waggle turn 2 as Reviewer.',
+        { deliverAs: 'followUp' },
       )
     } finally {
       vi.useRealTimers()

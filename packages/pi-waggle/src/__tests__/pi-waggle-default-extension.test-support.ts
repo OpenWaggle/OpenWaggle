@@ -101,6 +101,7 @@ export interface DefaultExtensionHarness {
   readonly sendUserMessage: Mock<ExtensionAPI['sendUserMessage']>
   readonly setModel: Mock<ExtensionAPI['setModel']>
   readonly settle: (...attempts: readonly AgentEndEvent['messages'][]) => Promise<void>
+  readonly abort: (messages: AgentEndEvent['messages']) => Promise<void>
   readonly tools: Map<string, RegisteredToolOptions>
 }
 
@@ -153,8 +154,27 @@ export function createHarness(
     const agentSettled = eventHandlers.get('agent_settled')
     if (!agentEnd || !agentSettled) throw new Error('Expected agent_end and agent_settled handlers')
     for (const messages of attempts) await agentEnd({ type: 'agent_end', messages }, ctx)
-    await agentSettled({ type: 'agent_settled' }, ctx)
+    await agentSettled({ type: 'agent_settled', aborted: false }, ctx)
   }
 
-  return { commands, ctx, eventHandlers, sendMessage, sendUserMessage, setModel, settle, tools }
+  /** Ends a Pi run the user aborted, as Escape does. */
+  async function abort(messages: AgentEndEvent['messages']) {
+    const agentEnd = eventHandlers.get('agent_end')
+    const agentSettled = eventHandlers.get('agent_settled')
+    if (!agentEnd || !agentSettled) throw new Error('Expected agent_end and agent_settled handlers')
+    await agentEnd({ type: 'agent_end', messages }, ctx)
+    await agentSettled({ type: 'agent_settled', aborted: true }, ctx)
+  }
+
+  return {
+    abort,
+    commands,
+    ctx,
+    eventHandlers,
+    sendMessage,
+    sendUserMessage,
+    setModel,
+    settle,
+    tools,
+  }
 }

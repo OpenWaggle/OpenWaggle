@@ -49,6 +49,7 @@ describe('the default extension when a turn fails', () => {
       expect(harness.setModel).toHaveBeenCalledOnce()
       expect(harness.sendUserMessage).toHaveBeenLastCalledWith(
         'Continue Waggle turn 2 as Reviewer.',
+        { deliverAs: 'followUp' },
       )
     } finally {
       vi.useRealTimers()
@@ -67,6 +68,31 @@ describe('the default extension when a turn fails', () => {
       expect(harness.setModel).toHaveBeenCalledWith(modelFor('openai/gpt-5.5'))
       expect(harness.ctx.ui.notify).toHaveBeenCalledWith(
         'Waggle stopped because Architect failed: 401 Unauthorized: Incorrect API key provided',
+        'warning',
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ends the Waggle when the user aborts its turn', async () => {
+    const harness = await startedRun()
+    vi.useFakeTimers()
+    try {
+      await harness.abort([
+        fromPartial<AgentEndEvent['messages'][number]>({
+          role: 'assistant',
+          content: [],
+          stopReason: 'aborted',
+        }),
+      ])
+      await vi.runOnlyPendingTimersAsync()
+
+      expect(harness.sendMessage).not.toHaveBeenCalled()
+      expect(harness.sendUserMessage).not.toHaveBeenCalled()
+      expect(harness.setModel).toHaveBeenCalledWith(modelFor('openai/gpt-5.5'))
+      expect(harness.ctx.ui.notify).toHaveBeenCalledWith(
+        'Waggle stopped because the turn was aborted.',
         'warning',
       )
     } finally {

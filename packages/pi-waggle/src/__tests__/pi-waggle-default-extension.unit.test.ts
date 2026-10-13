@@ -155,7 +155,7 @@ describe('pi-waggle default extension runtime flow', () => {
       expect(harness.sendMessage).not.toHaveBeenCalled()
       expect(harness.sendUserMessage).not.toHaveBeenCalled()
 
-      await agentSettled({ type: 'agent_settled' }, harness.ctx)
+      await agentSettled({ type: 'agent_settled', aborted: false }, harness.ctx)
       await vi.runOnlyPendingTimersAsync()
 
       expect(harness.sendMessage).toHaveBeenLastCalledWith(
@@ -164,6 +164,7 @@ describe('pi-waggle default extension runtime flow', () => {
       )
       expect(harness.sendUserMessage).toHaveBeenLastCalledWith(
         'Continue Waggle turn 2 as Reviewer.',
+        { deliverAs: 'followUp' },
       )
     } finally {
       vi.useRealTimers()

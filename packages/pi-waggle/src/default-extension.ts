@@ -137,8 +137,12 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     return { action: 'continue' }
   })
   // A turn ends when Pi settles its run, not at a failed attempt Pi is about to retry.
-  onPiWaggleSettledAgentEnd(pi, async (event, ctx) => {
-    const currentRun = activeRun
-    if (currentRun) await currentRun.onAgentEnd(event, ctx)
-  })
+  onPiWaggleSettledAgentEnd(
+    pi,
+    async (event, ctx) => {
+      const currentRun = activeRun
+      if (currentRun) await currentRun.onAgentEnd(event, ctx)
+    },
+    { onAborted: async () => activeRun?.onAborted() },
+  )
 }

@@ -10,6 +10,12 @@ import {
   resolveTurnModel,
   setTurnModel,
 } from './default-run-model.js'
+import {
+  clearRunStatus,
+  notify,
+  setWaggleStatus,
+  updateRunningStatus,
+} from './default-run-status.js'
 import { piWaggleTurnErrorClassifier } from './default-turn-error.js'
 import {
   createPiWaggleLoopHandler,
@@ -32,6 +38,8 @@ const INITIAL_TURN_NUMBER = 0
 const NEXT_TURN_DISPLAY_OFFSET = 1
 const PI_DISPATCH_TICK_DELAY_MS = 0
 
+export { clearRunStatus, setWaggleStatus }
+
 type PiInputImage = NonNullable<InputEvent['images']>[number]
 
 interface DefaultPiWaggleTurnMeta {
@@ -50,14 +58,8 @@ export interface DefaultPiWaggleRunState {
   readonly userImages: readonly PiInputImage[]
   /** Judges the turn and starts the next one, with the messages of a settled Pi run. */
   readonly onAgentEnd: PiWaggleAgentEndHandler
-}
-
-export function setWaggleStatus(ctx: ExtensionContext, text: string | undefined) {
-  if (ctx.hasUI) ctx.ui.setStatus('pi-waggle', text)
-}
-
-function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
-  if (ctx.hasUI) ctx.ui.notify(message, type)
+  /** Ends the Waggle when the user aborts its turn (Escape). */
+  readonly onAborted: () => Promise<void>
 }
 
 export function buildDefaultTurnMessage(
@@ -85,29 +87,6 @@ export function buildDefaultTurnMessage(
       agentColor: turn.agent.color,
     }),
   }
-}
-
-function updateRunningStatus(
-  ctx: ExtensionContext,
-  turn: WaggleTurn,
-  resolvedModelReference: string,
-) {
-  setWaggleStatus(
-    ctx,
-    `Waggle: ${turn.agent.label} (${resolvedModelReference}) · turn ${String(
-      turn.turnNumber + NEXT_TURN_DISPLAY_OFFSET,
-    )}`,
-  )
-  if (ctx.hasUI) ctx.ui.setWorkingMessage(`Waggle: ${turn.agent.label}`)
-}
-
-export function clearRunStatus(
-  ctx: ExtensionContext,
-  setActiveRun: (run: DefaultPiWaggleRunState | null) => void,
-) {
-  setActiveRun(null)
-  setWaggleStatus(ctx, undefined)
-  if (ctx.hasUI) ctx.ui.setWorkingMessage()
 }
 
 function continuationPrompt(turn: WaggleTurn) {
@@ -147,7 +126,8 @@ function scheduleNextTurnDispatch(input: {
 
     try {
       input.pi.sendMessage(input.message, { triggerTurn: false })
-      input.pi.sendUserMessage(continuationPrompt(input.turn))
+      // Pi 1.2 counts a starting run as busy; a run started meanwhile takes it as a follow-up.
+      input.pi.sendUserMessage(continuationPrompt(input.turn), { deliverAs: 'followUp' })
     } catch (error) {
       clearRunStatus(input.ctx, input.setActiveRun)
       notify(input.ctx, error instanceof Error ? error.message : String(error), 'error')
@@ -289,6 +269,12 @@ export function createStartDefaultWaggleRun(input: {
       userPrompt: prompt,
       userImages,
       onAgentEnd,
+      onAborted: async () => {
+        if (input.getActiveRun()?.runId !== run.runId) return
+        await pi.setModel(inheritedModel)
+        clearRunStatus(ctx, input.setActiveRun)
+        notify(ctx, 'Waggle stopped because the turn was aborted.', 'warning')
+      },
     } satisfies DefaultPiWaggleRunState
 
     input.setActiveRun(run)
@@ -307,7 +293,7 @@ export function createStartDefaultWaggleRun(input: {
         triggerTurn: false,
       })
       if (dispatchPrompt) {
-        pi.sendUserMessage(buildUserMessageContent(prompt, userImages))
+        pi.sendUserMessage(buildUserMessageContent(prompt, userImages), { deliverAs: 'followUp' })
         await waitForPiDispatch()
       }
     } catch (error) {
