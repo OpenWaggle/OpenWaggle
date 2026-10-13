@@ -35,7 +35,7 @@ function rowFor(session: HiveSession, rootId: string | null): HiveTreeRow {
   const parentId = session.lineage?.parentSessionId
   const parentTitle = session.lineage?.parentTitle
   const via =
-    rootId !== null && parentId !== undefined && String(parentId) !== rootId
+    rootId !== null && parentId != null && String(parentId) !== rootId
       ? (parentTitle ?? null)
       : null
   return { session, via }

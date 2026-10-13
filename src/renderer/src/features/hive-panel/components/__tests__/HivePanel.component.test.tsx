@@ -1,8 +1,10 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionLineageSummary, SessionSummary } from '@shared/types/session'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSidebarSessionActions } from '@/features/sidebar/lib'
+import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
@@ -264,6 +266,55 @@ describe('HivePanel', () => {
     expect(screen.queryByRole('button', { name: 'Archive session' })).toBeNull()
 
     registerSidebarSessionActions(null)
+  })
+
+  it('collapses the archived group again when another Hive opens', async () => {
+    const otherQueen = summary('other-queen', {
+      lineage: { role: 'queen', directWorkerCount: 1, activeDirectWorkerCount: 0 },
+    })
+    const archived = (id: string, root: string) =>
+      summary(id, {
+        archived: true,
+        lineage: {
+          ...workerLineage,
+          parentSessionId: SessionId(root),
+          hiveRootSessionId: SessionId(root),
+          delegationState: 'accepted',
+        },
+      })
+    listHiveTreeSessionCatalogPage.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === 'queen'
+          ? hivePage([archived('old-a', 'queen')])
+          : { root: otherQueen, members: [archived('old-b', 'other-queen')], attentionCount: 0 },
+      ),
+    )
+    function Switcher() {
+      const [sessionId, setSessionId] = useState('queen')
+      return (
+        <>
+          <Button variant="unstyled" onClick={() => setSessionId('other-queen')}>
+            Switch Hive
+          </Button>
+          <HivePanel sessionId={sessionId} onClose={vi.fn()} />
+        </>
+      )
+    }
+    renderWithQueryClient(<Switcher />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived · 1' }))
+    expect(screen.getByRole('button', { name: 'Archived · 1' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Switch Hive' }))
+    expect(
+      await screen.findByRole('button', { name: /Open Queen Session: other-queen/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Archived · 1' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   })
 
   it('explains a refused Unarchive and keeps the row archived', async () => {

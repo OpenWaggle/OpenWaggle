@@ -123,7 +123,7 @@ function HiveColumnHeader() {
       <span className="text-right" title="Workspace: the checkout or worktree each Session runs in">
         Workspace
       </span>
-      <span className="text-right" title="State: what the Worker's Queen expects of it">
+      <span className="text-right" title="State: where each Session's Delegation or Run stands">
         State
       </span>
     </div>
