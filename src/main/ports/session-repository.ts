@@ -4,6 +4,7 @@ import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
   HiveSessionCatalogPage,
+  HiveTreeSessionCatalogPage,
   SessionCatalogPage,
   SessionNode,
   SessionNodeKind,
@@ -98,6 +99,11 @@ export interface SessionRepositoryShape {
     limit: number,
     cursor?: string,
   ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listHiveTreeCatalogPage: (
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<HiveTreeSessionCatalogPage, SessionProjectionRepositoryError>
   readonly listArchivedBranchCatalogPage: (
     limit: number,
     cursor?: string,

@@ -31,6 +31,7 @@ export const DEFAULT_SHORTCUT_BINDINGS = {
   'rightPanel.projectActions': null,
   'rightPanel.files': null,
   'rightPanel.resources': null,
+  'rightPanel.hive': null,
 } satisfies ShortcutBindings
 
 /** T3's relevant defaults in the same precedence order, followed by OpenWaggle-only commands. */

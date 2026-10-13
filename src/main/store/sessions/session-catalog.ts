@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import type {
   HiveSessionCatalogPage,
+  HiveTreeSessionCatalogPage,
   SessionCatalogPage,
   SessionProjectPage,
   SessionSummary,
@@ -204,6 +205,47 @@ export async function listHiveSessionCatalogPage(
         context,
         workers: workerPage.sessions,
         ...(workerPage.nextCursor ? { nextCursor: workerPage.nextCursor } : {}),
+      }
+    }),
+  )
+}
+
+/** Keyset page of every Session of a Hive under its Queen, at any depth (ADR 0050). */
+export async function listHiveTreeSessionCatalogPage(
+  sessionId: SessionId,
+  limit: number,
+  encodedCursor?: string,
+): Promise<HiveTreeSessionCatalogPage> {
+  const cursor = decodeCatalogCursor(encodedCursor)
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const roots = yield* sql<{ readonly root_id: string | null }>`
+        SELECT COALESCE(live.hive_root_session_id, sessions.id) AS root_id
+        FROM sessions
+        LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        WHERE sessions.id = ${sessionId} LIMIT 1
+      `
+      const rootId = roots[0]?.root_id
+      if (!rootId) return { root: null, members: [] }
+      const rootRows = yield* loadSessionRowsById(sql, [rootId])
+      const root = hydrateSessionRows(rootRows)?.[0] ?? null
+      const memberRows = yield* sql<SessionSummaryRow>`
+        SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
+        JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        WHERE live.hive_root_session_id = ${rootId}
+          AND sessions.id != ${rootId}
+          AND (${cursor?.updatedAt ?? null} IS NULL
+            OR sessions.updated_at < ${cursor?.updatedAt ?? null}
+            OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
+              AND sessions.id < ${cursor?.sessionId ?? null}))
+        ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
+      `
+      const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
+      return {
+        root,
+        members: memberPage.sessions,
+        ...(memberPage.nextCursor ? { nextCursor: memberPage.nextCursor } : {}),
       }
     }),
   )

@@ -10,6 +10,8 @@ export const queryKeys = {
   archivedSessionBranches: ['archivedSessionBranches'] as const,
   sessionHives: ['sessionHives'] as const,
   sessionHive: (id: SessionId) => ['sessionHives', id] as const,
+  /** Nested under the Hive root so the shared Hive event subscription refreshes it too. */
+  sessionHiveTree: (id: SessionId) => ['sessionHives', id, 'tree'] as const,
   extensionPackages: extensionPackagesQueryKey,
   sessions: ['sessions'] as const,
   session: (id: SessionId | null) => ['session', id] as const,

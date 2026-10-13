@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { ChatPanelContent } from '@/features/chat/components'
 import { useChatPanelSections } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
@@ -15,16 +14,8 @@ import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { CHAT_MIN_WIDTH, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
 import { ChatRouteSidebar } from './-chat-route-sidebar'
-import {
-  coordinateChangeRequestPanel,
-  coordinateDiffPanel,
-  coordinateExtensionPanel,
-  coordinateResourcesPanel,
-  coordinateSessionTreePanel,
-  coordinateWorkspaceFilePanel,
-  routePanelRequestKey,
-  useRoutePanelClaim,
-} from './-right-sidebar-coordination'
+import { useChatRouteSurfaceActions } from './-chat-route-surface-actions'
+import { routePanelRequestKey, useRoutePanelClaim } from './-right-sidebar-coordination'
 import { isExtensionRightSidebarPanel, resolveChatRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
@@ -44,10 +35,11 @@ export interface ChatRightSidebarRouteState {
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
   readonly resourcesTarget: SessionResourceBrowserTarget | null
   readonly sessionTreeOpen: boolean
+  readonly hiveOpen: boolean
   readonly workspaceFile: { readonly path: string; readonly line: number | null } | null
 }
 
-interface ChatRightSidebarRouteActions {
+export interface ChatRightSidebarRouteActions {
   readonly onChangeRequestOpenChange?: (open: boolean, url?: string) => void
   readonly onDiffOpenChange: (open: boolean) => void
   readonly onExtensionSidePanelOpenChange: (
@@ -56,6 +48,7 @@ interface ChatRightSidebarRouteActions {
   ) => void
   readonly onResourcesTargetChange: (target: SessionResourceBrowserTarget | null) => void
   readonly onSessionTreeOpenChange: (open: boolean) => void
+  readonly onHiveOpenChange: (open: boolean) => void
   readonly onWorkspaceFileOpenChange: (
     open: boolean,
     target?: { readonly path: string; readonly line?: number | null },
@@ -71,6 +64,7 @@ export interface ChatRouteSurfaceHandlers {
   ) => void
   readonly handleResourcesTargetChange: (target: SessionResourceBrowserTarget | null) => void
   readonly handleSessionTreeOpenChange: (open: boolean) => void
+  readonly handleHiveOpenChange: (open: boolean) => void
   readonly handleWorkspaceFileOpenChange: (
     open: boolean,
     target?: { readonly path: string; readonly line?: number | null },
@@ -90,6 +84,7 @@ function isChatRightSidebarOpen(state: ChatRightSidebarRouteState) {
     state.diffOpen ||
     state.resourcesTarget !== null ||
     state.sessionTreeOpen ||
+    state.hiveOpen ||
     state.extensionSidePanel !== null ||
     state.workspaceFile !== null
   )
@@ -124,76 +119,6 @@ function restoreInlineWidth(element: HTMLElement, previousWidth: string) {
     return
   }
   element.style.removeProperty('width')
-}
-
-function useChatRouteSurfaceActions(
-  sections: ReturnType<typeof useChatPanelSections>,
-  rightSidebarActions: ChatRightSidebarRouteActions,
-) {
-  const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
-  const chatCommandRequest = useUIStore((state) => state.chatCommandRequest)
-  const clearChatCommandRequest = useUIStore((state) => state.clearChatCommandRequest)
-
-  useEffect(() => {
-    if (!chatCommandRequest) return
-    if (chatCommandRequest.command === 'fork-session') sections.composer.onOpenForkSelector()
-    else sections.composer.onCloneToNewSession()
-    clearChatCommandRequest(chatCommandRequest.id)
-  }, [chatCommandRequest, clearChatCommandRequest, sections.composer])
-
-  function handleDiffOpenChange(open: boolean) {
-    coordinateDiffPanel(open)
-    setLastRightSidebarPanel('diff')
-    rightSidebarActions.onDiffOpenChange(open)
-  }
-
-  function handleChangeRequestOpenChange(open: boolean, url?: string) {
-    coordinateChangeRequestPanel(open)
-    setLastRightSidebarPanel('change-request')
-    rightSidebarActions.onChangeRequestOpenChange?.(open, url)
-  }
-
-  function handleSessionTreeOpenChange(open: boolean) {
-    coordinateSessionTreePanel(open)
-    setLastRightSidebarPanel('session-tree')
-    rightSidebarActions.onSessionTreeOpenChange(open)
-  }
-
-  function handleResourcesTargetChange(target: SessionResourceBrowserTarget | null) {
-    coordinateResourcesPanel(target !== null)
-    if (target) setLastRightSidebarPanel('resources')
-    rightSidebarActions.onResourcesTargetChange(target)
-  }
-
-  function handleExtensionSidePanelOpenChange(open: boolean, target: ChatExtensionSidePanelTarget) {
-    const routeTarget = {
-      extensionId: target.extensionId,
-      sidePanelId: target.sidePanelId,
-      ...(target.packagePath ? { packagePath: target.packagePath } : {}),
-      ...(target.contentHash ? { contentHash: target.contentHash } : {}),
-    }
-    coordinateExtensionPanel(open, routeTarget)
-    setLastRightSidebarPanel({ kind: 'extension-side-panel', ...routeTarget })
-    rightSidebarActions.onExtensionSidePanelOpenChange(open, routeTarget)
-  }
-
-  function handleWorkspaceFileOpenChange(
-    open: boolean,
-    target?: { readonly path: string; readonly line?: number | null },
-  ) {
-    coordinateWorkspaceFilePanel(open, target)
-    setLastRightSidebarPanel('file')
-    rightSidebarActions.onWorkspaceFileOpenChange(open, target)
-  }
-
-  return {
-    handleChangeRequestOpenChange,
-    handleDiffOpenChange,
-    handleExtensionSidePanelOpenChange,
-    handleResourcesTargetChange,
-    handleSessionTreeOpenChange,
-    handleWorkspaceFileOpenChange,
-  }
 }
 
 export function ChatRouteSurface({

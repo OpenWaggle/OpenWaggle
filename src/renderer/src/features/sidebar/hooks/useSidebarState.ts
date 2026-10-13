@@ -10,7 +10,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
-import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
+import { isAttentionState, mergeExactTerminalCounts } from '../lib/sidebar-row-state'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
@@ -157,6 +157,11 @@ export function useSidebarState() {
     sessions: sessions.sessions,
     sortMode: pinnedSortMode,
   }).filter((row) => visibleSessionIds.has(String(row.session.id)))
+  /*
+   * Workers live in the Hive panel (ADR 0050): an unpinned Worker is hidden from its project
+   * group, but a status filter or search that matches one lists it flat, naming its Queen.
+   */
+  const narrowed = !remoteSessions.active && (filterState !== null || normalizedQuery !== '')
   const sessionGroups = buildSidebarProjectGroups({
     sessions: visibleSessions,
     currentProjectPath: project.projectPath,
@@ -165,7 +170,39 @@ export function useSidebarState() {
     pinnedSessionIds: pinnedRows.map((row) => String(row.session.id)),
     // Project-wide actions act on the project, not on what the filter happens to show.
     allSessions: sessions.sessions,
+    excludeUnpinnedWorkers: !narrowed,
   })
+  /*
+   * Per-Queen attention roll-up from the same resolved states the chips use, keyed by Hive
+   * root so a Queen's second line reports Workers the sidebar no longer lists (ADR 0050).
+   */
+  const workerAttentionByQueen = useMemo(() => {
+    const byQueen = new Map<string, number>()
+    for (const session of sessions.sessions) {
+      if (session.archived === true) continue
+      if (session.lineage?.role !== 'worker') continue
+      if (!isAttentionState(rowStates.stateOf(session))) continue
+      const queenId = session.lineage.hiveRootSessionId ?? session.lineage.parentSessionId
+      if (queenId === undefined) continue
+      const key = String(queenId)
+      byQueen.set(key, (byQueen.get(key) ?? 0) + 1)
+    }
+    return byQueen
+  }, [sessions.sessions, rowStates])
+
+  /*
+   * The Queen of the Hive the open Worker belongs to (ADR 0050). Her row keeps a secondary
+   * highlight while one of her Workers is displayed, so the Hive's context stays visible; the
+   * open Worker itself keeps aria-current.
+   */
+  const activeHiveRootId = useMemo(() => {
+    const id = activeSession.activeSessionId
+    if (id === null) return null
+    const active = sessions.sessions.find((session) => String(session.id) === String(id))
+    if (active?.lineage?.role !== 'worker') return null
+    const queenId = active.lineage.hiveRootSessionId ?? active.lineage.parentSessionId
+    return queenId === undefined ? null : String(queenId)
+  }, [activeSession.activeSessionId, sessions.sessions])
 
   function displayProjectName(path: string) {
     return projectDisplayNames[path]?.trim() || projectName(path)
@@ -174,6 +211,7 @@ export function useSidebarState() {
   return {
     activeBranchId: activeSession.activeBranchId,
     activeSessionId: activeSession.activeSessionId,
+    activeHiveRootId,
     activeView: activeViewFromPathname(pathname),
     chat,
     chipCounts: mergeExactTerminalCounts(rowStates.chipCounts, remoteSessions.terminalCounts),
@@ -202,6 +240,8 @@ export function useSidebarState() {
     projectExpandedByPath,
     sessionGroups,
     sessions,
+    workerAttentionByQueen,
+    narrowed,
     setPinnedSortMenuOpen,
     setPinnedSortMode,
     setProjectExpanded,

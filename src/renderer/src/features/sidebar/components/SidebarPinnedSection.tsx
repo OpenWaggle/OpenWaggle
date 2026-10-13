@@ -9,7 +9,7 @@ import {
   type PinnedSortMode,
 } from '../lib/pinned-sessions'
 import type { SidebarSessionActions } from '../model'
-import { SessionListItem } from './SessionListItem'
+import { SessionListItem, type SessionRowHighlight } from './SessionListItem'
 import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
 
 const PINNED_SESSION_DRAG_TYPE = 'application/x-openwaggle-pinned-session'
@@ -50,9 +50,13 @@ export interface PinnedSortControlState {
 interface SidebarPinnedSectionProps {
   readonly rows: readonly PinnedSessionRow[]
   readonly activeSessionId: string | null
+  /** The Queen of the Hive the open Worker belongs to, for her secondary row highlight. */
+  readonly activeHiveRootId: string | null
   readonly sort: PinnedSortControlState
   readonly displayProjectName: (path: string) => string
   readonly sessionActions: SidebarSessionActions
+  /** Per-Queen hidden-Worker attention, shown on Queen rows' second line (ADR 0050). */
+  readonly workerAttentionOf: (queenId: string) => number
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }
 
@@ -108,9 +112,11 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
 export function SidebarPinnedSection({
   rows,
   activeSessionId,
+  activeHiveRootId,
   sort,
   displayProjectName,
   sessionActions,
+  workerAttentionOf,
   onReorder,
 }: SidebarPinnedSectionProps) {
   if (rows.length === 0) return null
@@ -134,15 +140,19 @@ export function SidebarPinnedSection({
           <PinnedSessionListItem
             key={String(row.session.id)}
             row={row}
-            place={{ index: renderIndex, count: rows.length }}
-            draggable={draggable}
-            isActive={activeSessionId === String(row.session.id)}
+            place={{ index: renderIndex, count: rows.length, draggable }}
+            highlight={pinnedRowHighlight({
+              activeSessionId,
+              activeHiveRootId,
+              sessionId: String(row.session.id),
+            })}
             projectLabel={
               showProjectLabel && row.session.projectPath
                 ? displayProjectName(row.session.projectPath)
                 : ''
             }
             sessionActions={sessionActions}
+            workerAttentionCount={workerAttentionOf(String(row.session.id))}
             onReorder={onReorder}
           />
         ))}
@@ -158,22 +168,36 @@ export function SidebarPinnedSection({
  * re-rendering the dragged row mid-gesture cancels the drag and does so silently. Only
  * the drop commits anything.
  */
+/** How one Pinned row is emphasized: the open Session, its Queen's Hive home, or neither. */
+function pinnedRowHighlight(input: {
+  readonly activeSessionId: string | null
+  readonly activeHiveRootId: string | null
+  readonly sessionId: string
+}): SessionRowHighlight {
+  if (input.activeSessionId === input.sessionId) return 'active'
+  if (input.activeHiveRootId !== null && input.activeHiveRootId === input.sessionId) {
+    return 'hive-home'
+  }
+  return 'none'
+}
+
 function PinnedSessionListItem({
   row,
   place,
-  draggable,
-  isActive,
+  highlight,
   projectLabel,
   sessionActions,
+  workerAttentionCount,
   onReorder,
 }: {
   readonly row: PinnedSessionRow
-  /** Where the row sits among the rendered rows, and how many there are. */
-  readonly place: { readonly index: number; readonly count: number }
-  readonly draggable: boolean
-  readonly isActive: boolean
+  /** Where the row sits among the rendered rows, how many there are, and whether it drags. */
+  readonly place: { readonly index: number; readonly count: number; readonly draggable: boolean }
+  readonly highlight: SessionRowHighlight
   readonly projectLabel: string
   readonly sessionActions: SidebarSessionActions
+  /** How many of this Queen's hidden Workers need the user (ADR 0050). */
+  readonly workerAttentionCount: number
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }) {
   const sessionId = SessionId(String(row.session.id))
@@ -181,25 +205,26 @@ function PinnedSessionListItem({
    * Manual order only. In a sorted order the position is derived, so moving a row would either be
    * undone by the sort or silently switch the whole section to Manual.
    */
-  const canMoveUp = draggable && place.index > 0
-  const canMoveDown = draggable && place.index < place.count - 1
+  const canMoveUp = place.draggable && place.index > 0
+  const canMoveDown = place.draggable && place.index < place.count - 1
 
   return (
     <SessionListItem
       session={row.session}
-      isActive={isActive}
+      highlight={highlight}
       actions={sessionActions}
       isPinned
+      workerAttentionCount={workerAttentionCount}
       pinnedRow={{
         projectLabel,
         // The row's position in the whole section, not its position among the rendered rows.
         shortcutIndex: row.position < PINNED_SHORTCUT_LIMIT ? row.position : null,
-        draggable,
+        draggable: place.draggable,
         onMoveUp: canMoveUp ? () => onReorder(sessionId, place.index - 1) : null,
         onMoveDown: canMoveDown ? () => onReorder(sessionId, place.index + 1) : null,
       }}
       rowProps={{
-        draggable,
+        draggable: place.draggable,
         'data-pinned-index': place.index,
         'data-pinned-session-id': String(row.session.id),
         onDragStart: (event) => {
@@ -214,7 +239,7 @@ function PinnedSessionListItem({
           event.currentTarget.removeAttribute('data-drop-target')
         },
         onDragOver: (event) => {
-          if (!draggable) return
+          if (!place.draggable) return
           event.preventDefault()
           event.currentTarget.dataset.dropTarget = 'true'
         },
@@ -230,7 +255,7 @@ function PinnedSessionListItem({
         },
         className: cn(
           'transition-opacity',
-          draggable && 'data-[dragging=true]:opacity-40',
+          place.draggable && 'data-[dragging=true]:opacity-40',
           'data-[drop-target=true]:shadow-[inset_0_2px_0_var(--color-accent)]',
         ),
       }}

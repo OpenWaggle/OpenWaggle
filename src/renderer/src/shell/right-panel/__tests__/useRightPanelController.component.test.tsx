@@ -62,6 +62,7 @@ function entry(
     pinned: true,
     isNew: false,
     running: false,
+    attention: false,
     ...overrides,
   }
 }

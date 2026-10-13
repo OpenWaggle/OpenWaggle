@@ -1,4 +1,7 @@
+import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
+import type { SessionLineageSummary } from '@shared/types/session'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
@@ -8,6 +11,8 @@ import { useProject, useSessionProjectPath, useSessions } from '@/features/sessi
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { terminalOwnerContext } from '@/features/terminal'
+import { hiveStateNeedsAttention } from '@/queries/session-hive-contract'
+import { hiveTreeMembers, sessionHiveTreeQueryOptions } from '@/queries/session-hive-tree'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
@@ -23,6 +28,44 @@ import { type RightPanelShownSurface, resolveShownSurface } from './right-panel-
 
 const NEEDS_PROJECT = 'Open a project first'
 const NEEDS_FIRST_MESSAGE = 'Available after the first message'
+const NEEDS_A_HIVE = 'Only for Sessions in a Hive'
+
+/** The active Session's lineage, read from the chat store's summary list. */
+function activeSessionLineage(
+  sessions: readonly { readonly id: unknown; readonly lineage?: SessionLineageSummary | null }[],
+  activeSessionId: unknown,
+) {
+  return sessions.find((session) => String(session.id) === String(activeSessionId))?.lineage
+}
+
+/** True for a live Queen or Worker Session; legacy task-runner ancestry is not a Hive. */
+function lineageInHive(
+  lineage: { readonly role: string; readonly historical?: boolean } | null | undefined,
+) {
+  return (
+    lineage !== undefined &&
+    lineage !== null &&
+    lineage.role !== 'independent' &&
+    lineage.historical !== true
+  )
+}
+
+/**
+ * Whether any live Worker of the active Session's Hive needs the user (ADR 0050).
+ *
+ * Only queried while the Session is in a Hive, so an ordinary chat adds no reads.
+ */
+function useHiveAttention(sessionId: string | null, enabled: boolean) {
+  const query = useInfiniteQuery({
+    ...sessionHiveTreeQueryOptions(SessionId(sessionId ?? '')),
+    enabled: enabled && sessionId !== null,
+  })
+  if (!enabled) return false
+  return hiveTreeMembers(query.data?.pages).some(
+    (member) =>
+      member.archived !== true && hiveStateNeedsAttention(member.lineage?.delegationState),
+  )
+}
 
 export type RightPanelSurfaceGlyph =
   | { readonly kind: 'lucide'; readonly icon: LucideIcon }
@@ -44,6 +87,8 @@ export interface RightPanelSurfaceEntry {
   readonly pinned: boolean
   readonly isNew: boolean
   readonly running: boolean
+  /** A Worker in this Hive needs the user; the rail shows it as a Hive attention dot (ADR 0050). */
+  readonly attention: boolean
 }
 
 export interface RightPanelModel {
@@ -74,19 +119,21 @@ function builtInDisabledReason(
     readonly sessionProjectPath: string | null
     readonly sessionId: string | null
     readonly hasSessionTree: boolean
+    readonly sessionInHive: boolean
   },
 ) {
   if (id === 'project-actions') return context.sessionProjectPath ? null : NEEDS_PROJECT
   if (id === 'all-panels') return context.ownerKey.length > 0 ? null : NEEDS_PROJECT
   if (id === 'session-tree') return context.hasSessionTree ? null : NEEDS_FIRST_MESSAGE
   if (id === 'resources') return context.sessionId ? null : NEEDS_FIRST_MESSAGE
+  if (id === 'hive') return context.sessionInHive ? null : NEEDS_A_HIVE
   if (id === 'browser') return context.ownerKey.length > 0 ? null : NEEDS_PROJECT
   return context.projectPath ? null : NEEDS_PROJECT
 }
 
 /** The Right panel's surfaces, rail and current state for the active chat context (ADR 0043). */
 export function useRightPanelModel(enabled = true): RightPanelModel {
-  const { activeSession } = useChat()
+  const { activeSession, activeSessionId: chatActiveSessionId, sessions: chatSessions } = useChat()
   const { projectPath } = useProject()
   const { activeSessionTree } = useSessions()
   const git = useGit()
@@ -107,6 +154,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const extensionsInitialized = useRightPanelRailStore((state) => state.extensionsInitialized)
   const sessionProjectPath = useSessionProjectPath()
   const running = useHasActiveProjectActionRun(sessionProjectPath, sessionId)
+  const sessionInHive = lineageInHive(activeSessionLineage(chatSessions, chatActiveSessionId))
+  const hiveAttention = useHiveAttention(sessionId, sessionInHive)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,
     projectPath: workingPath,
@@ -125,6 +174,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     sessionProjectPath,
     sessionId,
     hasSessionTree: Boolean(activeSessionTree),
+    sessionInHive,
   }
 
   const hiddenIds = new Set(hidden)
@@ -142,6 +192,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     pinned: surface.id === 'all-panels' || !hiddenIds.has(surface.id),
     isNew: false,
     running: surface.id === 'project-actions' && running,
+    attention: surface.id === 'hive' && hiveAttention,
   }))
   const extensions: RightPanelSurfaceEntry[] = extensionPanels.map((panel) => ({
     id: panel.id,
@@ -156,6 +207,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     pinned: !hiddenIds.has(panel.id),
     isNew: extensionsInitialized && !acknowledgedIds.has(panel.id),
     running: false,
+    attention: false,
   }))
   const surfaces = [...builtIns, ...extensions]
   const listed = surfaces.filter((surface) => surface.id !== 'all-panels')

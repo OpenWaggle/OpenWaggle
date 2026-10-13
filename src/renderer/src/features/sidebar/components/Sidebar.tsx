@@ -31,11 +31,15 @@ export function Sidebar() {
   const renderState = {
     activeBranchId: controller.activeBranchId,
     activeSessionId: controller.activeSessionId,
+    activeHiveRootId: controller.activeHiveRootId,
     activeSessionTree: controller.matchingActiveSessionTree,
     isProjectCollapsed: controller.isProjectCollapsed,
     draftBranch: controller.draftBranch,
     draftSessionProjectPath: controller.draftSessionProjectPath,
     projectPath: controller.projectPath,
+    narrowed: controller.narrowed,
+    workerAttentionOf: (queenId: string) =>
+      controller.workerAttentionByQueen.get(String(queenId)) ?? 0,
   }
   const actions = buildSidebarActions(controller, markUnread)
 
@@ -88,6 +92,7 @@ export function Sidebar() {
               activeSessionId={
                 controller.activeSessionId ? String(controller.activeSessionId) : null
               }
+              activeHiveRootId={controller.activeHiveRootId}
               sort={{
                 mode: controller.pinnedSortMode,
                 menuOpen: controller.pinnedSortMenuOpen,
@@ -99,6 +104,7 @@ export function Sidebar() {
               }}
               displayProjectName={controller.displayProjectName}
               sessionActions={actions.session}
+              workerAttentionOf={renderState.workerAttentionOf}
               onReorder={controller.handleReorderPinnedSession}
             />
             <SidebarProjectsHeader

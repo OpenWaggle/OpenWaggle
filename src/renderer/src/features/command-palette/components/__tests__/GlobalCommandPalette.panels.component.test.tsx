@@ -106,7 +106,7 @@ async function renderPalette() {
 function panelLabels() {
   const items = screen.getAllByRole('menuitem')
   const first = items.findIndex((item) => within(item).queryByText('All panels') !== null)
-  return items.slice(first, first + 8).map((item) => item.textContent)
+  return items.slice(first, first + 9).map((item) => item.textContent)
 }
 
 describe('GlobalCommandPalette Panels section', () => {
@@ -159,6 +159,7 @@ describe('GlobalCommandPalette Panels section', () => {
       'FilesBrowse and edit workspace files',
       'Session TreeInspect branches and session historyCtrl + Shift + Y',
       'ResourcesSources and outputs captured in this session',
+      'HiveMove across the Sessions of this Hive (ADR 0050)',
       // The leading N is the extension's letter-tile icon.
       'NNotesAcme NotesGlobalCtrl + Shift + G',
     ])

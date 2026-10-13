@@ -10,6 +10,7 @@ export interface RightPanelRouteSearch {
     | 'file'
     | 'resources'
     | 'session-tree'
+    | 'hive'
     | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
   readonly filePath?: string
   readonly fileLine?: number

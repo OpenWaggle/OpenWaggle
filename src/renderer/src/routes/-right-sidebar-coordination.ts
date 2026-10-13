@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import {
   DIFF_RIGHT_SIDEBAR_REQUEST,
   extensionRightSidebarRequest,
+  HIVE_RIGHT_SIDEBAR_REQUEST,
   SESSION_TREE_RIGHT_SIDEBAR_REQUEST,
   useRightSidebarCoordinator,
   workspaceFileRightSidebarRequest,
@@ -36,6 +37,10 @@ export function coordinateDiffPanel(open: boolean) {
 
 export function coordinateSessionTreePanel(open: boolean) {
   coordinateRoutePanel(open, SESSION_TREE_RIGHT_SIDEBAR_REQUEST)
+}
+
+export function coordinateHivePanel(open: boolean) {
+  coordinateRoutePanel(open, HIVE_RIGHT_SIDEBAR_REQUEST)
 }
 
 export function coordinateResourcesPanel(open: boolean) {
@@ -72,6 +77,7 @@ export function routePanelRequestKey(
   return match(panel)
     .with('diff', () => DIFF_RIGHT_SIDEBAR_REQUEST)
     .with('session-tree', () => SESSION_TREE_RIGHT_SIDEBAR_REQUEST)
+    .with('hive', () => HIVE_RIGHT_SIDEBAR_REQUEST)
     .with('resources', () => 'resources')
     .with('change-request', () => 'change-request')
     .with('file', () =>

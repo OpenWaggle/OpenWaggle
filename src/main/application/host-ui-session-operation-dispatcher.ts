@@ -20,6 +20,7 @@ import type { SettingsService } from '../services/settings-service'
 import {
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
+  listHiveTreeSessionCatalogPage,
   listSessionCatalogPage,
   listSessionProjectPage,
   listSessionsByIds,
@@ -113,6 +114,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-projects', () => listSessionProjectPage(args))
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
+    .with('sessions:list-hive-tree-page', () => listHiveTreeSessionCatalogPage(args))
     .with('sessions:list-archived-branches', () => listArchivedSessionBranchCatalogPage(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))

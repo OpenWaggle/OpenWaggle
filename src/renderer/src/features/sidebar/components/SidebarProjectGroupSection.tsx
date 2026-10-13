@@ -10,7 +10,7 @@ import type {
   SidebarProjectRenderState,
   SidebarSessionActions,
 } from '../model'
-import { SessionListItem } from './SessionListItem'
+import { SessionListItem, type SessionRowHighlight } from './SessionListItem'
 import { SidebarBranchRows } from './SidebarBranchRows'
 import { SidebarProjectHeader } from './SidebarProjectHeader'
 
@@ -145,6 +145,18 @@ function ProjectSessionRows({
   )
 }
 
+/** How one project row is emphasized: the open Session, its Queen's Hive home, or neither. */
+function projectRowHighlight(
+  session: SessionSummary,
+  state: SidebarProjectRenderState,
+): SessionRowHighlight {
+  if (session.id === state.activeSessionId) return 'active'
+  if (state.activeHiveRootId !== null && String(session.id) === state.activeHiveRootId) {
+    return 'hive-home'
+  }
+  return 'none'
+}
+
 function ProjectSessionRow({
   session,
   state,
@@ -170,7 +182,7 @@ function ProjectSessionRow({
     <div>
       <SessionListItem
         session={session}
-        isActive={session.id === state.activeSessionId}
+        highlight={projectRowHighlight(session, state)}
         variant="project"
         actions={sessionActions}
         branchDisclosure={{
@@ -178,6 +190,8 @@ function ProjectSessionRow({
           collapsed: disclosure.rowsCollapsed,
           onToggle: () => branchActions.toggle(session.id, !disclosure.rowsCollapsed),
         }}
+        workerAttentionCount={state.workerAttentionOf(String(session.id))}
+        showLineageParent={state.narrowed && session.lineage?.role === 'worker'}
       />
       <SidebarBranchRows sessionId={String(session.id)} rows={branchRows} actions={branchActions} />
     </div>

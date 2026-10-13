@@ -108,6 +108,13 @@ export interface HiveSessionCatalogPage {
   readonly nextCursor?: string
 }
 
+/** A Hive's Queen and one keyset page of its members at any depth (ADR 0050). */
+export interface HiveTreeSessionCatalogPage {
+  readonly root: SessionSummary | null
+  readonly members: readonly SessionSummary[]
+  readonly nextCursor?: string
+}
+
 export interface SessionInterruptedRun {
   readonly runId: string
   readonly sessionId: SessionId

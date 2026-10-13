@@ -1,6 +1,7 @@
 import type { SessionId } from './brand'
 import type {
   HiveSessionCatalogPage,
+  HiveTreeSessionCatalogPage,
   SessionCatalogPage,
   SessionProjectPage,
   SessionSummary,
@@ -23,4 +24,9 @@ export interface OpenWaggleSessionCatalogApi {
     limit: number,
     cursor?: string,
   ): Promise<HiveSessionCatalogPage>
+  listHiveTreeSessionCatalogPage(
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ): Promise<HiveTreeSessionCatalogPage>
 }

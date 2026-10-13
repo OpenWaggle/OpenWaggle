@@ -32,14 +32,48 @@ const ITEM_VARIANT_CLASS = {
 
 type SessionListItemVariant = 'project' | 'root'
 
+/** How a sidebar row is emphasized (ADR 0050). */
+export type SessionRowHighlight = 'active' | 'hive-home' | 'none'
+
+const HIVE_HOME_ROW_CLASS = 'bg-bg-active ring-1 ring-accent/40 ring-inset'
+const HIVE_HOME_TITLE = 'A Worker of this Queen’s Hive is open'
+
+/**
+ * The row element's presentation for a highlight: background class, hover title and QA hook.
+ * The open row keeps `aria-current`; the Hive home does not, because it is not the open Session.
+ */
+function sessionRowPresentation(highlight: SessionRowHighlight, rowDescription: string) {
+  if (highlight === 'hive-home') {
+    return {
+      className: HIVE_HOME_ROW_CLASS,
+      title: rowDescription === '' ? HIVE_HOME_TITLE : `{rowDescription} — {HIVE_HOME_TITLE}`,
+      testId: 'sidebar-session-row-hive-home',
+    }
+  }
+  return {
+    className: highlight === 'active' ? 'bg-bg-active' : 'hover:bg-bg-hover',
+    title: rowDescription,
+    testId: 'sidebar-session-row',
+  }
+}
+
 interface SessionListItemProps {
   readonly session: SessionSummary
-  readonly isActive: boolean
+  /**
+   * How the row is highlighted: the open Session ('active'), the Queen whose Hive the open
+   * Worker belongs to ('hive-home', a secondary highlight so the Hive's context stays visible
+   * without being mistaken for the open row, ADR 0050), or neither.
+   */
+  readonly highlight?: SessionRowHighlight
   readonly variant?: SessionListItemVariant
   readonly actions: SidebarSessionActions
   readonly branchDisclosure?: SessionBranchDisclosure
   readonly isPinned?: boolean
   readonly pinnedRow?: SessionPinnedRowState
+  /** How many of this Queen's hidden Workers need the user (ADR 0050); Queen rows only. */
+  readonly workerAttentionCount?: number
+  /** Name the Worker's parent on line two: pinned rows always, narrowed rows for flat Workers. */
+  readonly showLineageParent?: boolean
   /**
    * Extra props for the row element itself, so a caller can make the row a drag source
    * without wrapping it in another element. A wrapper would be invalid inside the list and
@@ -47,6 +81,25 @@ interface SessionListItemProps {
    * source can expose its position for tests and QA selectors.
    */
   readonly rowProps?: React.LiHTMLAttributes<HTMLLIElement> & Record<`data-${string}`, unknown>
+}
+
+/**
+ * The Hive metadata a row's second line carries (ADR 0050).
+ *
+ * A Pinned Worker row always names its parent; a narrowed project row names it so a flat Worker
+ * is never mistaken for an ordinary session.
+ */
+function resolveHiveRowMeta(input: {
+  readonly session: SessionSummary
+  readonly isPinnedRow: boolean
+  readonly workerAttentionCount: number
+  readonly showLineageParent: boolean
+}) {
+  return {
+    workerAttentionCount: input.workerAttentionCount,
+    showParent:
+      input.showLineageParent || (input.isPinnedRow && input.session.lineage?.role === 'worker'),
+  }
 }
 
 /** What a Pinned row adds to the second line, defaulted for rows inside a project group. */
@@ -102,12 +155,14 @@ function useRowContextMenu() {
  */
 export function SessionListItem({
   session,
-  isActive,
+  highlight = 'none',
   variant = 'root',
   actions,
   branchDisclosure,
   isPinned = false,
   pinnedRow,
+  workerAttentionCount = 0,
+  showLineageParent = false,
   rowProps,
 }: SessionListItemProps) {
   const sessionId = SessionId(String(session.id))
@@ -115,6 +170,12 @@ export function SessionListItem({
   const menu = useRowContextMenu()
   const rename = useSessionTitleRename(sessionId, session.title)
   const pinned = resolvePinnedMeta(pinnedRow)
+  const hiveMeta = resolveHiveRowMeta({
+    session,
+    isPinnedRow: pinned.isPinnedRow,
+    workerAttentionCount,
+    showLineageParent,
+  })
   const rowDescription = useSessionRowDescription({
     session,
     projectLabel: pinned.projectLabel,
@@ -127,6 +188,8 @@ export function SessionListItem({
   const rowStyle: React.CSSProperties & { '--row-color': string } = {
     '--row-color': status.rowColorVar,
   }
+  const presentation = sessionRowPresentation(highlight, rowDescription ?? '')
+  const isActive = highlight === 'active'
 
   return (
     <li
@@ -136,8 +199,8 @@ export function SessionListItem({
        * is hit-tested as part of the title control, so a title on an inner span is unreachable;
        * a title here is found by walking ancestors.
        */
-      title={rowDescription}
-      data-qa="sidebar-session-row"
+      title={presentation.title}
+      data-qa={presentation.testId}
       {...rowProps}
       // Selecting or dragging text inside the rename field must not start a pinned-row drag.
       {...(rename.isEditing ? { draggable: false } : {})}
@@ -146,7 +209,7 @@ export function SessionListItem({
       className={cn(
         'group relative flex min-h-11 w-full items-start gap-2 py-1.5',
         ITEM_VARIANT_CLASS[variant],
-        isActive ? 'bg-bg-active' : 'hover:bg-bg-hover',
+        presentation.className,
         // A row needing a human carries a leading border, so attention is never colour alone.
         status.isAttention ? 'shadow-[inset_2px_0_0_var(--row-color)]' : null,
         rowProps?.className,
@@ -176,6 +239,8 @@ export function SessionListItem({
           phaseLabel={status.isInFlight ? status.phase : null}
           projectLabel={pinned.projectLabel}
           shortcutIndex={pinned.shortcutIndex}
+          workerAttentionCount={hiveMeta.workerAttentionCount}
+          showLineageParent={hiveMeta.showParent}
         />
       </span>
 

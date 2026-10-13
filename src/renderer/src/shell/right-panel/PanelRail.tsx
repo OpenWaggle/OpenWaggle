@@ -135,12 +135,7 @@ function RailButton({
           className="absolute top-1 right-1 size-1.5 rounded-full bg-accent ring-2 ring-bg-secondary"
         />
       ) : null}
-      {surface.running ? (
-        <span
-          aria-hidden="true"
-          className="absolute right-1 bottom-1 size-1.5 rounded-full bg-success ring-2 ring-bg-secondary"
-        />
-      ) : null}
+      <RailStateDot surface={surface} />
       {props.badge ? (
         <span
           aria-hidden="true"
@@ -151,6 +146,29 @@ function RailButton({
       ) : null}
     </Button>
   )
+}
+
+/**
+ * The rail's state dot: a running Project Action or a Hive Worker needing the user (ADR 0050).
+ */
+function RailStateDot({ surface }: { readonly surface: RightPanelSurfaceEntry }) {
+  if (surface.running) {
+    return (
+      <span
+        aria-hidden="true"
+        className="absolute right-1 bottom-1 size-1.5 rounded-full bg-success ring-2 ring-bg-secondary"
+      />
+    )
+  }
+  if (surface.attention) {
+    return (
+      <span
+        aria-hidden="true"
+        className="absolute right-1 bottom-1 size-1.5 rounded-full bg-warning ring-2 ring-bg-secondary"
+      />
+    )
+  }
+  return null
 }
 
 /** Tells All panels which pinned icons have no room on the rail. */

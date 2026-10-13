@@ -24,6 +24,7 @@ describe('Panel rail order', () => {
       'files',
       'session-tree',
       'resources',
+      'hive',
       LINEAR,
       COVERAGE,
     ])
@@ -45,6 +46,7 @@ describe('Panel rail order', () => {
       'session-tree',
       'files',
       'resources',
+      'hive',
       LINEAR,
       COVERAGE,
     ])
@@ -71,6 +73,7 @@ describe('Panel rail order', () => {
       'browser',
       'session-tree',
       'resources',
+      'hive',
       COVERAGE,
     ])
   })
@@ -85,9 +88,10 @@ describe('Panel rail order', () => {
       'browser',
     ])
     expect(moveRailSurface(full, visible, 'changes', { type: 'up' })).toEqual(full)
-    expect(moveRailSurface(full, visible, 'resources', { type: 'down' }).slice(-3)).toEqual([
-      LINEAR,
+    expect(moveRailSurface(full, visible, 'resources', { type: 'down' }).slice(-4)).toEqual([
+      'hive',
       'resources',
+      LINEAR,
       COVERAGE,
     ])
   })

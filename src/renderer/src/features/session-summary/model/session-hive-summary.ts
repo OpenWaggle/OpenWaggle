@@ -1,12 +1,10 @@
-import type {
-  HiveDelegationState,
-  HiveRelationsPage,
-  HiveSession,
+import {
+  type HiveRelationsPage,
+  type HiveSession,
+  hiveStateNeedsAttention,
 } from '@/queries/session-hive-contract'
 
-export function hiveStateNeedsAttention(state: HiveDelegationState | null | undefined) {
-  return state === 'needs_attention' || state === 'revision_requested'
-}
+export { hiveStateNeedsAttention }
 
 function groupHiveWorkers(workers: Iterable<HiveSession>) {
   const activeWorkers: HiveSession[] = []

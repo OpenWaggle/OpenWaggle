@@ -8,6 +8,7 @@ export const emptySessionCatalogMethods = {
   hasActiveProjectPath: () => Effect.succeed(false),
   listByIds: () => Effect.succeed([]),
   listHiveCatalogPage: () => Effect.succeed({ context: [], workers: [] }),
+  listHiveTreeCatalogPage: () => Effect.succeed({ root: null, members: [] }),
   listArchivedBranchCatalogPage: () => Effect.succeed({ sessions: [] }),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
@@ -19,6 +20,7 @@ export const emptySessionCatalogMethods = {
   | 'hasActiveProjectPath'
   | 'listByIds'
   | 'listHiveCatalogPage'
+  | 'listHiveTreeCatalogPage'
   | 'listArchivedBranchCatalogPage'
   | 'listResourceProjectionPage'
   | 'getResourceProjectionNodes'

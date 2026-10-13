@@ -12,6 +12,7 @@ import {
 import {
   DIFF_RIGHT_SIDEBAR_REQUEST,
   extensionRightSidebarRequest,
+  HIVE_RIGHT_SIDEBAR_REQUEST,
   SESSION_TREE_RIGHT_SIDEBAR_REQUEST,
   useRightSidebarCoordinator,
   workspaceFileRightSidebarRequest,
@@ -172,6 +173,10 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       .with('session-tree', () => {
         hideWorkspacePanel()
         route.open({ panel: 'session-tree' }, SESSION_TREE_RIGHT_SIDEBAR_REQUEST)
+      })
+      .with('hive', () => {
+        hideWorkspacePanel()
+        route.open({ panel: 'hive' }, HIVE_RIGHT_SIDEBAR_REQUEST)
       })
       .with('resources', () => {
         hideWorkspacePanel()

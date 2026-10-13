@@ -58,6 +58,7 @@ export function rightPanelShortcutHandlers(input: {
     'rightPanel.projectActions': () => toggleOnChatPage('project-actions', input.showToast),
     'rightPanel.files': () => toggleOnChatPage('files', input.showToast),
     'rightPanel.resources': () => toggleOnChatPage('resources', input.showToast),
+    'rightPanel.hive': () => toggleOnChatPage('hive', input.showToast),
   }
 }
 

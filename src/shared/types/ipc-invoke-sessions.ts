@@ -3,6 +3,7 @@ import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SupportedModelId } from './llm'
 import type {
   HiveSessionCatalogPage,
+  HiveTreeSessionCatalogPage,
   SessionCatalogPage,
   SessionCopyToNewResult,
   SessionDetail,
@@ -86,6 +87,10 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:list-hive-page': {
     args: [sessionId: SessionId, limit: number, cursor?: string]
     return: HiveSessionCatalogPage
+  }
+  'sessions:list-hive-tree-page': {
+    args: [sessionId: SessionId, limit: number, cursor?: string]
+    return: HiveTreeSessionCatalogPage
   }
   'sessions:list-archived-branches': {
     args: [limit: number, cursor?: string]

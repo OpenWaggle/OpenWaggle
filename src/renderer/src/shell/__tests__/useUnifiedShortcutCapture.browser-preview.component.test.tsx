@@ -57,6 +57,7 @@ function handlers(): BuiltInShortcutHandlers {
     'rightPanel.projectActions': vi.fn(),
     'rightPanel.files': vi.fn(),
     'rightPanel.resources': vi.fn(),
+    'rightPanel.hive': vi.fn(),
   }
 }
 

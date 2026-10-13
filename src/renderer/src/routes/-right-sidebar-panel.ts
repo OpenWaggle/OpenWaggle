@@ -9,6 +9,7 @@ interface ResolveRightSidebarPanelInput {
   readonly lastPanel: RightSidebarPanel
   readonly resourcesOpen?: boolean
   readonly sessionTreeOpen: boolean
+  readonly hiveOpen: boolean
 }
 
 interface ChatRightSidebarSelection {
@@ -17,6 +18,7 @@ interface ChatRightSidebarSelection {
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
   readonly resourcesTarget: unknown | null
   readonly sessionTreeOpen: boolean
+  readonly hiveOpen: boolean
   readonly workspaceFile: unknown | null
 }
 
@@ -32,6 +34,9 @@ export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): 
   }
   if (input.sessionTreeOpen) {
     return 'session-tree'
+  }
+  if (input.hiveOpen) {
+    return 'hive'
   }
 
   if (input.extensionSidePanel) {
@@ -67,6 +72,7 @@ export function resolveChatRightSidebarPanel(
     lastPanel,
     resourcesOpen: state.resourcesTarget !== null,
     sessionTreeOpen: state.sessionTreeOpen,
+    hiveOpen: state.hiveOpen,
   })
 }
 

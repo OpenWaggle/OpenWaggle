@@ -3,7 +3,7 @@ import type { SessionSummary } from '@shared/types/session'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
-import { SessionListItem } from '../SessionListItem'
+import { SessionListItem, type SessionRowHighlight } from '../SessionListItem'
 
 const { showConfirmMock } = vi.hoisted(() => ({
   showConfirmMock: vi.fn(),
@@ -29,7 +29,7 @@ function makeSession(overrides?: Partial<SessionSummary>) {
   }
 }
 
-function renderSessionItem(options?: { readonly isActive?: boolean }) {
+function renderSessionItem(options?: { readonly highlight?: SessionRowHighlight }) {
   const callbacks = {
     onArchive: vi.fn(),
     onClone: vi.fn(),
@@ -42,7 +42,7 @@ function renderSessionItem(options?: { readonly isActive?: boolean }) {
   render(
     <SessionListItem
       session={makeSession()}
-      isActive={options?.isActive ?? false}
+      highlight={options?.highlight ?? 'none'}
       actions={{
         select: callbacks.onSelect,
         delete: callbacks.onDelete,
@@ -65,6 +65,24 @@ function expectFullSessionActionMenu() {
 }
 
 describe('SessionListItem', () => {
+  it('keeps a Queen row secondarily highlighted while a Worker of her Hive is open', () => {
+    renderSessionItem({ highlight: 'hive-home' })
+
+    const row = document.querySelector('[data-qa="sidebar-session-row-hive-home"]')
+    expect(row).not.toBeNull()
+    // A distinct highlight: the active background plus an accent ring, no aria-current.
+    expect(row?.className).toContain('ring-accent/40')
+    expect(row?.getAttribute('aria-current')).toBeNull()
+    expect(row?.getAttribute('title')).toContain('Worker of this Queen')
+  })
+
+  it('does not mark an ordinary row as the Hive home', () => {
+    renderSessionItem({})
+
+    expect(document.querySelector('[data-qa="sidebar-session-row"]')).not.toBeNull()
+    expect(document.querySelector('[data-qa="sidebar-session-row-hive-home"]')).toBeNull()
+  })
+
   beforeEach(() => {
     showConfirmMock.mockReset()
     useSessionStatusStore.setState({
@@ -75,7 +93,7 @@ describe('SessionListItem', () => {
   })
 
   it('shows every session action from the context menu even when the session is active', async () => {
-    const callbacks = renderSessionItem({ isActive: true })
+    const callbacks = renderSessionItem({ highlight: 'active' })
     expect(screen.getByRole('listitem')).toHaveAttribute('data-session-id', SESSION_ID)
     showConfirmMock.mockResolvedValueOnce(true)
 

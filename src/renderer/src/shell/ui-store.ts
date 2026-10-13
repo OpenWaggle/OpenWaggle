@@ -25,6 +25,7 @@ export type RightSidebarPanel =
   | 'file'
   | 'resources'
   | 'session-tree'
+  | 'hive'
   | ExtensionRightSidebarPanel
 export type CommandSurface = 'commands' | 'files' | 'content' | null
 export type ChatCommand = 'clone-session' | 'fork-session'

@@ -70,7 +70,7 @@ export function renderRow(
 ): RenderResult {
   return render(
     <ul>
-      <SessionListItem session={target} isActive={false} actions={actions()} {...extra} />
+      <SessionListItem session={target} actions={actions()} {...extra} />
     </ul>,
   )
 }

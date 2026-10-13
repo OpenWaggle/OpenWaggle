@@ -110,13 +110,7 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
       />
     ),
     'extensions-context': extensionSection(context, 'context'),
-    hive: (
-      <HiveSummarySection
-        key={controller.sessionId}
-        sessionId={controller.sessionId}
-        onNavigateSession={input.onNavigateSession}
-      />
-    ),
+    hive: <HiveSummarySection key={controller.sessionId} sessionId={controller.sessionId} />,
     'extensions-coordination': extensionSection(context, 'coordination'),
     'resource-catalog': resources.failed ? (
       <section className="border-t border-border p-2">

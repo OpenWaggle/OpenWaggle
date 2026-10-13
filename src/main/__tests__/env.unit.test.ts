@@ -3,6 +3,7 @@ import { delimiter, join } from 'node:path'
 import { createProjectActionTerminalEnvironment } from '@shared/utils/terminal-environment'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  env,
   getBrowserCredentialChildEnv,
   getBrowserImportPathEnv,
   getInteractiveTerminalEnv,
@@ -39,12 +40,21 @@ describe('main process environment helpers', () => {
     })
   })
 
-  it('leaves the temp directory alone outside an agent shell', () => {
-    const environment = { TMPDIR: '/var/folders/user/T' }
+  it('leaves the temp directory alone when no Host temp directory is known', () => {
+    // An agent shell exports OPENWAGGLE_HOST_TMPDIR; this test needs the no-Host case, so it
+    // drives the parsed env object directly rather than the ambient shell, and puts the value
+    // back afterwards. The parsed env is readonly-typed, hence Object.assign over assignment.
+    const previous = env.OPENWAGGLE_HOST_TMPDIR
+    Object.assign(env, { OPENWAGGLE_HOST_TMPDIR: undefined })
+    try {
+      const environment = { TMPDIR: '/var/folders/user/T' }
 
-    restoreHostTemporaryDirectory(environment, undefined)
+      restoreHostTemporaryDirectory(environment)
 
-    expect(environment).toEqual({ TMPDIR: '/var/folders/user/T' })
+      expect(environment).toEqual({ TMPDIR: '/var/folders/user/T' })
+    } finally {
+      Object.assign(env, { OPENWAGGLE_HOST_TMPDIR: previous })
+    }
   })
 
   it('adds common user tool directories to the npm-compatible PATH', () => {

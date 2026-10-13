@@ -113,6 +113,7 @@ export const api: OpenWaggleApi = {
   listSessionCatalogPage: invoke('sessions:list-page'),
   listSessionProjectPage: invoke('sessions:list-projects'),
   listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
+  listHiveTreeSessionCatalogPage: invoke('sessions:list-hive-tree-page'),
   getSessionDetail: invoke('sessions:get-detail'),
   dismissInterruptedSessionRun: invoke('sessions:dismiss-interrupted-run'),
   listSessionResources: invoke('sessions:resources:list'),

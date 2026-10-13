@@ -120,6 +120,7 @@ describe('registerSessionsHandlers', () => {
       'sessions:list-page',
       'sessions:list-projects',
       'sessions:list-hive-page',
+      'sessions:list-hive-tree-page',
       'sessions:list-archived-branches',
       'sessions:get-tree',
       'sessions:get-workspace',

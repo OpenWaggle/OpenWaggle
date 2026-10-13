@@ -223,6 +223,7 @@ export function renderChatRoute({
     onExtensionSidePanelOpenChange: vi.fn(),
     onResourcesTargetChange: vi.fn(),
     onSessionTreeOpenChange: vi.fn(),
+    onHiveOpenChange: vi.fn(),
     onWorkspaceFileOpenChange: vi.fn(),
     ...actions,
   }
@@ -234,6 +235,7 @@ export function renderChatRoute({
         extensionSidePanel: null,
         resourcesTarget: null,
         sessionTreeOpen: false,
+        hiveOpen: false,
         workspaceFile: null,
         ...rightSidebar,
       }}

@@ -333,7 +333,7 @@ describe('two-line session row', () => {
       const sessionActions = actions()
       render(
         <ul>
-          <SessionListItem session={session()} isActive={false} actions={sessionActions} />
+          <SessionListItem session={session()} actions={sessionActions} />
         </ul>,
       )
 

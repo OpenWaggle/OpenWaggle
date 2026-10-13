@@ -1,5 +1,6 @@
 import type { ShortcutCommand } from '@shared/types/shortcuts'
 import {
+  ChessQueen,
   FolderTree,
   GitCompare,
   Globe2,
@@ -77,6 +78,14 @@ export const BUILT_IN_RIGHT_PANEL_SURFACES = [
     description: 'Sources and outputs captured in this session',
     icon: Paperclip,
     command: 'rightPanel.resources',
+    group: 'Session',
+  },
+  {
+    id: 'hive',
+    title: 'Hive',
+    description: 'Move across the Sessions of this Hive (ADR 0050)',
+    icon: ChessQueen,
+    command: 'rightPanel.hive',
     group: 'Session',
   },
 ] as const satisfies readonly BuiltInRightPanelSurfaceDefinition[]

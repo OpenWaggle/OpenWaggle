@@ -62,6 +62,7 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
     'rightPanel.projectActions': null,
     'rightPanel.files': null,
     'rightPanel.resources': null,
+    'rightPanel.hive': null,
   }
   for (const rule of rules) bindings[rule.command] = rule.shortcut
   return bindings

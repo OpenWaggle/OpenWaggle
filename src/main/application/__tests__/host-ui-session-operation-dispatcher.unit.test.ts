@@ -64,6 +64,7 @@ const EXPECTED_SESSION_CHANNELS = [
   'sessions:list-by-ids',
   'sessions:list-page',
   'sessions:list-hive-page',
+  'sessions:list-hive-tree-page',
   'sessions:list-archived-branches',
   'sessions:get-tree',
   'sessions:get-workspace',

@@ -14,6 +14,7 @@ export {
   hasActiveSessionProjectPath,
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
+  listHiveTreeSessionCatalogPage,
   listSessionCatalogPage,
   listSessionProjectPage,
   listSessionsByIds,

@@ -14,10 +14,16 @@ export const HIVE_DELEGATION_LABELS = {
 
 export type HiveDelegationState = keyof typeof HIVE_DELEGATION_LABELS
 
+/** Needs you and Review both interrupt the user; every other live state does not (ADR 0050). */
+export function hiveStateNeedsAttention(state: HiveDelegationState | null | undefined) {
+  return state === 'needs_attention' || state === 'revision_requested'
+}
+
 /** Read-only subset shared by the current projection and the Session Host catalog. */
 export interface HiveLineage {
   readonly role: 'queen' | 'worker' | 'independent'
   readonly parentSessionId?: SessionId | null
+  readonly parentTitle?: string | null
   readonly directWorkerCount: number
   readonly activeDirectWorkerCount: number
   readonly agentDefinitionName?: string | null
@@ -30,6 +36,10 @@ export interface HiveSession {
   readonly title: string
   readonly archived?: boolean
   readonly lineage?: HiveLineage
+  /** Where the Session works, shown as the row's Workspace placement (ADR 0050). */
+  readonly worktreePath?: string | null
+  readonly pendingInteractionAt?: number
+  readonly followUpEditHeldAt?: number
 }
 
 export interface HiveRelationsPage {

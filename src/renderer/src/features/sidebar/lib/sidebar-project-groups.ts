@@ -49,6 +49,15 @@ interface BuildSidebarProjectGroupsInput {
    * and tests working unchanged.
    */
   readonly allSessions?: readonly SessionSummary[]
+  /**
+   * Hide unpinned Worker Sessions from their project group (ADR 0050).
+   *
+   * Workers live in the Hive panel; the sidebar lists Queens and independent sessions. Only a
+   * status filter or search that matches a Worker lists it flat, and pinned Workers are hoisted
+   * by `pinnedSessionIds` before this rule applies. Off by default so existing callers and
+   * tests keep the unfiltered behaviour.
+   */
+  readonly excludeUnpinnedWorkers?: boolean
 }
 
 function normalizedProjectPath(path: string | null) {
@@ -100,6 +109,7 @@ export function buildSidebarProjectGroups({
   sortMode,
   pinnedSessionIds = [],
   allSessions,
+  excludeUnpinnedWorkers = false,
 }: BuildSidebarProjectGroupsInput): SidebarProjectGroups {
   const sessionsByProject = new Map<string, SessionSummary[]>()
 
@@ -147,7 +157,12 @@ export function buildSidebarProjectGroups({
   return {
     projects: projectPaths.map((projectPath) => {
       const projectSessions = sessionsByProject.get(projectPath) ?? []
-      const unpinnedSessions = projectSessions.filter((session) => !pinned.has(String(session.id)))
+      const unpinnedSessions = projectSessions.filter(
+        (session) =>
+          !pinned.has(String(session.id)) &&
+          // Workers belong to the Hive panel; only a narrowed sidebar lists them flat.
+          !(excludeUnpinnedWorkers && session.lineage?.role === 'worker'),
+      )
       return {
         projectPath,
         sessions: sortSessions(unpinnedSessions, sortMode),
