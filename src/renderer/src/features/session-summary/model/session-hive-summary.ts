@@ -4,69 +4,31 @@ import {
   hiveStateNeedsAttention,
 } from '@/queries/session-hive-contract'
 
-export { hiveStateNeedsAttention }
-
-function groupHiveWorkers(workers: Iterable<HiveSession>) {
-  const activeWorkers: HiveSession[] = []
-  const reviewWorkers: HiveSession[] = []
-  const doneWorkers: HiveSession[] = []
-  const historicalWorkers: HiveSession[] = []
-  const archivedWorkers: HiveSession[] = []
-  let attention = false
-  for (const worker of workers) {
-    if (worker.archived) {
-      archivedWorkers.push(worker)
-      continue
-    }
-    if (worker.lineage?.historical) {
-      historicalWorkers.push(worker)
-      continue
-    }
-    if (
-      worker.lineage?.delegationState === 'accepted' ||
-      worker.lineage?.delegationState === 'cancelled'
-    ) {
-      doneWorkers.push(worker)
-      continue
-    }
-    if (worker.lineage?.delegationState === 'ready_for_review') {
-      reviewWorkers.push(worker)
-      continue
-    }
-    activeWorkers.push(worker)
-    attention ||= hiveStateNeedsAttention(worker.lineage?.delegationState)
-  }
-  return {
-    activeWorkers,
-    reviewWorkers,
-    doneWorkers,
-    historicalWorkers,
-    archivedWorkers,
-    attention,
-  }
+/** A live Worker the Hive is still waiting on: not archived, historical, done or in review. */
+function isActiveWorker(worker: HiveSession) {
+  if (worker.archived || worker.lineage?.historical) return false
+  const state = worker.lineage?.delegationState
+  return state !== 'accepted' && state !== 'cancelled' && state !== 'ready_for_review'
 }
 
+/**
+ * The Session Hub's one-row Hive summary (ADR 0051): the Session's role and the Hive's shape.
+ * Workers themselves are listed only by the Hive panel.
+ */
 export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined) {
   const first = pages?.[0]
-  const current = first?.current
-  const lineage = current?.lineage
-  if (!first || !current || !lineage || lineage.role === 'independent') return null
+  const lineage = first?.current?.lineage
+  if (!first || !lineage || lineage.role === 'independent') return null
   const workersById = new Map(
     pages?.flatMap((page) => page.workers.map((worker) => [worker.id, worker] as const)),
   )
-  const groups = groupHiveWorkers(workersById.values())
+  const activeWorkers = [...workersById.values()].filter(isActiveWorker)
   return {
-    current,
     lineage,
-    parent: first.parent,
-    ...groups,
-    activeCount: Math.max(lineage.activeDirectWorkerCount, groups.activeWorkers.length),
+    activeCount: Math.max(lineage.activeDirectWorkerCount, activeWorkers.length),
     totalCount: Math.max(lineage.directWorkerCount, workersById.size),
-    defaultExpanded:
-      groups.attention ||
-      lineage.activeDirectWorkerCount > 0 ||
-      groups.activeWorkers.length > 0 ||
-      groups.reviewWorkers.length > 0 ||
-      lineage.role === 'worker',
+    attention: activeWorkers.some((worker) =>
+      hiveStateNeedsAttention(worker.lineage?.delegationState),
+    ),
   }
 }
