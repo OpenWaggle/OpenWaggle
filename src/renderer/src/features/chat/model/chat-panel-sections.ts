@@ -31,6 +31,8 @@ export interface ChatTranscriptSectionState {
   readonly isLoading: boolean
   readonly projectPath: string | null
   readonly worktreePath: string | null
+  /** The root the workspace file view opens relative paths against. */
+  readonly workingPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly activeBranchId?: SessionBranchId | null

@@ -1,7 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import { act, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHookWithQueryClient } from '@/test-utils/query-test-utils'
+import {
+  FOLLOW_UP_QUEUE_READ_RETRIES,
+  FOLLOW_UP_QUEUE_RECOVERY_INTERVAL_MS,
+} from '../session-follow-up-queue-read-policy'
 import { useSessionFollowUpQueue } from '../useSessionFollowUpQueue'
 
 const apiMocks = vi.hoisted(() => ({
@@ -39,18 +43,65 @@ describe('useSessionFollowUpQueue errors', () => {
     apiMocks.mutateSessionControl.mockReset()
   })
 
-  it('surfaces an initial read failure and recovers through explicit refresh', async () => {
-    apiMocks.querySessionControl
-      .mockRejectedValueOnce(new Error('Session Host unavailable'))
-      .mockResolvedValue(QUEUE_RESPONSE)
-    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+  function failQueueReads(times: number, message: string) {
+    for (let attempt = 0; attempt < times; attempt += 1) {
+      apiMocks.querySessionControl.mockRejectedValueOnce(new Error(message))
+    }
+    apiMocks.querySessionControl.mockResolvedValue(QUEUE_RESPONSE)
+  }
 
-    await waitFor(() => expect(result.current.error).toEqual(new Error('Session Host unavailable')))
-    expect(result.current.snapshot.items).toEqual([])
+  describe('on a clock the test drives', () => {
+    /** Longer than every retry backoff together (500 ms, then 1 s). */
+    const PAST_EVERY_RETRY_MS = 2_000
 
-    await act(() => result.current.refresh())
-    await waitFor(() => expect(result.current.error).toBeNull())
-    expect(result.current.snapshot.items[0]?.text).toBe('Recovered durable work')
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    async function advance(ms: number) {
+      await act(() => vi.advanceTimersByTimeAsync(ms))
+    }
+
+    it('rides out a transient read failure without reporting the queue unavailable', async () => {
+      failQueueReads(FOLLOW_UP_QUEUE_READ_RETRIES, 'Timed out waiting for the Local Session Host.')
+      const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+
+      await advance(PAST_EVERY_RETRY_MS)
+
+      expect(result.current.snapshot.items[0]?.text).toBe('Recovered durable work')
+      expect(result.current.error).toBeNull()
+      expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(FOLLOW_UP_QUEUE_READ_RETRIES + 1)
+    })
+
+    it('surfaces a persistent read failure and recovers through explicit refresh', async () => {
+      failQueueReads(FOLLOW_UP_QUEUE_READ_RETRIES + 1, 'Session Host unavailable')
+      const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+
+      await advance(PAST_EVERY_RETRY_MS)
+      expect(result.current.error).toEqual(new Error('Session Host unavailable'))
+      expect(result.current.snapshot.items).toEqual([])
+
+      await act(() => result.current.refresh())
+      await advance(0)
+      expect(result.current.error).toBeNull()
+      expect(result.current.snapshot.items[0]?.text).toBe('Recovered durable work')
+    })
+
+    it('keeps re-reading a failed queue until the Session Host answers', async () => {
+      failQueueReads(FOLLOW_UP_QUEUE_READ_RETRIES + 1, 'Local Session Host connection closed.')
+      const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+
+      await advance(PAST_EVERY_RETRY_MS)
+      expect(result.current.error).not.toBeNull()
+
+      await advance(FOLLOW_UP_QUEUE_RECOVERY_INTERVAL_MS)
+      expect(result.current.error).toBeNull()
+      expect(result.current.snapshot.items[0]?.text).toBe('Recovered durable work')
+    })
   })
 
   it.each(['/compact', '/compact preserve decisions', '/fork', '/clone'])(

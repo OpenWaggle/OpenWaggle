@@ -25,16 +25,26 @@ const sessionAttachmentTransitions = new Map<string, SessionAttachmentTransition
  */
 const sessionAttachmentTransitionLoans = new Map<string, Map<string, number>>()
 const releaseBorrowedSessionAttachmentTransition = () => undefined
-const emptySessionAttachmentTransitions = new Set<string>()
-const heldSessionAttachmentTransitions = FiberRef.unsafeMake<ReadonlySet<string>>(
-  emptySessionAttachmentTransitions,
-  {
-    // A child fiber may outlive the protected transition. It must acquire its own lock rather than
-    // inheriting a re-entrancy grant that stops being valid when the parent releases the lock.
-    fork: () => emptySessionAttachmentTransitions,
-    join: (parent) => parent,
-  },
-)
+
+/**
+ * One fiber's hold on a Session's transition. `release` is swapped while the holder steps aside
+ * (`releaseSessionAttachmentTransitionWhile`), so the holder's own release frees whichever grant
+ * it holds when it finishes.
+ */
+interface HeldSessionAttachmentTransition {
+  release: () => void
+}
+
+const emptySessionAttachmentTransitions: ReadonlyMap<string, HeldSessionAttachmentTransition> =
+  new Map()
+const heldSessionAttachmentTransitions = FiberRef.unsafeMake<
+  ReadonlyMap<string, HeldSessionAttachmentTransition>
+>(emptySessionAttachmentTransitions, {
+  // A child fiber may outlive the protected transition. It must acquire its own lock rather than
+  // inheriting a re-entrancy grant that stops being valid when the parent releases the lock.
+  fork: () => emptySessionAttachmentTransitions,
+  join: (parent) => parent,
+})
 
 function transitionCancellationError() {
   return new Error('Pending explicit Waggle run was cancelled.')
@@ -170,16 +180,17 @@ export function withSessionAttachmentTransition<A, E, R>(input: {
   return FiberRef.get(heldSessionAttachmentTransitions).pipe(
     Effect.flatMap((heldTransitions) => {
       if (heldTransitions.has(input.sessionId)) return input.effect
-      const nextHeldTransitions = new Set(heldTransitions).add(input.sessionId)
       return Effect.uninterruptibleMask((restore) =>
         restore(
           acquireSessionAttachmentTransition(input.sessionId, input.signal, input.settlingRunId),
         ).pipe(
-          Effect.flatMap((release) =>
-            restore(
+          Effect.flatMap((release) => {
+            const held: HeldSessionAttachmentTransition = { release }
+            const nextHeldTransitions = new Map(heldTransitions).set(input.sessionId, held)
+            return restore(
               Effect.locally(input.effect, heldSessionAttachmentTransitions, nextHeldTransitions),
-            ).pipe(Effect.ensuring(Effect.sync(release))),
-          ),
+            ).pipe(Effect.ensuring(Effect.sync(() => held.release())))
+          }),
         ),
       )
     }),
@@ -208,6 +219,43 @@ export function lendSessionAttachmentTransitionToSettlingRun<A, E, R>(input: {
           )
         : input.effect,
     ),
+  )
+}
+
+/**
+ * Run `effect` with this fiber's hold on the Session's attachment transition released, then take
+ * the transition back before returning its result. For a holder that must wait on a Pi writer for
+ * as long as a turn takes, such as a promotion waiting for Pi to incorporate its steer: holding
+ * the transition meanwhile kept every other change to the Session waiting for minutes. The effect
+ * runs as an ordinary non-holder, so any transition it needs it acquires itself. Without a held
+ * transition the effect runs unchanged.
+ */
+export function releaseSessionAttachmentTransitionWhile<A, E, R>(input: {
+  readonly sessionId: string
+  readonly effect: Effect.Effect<A, E, R>
+}) {
+  return FiberRef.get(heldSessionAttachmentTransitions).pipe(
+    Effect.flatMap((heldTransitions) => {
+      const held = heldTransitions.get(input.sessionId)
+      // A borrowed grant belongs to its lender; stepping aside would not free the Session.
+      if (!held || held.release === releaseBorrowedSessionAttachmentTransition) return input.effect
+      const withoutSession = new Map(heldTransitions)
+      withoutSession.delete(input.sessionId)
+      return Effect.uninterruptibleMask((restore) =>
+        Effect.gen(function* () {
+          const release = held.release
+          held.release = releaseBorrowedSessionAttachmentTransition
+          release()
+          const exit = yield* Effect.exit(
+            restore(Effect.locally(input.effect, heldSessionAttachmentTransitions, withoutSession)),
+          )
+          held.release = yield* acquireSessionAttachmentTransition(input.sessionId).pipe(
+            Effect.orDie,
+          )
+          return yield* exit
+        }),
+      )
+    }),
   )
 }
 

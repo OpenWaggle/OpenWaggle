@@ -64,6 +64,18 @@ describe('QueuedMessages unavailable state', () => {
     expect(screen.queryByText('Follow-up queue empty.')).not.toBeInTheDocument()
   })
 
+  it('names why the read failed, without the Electron transport prefix', () => {
+    queueMock.error = new Error(
+      "Error invoking remote method 'session-control:query': Error: Timed out waiting for the Local Session Host.",
+    )
+    render(subject())
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Timed out waiting for the Local Session Host.',
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Error invoking remote method')
+  })
+
   it('retries the read and returns to the recovered queue', async () => {
     queueMock.refresh.mockImplementationOnce(async () => {
       queueMock.error = null

@@ -51,7 +51,7 @@ export function loadRunExecutionProfile(
       )
     }
     return yield* Effect.try({
-      try: () => resolveSessionRunExecution(row, input.runId),
+      try: () => resolveSessionRunExecution(row),
       catch: (cause) =>
         new Error(`Session ${input.sessionId} has an invalid durable execution profile.`, {
           cause,

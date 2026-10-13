@@ -1,6 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import { queryOptions, type UseQueryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
   isGuiOnlyComposerCommand,
@@ -20,6 +20,7 @@ import {
   type SessionFollowUpEditPayload,
   type SessionFollowUpQueueSnapshot,
 } from './session-follow-up-queue-model'
+import { sessionFollowUpQueueOptions } from './session-follow-up-queue-options'
 
 export {
   heldEdit,
@@ -31,30 +32,7 @@ export {
   type SessionFollowUpQueueItem,
   type SessionFollowUpQueueSnapshot,
 } from './session-follow-up-queue-model'
-
-function sessionFollowUpQueueKey(sessionId: SessionId | string) {
-  return ['session-control', 'queue', String(sessionId)] as const
-}
-
-type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | null]
-
-export function sessionFollowUpQueueOptions(
-  sessionId: SessionId | null,
-): UseQueryOptions<
-  SessionFollowUpQueueSnapshot,
-  Error,
-  SessionFollowUpQueueSnapshot,
-  SessionFollowUpQueueKey
-> {
-  return queryOptions({
-    queryKey: sessionId
-      ? (sessionFollowUpQueueKey(sessionId) satisfies SessionFollowUpQueueKey)
-      : (['session-control', 'queue', null] as const),
-    queryFn: () => (sessionId ? readQueue(sessionId) : Promise.resolve(EMPTY_SNAPSHOT)),
-    enabled: sessionId !== null,
-    staleTime: Number.POSITIVE_INFINITY,
-  })
-}
+export { sessionFollowUpQueueOptions } from './session-follow-up-queue-options'
 
 export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   const queryClient = useQueryClient()
