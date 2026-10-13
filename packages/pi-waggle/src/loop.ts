@@ -67,6 +67,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     input: PiWaggleResolveTurnModelInput<TMeta>,
   ) => PiWaggleModel | Promise<PiWaggleModel>
   readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>
+  /**
+   * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+   * as when the host's Stop is pressed between turns.
+   */
   readonly canStartNextTurn?: () => boolean
   readonly onActiveTurnChange?: (meta: TMeta) => void
   readonly onTurnStart?: (meta: TMeta) => void
@@ -164,7 +168,10 @@ function scheduleDefaultNextTurn<TMeta>(input: {
   readonly message: PiWaggleCustomMessage
 }) {
   setTimeout(() => {
+    // Stopped in the gap between turns: no Pi run is active, so nothing settles as aborted and the
+    // Waggle ends here, or its completion would never settle.
     if (input.loop.canStartNextTurn && !input.loop.canStartNextTurn()) {
+      input.loop.onComplete()
       return
     }
 
@@ -306,25 +313,25 @@ export function createPiWaggleExtension<TMeta>(
     done: completion.promise,
     fail: completion.reject,
     factory: (pi) => {
-      // A run the user aborted ends the Waggle: no later run is one of its turns.
-      let aborted = false
+      // Once the Waggle ends (it completes, is stopped between turns, or the user aborts its run),
+      // no later run is one of its turns.
+      let ended = false
+      const end = () => {
+        ended = true
+        completion.resolve()
+      }
       registerPiWaggleLoop(
         {
           ...input,
-          onComplete: completion.resolve,
+          onComplete: end,
           onError: completion.reject,
         },
         {
           onAgentEnd: (handler) =>
             onPiWaggleSettledAgentEnd(
               pi,
-              (event, ctx) => (aborted ? undefined : handler(event, ctx)),
-              {
-                onAborted: () => {
-                  aborted = true
-                  completion.resolve()
-                },
-              },
+              (event, ctx) => (ended ? undefined : handler(event, ctx)),
+              { onAborted: end },
             ),
           sendMessage: (message, options) => pi.sendMessage(message, options),
           setModel: (model) => pi.setModel(model),

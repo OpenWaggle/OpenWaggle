@@ -101,6 +101,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;
@@ -444,6 +448,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;
@@ -546,6 +554,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     readonly buildTurnMessage: (input: PiWaggleTurnMessageInput<TMeta>) => PiWaggleCustomMessage;
     readonly resolveTurnModel?: (input: PiWaggleResolveTurnModelInput<TMeta>) => PiWaggleModel | Promise<PiWaggleModel>;
     readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>;
+    /**
+     * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+     * as when the host's Stop is pressed between turns.
+     */
     readonly canStartNextTurn?: () => boolean;
     readonly onActiveTurnChange?: (meta: TMeta) => void;
     readonly onTurnStart?: (meta: TMeta) => void;

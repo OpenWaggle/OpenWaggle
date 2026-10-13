@@ -41,7 +41,12 @@ type Reply = (context: TranscriptContext) => AssistantMessage
 let activeSession: { abort: () => Promise<void> } | undefined
 
 /** A three-turn Waggle Run through pi-waggle's own loop, with Pi's automatic retry on. */
-async function waggleRun(replies: readonly Reply[]) {
+async function waggleRun(
+  replies: readonly Reply[],
+  options: { readonly stopAfterTurn?: number } = {},
+) {
+  // OpenWaggle's Stop: a signal the loop checks before it starts each next turn.
+  const stop = new AbortController()
   const directory = mkdtempSync(path.join(tmpdir(), 'openwaggle-waggle-retry-'))
   cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
   const faux = fauxProvider({
@@ -65,8 +70,10 @@ async function waggleRun(replies: readonly Reply[]) {
           message.role === 'assistant' ? [message.stopReason] : [],
         ),
       })
+      if (meta.turnNumber === options.stopAfterTurn) stop.abort()
       return { continue: true }
     },
+    canStartNextTurn: () => !stop.signal.aborted,
     buildTurnMessage: ({ turn }) => ({
       customType: 'pi-waggle.turn',
       content: `Turn ${turn.turnNumber}`,
@@ -162,5 +169,15 @@ describe('a Waggle turn Pi retries', () => {
 
     expect(completedTurns).toEqual([{ turn: 0, stopReasons: ['stop'] }])
     expect(requests).toHaveLength(2)
+  })
+
+  it('ends when Stop is pressed between turns, though no Pi run is left to abort', async () => {
+    const { completedTurns, requests } = await waggleRun(
+      [answer('Turn 0 answer'), answer('Never requested')],
+      { stopAfterTurn: 0 },
+    )
+
+    expect(completedTurns).toEqual([{ turn: 0, stopReasons: ['stop'] }])
+    expect(requests).toHaveLength(1)
   })
 })
