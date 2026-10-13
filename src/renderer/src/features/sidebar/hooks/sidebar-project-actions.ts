@@ -7,17 +7,15 @@ import {
 } from '@shared/types/session-query'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
-import { forgoRemovedSessionDraft } from '@/features/composer/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
-import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { openProjectInDraft } from './open-project-in-draft'
+import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 import {
-  clearComposerDraftForSession,
-  clearComposerDraftsForSessions,
-  errorMessage,
-} from './sidebar-action-utils'
-import { deleteProjectSessionsChildrenFirst } from './sidebar-project-session-deletion'
+  deleteProjectSessionsChildrenFirst,
+  deleteRemovedProjectSession,
+} from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
 const SESSION_HYDRATION_BATCH_SIZE = 100
@@ -187,7 +185,21 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
   }
 }
 
+/** Once the removal is done, the drafts it would not carry are forgotten, carried or not. */
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
+  const releaseDrafts: (() => void)[] = []
+  try {
+    await removeProjectWith(deps, path, releaseDrafts)
+  } finally {
+    for (const releaseDraft of releaseDrafts) releaseDraft()
+  }
+}
+
+async function removeProjectWith(
+  deps: SidebarProjectActionDeps,
+  path: string,
+  releaseDrafts: (() => void)[],
+) {
   const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
@@ -214,16 +226,9 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
       (run) => api.cancelAgent(run.sessionId),
     )
-    await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
-      // Its draft is deleted with it, not carried to the project's New session.
-      const keepDraft = forgoRemovedSessionDraft(id)
-      await api.deleteSession(id, { removingProject: true }).catch((error: unknown) => {
-        keepDraft()
-        throw error
-      })
-      clearComposerDraftForSession(id)
-      await deleteWorkspaceOwner(String(id))
-    })
+    await deleteProjectSessionsChildrenFirst(currentSessions, (id) =>
+      deleteRemovedProjectSession(id, releaseDrafts),
+    )
     // A Session created in the project meanwhile was not confirmed for deletion; keep the project.
     if ((await listProjectSessionSummaries(path)).length > 0) {
       throw new Error(

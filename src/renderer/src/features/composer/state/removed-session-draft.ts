@@ -23,7 +23,8 @@ const forgoneSessions = new Set<string>()
 
 /**
  * The draft of a Session the user is deleting is not carried once the Host reports it gone.
- * Returns what undoes that, for a deletion that failed: the Session stays, and so does its draft.
+ * Returns what forgets that: for a deletion that failed, as the Session stays and so does its
+ * draft, and once the deletion is done, so no id is kept for it.
  */
 export function forgoRemovedSessionDraft(sessionId: SessionId) {
   forgoneSessions.add(String(sessionId))
