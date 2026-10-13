@@ -1,4 +1,5 @@
-import * as Effect from 'effect/Effect'
+import type * as Effect from 'effect/Effect'
+import { runEffectWithAbortSignal } from '../utils/run-effect-with-abort-signal'
 
 function sessionToolAbortReason(signal: AbortSignal) {
   return signal.reason instanceof Error ? signal.reason : new Error('aborted')
@@ -13,7 +14,7 @@ export async function runSessionToolCallerResolution<A, E>(
   signal?: AbortSignal,
 ) {
   throwIfSessionToolAborted(signal)
-  const caller = await Effect.runPromise(resolution, signal ? { signal } : undefined)
+  const caller = await runEffectWithAbortSignal(resolution, signal)
   throwIfSessionToolAborted(signal)
   return caller
 }

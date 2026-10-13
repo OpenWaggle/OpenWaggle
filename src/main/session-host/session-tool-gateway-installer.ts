@@ -45,6 +45,7 @@ import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-
 import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
+import { runEffectWithAbortSignal } from '../utils/run-effect-with-abort-signal'
 import { admitSessionToolCommand } from './session-tool-command-admission'
 import { installSessionToolGateway } from './session-tool-gateway'
 import {
@@ -143,10 +144,7 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
             }),
         }),
     )
-    return Effect.runPromise(
-      command.pipe(Effect.provide(dependencies)),
-      input.signal ? { signal: input.signal } : undefined,
-    )
+    return runEffectWithAbortSignal(command.pipe(Effect.provide(dependencies)), input.signal)
   })
   yield* Effect.addFinalizer(() => Effect.sync(release))
 })
