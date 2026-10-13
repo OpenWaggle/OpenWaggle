@@ -22,6 +22,7 @@ export function getHostUiProviderModels(projectPath?: string | null) {
         available: model.available,
         availableThinkingLevels: model.availableThinkingLevels,
         contextWindow: model.contextWindow,
+        ...(model.virtual ? { virtual: true } : {}),
       })),
     }))
   })

@@ -8,6 +8,7 @@ import {
   cancelSessionRuns,
   waitForSessionRuns,
 } from './active-session-runs'
+import { runSessionRemovalHooks } from './session-removal-hooks'
 
 const SESSION_REMOVAL_SETTLE_TIMEOUT_MS = 30_000
 
@@ -53,6 +54,8 @@ export function withSessionDesktopRemoval<A, E, R, AE = never, AR = never>(
                 Effect.gen(function* () {
                   yield* admit
                   yield* terminals.closeAllForOwner(sessionId, false)
+                  // MCP servers hold hundreds of MB per Session; an archived Session needs none.
+                  yield* runSessionRemovalHooks(sessionId)
                   yield* desktop.execute({
                     service: 'browser',
                     operation: 'deleteOwner',

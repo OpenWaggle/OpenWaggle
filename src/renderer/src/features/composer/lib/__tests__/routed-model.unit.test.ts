@@ -1,0 +1,159 @@
+import { SupportedModelId } from '@shared/types/brand'
+import type { ProviderInfo } from '@shared/types/llm'
+import { describe, expect, it } from 'vitest'
+import { answeringModel, lastAnsweringModel, routedModelName } from '../routed-model'
+
+const providers: ProviderInfo[] = [
+  {
+    provider: 'router',
+    displayName: 'router',
+    auth: {
+      configured: true,
+      source: 'none',
+      apiKeyConfigured: false,
+      apiKeySource: 'none',
+      oauthConnected: false,
+      supportsApiKey: false,
+      supportsOAuth: false,
+    },
+    models: [
+      {
+        id: SupportedModelId('router/auto'),
+        modelId: 'auto',
+        name: 'Auto',
+        provider: 'router',
+        available: true,
+        availableThinkingLevels: ['low', 'high'],
+        virtual: true,
+      },
+    ],
+  },
+  {
+    provider: 'openai',
+    displayName: 'OpenAI',
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: true,
+    },
+    models: [
+      {
+        id: SupportedModelId('openai/gpt-6-luna'),
+        modelId: 'gpt-6-luna',
+        name: 'GPT-6 Luna',
+        provider: 'openai',
+        available: true,
+        availableThinkingLevels: ['medium'],
+        contextWindow: 400_000,
+      },
+    ],
+  },
+]
+
+describe('routedModelName', () => {
+  it('names the physical model a virtual selection last routed to', () => {
+    expect(
+      routedModelName({
+        selected: SupportedModelId('router/auto'),
+        answeredBy: SupportedModelId('openai/gpt-6-luna'),
+        providerModels: providers,
+      }),
+    ).toBe('GPT-6 Luna')
+  })
+
+  it('names nothing for a physical selection, or before the virtual model has answered', () => {
+    expect(
+      routedModelName({
+        selected: SupportedModelId('openai/gpt-6-luna'),
+        answeredBy: SupportedModelId('openai/gpt-6-luna'),
+        providerModels: providers,
+      }),
+    ).toBeNull()
+    expect(
+      routedModelName({
+        selected: SupportedModelId('router/auto'),
+        answeredBy: undefined,
+        providerModels: providers,
+      }),
+    ).toBeNull()
+  })
+
+  it('falls back to the model id when the catalog does not list the answering model', () => {
+    expect(
+      routedModelName({
+        selected: SupportedModelId('router/auto'),
+        answeredBy: SupportedModelId('anthropic/claude-haiku-4-5'),
+        providerModels: providers,
+      }),
+    ).toBe('claude-haiku-4-5')
+  })
+})
+
+describe('lastAnsweringModel', () => {
+  const AUTO = SupportedModelId('router/auto')
+
+  it('reads the model of the latest response made under the selected model', () => {
+    expect(
+      lastAnsweringModel(
+        [
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-sol'),
+            metadata: { selectedModel: AUTO },
+          },
+          { role: 'user' },
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-luna'),
+            metadata: { selectedModel: AUTO },
+          },
+          { role: 'user' },
+        ],
+        AUTO,
+      ),
+    ).toBe('openai/gpt-6-luna')
+  })
+
+  it('names nothing right after switching to a virtual model, before it has answered', () => {
+    expect(
+      lastAnsweringModel(
+        [
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-luna'),
+            metadata: { selectedModel: SupportedModelId('openai/gpt-6-luna') },
+          },
+        ],
+        AUTO,
+      ),
+    ).toBeUndefined()
+  })
+})
+
+describe('a selection that is no longer available', () => {
+  const GONE = SupportedModelId('router/removed')
+  const LUNA = SupportedModelId('openai/gpt-6-luna')
+
+  it('names the model that answered instead, whatever selection Pi recorded for it', () => {
+    const answeredBy = answeringModel({
+      messages: [{ role: 'assistant', model: LUNA, metadata: { selectedModel: LUNA } }],
+      selected: GONE,
+      providerModels: providers,
+    })
+
+    expect(answeredBy).toBe(LUNA)
+    expect(routedModelName({ selected: GONE, answeredBy, providerModels: providers })).toBe(
+      'GPT-6 Luna',
+    )
+  })
+
+  it('still names nothing for an available physical selection', () => {
+    expect(routedModelName({ selected: LUNA, answeredBy: LUNA, providerModels: providers })).toBe(
+      null,
+    )
+  })
+})

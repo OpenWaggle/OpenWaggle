@@ -109,22 +109,16 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
     })
     return ReadResourceResultSchema.parse({ contents: result.contents })
   }
-  bridge.onlistresources = async () => {
-    const catalog = await api.listMcpCapabilities({
+  const catalog = () =>
+    api.listMcpAppCatalog({
       ...context,
       serverInstanceId: input.descriptor.serverInstanceId,
       serverConfigHash: input.descriptor.serverConfigHash,
     })
-    return ListResourcesResultSchema.parse({ resources: catalog.resources })
-  }
-  bridge.onlistprompts = async () => {
-    const catalog = await api.listMcpCapabilities({
-      ...context,
-      serverInstanceId: input.descriptor.serverInstanceId,
-      serverConfigHash: input.descriptor.serverConfigHash,
-    })
-    return ListPromptsResultSchema.parse({ prompts: catalog.prompts })
-  }
+  bridge.onlistresources = async () =>
+    ListResourcesResultSchema.parse({ resources: (await catalog()).resources })
+  bridge.onlistprompts = async () =>
+    ListPromptsResultSchema.parse({ prompts: (await catalog()).prompts })
 }
 
 function registerHostHandlers(bridge: AppBridge, input: McpAppBridgeInput) {

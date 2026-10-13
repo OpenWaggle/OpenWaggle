@@ -36,7 +36,6 @@ describe('SessionSummaryHub', () => {
 
   it('keeps core and extension slots in the agreed deterministic order', () => {
     expect(sessionSummarySectionOrder()).toEqual([
-      'subscriptions',
       'environment',
       'actions',
       'preparation',

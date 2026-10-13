@@ -1,115 +1,97 @@
 import type {
-  McpAddServerInput,
+  McpAppCatalogInput,
+  McpAppCatalogResult,
   McpAppToolCallInput,
   McpAppToolCallResult,
-  McpAuthorizeServerInput,
-  McpAuthorizeServerResult,
-  McpCapabilityCatalog,
-  McpDoctorInput,
-  McpDoctorResult,
-  McpEventRecord,
-  McpEventSubscriptionState,
-  McpGetPromptInput,
-  McpGetSettingsInput,
-  McpImportApplyInput,
-  McpImportApplyResult,
-  McpImportPreview,
-  McpImportPreviewInput,
-  McpInstallCatalogServerInput,
-  McpListCapabilitiesInput,
-  McpPromptResult,
   McpReadResourceInput,
-  McpRemoteSkillReview,
   McpRemoveSecretInput,
-  McpRemoveServerInput,
   McpResourceResult,
-  McpReviewRemoteSkillInput,
   McpSecretSummary,
-  McpSetEventSubscriptionInput,
-  McpSetProjectServerEnabledInput,
-  McpSetScopeStateInput,
   McpSetSecretInput,
-  McpSetServerEnabledInput,
-  McpSetServerTrustInput,
-  McpSettingsView,
-  McpTaskOperationInput,
-  McpTaskRecord,
-  McpWriteSourceConfigInput,
 } from './mcp'
+import type {
+  McpConfigurationView,
+  McpServerInspection,
+  McpServerStatusView,
+} from './mcp-configuration'
+import type {
+  McpAddServerRequest,
+  McpConfigurationScopeRequest,
+  McpImportApplyRequest,
+  McpImportApplyResultView,
+  McpImportPreviewRequest,
+  McpImportPreviewView,
+  McpInstallCatalogServerRequest,
+  McpRemoveServerRequest,
+  McpServerNameRequest,
+  McpSessionRequest,
+  McpSetServerEnabledRequest,
+  McpSetServerExposureRequest,
+  McpSetSessionEnabledRequest,
+  McpSignInResultView,
+} from './mcp-configuration-operations'
+import type {
+  McpRegistryInstallRequest,
+  McpRegistryInstallResultView,
+  McpRegistrySearchRequest,
+  McpRegistrySearchResultView,
+  McpRegistryServerRequest,
+  McpRegistryServerView,
+} from './mcp-registry'
 
 export interface IpcMcpInvokeChannelMap {
-  'mcp:get-settings': { args: [input?: McpGetSettingsInput]; return: McpSettingsView }
-  'mcp:set-scope-state': { args: [input: McpSetScopeStateInput]; return: McpSettingsView }
+  'mcp:get-configuration': {
+    args: [input: McpConfigurationScopeRequest]
+    return: McpConfigurationView
+  }
   'mcp:set-server-enabled': {
-    args: [input: McpSetServerEnabledInput]
-    return: McpSettingsView
+    args: [input: McpSetServerEnabledRequest]
+    return: McpConfigurationView
   }
-  'mcp:set-project-server-enabled': {
-    args: [input: McpSetProjectServerEnabledInput]
-    return: McpSettingsView
+  'mcp:set-server-exposure': {
+    args: [input: McpSetServerExposureRequest]
+    return: McpConfigurationView
   }
-  'mcp:write-source-config': {
-    args: [input: McpWriteSourceConfigInput]
-    return: McpSettingsView
-  }
-  'mcp:set-server-trust': { args: [input: McpSetServerTrustInput]; return: McpSettingsView }
-  'mcp:remove-server': { args: [input: McpRemoveServerInput]; return: McpSettingsView }
-  'mcp:authorize-server': {
-    args: [input: McpAuthorizeServerInput]
-    return: McpAuthorizeServerResult
-  }
-  'mcp:logout-server': {
-    args: [input: McpAuthorizeServerInput]
-    return: {
-      removedSecrets: readonly string[]
-      retainedSharedSecrets: readonly string[]
-      retainedUnverifiedSecrets: readonly string[]
-      unreadableSources: readonly string[]
-      oauthRemoved: boolean
-    }
-  }
-  'mcp:add-server': { args: [input: McpAddServerInput]; return: McpSettingsView }
-  'mcp:preview-imports': { args: [input: McpImportPreviewInput]; return: McpImportPreview }
-  'mcp:apply-imports': { args: [input: McpImportApplyInput]; return: McpImportApplyResult }
+  'mcp:add-server': { args: [input: McpAddServerRequest]; return: McpConfigurationView }
+  'mcp:remove-server': { args: [input: McpRemoveServerRequest]; return: McpConfigurationView }
   'mcp:install-catalog-server': {
-    args: [input: McpInstallCatalogServerInput]
-    return: McpSettingsView
+    args: [input: McpInstallCatalogServerRequest]
+    return: McpConfigurationView
   }
-  'mcp:doctor': { args: [input?: McpDoctorInput]; return: McpDoctorResult }
+  'mcp:inspect-server': { args: [input: McpServerNameRequest]; return: McpServerInspection }
+  'mcp:get-server-statuses': {
+    args: [input: McpConfigurationScopeRequest]
+    return: readonly McpServerStatusView[]
+  }
+  'mcp:sign-in': { args: [input: McpServerNameRequest]; return: McpSignInResultView }
+  'mcp:sign-out': { args: [input: McpServerNameRequest]; return: undefined }
+  /** Whether the Session's Runs use MCP servers; true unless the Session was switched off. */
+  'mcp:get-session-enabled': { args: [input: McpSessionRequest]; return: boolean }
+  'mcp:set-session-enabled': { args: [input: McpSetSessionEnabledRequest]; return: boolean }
+  'mcp:preview-imports': { args: [input: McpImportPreviewRequest]; return: McpImportPreviewView }
+  'mcp:apply-imports': { args: [input: McpImportApplyRequest]; return: McpImportApplyResultView }
+  'mcp:search-registry': {
+    args: [input: McpRegistrySearchRequest]
+    return: McpRegistrySearchResultView
+  }
+  'mcp:get-registry-server': {
+    args: [input: McpRegistryServerRequest]
+    return: McpRegistryServerView
+  }
+  'mcp:install-registry-server': {
+    args: [input: McpRegistryInstallRequest]
+    return: McpRegistryInstallResultView
+  }
   'mcp:list-secrets': { args: []; return: readonly McpSecretSummary[] }
   'mcp:set-secret': { args: [input: McpSetSecretInput]; return: readonly McpSecretSummary[] }
   'mcp:remove-secret': {
     args: [input: McpRemoveSecretInput]
     return: readonly McpSecretSummary[]
   }
-  'mcp:list-capabilities': {
-    args: [input: McpListCapabilitiesInput]
-    return: McpCapabilityCatalog
-  }
-  'mcp:get-prompt': { args: [input: McpGetPromptInput]; return: McpPromptResult }
   'mcp:read-resource': { args: [input: McpReadResourceInput]; return: McpResourceResult }
-  'mcp:review-remote-skill': {
-    args: [input: McpReviewRemoteSkillInput]
-    return: McpRemoteSkillReview
-  }
-  'mcp:operate-task': {
-    args: [input: McpTaskOperationInput]
-    return: readonly McpTaskRecord[]
-  }
+  'mcp:list-app-catalog': { args: [input: McpAppCatalogInput]; return: McpAppCatalogResult }
   'mcp:call-app-tool': {
     args: [input: McpAppToolCallInput]
     return: McpAppToolCallResult
-  }
-  'mcp:set-event-subscription': {
-    args: [input: McpSetEventSubscriptionInput]
-    return: McpEventSubscriptionState
-  }
-  'mcp:list-events': {
-    args: [input?: McpGetSettingsInput]
-    return: readonly McpEventRecord[]
-  }
-  'mcp:list-event-subscriptions': {
-    args: [input?: McpGetSettingsInput]
-    return: readonly McpEventSubscriptionState[]
   }
 }

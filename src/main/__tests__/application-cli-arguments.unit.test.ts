@@ -43,6 +43,8 @@ describe('application CLI argument routing', () => {
           '--no-sandbox',
           '--disable-logging',
           '--log-level=3',
+          '--use-mock-keychain',
+          '--password-store=basic',
           ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
           'sessions',
           'list',
@@ -75,6 +77,8 @@ describe('application CLI argument routing', () => {
       'mcp',
       '--disable-logging',
       '--log-level=3',
+      '--use-mock-keychain',
+      '--password-store=basic',
     ]
 
     expect(
@@ -106,6 +110,14 @@ describe('application CLI argument routing', () => {
       ).toEqual(unrecognizedArguments)
     },
   )
+
+  it('does not treat a malformed password store switch as a recognized runtime prefix', () => {
+    expect(
+      applicationCliArguments(['/path/to/electron', '--password-store=', 'sessions', 'list'], {
+        isPackaged: true,
+      }),
+    ).toEqual(['--password-store=', 'sessions', 'list'])
+  })
 
   it('does not treat arbitrary logging values as recognized runtime prefixes', () => {
     expect(

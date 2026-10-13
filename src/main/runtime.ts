@@ -18,7 +18,6 @@ import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-sessio
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { PiSessionTranscriptRepairLive } from './adapters/pi/agent-kernel/snapshot-entry-id-repair'
-import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -49,8 +48,15 @@ import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
+import { promptCacheWarming } from './application/prompt-cache-warming'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { makeSourceControlSettingsAccess } from './application/source-control-settings-access'
+import { startMcpHostServices } from './mcp-host-start'
+import {
+  closeHostMcpConnections,
+  HostPiAgentKernelLive,
+  McpServicesLive,
+} from './mcp-runtime-layers'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -59,8 +65,14 @@ import {
 } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
-import { startHostBackgroundServices } from './runtime-host-services'
-import { McpServicesLive } from './runtime-mcp-services'
+import {
+  type HostServiceOptions,
+  startHostBackgroundServices,
+  startHostServicesAfterListening,
+  stopHostServicesAfterListening,
+} from './runtime-host-services'
+import { installPiRuntimeIntegration } from './runtime-pi-integration'
+import { PiSessionContinuationServicesLive } from './runtime-pi-session-discovery-services'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
@@ -103,11 +115,10 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
-const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
+const PiAgentKernelWithExtensionSelectionLive = HostPiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
-      McpServicesLive,
       ActionKernelServicesLive,
       FilesystemInlineVisualizationLive,
       DesktopServicesLive,
@@ -160,6 +171,7 @@ const AgentRequestedWaggleWithDependenciesLive = AgentRequestedWaggleServiceLive
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
+      ProviderServiceWithExtensionSelectionLive,
       PiAgentKernelWithExtensionSelectionLive,
       SqliteSessionProjectionRepositoryLive,
       SqliteSessionRepositoryLive,
@@ -186,6 +198,7 @@ const SessionControlRunExecutorWithDependenciesLive = SessionControlRunExecutorL
       SessionControlAttachmentWithDatabaseLive,
       AppDatabaseLive,
       SessionControlPersistenceLive,
+      PiSessionContinuationServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
     ),
   ),
 )
@@ -228,7 +241,8 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  SessionTitleServicesLive,
+  PiSessionContinuationServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
+  SessionTitleServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   McpServicesLive,
@@ -267,6 +281,8 @@ function installStoreEffectRunner() {
 }
 
 export async function initializeAppRuntime(): Promise<void> {
+  // Settings shared with Pi, and prompt cache warming, before anything loads Settings or runs.
+  installPiRuntimeIntegration()
   await getAppRuntime().runPromise(
     Effect.gen(function* () {
       const settings = yield* SettingsService
@@ -276,18 +292,27 @@ export async function initializeAppRuntime(): Promise<void> {
 }
 
 export async function disposeAppRuntime(): Promise<void> {
+  await stopHostServicesAfterListening()
   await stopSessionHostOwnedServices()
+  // Stdio MCP servers must not outlive the Host.
+  await closeHostMcpConnections()
   await getAppRuntime().dispose()
 }
 
-export async function startSessionHostOwnedServices(): Promise<void> {
+/** Once the Host serves clients; Host start does not wait for it. */
+export const startSessionHostServicesAfterListening = startHostServicesAfterListening
+
+export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
+  // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
+  startMcpHostServices()
+  promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
   let didStart = false
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* startHostBackgroundServices
+        yield* startHostBackgroundServices(options)
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()
@@ -312,6 +337,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
 export async function stopSessionHostOwnedServices(): Promise<void> {
   const stop = stopHostOwnedServices
   if (stop) await stop()
+  await promptCacheWarming().stop()
 }
 
 export async function resetAppRuntimeForTests(): Promise<void> {

@@ -42,6 +42,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:clone-to-new',
       'sessions:dismiss-interrupted-run',
       'sessions:delete',
+      'sessions:begin-project-removal',
       'sessions:archive',
       'sessions:unarchive',
       'sessions:update-title',

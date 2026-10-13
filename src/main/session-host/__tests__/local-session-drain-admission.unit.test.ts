@@ -108,9 +108,11 @@ describe('commands a draining Session Host still accepts', () => {
         requireFresh: true,
         waitTimeoutMs: 60_000,
       }),
-      hostUi('mcp:list-capabilities', [undefined]),
       hostUi('agent:get-context-usage', ['s-1']),
       hostUi('providers:get-models', ['/repo']),
+      hostUi('mcp:inspect-server', [{ projectPath: null, name: 'docs' }]),
+      hostUi('mcp:add-server', [{ projectPath: null, name: 'docs', scope: 'global', entry: {} }]),
+      hostUi('mcp:sign-in', [{ projectPath: null, name: 'docs' }]),
       hostUi('agent-definitions:manage', [{ command: { operation: 'refresh-plan' } }]),
       control('message'),
       control('follow-up'),
@@ -150,9 +152,14 @@ describe('commands a draining Session Host still accepts', () => {
       'extensions:list-packages',
       'extensions:list-contributions',
       'mcp:list-secrets',
-      'mcp:list-events',
-      'mcp:list-event-subscriptions',
+      'mcp:get-configuration',
+      // Reads the files and the warm connections' last state; it never connects.
+      'mcp:get-server-statuses',
       'mcp:preview-imports',
+      'mcp:search-registry',
+      'mcp:get-registry-server',
+      // A Session's MCP switch is Session state; reading it touches no server.
+      'mcp:get-session-enabled',
       'docs:discover',
       'skills:list',
       'skills:get-preview',
@@ -163,9 +170,12 @@ describe('commands a draining Session Host still accepts', () => {
       'git:session:verify-working-path',
     ])
     const refused = new Set<HostBackedGuiChannel>([
-      'mcp:list-capabilities',
       'agent:get-context-usage',
+      // Builds a Pi session over the Session's file to read its extensions' commands.
+      'agent:list-extension-commands',
       'providers:get-models',
+      // Lists an App server's resources and prompts over a pooled connection, opening one.
+      'mcp:list-app-catalog',
     ])
 
     expect(new Set([...admitted, ...refused])).toEqual(READ_ONLY_HOST_UI_CHANNELS)
@@ -194,9 +204,5 @@ describe('commands a draining Session Host still accepts', () => {
         true,
       ])
     }
-    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', []))).toBe(true)
-    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', [{ reconcileRuntime: true }]))).toBe(
-      false,
-    )
   })
 })

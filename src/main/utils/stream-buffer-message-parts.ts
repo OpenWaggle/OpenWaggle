@@ -65,6 +65,9 @@ export function upsertToolCallPart(input: {
       name: toolName,
       args: jsonObjectOrEmpty(input.args),
       state: 'input-complete',
+      ...(existingPart?.type === 'tool-call' && existingPart.toolCall.nestedCalls
+        ? { nestedCalls: existingPart.toolCall.nestedCalls }
+        : {}),
     },
   }
   if (index === -1) return [...input.parts, toolCallPart]

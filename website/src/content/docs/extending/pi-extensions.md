@@ -21,6 +21,8 @@ OpenWaggle supplies project resource roots to Pi in this order:
 
 OpenWaggle supplies roots for skills, extensions, prompts, and themes in that order. Enabled OpenWaggle packages can insert declared Pi resource roots before `.pi`. The managed `.openwaggle/extensions` package directory is not blindly loaded as executable Pi code: package eligibility controls which packages and declared roots reach Pi. Pi applies its own loading and conflict rules to the supplied resources. OpenWaggle packages have their own manifest and trust lifecycle; use [Install extensions](/docs/extending/plugins) for that workflow.
 
+Commands a Pi extension registers, and Pi's own `/mcp`, are listed under **Pi extensions** when you type `/` in the composer, in a session or in a new session for a project.
+
 Pi terminal UI renderers do not run as desktop UI. Standard interactions have OpenWaggle fallbacks, while custom interactions need a matching desktop renderer. See [Interaction primitives](/docs/extending/openwaggle-extensions#interaction-primitives).
 
 For custom provider registration, see Pi's [`pi.registerProvider()` reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).
@@ -35,6 +37,10 @@ New tools should use Pi extension APIs rather than a second tool execution syste
 
 You do not need a Pi extension to connect an MCP server. Configure it through [MCP settings](/docs/configuration/mcp).
 
-OpenWaggle owns MCP configuration, trust, authentication, and server lifecycle. An internal extension exposes its compact `mcp` gateway and optional direct tools to Pi; users do not install a separate MCP adapter package into Pi settings.
+OpenWaggle loads Pi's built-in MCP, codemode, and tool-search extensions into every session, so MCP works as it does in the `pi` command. An extension that registers its own `/mcp` command, such as `pi-mcp-adapter`, replaces Pi's built-in MCP in Pi; OpenWaggle does not load `pi-mcp-adapter`, because the built-in support already covers it.
 
-For app development, keep MCP protocol behavior in `src/main/adapters/mcp/`. Pi-facing code belongs in `src/main/adapters/pi/` and consumes the OpenWaggle MCP port instead of owning server lifecycle or configuration.
+In the same way, OpenWaggle does not load an installed `@openwaggle/pi-waggle` package, because OpenWaggle provides Waggle itself; the `pi` command still loads it.
+
+Extensions can still add servers for a session with `pi.registerMcpServer()`, as in Pi.
+
+For app development, keep transports, configuration files, and sign-in storage in `src/main/adapters/mcp/`, and the code that loads Pi's extensions in `src/main/adapters/pi/`.

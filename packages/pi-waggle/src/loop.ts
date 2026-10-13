@@ -8,6 +8,10 @@ import type {
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core'
 import { decideNextWaggleTurn, getWaggleTurn } from '@openwaggle/waggle-core'
 
+import { onPiWaggleSettledAgentEnd } from './settled-run.js'
+
+export { onPiWaggleSettledAgentEnd }
+
 const INITIAL_TURN_NUMBER = 0
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1
@@ -63,6 +67,10 @@ export interface PiWaggleExtensionInput<TMeta> {
     input: PiWaggleResolveTurnModelInput<TMeta>,
   ) => PiWaggleModel | Promise<PiWaggleModel>
   readonly startNextTurn?: (input: PiWaggleStartNextTurnInput<TMeta>) => void | Promise<void>
+  /**
+   * Checked just before the default scheduler starts the next turn; false ends the Waggle there,
+   * as when the host's Stop is pressed between turns.
+   */
   readonly canStartNextTurn?: () => boolean
   readonly onActiveTurnChange?: (meta: TMeta) => void
   readonly onTurnStart?: (meta: TMeta) => void
@@ -99,6 +107,8 @@ export interface PiWaggleExtensionApi extends PiWaggleLoopApi {
 export interface PiWaggleExtensionController {
   readonly factory: ExtensionFactory
   readonly done: Promise<void>
+  /** Ends the loop with `error`, such as a turn the host could not start. */
+  readonly fail: (error: unknown) => void
 }
 
 function createDeferred() {
@@ -158,7 +168,10 @@ function scheduleDefaultNextTurn<TMeta>(input: {
   readonly message: PiWaggleCustomMessage
 }) {
   setTimeout(() => {
+    // Stopped in the gap between turns: no Pi run is active, so nothing settles as aborted and the
+    // Waggle ends here, or its completion would never settle.
     if (input.loop.canStartNextTurn && !input.loop.canStartNextTurn()) {
+      input.loop.onComplete()
       return
     }
 
@@ -298,15 +311,28 @@ export function createPiWaggleExtension<TMeta>(
 
   return {
     done: completion.promise,
+    fail: completion.reject,
     factory: (pi) => {
+      // Once the Waggle ends (it completes, is stopped between turns, or the user aborts its run),
+      // no later run is one of its turns.
+      let ended = false
+      const end = () => {
+        ended = true
+        completion.resolve()
+      }
       registerPiWaggleLoop(
         {
           ...input,
-          onComplete: completion.resolve,
+          onComplete: end,
           onError: completion.reject,
         },
         {
-          onAgentEnd: (handler) => pi.on('agent_end', handler),
+          onAgentEnd: (handler) =>
+            onPiWaggleSettledAgentEnd(
+              pi,
+              (event, ctx) => (ended ? undefined : handler(event, ctx)),
+              { onAborted: end },
+            ),
           sendMessage: (message, options) => pi.sendMessage(message, options),
           setModel: (model) => pi.setModel(model),
         },

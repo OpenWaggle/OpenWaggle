@@ -37,6 +37,7 @@ Convenience entry point for Pi-native Waggle integration.
 | `latestPiWaggleModeStateFromEntries` | function |
 | `loadPiWagglePresetLayers` | function |
 | `mergePiWagglePresetLayers` | function |
+| `onPiWaggleSettledAgentEnd` | re-export |
 | `parsePiWaggleCommandArgs` | function |
 | `parsePiWaggleModeState` | function |
 | `parsePiWaggleTurnDetails` | function |
@@ -75,6 +76,7 @@ Convenience entry point for Pi-native Waggle integration.
 | `PiWaggleTurnMessageInput` | interface |
 | `PiWaggleTurnMetadataInput` | interface |
 | `PiWaggleTurnSummary` | interface |
+| `PiWaggleTurnSummaryOptions` | interface |
 | `presetScopeLabel` | function |
 | `readPiWagglePresetsFile` | function |
 | `readPiWagglePresetsFileData` | function |
@@ -108,6 +110,7 @@ Default Pi extension entry point and advanced loop exports.
 | `createPiWaggleTurnCompletionHandlers` | function |
 | `createPiWaggleTurnEndHandler` | function |
 | `default` | default export |
+| `onPiWaggleSettledAgentEnd` | re-export |
 | `PiWaggleAgentEndHandler` | type |
 | `PiWaggleCustomMessage` | type |
 | `PiWaggleExtensionApi` | interface |
@@ -138,6 +141,7 @@ Composable Pi agent-loop hooks and controllers.
 | `createPiWaggleLoopHandler` | function |
 | `createPiWaggleTurnCompletionHandlers` | function |
 | `createPiWaggleTurnEndHandler` | function |
+| `onPiWaggleSettledAgentEnd` | re-export |
 | `PiWaggleAgentEndHandler` | type |
 | `PiWaggleCustomMessage` | type |
 | `PiWaggleExtensionApi` | interface |
@@ -243,4 +247,5 @@ Pi stop-policy integration.
 | `PiWaggleStopPolicyDecision` | interface |
 | `PiWaggleStopPolicyState` | interface |
 | `PiWaggleTurnSummary` | interface |
+| `PiWaggleTurnSummaryOptions` | interface |
 | `summarizePiWaggleTurnMessages` | function |

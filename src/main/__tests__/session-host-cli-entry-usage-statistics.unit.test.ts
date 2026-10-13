@@ -32,6 +32,8 @@ vi.mock('electron', () => ({
     getVersion: () => '1.2.0',
     whenReady: async () => undefined,
     setActivationPolicy: () => undefined,
+    on: () => undefined,
+    off: () => undefined,
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
@@ -88,6 +90,7 @@ vi.mock('../runtime', () => ({
   disposeAppRuntime: mocks.disposeRuntime,
   runAppEffect: () => undefined,
   startSessionHostOwnedServices: () => undefined,
+  startSessionHostServicesAfterListening: () => undefined,
   stopSessionHostOwnedServices: () => undefined,
 }))
 vi.mock('../store/settings', () => ({ initializeSettingsStore: mocks.initializeSettings }))

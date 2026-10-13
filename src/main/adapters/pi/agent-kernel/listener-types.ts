@@ -2,14 +2,19 @@ import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { PiEntryNodeIds } from './pi-entry-node-ids'
 import type { PiUserMessageEntrySource } from './user-message-events'
 
 export interface SessionListenerInput {
   readonly model: SupportedModelId
   readonly getContextWindow?: (provider: string, modelId: string) => number | undefined
+  /** Whether the Run's selection is a virtual model, whose router picks the answering model. */
+  readonly isVirtualSelection?: () => boolean
   readonly onEvent: (event: AgentTransportEvent) => void
   /** The Run's Session log; null where no user message can arrive, such as manual compaction. */
   readonly sessionEntries: PiUserMessageEntrySource | null
+  /** Maps Pi entry ids reported to the transport to the Session's node ids (ADR 0051). */
+  readonly nodeIds?: PiEntryNodeIds
 }
 
 export interface SessionListenerState {

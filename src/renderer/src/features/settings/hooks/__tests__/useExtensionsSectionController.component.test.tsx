@@ -182,11 +182,12 @@ describe('useExtensionsSectionController', () => {
     expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH)
     expect(apiMock.getSettings).not.toHaveBeenCalled()
     expect(useProviderStore.getState().providerModels).toEqual(EXTENSION_PROVIDER_MODELS)
+    // The project's catalog no longer lists the old model: it stays enabled, hidden, but this
+    // project cannot run it, so its selection moves.
     expect(apiMock.updateSettings).toHaveBeenCalledWith({
-      enabledModels: [],
       selectedModel: DEFAULT_SETTINGS.selectedModel,
     })
-    expect(usePreferencesStore.getState().settings.enabledModels).toEqual([])
+    expect(usePreferencesStore.getState().settings.enabledModels).toEqual([OLD_MODEL])
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(
       DEFAULT_SETTINGS.selectedModel,
     )

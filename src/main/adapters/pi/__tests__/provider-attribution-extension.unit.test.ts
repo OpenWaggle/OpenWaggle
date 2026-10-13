@@ -34,7 +34,7 @@ function isHeaders(value: unknown): value is Headers {
   )
 }
 
-/** The headers Pi 0.87.1 attaches with install telemetry on, from Pi's own module. */
+/** The headers Pi 1.2.0 attaches with install telemetry on, from Pi's own module. */
 async function piAttributedHeaders(model: (typeof MODELS)[keyof typeof MODELS]) {
   const piModule: unknown = await import(pathToFileURL(PI_PROVIDER_ATTRIBUTION_MODULE).href)
   const merge: unknown =

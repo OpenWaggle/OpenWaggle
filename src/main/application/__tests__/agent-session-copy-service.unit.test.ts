@@ -93,6 +93,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: () => Effect.fail(new Error('run is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compact is not used')),
   navigateTree: () => Effect.fail(new Error('navigateTree is not used')),
   forkSession: (input) =>
@@ -234,6 +235,8 @@ describe('agent session copy commands', () => {
       piSessionFile: '/tmp/pi-session-forked.jsonl',
       // Inherited from the source session, so the fork keeps its isolation.
       environmentMode: 'worktree',
+      // And its MCP switch: a fork of a Session with MCP off starts with MCP off.
+      copyMcpSwitchFrom: 'session-1',
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('pi-session-forked'),

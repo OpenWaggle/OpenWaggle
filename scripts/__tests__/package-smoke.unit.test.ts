@@ -47,6 +47,7 @@ describe('package smoke tarball assertions', () => {
     const manifest = createSmokePackageJson(
       [{ name: '@openwaggle/extension-sdk', tarballPath: '/tmp/extension-sdk.tgz' }],
       [
+        { name: '@earendil-works/pi-ai', version: '1.0.0' },
         { name: '@earendil-works/pi-coding-agent', version: '1.0.0' },
         { name: '@earendil-works/pi-tui', version: '1.0.0' },
         { name: '@types/node', version: '24.0.0' },
@@ -62,6 +63,8 @@ describe('package smoke tarball assertions', () => {
 
     expect(manifest.dependencies).toMatchObject({
       '@openwaggle/extension-sdk': 'file:/tmp/extension-sdk.tgz',
+      // pi-waggle's Pi peers are pinned too, so a Pi release mid-publish cannot break the smoke.
+      '@earendil-works/pi-ai': '1.0.0',
       react: '19.0.0',
     })
     expect(manifest.devDependencies).toMatchObject({

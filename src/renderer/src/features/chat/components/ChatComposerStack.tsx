@@ -6,15 +6,19 @@ import type {
 import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
+import { useChatStore } from '@/features/chat/state'
+import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { BranchSummaryPrompt, Composer, QueuedMessages } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
+import { useComposerStore } from '@/features/composer/state'
 import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { projectName } from '@/shared/lib/format'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import { getTimelineCompactionStatus, isCompactionRunning } from '../lib/compaction-lifecycle'
+import { sessionImageSendFailureDisposition } from '../lib/session-image-send-failure'
 import type { ChatComposerSectionState } from '../model'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
@@ -65,6 +69,19 @@ function canSteerQueuedMessages(section: ChatComposerSectionState) {
 function projectDisplayName(projectPath: string | null) {
   if (!projectPath) return null
   return projectName(projectPath)
+}
+
+/** What a failed send leaves in the composer: its text back, unless it reached the agent. */
+function sendFailureDisposition(cause: unknown, activeSessionId: SessionId | null) {
+  return sessionImageSendFailureDisposition({
+    cause,
+    activeSessionId,
+    activeDraftContextKey: useComposerStore.getState().activeDraftContextKey,
+    savedDraftContextKeys: Object.keys(useComposerStore.getState().scopedDrafts),
+    disposedSessions: useChatStore.getState().missingSessionIds,
+    hasWorktreeLaunch: (sessionId) =>
+      useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) !== null,
+  })
 }
 
 function branchSummaryComposerMode(
@@ -280,6 +297,7 @@ export function ChatComposerStack({
                 section.sessionDetailPending || !draftContextReady,
               ),
               queuedMessagesSessionId: activeSessionId,
+              onSendFailure: (cause) => sendFailureDisposition(cause, activeSessionId),
             }}
             onToast={onToast}
           />

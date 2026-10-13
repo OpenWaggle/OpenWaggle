@@ -15,7 +15,13 @@ import type {
 } from '@shared/types/browser-preview-controls'
 import type { BrowserProfile } from '@shared/types/browser-profile'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { BrowserLinkTarget, DiffSyntaxTheme, DiffView, Settings } from '@shared/types/settings'
+import type {
+  BrowserLinkTarget,
+  DiffSyntaxTheme,
+  DiffView,
+  PiCacheWarmingMode,
+  Settings,
+} from '@shared/types/settings'
 import type { ShortcutBinding, ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
 import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/syntax'
 import type { UpdateChannel } from '@shared/types/update-channel'
@@ -58,6 +64,8 @@ export interface PreferencesState {
   setBrowserAutoShowFloatingPreview: (enabled: boolean) => Promise<void>
   setEnableAgentBrowserAccess: (enabled: boolean) => Promise<void>
   setCompactionThresholdPercent: (percent: number) => Promise<void>
+  setCodemodeEnabled: (enabled: boolean) => Promise<void>
+  setCacheWarming: (mode: PiCacheWarmingMode) => Promise<void>
   setSessionTitleModel: (model: SessionTitleModelSetting) => Promise<void>
   setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
   setAppearanceTerminalPalette: (

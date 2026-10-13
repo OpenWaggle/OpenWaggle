@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
+import { missingPackagedPiAssets } from './electron-builder-pi-assets'
 
 const execFile = promisify(execFileCallback)
 
@@ -196,6 +197,13 @@ function assertAsarEntries(header: AsarNode) {
   }
 }
 
+function assertPiPackageAssets(header: AsarNode) {
+  const missing = missingPackagedPiAssets(collectAsarEntries(header))
+  if (missing.length > 0) {
+    throw new Error(`Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`)
+  }
+}
+
 async function assertRequiredFiles(rootPath: string, relativeFiles: readonly string[]) {
   const missingFiles: string[] = []
 
@@ -262,6 +270,7 @@ async function smokePackagedApp(appPath: string) {
 
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
+  assertPiPackageAssets(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
   await assertRequiredFiles(

@@ -9,7 +9,11 @@ import {
   getSessionDetail,
   persistSessionSnapshot,
 } from '../../../../store/session-details'
-import { createSessionManagerForSession } from '../session-manager'
+import { archiveSessionBranch, getSessionTree } from '../../../../store/sessions'
+import {
+  createReadOnlySessionManagerForSession,
+  createSessionManagerForSession,
+} from '../session-manager'
 import { projectPiSessionSnapshot } from '../session-projection'
 
 const { state, getPathMock } = vi.hoisted(() => ({
@@ -143,5 +147,93 @@ describe('Pi session resume position', () => {
     const reopened = createSessionManagerForSession(detail, projectPath)
 
     expect(reopened.getLeafId()).toBe(unseen)
+  })
+
+  it('continues main after a warming refresh and archiving the branch the Run was on', async () => {
+    // A Run on branch B, written last, so the Pi file and the projection both sit on B.
+    const pi = SessionManager.create(projectPath, projectPath)
+    pi.appendModelChange('provider', 'model')
+    const forkPoint = appendTurn(pi, 'first', 1)
+    const mainHead = appendTurn(pi, 'main', 10)
+    pi.branch(forkPoint)
+    appendTurn(pi, 'on branch B', 20)
+    const piSessionFile = pi.getSessionFile() ?? ''
+    const session = await createSession({
+      projectPath,
+      piSessionId: pi.getSessionId(),
+      piSessionFile,
+    })
+    const sessionId = SessionId(String(session.id))
+    const snapshot = projectPiSessionSnapshot({ sessionManager: pi })
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: pi.getSessionId(),
+      piSessionFile,
+      activeNodeId: snapshot.activeNodeId,
+      nodes: snapshot.nodes,
+    })
+    // The warming session records a refresh, which the projection deliberately leaves out.
+    SessionManager.open(piSessionFile, undefined, projectPath).appendUsage(
+      'cache_warm',
+      'provider',
+      'model',
+      USAGE,
+    )
+    // Archiving B moves the selection to main without a Pi operation.
+    const branchB = (await getSessionTree(sessionId))?.branches.find((branch) => !branch.isMain)
+    if (!branchB) throw new Error('Branch B is missing')
+    await archiveSessionBranch(sessionId, branchB.id)
+    const detail = await getSessionDetail(sessionId)
+    if (!detail) throw new Error('Session detail is missing')
+
+    const readOnly = await createReadOnlySessionManagerForSession(detail, projectPath)
+    const reopened = createSessionManagerForSession(detail, projectPath)
+    const next = reopened.appendMessage({ role: 'user', content: 'next', timestamp: 30 })
+
+    expect(reopened.getEntry(next)?.parentId).toBe(mainHead)
+    expect(readOnly.getLeafId()).toBe(mainHead)
+  })
+
+  it('continues after a warming refresh on the same branch without leaving a second branch', async () => {
+    const pi = SessionManager.create(projectPath, projectPath)
+    pi.appendModelChange('provider', 'model')
+    const head = appendTurn(pi, 'first', 1)
+    const piSessionFile = pi.getSessionFile() ?? ''
+    const session = await createSession({
+      projectPath,
+      piSessionId: pi.getSessionId(),
+      piSessionFile,
+    })
+    const sessionId = SessionId(String(session.id))
+    const persistFrom = async (manager: SessionManager) => {
+      const snapshot = projectPiSessionSnapshot({ sessionManager: manager })
+      await persistSessionSnapshot({
+        sessionId,
+        piSessionId: pi.getSessionId(),
+        piSessionFile,
+        activeNodeId: snapshot.activeNodeId,
+        nodes: snapshot.nodes,
+      })
+    }
+    await persistFrom(pi)
+    // The warming session records a refresh after the Run, parented on the head.
+    const refresh = SessionManager.open(piSessionFile, undefined, projectPath).appendUsage(
+      'cache_warm',
+      'provider',
+      'model',
+      USAGE,
+    )
+    const detail = await getSessionDetail(sessionId)
+    if (!detail) throw new Error('Session detail is missing')
+    expect(detail.resumePosition?.nodeId).toBe(head)
+
+    // The next Run on the same branch.
+    const reopened = createSessionManagerForSession(detail, projectPath)
+    const next = reopened.appendMessage({ role: 'user', content: 'next', timestamp: 30 })
+    await persistFrom(reopened)
+
+    expect(reopened.getEntry(next)?.parentId).toBe(refresh.id)
+    const tree = await getSessionTree(sessionId)
+    expect(tree?.branches.filter((branch) => !branch.archived)).toHaveLength(1)
   })
 })

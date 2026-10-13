@@ -10,13 +10,16 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import {
+  applyPiPackageDirectoryTo,
+  withShellPiPackageDirectory,
+} from './pi-package-directory-environment'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
     Schema.filter((value) => {
       try {
-        // URL constructor normalizes and validates the shape for us.
-        new URL(value)
+        new URL(value) // Throws unless the value is a valid URL.
         return true
       } catch {
         return 'Must be a valid URL.'
@@ -31,6 +34,7 @@ const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: Schema.optional(Schema.String), // Hidden QA Pi fixtures
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
@@ -61,11 +65,10 @@ export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
 
 /**
- * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or an agent
- * running `pnpm dev`) inherits that Session's scratch directory as TMPDIR, TMP, and TEMP.
- * Its own temp files, including a nested Host's caches, belong in the Host temp directory, which
- * the agent environment preserves in OPENWAGGLE_HOST_TMPDIR; archiving the Session would
- * otherwise delete them under the running process.
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `pnpm dev`)
+ * inherits that Session's scratch directory as TMPDIR, TMP, and TEMP. Its own temp files belong in
+ * the Host temp directory the agent environment keeps in OPENWAGGLE_HOST_TMPDIR, or archiving the
+ * Session would delete them under the running process.
  */
 export function restoreHostTemporaryDirectory(
   environment: NodeJS.ProcessEnv = process.env,
@@ -96,6 +99,10 @@ function userLoginShell() {
   }
 }
 
+/** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
+export const applyPiPackageDirectory = (directory?: string) =>
+  applyPiPackageDirectoryTo(directory, process.env)
+
 /** Hydrate GUI-launch gaps once before terminal/runtime services start. */
 export function installDesktopShellEnvironment(): Promise<void> {
   desktopShellEnvironmentPromise ??= hydrateDesktopShellEnvironment({
@@ -108,11 +115,8 @@ export function installDesktopShellEnvironment(): Promise<void> {
   return desktopShellEnvironmentPromise
 }
 
-/**
- * Safe environment for child processes.
- * Only passes through essential variables — prevents leaking API keys,
- * secrets, or other sensitive values from the parent process.
- */
+/** Safe environment for child processes: essential variables only, so no API key or other
+ * secret of the parent process leaks. */
 export function getSafeChildEnv(): Record<string, string | undefined> {
   return {
     PATH: getNpmCompatiblePath(),
@@ -137,14 +141,13 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
 }
 
 /**
- * Detached Session Hosts are the user's durable Pi runtime and therefore need
- * provider/custom-provider credentials plus shell agent state. Strip only
- * client-scoped OpenWaggle credentials and Electron execution switches that
- * must never become daemon authority.
+ * Detached Session Hosts are the user's durable Pi runtime and need provider credentials and shell
+ * agent state. Strip only client-scoped OpenWaggle credentials and Electron execution switches,
+ * which must never become daemon authority.
  */
 export function getSessionHostChildEnv(): Record<string, string | undefined> {
   const childEnvironment: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...withShellPiPackageDirectory(process.env),
     PATH: getNpmCompatiblePath(),
   }
   delete childEnvironment.ELECTRON_RUN_AS_NODE
@@ -210,7 +213,7 @@ export function getInteractiveTerminalEnv(
     inherited[key] = value
   }
 
-  const terminalEnv = stripAppImageRuntimeEnv(inherited)
+  const terminalEnv = stripAppImageRuntimeEnv(withShellPiPackageDirectory(inherited))
   setEnvironmentValue(
     terminalEnv,
     'PATH',
@@ -272,14 +275,13 @@ export function readEnvironmentVariables<N extends string>(names: readonly N[]) 
 }
 
 /**
- * The current environment plus explicit overrides, for child git invocations that
- * need extra variables (e.g. `GIT_INDEX_FILE` for a scratch index) while still
- * inheriting PATH/HOME. `env.ts` is the only module allowed to read process.env.
+ * The current environment plus explicit overrides, for child git invocations that need extra
+ * variables (e.g. `GIT_INDEX_FILE`) while still inheriting PATH/HOME. Only `env.ts` reads it.
  */
 export function getEnvWithOverrides(
   overrides: Readonly<Record<string, string>>,
 ): Record<string, string | undefined> {
-  return { ...process.env, ...overrides }
+  return { ...withShellPiPackageDirectory(process.env), ...overrides }
 }
 
 export function getNpmCompatiblePath(): string {

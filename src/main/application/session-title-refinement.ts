@@ -13,6 +13,7 @@ import {
   generateTitle,
   isWithinTitleWorkWindow,
   publishTitleChanged,
+  sessionTitleFallbackModel,
 } from './session-title-generation'
 
 const logger = createLogger('session-title-refinement')
@@ -52,6 +53,7 @@ function refine(sessionId: SessionId) {
     const generated = yield* generateTitle({
       state,
       sessionModel: null,
+      ...sessionTitleFallbackModel(session),
       message: context.message,
       previousTitle: state.title,
       attachments: context.attachments,

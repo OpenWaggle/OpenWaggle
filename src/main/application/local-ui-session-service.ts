@@ -152,10 +152,10 @@ function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEd
       .with('update-tree-ui-state', (update) =>
         updateTreeUiState(sessionRepository, sessionId, update),
       )
-      .with('delete', () =>
+      .with('delete', ({ removingProject }) =>
         withSessionDesktopRemoval(
           sessionId,
-          deleteSessionWithVisualizations(sessionId),
+          deleteSessionWithVisualizations(sessionId, removingProject ? { removingProject } : {}),
           'delete',
         ).pipe(Effect.as({ effect: 'session-deleted' as const })),
       )

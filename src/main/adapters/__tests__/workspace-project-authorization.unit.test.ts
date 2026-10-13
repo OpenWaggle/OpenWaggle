@@ -7,13 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-authorization'
 import { WorkspaceProjectAuthorizationLive } from '../workspace-project-authorization'
 
-const { findRoot, getSettings, listPage } = vi.hoisted(() => ({
+const { findRoot, findWorktreeProject, getSettings, listPage } = vi.hoisted(() => ({
   findRoot: vi.fn(),
+  findWorktreeProject: vi.fn(),
   getSettings: vi.fn(),
   listPage: vi.fn(),
 }))
 vi.mock('../../store/settings', () => ({ getSettings }))
 vi.mock('../../store/session-details/workspace-root-authorization', () => ({
+  findManagedWorktreeProjectPath: findWorktreeProject,
   findSessionWorkspaceRoot: findRoot,
   listSessionWorkspaceRootPage: listPage,
 }))
@@ -93,5 +95,24 @@ describe('owner workspace root authorization', () => {
   it('fails closed when the legacy root page cannot be read', async () => {
     listPage.mockRejectedValue(new Error('database unavailable'))
     await expect(authorize(project)).rejects.toThrow('Unable to verify authorized workspace')
+  })
+
+  it("names a Session's managed worktree by its durable project", async () => {
+    const projectOf = (workspacePath: string) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const authorization = yield* WorkspaceProjectAuthorization
+          return yield* authorization.projectOfWorkspace?.(workspacePath) ?? Effect.die('missing')
+        }).pipe(Effect.provide(WorkspaceProjectAuthorizationLive)),
+      )
+    findWorktreeProject.mockImplementation(async (workingPath: string) =>
+      workingPath === '/worktrees/session' || workingPath === '/opened' ? '/project' : null,
+    )
+    getSettings.mockReturnValue({ ...DEFAULT_SETTINGS, recentProjects: ['/opened'] })
+
+    await expect(projectOf('/worktrees/session')).resolves.toBe('/project')
+    await expect(projectOf('/project')).resolves.toBe('/project')
+    // A worktree the user opened as a project of its own stays that project.
+    await expect(projectOf('/opened')).resolves.toBe('/opened')
   })
 })

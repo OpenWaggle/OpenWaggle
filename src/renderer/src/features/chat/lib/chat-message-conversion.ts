@@ -2,8 +2,16 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessageMetadata, MessagePart } from '@shared/types/agent'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
+import type { NestedToolCalls } from '@shared/types/tools'
 import { formatAttachmentPreview } from './chat-attachment-preview'
 import { makeThinkingStepId } from './chat-stream-state-helpers'
+
+/** Pi's record, or the active Run buffer's record of a call still running, as it is. */
+function nestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
+  return nestedCalls && (nestedCalls.calls.length > 0 || nestedCalls.droppedCalls)
+    ? { nestedCalls }
+    : {}
+}
 
 /**
  * Convert a persisted agent message part into renderer UI parts.
@@ -19,6 +27,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         name: value.toolCall.name,
         arguments: JSON.stringify(value.toolCall.args),
         state: value.toolCall.state ?? 'input-complete',
+        ...nestedCallsToUI(value.toolCall.nestedCalls),
       },
     ])
     .with('tool-result', (value): UIMessage['parts'] => [
@@ -27,6 +36,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         toolCallId: String(value.toolResult.id),
         content: value.toolResult.result,
         state: value.toolResult.isError ? 'error' : 'complete',
+        ...nestedCallsToUI(value.toolResult.nestedCalls),
       },
     ])
     .with('attachment', (value): UIMessage['parts'] => [
@@ -44,17 +54,20 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
     .exhaustive()
 }
 
-function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
-  if (!metadata) return undefined
-  if (
+function hasUIMetadata(metadata: MessageMetadata) {
+  return !(
     metadata.sessionNodeCreatedOrder === undefined &&
     !metadata.durableTextSha256 &&
     !metadata.branchSummary &&
     !metadata.compactionSummary &&
     !metadata.waggleInvocation &&
-    !metadata.visualizationSessionId
+    !metadata.visualizationSessionId &&
+    !metadata.error
   )
-    return undefined
+}
+
+function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
+  if (!metadata || !hasUIMetadata(metadata)) return undefined
   return {
     ...(metadata.sessionNodeCreatedOrder !== undefined
       ? { sessionNodeCreatedOrder: metadata.sessionNodeCreatedOrder }
@@ -66,6 +79,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
     ...(metadata.branchSummary ? { branchSummary: metadata.branchSummary } : {}),
     ...(metadata.compactionSummary ? { compactionSummary: metadata.compactionSummary } : {}),
     ...(metadata.waggleInvocation ? { waggleInvocation: metadata.waggleInvocation } : {}),
+    ...(metadata.error ? { error: metadata.error } : {}),
   }
 }
 

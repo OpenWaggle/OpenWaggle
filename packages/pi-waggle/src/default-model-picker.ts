@@ -4,6 +4,8 @@ import { singleTerminalLine, truncateTerminalLine } from './terminal-text.js'
 
 const MODEL_PICKER_VISIBLE_ROWS = 10
 const MODEL_PICKER_DETAILS_ROWS = 3
+/** Title, search, rule, the details block, a blank line and the key help. */
+const MODEL_PICKER_CHROME_ROWS = 3 + MODEL_PICKER_DETAILS_ROWS + 2
 const HALF_DIVISOR = 2
 const MODEL_PICKER_OVERLAY_OPTIONS = {
   overlay: true,
@@ -56,7 +58,8 @@ function isBackspace(data: string) {
 }
 
 function printableInput(data: string) {
-  const key = decodeKittyPrintable(data) ?? parseKey(data) ?? data
+  // A plain character is itself; `parseKey` names some of them (a space is "space").
+  const key = decodeKittyPrintable(data) ?? (data.length === 1 ? data : (parseKey(data) ?? data))
   return key.length === 1 && key >= ' ' && key !== '\u007f' ? key : null
 }
 
@@ -65,6 +68,8 @@ export function createModelPickerComponent(input: {
   readonly currentModelReference: string | null
   readonly done: (modelReference: string | undefined) => void
   readonly requestRender: () => void
+  /** Terminal rows, so the picker fits a short screen; Pi's fullscreen TUI clips taller overlays. */
+  readonly availableRows?: () => number
 }) {
   let selectedIndex = 0
   let query = ''
@@ -83,13 +88,19 @@ export function createModelPickerComponent(input: {
     input.requestRender()
   }
 
+  function visibleRows() {
+    const rows = input.availableRows?.() ?? Number.POSITIVE_INFINITY
+    return Math.max(1, Math.min(MODEL_PICKER_VISIBLE_ROWS, rows - MODEL_PICKER_CHROME_ROWS))
+  }
+
   function lines() {
-    const maxStartIndex = Math.max(0, filteredItems.length - MODEL_PICKER_VISIBLE_ROWS)
+    const listRows = visibleRows()
+    const maxStartIndex = Math.max(0, filteredItems.length - listRows)
     const startIndex = Math.max(
       0,
-      Math.min(selectedIndex - Math.floor(MODEL_PICKER_VISIBLE_ROWS / HALF_DIVISOR), maxStartIndex),
+      Math.min(selectedIndex - Math.floor(listRows / HALF_DIVISOR), maxStartIndex),
     )
-    const visibleItems = filteredItems.slice(startIndex, startIndex + MODEL_PICKER_VISIBLE_ROWS)
+    const visibleItems = filteredItems.slice(startIndex, startIndex + listRows)
     const rendered = [
       'Select Waggle agent model',
       `Search: ${query}`,
@@ -103,7 +114,7 @@ export function createModelPickerComponent(input: {
       return `${selectedPrefix} ${item.id} [${item.provider}]${currentMarker}`
     })
     if (filteredItems.length === 0) renderedItems.push('  No matching models')
-    while (renderedItems.length < MODEL_PICKER_VISIBLE_ROWS) renderedItems.push('')
+    while (renderedItems.length < listRows) renderedItems.push('')
     rendered.push(...renderedItems)
 
     const current = filteredItems[selectedIndex]
@@ -167,6 +178,7 @@ export async function selectConcreteModelReference(input: {
           currentModelReference: input.currentModelReference,
           done,
           requestRender: () => tui.requestRender(),
+          availableRows: () => tui.terminal.rows,
         }),
       MODEL_PICKER_OVERLAY_OPTIONS,
     )

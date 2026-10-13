@@ -1,8 +1,10 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { Settings } from '@shared/types/settings'
+import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { registerAgentLoopInteractionDeadline } from '../application/agent-loop-interaction-broker'
+import { prepareSessionForRun } from '../application/pi-session-projection-refresh'
 import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
@@ -36,6 +38,7 @@ import type { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
 import { noteUsageStatisticsRunProjectDefault } from '../usage-statistics/usage-statistics-runs'
 import { startStreamBuffer } from '../utils/stream-bridge'
+import { captureRunContinuationServices } from './session-control-run-continuation-services'
 import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
 import { publishRunStartFailure, terminalRunResult } from './session-control-run-result'
@@ -146,6 +149,12 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
     if (authorityBlock) {
       return yield* Effect.fail(new Error(`Run authority is no longer valid: ${authorityBlock}.`))
     }
+    // A discovered Session nobody opened is projected now, so its profile already holds the model
+    // and thinking level `pi --resume` would continue with; one whose file was deleted is refused
+    // (ADR 0051).
+    yield* prepareSessionForRun(input.sessionId, input.runId, {
+      ...(input.intent.thinkingLevel ? { thinkingLevel: input.intent.thinkingLevel } : {}),
+    })
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(
@@ -255,7 +264,10 @@ function executeRun(input: SessionControlRunExecutionInput) {
 export const SessionControlRunExecutorLive = Layer.effect(
   SessionControlRunExecutor,
   Effect.gen(function* () {
-    const dependencies = yield* Effect.context<RunExecutorDependencies>()
+    const dependencies = Context.merge(
+      yield* Effect.context<RunExecutorDependencies>(),
+      yield* captureRunContinuationServices(),
+    )
     return SessionControlRunExecutor.of({
       execute: (input) => executeRun(input).pipe(Effect.provide(dependencies)),
     })

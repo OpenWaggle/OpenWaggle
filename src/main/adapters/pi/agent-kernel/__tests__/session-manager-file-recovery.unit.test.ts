@@ -62,6 +62,16 @@ function preparedSession(): SessionDetail {
   })
 }
 
+/**
+ * A first run as OpenWaggle ran it before it started the recorded file: in a manager of its own,
+ * whose file Pi names by the time the run started, in the run directory's Pi folder.
+ */
+function earlierFirstRun(session: SessionDetail, cwd: string) {
+  const sessionManager = SessionManager.create(cwd)
+  sessionManager.newSession({ id: session.piSessionId ?? '' })
+  return sessionManager
+}
+
 describe('createSessionManagerForSession file recovery', () => {
   it('reopens the transcript a first run wrote when the recorded file was never written', () => {
     const session = preparedSession()
@@ -69,8 +79,8 @@ describe('createSessionManagerForSession file recovery', () => {
       SessionManager.create(worktreePath).getSessionDir(),
     )
 
-    // The first run of a worktree Session writes its transcript in the worktree's Pi directory.
-    const firstRun = createSessionManagerForSession(session, worktreePath)
+    // An earlier first run of a worktree Session wrote its transcript in the worktree's Pi folder.
+    const firstRun = earlierFirstRun(session, worktreePath)
     const head = appendTurn(firstRun, 'first', 1)
     expect(firstRun.getSessionFile()).not.toBe(session.piSessionFile)
 
@@ -89,7 +99,7 @@ describe('createSessionManagerForSession file recovery', () => {
     const session = preparedSession()
     // Pi names a file by the time its manager was created, so a later run writes another name.
     vi.setSystemTime(new Date('2026-10-04T18:41:34.000Z'))
-    const firstRun = createSessionManagerForSession(session, projectPath)
+    const firstRun = earlierFirstRun(session, projectPath)
     const head = appendTurn(firstRun, 'first', 1)
 
     expect(firstRun.getSessionFile()).not.toBe(session.piSessionFile)
@@ -107,7 +117,7 @@ describe('createSessionManagerForSession file recovery', () => {
       projectPath,
       worktreePath,
     })
-    const firstRun = createSessionManagerForSession(session, worktreePath)
+    const firstRun = earlierFirstRun(session, worktreePath)
     const head = appendTurn(firstRun, 'first', 1)
 
     // Switched to work locally before the first run's snapshot recorded its file.
@@ -122,7 +132,7 @@ describe('createSessionManagerForSession file recovery', () => {
     vi.setSystemTime(new Date('2026-10-04T18:41:20.000Z'))
     const session = preparedSession()
     vi.setSystemTime(new Date('2026-10-04T18:41:34.000Z'))
-    const abandoned = createSessionManagerForSession(session, worktreePath)
+    const abandoned = earlierFirstRun(session, worktreePath)
     appendTurn(abandoned, 'abandoned', 1)
     vi.setSystemTime(new Date('2026-10-04T18:48:47.000Z'))
     const current = SessionManager.create(worktreePath)
@@ -135,6 +145,16 @@ describe('createSessionManagerForSession file recovery', () => {
 
     expect(resumed.getSessionFile()).toBe(current.getSessionFile())
     expect(resumed.getLeafId()).toBe(head)
+  })
+
+  it('starts the recorded file on the first run, so its name stays as recorded', () => {
+    const session = preparedSession()
+
+    const firstRun = createSessionManagerForSession(session, worktreePath)
+    appendTurn(firstRun, 'first', 1)
+
+    expect(firstRun.getSessionFile()).toBe(session.piSessionFile)
+    expect(firstRun.getSessionId()).toBe(session.piSessionId)
   })
 
   it('starts a fresh transcript with the Session Pi id when no file exists', () => {

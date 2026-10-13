@@ -12,6 +12,9 @@ export function startMcpCliIfRequested(argv: readonly string[]) {
   void app
     .whenReady()
     .then(async () => {
+      // This CLI loads Settings and builds Pi runtimes in-process, as the Host does.
+      const { installPiRuntimeIntegration } = await import('./runtime-pi-integration')
+      installPiRuntimeIntegration()
       const { runMcpCli } = await import('./mcp-cli')
       const exitCode = await runMcpCli(argv.slice(1))
       await flushCliOutput()

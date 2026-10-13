@@ -176,4 +176,47 @@ describe('deriveSessionBranchesForSnapshot', () => {
       ]),
     )
   })
+
+  it('does not make a branch of cache refreshes left beside the conversation', () => {
+    // A file where a warming refresh was left as a sibling of the next message (before the fix).
+    const refresh = (id: string, parentId: string, createdOrder: number) => ({
+      ...node(id, parentId, 'custom', createdOrder),
+      piEntryType: 'usage',
+    })
+    const nodes = [
+      node('u1', null, 'user_message', 1, 'First'),
+      node('a1', 'u1', 'assistant_message', 2, 'Answer'),
+      refresh('warm-1', 'a1', 3),
+      refresh('warm-2', 'warm-1', 4),
+      node('u2', 'a1', 'user_message', 5, 'Next'),
+      node('a2', 'u2', 'assistant_message', 6, 'Next answer'),
+    ]
+
+    const derived = deriveSessionBranchesForSnapshot({
+      sessionId: 'session-with-refreshes',
+      nodes,
+      activeNodeId: 'a2',
+      existingBranches: [],
+    })
+
+    expect(derived.branches.map((branch) => branch.headNodeId)).toEqual(['a2'])
+  })
+
+  it('selects the conversation, not a refresh, when the refresh is the Pi leaf', () => {
+    const nodes = [
+      node('u1', null, 'user_message', 1, 'First'),
+      node('a1', 'u1', 'assistant_message', 2, 'Answer'),
+      { ...node('warm-1', 'a1', 'custom', 3), piEntryType: 'usage' },
+    ]
+
+    const derived = deriveSessionBranchesForSnapshot({
+      sessionId: 'session-warming',
+      nodes,
+      activeNodeId: 'warm-1',
+      existingBranches: [],
+    })
+
+    expect(derived.branches.map((branch) => branch.headNodeId)).toEqual(['a1'])
+    expect(derived.activeNodeId).toBe('a1')
+  })
 })

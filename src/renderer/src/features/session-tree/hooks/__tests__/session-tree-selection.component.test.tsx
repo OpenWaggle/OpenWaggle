@@ -142,6 +142,48 @@ describe('useSessionTreeNodeSelection', () => {
     expect(showToast).not.toHaveBeenCalled()
   })
 
+  it('says plainly why a Session whose Pi file cannot be used does not switch branch', async () => {
+    const reason =
+      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before going to another branch in it."
+    selectionMocks.navigateSessionTree.mockRejectedValueOnce(
+      new Error(`Error invoking remote method 'sessions:navigate-tree': Error: ${reason}`),
+    )
+    const showToast = vi.fn()
+    const { result } = renderHook(() =>
+      useSessionTreeNodeSelection({
+        activeWorkspace: workspace(),
+        selectedModel: SupportedModelId('openai/gpt-5.5'),
+        showToast,
+        tree: tree(),
+      }),
+    )
+
+    act(() => result.current.selectNode(ASSISTANT_NODE))
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(reason))
+  })
+
+  it('keeps naming the switch for another branch-switch failure, without transport text', async () => {
+    selectionMocks.navigateSessionTree.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'sessions:navigate-tree': Error: Session is busy"),
+    )
+    const showToast = vi.fn()
+    const { result } = renderHook(() =>
+      useSessionTreeNodeSelection({
+        activeWorkspace: workspace(),
+        selectedModel: SupportedModelId('openai/gpt-5.5'),
+        showToast,
+        tree: tree(),
+      }),
+    )
+
+    act(() => result.current.selectNode(ASSISTANT_NODE))
+
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith('Failed to switch session branch: Session is busy'),
+    )
+  })
+
   it('creates a draft branch from user nodes and moves fallback text into the composer', () => {
     const setDraftBranch = vi.fn((draftBranch) => useSessionStore.setState({ draftBranch }))
     const refreshSessionWorkspace = vi.fn().mockResolvedValue(undefined)

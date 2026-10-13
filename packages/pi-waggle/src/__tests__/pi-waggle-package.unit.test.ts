@@ -180,7 +180,9 @@ describe('pi-waggle package extension', () => {
       expect.objectContaining({ customType: 'pi-waggle.turn', display: true }),
       { triggerTurn: false },
     )
-    expect(harness.sendUserMessage).toHaveBeenCalledWith('Review this migration')
+    expect(harness.sendUserMessage).toHaveBeenCalledWith('Review this migration', {
+      deliverAs: 'followUp',
+    })
     const context = harness.eventHandlers.get('context')
     if (!context) throw new Error('Expected context handler')
     const contextResult = context(
@@ -223,9 +225,10 @@ describe('pi-waggle package extension', () => {
     const harness = createPackageLoadHarness()
     defaultPiWaggleExtension(harness.pi)
     const waggleCommand = harness.commands.get('waggle')
-    const turnEnd = harness.eventHandlers.get('turn_end')
+    const agentEnd = harness.eventHandlers.get('agent_end')
+    const agentSettled = harness.eventHandlers.get('agent_settled')
     if (!waggleCommand) throw new Error('Expected /waggle command to be registered')
-    if (!turnEnd) throw new Error('Expected turn_end handler')
+    if (!agentEnd || !agentSettled) throw new Error('Expected agent_end and agent_settled handlers')
 
     await waggleCommand.handler('code-review Review this migration', harness.ctx)
     harness.sendMessage.mockClear()
@@ -233,18 +236,16 @@ describe('pi-waggle package extension', () => {
 
     vi.useFakeTimers()
     try {
-      await turnEnd(
+      await agentEnd(
         {
-          type: 'turn_end',
-          turnIndex: 0,
-          message: {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'I found one concern.' }],
-          },
-          toolResults: [],
+          type: 'agent_end',
+          messages: [
+            { role: 'assistant', content: [{ type: 'text', text: 'I found one concern.' }] },
+          ],
         },
         harness.ctx,
       )
+      await agentSettled({ type: 'agent_settled', aborted: false }, harness.ctx)
 
       expect(harness.sendUserMessage).not.toHaveBeenCalled()
 
@@ -256,6 +257,7 @@ describe('pi-waggle package extension', () => {
       )
       expect(harness.sendUserMessage).toHaveBeenLastCalledWith(
         'Continue Waggle turn 2 as Reviewer.',
+        { deliverAs: 'followUp' },
       )
     } finally {
       vi.useRealTimers()

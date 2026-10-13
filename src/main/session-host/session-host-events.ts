@@ -1,8 +1,10 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
+import { promptCacheWarming } from '../application/prompt-cache-warming'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
+import { installMcpHostDrainingProbe } from '../mcp-host-draining'
 import {
   keepSessionScratchDirectory,
   removeSessionScratchDirectory,
@@ -45,14 +47,19 @@ function notifySemanticDiscoverySourceObservers() {
   }
 }
 
-/** Scratch files are disposable, so an archived or deleted Session gives its directory up. */
-function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
+/**
+ * Scratch files are disposable, so an archived or deleted Session gives its directory up. An
+ * unarchived Session may warm its prompt cache again (removal hooks stop it on archive).
+ */
+function releaseClosedSessionResources(payload: SessionHostEventPayload) {
   if (payload.kind !== 'session-list-changed') return
   if (payload.change === 'unarchived') {
+    promptCacheWarming().reopenSession(payload.sessionId)
     keepSessionScratchDirectory(payload.sessionId)
     return
   }
   if (payload.change !== 'archived' && payload.change !== 'deleted') return
+  if (payload.change === 'deleted') promptCacheWarming().forgetSession(payload.sessionId)
   void removeSessionScratchDirectory(payload.sessionId).catch((error: unknown) => {
     logger.warn('Could not remove the session scratch directory', {
       sessionId: payload.sessionId,
@@ -62,7 +69,7 @@ function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
 }
 
 function projectHostOwnedRunState(payload: SessionHostEventPayload) {
-  releaseSessionScratchDirectory(payload)
+  releaseClosedSessionResources(payload)
   if (payload.kind === 'session-transport') {
     const sessionId = SessionId(payload.sessionId)
     if (payload.event.type === 'agent_start') {
@@ -128,8 +135,11 @@ export function installSessionHostEventRuntime(input: {
     projectHostOwnedRunState(payload)
     input.eventHub.publish(payload)
   })
+  // MCP reads admitted while draining skip migration work that could hold the drain open.
+  const releaseMcpDrainingProbe = installMcpHostDrainingProbe(() => input.liveness.isDraining())
   return () => {
     releasePublisher()
+    releaseMcpDrainingProbe()
     if (eventRuntime === input) eventRuntime = null
   }
 }

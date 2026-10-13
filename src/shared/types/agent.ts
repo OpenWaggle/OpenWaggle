@@ -155,6 +155,13 @@ export interface MessageMetadata {
   readonly waggleInvocation?: WaggleInvocationMetadata
   readonly branchSummary?: BranchSummaryMetadata
   readonly compactionSummary?: CompactionSummaryMetadata
+  /**
+   * The model the Session selected when this response was made. Under a virtual model it differs
+   * from `Message.model`, the physical model the router sent the request to.
+   */
+  readonly selectedModel?: SupportedModelId
+  /** The provider error this response ended with (Pi's `errorMessage` of a failed response). */
+  readonly error?: string
 }
 
 export interface Message {

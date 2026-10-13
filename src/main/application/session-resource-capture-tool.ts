@@ -4,13 +4,8 @@ import type { SessionId } from '@shared/types/brand'
 import type { ToolCallResult } from '@shared/types/tools'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { capturedToolOutput } from './session-resource-capture-gateway'
 import { captureMetadataResource } from './session-resource-capture-metadata'
 import { occurrenceId, sha256 } from './session-resource-capture-shared'
-import {
-  type CapturedToolOutputGroup,
-  capturedOrchestrationTools,
-} from './session-resource-capture-tool-output'
 import { collectExplicitResources } from './session-resource-extraction'
 
 const MAX_WEB_SEARCHES_PER_TOOL = 32
@@ -62,61 +57,26 @@ interface ToolMetadataCaptureInput {
   readonly createdAt: number
 }
 
-function gatewayToolIdentity(value: unknown): CapturedToolIdentity | null {
-  if (!isRecord(value)) return null
-  const gatewayDetails = value.kind === 'gateway' ? value : value.details
-  if (!isRecord(gatewayDetails) || gatewayDetails.kind !== 'gateway') return null
-  const gatewayResult = gatewayDetails.result
-  if (!isRecord(gatewayResult) || !isRecord(gatewayResult.attribution)) return null
-  const { serverInstanceId, serverLabel, toolName } = gatewayResult.attribution
-  if (
-    typeof serverInstanceId !== 'string' ||
-    typeof serverLabel !== 'string' ||
-    typeof toolName !== 'string'
-  ) {
-    return null
-  }
-  const normalizedServerId = serverInstanceId.trim()
-  const normalizedServerLabel = serverLabel.trim()
-  const normalizedToolName = toolName.trim()
-  if (!normalizedServerId || !normalizedServerLabel || !normalizedToolName) return null
-  return {
-    canonicalKey: `tool:${normalizedServerId}:${normalizedToolName}`,
-    title: `${normalizedToolName} · ${normalizedServerLabel}`,
-  }
+export interface CapturedToolOutputGroup {
+  readonly label: string
+  readonly result: unknown
 }
 
-function capturedToolIdentity(input: {
-  readonly name: string
-  readonly result: unknown
-  readonly details?: unknown
-}) {
-  return (
-    gatewayToolIdentity(input.details) ??
-    gatewayToolIdentity(input.result) ?? {
-      canonicalKey: `tool:${input.name}`,
-      title: input.name,
-    }
-  )
+function capturedToolIdentity(name: string): CapturedToolIdentity {
+  return { canonicalKey: `tool:${name}`, title: name }
 }
 
 export function toolResultResourceLabel(toolResult: ToolCallResult) {
   const name = toolResult.name.trim()
   if (!name || toolResult.isError) return null
-  return capturedToolIdentity({
-    name,
-    result: toolResult.result,
-    details: toolResult.details,
-  }).title
+  return capturedToolIdentity(name).title
 }
 
 export function toolResultOutputGroups(
   toolResult: ToolCallResult,
 ): readonly CapturedToolOutputGroup[] {
-  const children = capturedOrchestrationTools(toolResult)
-  if (children.length > 0) return children
   const label = toolResultResourceLabel(toolResult)
-  return label ? [{ label, result: capturedToolOutput(toolResult) }] : []
+  return label ? [{ label, result: toolResult.result }] : []
 }
 
 export function toolResultOccurrenceId(input: {
@@ -132,23 +92,15 @@ export function toolResultOccurrenceId(input: {
 }
 
 /**
- * Occurrences that prove a tool result's useful metadata reached durable storage.
- * Failed orchestrations intentionally omit the failed wrapper, so their completed
- * children are the durable completion record used by resumable backfill.
+ * Occurrences that prove a tool result's useful metadata reached durable storage. A failed tool
+ * records nothing, so it has no completion record for resumable backfill.
  */
 export function toolResultCompletionOccurrenceIds(input: {
   readonly sessionId: SessionId
   readonly nodeId: string
   readonly toolResult: ToolCallResult
 }) {
-  if (!input.toolResult.isError) return [toolResultOccurrenceId(input)]
-  return capturedOrchestrationTools(input.toolResult).map((child) =>
-    occurrenceId({
-      sessionId: input.sessionId,
-      nodeId: input.nodeId,
-      suffix: child.occurrenceKey,
-    }),
-  )
+  return input.toolResult.isError ? [] : [toolResultOccurrenceId(input)]
 }
 
 function fileToolActivity(toolName: string) {
@@ -279,40 +231,15 @@ export function captureToolResultMetadata(input: ToolMetadataCaptureInput) {
   return Effect.gen(function* () {
     const toolName = input.toolResult.name.trim()
     if (!toolName) return
-    const children = capturedOrchestrationTools(input.toolResult)
-    if (input.toolResult.isError && children.length === 0) return
-    if (!input.toolResult.isError) {
-      const identity = capturedToolIdentity({
-        name: toolName,
-        result: input.toolResult.result,
-        details: input.toolResult.details,
-      })
-      yield* captureToolIdentityMetadata(
-        input,
-        identity,
-        `read:tool:${String(input.toolResult.id)}`,
-      )
-      yield* captureWebSearches(input, toolName)
-    }
-    for (const child of children) {
-      yield* captureToolIdentityMetadata(
-        input,
-        { canonicalKey: child.canonicalKey, title: child.label },
-        child.occurrenceKey,
-      )
-      yield* captureExplicitSites(input, child, child.occurrenceKey.replace(/^read:tool:/u, ''))
-    }
-    if (children.length === 0 && !input.toolResult.isError) {
-      const label = toolResultResourceLabel(input.toolResult)
-      if (label) {
-        yield* captureExplicitSites(
-          input,
-          { label, result: input.toolResult.result },
-          String(input.toolResult.id),
-        )
-      }
-    }
     if (input.toolResult.isError) return
+    const identity = capturedToolIdentity(toolName)
+    yield* captureToolIdentityMetadata(input, identity, `read:tool:${String(input.toolResult.id)}`)
+    yield* captureWebSearches(input, toolName)
+    yield* captureExplicitSites(
+      input,
+      { label: identity.title, result: input.toolResult.result },
+      String(input.toolResult.id),
+    )
     yield* captureFileResource(input, toolName)
   })
 }

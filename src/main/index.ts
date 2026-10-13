@@ -3,6 +3,7 @@ import { join } from 'node:path'
 // Must be first: renames dev builds before any module reads app userData.
 import './apply-build-identity'
 import './restore-host-temporary-directory' // before any module caches a temp path
+import './apply-pi-package-directory' // before any Pi module reads its package.json
 import { electronApp, is } from '@electron-toolkit/utils'
 import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
 import { app } from 'electron'

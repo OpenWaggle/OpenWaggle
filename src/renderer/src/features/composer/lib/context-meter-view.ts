@@ -1,5 +1,6 @@
-import type { ContextUsageSnapshot } from '@shared/types/context-usage'
+import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import { formatUsd } from '@/shared/lib/format'
 import { formatTokens } from '@/shared/lib/format-tokens'
 import { CONTEXT_METER } from '../constants/context-meter'
 
@@ -8,7 +9,10 @@ interface UsageTitleInput {
   readonly contextWindow: number | null
   readonly percent: number | null
   readonly failed: boolean
+  readonly session: SessionUsageSummary | undefined
 }
+
+const SESSION_USAGE_UNATTRIBUTED_LABEL = 'Tools and summaries'
 
 interface ContextMeterValueInput {
   readonly snapshot: ContextUsageSnapshot | null
@@ -56,7 +60,7 @@ export function buildContextMeterValue({
         CONTEXT_METER.GEOMETRY.CIRCUMFERENCE,
     displayValue: percent === null ? '?' : String(Math.round(normalizedPercent)),
     strokeColor: getContextStrokeColor(percent, contextWindow !== null),
-    title: formatUsageTitle({ tokens, contextWindow, percent, failed }),
+    title: formatUsageTitle({ tokens, contextWindow, percent, failed, session: snapshot?.session }),
   }
 }
 
@@ -81,11 +85,27 @@ function clampContextPercent(percent: number | null) {
   return Math.max(0, Math.min(CONTEXT_METER.THRESHOLDS.PERCENT_MAX, percent))
 }
 
-function formatUsageTitle({ tokens, contextWindow, percent, failed }: UsageTitleInput) {
-  if (failed) return 'Context usage unavailable'
+function formatContextLine({ tokens, contextWindow, percent }: UsageTitleInput) {
   if (!contextWindow) return 'Context usage'
   if (tokens === null || percent === null) {
     return `Context: ? / ${formatTokens(contextWindow)} tokens`
   }
   return `Context: ${formatTokens(tokens)} / ${formatTokens(contextWindow)} tokens (${percent.toFixed(1)}%)`
+}
+
+/** The Session's totals and each physical model's share, like Pi's `/session` cost breakdown. */
+function formatSessionLines(session: SessionUsageSummary | undefined) {
+  if (!session || session.models.length === 0) return []
+  return [
+    `Session: ${formatTokens(session.tokens)} tokens, ${formatUsd(session.cost)}`,
+    ...session.models.map(
+      (entry) =>
+        `  ${entry.model ?? SESSION_USAGE_UNATTRIBUTED_LABEL}: ${formatUsd(entry.cost)} (${formatTokens(entry.tokens)} tokens)`,
+    ),
+  ]
+}
+
+function formatUsageTitle(input: UsageTitleInput) {
+  if (input.failed) return 'Context usage unavailable'
+  return [formatContextLine(input), ...formatSessionLines(input.session)].join('\n')
 }

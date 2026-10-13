@@ -178,6 +178,8 @@ export interface AgentTransportMessageEndEvent extends TransportEventBase {
   readonly type: 'message_end'
   readonly messageId: string
   readonly role: 'user' | 'assistant' | 'system' | 'tool'
+  /** The provider error a failed assistant response ended with. */
+  readonly errorMessage?: string
 }
 
 /** Authoritative context usage reported after a completed model response. */
@@ -185,6 +187,11 @@ export interface AgentTransportContextUsageEvent extends TransportEventBase {
   readonly type: 'context_usage'
   readonly tokens: number
   readonly contextWindow: number
+  /**
+   * The virtual model the Run selected, when its router sent this response to `model`. The usage
+   * and window are `model`'s; the selection only tells the context meter they belong to it.
+   */
+  readonly routedFrom?: string
 }
 
 export interface AgentTransportToolExecutionStartEvent extends TransportEventBase {
@@ -193,6 +200,11 @@ export interface AgentTransportToolExecutionStartEvent extends TransportEventBas
   readonly toolName: string
   readonly args: JsonValue
   readonly parentMessageId?: string
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportToolExecutionUpdateEvent extends TransportEventBase {
@@ -201,6 +213,11 @@ export interface AgentTransportToolExecutionUpdateEvent extends TransportEventBa
   readonly toolName: string
   readonly args: JsonValue
   readonly partialResult: JsonValue
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportToolExecutionEndEvent extends TransportEventBase {
@@ -210,6 +227,11 @@ export interface AgentTransportToolExecutionEndEvent extends TransportEventBase 
   readonly args?: JsonValue
   readonly result: JsonValue
   readonly isError: boolean
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportQueueUpdateEvent extends TransportEventBase {

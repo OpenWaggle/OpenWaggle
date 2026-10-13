@@ -86,6 +86,16 @@ The non-empty Markdown body is the agent instruction text. The complete frontmat
 | `workspace` | No | `share-parent`, `local`, or `new-worktree` default. |
 | `import` | Managed | Provenance written by an import adapter; do not hand-author it. |
 
+### MCP tools in `tools`
+
+MCP tools have the names Pi gives them, `mcp__<server>__<tool>`, where `-` in the server name becomes `_`. In `tools` you can list one tool, such as `mcp__github__get_issue`, or use `*` for any characters, such as `mcp__dev_radius__*` for every tool of `dev-radius`. The server must be configured in the project. Listing any MCP tool also allows `codemode`, `tool_search`, and the MCP resource tools, which is how the agent reaches MCP tools.
+
+Older definitions may list `mcp` or `mcp_run`, the names of OpenWaggle's former MCP tools. They still work, and mean every MCP tool of the servers in `mcpServers`, or of every server when `mcpServers` is omitted.
+
+The allowlist also applies to the tools a `codemode` script calls. A script cannot call a tool the definition does not list.
+
+OpenWaggle refuses a call outside the allowlist before it asks for approval. Pi extensions you install from files or packages load before OpenWaggle's own, so their `tool_call` handlers still see a refused call before OpenWaggle blocks it. The call is blocked either way.
+
 Unknown fields, YAML aliases, merge keys, custom tags, duplicate keys, empty instructions, and oversized documents are rejected. Frontmatter is limited to JSON-compatible YAML and is never evaluated as code or interpolated from the environment.
 
 ## Browsing and disabling agents
@@ -110,8 +120,9 @@ openwaggle agents explain security-reviewer --project /path/to/project --json
 ```
 
 `validate` and `explain` resolve every referenced model, tool, skill, and MCP server against the
-selected project's live runtime catalogs. MCP servers may be referenced by configured name or stable
-instance ID. Validation returns a non-zero exit code and structured, actionable diagnostics when a
+selected project's live runtime catalogs. MCP servers are referenced by configured name; a definition
+written before OpenWaggle used Pi's MCP configuration may still use a server's old instance ID,
+which keeps working while that server is configured. Validation returns a non-zero exit code and structured, actionable diagnostics when a
 reference is unknown, duplicated, or cannot be checked because a project catalog failed to load.
 `create`, `update`, import, and refresh use the same validation before writing, so an invalid role is
 not installed through the CLI.

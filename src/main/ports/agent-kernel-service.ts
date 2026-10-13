@@ -6,6 +6,7 @@ import type {
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
+import type { AgentExtensionCommand } from '@shared/types/extension-command'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionCapability } from '@shared/types/session-capability'
@@ -54,6 +55,8 @@ export interface AgentKernelRunInput {
   readonly authorityCallerId?: string
   readonly agentInstructions?: string
   readonly sessionIdentityContext?: string
+  /** Run-scoped Host identity, delivered per Run outside the cacheable system prompt. */
+  readonly runIdentityContext?: string
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]
@@ -150,6 +153,13 @@ export type AgentKernelForkPosition = 'before' | 'at'
 export interface ForkAgentKernelSessionInput extends AgentKernelSessionInput {
   readonly targetNodeId: string
   readonly position: AgentKernelForkPosition
+  /** What the caller asked for, as a refusal names it: a fork, or a clone of the Session. */
+  readonly copy?: 'fork' | 'clone'
+  /**
+   * Runs once the fork's file is named and before it is written, so a caller can record the file
+   * first: a stop between the two then leaves a file the caller knows of, never an orphan.
+   */
+  readonly beforeWritingFork?: (piSessionFile: string) => Effect.Effect<void, Error>
 }
 
 export interface AgentKernelNavigateTreeResult {
@@ -181,6 +191,10 @@ export interface AgentKernelServiceShape {
   readonly getContextUsage: (
     input: AgentKernelSessionInput,
   ) => Effect.Effect<ContextUsageSnapshot | null, Error>
+  /** The commands the Session's Pi extensions register (`pi.registerCommand`). */
+  readonly listExtensionCommands: (
+    input: AgentKernelSessionInput,
+  ) => Effect.Effect<readonly AgentExtensionCommand[], Error>
   readonly compact: (
     input: CompactAgentKernelSessionInput,
   ) => Effect.Effect<AgentKernelCompactResult, Error>

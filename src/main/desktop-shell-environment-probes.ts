@@ -4,8 +4,17 @@ import { createLogger } from './logger'
 
 export type ShellEnvironmentPatch = Record<string, string>
 
+/** `*-full` probes read the whole environment for MCP `${NAME}` values (`mcp-shell-environment.ts`). */
+export type ShellEnvironmentProbe =
+  | 'launchctl-path'
+  | 'login-shell'
+  | 'login-shell-full'
+  | 'powershell-no-profile'
+  | 'powershell-profile'
+  | 'powershell-full'
+
 export interface ShellEnvironmentCommand {
-  readonly probe: 'launchctl-path' | 'login-shell' | 'powershell-no-profile' | 'powershell-profile'
+  readonly probe: ShellEnvironmentProbe
   readonly command: string
   readonly args: readonly string[]
   readonly timeoutMs: number

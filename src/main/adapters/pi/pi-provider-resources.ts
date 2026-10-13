@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
+  InlineExtension,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
@@ -10,7 +11,13 @@ import { env } from '../../env'
 import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
 import { isPathInside } from '../../utils/paths'
 import { preparedSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
+import type { OpenWagglePiAppSettings } from './openwaggle-pi-settings-app-overlay'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
+import {
+  openWagglePiBuiltInExtensionPaths,
+  openWagglePiBuiltInExtensions,
+} from './pi-built-in-extensions'
+import { withoutInstalledPiWaggle } from './pi-waggle-package-dedupe'
 import { createProviderAttributionExtension } from './provider-attribution-extension'
 
 export interface PiRuntimeServicesOptions {
@@ -19,10 +26,12 @@ export interface PiRuntimeServicesOptions {
   readonly compactionThresholdPercent?: number
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
+  /** OpenWaggle settings with a Pi equivalent; the current Settings when absent. */
+  readonly appSettings?: OpenWagglePiAppSettings
 }
 
 type PiResourceLoaderOptions = NonNullable<
@@ -116,6 +125,14 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
   return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
+/** Pi extension files a QA run names, the only executable extensions automation loads. */
+function automationQaExtensionPaths() {
+  return (env.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS ?? '')
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+}
+
 /**
  * Host-authored scratch guidance. TMPDIR alone does not help when the model types a literal
  * `/tmp/push.log`, which is how two concurrent Sessions read each other's push output.
@@ -162,14 +179,28 @@ function providerAttributionExtensionFactory() {
 function configuredExtensionFactories(
   options: PiRuntimeServicesOptions,
   disableExtensions: boolean,
-) {
+): InlineExtension[] {
   return [
     providerAttributionExtensionFactory(),
+    ...openWagglePiBuiltInExtensions(),
     ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
       ? (options.extensionFactories ?? [])
       : []),
     ...(options.trustedExtensionFactories ?? []),
   ]
+}
+
+/**
+ * `builtin:<name>` paths of the configured built-in extensions beyond codemode and tool search,
+ * such as the Run's MCP extension when automation allows first-party extensions.
+ */
+function extraBuiltInExtensionPaths(extensions: readonly InlineExtension[]) {
+  const known = new Set(openWagglePiBuiltInExtensionPaths())
+  return extensions
+    .flatMap((extension) =>
+      typeof extension !== 'function' && extension.builtin ? [`builtin:${extension.name}`] : [],
+    )
+    .filter((extensionPath) => !known.has(extensionPath))
 }
 
 function configuredResourcePaths(
@@ -178,10 +209,18 @@ function configuredResourcePaths(
   settingsManager: SettingsManager | undefined,
   builtInSkillPaths: readonly string[],
   disableExtensions: boolean,
+  extensions: readonly InlineExtension[],
 ) {
+  const builtInExtensionPaths = disableExtensions
+    ? [
+        ...openWagglePiBuiltInExtensionPaths(),
+        ...extraBuiltInExtensionPaths(extensions),
+        ...automationQaExtensionPaths(),
+      ]
+    : []
   if (settingsManager) {
     return {
-      additionalExtensionPaths: [],
+      additionalExtensionPaths: builtInExtensionPaths,
       additionalSkillPaths: [...builtInSkillPaths],
       additionalPromptTemplatePaths: [],
       additionalThemePaths: [],
@@ -189,7 +228,7 @@ function configuredResourcePaths(
   }
   return {
     additionalExtensionPaths: disableExtensions
-      ? []
+      ? builtInExtensionPaths
       : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
     additionalSkillPaths: [
       ...builtInSkillPaths,
@@ -204,6 +243,7 @@ export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoade
   return {
     ...(disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}),
     extensionFactories: [providerAttributionExtensionFactory()],
+    extensionsOverride: withoutInstalledPiWaggle,
   }
 }
 
@@ -224,11 +264,13 @@ export function createOpenWagglePiResourceLoaderOptions(
       settingsManager,
       builtInSkillPaths,
       disableExtensions,
+      extensionFactories,
     ),
     skillsOverride: (base) =>
       filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
     ...(appendSystemPrompt.length > 0 ? { appendSystemPrompt } : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
     extensionFactories,
+    extensionsOverride: withoutInstalledPiWaggle,
   }
 }

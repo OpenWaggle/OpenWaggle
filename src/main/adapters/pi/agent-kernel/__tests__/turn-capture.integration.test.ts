@@ -1,10 +1,10 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { turnCheckpointRef } from '@shared/utils/turn-checkpoint-ref'
 import { afterEach, describe, expect, it } from 'vitest'
 import { execFileAsync } from '../../../git/run-git'
-import { captureWorktreeSnapshotForTests } from '../turn-capture'
+import { captureWorktreeSnapshotForTests, turnDiffForTests } from '../turn-capture'
 
 let projectPath: string | null = null
 
@@ -152,5 +152,35 @@ describe('turn checkpoint worktree snapshot', () => {
 
     const resolved = await git(['rev-parse', '--verify', `${ref}^{commit}`])
     expect(resolved.trim()).toBe(String(snapshot))
+  })
+})
+
+describe("a turn's changed files", () => {
+  it("leave out the Session's own Pi session file and the folder that holds it", async () => {
+    const repo = await createRepository()
+    const sessions = path.join(repo, '.pi', 'sessions')
+    await mkdir(sessions, { recursive: true })
+    const own = path.join(sessions, '2026-10-09T10-41-32-337Z_own.jsonl')
+    await writeFile(own, '{"type":"session"}\n')
+    await writeFile(path.join(sessions, '2026-10-09T10-41-33-000Z_other.jsonl'), '{}\n')
+    await writeFile(path.join(repo, 'agent-output.ts'), 'export const done = true\n')
+    const snapshot = await captureWorktreeSnapshotForTests(repo)
+
+    const diff = await turnDiffForTests(repo, null, snapshot, [own])
+
+    expect(diff).toContain('agent-output.ts')
+    expect(diff).not.toContain('.pi/sessions')
+  })
+
+  it('keep every file when the Pi session file is outside the project', async () => {
+    const repo = await createRepository()
+    await writeFile(path.join(repo, 'agent-output.ts'), 'export const done = true\n')
+    const snapshot = await captureWorktreeSnapshotForTests(repo)
+
+    const diff = await turnDiffForTests(repo, null, snapshot, [
+      path.join(tmpdir(), 'elsewhere', 'x_own.jsonl'),
+    ])
+
+    expect(diff).toContain('agent-output.ts')
   })
 })

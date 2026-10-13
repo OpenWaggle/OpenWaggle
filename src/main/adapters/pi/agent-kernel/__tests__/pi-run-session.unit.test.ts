@@ -218,3 +218,30 @@ it.each([
     expect(setThinkingLevel).not.toHaveBeenCalled()
   }
 })
+
+it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", async () => {
+  const { applyPiPackageDirectoryTo } = await import('../../../../pi-package-directory-environment')
+  const bundledPi = '/app.asar/node_modules/@earendil-works/pi-coding-agent'
+  const hostEnvironment: NodeJS.ProcessEnv = { PI_PACKAGE_DIR: '/nix/store/pi' }
+  applyPiPackageDirectoryTo(bundledPi, hostEnvironment)
+  await createPiSessionForRun(
+    fromPartial({
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    const spawned = hook({
+      command: 'pi --version',
+      cwd: '/workspace',
+      env: { ...hostEnvironment, KEEP: 'value' },
+    })
+    expect(spawned.env.PI_PACKAGE_DIR).toBe('/nix/store/pi')
+    expect(spawned.env.KEEP).toBe('value')
+  }
+})

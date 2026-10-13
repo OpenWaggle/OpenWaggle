@@ -1,5 +1,10 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
-import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
+import type {
+  OAuthAccountInfo,
+  OAuthFlowStatus,
+  OAuthInputPrompt,
+  OAuthProvider,
+} from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { openExternal } from '../desktop-ui'
 import { createLogger } from '../logger'
@@ -105,22 +110,32 @@ async function runOAuthFlow(
   signal: AbortSignal,
 ) {
   emitStatus({ type: 'in-progress', provider })
+  // The latest sign-in link and its instructions, shown with every later prompt so a user whose
+  // browser runs elsewhere (copy-code sign-in) can open it there.
+  let link: { readonly authUrl: string; readonly instructions?: string } | null = null
+  const awaitingInput = (prompt?: OAuthInputPrompt): OAuthFlowStatus => ({
+    type: 'awaiting-code',
+    provider,
+    ...(link ?? {}),
+    ...(prompt ? { prompt } : {}),
+  })
 
   try {
     await runAppEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
-          onAuthUrl: (url, usesCallbackServer) => {
+          onAuthUrl: (url, instructions) => {
+            link = { authUrl: url, ...(instructions ? { instructions } : {}) }
             void openExternal(url).catch((error) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
               })
             })
-            if (usesCallbackServer) {
-              emitStatus({ type: 'awaiting-code', provider })
-            }
+            // A sign-in that finishes in the browser asks nothing more, so its instructions and
+            // link are all there is to show while it waits.
+            emitStatus(awaitingInput())
           },
           onDeviceCode: (deviceCode) => {
             void openExternal(deviceCode.verificationUri).catch((error) => {
@@ -136,16 +151,16 @@ async function runOAuthFlow(
             emitStatus({ type: 'awaiting-selection', provider, selection })
             return createOAuthInputPromise(provider)
           },
-          onPrompt: async () => {
-            emitStatus({ type: 'awaiting-code', provider })
-            return createOAuthInputPromise(provider)
+          onPrompt: async (prompt, promptSignal) => {
+            emitStatus(awaitingInput(prompt))
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
-          onManualCodeInput: () => {
-            emitStatus({ type: 'awaiting-code', provider })
-            return createOAuthInputPromise(provider)
+          onManualCodeInput: (prompt, promptSignal) => {
+            emitStatus(awaitingInput(prompt))
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           signal,
         })
@@ -180,7 +195,15 @@ async function runOAuthFlow(
   }
 }
 
-function createOAuthInputPromise(provider: OAuthProvider) {
+/**
+ * The answer the user types or pastes. `signal` aborts when the sign-in no longer needs it, such
+ * as when the browser callback finished it first: the field goes away and the sign-in shows as in
+ * progress again.
+ */
+function createOAuthInputPromise(
+  provider: OAuthProvider,
+  cancellation?: { readonly signal: AbortSignal | undefined; readonly emitStatus: StatusEmitter },
+) {
   const existingPending = pendingInputHandlers.get(provider)
   if (existingPending) {
     pendingInputHandlers.delete(provider)
@@ -190,7 +213,18 @@ function createOAuthInputPromise(provider: OAuthProvider) {
   }
 
   const inputPromise = new Promise<string>((resolve, reject) => {
-    pendingInputHandlers.set(provider, { resolve, reject })
+    const pending = { resolve, reject }
+    pendingInputHandlers.set(provider, pending)
+    cancellation?.signal?.addEventListener(
+      'abort',
+      () => {
+        if (pendingInputHandlers.get(provider) !== pending) return
+        pendingInputHandlers.delete(provider)
+        reject(new Error('The sign-in no longer needs this answer.'))
+        cancellation.emitStatus({ type: 'in-progress', provider })
+      },
+      { once: true },
+    )
   })
   void inputPromise.catch(() => {})
   return inputPromise

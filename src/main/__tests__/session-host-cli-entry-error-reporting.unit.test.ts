@@ -4,12 +4,15 @@ const mocks = vi.hoisted(() => {
   const order: string[] = []
   return {
     order,
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    acquireOwnership: vi.fn(async (_path: string) => ({ release: vi.fn(async () => undefined) })),
     exit: vi.fn((_code: number) => void order.push('exit')),
     initializeRuntime: vi.fn(async () => undefined),
     initializeSettings: vi.fn(async () => void order.push('initialize-settings')),
     startErrorReporting: vi.fn(async (_process: string) => void order.push('start-reporting')),
     reportError: vi.fn((_error: unknown) => void order.push('report-error')),
     flushErrorReporting: vi.fn(async () => void order.push('flush-reports')),
+    installDesktopUiBlockers: vi.fn(),
     startHost: vi.fn(async () => ({
       liveness: { ownerCount: () => 1, hasAcceptedClient: () => true },
       stop: vi.fn(async () => undefined),
@@ -25,10 +28,15 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }))
 vi.mock('../env', () => ({ env: {} }))
+vi.mock('../desktop-ui', () => ({
+  installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,
+}))
 vi.mock('../error-reporting', () => ({
   startErrorReporting: mocks.startErrorReporting,
   reportError: mocks.reportError,
@@ -40,15 +48,12 @@ vi.mock('../installer-update-channel-intent', () => ({
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
 vi.mock('../usage-statistics/usage-statistics-recorder')
-vi.mock('../logger', () => {
-  const silent = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
-  return {
-    SESSION_HOST_LOG_FILE_STEM: 'openwaggle-host',
-    createLogger: () => silent,
-    initFileLogger: vi.fn(async () => undefined),
-    drainFileLogger: vi.fn(async () => undefined),
-  }
-})
+vi.mock('../logger', () => ({
+  SESSION_HOST_LOG_FILE_STEM: 'openwaggle-host',
+  createLogger: () => mocks.logger,
+  initFileLogger: vi.fn(async () => undefined),
+  drainFileLogger: vi.fn(async () => undefined),
+}))
 vi.mock('../session-host/legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
 }))
@@ -68,8 +73,9 @@ vi.mock('../session-host/session-host-cutover', () => ({
   sessionHostSourceExists: vi.fn(async () => false),
   runSessionHostCutover: vi.fn(async () => undefined),
 }))
-vi.mock('../session-host/session-host-ownership', () => ({
-  acquireSessionHostOwnership: vi.fn(async () => ({ release: vi.fn(async () => undefined) })),
+vi.mock('../session-host/session-host-ownership', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../session-host/session-host-ownership')>()),
+  acquireSessionHostOwnership: mocks.acquireOwnership,
 }))
 vi.mock('../session-host/session-host-bootstrap', () => ({ startAppSessionHost: mocks.startHost }))
 vi.mock('../runtime', () => ({
@@ -77,11 +83,26 @@ vi.mock('../runtime', () => ({
   disposeAppRuntime: vi.fn(async () => undefined),
   runAppEffect: vi.fn(),
   startSessionHostOwnedServices: vi.fn(),
+  startSessionHostServicesAfterListening: vi.fn(),
   stopSessionHostOwnedServices: vi.fn(),
 }))
 vi.mock('../store/settings', () => ({ initializeSettingsStore: mocks.initializeSettings }))
 
 import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
+
+describe('Session Host desktop UI', () => {
+  // The Host inherits OPENWAGGLE_AUTOMATION, so it must block native UI like the GUI does, for
+  // example an MCP sign-in page that would otherwise open the user's browser during automation.
+  it('installs the automation desktop UI blockers before anything else starts', async () => {
+    vi.clearAllMocks()
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
+
+    const [installed] = mocks.installDesktopUiBlockers.mock.invocationCallOrder
+    const [settings] = mocks.initializeSettings.mock.invocationCallOrder
+    expect(installed).toBeLessThan(settings ?? 0)
+  })
+})
 
 describe('Session Host error reporting', () => {
   beforeEach(() => {
@@ -109,5 +130,31 @@ describe('Session Host error reporting', () => {
     expect(mocks.startErrorReporting).not.toHaveBeenCalled()
     expect(mocks.reportError).toHaveBeenCalledWith(failure)
     expect(mocks.order).toEqual(['report-error', 'flush-reports', 'exit'])
+  })
+})
+
+describe('Session Host launched while another Host owns the profile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.order.length = 0
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  })
+
+  // Clients in separate processes (the app, a CLI, an MCP session tool) can each launch a Host
+  // when they find it stopped. Only one can own the profile; the others leave it to that one.
+  it('exits cleanly without starting, logging a crash, or reporting one', async () => {
+    mocks.acquireOwnership.mockRejectedValueOnce(
+      Object.assign(new Error('Session Host ownership is already held.'), { code: 'ELOCKED' }),
+    )
+
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalled())
+
+    expect(mocks.exit).toHaveBeenCalledWith(0)
+    expect(mocks.initializeRuntime).not.toHaveBeenCalled()
+    expect(mocks.startHost).not.toHaveBeenCalled()
+    expect(mocks.reportError).not.toHaveBeenCalled()
+    expect(mocks.logger.error).not.toHaveBeenCalled()
+    expect(mocks.logger.info).toHaveBeenCalledWith(expect.stringContaining('Another Session Host'))
   })
 })

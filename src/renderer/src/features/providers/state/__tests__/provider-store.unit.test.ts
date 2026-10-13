@@ -6,7 +6,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {},
 }))
 
-import { buildModelCatalogSet, pruneStaleEnabledModels } from '../provider-store'
+import { isSelectableModel, latestAnsweringModel, modelUnavailableMessage } from '../provider-store'
 
 const PROVIDER_MODELS: ProviderInfo[] = [
   {
@@ -67,76 +67,63 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   },
 ]
 
-describe('buildModelCatalogSet', () => {
-  it('creates a set of canonical provider/modelId refs', () => {
-    const catalog = buildModelCatalogSet(PROVIDER_MODELS)
+describe("a Session's model that is not enabled in OpenWaggle", () => {
+  const SONNET = SupportedModelId('anthropic/claude-sonnet-4-5')
 
-    expect(catalog.has('anthropic/claude-sonnet-4-5')).toBe(true)
-    expect(catalog.has('anthropic/claude-opus-4-5')).toBe(true)
-    expect(catalog.has('openai/gpt-4.1-mini')).toBe(true)
-    expect(catalog.has('gemini/gemini-2.5-flash')).toBe(false)
+  it('can be used when Pi can run it, as `pi --resume` does', () => {
+    expect(isSelectableModel(PROVIDER_MODELS, SONNET, true)).toBe(true)
   })
 
-  it('trims model IDs', () => {
-    const models: ProviderInfo[] = [
-      {
-        ...PROVIDER_MODELS[0],
-        models: [
-          {
-            id: SupportedModelId('  anthropic/claude-sonnet-4-5  '),
-            modelId: 'claude-sonnet-4-5',
-            name: 'Claude Sonnet 4.5',
-            provider: 'anthropic',
-            available: true,
-            availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
-          },
-        ],
-      },
-    ]
-    const catalog = buildModelCatalogSet(models)
-    expect(catalog.has('anthropic/claude-sonnet-4-5')).toBe(true)
+  it('names the provider to sign in to when Pi has the model but no sign-in', () => {
+    const signedOut = PROVIDER_MODELS.map((group) => ({
+      ...group,
+      models: group.models.map((model) => ({ ...model, available: false })),
+    }))
+
+    expect(isSelectableModel(signedOut, SONNET, true)).toBe(false)
+    expect(modelUnavailableMessage(signedOut, SONNET)).toBe(
+      'Claude Sonnet 4.5 needs a sign-in to Anthropic. Connect Anthropic in Settings > Connections, or choose another model.',
+    )
+  })
+
+  it('names a model Pi does not know', () => {
+    const missing = SupportedModelId('qa-faux/luna')
+
+    expect(isSelectableModel(PROVIDER_MODELS, missing, true)).toBe(false)
+    expect(modelUnavailableMessage(PROVIDER_MODELS, missing)).toBe(
+      'qa-faux/luna is not available in this project. Add its provider in Settings > Connections, or choose another model.',
+    )
+  })
+
+  it('asks for a model when there is none', () => {
+    expect(modelUnavailableMessage(PROVIDER_MODELS, undefined)).toBe(
+      'Select a model before sending.',
+    )
   })
 })
 
-describe('pruneStaleEnabledModels', () => {
-  const catalog = buildModelCatalogSet(PROVIDER_MODELS)
+describe('a Session whose selected model is gone from the catalog', () => {
+  const REMOVED = SupportedModelId('router/removed-auto')
+  const MINI = SupportedModelId('openai/gpt-4.1-mini')
 
-  it('returns null when no entries are stale', () => {
-    const enabledModels = ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini']
-    expect(pruneStaleEnabledModels(enabledModels, catalog)).toBeNull()
+  it('can send, so the Run falls back to the model that answered last', () => {
+    const answeredBy = latestAnsweringModel([
+      { role: 'user' },
+      { role: 'assistant', model: MINI },
+      { role: 'user' },
+    ])
+
+    expect(answeredBy).toBe(MINI)
+    expect(isSelectableModel(PROVIDER_MODELS, REMOVED, true, answeredBy)).toBe(true)
   })
 
-  it('removes stale entries with outdated model IDs', () => {
-    const enabledModels = [
-      'anthropic/claude-sonnet-4-5',
-      'anthropic/claude-opus-4-5-20251101', // stale version suffix
-    ]
-    const result = pruneStaleEnabledModels(enabledModels, catalog)
-    expect(result).toEqual(['anthropic/claude-sonnet-4-5'])
-  })
+  it('cannot send when nothing answered yet, or what answered is unavailable too', () => {
+    const signedOut = PROVIDER_MODELS.map((group) => ({
+      ...group,
+      models: group.models.map((model) => ({ ...model, available: false })),
+    }))
 
-  it('removes providerless model IDs', () => {
-    const enabledModels = ['gpt-5.4', 'gpt-5.3-codex', 'anthropic/claude-sonnet-4-5']
-    const result = pruneStaleEnabledModels(enabledModels, catalog)
-    expect(result).toEqual(['anthropic/claude-sonnet-4-5'])
-  })
-
-  it('removes entries for models not in any provider', () => {
-    const enabledModels = [
-      'gemini/gemini-2.5-flash', // gemini not in catalog
-      'anthropic/claude-sonnet-4-5',
-    ]
-    const result = pruneStaleEnabledModels(enabledModels, catalog)
-    expect(result).toEqual(['anthropic/claude-sonnet-4-5'])
-  })
-
-  it('returns empty array when all entries are stale', () => {
-    const enabledModels = ['gpt-5.4', 'anthropic/claude-opus-4-5-20251101']
-    const result = pruneStaleEnabledModels(enabledModels, catalog)
-    expect(result).toEqual([])
-  })
-
-  it('handles empty enabledModels', () => {
-    expect(pruneStaleEnabledModels([], catalog)).toBeNull()
+    expect(isSelectableModel(PROVIDER_MODELS, REMOVED, true, undefined)).toBe(false)
+    expect(isSelectableModel(signedOut, REMOVED, true, MINI)).toBe(false)
   })
 })

@@ -1,3 +1,4 @@
+import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 
 /**
@@ -32,8 +33,7 @@ export type WorktreeSendPlan =
 
 export const WORKTREE_BASE_REF_REQUIRED = 'Select a base branch before sending in worktree mode.'
 
-export const WORKTREE_MISSING_REASON =
-  "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout."
+export const WORKTREE_MISSING_REASON = SESSION_WORKTREE_MISSING_MESSAGE
 
 /**
  * Decide whether a send proceeds directly, must first birth a Session worktree

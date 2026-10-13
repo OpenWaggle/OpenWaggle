@@ -17,6 +17,8 @@ type BrowserAndScalarActions = Pick<
   | 'setDiffWrapLines'
   | 'setRightPanelRailVisibleWhenClosed'
   | 'setCompactionThresholdPercent'
+  | 'setCodemodeEnabled'
+  | 'setCacheWarming'
   | 'setSessionTitleModel'
   | 'setBrowserLinkTarget'
   | 'setBrowserProfiles'
@@ -80,6 +82,8 @@ export function createBrowserAndScalarPreferencesActions(
       persistSetting('rightPanelRailVisibleWhenClosed', value, set),
     setCompactionThresholdPercent: (value) =>
       persistSetting('compactionThresholdPercent', value, set),
+    setCodemodeEnabled: (value) => persistSetting('codemodeEnabled', value, set),
+    setCacheWarming: (value) => persistSetting('cacheWarming', value, set),
     setSessionTitleModel: (value) => persistSetting('sessionTitleModel', value, set),
     setBrowserLinkTarget: (value) => persistSetting('browserLinkTarget', value, set),
     setBrowserProfiles: (profiles) => persistBrowserProfiles(profiles, set),

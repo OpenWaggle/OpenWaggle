@@ -41,6 +41,26 @@ describe('background compaction lifecycle', () => {
     ).toEqual(completed)
   })
 
+  it('ends a retry once the retried response starts streaming', () => {
+    const retrying = apply(null, {
+      type: 'auto_retry_start',
+      attempt: 1,
+      maxAttempts: 3,
+      delayMs: 5000,
+      errorMessage: '503 Service Unavailable',
+      timestamp: 1,
+    })
+
+    expect(
+      apply(retrying, {
+        type: 'message_start',
+        messageId: 'retry-1',
+        role: 'assistant',
+        timestamp: 2,
+      }),
+    ).toBeNull()
+  })
+
   it('retains earlier completions when a later compaction fails', () => {
     const completed = apply(null, {
       type: 'compaction_end',

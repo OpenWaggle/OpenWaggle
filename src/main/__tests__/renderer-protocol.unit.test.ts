@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const HTTP_OK_STATUS = 200
 const HTTP_NOT_FOUND_STATUS = 404
 // Full-suite workers can contend while Vitest transforms the renderer protocol graph.
-const MODULE_LOAD_TEST_TIMEOUT_MS = 30_000
+const MODULE_LOAD_TEST_TIMEOUT_MS = 60_000
 
 interface ProtocolRequest {
   readonly url: string

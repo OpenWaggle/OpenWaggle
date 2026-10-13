@@ -35,6 +35,7 @@ import {
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { appendPiRuntimeSettingsWrites } from './pi-runtime-settings'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 import { appendSourceControlSettingsWrites } from './source-control-settings'
@@ -269,6 +270,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
   appendUsageStatisticsSettingsWrites(writes, partial, next)
+  appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
   appendSourceControlSettingsWrites(writes, partial, next)
 

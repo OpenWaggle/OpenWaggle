@@ -25,6 +25,7 @@ import {
   listSessionsByIds,
 } from './host-ui-session-catalog-operations'
 import {
+  beginProjectRemoval,
   createSession,
   deleteSession,
   dismissInterruptedRun,
@@ -58,6 +59,8 @@ import {
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
+import { withDeletedPiSessionFileNotice } from './pi-session-deleted-files'
+import { openedSessionId } from './pi-session-projection-refresh'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -100,6 +103,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:clone-to-new', () => forkSession(args, 'at'))
     .with('sessions:dismiss-interrupted-run', () => dismissInterruptedRun(args))
     .with('sessions:delete', () => deleteSession(args))
+    .with('sessions:begin-project-removal', () => beginProjectRemoval(args))
     .with('sessions:archive', () => organizeFromArgs(args, 'archive'))
     .with('sessions:unarchive', () => organizeFromArgs(args, 'unarchive'))
     .with('sessions:update-title', () => updateSessionTitle(args))
@@ -136,9 +140,8 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
 function getSessionDetail(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    return yield* (yield* SessionProjectionRepository).getOptional(
-      yield* validateSessionId(args[0]),
-    )
+    const detail = (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
+    return yield* withDeletedPiSessionFileNotice(yield* detail)
   })
 }
 
@@ -165,14 +168,14 @@ function updateSessionTitle(args: readonly unknown[]) {
 function getSessionTree(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    return yield* (yield* SessionRepository).getTree(yield* validateSessionId(args[0]))
+    return yield* (yield* SessionRepository).getTree(yield* openedSessionId(args[0]))
   })
 }
 
 function getSessionWorkspace(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
-    const sessionId = yield* validateSessionId(args[0])
+    const sessionId = yield* openedSessionId(args[0])
     const selection = yield* validateWorkspaceSelection(args[1])
     return yield* (yield* SessionRepository).getWorkspace(sessionId, selection)
   })

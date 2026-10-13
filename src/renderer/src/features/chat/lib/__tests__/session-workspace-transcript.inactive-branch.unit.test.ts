@@ -59,4 +59,26 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
 
     expect(resolved.map((message) => message.id)).toEqual(['inactive-branch-head'])
   })
+
+  it('keeps the error of a failed response at the branch head', () => {
+    const failedHead = assistantNode('inactive-branch-head', '', 0)
+    const inactiveBranchHead: SessionNode = {
+      ...failedHead,
+      message: failedHead.message && {
+        ...failedHead.message,
+        parts: [],
+        metadata: { error: '401 Unauthorized' },
+      },
+    }
+    const sessionHead = assistantNode('session-head', 'Current session head', 1)
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceAtInactiveBranchHead(sessionHead, inactiveBranchHead),
+      messages: [],
+    })
+
+    expect(resolved[0]?.metadata?.error).toBe('401 Unauthorized')
+  })
 })

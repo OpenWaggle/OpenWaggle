@@ -1,39 +1,31 @@
-import type { McpServerDefinition } from '../types/mcp'
+import type { McpServerEntryInput } from '../types/mcp-configuration-operations'
 
 export const MCP_LATEST_PROTOCOL_VERSION = '2026-07-28'
 
-/**
- * Curated first-party catalog (ADR-0035): one-click install, zero approval
- * steps. Package-runner definitions, so derived grants include network and
- * package-cache access.
- */
-export const MCP_CATALOG_SERVERS: readonly {
-  name: string
-  title: string
-  description: string
-  definition: McpServerDefinition
-}[] = [
+export interface McpCatalogServer {
+  /** The server name its entry is saved under. */
+  readonly name: string
+  readonly title: string
+  readonly description: string
+  /** An ordinary Pi `mcpServers` entry. */
+  readonly entry: McpServerEntryInput
+}
+
+/** Curated first-party catalog: a one-click install of an ordinary entry (ADR 0051). */
+export const MCP_CATALOG_SERVERS: readonly McpCatalogServer[] = [
   {
     name: 'playwright',
     title: 'Playwright MCP',
     description: 'Browser automation and accessibility-tree inspection by Microsoft.',
-    definition: {
-      command: 'npx',
-      args: ['@playwright/mcp@latest'],
-      provenance: { source: 'catalog' },
-    },
+    entry: { command: 'npx', args: ['@playwright/mcp@latest'] },
   },
   {
     name: 'chrome-devtools',
     title: 'Chrome DevTools MCP',
     description: 'Chrome DevTools debugging, performance traces, and network inspection by Google.',
-    definition: {
-      command: 'npx',
-      args: ['chrome-devtools-mcp@latest'],
-      provenance: { source: 'catalog' },
-    },
+    entry: { command: 'npx', args: ['chrome-devtools-mcp@latest'] },
   },
-] as const
+]
 
 export const MCP_MODERN_PROTOCOL_VERSIONS = [MCP_LATEST_PROTOCOL_VERSION] as const
 
@@ -50,57 +42,11 @@ export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
   ...MCP_LEGACY_PROTOCOL_VERSIONS,
 ] as const
 
-export const MCP_SKILLS_EXTENSION_ID = 'io.modelcontextprotocol/skills'
-
 export const MCP_CONFIG = {
   JSON_INDENT_SPACES: 2,
-  CONFIG_HASH_PREFIX_LENGTH: 24,
-  GLOBAL_CONFIG_DIR: ['.openwaggle'],
-  GLOBAL_CONFIG_FILE_NAME: 'mcp.json',
+  /** OpenWaggle's MCP data directory under the home directory: the encrypted vault lives here. */
   GLOBAL_STATE_DIR: ['.openwaggle', 'mcp'],
-  GLOBAL_STATE_FILE_NAME: 'state.json',
   GLOBAL_VAULT_FILE_NAME: 'vault.json',
-  GLOBAL_TASK_FILE_NAME: 'tasks.json',
-  /** Under the app's user data directory, so each OpenWaggle channel keeps its own. */
-  TOOL_CATALOG_FILE_PATH: ['mcp', 'tool-catalogs.json'],
-  PROJECT_STANDARD_CONFIG_FILE_NAME: '.mcp.json',
-  PROJECT_OPENWAGGLE_CONFIG_DIR: ['.openwaggle'],
-  PROJECT_OPENWAGGLE_CONFIG_FILE_NAME: 'mcp.json',
-  EMPTY_CONFIG_RAW_JSON: '{\n  "mcpServers": {}\n}\n',
   STATE_VERSION: 1,
-  CATALOG_CACHE_TTL_MS: 300_000,
-  /** How long a first turn waits for an optional server it has no cached tool list for. */
-  OPTIONAL_STARTUP_GRACE_MS: 1_500,
-  /** How long a server's cached tool list may stand in for it while it connects. */
-  TOOL_CATALOG_RETENTION_MS: 604_800_000,
-  TOOL_CATALOG_MAX_ENTRIES: 64,
-  TOOL_CATALOG_MAX_ENTRY_BYTES: 2_097_152,
-  REQUEST_TIMEOUT_MS: 60_000,
-  CONNECT_TIMEOUT_MS: 15_000,
   PROBE_TIMEOUT_MS: 3_000,
-  MAX_LIST_PAGES: 64,
-  MAX_INPUT_REQUIRED_ROUNDS: 8,
-  MAX_GATEWAY_RESULTS: 40,
-  MAX_RESULT_BYTES: 1_000_000,
-  MAX_RESULT_IMAGES: 8,
-  MAX_STDERR_BYTES: 128_000,
-  MAX_CONCURRENT_CALLS: 8,
-  MAX_ORCHESTRATION_CALLS: 32,
-  MAX_ORCHESTRATION_DEPTH: 8,
-  MAX_ORCHESTRATION_STEPS: 10_000,
-  MAX_ORCHESTRATION_WALL_TIME_MS: 120_000,
-  MAX_ORCHESTRATION_SOURCE_BYTES: 64_000,
-  MAX_ORCHESTRATION_MEMORY_BYTES: 4_000_000,
-  MAX_ORCHESTRATION_OUTPUT_BYTES: 1_000_000,
-  MAX_SESSION_FAN_OUT: 8,
-  MAX_EVENT_INBOX_ITEMS: 200,
-  MAX_EVENT_INBOX_EVENT_BYTES: 128_000,
-  MAX_EVENT_INBOX_SESSION_BYTES: 1_000_000,
-  MAX_EVENT_INBOX_GLOBAL_BYTES: 8_000_000,
-  MAX_EVENT_INBOX_GLOBAL_ITEMS: 2_000,
-  MAX_EVENT_INBOX_EVENTS_PER_WINDOW: 100,
-  EVENT_INBOX_RATE_WINDOW_MS: 1_000,
-  MAX_SERVER_INSTRUCTIONS_BYTES: 128_000,
-  MAX_REMOTE_SKILLS: 2_000,
-  MAX_REMOTE_SKILL_RESOURCES: 10_000,
 } as const

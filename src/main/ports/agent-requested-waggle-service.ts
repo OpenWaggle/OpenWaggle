@@ -14,6 +14,7 @@ export type RequestedWaggleAuthority = Pick<
   | 'authorityCallerId'
   | 'agentInstructions'
   | 'sessionIdentityContext'
+  | 'runIdentityContext'
   | 'toolAllowlist'
   | 'skillAllowlist'
   | 'mcpServerAllowlist'

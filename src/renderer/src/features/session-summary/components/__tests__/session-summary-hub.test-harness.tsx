@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => ({
   toggleTerminal: vi.fn(),
   listSessionResources: vi.fn<OpenWaggleApi['listSessionResources']>(),
   listArchivedSessions: vi.fn(),
-  listMcpEventSubscriptions: vi.fn(),
   useStackedGitActions: vi.fn<typeof useStackedGitActionsHook>(),
   useCombinedVcsStatus: vi.fn<typeof useCombinedVcsStatusHook>(),
   useGit: vi.fn<typeof useGitHook>(),
@@ -75,7 +74,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     }),
     listSessionResources: mocks.listSessionResources,
     listArchivedSessions: mocks.listArchivedSessions,
-    listMcpEventSubscriptions: mocks.listMcpEventSubscriptions,
     getSessionHiveRelations: vi
       .fn()
       .mockResolvedValue({ current: null, parent: null, workers: [] }),
@@ -265,7 +263,6 @@ export function setupSessionSummaryHubHarness() {
     .mockResolvedValue({ destination: 'inspector', source: 'default' })
   mocks.refreshSourceControlStatus.mockReset().mockResolvedValue(undefined)
   mocks.invalidateVcsStatus.mockReset().mockResolvedValue(undefined)
-  mocks.listMcpEventSubscriptions.mockReset().mockResolvedValue([])
   mocks.useGit.mockReset().mockReturnValue(gitState())
   useStackedGitActions.mockReset().mockReturnValue({
     isRunning: false,

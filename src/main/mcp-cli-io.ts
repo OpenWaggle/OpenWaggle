@@ -1,5 +1,4 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
-import { ALL_IMPORT_SOURCES } from './adapters/mcp/import-adapters'
 
 const MAX_STDIN_SECRET_BYTES = 1_000_000
 
@@ -17,16 +16,6 @@ export async function readSecretFromStdin() {
   return Buffer.concat(chunks)
     .toString('utf8')
     .replace(/[\r\n]+$/, '')
-}
-
-export function parseImportSources(value: string | undefined) {
-  if (!value || value === 'all') return ALL_IMPORT_SOURCES
-  const requested = value.split(',').map((entry) => entry.trim())
-  const invalid = requested.filter(
-    (entry) => !ALL_IMPORT_SOURCES.some((source) => source === entry),
-  )
-  if (invalid.length > 0) throw new Error(`Unsupported import sources: ${invalid.join(', ')}.`)
-  return ALL_IMPORT_SOURCES.filter((source) => requested.includes(source))
 }
 
 export function formatMcpCliOutput(value: unknown, json: boolean) {

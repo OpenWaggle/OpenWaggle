@@ -4,6 +4,7 @@ import {
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
+import { isPiSessionFileRefusal } from '@/features/chat/lib/message-delivery'
 import { handleCompactionEndEvent } from './useAgentChat.compaction-events'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
@@ -49,6 +50,18 @@ function handleAutoRetryEndEvent(
   setReadyIfNoActiveRun(context)
 }
 
+/**
+ * The retried response started streaming: the retry wait is over. Pi reports the retry's success
+ * only when that response ends, so its status would otherwise stay under the streaming reply.
+ */
+function handleAssistantMessageStartEvent(context: AgentStreamEventContext) {
+  const retryStatus = context.compactionStatusRef.current
+  if (retryStatus?.type !== 'retrying') return
+  signalStreamChange(context)
+  context.setCompactionStatus(retryStatus.previousCompactionStatus)
+  context.setStatus('streaming')
+}
+
 function handleAgentEndEvent(
   event: Extract<AgentEventPayload['event'], { readonly type: 'agent_end' }>,
   context: AgentStreamEventContext,
@@ -60,6 +73,8 @@ function handleAgentEndEvent(
   signalStreamChange(context)
   const nextError = new Error(event.error.message)
   context.terminalRunErrorRef.current = nextError
+  // Its send hears of it; the Session's notice, not an error card, says why.
+  if (isPiSessionFileRefusal(nextError)) return
   setLastAgentErrorInfo(context.subscribedSessionId, event.error)
   context.setError(nextError)
   context.setStatus('error')
@@ -123,6 +138,9 @@ function handleForegroundAgentStateEvent(
       })
     })
     .with('auto_retry_end', (value) => handleAutoRetryEndEvent(value, context))
+    .with('message_start', (value) => {
+      if (value.role === 'assistant') handleAssistantMessageStartEvent(context)
+    })
     .with('agent_end', (value) => handleAgentEndEvent(value, context))
     .with(
       'agent_interaction_request',
@@ -130,7 +148,6 @@ function handleForegroundAgentStateEvent(
       'custom',
       'turn_start',
       'turn_end',
-      'message_start',
       'message_update',
       'message_end',
       'context_usage',

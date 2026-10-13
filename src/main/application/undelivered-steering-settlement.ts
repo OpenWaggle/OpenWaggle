@@ -4,6 +4,7 @@ import type { UndeliveredSteer } from '../domain/session-control/undelivered-ste
 import { AgentSteeringService } from '../ports/agent-steering-service'
 import type { SessionControlRunSettlementResult } from '../ports/session-control-run-lifecycle-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { forgetRefusedContinuation } from './pi-session-refused-continuations'
 
 /**
  * Settle an ended Run with the steers it never incorporated. The runtime keeps them until this
@@ -23,6 +24,8 @@ export function settleWithUndeliveredSteers<E, R>(input: {
     const undeliveredSteers = yield* steering.readUndelivered(input.runId)
     const settlement = yield* input.settle(undeliveredSteers)
     yield* steering.forgetUndelivered(input.runId)
+    // Pi settings this Run held off were for it alone (ADR 0051).
+    forgetRefusedContinuation(input.sessionId, input.runId)
     if (!settlement.accepted && settlement.stateRevision !== undefined) {
       publishSessionHostEvent({
         kind: 'session-state-changed',

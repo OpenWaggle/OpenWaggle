@@ -9,6 +9,8 @@ interface SelectedModelThinkingLevelInput {
     readonly models: readonly ModelDisplayInfo[]
   }[]
   readonly selectedModel: SupportedModelId
+  /** The model a selection the catalog lacks runs on: the Session's last answering model. */
+  readonly fallbackModel?: SupportedModelId | undefined
   readonly requestedThinkingLevel: ThinkingLevel
 }
 
@@ -42,7 +44,9 @@ function findSelectedModel(
 export function resolveSelectedModelThinkingLevel(
   input: SelectedModelThinkingLevelInput,
 ): SelectedModelThinkingLevel {
-  const model = findSelectedModel(input.providerModels, input.selectedModel)
+  const model =
+    findSelectedModel(input.providerModels, input.selectedModel) ??
+    (input.fallbackModel ? findSelectedModel(input.providerModels, input.fallbackModel) : null)
   if (!model) {
     return {
       requestedThinkingLevel: input.requestedThinkingLevel,
@@ -74,6 +78,7 @@ export function resolveSelectedModelThinkingLevel(
 export function useSelectedModelThinkingLevel(
   selectedModelOverride: SupportedModelId | null | undefined,
   requestedThinkingLevel: ThinkingLevel,
+  fallbackModel?: SupportedModelId,
 ): SelectedModelThinkingLevel {
   const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
   const providerModels = useProviderStore((state) => state.providerModels)
@@ -91,6 +96,7 @@ export function useSelectedModelThinkingLevel(
   return resolveSelectedModelThinkingLevel({
     providerModels,
     selectedModel,
+    fallbackModel,
     requestedThinkingLevel,
   })
 }

@@ -2,7 +2,10 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { SessionProjectionRepositoryError } from '../errors'
 import { createLogger } from '../logger'
-import type { SessionProjectionRepositoryShape } from '../ports/session-projection-repository'
+import type {
+  SessionDeletionOptions,
+  SessionProjectionRepositoryShape,
+} from '../ports/session-projection-repository'
 import type { SessionTranscriptLocation } from '../ports/session-transcript-files'
 import type { pruneSessionWorktree } from '../services/git/session-worktree-prune'
 import type {
@@ -92,9 +95,13 @@ async function journaledTranscriptFile(input: DeletionDependencies, session: Del
  * Removes every other file of the deleted Session's transcript. The runtime would reopen any of
  * them as the Session's transcript, and listing them again from the journal makes the removal
  * safe to repeat when recovery resumes an interrupted cleanup.
+ *
+ * A Pi file the cleanup keeps (no staged path: a discovered Pi session's, ADR 0051) is the user's
+ * history in the program that made it, and so is every file with its Pi session id, the kept file
+ * included, so none is removed.
  */
 async function removeTranscriptCopies(input: DeletionDependencies, cleanup: SessionDeletionRecord) {
-  if (!cleanup.piSessionFile) return
+  if (!cleanup.piSessionFile || cleanup.stagedPiSessionFile === null) return
   const copies = await input.listTranscriptFiles({
     transcriptFile: cleanup.piSessionFile,
     projectPath: cleanup.projectPath,
@@ -160,11 +167,16 @@ async function commitPreparedSessionDeletion(
 async function deleteSessionDurably(
   input: DeletionDependencies,
   id: SessionId,
-  recovering = false,
+  recovering: boolean,
+  options: SessionDeletionOptions,
 ) {
   const session = await input.store.getSessionDetail(id)
   let deletion = session
-    ? await input.store.prepareSessionDeletion(id, await journaledTranscriptFile(input, session))
+    ? await input.store.prepareSessionDeletion(
+        id,
+        await journaledTranscriptFile(input, session),
+        options,
+      )
     : await input.store.getSessionDeletion(id)
   if (!deletion) return
   if (deletion.phase === 'pi-file-cleanup-complete') {
@@ -223,7 +235,7 @@ function recoverPendingDeletions(input: DeletionDependencies) {
   return Effect.promise(async () => {
     for (const id of await input.store.listPendingSessionDeletions()) {
       try {
-        await deleteSessionDurably(input, id, true)
+        await deleteSessionDurably(input, id, true, {})
       } catch (error) {
         logger.error('Pending Session deletion recovery failed; Session remains visible.', {
           error: String(error),
@@ -238,9 +250,9 @@ export function createSessionProjectionDeletionMethods(
   input: DeletionDependencies,
 ): Pick<SessionProjectionRepositoryShape, 'delete' | 'recoverPendingDeletions'> {
   return {
-    delete: (id) =>
+    delete: (id, options) =>
       Effect.tryPromise({
-        try: () => deleteSessionDurably(input, id),
+        try: () => deleteSessionDurably(input, id, false, options ?? {}),
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
       }),
     recoverPendingDeletions: () => recoverPendingDeletions(input),

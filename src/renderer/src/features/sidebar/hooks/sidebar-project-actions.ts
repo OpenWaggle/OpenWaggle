@@ -9,14 +9,13 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
-import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { openProjectInDraft } from './open-project-in-draft'
+import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 import {
-  clearComposerDraftForSession,
-  clearComposerDraftsForSessions,
-  errorMessage,
-} from './sidebar-action-utils'
-import { deleteProjectSessionsChildrenFirst } from './sidebar-project-session-deletion'
+  deleteProjectSessionsChildrenFirst,
+  deleteRemovedProjectSession,
+} from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
 const SESSION_HYDRATION_BATCH_SIZE = 100
@@ -186,17 +185,33 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
   }
 }
 
+/** Once the removal is done, the drafts it would not carry are forgotten, carried or not. */
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
+  const releaseDrafts: (() => void)[] = []
+  try {
+    await removeProjectWith(deps, path, releaseDrafts)
+  } finally {
+    for (const releaseDraft of releaseDrafts) releaseDraft()
+  }
+}
+
+async function removeProjectWith(
+  deps: SidebarProjectActionDeps,
+  path: string,
+  releaseDrafts: (() => void)[],
+) {
   const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
-    `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
-    `Project: ${deps.displayProjectName(path)}\nThis cannot be undone.`,
+    `Remove ${deps.displayProjectName(path)} and delete its ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
+    `Project: ${deps.displayProjectName(path)}\nSessions started in OpenWaggle are deleted permanently. Sessions from the pi command keep their Pi files and come back if you add the folder again. If the folder is inside another project, that project lists them instead.`,
   )
   if (!confirmed) return
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   try {
+    // Discovery stops listing the project's `pi` sessions before the Sessions to delete are read.
+    await api.beginProjectRemoval(path)
     const currentSessions = await listProjectSessionSummaries(path)
     if (
       currentSessions.length !== projectSessionIds.size ||
@@ -211,11 +226,15 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
       (run) => api.cancelAgent(run.sessionId),
     )
-    await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
-      await api.deleteSession(id)
-      clearComposerDraftForSession(id)
-      await deleteWorkspaceOwner(String(id))
-    })
+    await deleteProjectSessionsChildrenFirst(currentSessions, (id) =>
+      deleteRemovedProjectSession(id, releaseDrafts),
+    )
+    // A Session created in the project meanwhile was not confirmed for deletion; keep the project.
+    if ((await listProjectSessionSummaries(path)).length > 0) {
+      throw new Error(
+        'Sessions were added to the project while removing it. Review them and try again.',
+      )
+    }
   } catch (error) {
     await Promise.allSettled([
       deps.loadChatSessions(),

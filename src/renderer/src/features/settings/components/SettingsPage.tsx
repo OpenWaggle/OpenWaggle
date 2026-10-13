@@ -77,23 +77,14 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
               : 'overflow-y-auto px-4 py-5 @min-[640px]/settings:px-10 @min-[640px]/settings:py-8',
           )}
         >
-          <SettingsTabContent
-            tab={activeTab}
-            activeSessionId={activeSessionId ? String(activeSessionId) : null}
-          />
+          <SettingsTabContent tab={activeTab} />
         </div>
       </div>
     </div>
   )
 }
 
-function SettingsTabContent({
-  tab,
-  activeSessionId,
-}: {
-  readonly tab: SettingsTab
-  readonly activeSessionId: string | null
-}) {
+function SettingsTabContent({ tab }: { readonly tab: SettingsTab }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
     .with('browser', () => <BrowserProfilesSection />)
@@ -105,7 +96,7 @@ function SettingsTabContent({
     .with('skills', () => <SkillsPanel />)
     .with('agents', () => <AgentsSettingsSection />)
     .with('permissions', () => <PermissionsSection />)
-    .with('mcp', () => <McpSection sessionId={activeSessionId} />)
+    .with('mcp', () => <McpSection />)
     .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)

@@ -41,6 +41,9 @@ export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:delete', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:delete', args),
   )
+  typedHandle('sessions:begin-project-removal', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:begin-project-removal', args),
+  )
   typedHandle('sessions:archive', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:archive', args),
   )

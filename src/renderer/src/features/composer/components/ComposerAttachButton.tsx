@@ -1,11 +1,13 @@
 import { FileCode2, Paperclip, Plus, Radio, Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { useChatStore } from '@/features/chat/state'
 import { insertComposerInvocation } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useProject } from '@/features/sessions/hooks'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
+import { ComposerSessionMcpSwitch } from './ComposerSessionMcpSwitch'
 
 interface ComposerAttachButtonProps {
   readonly disabled?: boolean
@@ -48,6 +50,7 @@ export function ComposerAttachButton({
   const [open, setOpen] = useState(false)
   const { projectPath } = useProject()
   const setSlashMenuFilter = useComposerStore((state) => state.setSlashMenuFilter)
+  const activeSessionId = useChatStore((state) => state.activeSessionId)
   const disabled = contextDisabled || !projectPath
 
   function invoke(invocation: '@' | '/', filter: 'all' | 'skills' | 'waggle' = 'all') {
@@ -108,6 +111,7 @@ export function ComposerAttachButton({
         label="Start Waggle"
         onSelect={() => invoke('/', 'waggle')}
       />
+      {activeSessionId ? <ComposerSessionMcpSwitch sessionId={activeSessionId} /> : null}
       <p className="mx-1 mt-1 border-t border-border-light px-2 pb-1 pt-2 text-xs text-text-muted">
         Drop files here, or type @ for files and / for skills or Waggle.
       </p>

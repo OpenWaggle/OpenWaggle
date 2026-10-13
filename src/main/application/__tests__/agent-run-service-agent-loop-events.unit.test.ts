@@ -114,6 +114,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
       }
     }),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compact is not used')),
   navigateTree: () => Effect.fail(new Error('navigateTree is not used')),
   forkSession: () => Effect.fail(new Error('forkSession is not used')),

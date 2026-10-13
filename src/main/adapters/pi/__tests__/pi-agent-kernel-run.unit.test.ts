@@ -1,3 +1,6 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -8,9 +11,7 @@ import type {
   AgentKernelWaggleRunOptions,
 } from '../../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../../ports/inline-visualization-service'
-import type { McpConfigServiceShape } from '../../../ports/mcp-config-service'
-import type { McpRuntimeServiceShape } from '../../../ports/mcp-runtime-service'
-import { server, snapshot } from '../../mcp/__tests__/mcp-runtime-test-utils'
+import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
 const runMocks = vi.hoisted(() => ({
@@ -91,15 +92,7 @@ describe('runPiAgentKernel', () => {
     })
   })
 
-  it('injects the scoped Sessions extension and preserves MCP and visualization restrictions', async () => {
-    const turn = snapshot({
-      servers: [
-        server({ instanceId: 'github-id', name: 'github' }),
-        server({ instanceId: 'linear-id', name: 'linear' }),
-      ],
-    })
-    const prepareTurn = vi.fn(() => Effect.void)
-    const completeTurn = vi.fn(() => Effect.void)
+  it('injects the scoped Sessions extension and preserves visualization restrictions', async () => {
     runMocks.runPiSession.mockResolvedValue({
       newMessages: [],
       piSessionId: 'pi-session',
@@ -119,16 +112,6 @@ describe('runPiAgentKernel', () => {
       onEvent: vi.fn(),
       sessionCapabilities: ['sessions:spawn', 'sessions:read'],
       modelMultiAgentEnabled: false,
-      mcpServerAllowlist: ['github'],
-    })
-    const mcpConfig = fromPartial<McpConfigServiceShape>({
-      createTurnSnapshot: () => Effect.succeed(turn),
-    })
-    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({
-      prepareTurn,
-      listDirectTools: () => Effect.succeed([]),
-      completeTurn,
-      disposeSession: () => Effect.void,
     })
     const inlineVisualization = fromPartial<InlineVisualizationServiceShape>({
       prepareSession: () => Effect.succeed('/visualizations/session-1'),
@@ -137,12 +120,11 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
-        mcpConfig,
-        mcpRuntime,
         inlineVisualization,
       }),
     )
@@ -176,18 +158,49 @@ describe('runPiAgentKernel', () => {
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(
       runMocks.runPiSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
-    expect(prepareTurn).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      snapshot: expect.objectContaining({
-        servers: [expect.objectContaining({ name: 'github' })],
-      }),
+  })
+
+  it('gives the Run server names for old MCP instance IDs in its allowlist', async () => {
+    const recordPath = path.join(homedir(), '.openwaggle', 'mcp', 'migration.json')
+    await mkdir(path.dirname(recordPath), { recursive: true })
+    await writeFile(
+      recordPath,
+      JSON.stringify({ version: 1, files: {}, legacyServerNames: { 'gh-1': 'github' } }),
+    )
+    runMocks.runPiSession.mockResolvedValue({
+      newMessages: [],
+      piSessionId: 'pi-session',
+      sessionSnapshot: { nodes: [], activeNodeId: null },
     })
-    expect(completeTurn).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      nextSnapshot: expect.objectContaining({
-        servers: [expect.objectContaining({ name: 'github' })],
-      }),
+    const input = fromPartial<AgentKernelRunInput>({
+      session: { id: SessionId('session-legacy'), projectPath: '/repo', messages: [] },
+      runId: 'run-1',
+      payload: { text: 'Hi', attachments: [] },
+      model: SupportedModelId('openai/gpt-5.4'),
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+      mcpServerAllowlist: ['gh-1', 'lint'],
     })
+
+    try {
+      await Effect.runPromise(
+        runPiAgentKernel(input, {
+          runtimeExtensionIsolation: {},
+          mcpPool: new McpSessionConnectionPool(),
+          ...actionWorkspaceDependencies(),
+          terminal: fromPartial({}),
+          browserPreviewAutomation: fromPartial({}),
+          enableBrowserPreviewAutomation: false,
+          inlineVisualization: fromPartial({ prepareSession: () => Effect.succeed(undefined) }),
+        }),
+      )
+    } finally {
+      await rm(recordPath, { force: true })
+    }
+
+    expect(runMocks.runPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerAllowlist: ['github', 'lint'] }),
+    )
   })
 
   it('injects the scoped Sessions extension into Waggle runs', async () => {
@@ -211,14 +224,6 @@ describe('runPiAgentKernel', () => {
       sessionCapabilities: ['sessions:spawn'],
       waggle,
     })
-    const mcpConfig = fromPartial<McpConfigServiceShape>({
-      createTurnSnapshot: () => Effect.succeed(null),
-    })
-    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({
-      prepareTurn: () => Effect.void,
-      completeTurn: () => Effect.void,
-      disposeSession: () => Effect.void,
-    })
     const inlineVisualization = fromPartial<InlineVisualizationServiceShape>({
       prepareSession: () => Effect.succeed('/visualizations/session-waggle'),
     })
@@ -226,12 +231,11 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
-        mcpConfig,
-        mcpRuntime,
         inlineVisualization,
       }),
     )
@@ -263,16 +267,11 @@ describe('runPiAgentKernel', () => {
     }
     const dependencies: Parameters<typeof runPiAgentKernel>[1] = {
       runtimeExtensionIsolation: {},
+      mcpPool: new McpSessionConnectionPool(),
       ...actionWorkspaceDependencies(),
       terminal: fromPartial({}),
       browserPreviewAutomation: fromPartial({}),
       enableBrowserPreviewAutomation: false,
-      mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(null) }),
-      mcpRuntime: fromPartial({
-        prepareTurn: () => Effect.void,
-        completeTurn: () => Effect.void,
-        disposeSession: () => Effect.void,
-      }),
       inlineVisualization: fromPartial({
         prepareSession: () => Effect.succeed('/visualizations/session'),
       }),

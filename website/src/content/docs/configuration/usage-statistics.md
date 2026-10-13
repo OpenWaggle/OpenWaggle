@@ -101,7 +101,7 @@ These go with `install.active`. The app sends a flag only when the install used 
 
 Three more fields go with them:
 
-- `mcp_servers` lists the MCP servers connected that day that come from OpenWaggle's curated MCP catalog, by catalog name, such as `playwright` or `chrome-devtools`. Any other server appears as `custom`, including a server of your own that only shares a catalog name.
+- `mcp_servers` lists the MCP servers whose tools the agent called that day that come from OpenWaggle's curated MCP catalog, by catalog name, such as `playwright` or `chrome-devtools`. A server counts as a catalog server only when it runs exactly as the catalog installs it, with the same command and arguments or the same URL. Any other server appears as `custom`, including a server of your own that only shares a catalog name.
 - `skills` lists the skills used that day that are built into OpenWaggle, currently only `visualize`. Any other skill appears as `custom`.
 - `extensions_enabled` gives the number of enabled extensions as a range, `0`, `1`, `2-5`, or `>5`, without names.
 

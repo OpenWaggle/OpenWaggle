@@ -29,7 +29,7 @@ import {
   withoutRetainedStreamContent,
   withWorktreeLaunchSnapshot,
 } from './stream-buffer-snapshots'
-import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
+import { applyToolExecutionToParts } from './stream-buffer-tool-parts'
 import {
   appendStreamBufferText,
   appendStreamBufferToolCallDelta,
@@ -177,14 +177,10 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
     .with('message_end', 'context_usage', () => undefined)
-    .with('tool_execution_start', 'tool_execution_update', ({ toolCallId, toolName, args }) => {
-      if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(toolCallId)) return
-      upsertBufferedToolCall(sessionId, { toolCallId, toolName, args })
-    })
-    .with('tool_execution_end', (value) => {
-      const preserveArgs = activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)
+    .with('tool_execution_start', 'tool_execution_update', 'tool_execution_end', (value) => {
+      const degraded = activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)
       updateBufferedParts(sessionId, (parts) =>
-        applyToolExecutionEndToParts(parts, value, preserveArgs),
+        applyToolExecutionToParts(parts, value, degraded === true),
       )
     })
     .with('compaction_start', (value) => {

@@ -1,4 +1,4 @@
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ExtensionError } from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
@@ -205,5 +205,46 @@ describe('run lifecycle settlement edge cases', () => {
     expect(session.abort).not.toHaveBeenCalled()
     expect('aborted' in result ? result.aborted : undefined).toBeUndefined()
     expect(result.newMessages).toHaveLength(2)
+  })
+
+  it('completes a classic Run whose extension reported a send it could not make, since Pi finished the turn', async () => {
+    const state: FakeAgentState = { messages: [] }
+    const errorListeners = new Set<(error: ExtensionError) => void>()
+    const session = {
+      sessionId: 'pi-session-classic-send-error',
+      sessionFile: '/repo/.pi/session.jsonl',
+      agent: { state, waitForIdle: vi.fn(async () => undefined), hasQueuedMessages: () => false },
+      sessionManager: { getEntries: () => [], getBranch: () => [], getLeafId: () => null },
+      abort: vi.fn(async () => undefined),
+      isCompacting: false,
+      isStreaming: false,
+      extensionRunner: {
+        onError: (listener: (error: ExtensionError) => void) => {
+          errorListeners.add(listener)
+          return () => errorListeners.delete(listener)
+        },
+      },
+    }
+
+    const result = await runSubscribedPiOperation({
+      runInput: runInput(payload(), new AbortController().signal),
+      session: fromPartial<AgentSession>(session),
+      unsubscribe: vi.fn(),
+      abortWarning: 'abort failed',
+      preAbortWarning: 'pre-abort failed',
+      operation: async () => {
+        // An extension called pi.sendUserMessage() while the turn streamed; Pi reports it and
+        // finishes the turn.
+        for (const listener of errorListeners) {
+          listener({ extensionPath: '<runtime>', event: 'send_user_message', error: 'busy' })
+        }
+        await Promise.resolve()
+        state.messages.push(assistantMessage('Finished the turn'))
+      },
+      buildErrorMessages: () => [],
+    })
+
+    expect(result).not.toHaveProperty('error')
+    expect(result.newMessages.at(-1)).toMatchObject({ role: 'assistant' })
   })
 })

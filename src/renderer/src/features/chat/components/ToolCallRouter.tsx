@@ -1,10 +1,15 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { NestedToolCalls } from '@shared/types/tools'
+import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
+import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
+import { WithNestedToolCalls } from './NestedToolCallList'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -14,7 +19,13 @@ interface ToolCallRouterProps {
   part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>
   toolResults: Map<
     string,
-    { content: unknown; state: string; sourceMessageId?: string; error?: string }
+    {
+      content: unknown
+      state: string
+      sourceMessageId?: string
+      error?: string
+      nestedCalls?: NestedToolCalls
+    }
   >
   sessionId: SessionId | null
   isStreaming: boolean
@@ -61,15 +72,36 @@ export function ToolCallRouter({
       ? undefined
       : { content: part.partialOutput, state: 'partial' })
 
+  const nestedCalls = nestedToolCallsView(
+    part.nestedCalls,
+    finalResult?.nestedCalls,
+    finalResult !== undefined || !isStreaming,
+  )
+  // A codemode card shows the script, its output, images and model calls; the tool calls the
+  // script made come from Pi's nested call events and record, like any other tool's.
+  const ownCard =
+    part.name === CODEMODE_TOOL_NAME ? (
+      <CodemodeToolCallBlock
+        args={part.arguments}
+        state={part.state}
+        result={visibleResult}
+        isStreaming={isStreaming}
+        nestedCallsShown={nestedCalls.calls.length > 0}
+      />
+    ) : (
+      <ToolCallBlock
+        name={part.name}
+        args={part.arguments}
+        state={part.state}
+        result={visibleResult}
+        isStreaming={isStreaming}
+        onBranchFromMessage={onBranchFromMessage}
+      />
+    )
   const toolCallBlock = (
-    <ToolCallBlock
-      name={part.name}
-      args={part.arguments}
-      state={part.state}
-      result={visibleResult}
-      isStreaming={isStreaming}
-      onBranchFromMessage={onBranchFromMessage}
-    />
+    <WithNestedToolCalls parentName={part.name} nestedCalls={nestedCalls} isStreaming={isStreaming}>
+      {ownCard}
+    </WithNestedToolCalls>
   )
   const appLaunch = finalResult
     ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))

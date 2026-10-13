@@ -69,6 +69,11 @@ export interface WaggleTurnChatRow {
   folded?: boolean
   /** Rendered inside the section, between the turn pill and the terminal message. */
   foldRow?: TurnFoldChatRow
+  /**
+   * The error the turn's last response failed with. Absent when a later response answered the
+   * turn, and on the Run's last failed turn while the Run error row shows the same failure.
+   */
+  failure?: string
 }
 
 // ─── ChatRow Discriminated Union ──────────────────────────

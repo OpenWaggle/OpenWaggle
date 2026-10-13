@@ -9,6 +9,7 @@ import { durableSessionRunId } from '../domain/session-control/root-session-proj
 import { decideSpawnAdmission } from '../domain/session-control/spawn-admission'
 import { planChildLineage } from '../domain/session-control/spawn-lineage'
 import { SessionLifecycleRepositoryError } from '../errors'
+import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-discovery'
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
@@ -45,6 +46,29 @@ export interface LifecycleTarget {
 export type LifecycleTargetResolution =
   | { readonly kind: 'accepted'; readonly target: LifecycleTarget }
   | { readonly kind: 'rejected'; readonly response: ReturnType<typeof lifecycleResponse> }
+
+/**
+ * Pi session discovery's create keys are its own (ADR 0051): one under its prefix is admitted only
+ * when discovery recorded it before sending, so a key someone chose cannot pass for one and be
+ * cleaned up as a Session an interrupted pass left. Nothing is stored, so the key stays free.
+ */
+export function reservedIdempotencyKeyRejection(sql: SqlClient.SqlClient, input: ReplayInput) {
+  return Effect.gen(function* () {
+    const key = input.request.idempotencyKey
+    if (input.request.command.operation !== 'create') return undefined
+    if (!key.startsWith(PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX)) return undefined
+    const recorded = yield* sql<{ readonly found: number }>`
+      SELECT 1 AS found FROM pi_session_discovery_creates WHERE idempotency_key = ${key} LIMIT 1
+    `
+    if (recorded.length > 0) return undefined
+    return lifecycleResponse(input, false, {
+      operation: 'create',
+      effect: 'rejected',
+      code: 'reserved_idempotency_key',
+      retryable: false,
+    })
+  })
+}
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionLifecycleRepositoryError({ operation, cause })

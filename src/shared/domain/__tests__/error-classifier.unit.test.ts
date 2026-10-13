@@ -64,4 +64,17 @@ describe('classifyErrorMessage', () => {
       expect(result.retryable).toBe(false)
     })
   })
+
+  describe('pi-session-file-deleted', () => {
+    it('shows the whole message for a Session whose Pi file was deleted, even with a path that looks like another error', () => {
+      const message =
+        "This Session's Pi session file was deleted outside OpenWaggle (/home/me/401-unauthorized/s.jsonl), so its history is gone and it cannot be continued. Restore the file to continue it. The Session stays, to read, because fork abc still depends on it."
+
+      const info = classifyErrorMessage(`Error: ${message}`)
+
+      expect(info.code).toBe('pi-session-file-deleted')
+      expect(info.userMessage).toBe(message)
+      expect(info.retryable).toBe(false)
+    })
+  })
 })

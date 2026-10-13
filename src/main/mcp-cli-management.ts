@@ -1,212 +1,194 @@
-import { homedir } from 'node:os'
-import type { McpSettingsView } from '@shared/types/mcp'
-import { Effect } from 'effect'
+import type {
+  McpConfigFileScope,
+  McpConfigurationView,
+  McpWriteDestination,
+} from '@shared/types/mcp-configuration'
 import {
-  createRegistryDraft,
-  getMcpRegistryServer,
-  mcpRegistryPackageType,
-  searchMcpRegistry,
-} from './adapters/mcp/registry-client'
-import { runMcpRuntimeDoctor } from './adapters/mcp/runtime/runtime-doctor'
+  McpCliUsageError,
+  type McpManagementCommand,
+  mcpCliAddInput,
+  mcpCliProjectPath,
+  parseMcpManagementArguments,
+  requireServerName,
+} from './mcp-cli-management-arguments'
 import {
-  addDefinition,
-  definitionFor,
-  findServer,
-  hasFlag,
-  option,
-  type ParsedArguments,
-  parseImportSources,
+  MCP_MANAGEMENT_EXIT,
+  type McpManagementCommandInput,
+  type McpManagementContext,
+  type McpManagementExit,
+} from './mcp-cli-management-context'
+import { doctorCommand } from './mcp-cli-management-doctor'
+import { importCommand } from './mcp-cli-management-import'
+import { listCommand, projectOptionOf } from './mcp-cli-management-list'
+import { registryCommand } from './mcp-cli-management-registry'
+
+export type { McpCliHost } from './mcp-cli-management-context'
+
+/**
+ * `openwaggle mcp add|remove|list|enable|disable|login|logout|import`, mirroring `pi mcp`, plus
+ * `registry` and `doctor`. Every command runs in the Session Host through the MCP Host UI
+ * channels, so the CLI and Settings > MCP change the same files the same way.
+ */
+
+function scopeOf(destination: McpWriteDestination): McpConfigFileScope {
+  return destination === 'pi-global' || destination === 'openwaggle-global' ? 'global' : 'project'
+}
+
+function defaultDestination(scope: McpConfigFileScope): McpWriteDestination {
+  return scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
+}
+
+function findServer(view: McpConfigurationView, name: string) {
+  return view.servers.find((server) => server.name === name)
+}
+
+function missingServer(view: McpConfigurationView, name: string) {
+  const configured = view.servers.map((server) => server.name).join(', ') || 'none'
+  return new Error(`No MCP server named "${name}". Configured: ${configured}.`)
+}
+
+async function addCommand({
+  args,
   projectPath,
-  readSecretFromStdin,
-  target,
-} from './mcp-cli-arguments'
-import {
-  type McpCliVault as CliVault,
-  type McpCliConfigService as ConfigService,
-  createMcpCliManagementRuntime,
-  type McpCliManagementRuntime,
-} from './mcp-cli-management-runtime'
-import { secretReferences } from './mcp-cli-secret-references'
-export interface McpCliManagementDependencies {
-  readonly createRuntime: (args: ParsedArguments) => Promise<McpCliManagementRuntime>
-}
-
-const defaultMcpCliManagementDependencies: McpCliManagementDependencies = {
-  createRuntime: createMcpCliManagementRuntime,
-}
-
-async function runRegistryCommand(
-  service: ConfigService,
-  context: { projectPath: string },
-  args: ParsedArguments,
-) {
-  const action = args.positionals[0] ?? 'search'
-  const name = args.positionals[1]
-  if (action === 'search') {
-    return searchMcpRegistry({
-      query: name ?? '',
-      ...(option(args, 'registry') ? { registryUrl: option(args, 'registry') } : {}),
-    })
-  }
-  if (!name) throw new Error(`Registry ${action} requires a server name.`)
-  const server = await getMcpRegistryServer({
-    name,
-    ...(option(args, 'version') ? { version: option(args, 'version') } : {}),
-    ...(option(args, 'registry') ? { registryUrl: option(args, 'registry') } : {}),
+  context,
+}: McpManagementCommandInput): Promise<McpManagementExit> {
+  const input = mcpCliAddInput(args)
+  const scope = input.destination ? scopeOf(input.destination) : projectPath ? 'project' : 'global'
+  const destination = input.destination ?? defaultDestination(scope)
+  const before = await context.host.invoke('mcp:get-configuration', { projectPath })
+  const filePath = before.files.find((file) => file.fileId === destination)?.path ?? destination
+  const replaced = before.servers.some(
+    (server) => server.name === input.name && server.source.path === filePath,
+  )
+  const after = await context.host.invoke('mcp:add-server', {
+    projectPath,
+    name: input.name,
+    scope,
+    entry: input.entry,
+    ...(input.destination ? { destination: input.destination } : {}),
   })
-  if (action === 'get') return server
-  if (action !== 'add') throw new Error(`Unknown registry action ${JSON.stringify(action)}.`)
-  const packageType = option(args, 'package')
-  const selectedPackageType = mcpRegistryPackageType(packageType)
-  if (packageType && !selectedPackageType) {
+  context.output.log(
+    `${replaced ? 'Replaced' : 'Added'} ${scope} MCP server "${input.name}" in ${filePath}.`,
+  )
+  // `-l` or `--project <path>`, as the command was given, so the hints act on the same project.
+  const project = projectOptionOf({ args, projectPath })
+  const signIn = findServer(after, input.name)?.usesOAuth
+    ? `. If it requires sign-in: openwaggle mcp login ${input.name}${project}`
+    : ''
+  context.output.log(`Check it with: openwaggle mcp list${project}${signIn}`)
+  return MCP_MANAGEMENT_EXIT.SUCCESS
+}
+
+async function removeCommand({
+  args,
+  projectPath,
+  context,
+}: McpManagementCommandInput): Promise<McpManagementExit> {
+  const name = requireServerName('remove', args)
+  const view = await context.host.invoke('mcp:get-configuration', { projectPath })
+  const server = findServer(view, name)
+  if (!server) throw missingServer(view, name)
+  await context.host.invoke('mcp:remove-server', { projectPath, name })
+  context.output.log(`Removed ${server.scope} MCP server "${name}" from ${server.source.path}.`)
+  return MCP_MANAGEMENT_EXIT.SUCCESS
+}
+
+async function setEnabledCommand(
+  enabled: boolean,
+  { args, projectPath, context }: McpManagementCommandInput,
+): Promise<McpManagementExit> {
+  const name = requireServerName(enabled ? 'enable' : 'disable', args)
+  const inProject = args.flags.has('in-project')
+  const scopedProject = projectPath ?? (inProject ? context.workingDirectory : null)
+  const view = await context.host.invoke('mcp:set-server-enabled', {
+    projectPath: scopedProject,
+    name,
+    enabled,
+    target: inProject ? 'project' : 'server',
+  })
+  const server = findServer(view, name)
+  const savedTo = server?.override?.path ?? server?.source.path ?? 'its file'
+  context.output.log(
+    `${enabled ? 'Enabled' : 'Disabled'} MCP server "${name}"${inProject ? ' in this project' : ''}; saved to ${savedTo}.`,
+  )
+  return MCP_MANAGEMENT_EXIT.SUCCESS
+}
+
+function requireOAuthServer(view: McpConfigurationView, name: string) {
+  const server = findServer(view, name)
+  if (!server) throw missingServer(view, name)
+  if (!server.usesOAuth) {
     throw new Error(
-      `Unsupported Registry package type ${JSON.stringify(packageType)}. Expected npm, pypi, nuget, oci, or mcpb.`,
+      `MCP server "${name}" does not use OAuth. Only HTTP servers without an Authorization header do.`,
     )
   }
-  const draft = await createRegistryDraft({
-    server,
-    homeDir: homedir(),
-    ...(selectedPackageType ? { packageType: selectedPackageType } : {}),
-  })
-  return service.addServer({
-    ...context,
-    name: option(args, 'name') ?? draft.name.replace(/[^A-Za-z0-9._-]+/g, '-'),
-    target: target(args),
-    definition: draft.definition,
-  })
+  return server
 }
 
-async function runImportCommand(
-  service: ConfigService,
-  context: { projectPath: string },
-  args: ParsedArguments,
-) {
-  const sources = parseImportSources(option(args, 'from'))
-  const preview = await service.previewImports({ ...context, sources })
-  if (!hasFlag(args, 'apply')) return preview
-  const requestedConflict = option(args, 'conflict')
-  const conflictPolicy =
-    requestedConflict === 'replace' || requestedConflict === 'rename' ? requestedConflict : 'skip'
-  return service.applyImports({
-    ...context,
-    sources,
-    fingerprints: preview.candidates.map((candidate) => candidate.fingerprint),
-    target: target(args),
-    conflictPolicy,
-  })
-}
-
-async function runDoctorCommand(service: ConfigService, context: { projectPath: string }) {
-  const [view, doctor] = await Promise.all([
-    service.getView(context),
-    Effect.runPromise(runMcpRuntimeDoctor()),
-  ])
-  return { ...doctor, notices: view.notices, integration: view.integration }
-}
-
-async function runCredentialCommand(input: {
-  readonly command: string
-  readonly args: ParsedArguments
-  readonly view: McpSettingsView
-  readonly server: McpSettingsView['servers'][number]
-  readonly vault: CliVault
-  readonly authorizeServer: McpCliManagementRuntime['authorizeServer']
-  readonly logoutServer: McpCliManagementRuntime['logoutServer']
-}) {
-  const { vault } = input
-  const definition = definitionFor(input.view, input.server)
-  if (input.command === 'auth') {
-    if (definition.auth?.type === 'oauth' && !hasFlag(input.args, 'secret-stdin')) {
-      return input.authorizeServer({
-        projectPath: input.view.projectPath,
-        instanceId: input.server.instanceId,
-      })
-    }
-    if (!hasFlag(input.args, 'secret-stdin')) {
-      throw new Error(
-        'This server has no OAuth flow. Use --secret-stdin and pipe a configured credential value on stdin.',
-      )
-    }
-    const references = secretReferences(definition)
-    const selected =
-      option(input.args, 'secret') ?? (references.length === 1 ? references[0] : undefined)
-    if (!selected)
-      throw new Error(
-        `Choose one credential reference with --secret. Available: ${references.join(', ') || 'none'}.`,
-      )
-    return vault.set(selected, await readSecretFromStdin())
+async function loginCommand({
+  args,
+  projectPath,
+  context,
+}: McpManagementCommandInput): Promise<McpManagementExit> {
+  const name = requireServerName('login', args)
+  requireOAuthServer(await context.host.invoke('mcp:get-configuration', { projectPath }), name)
+  const result = await context.host.invoke('mcp:sign-in', { projectPath, name })
+  if (result.signedIn) {
+    context.output.log(`Signed in to MCP server "${name}".`)
+    return MCP_MANAGEMENT_EXIT.SUCCESS
   }
-  if (input.command !== 'logout')
-    throw new Error(`Unknown MCP command ${JSON.stringify(input.command)}.`)
-  return input.logoutServer({
-    projectPath: input.view.projectPath,
-    instanceId: input.server.instanceId,
-  })
+  context.output.error(
+    result.authorizationUrl
+      ? `Sign-in to MCP server "${name}" did not finish. Open this page to sign in:\n${result.authorizationUrl}`
+      : `Sign-in to MCP server "${name}" was cancelled.`,
+  )
+  return MCP_MANAGEMENT_EXIT.FAILURE
 }
 
-async function runNamedServerCommand(
-  command: string,
-  args: ParsedArguments,
-  service: ConfigService,
-  context: { projectPath: string },
-  vault: CliVault,
-  runtime: Pick<McpCliManagementRuntime, 'authorizeServer' | 'logoutServer'>,
-) {
-  const view = await service.getView(context)
-  const server = findServer(view, args.positionals[0])
-  if (command === 'get') return server
-  if (command === 'enable' || command === 'disable') {
-    return service.setServerEnabled({
-      ...context,
-      instanceId: server.instanceId,
-      enabled: command === 'enable',
-    })
-  }
-  if (command === 'trust') {
-    return service.setServerTrust({
-      ...context,
-      instanceId: server.instanceId,
-      trusted: true,
-      ...(hasFlag(args, 'allow-unsandboxed') ? { allowUnsandboxed: true } : {}),
-    })
-  }
-  if (command === 'remove')
-    return service.removeServer({ ...context, instanceId: server.instanceId })
-  return runCredentialCommand({ command, args, view, server, vault, ...runtime })
+async function logoutCommand({
+  args,
+  projectPath,
+  context,
+}: McpManagementCommandInput): Promise<McpManagementExit> {
+  const name = requireServerName('logout', args)
+  requireOAuthServer(await context.host.invoke('mcp:get-configuration', { projectPath }), name)
+  await context.host.invoke('mcp:sign-out', { projectPath, name })
+  context.output.log(`Signed out of MCP server "${name}".`)
+  return MCP_MANAGEMENT_EXIT.SUCCESS
+}
+
+const COMMANDS: Readonly<
+  Record<McpManagementCommand, (input: McpManagementCommandInput) => Promise<McpManagementExit>>
+> = {
+  add: addCommand,
+  remove: removeCommand,
+  list: listCommand,
+  enable: (input) => setEnabledCommand(true, input),
+  disable: (input) => setEnabledCommand(false, input),
+  login: loginCommand,
+  logout: logoutCommand,
+  import: importCommand,
+  registry: registryCommand,
+  doctor: doctorCommand,
 }
 
 export async function runMcpManagementCommand(
-  command: string,
-  args: ParsedArguments,
-  dependencyOverrides: Partial<McpCliManagementDependencies> = {},
-) {
-  const dependencies = { ...defaultMcpCliManagementDependencies, ...dependencyOverrides }
-  const context = { projectPath: projectPath(args) }
-  const runtime = await dependencies.createRuntime(args)
+  command: McpManagementCommand,
+  rawArgs: readonly string[],
+  context: McpManagementContext,
+): Promise<McpManagementExit> {
   try {
-    const { service, vault } = runtime
-    const handlers: Readonly<Record<string, () => Promise<unknown>>> = {
-      list: () => service.getView(context),
-      add: () => {
-        const name = args.positionals[0]
-        if (!name) throw new Error('Usage: openwaggle mcp add <name> ...')
-        return service.addServer({
-          ...context,
-          name,
-          target: target(args),
-          definition: addDefinition(args),
-          replace: hasFlag(args, 'replace'),
-        })
-      },
-      import: () => runImportCommand(service, context, args),
-      doctor: () => runDoctorCommand(service, context),
-      registry: () => runRegistryCommand(service, context, args),
-    }
-    const handler = handlers[command]
-    return handler
-      ? await handler()
-      : await runNamedServerCommand(command, args, service, context, vault, runtime)
-  } finally {
-    await runtime.dispose()
+    const args = parseMcpManagementArguments(command, rawArgs)
+    const projectPath = mcpCliProjectPath(
+      args,
+      context.resolveProjectPath,
+      context.workingDirectory,
+    )
+    return await COMMANDS[command]({ args, projectPath, context })
+  } catch (error) {
+    context.output.error(`error: ${error instanceof Error ? error.message : String(error)}`)
+    return error instanceof McpCliUsageError
+      ? MCP_MANAGEMENT_EXIT.USAGE
+      : MCP_MANAGEMENT_EXIT.FAILURE
   }
 }

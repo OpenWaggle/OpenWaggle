@@ -67,3 +67,15 @@ export function projectName(path: string | null): string {
   const parts = path.split(/[\\/]/u).filter((part) => part.length > 0)
   return parts.at(-1) ?? path
 }
+
+const USD_SIGNIFICANT_DIGITS = 3
+const usdFormat = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumSignificantDigits: USD_SIGNIFICANT_DIGITS,
+})
+
+/** A provider cost in US dollars with three significant digits, so cents-fractions stay visible. */
+export function formatUsd(amount: number): string {
+  return usdFormat.format(amount)
+}

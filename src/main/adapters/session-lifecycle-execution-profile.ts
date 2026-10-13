@@ -72,7 +72,8 @@ function parseParentProfile(
   return { profile, resolvedAgentSnapshot, authorizationCeiling: row.authorization_ceiling }
 }
 
-function sessionAgentSourceId(callerId: string) {
+/** The Session whose agent made a request, for a `session-agent:<session>:<run>` caller. */
+export function sessionAgentSourceId(callerId: string) {
   if (!callerId.startsWith('session-agent:')) return undefined
   const remainder = callerId.slice('session-agent:'.length)
   const separator = remainder.lastIndexOf(':')

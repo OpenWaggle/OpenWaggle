@@ -5,6 +5,7 @@ import { useSessionThinkingLevel } from '@/features/chat/hooks'
 import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
+import { latestAnsweringModel } from '@/features/providers/state'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
@@ -30,7 +31,13 @@ export function ThinkingLevelMenu() {
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const composerModel = useComposerModel().model
-  const thinking = useSelectedModelThinkingLevel(composerModel ?? null, sessionThinking.level)
+  // A Session whose model is gone runs on the model that answered it last; so do its levels.
+  const fallbackModel = useChatStore((s) => latestAnsweringModel(s.activeSession?.messages ?? []))
+  const thinking = useSelectedModelThinkingLevel(
+    composerModel ?? null,
+    sessionThinking.level,
+    fallbackModel,
+  )
   const hasSelectedModel = Boolean(composerModel?.trim())
   const canOpenThinkingMenu =
     !settingsLock.locked &&

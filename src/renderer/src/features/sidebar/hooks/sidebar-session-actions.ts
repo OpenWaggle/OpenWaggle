@@ -3,16 +3,15 @@ import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
-import { resolveCurrentConversationNode } from '@/features/chat/lib'
+import { isSessionModelActionable, resolveCurrentConversationNode } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
 
@@ -152,9 +151,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
     deps.showToast('Open this session before cloning it.')
     return
   }
-  if (
-    !isModelActionable(usePreferencesStore.getState().settings.enabledModels, deps.selectedModel)
-  ) {
+  if (!isSessionModelActionable(sessionId, deps.selectedModel)) {
     deps.showToast('Select a model before cloning.')
     return
   }
@@ -188,7 +185,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
       deps.refreshSessionWorkspace(result.session.id),
     ])
   } catch (error) {
-    deps.showToast(`Failed to clone session: ${errorMessage(error)}`)
+    deps.showToast(sessionOperationFailureMessage('Failed to clone session', error))
   }
 }
 

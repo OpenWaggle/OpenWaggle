@@ -6,6 +6,7 @@ export type WaggleExecutionContext = Pick<
   | 'authorityCallerId'
   | 'agentInstructions'
   | 'sessionIdentityContext'
+  | 'runIdentityContext'
   | 'peerAgentReports'
   | 'onPeerAgentReportsDelivered'
   | 'orchestrationUpdates'
@@ -28,6 +29,7 @@ export function toWaggleKernelExecutionContext(
     authorityCallerId: input.authorityCallerId,
     agentInstructions: input.agentInstructions,
     sessionIdentityContext: input.sessionIdentityContext,
+    runIdentityContext: input.runIdentityContext,
     peerAgentReports: input.peerAgentReports,
     onPeerAgentReportsDelivered: input.onPeerAgentReportsDelivered,
     orchestrationUpdates: input.orchestrationUpdates,

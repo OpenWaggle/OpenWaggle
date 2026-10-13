@@ -17,6 +17,8 @@ export interface ProviderModelCapabilities {
   readonly input: readonly ('text' | 'image')[]
   readonly contextWindow: number
   readonly maxTokens: number
+  /** A virtual model picks a physical model for each request. */
+  readonly virtual?: boolean
 }
 
 export interface ProviderCapabilities {
