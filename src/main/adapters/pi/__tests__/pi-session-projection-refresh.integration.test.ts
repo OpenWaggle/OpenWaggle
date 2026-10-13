@@ -19,10 +19,23 @@ import {
  * again before it is shown or continued when its Pi file changed outside OpenWaggle (ADR 0051).
  */
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state, getPathMock, events } = vi.hoisted(() => ({
   state: { userDataDir: '' },
   getPathMock: vi.fn(() => ''),
+  events: new Array<{ kind: string; sessionId?: string; change?: string }>(),
 }))
+
+vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../../../session-host/session-host-events')>()
+  return {
+    ...original,
+    publishSessionHostEvent: (event: Parameters<typeof original.publishSessionHostEvent>[0]) => {
+      events.push(event)
+      original.publishSessionHostEvent(event)
+    },
+  }
+})
 
 getPathMock.mockImplementation(() => state.userDataDir)
 
@@ -81,6 +94,33 @@ describe('Pi session projection refresh', () => {
       'Second question',
       'Answer to: Second question',
     ])
+  })
+
+  it('shows what the Pi CLI added when the Session is opened, and says it changed', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'First question')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+    continuePiCliSession(cli.file, 'Second question')
+    events.length = 0
+    const { dispatchHostBackedSessionGuiOperation } = await import(
+      '../../../application/host-ui-session-operation-dispatcher'
+    )
+
+    const opened = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
+    )
+
+    expect(messageTexts(opened ?? null)).toEqual([
+      'First question',
+      'Answer to: First question',
+      'Second question',
+      'Answer to: Second question',
+    ])
+    // So a view that showed the Session before reads it again.
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: 'session-list-changed', sessionId, change: 'updated' }),
+    )
   })
 
   it('keeps the projection a Run persisted without reading the file again', async () => {

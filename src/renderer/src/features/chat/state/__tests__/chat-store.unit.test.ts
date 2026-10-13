@@ -93,16 +93,20 @@ describe('useChatStore unit', () => {
   })
 
   describe('setActiveSessionId', () => {
-    it('sets the active session from the local cache synchronously', () => {
+    it('sets the active session from the local cache synchronously, then reads it again', async () => {
       const id = SessionId('test-session-id')
       const session = makeSessionDetail(id)
       useChatStore.getState().upsertSession(session)
+      // The `pi` CLI continued it while another Session was shown.
+      const continued = { ...makeSessionDetail(id), updatedAt: 2 }
+      mockApi.getSessionDetail.mockResolvedValueOnce(continued)
 
       useChatStore.getState().setActiveSessionId(id)
 
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
-      expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(useChatStore.getState().activeSession).toEqual(continued))
+      expect(mockApi.getSessionDetail).toHaveBeenCalledWith(id)
     })
 
     it('sets to null', () => {
@@ -150,7 +154,10 @@ describe('useChatStore unit', () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
       useChatStore.getState().upsertSession(session)
+      mockApi.getSessionDetail.mockResolvedValueOnce(session)
       useChatStore.getState().setActiveSessionId(id)
+      await vi.waitFor(() => expect(mockApi.getSessionDetail).toHaveBeenCalledTimes(1))
+      mockApi.getSessionDetail.mockClear()
       mockApi.deleteSession.mockResolvedValueOnce(undefined)
 
       await useChatStore.getState().deleteSession(id)

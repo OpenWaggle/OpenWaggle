@@ -22,6 +22,7 @@ import {
   toSummary,
 } from './chat-store-helpers'
 import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
+import { revalidateCachedSession } from './chat-store-session-revalidation'
 import { applySessionTitle } from './chat-store-title-actions'
 import type { ChatActions, ChatState } from './chat-store-types'
 import {
@@ -149,10 +150,11 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
 
   const cached = get().sessionById.get(id) ?? null
   set({ activeSessionId: id, activeSession: cached, draftSession: null })
-
   if (!cached) {
     void get().refreshSession(id)
+    return
   }
+  void revalidateCachedSession(cached, get)
 }
 
 async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
