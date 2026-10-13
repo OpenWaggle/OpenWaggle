@@ -108,13 +108,15 @@ export interface HiveSessionCatalogPage {
   readonly nextCursor?: string
 }
 
-/** A Hive's Queen and one keyset page of its members at any depth (ADR 0050). */
+/** A Hive's Queen and one keyset page of its members at any depth (ADR 0051). */
 export interface HiveTreeSessionCatalogPage {
   readonly root: SessionSummary | null
   readonly members: readonly SessionSummary[]
   /**
    * Live members, across every page, whose Delegation needs the user (`needs_attention` or
-   * `revision_requested`), so the rail dot is right however far the panel has paged.
+   * `revision_requested`), so the rail dot is right however far the panel has paged. A parked
+   * request does not change the Delegation state, so it is not counted here; the Queen's
+   * sidebar line also reads row states and does report it (`workerAttentionByQueen`).
    */
   readonly attentionCount: number
   readonly nextCursor?: string

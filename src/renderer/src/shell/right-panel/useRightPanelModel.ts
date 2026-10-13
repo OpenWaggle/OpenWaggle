@@ -50,7 +50,7 @@ function lineageInHive(
 }
 
 /**
- * Whether any live Worker of the active Session's Hive needs the user (ADR 0050).
+ * Whether any live Worker of the active Session's Hive needs the user (ADR 0051).
  *
  * Only queried while the Session is in a Hive, so an ordinary chat adds no reads.
  */
@@ -83,7 +83,7 @@ export interface RightPanelSurfaceEntry {
   readonly pinned: boolean
   readonly isNew: boolean
   readonly running: boolean
-  /** A Worker in this Hive needs the user; the rail shows it as a Hive attention dot (ADR 0050). */
+  /** A Worker in this Hive needs the user; the rail shows it as a Hive attention dot (ADR 0051). */
   readonly attention: boolean
 }
 

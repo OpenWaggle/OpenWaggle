@@ -3,13 +3,12 @@ import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
-import { useSessionStatusStore } from '@/features/sessions/state'
 import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
-import { registerSidebarSessionActions } from '../lib/session-actions-registry'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
+import { useRegisterSidebarSessionActions } from './useRegisterSidebarSessionActions'
 import { useSidebarState } from './useSidebarState'
 
 /**
@@ -200,15 +199,8 @@ export function useSidebarController() {
     refreshAfterSessionMutation,
     queryClient,
   )
-  // Hive panel rows reuse these exact handlers (ADR 0050); registration is a side effect of the
+  // Hive panel rows reuse these exact handlers (ADR 0051); registration is a side effect of the
   // Sidebar owning the domain actions, so the registry never creates a second source of truth.
-  // markUnread is store-only, so it joins the domain actions here rather than inside the factory.
-  useEffect(() => {
-    registerSidebarSessionActions({
-      ...actions.session,
-      markUnread: (id: SessionId) => useSessionStatusStore.getState().markUnread(id),
-    })
-    return () => registerSidebarSessionActions(null)
-  }, [actions])
+  useRegisterSidebarSessionActions(actions.session)
   return buildControllerOutput(state, actions, clearTransientDraftContext)
 }

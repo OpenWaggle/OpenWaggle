@@ -92,7 +92,7 @@ describe('HivePanel', () => {
     expect(
       await screen.findByRole('button', { name: /Open Queen Session: queen/ }),
     ).toBeInTheDocument()
-    // One column header anchors the Workspace and State cells (ADR 0050 review).
+    // One column header anchors the Workspace and State cells (ADR 0051 review).
     expect(screen.getByText('Session')).toBeInTheDocument()
     expect(screen.getByText('Workspace')).toBeInTheDocument()
     expect(screen.getByText('State')).toBeInTheDocument()
@@ -109,7 +109,8 @@ describe('HivePanel', () => {
     )
     expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('active')
     expect(screen.getByRole('group', { name: 'Done Hive sessions' })).toHaveTextContent('done')
-    expect(screen.queryByLabelText('Archived Hive sessions')).toBeNull()
+    // Collapsed: the archived list is hidden from the accessibility tree.
+    expect(screen.queryByRole('group', { name: 'Archived Hive sessions' })).toBeNull()
     expect(screen.getByText('Archived · 1')).toBeInTheDocument()
   })
 
@@ -249,6 +250,10 @@ describe('HivePanel', () => {
     // Archived rows live in the collapsed group; expanding it exposes the row and its menu.
     const archivedToggle = screen.getByRole('button', { name: 'Archived · 1' })
     expect(archivedToggle).toHaveAttribute('aria-expanded', 'false')
+    // The controlled list exists while collapsed, so aria-controls never dangles.
+    expect(
+      document.getElementById(archivedToggle.getAttribute('aria-controls') ?? ''),
+    ).not.toBeNull()
     fireEvent.click(archivedToggle)
     expect(archivedToggle).toHaveAttribute('aria-expanded', 'true')
     expect(

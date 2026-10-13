@@ -83,7 +83,7 @@ export const BUILT_IN_RIGHT_PANEL_SURFACES = [
   {
     id: 'hive',
     title: 'Hive',
-    description: 'Move across the Sessions of this Hive (ADR 0050)',
+    description: 'Move across the Sessions of this Hive',
     icon: ChessQueen,
     command: 'rightPanel.hive',
     group: 'Session',

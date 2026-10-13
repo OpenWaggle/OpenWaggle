@@ -159,7 +159,7 @@ describe('GlobalCommandPalette Panels section', () => {
       'FilesBrowse and edit workspace files',
       'Session TreeInspect branches and session historyCtrl + Shift + Y',
       'ResourcesSources and outputs captured in this session',
-      'HiveMove across the Sessions of this Hive (ADR 0050)',
+      'HiveMove across the Sessions of this Hive',
       // The leading N is the extension's letter-tile icon.
       'NNotesAcme NotesGlobalCtrl + Shift + G',
     ])

@@ -15,7 +15,7 @@ export const HIVE_DELEGATION_LABELS = {
 export type HiveDelegationState = keyof typeof HIVE_DELEGATION_LABELS
 
 /**
- * The states that need the user, grouped as Needs you (ADR 0050): `needs_attention` and
+ * The states that need the user, grouped as Needs you (ADR 0051): `needs_attention` and
  * `revision_requested`. `ready_for_review` is the Review group: the next step is the Queen's.
  */
 export function hiveStateNeedsAttention(state: HiveDelegationState | null | undefined) {
@@ -39,7 +39,7 @@ export interface HiveSession {
   readonly title: string
   readonly archived?: boolean
   readonly lineage?: HiveLineage
-  /** Where the Session works, shown as the row's Workspace placement (ADR 0050). */
+  /** Where the Session works, shown as the row's Workspace placement (ADR 0051). */
   readonly worktreePath?: string | null
   readonly pendingInteractionAt?: number
   readonly followUpEditHeldAt?: number

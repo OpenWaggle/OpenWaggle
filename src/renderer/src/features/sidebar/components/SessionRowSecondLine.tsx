@@ -35,7 +35,7 @@ export function SessionRowSecondLine({
   /** Shown only when the row sits outside its project group, as Pinned rows do. */
   readonly projectLabel: string
   readonly shortcutIndex: number | null
-  /** A Queen's hidden Workers needing the user; rendered as "N needs input" (ADR 0050). */
+  /** A Queen's hidden Workers needing the user; rendered as "N needs input" (ADR 0051). */
   readonly workerAttentionCount?: number
   /** Name the Worker's parent in text, for Pinned and narrowed flat Worker rows. */
   readonly showLineageParent?: boolean
@@ -117,7 +117,7 @@ export function SessionRowSecondLine({
 
 /**
  * The row's Hive metadata: the lineage glyph, the parent name where it applies, and a Queen's
- * hidden-Worker attention (ADR 0050). Nothing renders for an independent session.
+ * hidden-Worker attention (ADR 0051). Nothing renders for an independent session.
  */
 function HiveLineageLead({
   session,
@@ -143,7 +143,7 @@ function HiveLineageLead({
   )
 }
 
-/** A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0050). */
+/** A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0051). */
 function QueenWorkerAttention({ count }: { readonly count: number }) {
   return (
     <>
@@ -161,7 +161,7 @@ export function SessionLineageIndicator({
   showParent = false,
 }: {
   readonly session: SessionSummary
-  /** Render the parent's title as text, for pinned and narrowed Worker rows (ADR 0050). */
+  /** Render the parent's title as text, for pinned and narrowed Worker rows (ADR 0051). */
   readonly showParent?: boolean
 }) {
   const lineage = sessionLineagePresentation(session)

@@ -13,7 +13,7 @@ import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
 import { type HiveTreeRow, hiveRowStateLabel } from '../lib/hive-tree-model'
 
 /**
- * The Hive rows are a three-column table (ADR 0050 review): Session, Workspace, State — with one
+ * The Hive rows are a three-column table (ADR 0051 review): Session, Workspace, State — with one
  * column header over the whole list, so the trailing cells read as columns rather than stray
  * words. The header and every row share this grid; the Session column takes the rest. Inline
  * rather than Tailwind classes because the dev Tailwind source snapshot only regenerates on a
@@ -89,7 +89,7 @@ function hiveRowAccessibleName(view: HiveRowView) {
 }
 
 /**
- * One Hive panel row: state, Workspace placement, and the sidebar's own ⋯ menu (ADR 0050).
+ * One Hive panel row: state, Workspace placement, and the sidebar's own ⋯ menu (ADR 0051).
  *
  * The menu is the same `SessionItemContextMenu` the sidebar renders, registered by the Sidebar,
  * so every action behaves identically in both places. Rename edits the title in place, as in the

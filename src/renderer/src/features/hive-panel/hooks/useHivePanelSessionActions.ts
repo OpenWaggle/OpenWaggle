@@ -3,7 +3,7 @@ import { sidebarSessionActions, subscribeSidebarSessionActions } from '@/feature
 import type { SidebarSessionActions } from '@/features/sidebar/model'
 
 /**
- * The Sidebar's session actions for Hive panel rows (ADR 0050).
+ * The Sidebar's session actions for Hive panel rows (ADR 0051).
  *
  * Null until a Sidebar has mounted: the panel then has no ⋯ menu to offer, which only happens
  * before the shell finishes mounting, never in a steady state.

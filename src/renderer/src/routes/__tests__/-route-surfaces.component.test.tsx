@@ -130,6 +130,23 @@ describe('route surfaces', () => {
     expect(onDiffOpenChange).not.toHaveBeenCalled()
   })
 
+  it('renders the Hive panel when it is open and routes close events to the Hive toggle', async () => {
+    const onHiveOpenChange = vi.fn()
+    const onSessionTreeOpenChange = vi.fn()
+
+    renderChatRoute({
+      rightSidebar: { hiveOpen: true },
+      actions: { onHiveOpenChange, onSessionTreeOpenChange },
+    })
+
+    expect(await screen.findByText('Hive panel')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
+
+    expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith('hive')
+    expect(onHiveOpenChange).toHaveBeenCalledWith(false)
+    expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
+  })
+
   it('renders extension side panels from route state and routes close events to extension search', async () => {
     const onDiffOpenChange = vi.fn()
     const onSessionTreeOpenChange = vi.fn()

@@ -26,7 +26,7 @@ export interface HivePanelProps {
 type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage, unknown>, Error>
 
 /**
- * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0050).
+ * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0051).
  *
  * It is the home of Worker Sessions that are not Pinned. Opening a member from it navigates with
  * the panel still requested, so the user can move across the Hive without the panel closing.
@@ -106,7 +106,7 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
 }
 
 /**
- * The one column header over the whole list (ADR 0050 review): it anchors the Workspace and
+ * The one column header over the whole list (ADR 0051 review): it anchors the Workspace and
  * State cells so they read as columns, not stray words. Rows and this header share one grid;
  * the header's padding matches the rows', actions gutter included, so the columns line up.
  */
@@ -245,7 +245,7 @@ function HiveArchivedGroup({
         // The visible text is the name, so the count reaches screen readers; aria-expanded says
         // whether the group is open.
         aria-expanded={expanded}
-        aria-controls={expanded ? listId : undefined}
+        aria-controls={listId}
         onClick={() => setExpanded((current) => !current)}
       >
         {expanded ? (
@@ -255,23 +255,25 @@ function HiveArchivedGroup({
         )}
         Archived · {rows.length}
       </Button>
-      {expanded ? (
-        // The toggle row is the group's only visible label (ADR 0050 review): no repeated heading.
-        <fieldset
-          id={listId}
-          aria-label="Archived Hive sessions"
-          className="m-0 min-w-0 border-0 p-0"
-        >
-          {rows.map((row) => (
-            <HiveTreeListItem
-              key={String(row.session.id)}
-              row={row}
-              isCurrent={currentSessionId !== null && String(row.session.id) === currentSessionId}
-              onOpen={() => onOpen(String(row.session.id))}
-            />
-          ))}
-        </fieldset>
-      ) : null}
+      {/* The list stays in the DOM, hidden while collapsed, so aria-controls always resolves;
+          its rows mount only when shown. The toggle row is its only visible label. */}
+      <fieldset
+        id={listId}
+        hidden={!expanded}
+        aria-label="Archived Hive sessions"
+        className="m-0 min-w-0 border-0 p-0"
+      >
+        {expanded
+          ? rows.map((row) => (
+              <HiveTreeListItem
+                key={String(row.session.id)}
+                row={row}
+                isCurrent={currentSessionId !== null && String(row.session.id) === currentSessionId}
+                onOpen={() => onOpen(String(row.session.id))}
+              />
+            ))
+          : null}
+      </fieldset>
     </div>
   )
 }

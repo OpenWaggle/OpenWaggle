@@ -210,7 +210,7 @@ export async function listHiveSessionCatalogPage(
   )
 }
 
-/** Keyset page of every Session of a Hive under its Queen, at any depth (ADR 0050). */
+/** Keyset page of every Session of a Hive under its Queen, at any depth (ADR 0051). */
 export async function listHiveTreeSessionCatalogPage(
   sessionId: SessionId,
   limit: number,

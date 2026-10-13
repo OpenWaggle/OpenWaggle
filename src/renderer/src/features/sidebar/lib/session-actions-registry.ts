@@ -1,7 +1,7 @@
 import type { SidebarSessionActions } from '../model'
 
 /**
- * The Sidebar's session actions, shared with Hive panel rows (ADR 0050).
+ * The Sidebar's session actions, shared with Hive panel rows (ADR 0051).
  *
  * The Sidebar owns the domain actions — removal navigation, pins, toasts — so the registry is
  * a hand-off, not a second implementation: the Hive panel's ⋯ menu behaves exactly like the

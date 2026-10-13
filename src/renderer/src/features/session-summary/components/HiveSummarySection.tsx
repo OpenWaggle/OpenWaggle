@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import { hiveSummaryModel } from '../model/session-hive-summary'
 
 /**
- * The Session Hub's Hive section: one summary row (ADR 0050).
+ * The Session Hub's Hive section: one summary row (ADR 0051).
  *
  * The Hub cannot be shown beside the Right panel, so it no longer lists Workers — a second list
  * would vanish the moment the panel opened and could only drift from it. The row reports the

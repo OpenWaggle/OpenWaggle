@@ -105,6 +105,20 @@ vi.mock('@/features/session-tree/components', () => ({
     }),
 }))
 
+vi.mock('@/features/hive-panel/components', () => ({
+  loadHivePanel: () =>
+    Promise.resolve({
+      default: ({ onClose }: { readonly onClose: () => void }) => (
+        <aside>
+          Hive panel
+          <Button variant="unstyled" type="button" onClick={onClose}>
+            Close Hive
+          </Button>
+        </aside>
+      ),
+    }),
+}))
+
 vi.mock('@/features/session-summary', () => ({
   ChangeRequestPanel: ({
     requestUrl,

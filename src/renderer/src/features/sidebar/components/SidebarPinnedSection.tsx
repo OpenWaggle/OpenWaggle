@@ -55,7 +55,7 @@ interface SidebarPinnedSectionProps {
   readonly sort: PinnedSortControlState
   readonly displayProjectName: (path: string) => string
   readonly sessionActions: SidebarSessionActions
-  /** Per-Queen hidden-Worker attention, shown on Queen rows' second line (ADR 0050). */
+  /** Per-Queen hidden-Worker attention, shown on Queen rows' second line (ADR 0051). */
   readonly workerAttentionOf: (queenId: string) => number
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }
@@ -196,7 +196,7 @@ function PinnedSessionListItem({
   readonly highlight: SessionRowHighlight
   readonly projectLabel: string
   readonly sessionActions: SidebarSessionActions
-  /** How many of this Queen's hidden Workers need the user (ADR 0050). */
+  /** How many of this Queen's hidden Workers need the user (ADR 0051). */
   readonly workerAttentionCount: number
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }) {

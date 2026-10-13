@@ -9,7 +9,7 @@ import { queryKeys } from './query-keys'
 import type { HiveSession } from './session-hive-contract'
 
 /**
- * One keyset page of a Hive under its Queen, at any depth (ADR 0050).
+ * One keyset page of a Hive under its Queen, at any depth (ADR 0051).
  *
  * The tree query nests under the `sessionHives` key root, so the shared Hive event
  * subscription (`useSessionHiveInvalidation`) keeps it fresh with no second listener.

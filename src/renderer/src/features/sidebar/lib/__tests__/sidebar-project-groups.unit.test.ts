@@ -40,7 +40,7 @@ function makeWorker(id: string, updatedAt: number): SessionSummary {
   }
 }
 
-describe('buildSidebarProjectGroups Worker exclusion (ADR 0050)', () => {
+describe('buildSidebarProjectGroups Worker exclusion (ADR 0051)', () => {
   const sessions = [
     makeSession('queen', 'Queen', '/repo/current', UPDATED_AT_NEW),
     makeWorker('hidden', UPDATED_AT_MIDDLE),

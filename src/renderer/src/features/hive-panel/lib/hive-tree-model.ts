@@ -9,7 +9,7 @@ import {
  * One row of the Hive panel, derived without hooks so grouping stays a pure function.
  *
  * `via` is the Worker's parent title for members below the first level: the panel lists the
- * whole Hive flat, and ADR 0050 labels depth with text rather than indentation.
+ * whole Hive flat, and ADR 0051 labels depth with text rather than indentation.
  */
 export interface HiveTreeRow {
   readonly session: HiveSession
@@ -42,7 +42,7 @@ function rowFor(session: HiveSession, rootId: string | null): HiveTreeRow {
 }
 
 /**
- * Group the Hive from its Queen down (ADR 0050): Needs you, Review, Active, Done, then
+ * Group the Hive from its Queen down (ADR 0051): Needs you, Review, Active, Done, then
  * `Archived · n`. The same delegation-state rule the Session Hub's Hive summary uses, applied
  * across every depth; Workers the legacy task runner produced are not Spawn lineage and are
  * not part of the panel's Hive.
@@ -87,7 +87,7 @@ export function buildHiveTreeModel(input: {
   }
 }
 
-/** What each row's trailing state label means, for the row's tooltip (ADR 0050). */
+/** What each row's trailing state label means, for the row's tooltip (ADR 0051). */
 const HIVE_STATE_HINTS = {
   working: 'The Worker is carrying out its delegation.',
   waiting: 'The Worker has finished its turn and waits for the next one.',
@@ -99,7 +99,7 @@ const HIVE_STATE_HINTS = {
 } as const satisfies Readonly<Record<HiveDelegationState, string>>
 
 /**
- * The short form of each Delegation state, for the row's State column (ADR 0050 review).
+ * The short form of each Delegation state, for the row's State column (ADR 0051 review).
  * The group heading already names the state family, so the cell only distinguishes within it.
  */
 const HIVE_STATE_SHORT_LABELS = {

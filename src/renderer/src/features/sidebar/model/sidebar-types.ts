@@ -47,9 +47,9 @@ export interface SidebarProjectRenderState {
   readonly draftBranch: SidebarDraftBranch | null
   readonly draftSessionProjectPath: string | null
   readonly projectPath: string | null
-  /** A status filter or search is active, so hidden Workers may list flat (ADR 0050). */
+  /** A status filter or search is active, so hidden Workers may list flat (ADR 0051). */
   readonly narrowed: boolean
-  /** How many of a Queen's hidden Workers need the user, keyed by the Queen's id (ADR 0050). */
+  /** How many of a Queen's hidden Workers need the user, keyed by the Queen's id (ADR 0051). */
   readonly workerAttentionOf: (queenId: string) => number
   /** The Queen of the Hive the open Worker belongs to, for her secondary row highlight. */
   readonly activeHiveRootId: string | null

@@ -149,7 +149,7 @@ function RailButton({
 }
 
 /**
- * The rail's state dot: a running Project Action or a Hive Worker needing the user (ADR 0050).
+ * The rail's state dot: a running Project Action or a Hive Worker needing the user (ADR 0051).
  */
 function RailStateDot({ surface }: { readonly surface: RightPanelSurfaceEntry }) {
   if (surface.running) {

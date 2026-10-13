@@ -32,7 +32,7 @@ const ITEM_VARIANT_CLASS = {
 
 type SessionListItemVariant = 'project' | 'root'
 
-/** How a sidebar row is emphasized (ADR 0050). */
+/** How a sidebar row is emphasized (ADR 0051). */
 export type SessionRowHighlight = 'active' | 'hive-home' | 'none'
 
 const HIVE_HOME_ROW_CLASS = 'bg-bg-active ring-1 ring-accent/40 ring-inset'
@@ -62,7 +62,7 @@ interface SessionListItemProps {
   /**
    * How the row is highlighted: the open Session ('active'), the Queen whose Hive the open
    * Worker belongs to ('hive-home', a secondary highlight so the Hive's context stays visible
-   * without being mistaken for the open row, ADR 0050), or neither.
+   * without being mistaken for the open row, ADR 0051), or neither.
    */
   readonly highlight?: SessionRowHighlight
   readonly variant?: SessionListItemVariant
@@ -70,7 +70,7 @@ interface SessionListItemProps {
   readonly branchDisclosure?: SessionBranchDisclosure
   readonly isPinned?: boolean
   readonly pinnedRow?: SessionPinnedRowState
-  /** How many of this Queen's hidden Workers need the user (ADR 0050); Queen rows only. */
+  /** How many of this Queen's hidden Workers need the user (ADR 0051); Queen rows only. */
   readonly workerAttentionCount?: number
   /** Name the Worker's parent on line two: pinned rows always, narrowed rows for flat Workers. */
   readonly showLineageParent?: boolean
@@ -84,7 +84,7 @@ interface SessionListItemProps {
 }
 
 /**
- * The Hive metadata a row's second line carries (ADR 0050).
+ * The Hive metadata a row's second line carries (ADR 0051).
  *
  * A Pinned Worker row always names its parent; a narrowed project row names it so a flat Worker
  * is never mistaken for an ordinary session.

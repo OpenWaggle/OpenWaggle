@@ -132,6 +132,7 @@ export function ChatRouteSurface({
     handleChangeRequestOpenChange,
     handleDiffOpenChange,
     handleExtensionSidePanelOpenChange,
+    handleHiveOpenChange,
     handleResourcesTargetChange,
     handleSessionTreeOpenChange,
     handleWorkspaceFileOpenChange,
@@ -201,6 +202,10 @@ export function ChatRouteSurface({
             }
             if (isExtensionRightSidebarPanel(renderedRightSidebarPanel)) {
               handleExtensionSidePanelOpenChange(open, renderedRightSidebarPanel)
+              return
+            }
+            if (renderedRightSidebarPanel === 'hive') {
+              handleHiveOpenChange(open)
               return
             }
             handleSessionTreeOpenChange(open)

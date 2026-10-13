@@ -159,7 +159,7 @@ export function useSidebarState() {
     sortMode: pinnedSortMode,
   }).filter((row) => visibleSessionIds.has(String(row.session.id)))
   /*
-   * Workers live in the Hive panel (ADR 0050): an unpinned Worker is hidden from its project
+   * Workers live in the Hive panel (ADR 0051): an unpinned Worker is hidden from its project
    * group, but a status filter or search that matches one lists it flat, naming its parent.
    */
   const narrowed = sidebarListsWorkersFlat({ filterState, normalizedQuery })
@@ -173,14 +173,14 @@ export function useSidebarState() {
     allSessions: sessions.sessions,
     excludeUnpinnedWorkers: !narrowed,
   })
-  // A Queen's second line reports hidden Workers that need the user (ADR 0050).
+  // A Queen's second line reports hidden Workers that need the user (ADR 0051).
   const workerAttention = useMemo(
     () => workerAttentionByQueen(sessions.sessions, rowStates.stateOf),
     [sessions.sessions, rowStates],
   )
 
   /*
-   * The Queen of the Hive the open Worker belongs to (ADR 0050). Her row keeps a secondary
+   * The Queen of the Hive the open Worker belongs to (ADR 0051). Her row keeps a secondary
    * highlight while one of her Workers is displayed, so the Hive's context stays visible; the
    * open Worker itself keeps aria-current.
    */

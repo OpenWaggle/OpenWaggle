@@ -26,7 +26,7 @@ interface SessionItemContextMenuProps {
   readonly actions: SidebarSessionActions
   readonly commands: SessionRowMenuCommands
   /**
-   * An archived row cannot be archived again; the item becomes Unarchive (ADR 0050). Unarchive
+   * An archived row cannot be archived again; the item becomes Unarchive (ADR 0051). Unarchive
    * brings the Session back to the sidebar, the same action the Session Hub's restore uses.
    * "Unarchive" rather than "Restore": Restore reads as restoring a conversation or checkpoint.
    */
@@ -49,7 +49,7 @@ export interface SessionRowMenuCommands {
   readonly moveDown?: (() => void) | null
   /**
    * Restore an archived Session, for rows whose menu shows Unarchive in place of Archive (ADR
-   * 0050). The caller owns the mutation, so a menu without one simply has no Unarchive item.
+   * 0051). The caller owns the mutation, so a menu without one simply has no Unarchive item.
    */
   readonly restore?: (() => void) | null
 }
