@@ -122,8 +122,9 @@ export interface IpcCoreInvokeChannelMap
     args: [sessionId: SessionId, model: SupportedModelId]
     return: ContextUsageSnapshot | null
   }
+  /** With no Session, as for a New session draft, those of `projectPath`. */
   'agent:list-extension-commands': {
-    args: [sessionId: SessionId, model: SupportedModelId]
+    args: [sessionId: SessionId | null, model: SupportedModelId, projectPath?: string]
     return: readonly AgentExtensionCommand[]
   }
   'agent:compact-session': {

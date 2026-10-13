@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, type SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import * as Effect from 'effect/Effect'
@@ -50,6 +50,29 @@ export function listAgentExtensionCommands(input: {
     const session = yield* (yield* SessionProjectionRepository).getOptional(input.sessionId)
     if (!session || !(yield* isSessionModelRunnable(input.model, session))) return []
     return yield* sessionExtensionCommands(session, input.model)
+  })
+}
+
+/**
+ * The commands a New session draft's slash menu lists, before there is a Session: those a Session
+ * in the project would have, read as one with no transcript yet.
+ */
+export function listProjectExtensionCommands(input: {
+  readonly projectPath: string
+  readonly model: SupportedModelId
+}) {
+  return Effect.gen(function* () {
+    const now = Date.now()
+    const draft: SessionDetail = {
+      id: SessionId(`draft:${input.projectPath}`),
+      title: '',
+      projectPath: input.projectPath,
+      messages: [],
+      createdAt: now,
+      updatedAt: now,
+    }
+    if (!(yield* isSessionModelRunnable(input.model, draft))) return []
+    return yield* sessionExtensionCommands(draft, input.model)
   })
 }
 

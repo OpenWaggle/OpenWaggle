@@ -21,6 +21,8 @@ OpenWaggle supplies project resource roots to Pi in this order:
 
 OpenWaggle supplies roots for skills, extensions, prompts, and themes in that order. Enabled OpenWaggle packages can insert declared Pi resource roots before `.pi`. The managed `.openwaggle/extensions` package directory is not blindly loaded as executable Pi code: package eligibility controls which packages and declared roots reach Pi. Pi applies its own loading and conflict rules to the supplied resources. OpenWaggle packages have their own manifest and trust lifecycle; use [Install extensions](/docs/extending/plugins) for that workflow.
 
+Commands a Pi extension registers, and Pi's own `/mcp`, are listed under **Pi extensions** when you type `/` in the composer, in a session or in a new session for a project.
+
 Pi terminal UI renderers do not run as desktop UI. Standard interactions have OpenWaggle fallbacks, while custom interactions need a matching desktop renderer. See [Interaction primitives](/docs/extending/openwaggle-extensions#interaction-primitives).
 
 For custom provider registration, see Pi's [`pi.registerProvider()` reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).

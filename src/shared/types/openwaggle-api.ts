@@ -113,10 +113,14 @@ export interface OpenWaggleApi
     sessionId: SessionId,
     model: SupportedModelId,
   ): Promise<ContextUsageSnapshot | null>
-  /** The commands the Session's Pi extensions register, for the slash menu. */
+  /**
+   * The commands the Session's Pi extensions register, for the slash menu; with no Session, as
+   * for a New session draft, those a Session in `projectPath` would have.
+   */
   listExtensionCommands(
-    sessionId: SessionId,
+    sessionId: SessionId | null,
     model: SupportedModelId,
+    projectPath?: string,
   ): Promise<readonly AgentExtensionCommand[]>
   compactSession(
     sessionId: SessionId,

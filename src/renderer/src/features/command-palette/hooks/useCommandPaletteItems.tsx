@@ -69,7 +69,11 @@ export function useCommandPaletteItems({
   )
   const { model } = useComposerModel()
   const { data: piExtensionCommands = [] } = useQuery(
-    extensionCommandsQueryOptions(sessionId ? SessionId(sessionId) : null, model ?? null),
+    extensionCommandsQueryOptions(
+      sessionId ? SessionId(sessionId) : null,
+      model ?? null,
+      projectPath ?? null,
+    ),
   )
   const lowerQuery = normalizeCommandQuery(query)
   const consumeAndClose = () => {

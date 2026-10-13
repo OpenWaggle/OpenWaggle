@@ -163,8 +163,9 @@ function dispatchHostUiChannel(
     )
     .with('agent:list-extension-commands', () =>
       Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
-        return yield* listHostUiAgentExtensionCommands(args[0], args[1])
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
+        const [sessionId, model, projectPath] = args
+        return yield* listHostUiAgentExtensionCommands(sessionId, model, projectPath)
       }),
     )
     .with('providers:get-models', () =>

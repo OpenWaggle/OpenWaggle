@@ -14,8 +14,11 @@ export const queryKeys = {
   sessions: ['sessions'] as const,
   session: (id: SessionId | null) => ['session', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,
-  extensionCommands: (sessionId: SessionId | null, model: string | null) =>
-    ['extensionCommands', sessionId, model] as const,
+  extensionCommands: (
+    sessionId: SessionId | null,
+    model: string | null,
+    projectPath: string | null = null,
+  ) => ['extensionCommands', sessionId, model, projectPath] as const,
   agentDefinitions: (projectPath: string | null) => ['agentDefinitions', projectPath] as const,
   agentDefinitionPreview: (projectPath: string | null, name: string | null) =>
     ['agentDefinitionPreview', projectPath, name] as const,

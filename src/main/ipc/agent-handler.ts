@@ -14,9 +14,11 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
-import { listAgentExtensionCommands } from '../application/agent-extension-commands'
 import { getAgentContextUsage } from '../application/agent-session-service'
-import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
+import {
+  listHostUiActiveActivities,
+  listHostUiAgentExtensionCommands,
+} from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { interruptSessionRun } from '../application/session-run-interruption'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
@@ -210,8 +212,8 @@ function registerAgentStateHandlers() {
 
   hostHandle(
     'agent:list-extension-commands',
-    (_event, sessionId: SessionId, model: SupportedModelId) =>
-      listAgentExtensionCommands({ sessionId, model }),
+    (_event, sessionId: SessionId | null, model: SupportedModelId, projectPath?: string) =>
+      listHostUiAgentExtensionCommands(sessionId, model, projectPath),
   )
 }
 
