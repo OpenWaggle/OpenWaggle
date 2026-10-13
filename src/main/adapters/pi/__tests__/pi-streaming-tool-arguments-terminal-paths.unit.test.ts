@@ -40,7 +40,7 @@ describe('Pi streaming tool-call arguments on terminal paths', () => {
     })
   }
 
-  it('OpenAI Responses: refuses a call whose output_item.done never arrived, as Pi 1.0.4 does', async () => {
+  it('OpenAI Responses: refuses a call whose output_item.done never arrived, as Pi does since 1.0.4', async () => {
     const message = await runOpenAiResponsesToolCall('unfinished')
 
     expect(message.stopReason).toBe('error')

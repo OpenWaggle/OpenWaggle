@@ -26,6 +26,13 @@ import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const cleanups: Array<() => void> = []
+
+function customMessageText(message: { readonly content: string | readonly { type: string }[] }) {
+  if (typeof message.content === 'string') return message.content
+  return message.content
+    .flatMap((block) => ('text' in block && typeof block.text === 'string' ? [block.text] : []))
+    .join('\n')
+}
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()
 })
@@ -68,7 +75,9 @@ async function twoTurnSession(
   const continueOnce: ExtensionFactory = (pi) => {
     // A turn's own prompt section, as OpenWaggle's and Pi's handlers set them.
     pi.on('before_agent_start', (event) => {
-      event.systemPromptOptions.sections.turn_prompt = `For ${event.prompt}`
+      // Since Pi 1.2.0 a turn a custom message starts carries that message, not a prompt.
+      const text = event.messageType === 'user' ? event.prompt : customMessageText(event.message)
+      event.systemPromptOptions.sections.turn_prompt = `For ${text}`
     })
     pi.registerTool({
       name: 'ping',

@@ -15,9 +15,10 @@ export const EXPECTED_PATCH_PATHS = {
     'dist/api/openai-responses.d.ts',
     'dist/api/openai-responses.js',
     'dist/api/pi-messages.js',
+    // Pi 1.2.0 moved the compat settings types from types.d.ts to the compat schema.
+    'dist/providers/compat-schema.d.ts',
     'dist/providers/openai-codex.models.js',
     'dist/providers/openai.models.js',
-    'dist/types.d.ts',
     'dist/utils/json-parse.d.ts',
     'dist/utils/json-parse.js',
     'dist/utils/provider-retry.d.ts',
@@ -39,6 +40,9 @@ export const EXPECTED_PATCH_PATHS = {
     'dist/core/session-manager.js',
     'dist/core/settings-manager.d.ts',
     'dist/core/settings-manager.js',
+    // Pi 1.2.0 moved the settings types to the settings schema.
+    'dist/core/settings-schema.d.ts',
+    'dist/core/settings-schema.js',
     'dist/index.d.ts',
     'dist/index.js',
   ],

@@ -1,22 +1,19 @@
 import type { PiRuntimeAlignmentInput } from '../check-pi-runtime-alignment'
 
-/** An input every Pi runtime alignment check accepts, at Pi 1.0.4 with release-age exclusions. */
+/** An input every Pi runtime alignment check accepts, at Pi 1.2.0 with release-age exclusions. */
 
-export const version = '1.0.4'
+export const version = '1.2.0'
 const packages = [
   'pi-agent-core',
   'pi-ai',
-  'pi-client',
   'pi-codemode',
   'pi-coding-agent',
   'pi-mcp',
-  'pi-protocol',
   'pi-telemetry',
   'pi-tui',
 ]
-/** The matched release packages the lockfile resolves (pi-client and pi-protocol are not). */
+/** The matched release packages the lockfile resolves: the catalog's, as of Pi 1.2.0. */
 export const installedPackages = [
-  'chord',
   'pi-agent-core',
   'pi-ai',
   'pi-codemode',
@@ -35,7 +32,7 @@ export function alignedInput(): PiRuntimeAlignmentInput {
   pi-runtime:
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
 minimumReleaseAgeExclude:
-  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z
+  # pi-runtime-release-age-exclusions-expire: 2026-10-19T23:04:00Z
 ${installedPackages.map((name) => `  - "${packageRef(name)}@${version}"`).join('\n')}
 patchedDependencies:
   '${packageRef('pi-ai')}@${version}': patches/@earendil-works__pi-ai@${version}.patch
@@ -48,7 +45,7 @@ patchedDependencies:
   '${packageRef('pi-coding-agent')}@${version}': def456
 `,
     patchContents: {
-      [piAiPatch]: 'diff --git a/dist/types.d.ts b/dist/types.d.ts',
+      [piAiPatch]: 'diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts',
       [piCodingAgentPatch]: 'diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js',
     },
     patchFiles: [piAiPatch, piCodingAgentPatch],
@@ -59,7 +56,7 @@ patchedDependencies:
       'quickjs-wasi': '3.6.2',
       '@silvia-odwyer/photon-node': '0.3.4',
     },
-    now: new Date('2026-10-07T12:00:00Z'),
+    now: new Date('2026-10-14T12:00:00Z'),
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-tui')]: 'catalog:pi-runtime',

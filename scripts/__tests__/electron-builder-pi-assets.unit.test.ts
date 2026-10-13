@@ -7,7 +7,7 @@ import {
 } from '../electron-builder-pi-assets'
 
 const PI_PACKAGE = path.join(
-  '/repo/node_modules/.pnpm/@earendil-works+pi-coding-agent@1.0.4_patch_hash=abc/node_modules',
+  '/repo/node_modules/.pnpm/@earendil-works+pi-coding-agent@1.2.0_patch_hash=abc/node_modules',
   '@earendil-works',
   'pi-coding-agent',
 )

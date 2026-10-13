@@ -107,7 +107,7 @@ describe('createSessionListener Pi compatibility', () => {
       'run-1',
     )
 
-    listener({ type: 'agent_settled' })
+    listener({ type: 'agent_settled', aborted: false })
     listener({
       type: 'entry_appended',
       entry: {

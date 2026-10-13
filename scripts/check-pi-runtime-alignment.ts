@@ -7,16 +7,19 @@ const PI_CATALOG = 'pi-runtime'
 const PI_PACKAGES = [
   'pi-agent-core',
   'pi-ai',
-  'pi-client',
   'pi-codemode',
   'pi-coding-agent',
   'pi-mcp',
-  'pi-protocol',
   'pi-telemetry',
   'pi-tui',
 ] as const
-/** Pi publishes `chord` with the catalog packages as one matched release; it has no catalog pin. */
-const PI_RELEASE_SET = [...PI_PACKAGES, 'chord'] as const
+/** The matched release: since Pi 1.2.0, exactly the catalog packages. */
+const PI_RELEASE_SET = PI_PACKAGES
+/**
+ * Packages earlier Pi releases included that Pi 1.2.0 removed (`pi-client`, `pi-protocol`,
+ * `pi-server`) or stopped depending on (`chord`). Nothing may pin or resolve them any more.
+ */
+const RETIRED_PI_PACKAGES = ['chord', 'pi-client', 'pi-protocol', 'pi-server'] as const
 const PATCHED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent'] as const
 const ROOT_PINNED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent', 'pi-mcp'] as const
 const BEFORE_PATCH_PATH_CAPTURE = 1
@@ -177,6 +180,19 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   for (const packageName of PI_PACKAGES) {
     if (catalogVersion(input.workspace, packageName) !== version) {
       problems.push(`${packageRef(packageName)} must use ${version} in catalogs.${PI_CATALOG}.`)
+    }
+  }
+
+  for (const packageName of RETIRED_PI_PACKAGES) {
+    if (catalogVersion(input.workspace, packageName) !== undefined) {
+      problems.push(
+        `${packageRef(packageName)} is no longer part of the Pi release; remove it from catalogs.${PI_CATALOG}.`,
+      )
+    }
+    if (versionsFor(input.lockfile, packageName).size > 0) {
+      problems.push(
+        `pnpm-lock.yaml still resolves ${packageRef(packageName)}, which the Pi release no longer includes.`,
+      )
     }
   }
 

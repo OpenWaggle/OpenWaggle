@@ -13,13 +13,13 @@ interface ReleaseAgeInput {
  */
 const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
 
-/** A matched-release package name and one exact version, such as `pi-ai` and `1.0.4`. */
+/** A matched-release package name and one exact version, such as `pi-ai` and `1.2.0`. */
 const EXACT_PI_PACKAGE = /^@earendil-works\/(?:pi-[a-z0-9-]+|chord)$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 
 /**
  * The `@earendil-works/` items of `minimumReleaseAgeExclude`, read as YAML (quotes and trailing
- * comments included). pnpm reads `name@1.0.4 || 1.0.5` as one exclusion per version, so a union
+ * comments included). pnpm reads `name@1.2.0 || 1.2.1` as one exclusion per version, so a union
  * becomes one entry per version; an item that is not one package at exact versions is inexact.
  */
 function piReleaseAgeEntries(workspace: string) {
@@ -48,8 +48,8 @@ function piReleaseAgeEntries(workspace: string) {
 }
 
 /**
- * Temporary exceptions cover exactly the matched-release packages the lockfile resolves (with
- * `chord`), each at one exact version: one for a package nothing installs exempts nothing and
+ * Temporary exceptions cover exactly the matched-release packages the lockfile resolves, each at
+ * one exact version: one for a package nothing installs exempts nothing and
  * only lingers, and a wildcard or range would exempt every later Pi release from every check.
  */
 export function releaseAgeExclusionProblems(

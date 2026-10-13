@@ -26,7 +26,7 @@ const RESPONSES_COMPLETED = {
 }
 
 /**
- * How an OpenAI Responses stream of the write call ends. Pi 1.0.4 refuses a call whose
+ * How an OpenAI Responses stream of the write call ends. Pi (since 1.0.4) refuses a call whose
  * `output_item.done` never arrived (`unfinished`), so the normal ending closes the item, with no
  * arguments of its own: Pi then parses the whole accumulated JSON.
  */

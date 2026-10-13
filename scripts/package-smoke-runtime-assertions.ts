@@ -128,9 +128,9 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
 
 /**
  * Every package of the Pi release OpenWaggle is built on, at that release's version: the
- * `pi-runtime` catalog plus `chord`, which Pi publishes in the same matched set. The consumer
- * smoke overrides them all, so a newer Pi release (or one still being published) cannot be mixed
- * in through a transitive range.
+ * `pi-runtime` catalog, which since Pi 1.2.0 is the whole matched set. The consumer smoke
+ * overrides them all, so a newer Pi release (or one still being published) cannot be mixed in
+ * through a transitive range.
  */
 export function piRuntimeSmokePins(workspaceConfig: string): Record<string, string> {
   const workspace: unknown = parse(workspaceConfig)
@@ -140,8 +140,6 @@ export function piRuntimeSmokePins(workspaceConfig: string): Record<string, stri
   for (const [name, version] of Object.entries(catalog)) {
     if (typeof version === 'string' || typeof version === 'number') pins[name] = String(version)
   }
-  const release = pins['@earendil-works/pi-coding-agent']
-  if (release) pins['@earendil-works/chord'] = release
   return Object.fromEntries(Object.entries(pins).sort(([a], [b]) => a.localeCompare(b)))
 }
 

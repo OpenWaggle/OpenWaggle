@@ -17,7 +17,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`"@earendil-works/pi-tui": ${version}`, '"@earendil-works/pi-tui": 0.86.0'),
       }),
-      expected: 'must use 1.0.4 in catalogs.pi-runtime',
+      expected: 'must use 1.2.0 in catalogs.pi-runtime',
     },
     {
       drift: 'direct pin',
@@ -65,7 +65,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`  - "@earendil-works/pi-tui@${version}"\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 8 matched Pi packages',
+      expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 7 matched Pi packages',
     },
     {
       drift: 'release-age exclusion for a package the lockfile does not resolve',
@@ -76,26 +76,34 @@ describe('Pi runtime alignment', () => {
           `  - "@earendil-works/pi-tui@${version}"\n  - "@earendil-works/pi-client@${version}"\n`,
         ),
       }),
-      expected: 'unneeded @earendil-works/pi-client@1.0.4',
+      expected: 'unneeded @earendil-works/pi-client@1.2.0',
     },
     {
-      drift: 'missing chord release-age exclusion',
+      drift: 'missing release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`  - "@earendil-works/chord@${version}"\n`, ''),
+        workspace: input.workspace.replace(`  - "@earendil-works/pi-mcp@${version}"\n`, ''),
       }),
-      expected: 'missing @earendil-works/chord@1.0.4',
+      expected: 'missing @earendil-works/pi-mcp@1.2.0',
     },
     {
-      drift: 'chord lockfile version',
+      drift: 'catalog entry for a package Pi no longer releases',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        lockfile: input.lockfile.replace(
-          `@earendil-works/chord@${version}`,
-          '@earendil-works/chord@0.87.1',
+        workspace: input.workspace.replace(
+          `    "@earendil-works/pi-tui": ${version}\n`,
+          `    "@earendil-works/pi-tui": ${version}\n    "@earendil-works/pi-client": 1.1.0\n`,
         ),
       }),
-      expected: '@earendil-works/chord lockfile versions must align at 1.0.4',
+      expected: '@earendil-works/pi-client is no longer part of the Pi release',
+    },
+    {
+      drift: 'lockfile entry for a package Pi no longer releases',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        lockfile: `${input.lockfile}  '@earendil-works/chord@1.2.0':\n`,
+      }),
+      expected: 'pnpm-lock.yaml still resolves @earendil-works/chord',
     },
     {
       drift: 'lockfile version',
@@ -106,7 +114,7 @@ describe('Pi runtime alignment', () => {
           '@earendil-works/pi-telemetry@0.86.0',
         ),
       }),
-      expected: '@earendil-works/pi-telemetry lockfile versions must align at 1.0.4',
+      expected: '@earendil-works/pi-telemetry lockfile versions must align at 1.2.0',
     },
     {
       drift: 'multiple lockfile versions',
@@ -114,7 +122,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         lockfile: `${input.lockfile}\n@earendil-works/pi-ai@0.86.0`,
       }),
-      expected: '@earendil-works/pi-ai lockfile versions must align at 1.0.4',
+      expected: '@earendil-works/pi-ai lockfile versions must align at 1.2.0',
     },
     {
       drift: 'unexpected patch path',
@@ -149,7 +157,7 @@ describe('Pi runtime alignment', () => {
           'patches/@earendil-works__pi-ai@0.86.0.patch',
         ),
       }),
-      expected: 'pnpm-workspace.yaml must register the 1.0.4 pi-ai patch',
+      expected: 'pnpm-workspace.yaml must register the 1.2.0 pi-ai patch',
     },
   ])('detects $drift drift', ({ breakInput, expected }) => {
     expect(collectPiRuntimeAlignmentProblems(breakInput(alignedInput()))).toContainEqual(
