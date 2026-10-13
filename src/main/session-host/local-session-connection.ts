@@ -287,7 +287,10 @@ export class LocalSessionConnection {
     if (this.closed || this.failing) return
     this.failing = true
     try {
-      await this.send({ kind: 'error', code, message, retryable })
+      // The error frame is best effort: fail() runs fire and forget from the handshake deadline
+      // and the inbound protocol paths, so a peer that went away mid-write must not turn the
+      // report into an escaping rejection; the socket ends either way.
+      await this.send({ kind: 'error', code, message, retryable }).catch(() => undefined)
     } finally {
       this.socket.end()
     }
