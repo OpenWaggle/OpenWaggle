@@ -8,6 +8,7 @@ import {
   Eye,
   Pin,
   PinOff,
+  RotateCcw,
   Sparkles,
   Trash2,
 } from 'lucide-react'
@@ -24,6 +25,12 @@ interface SessionItemContextMenuProps {
   readonly isPinned: boolean
   readonly actions: SidebarSessionActions
   readonly commands: SessionRowMenuCommands
+  /**
+   * An archived row cannot be archived again; the item becomes Unarchive (ADR 0051). Unarchive
+   * brings the Session back to the sidebar, the same action the Session Hub's restore uses.
+   * "Unarchive" rather than "Restore": Restore reads as restoring a conversation or checkpoint.
+   */
+  readonly archived?: boolean
   readonly onClose: () => void
 }
 
@@ -40,6 +47,11 @@ export interface SessionRowMenuCommands {
    */
   readonly moveUp?: (() => void) | null
   readonly moveDown?: (() => void) | null
+  /**
+   * Restore an archived Session, for rows whose menu shows Unarchive in place of Archive (ADR
+   * 0051). The caller owns the mutation, so a menu without one simply has no Unarchive item.
+   */
+  readonly restore?: (() => void) | null
 }
 
 function SessionMenuButton({
@@ -76,9 +88,10 @@ export function SessionItemContextMenu({
   isPinned,
   actions,
   commands,
+  archived = false,
   onClose,
 }: SessionItemContextMenuProps) {
-  const { moveUp, moveDown } = commands
+  const { moveUp, moveDown, restore } = commands
   const titleRegeneration = useSessionTitleRegeneration(sessionId)
 
   function closeAfter(action: () => void) {
@@ -133,11 +146,15 @@ export function SessionItemContextMenu({
         label="Clone to new session"
         onClick={() => closeAfter(() => actions.clone(sessionId))}
       />
-      <SessionMenuButton
-        icon={Archive}
-        label="Archive session"
-        onClick={() => closeAfter(() => actions.archive(sessionId))}
-      />
+      {archived && restore ? (
+        <SessionMenuButton icon={RotateCcw} label="Unarchive session" onClick={restore} />
+      ) : archived ? null : (
+        <SessionMenuButton
+          icon={Archive}
+          label="Archive session"
+          onClick={() => closeAfter(() => actions.archive(sessionId))}
+        />
+      )}
       <SessionMenuButton icon={Trash2} label="Delete session" danger onClick={confirmDelete} />
     </ContextMenu>
   )

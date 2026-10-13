@@ -204,6 +204,13 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     group: 'Workspace',
     scope: 'application',
   },
+  {
+    command: 'rightPanel.hive',
+    label: 'Toggle Hive',
+    description: "Show or hide this Hive's Sessions in the Right panel",
+    group: 'Workspace',
+    scope: 'application',
+  },
 ]
 
 export function shortcutWhenForScope(scope: ShortcutDefinition['scope']) {

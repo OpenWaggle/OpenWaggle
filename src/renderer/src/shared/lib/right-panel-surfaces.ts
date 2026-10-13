@@ -19,6 +19,7 @@ export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
   'files',
   'session-tree',
   'resources',
+  'hive',
 ] as const
 
 export type BuiltInRightPanelSurfaceId = (typeof BUILT_IN_RIGHT_PANEL_SURFACE_IDS)[number]

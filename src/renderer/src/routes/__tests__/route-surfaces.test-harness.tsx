@@ -105,6 +105,20 @@ vi.mock('@/features/session-tree/components', () => ({
     }),
 }))
 
+vi.mock('@/features/hive-panel/components', () => ({
+  loadHivePanel: () =>
+    Promise.resolve({
+      default: ({ onClose }: { readonly onClose: () => void }) => (
+        <aside>
+          Hive panel
+          <Button variant="unstyled" type="button" onClick={onClose}>
+            Close Hive
+          </Button>
+        </aside>
+      ),
+    }),
+}))
+
 vi.mock('@/features/session-summary', () => ({
   ChangeRequestPanel: ({
     requestUrl,
@@ -223,6 +237,7 @@ export function renderChatRoute({
     onExtensionSidePanelOpenChange: vi.fn(),
     onResourcesTargetChange: vi.fn(),
     onSessionTreeOpenChange: vi.fn(),
+    onHiveOpenChange: vi.fn(),
     onWorkspaceFileOpenChange: vi.fn(),
     ...actions,
   }
@@ -234,6 +249,7 @@ export function renderChatRoute({
         extensionSidePanel: null,
         resourcesTarget: null,
         sessionTreeOpen: false,
+        hiveOpen: false,
         workspaceFile: null,
         ...rightSidebar,
       }}

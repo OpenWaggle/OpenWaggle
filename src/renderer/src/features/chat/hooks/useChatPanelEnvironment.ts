@@ -70,16 +70,6 @@ export function useChatPanelEnvironment() {
     }
   }
 
-  async function handleSelectSession(sessionId: Parameters<typeof chat.setActiveSession>[0]) {
-    if (!sessionId) return
-    try {
-      await sessionNav.handleSelectSession(sessionId)
-      void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
-    } catch (error) {
-      reportNavigationError('Failed to open Hive Session', error, showToast)
-    }
-  }
-
   function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
     const sessionId = chat.activeSessionId
     if (!sessionId) return
@@ -110,7 +100,6 @@ export function useChatPanelEnvironment() {
     handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
-    handleSelectSession,
     loadSessions,
     model,
     navigate,

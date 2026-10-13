@@ -37,6 +37,7 @@ function routeSurface(requestKey: string): Pick<RightPanelShownSurface, 'shown' 
   if (requestKey === 'diff') return { shown: 'changes', highlight: 'changes' }
   if (requestKey === 'change-request') return { shown: null, highlight: 'changes' }
   if (requestKey === 'session-tree') return { shown: 'session-tree', highlight: 'session-tree' }
+  if (requestKey === 'hive') return { shown: 'hive', highlight: 'hive' }
   if (requestKey === 'resources') return { shown: 'resources', highlight: 'resources' }
   const tuple = parseRequestTuple(requestKey)
   if (tuple?.[0] === 'file') return { shown: 'files', highlight: 'files' }

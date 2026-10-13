@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export const DIFF_RIGHT_SIDEBAR_REQUEST = 'diff'
 export const SESSION_TREE_RIGHT_SIDEBAR_REQUEST = 'session-tree'
+export const HIVE_RIGHT_SIDEBAR_REQUEST = 'hive'
 
 export function extensionRightSidebarRequest(
   extensionId: string,

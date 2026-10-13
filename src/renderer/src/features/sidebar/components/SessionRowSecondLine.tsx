@@ -25,6 +25,8 @@ export function SessionRowSecondLine({
   phaseLabel,
   projectLabel,
   shortcutIndex,
+  workerAttentionCount = 0,
+  showLineageParent = false,
 }: {
   readonly session: SessionSummary
   readonly stateLabel: string
@@ -33,6 +35,10 @@ export function SessionRowSecondLine({
   /** Shown only when the row sits outside its project group, as Pinned rows do. */
   readonly projectLabel: string
   readonly shortcutIndex: number | null
+  /** A Queen's hidden Workers needing the user; rendered as "N needs input" (ADR 0051). */
+  readonly workerAttentionCount?: number
+  /** Name the Worker's parent in text, for Pinned and narrowed flat Worker rows. */
+  readonly showLineageParent?: boolean
 }) {
   const showShortcut = shortcutIndex !== null && shortcutIndex < PINNED_SHORTCUT_LIMIT
   const waitingOnEdit = session.followUpEditHeldAt !== undefined
@@ -63,12 +69,12 @@ export function SessionRowSecondLine({
             <FollowUpEditWaitIndicator />
           </>
         ) : null}
-        {session.lineage?.role === 'queen' || session.lineage?.role === 'worker' ? (
-          <>
-            {leadBeforeLineage ? <Separator /> : null}
-            <SessionLineageIndicator session={session} />
-          </>
-        ) : null}
+        <HiveLineageLead
+          session={session}
+          showParent={showLineageParent}
+          attentionCount={workerAttentionCount}
+          leadBeforeLineage={leadBeforeLineage}
+        />
         {phaseLabel === null ? null : (
           <>
             <Separator />
@@ -109,8 +115,55 @@ export function SessionRowSecondLine({
   )
 }
 
+/**
+ * The row's Hive metadata: the lineage glyph, the parent name where it applies, and a Queen's
+ * hidden-Worker attention (ADR 0051). Nothing renders for an independent session.
+ */
+function HiveLineageLead({
+  session,
+  showParent,
+  attentionCount,
+  leadBeforeLineage,
+}: {
+  readonly session: SessionSummary
+  readonly showParent: boolean
+  readonly attentionCount: number
+  readonly leadBeforeLineage: boolean
+}) {
+  const role = session.lineage?.role
+  if (role !== 'queen' && role !== 'worker') return null
+  return (
+    <>
+      {leadBeforeLineage ? <Separator /> : null}
+      <SessionLineageIndicator session={session} showParent={showParent} />
+      {role === 'queen' && attentionCount > 0 ? (
+        <QueenWorkerAttention count={attentionCount} />
+      ) : null}
+    </>
+  )
+}
+
+/** A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0051). */
+function QueenWorkerAttention({ count }: { readonly count: number }) {
+  return (
+    <>
+      <Separator />
+      <span data-qa="sidebar-row-worker-attention" className="shrink-0 text-warning">
+        {`${count} ${count === 1 ? 'needs' : 'need'} input`}
+      </span>
+    </>
+  )
+}
+
 /** Hive lineage is row metadata, so it sits below the title with the other indicators. */
-export function SessionLineageIndicator({ session }: { readonly session: SessionSummary }) {
+export function SessionLineageIndicator({
+  session,
+  showParent = false,
+}: {
+  readonly session: SessionSummary
+  /** Render the parent's title as text, for pinned and narrowed Worker rows (ADR 0051). */
+  readonly showParent?: boolean
+}) {
   const lineage = sessionLineagePresentation(session)
   if (lineage === null) return null
   const LineageIcon = lineage.role === 'queen' ? ChessQueen : Pickaxe
@@ -126,6 +179,9 @@ export function SessionLineageIndicator({ session }: { readonly session: Session
       <LineageIcon className="size-3.5" />
       {lineage.workerCount > 0 ? (
         <span className="text-xs tabular-nums">{lineage.workerCount}</span>
+      ) : null}
+      {showParent && lineage.role === 'worker' && session.lineage?.parentTitle ? (
+        <span className="min-w-0 truncate">via {session.lineage.parentTitle}</span>
       ) : null}
     </span>
   )
@@ -163,11 +219,12 @@ function Separator() {
  * passes underneath.
  */
 export function SessionRowHoverActions({
-  isActive,
+  onActiveBackground,
   menuOpen,
   children,
 }: {
-  readonly isActive: boolean
+  /** The row wears `bg-bg-active` (open row or Hive home), so the gradient must blend into it. */
+  readonly onActiveBackground: boolean
   readonly menuOpen: boolean
   readonly children: React.ReactNode
 }) {
@@ -177,7 +234,7 @@ export function SessionRowHoverActions({
         'absolute top-1.5 right-2 z-10 flex gap-px pl-3.5 transition-opacity',
         'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         menuOpen ? 'opacity-100' : null,
-        isActive
+        onActiveBackground
           ? '[background:linear-gradient(90deg,transparent,var(--color-bg-active)_22%)]'
           : '[background:linear-gradient(90deg,transparent,var(--color-bg-hover)_22%)]',
       )}

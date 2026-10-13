@@ -6,6 +6,7 @@ import {
   ExtensionSidePanelSurface,
   type useExtensionSidePanelContributions,
 } from '@/features/extensions'
+import { loadHivePanel } from '@/features/hive-panel/components'
 import {
   ChangeRequestPanel,
   DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
@@ -25,6 +26,7 @@ import type {
 
 const LazyChatDiffPane = lazy(loadChatDiffPane)
 const LazySessionTreePanel = lazy(loadSessionTreePanel)
+const LazyHivePanel = lazy(loadHivePanel)
 
 function SessionFileNavigator(
   props: Omit<ComponentProps<typeof WorkspaceFileNavigatorPanel>, 'revealPath'> & {
@@ -87,6 +89,12 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
     ))
     .with('session-tree', () => (
       <LazySessionTreePanel onClose={() => handlers.handleSessionTreeOpenChange(false)} />
+    ))
+    .with('hive', () => (
+      <LazyHivePanel
+        sessionId={workspace.sessionId}
+        onClose={() => handlers.handleHiveOpenChange(false)}
+      />
     ))
     .with('resources', () => (
       <SessionResourcesPanel

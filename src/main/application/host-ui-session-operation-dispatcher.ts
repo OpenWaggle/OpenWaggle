@@ -20,6 +20,7 @@ import type { SettingsService } from '../services/settings-service'
 import {
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
+  listHiveTreeSessionCatalogPage,
   listSessionCatalogPage,
   listSessionProjectPage,
   listSessionsByIds,
@@ -46,13 +47,17 @@ import {
   requiredString,
   requireOptionalArgCount,
   validateNavigateTreeOptions,
-  validatePinnedSessionMove,
   validateSessionBranchId,
   validateSessionId,
   validateSessionNodeId,
   validateTreeUiStatePatch,
   validateWorkspaceSelection,
 } from './host-ui-session-operation-validation'
+import {
+  listPinnedSessions,
+  movePinnedSession,
+  setSessionPinned,
+} from './host-ui-session-pin-operations'
 import {
   dispatchHostUiSessionResourceOperation,
   type HostUiSessionResourceChannel,
@@ -117,6 +122,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-projects', () => listSessionProjectPage(args))
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
+    .with('sessions:list-hive-tree-page', () => listHiveTreeSessionCatalogPage(args))
     .with('sessions:list-archived-branches', () => listArchivedSessionBranchCatalogPage(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
@@ -264,35 +270,6 @@ function getTurnDiffFiles(args: readonly unknown[]) {
     const sessionId = yield* validateSessionId(args[0])
     const turnId = yield* requiredString(args[1], 'Turn ID')
     return [...(yield* (yield* SessionProjectionRepository).getTurnDiffFiles(sessionId, turnId))]
-  })
-}
-
-function listPinnedSessions(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 0)
-    return [...(yield* (yield* SessionProjectionRepository).listPinnedSessions())]
-  })
-}
-
-function setSessionPinned(
-  channel: 'sessions:pins:pin' | 'sessions:pins:unpin',
-  args: readonly unknown[],
-) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
-    const sessionId = yield* validateSessionId(args[0])
-    return yield* mutateLocalUiSession({
-      operation: channel === 'sessions:pins:pin' ? 'pin' : 'unpin',
-      sessionId,
-    })
-  })
-}
-
-function movePinnedSession(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
-    const move = yield* validatePinnedSessionMove(args[0])
-    return yield* mutateLocalUiSession({ operation: 'move-pin', ...move })
   })
 }
 

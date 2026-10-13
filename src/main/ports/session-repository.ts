@@ -3,7 +3,6 @@ import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
-  HiveSessionCatalogPage,
   SessionCatalogPage,
   SessionNode,
   SessionNodeKind,
@@ -14,6 +13,10 @@ import type {
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
+import type {
+  HiveSessionCatalogPage,
+  HiveTreeSessionCatalogPage,
+} from '@shared/types/session-hive-catalog'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
@@ -98,6 +101,11 @@ export interface SessionRepositoryShape {
     limit: number,
     cursor?: string,
   ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listHiveTreeCatalogPage: (
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<HiveTreeSessionCatalogPage, SessionProjectionRepositoryError>
   readonly listArchivedBranchCatalogPage: (
     limit: number,
     cursor?: string,

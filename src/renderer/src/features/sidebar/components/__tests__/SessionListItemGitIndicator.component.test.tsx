@@ -60,7 +60,7 @@ function actions(): SidebarSessionActions {
 function renderItem(target: SessionSummary) {
   return render(
     <ul>
-      <SessionListItem session={target} isActive={false} actions={actions()} />
+      <SessionListItem session={target} actions={actions()} />
     </ul>,
   )
 }
