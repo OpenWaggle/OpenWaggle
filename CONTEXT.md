@@ -2365,6 +2365,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
 - "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.
 - "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: there is one **CI gate** (ADR 0033 removed the merge queue and the Electron E2E suite); it runs on PRs and on the push to `main`, and passing it merges a PR directly.
+- "usage" alone is ambiguous between the anonymous telemetry feature and token/cost aggregates. Resolved: the telemetry feature is **Usage statistics** (see ADRs 0044–0046); the token and cost aggregates surface is the **Usage & Cost view**. Copy never shortens either to bare "usage".
 
 ### Terminals
 
@@ -2577,3 +2578,21 @@ _Avoid_: active user, daily user, opened app (opening the app without a Run does
 - **Usage statistics** never carry a persistent identifier, so every number they produce counts **Installs**, never people.
 - A future account-based service identifies its user for that service only; **Usage statistics** stay anonymous for signed-in users and are never joined to an account.
 - An **Install** counts as an **Active install** at most once per day, however many windows, CLI commands or Worker Sessions started Runs; Runs inside CI never count.
+
+### Usage and cost
+
+**Usage & Cost view**:
+The cross-session surface that aggregates token counts and reported costs from Pi's own session records on this machine.
+_Avoid_: usage (ambiguous with **Usage statistics**), spending, billing, analytics, dashboard
+
+**Session origin**:
+The Pi client a session was started from: **OpenWaggle** or **Other Pi clients**.
+_Avoid_: source, launcher, provider (providers are models, not clients), app attribution
+
+**Cost tier**:
+Whether a cost number is **Recorded** (written by Pi into the session), **Estimated** (computed by OpenWaggle from Pi's own model rates), or **Unpriced** (no price available from either).
+_Avoid_: cost source, price state, fallback cost
+
+- **Usage & Cost** shows the user's own local data; it makes no report anywhere and shares nothing with **Usage statistics**.
+- A session has exactly one **Session origin**. OpenWaggle recognizes its own sessions from OpenWaggle's own session entries; it never infers origin from paths, names, or timing.
+- Every token amount has exactly one **Cost tier**. **Estimated** numbers are labelled as estimates and never presented as **Recorded**.

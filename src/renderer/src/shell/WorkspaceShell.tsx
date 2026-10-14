@@ -57,7 +57,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
   const settingsOpen = useRouterState({
-    select: (state) => /^\/settings(?:\/|$)/.test(state.location.pathname),
+    select: (state) => /^\/(?:settings|usage)(?:\/|$)/.test(state.location.pathname),
   })
   const chatRoute = useRouterState({
     select: (state) => isRightPanelChatPath(state.location.pathname),

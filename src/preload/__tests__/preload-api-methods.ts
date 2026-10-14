@@ -293,6 +293,8 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'installUpdate',
   'installUpdateNow',
   'getUpdateStatus',
+  'getUsageCostSessions',
+  'getUsageCostView',
   'getAppVersion',
   'getDesktopNativeAdmissionIssue',
   'recoverDesktopNativeAdmission',

@@ -133,6 +133,9 @@ function buildControllerOutput(
     handleOpenSettings() {
       void state.navigate({ to: '/settings' })
     },
+    handleOpenUsageCost() {
+      void state.navigate({ to: '/usage' })
+    },
     handleRemoveProject: actions.project.remove,
     handleRenameBranch: actions.branch.rename,
     handleRenameProject: actions.project.rename,

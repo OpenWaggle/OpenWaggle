@@ -1,0 +1,231 @@
+import type { UsageCostQuery, UsageCostSessionQuery } from '@shared/types/usage-cost'
+import { describe, expect, it } from 'vitest'
+import {
+  aggregateUsageCostView,
+  localDayKey,
+  rangeStartForPreset,
+  selectUsageCostSessions,
+  USAGE_COST_TOOLS_MODEL_ID,
+  USAGE_COST_TOOLS_MODEL_PROVIDER,
+  type UsageCostRecord,
+  type UsageCostScanSession,
+} from '../usage-cost-aggregate'
+
+const NOW = new Date('2026-10-14T12:00:00')
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function record(overrides: Partial<UsageCostRecord> & { timestampMs: number }): UsageCostRecord {
+  return {
+    provider: 'anthropic',
+    modelId: 'claude-opus-5-5',
+    tokens: { input: 100, output: 200, cacheRead: 0, cacheWrite: 0 },
+    totalTokens: 300,
+    recordedCostUsd: null,
+    estimatedCostUsd: null,
+    ...overrides,
+  }
+}
+
+function session(
+  overrides: Partial<UsageCostScanSession> & { readonly file: string },
+): UsageCostScanSession {
+  return {
+    sessionId: null,
+    cwd: null,
+    origin: 'other-pi-clients',
+    startedAtMs: null,
+    lastActivityMs: null,
+    records: [],
+    ...overrides,
+  }
+}
+
+const QUERY: UsageCostQuery = { preset: 'all', origin: 'all' }
+
+describe('aggregateUsageCostView', () => {
+  it('sums recorded, estimated, and unpriced costs into disjoint tiers', () => {
+    const input = {
+      sessions: [
+        session({
+          file: '/a.jsonl',
+          records: [
+            record({ timestampMs: NOW.getTime(), recordedCostUsd: 0.5 }),
+            record({ timestampMs: NOW.getTime(), estimatedCostUsd: 0.25 }),
+            record({ timestampMs: NOW.getTime() }),
+          ],
+        }),
+      ],
+      stats: { scannedFiles: 1, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const view = aggregateUsageCostView(input, QUERY, NOW)
+
+    expect(view.totals.recordedCostUsd).toBe(0.5)
+    expect(view.totals.estimatedCostUsd).toBe(0.25)
+    expect(view.totals.unpricedTokens).toBe(300)
+    expect(view.totals.tokens.total).toBe(900)
+    expect(view.unpricedShare).toBeCloseTo(300 / 900)
+  })
+
+  it('filters records by the query window and origin', () => {
+    const tenDaysAgo = NOW.getTime() - 10 * DAY_MS
+    const input = {
+      sessions: [
+        session({
+          file: '/openwaggle.jsonl',
+          origin: 'openwaggle',
+          records: [record({ timestampMs: tenDaysAgo, recordedCostUsd: 1 })],
+        }),
+        session({
+          file: '/cli.jsonl',
+          origin: 'other-pi-clients',
+          records: [record({ timestampMs: NOW.getTime(), recordedCostUsd: 2 })],
+        }),
+      ],
+      stats: { scannedFiles: 2, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const openWaggleOnly = aggregateUsageCostView(
+      input,
+      { preset: '7d', origin: 'openwaggle' },
+      NOW,
+    )
+    expect(openWaggleOnly.totals.tokens.total).toBe(0)
+    expect(openWaggleOnly.sessionCount).toBe(0)
+
+    const allSevenDays = aggregateUsageCostView(input, { preset: '7d', origin: 'all' }, NOW)
+    expect(allSevenDays.totals.recordedCostUsd).toBe(2)
+    expect(allSevenDays.sessionCount).toBe(1)
+
+    const allTime = aggregateUsageCostView(input, { preset: 'all', origin: 'all' }, NOW)
+    expect(allTime.totals.recordedCostUsd).toBe(3)
+    expect(allTime.sessionCount).toBe(2)
+  })
+
+  it('buckets days in local time and attributes tool results to the Pi tools bucket', () => {
+    // 22:30 UTC on Oct 13 is 00:30 on Oct 14 in a UTC+2 machine clock: the local
+    // day crosses the UTC day boundary, so the bucket must not follow UTC days.
+    const afterLocalMidnight = Date.UTC(2026, 9, 13, 22, 30)
+    const input = {
+      sessions: [
+        session({
+          file: '/a.jsonl',
+          records: [
+            record({ timestampMs: afterLocalMidnight }),
+            record({
+              timestampMs: afterLocalMidnight,
+              provider: USAGE_COST_TOOLS_MODEL_PROVIDER,
+              modelId: USAGE_COST_TOOLS_MODEL_ID,
+            }),
+          ],
+        }),
+      ],
+      stats: { scannedFiles: 1, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const view = aggregateUsageCostView(input, QUERY, NOW)
+    expect(view.days).toHaveLength(1)
+    expect(view.days[0]?.day).toBe(localDayKey(afterLocalMidnight, NOW))
+    const tools = view.models.find((model) => model.modelId === USAGE_COST_TOOLS_MODEL_ID)
+    expect(tools).toBeDefined()
+    expect(view.models[0]?.modelId).not.toBe(USAGE_COST_TOOLS_MODEL_ID)
+  })
+
+  it('groups projects by cwd with a leaf label', () => {
+    const input = {
+      sessions: [
+        session({
+          file: '/a.jsonl',
+          cwd: '/Users/dev/Projects/alpha',
+          records: [record({ timestampMs: NOW.getTime() })],
+        }),
+        session({
+          file: '/b.jsonl',
+          cwd: '/Users/dev/Projects/alpha',
+          records: [record({ timestampMs: NOW.getTime() })],
+        }),
+        session({ file: '/c.jsonl', cwd: null, records: [record({ timestampMs: NOW.getTime() })] }),
+      ],
+      stats: { scannedFiles: 3, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const view = aggregateUsageCostView(input, QUERY, NOW)
+    expect(view.projects).toHaveLength(2)
+    expect(view.projects[0]?.label).toBe('alpha')
+    expect(view.projects[0]?.tokens.total).toBe(600)
+    expect(view.projects.find((project) => project.cwd === null)?.label).toBe('Unknown location')
+  })
+})
+
+describe('selectUsageCostSessions', () => {
+  it('narrows to sessions matching every drill-down dimension', () => {
+    const today = NOW.getTime() - 60 * 60 * 1000
+    const input = {
+      sessions: [
+        session({
+          file: '/match.jsonl',
+          cwd: '/proj',
+          records: [
+            record({ timestampMs: today, provider: 'anthropic', modelId: 'claude-opus-5-5' }),
+          ],
+        }),
+        session({
+          file: '/other-model.jsonl',
+          cwd: '/proj',
+          records: [
+            record({ timestampMs: today, provider: 'anthropic', modelId: 'claude-sonnet-5' }),
+          ],
+        }),
+        session({
+          file: '/other-day.jsonl',
+          cwd: '/proj',
+          records: [record({ timestampMs: NOW.getTime() - 40 * DAY_MS })],
+        }),
+      ],
+      stats: { scannedFiles: 3, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const sessionQuery: UsageCostSessionQuery = {
+      preset: 'all',
+      origin: 'all',
+      day: localDayKey(today, NOW),
+      provider: 'anthropic',
+      modelId: 'claude-opus-5-5',
+      cwd: '/proj',
+    }
+
+    const rows = selectUsageCostSessions(input, sessionQuery, NOW)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.file).toBe('/match.jsonl')
+    expect(rows[0]?.tokens.total).toBe(300)
+  })
+
+  it('returns the most recently active sessions first', () => {
+    const input = {
+      sessions: [
+        session({
+          file: '/older.jsonl',
+          records: [record({ timestampMs: NOW.getTime() - 2 * DAY_MS })],
+        }),
+        session({
+          file: '/newer.jsonl',
+          records: [record({ timestampMs: NOW.getTime() - DAY_MS })],
+        }),
+      ],
+      stats: { scannedFiles: 2, scannedFilesCached: 0, scanDurationMs: 5 },
+    }
+
+    const rows = selectUsageCostSessions(input, { preset: 'all', origin: 'all' }, NOW)
+    expect(rows.map((row) => row.file)).toEqual(['/newer.jsonl', '/older.jsonl'])
+  })
+})
+
+describe('rangeStartForPreset', () => {
+  it('maps presets to window bounds', () => {
+    expect(rangeStartForPreset('all', NOW)).toBeNull()
+    expect(rangeStartForPreset('7d', NOW)).toBe(NOW.getTime() - 7 * DAY_MS)
+    expect(rangeStartForPreset('30d', NOW)).toBe(NOW.getTime() - 30 * DAY_MS)
+    expect(rangeStartForPreset('90d', NOW)).toBe(NOW.getTime() - 90 * DAY_MS)
+  })
+})

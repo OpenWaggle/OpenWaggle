@@ -68,6 +68,12 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
+import type {
+  UsageCostQuery,
+  UsageCostSessionQuery,
+  UsageCostSessionsResult,
+  UsageCostView,
+} from './usage-cost'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
@@ -149,6 +155,8 @@ export interface OpenWaggleApi
   ): Promise<{ success: boolean; error?: string }>
   discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
   resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
+  getUsageCostView(query: UsageCostQuery): Promise<UsageCostView>
+  getUsageCostSessions(query: UsageCostSessionQuery): Promise<UsageCostSessionsResult>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
