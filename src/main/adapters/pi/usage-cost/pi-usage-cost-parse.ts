@@ -22,13 +22,20 @@ export async function parseSessionFile(
   file: string,
   estimateCost: UsageCostEstimator,
 ): Promise<UsageCostScanSession> {
-  const state = {
-    sessionId: null as string | null,
-    cwd: null as string | null,
-    startedAtMs: null as number | null,
-    lastActivityMs: null as number | null,
-    origin: 'other-pi-clients' as UsageCostSessionOrigin,
-    lastModel: null as { provider: string; modelId: string } | null,
+  const state: {
+    sessionId: string | null
+    cwd: string | null
+    startedAtMs: number | null
+    lastActivityMs: number | null
+    origin: UsageCostSessionOrigin
+    lastModel: { provider: string; modelId: string } | null
+  } = {
+    sessionId: null,
+    cwd: null,
+    startedAtMs: null,
+    lastActivityMs: null,
+    origin: 'other-pi-clients',
+    lastModel: null,
   }
   const records: UsageCostRecord[] = []
 
