@@ -14,6 +14,34 @@ export function json(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), { status: 200, ...init })
 }
 
+/** A route whose request fails before any answer, like a fetch that timed out or lost its connection. */
+export function throws(error: Error) {
+  return (): Response => {
+    throw error
+  }
+}
+
+export function timeoutError() {
+  return new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+}
+
+export function networkError(code: string) {
+  return new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) })
+}
+
+/** A 200 whose body fails while it is read, like a stream that stalls past the timeout. */
+export function failingBody(error: Error) {
+  return () =>
+    new Response(
+      new ReadableStream({
+        pull(controller) {
+          controller.error(error)
+        },
+      }),
+      { status: 200 },
+    )
+}
+
 export function release(tag: string, assets: readonly [number, string, number][], draft = false) {
   return { tag_name: tag, draft, html_url: 'x', assets: assets.map(([id, name, download_count]) => ({ id, name, download_count, size: 1 })) }
 }
