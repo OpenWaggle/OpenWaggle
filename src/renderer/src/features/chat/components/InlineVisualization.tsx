@@ -209,9 +209,11 @@ export function InlineVisualization({
   )
   const handleUnavailable = useCallback(() => {
     clearInlineVisualizationState(stateInstanceId)
+    // The restored state may be what broke the frame; a retry must not feed it back in.
+    retainInlineVisualizationState(sessionId, reference.path, null)
     unpin()
     releaseRegistration()
-  }, [releaseRegistration, stateInstanceId, unpin])
+  }, [reference.path, releaseRegistration, sessionId, stateInstanceId, unpin])
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
     interactionSessionId,
     frameUrl: registration?.frameUrl ?? null,
@@ -226,7 +228,11 @@ export function InlineVisualization({
     return () => clearInlineVisualizationState(stateInstanceId)
   }, [stateInstanceId, stateScope])
 
-  useInlineVisualizationEngagement({ frameLoaded: registration !== null, frameRef, onEngage: pin })
+  useInlineVisualizationEngagement({
+    frameRegistered: registration !== null,
+    frameRef,
+    onEngage: pin,
+  })
 
   // An unavailable frame must stop contributing context in the same commit as
   // its error UI, before a user action can read the failed visualization state.

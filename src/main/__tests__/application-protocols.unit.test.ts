@@ -34,6 +34,7 @@ function sessionResourceHandler() {
 
 describe('registerApplicationProtocols', () => {
   beforeEach(() => {
+    // Fresh protocol modules reset their registered-once flags and capability maps.
     vi.resetModules()
     for (const mock of Object.values(mocks)) mock.mockReset()
   })

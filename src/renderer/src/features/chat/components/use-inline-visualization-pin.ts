@@ -23,13 +23,13 @@ export function useInlineVisualizationPin(instanceId: string) {
 
 /** Focus moving into the cross-origin frame blurs the host window: the user is working in it. */
 export function useInlineVisualizationEngagement(input: {
-  readonly frameLoaded: boolean
+  readonly frameRegistered: boolean
   readonly frameRef: React.RefObject<HTMLIFrameElement | null>
   readonly onEngage: () => void
 }) {
-  const { frameLoaded, frameRef, onEngage } = input
+  const { frameRegistered, frameRef, onEngage } = input
   useEffect(() => {
-    if (!frameLoaded) return
+    if (!frameRegistered) return
     let pending: number | null = null
     const handleWindowBlur = () => {
       if (pending !== null) window.clearTimeout(pending)
@@ -44,5 +44,5 @@ export function useInlineVisualizationEngagement(input: {
       window.removeEventListener('blur', handleWindowBlur)
       if (pending !== null) window.clearTimeout(pending)
     }
-  }, [frameLoaded, frameRef, onEngage])
+  }, [frameRegistered, frameRef, onEngage])
 }

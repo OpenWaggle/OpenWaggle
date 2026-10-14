@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearInlineVisualizationStatesForTests,
   latestInlineVisualizationContext,
+  retainedInlineVisualizationState,
 } from '../../state/inline-visualization-state'
+import { clearPinnedInlineVisualizationFramesForTests } from '../inline-visualization-frame-retention'
 
 const apiMock = vi.hoisted(() => ({
   showConfirm: vi.fn(),
@@ -53,6 +55,7 @@ describe('InlineVisualization interaction state', () => {
 
   afterEach(() => {
     cleanup()
+    clearPinnedInlineVisualizationFramesForTests()
     for (const mock of Object.values(apiMock)) mock.mockReset()
     clearInlineVisualizationStatesForTests()
   })
@@ -146,6 +149,9 @@ describe('InlineVisualization interaction state', () => {
     })
 
     expect(latestInlineVisualizationContext(activeSessionId)).toBeNull()
+    expect(
+      retainedInlineVisualizationState(SessionId('source-session'), '/repo/service-map.html'),
+    ).toBeNull()
     expect(screen.getByRole('alert')).toHaveTextContent(
       'visualization stopped because one of its scripts failed',
     )

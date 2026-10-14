@@ -1,5 +1,11 @@
 import vm from 'node:vm'
+import {
+  MAX_INLINE_VISUALIZATION_STATE_BYTES,
+  MAX_INLINE_VISUALIZATION_STATE_DEPTH,
+  MAX_INLINE_VISUALIZATION_STATE_NODES,
+} from '@shared/constants/inline-visualization'
 import { describe, expect, it, vi } from 'vitest'
+import hostRuntime from '../inline-visualization-assets/host-runtime.js.raw?raw'
 import { runtimeHarness } from './inline-visualization-host-runtime.test-harness'
 
 describe('inline visualization host runtime state', () => {
@@ -201,5 +207,36 @@ describe('inline visualization host runtime Lucide placeholder', () => {
 
     expect(vm.runInContext('globalThis.observed.length', context)).toBe(0)
     expect(createIcons).toHaveBeenCalledWith({ attrs: { width: 12 } })
+  })
+})
+
+describe('inline visualization host runtime state bounds', () => {
+  it('refuses a state wider than the host will retain instead of reporting success', () => {
+    const { context } = runtimeHarness()
+
+    expect(
+      vm.runInContext(
+        `window.openai.setVisualizationState(Array.from({ length: 2500 }, () => 'x'))`,
+        context,
+      ),
+    ).toBe(false)
+    expect(
+      vm.runInContext(
+        `window.openai.setVisualizationState(Array.from({ length: 1999 }, () => 'x'))`,
+        context,
+      ),
+    ).toBe(true)
+  })
+
+  it('repeats the shared state bounds exactly', () => {
+    const literal = (name: string) => {
+      const match = new RegExp(`const ${name} = ([0-9 *]+);`, 'u').exec(hostRuntime)
+      if (!match?.[1]) throw new Error(`Missing ${name} in the host runtime.`)
+      return match[1].split('*').reduce((product, factor) => product * Number(factor.trim()), 1)
+    }
+
+    expect(literal('MAX_VISUALIZATION_STATE_BYTES')).toBe(MAX_INLINE_VISUALIZATION_STATE_BYTES)
+    expect(literal('MAX_VISUALIZATION_STATE_DEPTH')).toBe(MAX_INLINE_VISUALIZATION_STATE_DEPTH)
+    expect(literal('MAX_VISUALIZATION_STATE_NODES')).toBe(MAX_INLINE_VISUALIZATION_STATE_NODES)
   })
 })

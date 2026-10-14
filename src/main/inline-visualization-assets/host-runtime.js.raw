@@ -588,15 +588,23 @@
     }
     return bytes;
   };
-  const isJsonValue = (value, seen = new WeakSet(), depth = 0) => {
+  // Equal to MAX_INLINE_VISUALIZATION_STATE_DEPTH and _NODES in the shared constants: the host
+  // drops a wider or deeper state, so the frame must refuse it rather than report success.
+  const MAX_VISUALIZATION_STATE_DEPTH = 20;
+  const MAX_VISUALIZATION_STATE_NODES = 2000;
+  const isJsonValue = (value, seen = new WeakSet(), depth = 0, budget = { nodes: 0 }) => {
+    budget.nodes += 1;
+    if (budget.nodes > MAX_VISUALIZATION_STATE_NODES || depth > MAX_VISUALIZATION_STATE_DEPTH) {
+      return false;
+    }
     if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
     if (typeof value === 'number') return numberIsFinite(value);
-    if (typeof value !== 'object' || depth > 20) return false;
+    if (typeof value !== 'object') return false;
     if (applyIntrinsic(weakSetHas, seen, [value])) return false;
     applyIntrinsic(weakSetAdd, seen, [value]);
     if (arrayIsArray(value)) {
       for (let index = 0; index < value.length; index += 1) {
-        if (!isJsonValue(value[index], seen, depth + 1)) return false;
+        if (!isJsonValue(value[index], seen, depth + 1, budget)) return false;
       }
       applyIntrinsic(weakSetDelete, seen, [value]);
       return true;
@@ -605,7 +613,7 @@
     if (prototype !== objectPrototype && prototype !== null) return false;
     const keys = applyIntrinsic(objectKeys, Object, [value]);
     for (let index = 0; index < keys.length; index += 1) {
-      if (!isJsonValue(value[keys[index]], seen, depth + 1)) return false;
+      if (!isJsonValue(value[keys[index]], seen, depth + 1, budget)) return false;
     }
     applyIntrinsic(weakSetDelete, seen, [value]);
     return true;

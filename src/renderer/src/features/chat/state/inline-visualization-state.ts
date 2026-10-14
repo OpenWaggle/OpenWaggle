@@ -1,12 +1,13 @@
-import { MAX_INLINE_VISUALIZATION_STATE_BYTES } from '@shared/constants/inline-visualization'
+import {
+  MAX_INLINE_VISUALIZATION_STATE_BYTES,
+  MAX_INLINE_VISUALIZATION_STATE_DEPTH,
+  MAX_INLINE_VISUALIZATION_STATE_NODES,
+} from '@shared/constants/inline-visualization'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload, InlineVisualizationContext } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
-
-const MAX_STATE_DEPTH = 20
-const MAX_STATE_NODES = 2_000
 
 interface MountedVisualizationState extends InlineVisualizationContext {
   readonly instanceId: string
@@ -68,7 +69,11 @@ function hasBoundedJsonShape(value: unknown) {
     const current = pending.pop()
     if (!current) break
     nodes += 1
-    if (nodes > MAX_STATE_NODES || current.depth > MAX_STATE_DEPTH) return false
+    if (
+      nodes > MAX_INLINE_VISUALIZATION_STATE_NODES ||
+      current.depth > MAX_INLINE_VISUALIZATION_STATE_DEPTH
+    )
+      return false
     if (
       current.value === null ||
       typeof current.value === 'string' ||

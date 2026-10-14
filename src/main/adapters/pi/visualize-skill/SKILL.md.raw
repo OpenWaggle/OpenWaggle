@@ -156,7 +156,8 @@ Choose the smallest composition that fits.
   untrusted context on the user's next message; reporting it does not send a
   message.
 - Restore reported state before the first render. OpenWaggle reloads a frame
-  that scrolled far away or whose Session was reopened, and passes the last
+  that scrolled far away or that the user left and came back to while the app
+  stays open, and passes the last
   reported state back as `window.openai.visualizationState` (`null` on first
   load). Apply only the values you recognize, ignore the rest, and then report
   the restored state, so the user's selections survive the reload and the next

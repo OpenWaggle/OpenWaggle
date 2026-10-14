@@ -159,6 +159,8 @@ describe('InlineVisualization frame parking', () => {
     act(() => dispatchIntersection(true))
     const frame = await screen.findByTitle('Variant picker')
     if (!(frame instanceof HTMLIFrameElement)) throw new Error('Expected visualization iframe')
+    // The frame can appear before its passive engagement effect attaches the blur listener.
+    await act(async () => {})
 
     vi.useFakeTimers()
     try {
