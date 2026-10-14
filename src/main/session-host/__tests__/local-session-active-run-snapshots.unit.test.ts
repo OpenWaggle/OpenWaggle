@@ -1,6 +1,15 @@
+import { parseJsonUnknown } from '@shared/schema'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { AgentTransportEvent } from '@shared/types/stream'
+import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import { describe, expect, it } from 'vitest'
 import { buildUserInputProjection } from '../../adapters/pi/agent-kernel/user-input-projection'
+import {
+  applyEventToStreamBuffer,
+  clearStreamBuffer,
+  getStreamBuffer,
+  startStreamBuffer,
+} from '../../utils/stream-buffer'
 import { decodeActiveRunSnapshots } from '../local-session-active-run-snapshots'
 
 const snapshot = {
@@ -118,5 +127,93 @@ describe('decodeActiveRunSnapshots', () => {
       ...unsaid,
       messageCutShort: true,
     })
+  })
+
+  /*
+   * The Host keeps a codemode call's nested calls on its tool-call part while the Run streams. A
+   * snapshot decoder that did not know the field threw, which failed the whole subscription: every
+   * Session then showed "Connecting" and "Thinking..." while its Runs finished in the Host.
+   */
+  it('keeps the nested calls the active Run buffer records on a codemode call', () => {
+    const sessionId = SessionId('session-nested-snapshot')
+    const apply = (event: AgentTransportEvent) => applyEventToStreamBuffer(sessionId, event)
+    startStreamBuffer(sessionId, SupportedModelId('provider/model'), 'classic')
+    try {
+      apply({
+        type: 'tool_execution_start',
+        toolCallId: 'code-1',
+        toolName: 'codemode',
+        args: {},
+        timestamp: 1,
+      })
+      for (let index = 1; index <= NESTED_TOOL_CALL_LIMITS.maxCalls + 1; index += 1) {
+        const toolCallId = `code-1/${String(index)}`
+        const nested = { toolCallId, toolName: 'read', parentToolCallId: 'code-1' }
+        apply({ type: 'tool_execution_start', ...nested, args: { path: 'a.ts' }, timestamp: 2 })
+        apply({ type: 'tool_execution_end', ...nested, result: 'ok', isError: false, timestamp: 3 })
+      }
+      apply({
+        type: 'tool_execution_start',
+        toolCallId: 'code-1/running',
+        toolName: 'bash',
+        args: { command: 'ls' },
+        parentToolCallId: 'code-1',
+        timestamp: 4,
+      })
+      // The wire copy, as the Host serialises it into the subscription frame.
+      const parts = parseJsonUnknown(JSON.stringify(getStreamBuffer(sessionId)?.parts))
+      expect(parts).toEqual([
+        expect.objectContaining({
+          toolCall: expect.objectContaining({
+            nestedCalls: expect.objectContaining({ droppedCalls: 2, complete: false }),
+          }),
+        }),
+      ])
+
+      const [decoded] = decodeActiveRunSnapshots([{ ...snapshot, parts }])
+      expect(decoded?.parts).toEqual(parts)
+    } finally {
+      clearStreamBuffer(sessionId)
+    }
+  })
+
+  it('keeps the nested calls recorded on a tool result', () => {
+    const nestedCalls = {
+      calls: [
+        { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok', durationMs: 3 },
+        { id: 'code-1/2', name: 'bash', argsBytes: 90_000, status: 'error', error: 'exit 1' },
+      ],
+      complete: false,
+    }
+    const parts = [
+      {
+        type: 'tool-result',
+        toolResult: {
+          id: 'code-1',
+          name: 'codemode',
+          args: {},
+          result: 'done',
+          isError: false,
+          duration: 12,
+          nestedCalls,
+        },
+      },
+    ]
+    expect(decodeActiveRunSnapshots([{ ...snapshot, parts }])[0]?.parts).toEqual(parts)
+  })
+
+  it('rejects a nested call with an unknown status', () => {
+    const parts = [
+      {
+        type: 'tool-call',
+        toolCall: {
+          id: 'code-1',
+          name: 'codemode',
+          args: {},
+          nestedCalls: { calls: [{ id: 'x', name: 'read', status: 'pending' }], complete: false },
+        },
+      },
+    ]
+    expect(() => decodeActiveRunSnapshots([{ ...snapshot, parts }])).toThrow()
   })
 })

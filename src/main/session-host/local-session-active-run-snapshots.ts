@@ -7,6 +7,7 @@ import {
   worktreeLaunchStepSchema,
   worktreeSetupActionTerminalSchema,
 } from '@shared/schemas/background-run'
+import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
@@ -189,6 +190,10 @@ const messagePartSchema = Schema.Union(
       name: Schema.String,
       args: jsonObjectSchema,
       state: Schema.optional(Schema.Literal('input-complete')),
+      // The live record of a codemode call's nested calls. A snapshot that carried one used to
+      // fail to decode, which failed the whole subscription and left every Session's transcript
+      // without live events while its Runs went on in the Host.
+      nestedCalls: Schema.optional(nestedToolCallsSchema),
     }),
   }),
   Schema.Struct({
@@ -201,6 +206,7 @@ const messagePartSchema = Schema.Union(
       isError: Schema.Boolean,
       duration: Schema.Number,
       details: Schema.optional(jsonValueSchema),
+      nestedCalls: Schema.optional(nestedToolCallsSchema),
     }),
   }),
 )
