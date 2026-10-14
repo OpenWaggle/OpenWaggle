@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   INLINE_VISUALIZATION_PROTOCOL,
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
+  MAX_INLINE_VISUALIZATION_STATE_BYTES,
 } from '@shared/constants/inline-visualization'
 import { SessionId } from '@shared/types/brand'
 import type {
@@ -90,11 +91,21 @@ interface RegisteredInlineVisualizationFrame {
   readonly registrationId: string
   readonly ownerId: number
   readonly reducedMotion: boolean
+  readonly restoredStateJson: string | null
   readonly sessionId: SessionId
   readonly sourcePath: string
 }
 
 const registeredFrames = new Map<string, RegisteredInlineVisualizationFrame>()
+
+function serializedRestoredState(state: InlineVisualizationFrameRegisterInput['restoredState']) {
+  if (state === undefined || state === null) return null
+  const serialized = JSON.stringify(state)
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_INLINE_VISUALIZATION_STATE_BYTES) {
+    throw new Error('Invalid visualization restored state')
+  }
+  return serialized
+}
 
 export function registerInlineVisualizationFrame(
   input: InlineVisualizationFrameRegisterInput,
@@ -107,6 +118,7 @@ export function registerInlineVisualizationFrame(
   if (!input.sourcePath || input.sourcePath.length > MAX_INLINE_VISUALIZATION_PATH_LENGTH) {
     throw new Error('Invalid visualization source path')
   }
+  const restoredStateJson = serializedRestoredState(input.restoredState)
   registrationSequence += 1
   const frameHost = `${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${input.frameId}`
   if (registeredFrames.has(frameHost)) {
@@ -117,6 +129,7 @@ export function registerInlineVisualizationFrame(
     registrationId,
     ownerId,
     reducedMotion: input.reducedMotion,
+    restoredStateJson,
     sessionId: SessionId(input.sessionId),
     sourcePath: input.sourcePath,
   })
@@ -195,15 +208,20 @@ function visualizationDocument(
   frameHost: string,
   contents: string,
   reducedMotion: boolean,
-  errorReason?: string,
+  options: { readonly errorReason?: string; readonly restoredStateJson?: string | null } = {},
 ) {
+  const { errorReason, restoredStateJson } = options
   const frameOrigin = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${frameHost}`
   const baseStyleUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.BASE_STYLE_PATH}`
   const errorMetadata = errorReason
     ? `<meta name="openwaggle-visualization-error" content="${escapeHtmlAttribute(errorReason)}">`
     : ''
+  // The runtime reads this before fragment scripts run, so a reloaded frame can restore choices.
+  const stateMetadata = restoredStateJson
+    ? `<meta name="openwaggle-visualization-state" content="${escapeHtmlAttribute(restoredStateJson)}">`
+    : ''
   const motionAttribute = reducedMotion ? ' data-motion="reduced"' : ''
-  return `<!doctype html><html${motionAttribute}><head><meta charset="utf-8">${errorMetadata}<link rel="stylesheet" href="${baseStyleUrl}">${HOST_STYLES}${HOST_RUNTIME}</head><body>${contents}</body></html>`
+  return `<!doctype html><html${motionAttribute}><head><meta charset="utf-8">${errorMetadata}${stateMetadata}<link rel="stylesheet" href="${baseStyleUrl}">${HOST_STYLES}${HOST_RUNTIME}</head><body>${contents}</body></html>`
 }
 
 function visualizationResponse(document: string) {
@@ -279,12 +297,14 @@ export function registerInlineVisualizationProtocolOnce(
             input.frameHost,
             '<div class="card" role="alert">This visualization is unavailable.</div>',
             registration.reducedMotion,
-            result.reason,
+            { errorReason: result.reason },
           ),
         )
       }
       return visualizationResponse(
-        visualizationDocument(input.frameHost, result.contents, registration.reducedMotion),
+        visualizationDocument(input.frameHost, result.contents, registration.reducedMotion, {
+          restoredStateJson: registration.restoredStateJson,
+        }),
       )
     } catch {
       return notFoundResponse()
