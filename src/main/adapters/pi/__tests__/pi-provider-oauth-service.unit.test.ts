@@ -1,13 +1,41 @@
-import type { AuthInteraction } from '@earendil-works/pi-ai'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import type { AuthInteraction, LoginOptions } from '@earendil-works/pi-ai'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type OAuthLoginHandlers,
   ProviderOAuthService,
 } from '../../../ports/provider-oauth-service'
 
+interface Warning {
+  readonly message: string
+  readonly data?: object
+}
+
+const warnings = vi.hoisted((): { calls: Warning[] } => ({ calls: [] }))
+
+vi.mock('../../../logger', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../logger')>()
+  return {
+    ...original,
+    createLogger: (namespace: string) => ({
+      ...original.createLogger(namespace),
+      warn: (message: string, data?: object) => {
+        warnings.calls.push({ message, ...(data === undefined ? {} : { data }) })
+      },
+    }),
+  }
+})
+
 const runtime = vi.hoisted(() => ({
-  login: async (_provider: string, _type: string, _interaction: AuthInteraction) => {},
+  login: async (
+    _provider: string,
+    _type: string,
+    _interaction: AuthInteraction,
+    _options?: LoginOptions,
+  ) => {},
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
@@ -15,13 +43,34 @@ vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
   ModelRuntime: {
     create: async () => ({
       getProvider: () => ({ auth: { oauth: {} } }),
-      login: (provider: string, type: string, interaction: AuthInteraction) =>
-        runtime.login(provider, type, interaction),
+      login: (
+        provider: string,
+        type: string,
+        interaction: AuthInteraction,
+        options?: LoginOptions,
+      ) => runtime.login(provider, type, interaction, options),
     }),
   },
 }))
 
 const { PiProviderOAuthLive } = await import('../pi-provider-oauth-service')
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+let home = ''
+let agentDirectory = ''
+
+beforeEach(async () => {
+  warnings.calls = []
+  home = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-oauth-home-'))
+  agentDirectory = path.join(home, '.pi', 'agent')
+  vi.stubEnv('HOME', home)
+  vi.stubEnv('PI_CODING_AGENT_DIR', agentDirectory)
+})
+
+afterEach(async () => {
+  vi.unstubAllEnvs()
+  await fs.rm(home, { recursive: true, force: true })
+})
 
 function handlers(overrides: Partial<OAuthLoginHandlers> = {}): OAuthLoginHandlers {
   return {
@@ -106,5 +155,81 @@ describe('Pi provider sign-in', () => {
       },
       undefined,
     )
+  })
+
+  it('gives login flows a stable installation device ID that Pi persists', async () => {
+    const deviceIds: string[] = []
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      const deviceId = options?.getDeviceId?.()
+      if (deviceId) deviceIds.push(deviceId, options?.getDeviceId?.() ?? '')
+    }
+
+    await login('openai-chatgpt', handlers())
+    await login('openai-chatgpt', handlers())
+
+    const [first] = deviceIds
+    expect(first).toMatch(UUID_PATTERN)
+    expect(deviceIds).toEqual([first, first, first, first])
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({ deviceId: first })
+  })
+
+  it('keeps the device ID it created when the sign-in fails, and reports the failure', async () => {
+    let deviceId: string | undefined
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      deviceId = options?.getDeviceId?.()
+      throw new Error('Login cancelled')
+    }
+
+    await expect(login('openai-chatgpt', handlers())).rejects.toThrow('Login cancelled')
+
+    expect(deviceId).toMatch(UUID_PATTERN)
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({ deviceId })
+  })
+
+  it('adds the device ID to existing Pi settings without dropping them', async () => {
+    await fs.mkdir(agentDirectory, { recursive: true })
+    await fs.writeFile(
+      path.join(agentDirectory, 'settings.json'),
+      `${JSON.stringify({ defaultThinkingLevel: 'high', theme: 'dark' }, null, 2)}\n`,
+    )
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      options?.getDeviceId?.()
+    }
+
+    await login('openai-chatgpt', handlers())
+
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({
+      defaultThinkingLevel: 'high',
+      theme: 'dark',
+      deviceId: expect.stringMatching(UUID_PATTERN),
+    })
+  })
+
+  it('logs when the device ID cannot be saved, instead of failing silently', async () => {
+    const settingsPath = path.join(agentDirectory, 'settings.json')
+    await fs.mkdir(agentDirectory, { recursive: true })
+    await fs.writeFile(settingsPath, '{}\n')
+    await fs.chmod(settingsPath, 0o444)
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      options?.getDeviceId?.()
+    }
+
+    await login('openai-chatgpt', handlers())
+
+    expect(warnings.calls).toEqual([
+      {
+        message: 'Failed to save Pi settings after sign-in',
+        data: expect.objectContaining({ provider: 'openai-chatgpt', scope: 'global' }),
+      },
+    ])
   })
 })

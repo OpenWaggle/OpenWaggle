@@ -27,6 +27,7 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
+import { withoutMcpStartupNotice } from './mcp-quiet-startup'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
@@ -273,21 +274,26 @@ export async function createOpenWaggleMcpExtensions(
     ])
   }
   const extensionServers = createMcpExtensionServers()
-  const mcp = createMcpExtension({
-    loadConfig: () => withShellResolvedClientSecrets(config.loaded),
-    createTransport: openWaggleMcpTransport(input, config),
-    credentials: getOpenWaggleMcpCredentials(),
-    logPath: openWaggleMcpLogPath(),
-    // Servers Pi extensions registered sign in too; the companion reads them at session start.
-    openUrl: createRunSignInOpener(() => [...config.loaded.servers, ...extensionServers.entries()]),
-    updateConfig: createMcpUpdateConfig(
-      (filePath) => input.onConfigChanged?.(filePath),
-      (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
-      // As Settings: a change made before the scope's migration succeeds would be undone by it.
-      openWaggleMcpUpdateRefusal(input.projectPath),
-    ),
-    startupWaitMs: MCP_STARTUP_WAIT_MS,
-  })
+  const mcp = withoutMcpStartupNotice(
+    createMcpExtension({
+      loadConfig: () => withShellResolvedClientSecrets(config.loaded),
+      createTransport: openWaggleMcpTransport(input, config),
+      credentials: getOpenWaggleMcpCredentials(),
+      logPath: openWaggleMcpLogPath(),
+      // Servers Pi extensions registered sign in too; the companion reads them at session start.
+      openUrl: createRunSignInOpener(() => [
+        ...config.loaded.servers,
+        ...extensionServers.entries(),
+      ]),
+      updateConfig: createMcpUpdateConfig(
+        (filePath) => input.onConfigChanged?.(filePath),
+        (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+        // As Settings: a change made before the scope's migration succeeds would be undone by it.
+        openWaggleMcpUpdateRefusal(input.projectPath),
+      ),
+      startupWaitMs: MCP_STARTUP_WAIT_MS,
+    }),
+  )
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },
     companionExtension(input, config, extensionServers),
