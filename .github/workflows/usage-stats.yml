@@ -14,6 +14,11 @@
 # - STATS_GITHUB_TOKEN (optional): fine-grained token for this repository with
 #   Administration: read, used only for the traffic API. Without it, or when GitHub refuses it,
 #   the snapshot carries no repository traffic. Releases are read with the workflow token.
+#
+# Traffic and npm downloads are optional: when GitHub or npm cannot serve them (an error status,
+# a timeout, a network failure) the job warns and sends the rest; the next run catches up.
+# Collecting fails the snapshot only when releases cannot be read, or when GitHub answers in a
+# shape the script no longer recognises.
 name: Usage Statistics Snapshot
 
 on:

@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
@@ -23,21 +24,6 @@ const toolCallRequestSchema = Schema.Struct({
   name: Schema.String,
   args: sessionJsonObjectSchema,
   state: Schema.optional(Schema.Literal('input-complete')),
-})
-
-const nestedToolCallsSchema = Schema.Struct({
-  calls: Schema.Array(
-    Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      args: Schema.optional(sessionJsonObjectSchema),
-      argsBytes: Schema.optional(Schema.Number),
-      status: Schema.Literal('ok', 'error', 'unfinished'),
-      durationMs: Schema.optional(Schema.Number),
-      error: Schema.optional(Schema.String),
-    }),
-  ),
-  complete: Schema.Boolean,
 })
 
 const toolCallResultSchema = Schema.Struct({

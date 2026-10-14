@@ -14,7 +14,6 @@ import {
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
-import { openSessionResourceContentStream } from './application/session-resource-content'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
@@ -218,10 +217,6 @@ async function bootstrapServicesAndWindow() {
   registerApplicationProtocols({
     readInlineVisualizationSource: (input) =>
       runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
-    readSessionResourceContent: (input) =>
-      runtimeModule.runAppEffect(
-        openSessionResourceContentStream(input.sessionId, input.resourceId),
-      ),
   })
   startupMark('protocol-handlers-registered')
 

@@ -7,3 +7,10 @@ export const INLINE_VISUALIZATION_PROTOCOL = {
 } as const
 
 export const MAX_INLINE_VISUALIZATION_PATH_LENGTH = 32_768
+/**
+ * Serialized UTF-8 bound for reported and restored visualization state. The frame runtime
+ * (`host-runtime.js.raw`) cannot import this and repeats the value; keep them equal.
+ */
+export const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
+export const MAX_INLINE_VISUALIZATION_STATE_DEPTH = 20
+export const MAX_INLINE_VISUALIZATION_STATE_NODES = 2_000

@@ -1,4 +1,5 @@
 import { Schema } from '@shared/schema'
+import { inlineVisualizationStateSchema } from '@shared/schemas/validation'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -21,6 +22,7 @@ export const inlineVisualizationFrameRegisterInputSchema: Schema.Schema<InlineVi
     reducedMotion: Schema.Boolean,
     sessionId: Schema.String,
     sourcePath: Schema.String,
+    restoredState: Schema.optional(Schema.NullOr(inlineVisualizationStateSchema)),
   })
 
 export const inlineVisualizationDownloadInputSchema: Schema.Schema<InlineVisualizationDownloadInput> =

@@ -1,6 +1,15 @@
+import { parseJsonUnknown } from '@shared/schema'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { AgentTransportEvent } from '@shared/types/stream'
+import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import { describe, expect, it } from 'vitest'
 import { buildUserInputProjection } from '../../adapters/pi/agent-kernel/user-input-projection'
+import {
+  applyEventToStreamBuffer,
+  clearStreamBuffer,
+  getStreamBuffer,
+  startStreamBuffer,
+} from '../../utils/stream-buffer'
 import { decodeActiveRunSnapshots } from '../local-session-active-run-snapshots'
 
 const snapshot = {
@@ -60,8 +69,12 @@ describe('decodeActiveRunSnapshots', () => {
     ['a fractional log order', { ...userMessage, sessionNodeCreatedOrder: 1.5 }],
     ['a missing timestamp', { ...userMessage, timestamp: undefined }],
     ['an image payload part', { ...userMessage, parts: [{ type: 'image', data: 'base64' }] }],
-  ])('rejects a user message with %s', (_case, invalid) => {
-    expect(() => decodeActiveRunSnapshots([{ ...snapshot, userMessages: [invalid] }])).toThrow()
+  ])('leaves out the user messages when one has %s, keeping the Run', (_case, invalid) => {
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, userMessages: [userMessage, invalid] },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', parts: snapshot.parts })
+    expect(decoded).not.toHaveProperty('userMessages')
   })
 
   /*
@@ -94,9 +107,9 @@ describe('decodeActiveRunSnapshots', () => {
     const [older] = decodeActiveRunSnapshots([snapshot])
     expect(older).not.toHaveProperty('assistantMessages')
     expect(older).not.toHaveProperty('messageStartedAt')
-    expect(() =>
-      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }]),
-    ).toThrow()
+    expect(
+      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }])[0],
+    ).not.toHaveProperty('assistantMessages')
   })
 
   // A newer Host keeps each text and reasoning part's content block; an older one sends none.
@@ -118,5 +131,154 @@ describe('decodeActiveRunSnapshots', () => {
       ...unsaid,
       messageCutShort: true,
     })
+  })
+
+  /*
+   * The Host keeps a codemode call's nested calls on its tool-call part while the Run streams. A
+   * snapshot decoder that did not know the field threw, which failed the whole subscription: every
+   * Session then showed "Connecting" and "Thinking..." while its Runs finished in the Host.
+   */
+  it('keeps the nested calls the active Run buffer records on a codemode call', () => {
+    const sessionId = SessionId('session-nested-snapshot')
+    const apply = (event: AgentTransportEvent) => applyEventToStreamBuffer(sessionId, event)
+    startStreamBuffer(sessionId, SupportedModelId('provider/model'), 'classic')
+    try {
+      apply({
+        type: 'tool_execution_start',
+        toolCallId: 'code-1',
+        toolName: 'codemode',
+        args: {},
+        timestamp: 1,
+      })
+      for (let index = 1; index <= NESTED_TOOL_CALL_LIMITS.maxCalls + 1; index += 1) {
+        const toolCallId = `code-1/${String(index)}`
+        const nested = { toolCallId, toolName: 'read', parentToolCallId: 'code-1' }
+        apply({ type: 'tool_execution_start', ...nested, args: { path: 'a.ts' }, timestamp: 2 })
+        apply({ type: 'tool_execution_end', ...nested, result: 'ok', isError: false, timestamp: 3 })
+      }
+      apply({
+        type: 'tool_execution_start',
+        toolCallId: 'code-1/running',
+        toolName: 'bash',
+        args: { command: 'ls' },
+        parentToolCallId: 'code-1',
+        timestamp: 4,
+      })
+      // The wire copy, as the Host serialises it into the subscription frame.
+      const parts = parseJsonUnknown(JSON.stringify(getStreamBuffer(sessionId)?.parts))
+      expect(parts).toEqual([
+        expect.objectContaining({
+          toolCall: expect.objectContaining({
+            nestedCalls: expect.objectContaining({ droppedCalls: 2, complete: false }),
+          }),
+        }),
+      ])
+
+      const [decoded] = decodeActiveRunSnapshots([{ ...snapshot, parts }])
+      expect(decoded?.parts).toEqual(parts)
+    } finally {
+      clearStreamBuffer(sessionId)
+    }
+  })
+
+  it('keeps the nested calls recorded on a tool result', () => {
+    const nestedCalls = {
+      calls: [
+        { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok', durationMs: 3 },
+        { id: 'code-1/2', name: 'bash', argsBytes: 90_000, status: 'error', error: 'exit 1' },
+      ],
+      complete: false,
+    }
+    const parts = [
+      {
+        type: 'tool-result',
+        toolResult: {
+          id: 'code-1',
+          name: 'codemode',
+          args: {},
+          result: 'done',
+          isError: false,
+          duration: 12,
+          nestedCalls,
+        },
+      },
+    ]
+    expect(decodeActiveRunSnapshots([{ ...snapshot, parts }])[0]?.parts).toEqual(parts)
+  })
+
+  /*
+   * A part this client cannot decode costs that Run's part, never the snapshot: failing it failed
+   * the subscription, and every Session lost its live events.
+   */
+  it('leaves out a part it cannot decode and marks the message cut short', () => {
+    const undecodable = {
+      type: 'tool-call',
+      toolCall: {
+        id: 'code-1',
+        name: 'codemode',
+        args: {},
+        nestedCalls: { calls: [{ id: 'x', name: 'read', status: 'pending' }], complete: false },
+      },
+    }
+    const text = { type: 'text', text: 'Partial answer' }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, runId: 'run-1', parts: [text, undecodable] },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', runId: 'run-1', parts: [text] })
+    expect(decoded?.degraded).toEqual({
+      reason: 'content-limit',
+      omittedBytes: Buffer.byteLength(JSON.stringify(undecodable)),
+      messageCutShort: true,
+    })
+  })
+
+  it('adds an undecodable part to the omissions the Host reported', () => {
+    const degraded = {
+      reason: 'content-limit',
+      omittedBytes: 10,
+      toolCallIds: ['t'],
+      messageCutShort: false,
+    }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, degraded, parts: [{ type: 'image' }] },
+    ])
+    expect(decoded?.parts).toEqual([])
+    expect(decoded?.degraded).toEqual({
+      ...degraded,
+      omittedBytes: 10 + Buffer.byteLength(JSON.stringify({ type: 'image' })),
+      messageCutShort: true,
+    })
+  })
+
+  it('leaves out an earlier assistant message holding a part it cannot decode', () => {
+    const kept = { messageId: 'assistant-1', timestamp: 4, parts: [{ type: 'text', text: 'ok' }] }
+    const broken = { messageId: 'assistant-2', timestamp: 5, parts: [{ type: 'image' }] }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, assistantMessages: [kept, broken, { messageId: 'x' }] },
+    ])
+    expect(decoded?.assistantMessages).toEqual([kept])
+    expect(decoded).not.toHaveProperty('degraded')
+  })
+
+  it('keeps the Run when its side channels cannot be decoded', () => {
+    const [decoded] = decodeActiveRunSnapshots([
+      {
+        ...snapshot,
+        activityEvents: [{ kind: 'unknown' }],
+        userMessages: [{ ...userMessage, raw: 'x' }],
+        worktreeLaunch: { status: 'unknown' },
+      },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', parts: snapshot.parts })
+    expect(decoded?.activityEvents).toEqual([])
+    expect(decoded).not.toHaveProperty('userMessages')
+    expect(decoded).not.toHaveProperty('worktreeLaunch')
+  })
+
+  // The bridge reads a Session missing from the snapshots as a settled Run, so none is dropped.
+  it('fails on a snapshot without a Run identity, naming it', () => {
+    expect(() =>
+      decodeActiveRunSnapshots([snapshot, { ...snapshot, sessionId: 'session-2', model: 1 }]),
+    ).toThrow(/index 1, Session session-2/)
   })
 })

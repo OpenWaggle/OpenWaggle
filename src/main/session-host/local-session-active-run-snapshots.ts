@@ -7,10 +7,16 @@ import {
   worktreeLaunchStepSchema,
   worktreeSetupActionTerminalSchema,
 } from '@shared/schemas/background-run'
-import { jsonValueSchema } from '@shared/schemas/validation'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
-import { SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { isRecord } from './local-session-client-connection'
+import {
+  decodeAssistantMessageSnapshots,
+  decodeStreamingParts,
+  reportUndecodable,
+  type SnapshotContext,
+  withUndecodableParts,
+} from './local-session-snapshot-parts'
 
 function decodeStringArray(value: unknown) {
   if (!Array.isArray(value)) return undefined
@@ -54,46 +60,43 @@ const worktreeLaunchSnapshotSchema = Schema.Struct({
   errorMessage: Schema.optional(Schema.String),
 })
 
-function decodeWorktreeLaunchSnapshot(value: unknown): WorktreeLaunchSnapshot | undefined {
-  if (value === undefined) return undefined
-  return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
-}
-
-function decodeUserMessageSnapshots(value: unknown): Pick<BackgroundRunSnapshot, 'userMessages'> {
-  if (value === undefined) return {}
-  const userMessages = decodeUnknownExactOrThrow(
-    Schema.Array(backgroundRunUserMessageSchema),
-    value,
-  )
-  return userMessages.length > 0 ? { userMessages } : {}
-}
-
-/**
- * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
- * one are not read; a malformed one fails the snapshot as a malformed part does.
- */
-function decodeAssistantMessageSnapshots(
+function decodeWorktreeLaunchSnapshot(
   value: unknown,
-): Pick<BackgroundRunSnapshot, 'assistantMessages'> {
+  context: SnapshotContext,
+): WorktreeLaunchSnapshot | undefined {
+  if (value === undefined) return undefined
+  try {
+    return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
+  } catch (error) {
+    reportUndecodable(context, 'the worktree launch', error)
+    return undefined
+  }
+}
+
+const userMessageSnapshotSchema = Schema.Array(backgroundRunUserMessageSchema)
+
+function decodeUserMessageSnapshots(
+  value: unknown,
+  context: SnapshotContext,
+): Pick<BackgroundRunSnapshot, 'userMessages'> {
   if (value === undefined) return {}
-  if (!Array.isArray(value))
-    throw new Error('Local Session Host returned invalid assistant messages.')
-  const assistantMessages = value.map((candidate) => {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.messageId !== 'string' ||
-      typeof candidate.timestamp !== 'number' ||
-      !Array.isArray(candidate.parts)
-    ) {
-      throw new Error('Local Session Host returned an invalid assistant message.')
-    }
-    return {
-      messageId: candidate.messageId,
-      timestamp: candidate.timestamp,
-      parts: candidate.parts.map(decodeMessagePart),
-    }
-  })
-  return assistantMessages.length > 0 ? { assistantMessages } : {}
+  try {
+    const userMessages = decodeUnknownExactOrThrow(userMessageSnapshotSchema, value)
+    return userMessages.length > 0 ? { userMessages } : {}
+  } catch (error) {
+    // Without them the reconnect places the Run's user messages from the Session detail.
+    reportUndecodable(context, 'the incorporated user messages', error)
+    return {}
+  }
+}
+
+function decodeActivityEvents(value: unknown, context: SnapshotContext) {
+  try {
+    return decodeUnknownExactOrThrow(backgroundRunActivityEventsSchema, value)
+  } catch (error) {
+    reportUndecodable(context, 'the activity events', error)
+    return []
+  }
 }
 
 function isOptionalString(value: unknown) {
@@ -126,21 +129,34 @@ function hasActiveRunSnapshotShape(
   )
 }
 
-/** Decodes the active Run snapshots a Local Session Host subscription opens with. */
+/**
+ * Decodes the active Run snapshots a Local Session Host subscription opens with.
+ *
+ * Only a snapshot without a Run identity fails the decode: the bridge reads a Session missing from
+ * the snapshots as a settled Run. Anything else this client cannot decode is logged and left out of
+ * that Run's snapshot alone (see `reportUndecodable`).
+ */
 export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
-  return value.map((candidate) => {
+  return value.map((candidate, index) => {
     if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
-      throw new Error('Local Session Host returned an invalid active Run snapshot.')
+      const sessionId = isRecord(candidate) ? candidate.sessionId : undefined
+      throw new Error(
+        `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${
+          typeof sessionId === 'string' ? `, Session ${sessionId}` : ''
+        }).`,
+      )
     }
-    const degraded = decodeDegradedSnapshot(candidate.degraded)
-    const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch)
+    const context: SnapshotContext = {
+      sessionId: candidate.sessionId,
+      ...(candidate.runId ? { runId: candidate.runId } : {}),
+    }
+    const streaming = decodeStreamingParts(candidate, context)
+    const degraded = withUndecodableParts(decodeDegradedSnapshot(candidate.degraded), streaming)
+    const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch, context)
     return {
       activity: 'agent-run',
-      activityEvents: decodeUnknownExactOrThrow(
-        backgroundRunActivityEventsSchema,
-        candidate.activityEvents,
-      ),
+      activityEvents: decodeActivityEvents(candidate.activityEvents, context),
       sessionId: SessionId(candidate.sessionId),
       ...(typeof candidate.runId === 'string' ? { runId: candidate.runId } : {}),
       model: SupportedModelId(candidate.model),
@@ -150,68 +166,11 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
       ...(typeof candidate.messageStartedAt === 'number'
         ? { messageStartedAt: candidate.messageStartedAt }
         : {}),
-      parts: candidate.parts.map(decodeMessagePart),
-      ...decodeUserMessageSnapshots(candidate.userMessages),
-      ...decodeAssistantMessageSnapshots(candidate.assistantMessages),
+      parts: streaming.parts,
+      ...decodeUserMessageSnapshots(candidate.userMessages, context),
+      ...decodeAssistantMessageSnapshots(candidate.assistantMessages, context),
       ...(degraded ? { degraded } : {}),
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }
   })
-}
-
-const jsonObjectSchema = Schema.Record({ key: Schema.String, value: jsonValueSchema })
-const messagePartSchema = Schema.Union(
-  Schema.Struct({
-    type: Schema.Literal('text', 'reasoning'),
-    text: Schema.String,
-    contentIndex: Schema.optional(Schema.Number),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('attachment'),
-    attachment: Schema.Struct({
-      id: Schema.String,
-      kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(
-        Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
-      ),
-      name: Schema.String,
-      path: Schema.String,
-      mimeType: Schema.String,
-      sizeBytes: Schema.Number,
-      contentSha256: Schema.optional(Schema.String),
-      extractedText: Schema.String,
-    }),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('tool-call'),
-    toolCall: Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      args: jsonObjectSchema,
-      state: Schema.optional(Schema.Literal('input-complete')),
-    }),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('tool-result'),
-    toolResult: Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      args: jsonObjectSchema,
-      result: jsonValueSchema,
-      isError: Schema.Boolean,
-      duration: Schema.Number,
-      details: Schema.optional(jsonValueSchema),
-    }),
-  }),
-)
-
-function decodeMessagePart(value: unknown) {
-  const part = decodeUnknownExactOrThrow(messagePartSchema, value)
-  if (part.type === 'tool-call') {
-    return { ...part, toolCall: { ...part.toolCall, id: ToolCallId(part.toolCall.id) } }
-  }
-  if (part.type === 'tool-result') {
-    return { ...part, toolResult: { ...part.toolResult, id: ToolCallId(part.toolResult.id) } }
-  }
-  return part
 }

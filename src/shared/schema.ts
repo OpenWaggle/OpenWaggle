@@ -32,6 +32,17 @@ export function getParseIssues(error: unknown): readonly string[] | null {
   return ParseResult.isParseError(error) ? formatParseError(error) : null
 }
 
+/**
+ * Where a decode failed and how (`path: Missing`, `path: Unexpected`, ...), without the issue
+ * messages: those embed the value that failed, which can be transcript or tool content.
+ */
+export function getParseIssuePaths(error: unknown): readonly string[] | null {
+  if (!ParseResult.isParseError(error)) return null
+  return ParseResult.ArrayFormatter.formatErrorSync(error).map(
+    (issue) => `${formatIssuePath(issue.path)}: ${issue._tag}`,
+  )
+}
+
 export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I, never>, value: unknown): A {
   return ParseResult.decodeUnknownSync(schema)(value)
 }
