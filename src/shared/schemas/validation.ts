@@ -6,7 +6,10 @@
  * from `src/shared/schema.ts`.
  */
 
-import { MAX_INLINE_VISUALIZATION_PATH_LENGTH } from '@shared/constants/inline-visualization'
+import {
+  MAX_INLINE_VISUALIZATION_PATH_LENGTH,
+  MAX_INLINE_VISUALIZATION_STATE_BYTES,
+} from '@shared/constants/inline-visualization'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
@@ -148,7 +151,6 @@ export const preparedAttachmentSchema = Schema.Struct({
   browserPreview: Schema.optional(browserPreviewAttachmentSchema),
 })
 
-const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
 const MAX_INLINE_VISUALIZATION_TITLE_LENGTH = 250
 /** Bounded JSON a visualization reports; the same bound applies when the host restores it. */
 export const inlineVisualizationStateSchema = jsonValueSchema.pipe(

@@ -145,6 +145,18 @@ describe('inline visualization host runtime restored state', () => {
       runtimeHarness(false, true, false, '{not json').runtimeWindow.openai?.visualizationState,
     ).toBeNull()
   })
+
+  it('ignores an oversized restored state but still removes its metadata', () => {
+    const { restoredStateMetadata, runtimeWindow } = runtimeHarness(
+      false,
+      true,
+      false,
+      JSON.stringify({ value: 'x'.repeat(17 * 1024) }),
+    )
+
+    expect(runtimeWindow.openai?.visualizationState).toBeNull()
+    expect(restoredStateMetadata.remove).toHaveBeenCalledOnce()
+  })
 })
 
 describe('inline visualization host runtime Lucide placeholder', () => {
@@ -167,5 +179,27 @@ describe('inline visualization host runtime Lucide placeholder', () => {
     expect(postedMessages).not.toContainEqual(
       expect.objectContaining({ type: 'openwaggle:inline-visualization:error' }),
     )
+  })
+
+  it('keeps deferred icon requests private from fragments that patch Array.prototype', () => {
+    const { context, dispatchWindowEvent, loadScripts, runtimeWindow } = runtimeHarness()
+    vm.runInContext(
+      `globalThis.observed = [];
+       const originalPush = Array.prototype.push;
+       Array.prototype.push = function (...items) {
+         globalThis.observed[globalThis.observed.length] = items;
+         return Reflect.apply(originalPush, this, items);
+       };
+       Array.prototype.splice = function () { throw new Error('tampered'); };
+       window.lucide.createIcons({ attrs: { width: 12 } });`,
+      context,
+    )
+    const createIcons = vi.fn()
+    runtimeWindow.lucide = { createIcons }
+    loadScripts()
+    dispatchWindowEvent('DOMContentLoaded')
+
+    expect(vm.runInContext('globalThis.observed.length', context)).toBe(0)
+    expect(createIcons).toHaveBeenCalledWith({ attrs: { width: 12 } })
   })
 })

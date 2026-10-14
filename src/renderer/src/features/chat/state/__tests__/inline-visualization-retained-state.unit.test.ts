@@ -38,6 +38,18 @@ describe('inline visualization retention', () => {
     expect(retainedInlineVisualizationState(session, '/v/129.html')).toBe(129)
   })
 
+  it('treats a restore as use so a read state is not evicted first', () => {
+    const session = SessionId('session-a')
+    for (let index = 0; index < 128; index += 1) {
+      retainInlineVisualizationState(session, `/v/${String(index)}.html`, index)
+    }
+    expect(retainedInlineVisualizationState(session, '/v/0.html')).toBe(0)
+    retainInlineVisualizationState(session, '/v/new.html', 'new')
+
+    expect(retainedInlineVisualizationState(session, '/v/0.html')).toBe(0)
+    expect(retainedInlineVisualizationState(session, '/v/1.html')).toBeNull()
+  })
+
   it('releases the least recently engaged frame beyond the pinned budget', () => {
     const releases = [vi.fn(), vi.fn(), vi.fn(), vi.fn()]
     for (const [index, release] of releases.entries()) {

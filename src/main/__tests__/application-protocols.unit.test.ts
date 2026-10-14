@@ -75,4 +75,59 @@ describe('registerApplicationProtocols', () => {
     )
     expect(mocks.runAppEffect).not.toHaveBeenCalled()
   })
+
+  async function registeredReference() {
+    const { registerApplicationProtocols } = await import('../application-protocols')
+    const { registerSessionResourceContentReference } = await import('../session-resource-protocol')
+    registerApplicationProtocols({ readInlineVisualizationSource: vi.fn() })
+    return registerSessionResourceContentReference(
+      {
+        sessionId: SessionId('session-one'),
+        resourceId: 'image-one',
+        fileName: 'screenshot.png',
+        mimeType: 'image/png',
+      },
+      7,
+    )
+  }
+
+  it('falls back to the local resource stream when no Session Host is attached', async () => {
+    const localStream = Symbol('local stream effect')
+    mocks.readHostSessionResourceContent.mockResolvedValue({ handled: false })
+    mocks.openSessionResourceContentStream.mockReturnValue(localStream)
+    mocks.runAppEffect.mockResolvedValue({
+      fileName: 'screenshot.png',
+      mimeType: 'image/png',
+      body: new Blob([new Uint8Array([4, 5])]).stream(),
+    })
+    const reference = await registeredReference()
+
+    const response = await sessionResourceHandler()({
+      method: 'GET',
+      referrer: '',
+      url: reference.url,
+    })
+
+    expect(response.status).toBe(200)
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([4, 5])
+    expect(mocks.openSessionResourceContentStream).toHaveBeenCalledWith(
+      SessionId('session-one'),
+      'image-one',
+    )
+    expect(mocks.runAppEffect).toHaveBeenCalledWith(localStream)
+  })
+
+  it('answers 404 when the Session Host has no such image', async () => {
+    mocks.readHostSessionResourceContent.mockResolvedValue({ handled: true, content: null })
+    const reference = await registeredReference()
+
+    const response = await sessionResourceHandler()({
+      method: 'GET',
+      referrer: '',
+      url: reference.url,
+    })
+
+    expect(response.status).toBe(404)
+    expect(mocks.runAppEffect).not.toHaveBeenCalled()
+  })
 })

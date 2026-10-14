@@ -1,10 +1,10 @@
+import { MAX_INLINE_VISUALIZATION_STATE_BYTES } from '@shared/constants/inline-visualization'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload, InlineVisualizationContext } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
 
-const MAX_STATE_BYTES = 16 * 1024
 const MAX_STATE_DEPTH = 20
 const MAX_STATE_NODES = 2_000
 
@@ -50,7 +50,13 @@ export function retainedInlineVisualizationState(
   sessionId: SessionId,
   sourcePath: string,
 ): JsonValue | null {
-  return retainedStates.get(retainedStateKey(sessionId, sourcePath)) ?? null
+  const key = retainedStateKey(sessionId, sourcePath)
+  const state = retainedStates.get(key)
+  if (state === undefined) return null
+  // A restore counts as use, so a long-lived visualization is not evicted ahead of newer ones.
+  retainedStates.delete(key)
+  retainedStates.set(key, state)
+  return state
 }
 
 function hasBoundedJsonShape(value: unknown) {
@@ -85,7 +91,8 @@ export function decodeInlineVisualizationState(value: unknown): JsonValue | null
   const decoded = safeDecodeUnknown(jsonValueSchema, value)
   if (!decoded.success) return null
   const serialized = JSON.stringify(decoded.data)
-  if (new TextEncoder().encode(serialized).byteLength > MAX_STATE_BYTES) return null
+  if (new TextEncoder().encode(serialized).byteLength > MAX_INLINE_VISUALIZATION_STATE_BYTES)
+    return null
   return decoded.data
 }
 

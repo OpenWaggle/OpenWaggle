@@ -7,6 +7,8 @@ import {
 /** Whether this visualization's frame stays loaded off-screen because the user engaged it. */
 export function useInlineVisualizationPin(instanceId: string) {
   const [pinned, setPinned] = useState(false)
+  // Stable identity is semantic: `unpin` reaches the frame's layout effect through onUnavailable,
+  // and a changing reference there would reassign the iframe src.
   const pin = useCallback(() => {
     pinInlineVisualizationFrame(instanceId, () => setPinned(false))
     setPinned(true)

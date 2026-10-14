@@ -73,6 +73,12 @@
   // whole visualization with "could not be loaded". The placeholder records the latest requested
   // options and the real runtime applies them once it and the fragment are both ready.
   const MAX_DEFERRED_LUCIDE_CALLS = 16;
+  // Captured before fragment code runs, so a fragment that patches Array.prototype cannot observe
+  // or disrupt the deferred queue.
+  const applyLucideIntrinsic = Reflect.apply;
+  const lucideArrayPush = Array.prototype.push;
+  const lucideArrayShift = Array.prototype.shift;
+  const lucideArraySplice = Array.prototype.splice;
   const deferredLucideCalls = [];
   const lucidePlaceholder = Object.freeze({
     createIcons(options) {
@@ -85,8 +91,10 @@
       ) {
         return runtime.createIcons(options);
       }
-      if (deferredLucideCalls.length >= MAX_DEFERRED_LUCIDE_CALLS) deferredLucideCalls.shift();
-      deferredLucideCalls.push(options);
+      if (deferredLucideCalls.length >= MAX_DEFERRED_LUCIDE_CALLS) {
+        applyLucideIntrinsic(lucideArrayShift, deferredLucideCalls, []);
+      }
+      applyLucideIntrinsic(lucideArrayPush, deferredLucideCalls, [options]);
       return undefined;
     },
   });
@@ -97,9 +105,10 @@
     if (runtime === lucidePlaceholder || !runtime || typeof runtime.createIcons !== 'function') {
       return;
     }
-    for (const options of deferredLucideCalls.splice(0)) {
+    const deferred = applyLucideIntrinsic(lucideArraySplice, deferredLucideCalls, [0]);
+    for (let index = 0; index < deferred.length; index += 1) {
       try {
-        runtime.createIcons(options);
+        runtime.createIcons(deferred[index]);
       } catch {
         // A malformed deferred request must not prevent the static icon pass below.
       }
@@ -548,6 +557,7 @@
       });
     });
   };
+  // Equal to MAX_INLINE_VISUALIZATION_STATE_BYTES in src/shared/constants/inline-visualization.ts.
   const MAX_VISUALIZATION_STATE_BYTES = 16 * 1024;
   const jsonStringify = JSON.stringify;
   const jsonParse = JSON.parse;
@@ -618,10 +628,14 @@
     }
     restoredStateMetadata.remove?.();
   }
-  const readVisualizationState = () =>
-    currentVisualizationStateJson === null
-      ? null
-      : applyIntrinsic(jsonParse, JSON, [currentVisualizationStateJson]);
+  const readVisualizationState = () => {
+    if (currentVisualizationStateJson === null) return null;
+    try {
+      return applyIntrinsic(jsonParse, JSON, [currentVisualizationStateJson]);
+    } catch {
+      return null;
+    }
+  };
   const setVisualizationState = (state) => {
     let serialized;
     let snapshot;

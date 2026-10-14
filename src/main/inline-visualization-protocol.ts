@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   INLINE_VISUALIZATION_PROTOCOL,
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
+  MAX_INLINE_VISUALIZATION_STATE_BYTES,
 } from '@shared/constants/inline-visualization'
 import { SessionId } from '@shared/types/brand'
 import type {
@@ -27,7 +28,6 @@ const FRAME_HOST_PATTERN =
   /^frame-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const FRAME_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const STATIC_ASSET_HOST = 'assets'
-const MAX_RESTORED_STATE_BYTES = 16 * 1024
 const LUCIDE_RUNTIME_DIGEST = createHash('sha256').update(lucideRuntime).digest('hex').slice(0, 16)
 const LUCIDE_RUNTIME_PATH = `/lucide-${LUCIDE_RUNTIME_DIGEST}.js`
 const LUCIDE_RUNTIME_URL = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${STATIC_ASSET_HOST}${LUCIDE_RUNTIME_PATH}`
@@ -101,7 +101,7 @@ const registeredFrames = new Map<string, RegisteredInlineVisualizationFrame>()
 function serializedRestoredState(state: InlineVisualizationFrameRegisterInput['restoredState']) {
   if (state === undefined || state === null) return null
   const serialized = JSON.stringify(state)
-  if (Buffer.byteLength(serialized, 'utf8') > MAX_RESTORED_STATE_BYTES) {
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_INLINE_VISUALIZATION_STATE_BYTES) {
     throw new Error('Invalid visualization restored state')
   }
   return serialized
