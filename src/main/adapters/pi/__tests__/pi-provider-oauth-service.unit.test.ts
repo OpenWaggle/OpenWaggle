@@ -154,4 +154,42 @@ describe('Pi provider sign-in', () => {
     )
     expect(stored).toMatchObject({ deviceId: first })
   })
+
+  it('keeps the device ID it created when the sign-in fails, and reports the failure', async () => {
+    let deviceId: string | undefined
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      deviceId = options?.getDeviceId?.()
+      throw new Error('Login cancelled')
+    }
+
+    await expect(login('openai-chatgpt', handlers())).rejects.toThrow('Login cancelled')
+
+    expect(deviceId).toMatch(UUID_PATTERN)
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({ deviceId })
+  })
+
+  it('adds the device ID to existing Pi settings without dropping them', async () => {
+    await fs.mkdir(agentDirectory, { recursive: true })
+    await fs.writeFile(
+      path.join(agentDirectory, 'settings.json'),
+      `${JSON.stringify({ defaultThinkingLevel: 'high', theme: 'dark' }, null, 2)}\n`,
+    )
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      options?.getDeviceId?.()
+    }
+
+    await login('openai-chatgpt', handlers())
+
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({
+      defaultThinkingLevel: 'high',
+      theme: 'dark',
+      deviceId: expect.stringMatching(UUID_PATTERN),
+    })
+  })
 })

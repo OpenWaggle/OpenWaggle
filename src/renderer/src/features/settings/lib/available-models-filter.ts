@@ -12,8 +12,24 @@ export interface AvailableModelsProvider {
 
 export type ModelFilterId = 'selected' | 'ready' | 'reasoning' | 'long-context'
 
-export const ALL_PROVIDERS = 'all'
-export type ProviderScope = Provider | typeof ALL_PROVIDERS
+/**
+ * Which models the list shows: every provider's, or one provider's. A tagged value rather than a
+ * sentinel string, because provider ids are open strings and one could be named "all".
+ */
+export type ProviderScope =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'provider'; readonly provider: Provider }
+
+export const ALL_PROVIDERS: ProviderScope = { kind: 'all' }
+
+export function providerScope(provider: Provider): ProviderScope {
+  return { kind: 'provider', provider }
+}
+
+/** The provider a scope narrows to, or null for every provider. */
+export function scopedProvider(scope: ProviderScope) {
+  return scope.kind === 'provider' ? scope.provider : null
+}
 
 interface AvailableModelsQuery {
   readonly search: string
@@ -90,13 +106,13 @@ function filterCounts(
   providers: readonly AvailableModelsProvider[],
   query: AvailableModelsQuery,
   enabled: ReadonlySet<string>,
-  scope: ProviderScope,
+  inProvider: Provider | null,
 ): Readonly<Record<ModelFilterId, number>> {
   const count = (filter: ModelFilterId) => {
     const matches = matchingModelsByProvider(providers, query, enabled, filter)
     let total = 0
     for (const [provider, models] of matches) {
-      if (scope !== ALL_PROVIDERS && provider !== scope) continue
+      if (inProvider !== null && provider !== inProvider) continue
       total += models.filter((model) => passesFilter(filter, model, enabled)).length
     }
     return total
@@ -149,11 +165,17 @@ export function availableModelsView<TGroup extends AvailableModelsProvider>(
 ) {
   // Until the user picks one, open the first signed-in provider rather than every model at once.
   const defaultScope = (groups.find((group) => group.connected) ?? groups[0])?.provider
+  const chosenProvider = chosenScope ? scopedProvider(chosenScope) : null
   const chosenIsAvailable =
-    chosenScope === ALL_PROVIDERS || groups.some((group) => group.provider === chosenScope)
+    chosenScope?.kind === 'all' || groups.some((group) => group.provider === chosenProvider)
   const scope: ProviderScope =
-    chosenIsAvailable && chosenScope !== null ? chosenScope : (defaultScope ?? ALL_PROVIDERS)
-  const scopedGroup = groups.find((group) => group.provider === scope) ?? null
+    chosenIsAvailable && chosenScope
+      ? chosenScope
+      : defaultScope === undefined
+        ? ALL_PROVIDERS
+        : providerScope(defaultScope)
+  const inProvider = scopedProvider(scope)
+  const scopedGroup = groups.find((group) => group.provider === inProvider) ?? null
 
   const matches = matchingModelsByProvider(groups, query, enabled)
   const allMatches = [...matches.values()].flat()
@@ -166,7 +188,7 @@ export function availableModelsView<TGroup extends AvailableModelsProvider>(
     visibleModels,
     scopeModels: scopedGroup ? scopedGroup.models : groups.flatMap((group) => group.models),
     matchesElsewhere: allMatches.length - visibleModels.length,
-    counts: filterCounts(groups, query, enabled, scope),
+    counts: filterCounts(groups, query, enabled, inProvider),
     queryActive: isQueryActive(query),
   }
 }

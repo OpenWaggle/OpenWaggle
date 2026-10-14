@@ -37,6 +37,10 @@ function useEnabledModelSelection() {
   }
 }
 
+function matchAnnouncement(count: number) {
+  return count === 1 ? '1 matching model' : `${String(count)} matching models`
+}
+
 function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGroup[] }) {
   const selection = useEnabledModelSelection()
   const [search, setSearch] = useState('')
@@ -60,6 +64,11 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
         <ModelSearchField value={search} onChange={setSearch} />
         <ModelFilterChips active={filters} counts={view.counts} onToggle={toggleFilter} />
       </div>
+
+      {/* Always mounted: a live region inserted with its first text is not announced. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {view.queryActive ? matchAnnouncement(view.visibleModels.length) : ''}
+      </p>
 
       {view.queryActive && (
         <ModelMatchActions
@@ -86,7 +95,7 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
           onSelectScope={setChosenScope}
         />
         <ModelListPanel
-          key={view.scope}
+          key={view.scopedGroup ? `provider:${view.scopedGroup.provider}` : 'all'}
           group={view.scopedGroup}
           state={{
             scopeModels: view.scopeModels,

@@ -1,7 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { AvailableModelsSection } from '../AvailableModelsSection'
@@ -143,5 +143,86 @@ describe('AvailableModelsSection', () => {
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(4)
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument()
+  })
+
+  it('toggles a single model on and off', async () => {
+    render(<AvailableModelsSection />)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Qwen: Qwen3 Coder/ }))
+    await waitFor(() => expect(setEnabledModelsMock).toHaveBeenLastCalledWith([SONNET, CODER]))
+
+    fireEvent.click(within(providersNav()).getByRole('button', { name: /Anthropic/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Claude Sonnet/ }))
+    await waitFor(() => expect(setEnabledModelsMock).toHaveBeenLastCalledWith([CODER]))
+  })
+
+  it("selects and clears one provider's models, keeping models enabled elsewhere", async () => {
+    // Enabled in another project, so not in this catalog.
+    const ELSEWHERE = SupportedModelId('qa-faux/luna')
+    usePreferencesStore.setState((state) => ({
+      settings: { ...state.settings, enabledModels: [SONNET, ELSEWHERE] },
+    }))
+    render(<AvailableModelsSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select all OpenRouter models' }))
+    await waitFor(() =>
+      expect(setEnabledModelsMock).toHaveBeenLastCalledWith([SONNET, ELSEWHERE, GPT, CODER]),
+    )
+
+    fireEvent.click(within(providersNav()).getByRole('button', { name: /Anthropic/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect all Anthropic models' }))
+    await waitFor(() =>
+      expect(setEnabledModelsMock).toHaveBeenLastCalledWith([ELSEWHERE, GPT, CODER]),
+    )
+  })
+
+  it('deselects only the matching models and announces the match count', async () => {
+    usePreferencesStore.setState((state) => ({
+      settings: { ...state.settings, enabledModels: [SONNET, HAIKU, GPT] },
+    }))
+    render(<AvailableModelsSection />)
+    fireEvent.click(within(providersNav()).getByRole('button', { name: /All providers/ }))
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search models' }), {
+      target: { value: 'claude' },
+    })
+    expect(status).toHaveTextContent('2 matching models')
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect matching' }))
+
+    await waitFor(() => expect(setEnabledModelsMock).toHaveBeenLastCalledWith([GPT]))
+  })
+
+  it('clears the search on Escape before Escape reaches the rest of Settings', () => {
+    const outerKeyDown = vi.fn()
+    document.addEventListener('keydown', outerKeyDown)
+    onTestFinished(() => document.removeEventListener('keydown', outerKeyDown))
+    render(<AvailableModelsSection />)
+    const search = screen.getByRole('searchbox', { name: 'Search models' })
+    fireEvent.change(search, { target: { value: 'claude' } })
+
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(search).toHaveValue('')
+    expect(outerKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(outerKeyDown).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the first 100 models of a large list, then the rest on request', () => {
+    const many = Array.from({ length: 105 }, (_, index) => ({
+      id: SupportedModelId(`openrouter/vendor/model-${String(index).padStart(3, '0')}`),
+      name: `Model ${String(index).padStart(3, '0')}`,
+    }))
+    useProviderStore.setState({
+      isLoading: false,
+      providerModels: [provider('openrouter', 'OpenRouter', true, many)],
+    })
+    render(<AvailableModelsSection />)
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(100)
+    fireEvent.click(screen.getByRole('button', { name: 'Show 5 more' }))
+    expect(screen.getAllByRole('checkbox')).toHaveLength(105)
   })
 })

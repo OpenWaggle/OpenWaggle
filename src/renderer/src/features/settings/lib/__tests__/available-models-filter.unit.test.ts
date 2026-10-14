@@ -8,6 +8,7 @@ import {
   availableModelsView,
   highlightSegments,
   type ModelFilterId,
+  providerScope,
 } from '../available-models-filter'
 
 function model(
@@ -66,10 +67,11 @@ const ids = (models: readonly ModelDisplayInfo[]) => models.map((entry) => Strin
 
 describe('Available Models search and filters', () => {
   it('opens the first signed-in provider until the user picks a scope', () => {
-    expect(view('', [], [], null).scope).toBe('openrouter')
-    expect(view('', [], [], 'openai').scope).toBe('openai')
+    expect(view('', [], [], null).scope).toEqual(providerScope('openrouter'))
+    expect(view('', [], [], providerScope('openai')).scope).toEqual(providerScope('openai'))
+    expect(view('', [], [], ALL_PROVIDERS).scopedGroup).toBeNull()
     // A provider that left the catalog falls back to the default.
-    expect(view('', [], [], 'mistral').scope).toBe('openrouter')
+    expect(view('', [], [], providerScope('mistral')).scope).toEqual(providerScope('openrouter'))
   })
 
   it('needs every search word to appear in the name, model ID or provider', () => {
@@ -80,7 +82,7 @@ describe('Available Models search and filters', () => {
   })
 
   it('combines filters and reports matches outside the provider in scope', () => {
-    const ready = view('gpt', ['ready'], [], 'openai')
+    const ready = view('gpt', ['ready'], [], providerScope('openai'))
     expect(ready.visibleModels).toEqual([])
     expect(ready.matchesElsewhere).toBe(1)
 
@@ -96,13 +98,27 @@ describe('Available Models search and filters', () => {
       reasoning: 2,
       'long-context': 1,
     })
-    expect(view('', ['ready'], ['openai/gpt-5'], 'openai').counts).toEqual({
+    expect(view('', ['ready'], ['openai/gpt-5'], providerScope('openai')).counts).toEqual({
       selected: 0,
       ready: 0,
       reasoning: 0,
       'long-context': 0,
     })
-    expect(view('', [], ['openai/gpt-5'], 'openai').counts.selected).toBe(1)
+    expect(view('', [], ['openai/gpt-5'], providerScope('openai')).counts.selected).toBe(1)
+  })
+
+  it('never confuses a provider named "all" with every provider', () => {
+    const groups: readonly AvailableModelsProvider[] = [
+      { provider: 'all', label: 'All Inc', connected: true, models: [model('all/one', 'One')] },
+      ...GROUPS,
+    ]
+    const query = { search: '', filters: new Set<ModelFilterId>() }
+    const scoped = availableModelsView(groups, query, new Set(), providerScope('all'))
+    expect(scoped.scopedGroup?.label).toBe('All Inc')
+    expect(ids(scoped.visibleModels)).toEqual(['all/one'])
+    expect(availableModelsView(groups, query, new Set(), ALL_PROVIDERS).visibleModels).toHaveLength(
+      5,
+    )
   })
 
   it('marks every occurrence of each search word for highlighting', () => {

@@ -3,7 +3,12 @@ import type { Provider } from '@shared/types/settings'
 import { Layers } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ModelGroup } from '@/features/providers/model'
-import { ALL_PROVIDERS, type ProviderScope } from '@/features/settings/lib/available-models-filter'
+import {
+  ALL_PROVIDERS,
+  type ProviderScope,
+  providerScope,
+  scopedProvider,
+} from '@/features/settings/lib/available-models-filter'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { getProviderMeta } from './meta'
@@ -89,7 +94,7 @@ export function ModelProviderSidebar({
       <SidebarItem
         icon={<Layers className="size-4 shrink-0 text-text-tertiary" aria-hidden="true" />}
         label="All providers"
-        isActive={scope === ALL_PROVIDERS}
+        isActive={scope.kind === 'all'}
         dimmed={queryActive && allHits === 0}
         count={countLabel(allModels, allHits, queryActive, enabledSet)}
         onSelect={() => onSelectScope(ALL_PROVIDERS)}
@@ -103,11 +108,11 @@ export function ModelProviderSidebar({
             key={group.key}
             icon={<Icon className={cn('size-4 shrink-0', meta.iconClassName)} />}
             label={group.label}
-            isActive={scope === group.provider}
+            isActive={scopedProvider(scope) === group.provider}
             dimmed={queryActive && hits === 0}
             status={{ connected: group.connected }}
             count={countLabel(group.models, hits, queryActive, enabledSet)}
-            onSelect={() => onSelectScope(group.provider)}
+            onSelect={() => onSelectScope(providerScope(group.provider))}
           />
         )
       })}

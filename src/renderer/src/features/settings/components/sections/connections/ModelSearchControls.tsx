@@ -69,10 +69,7 @@ export function ModelMatchActions({
   onReset,
 }: ModelMatchActionsProps) {
   return (
-    <div
-      aria-live="polite"
-      className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-tertiary"
-    >
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-tertiary">
       <span className="tabular-nums">
         {matching.length} matching · {selectedCount} selected
       </span>
