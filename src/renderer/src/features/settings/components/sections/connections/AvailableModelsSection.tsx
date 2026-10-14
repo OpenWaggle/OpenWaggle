@@ -1,5 +1,6 @@
 import type { ModelDisplayInfo } from '@shared/types/llm'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useConnectionModelGroups } from '@/features/providers/hooks'
 import type { ModelGroup } from '@/features/providers/model'
 import { usePreferences, useProviders } from '@/features/settings/hooks/useSettings'
@@ -46,6 +47,8 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<ReadonlySet<ModelFilterId>>(new Set())
   const [chosenScope, setChosenScope] = useState<ProviderScope | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const sidebarRef = useRef<HTMLElement>(null)
 
   const view = availableModelsView(groups, { search, filters }, selection.enabledSet, chosenScope)
 
@@ -61,7 +64,7 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
   return (
     <>
       <div className="space-y-2">
-        <ModelSearchField value={search} onChange={setSearch} />
+        <ModelSearchField inputRef={searchRef} value={search} onChange={setSearch} />
         <ModelFilterChips active={filters} counts={view.counts} onToggle={toggleFilter} />
       </div>
 
@@ -81,6 +84,8 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
           onReset={() => {
             setSearch('')
             setFilters(new Set())
+            // The reset button unmounts with the filters, so focus the search field instead.
+            searchRef.current?.focus()
           }}
         />
       )}
@@ -93,6 +98,7 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
           queryActive={view.queryActive}
           enabledSet={selection.enabledSet}
           onSelectScope={setChosenScope}
+          navRef={sidebarRef}
         />
         <ModelListPanel
           key={view.scopedGroup ? `provider:${view.scopedGroup.provider}` : 'all'}
@@ -110,7 +116,13 @@ function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGro
             onToggleModel: selection.toggle,
             onSelectModels: selection.select,
             onDeselectModels: selection.deselect,
-            onShowAllProviders: () => setChosenScope(ALL_PROVIDERS),
+            onShowAllProviders: () => {
+              // The link unmounts with the empty list, so focus the provider it switched to.
+              flushSync(() => setChosenScope(ALL_PROVIDERS))
+              sidebarRef.current
+                ?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')
+                ?.focus()
+            },
           }}
         />
       </div>

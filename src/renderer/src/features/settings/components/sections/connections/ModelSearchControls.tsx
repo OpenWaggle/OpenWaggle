@@ -1,14 +1,16 @@
 import type { ModelDisplayInfo } from '@shared/types/llm'
 import { Search, X } from 'lucide-react'
+import type { Ref } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 
 interface ModelSearchFieldProps {
+  readonly inputRef?: Ref<HTMLInputElement>
   readonly value: string
   readonly onChange: (value: string) => void
 }
 
-export function ModelSearchField({ value, onChange }: ModelSearchFieldProps) {
+export function ModelSearchField({ inputRef, value, onChange }: ModelSearchFieldProps) {
   return (
     <div className="relative">
       <Search
@@ -16,6 +18,7 @@ export function ModelSearchField({ value, onChange }: ModelSearchFieldProps) {
         aria-hidden="true"
       />
       <TextInput
+        ref={inputRef}
         type="search"
         inputSize="sm"
         aria-label="Search models"

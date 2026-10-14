@@ -1,7 +1,7 @@
 import type { ModelDisplayInfo } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
 import { Layers } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type { ModelGroup } from '@/features/providers/model'
 import {
   ALL_PROVIDERS,
@@ -20,6 +20,7 @@ interface ModelProviderSidebarProps {
   readonly queryActive: boolean
   readonly enabledSet: ReadonlySet<string>
   readonly onSelectScope: (scope: ProviderScope) => void
+  readonly navRef?: Ref<HTMLElement>
 }
 
 interface SidebarItemProps {
@@ -82,12 +83,14 @@ export function ModelProviderSidebar({
   queryActive,
   enabledSet,
   onSelectScope,
+  navRef,
 }: ModelProviderSidebarProps) {
   const allModels = groups.flatMap((group) => group.models)
   const allHits = [...matches.values()].reduce((total, models) => total + models.length, 0)
 
   return (
     <nav
+      ref={navRef}
       aria-label="Providers"
       className="flex shrink-0 flex-col gap-px overflow-y-auto max-sm:max-h-60 border-border border-b bg-bg-secondary p-1.5 sm:w-52 sm:border-r sm:border-b-0"
     >

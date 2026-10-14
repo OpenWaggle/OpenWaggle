@@ -44,7 +44,7 @@ export function ModelCheckboxRow({
         <>
           {providerLabel !== undefined && (
             <span className="w-28 shrink-0 truncate text-xs text-text-tertiary">
-              {providerLabel}
+              <Highlighted text={providerLabel} search={search} />
             </span>
           )}
           <span className="shrink-0 truncate text-xs text-text-primary">

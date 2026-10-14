@@ -116,7 +116,10 @@ describe('AvailableModelsSection', () => {
     })
 
     // The open provider has no match, so the list offers the matches elsewhere.
-    fireEvent.click(screen.getByRole('button', { name: 'Show 2 matches in other providers' }))
+    const showElsewhere = screen.getByRole('button', { name: 'Show 2 matches in other providers' })
+    showElsewhere.focus()
+    fireEvent.click(showElsewhere)
+    expect(within(providersNav()).getByRole('button', { name: /All providers/ })).toHaveFocus()
     expect(within(providersNav()).getByRole('button', { name: /All providers/ })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -139,7 +142,11 @@ describe('AvailableModelsSection', () => {
     expect(selectedChip).toHaveAttribute('aria-pressed', 'true')
     expect(modelCheckboxNames()).toEqual([expect.stringContaining('Claude Sonnet')])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }))
+    const reset = screen.getByRole('button', { name: 'Reset filters' })
+    reset.focus()
+    fireEvent.click(reset)
+
+    expect(screen.getByRole('searchbox', { name: 'Search models' })).toHaveFocus()
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(4)
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument()
@@ -237,5 +244,17 @@ describe('AvailableModelsSection', () => {
 
     expect(screen.getByText('No models are listed here.')).toBeInTheDocument()
     expect(screen.queryByText(/Loading models/)).not.toBeInTheDocument()
+  })
+
+  it('highlights the provider name when the search matched it', () => {
+    render(<AvailableModelsSection />)
+    fireEvent.click(within(providersNav()).getByRole('button', { name: /All providers/ }))
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search models' }), {
+      target: { value: 'router' },
+    })
+
+    const row = screen.getByRole('checkbox', { name: /Qwen: Qwen3 Coder/ }).closest('label')
+    expect(row?.querySelector('mark')).toHaveTextContent('Router')
   })
 })
