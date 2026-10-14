@@ -1,5 +1,6 @@
 import type { ModelDisplayInfo } from '@shared/types/llm'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { ModelGroup } from '@/features/providers/model'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -52,6 +53,17 @@ function EmptyState({
 
 export function ModelListPanel({ group, state, actions }: ModelListPanelProps) {
   const [showAll, setShowAll] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  // The button unmounts once every row shows, so keep focus on the first row it revealed.
+  function showRemainingRows() {
+    const firstRevealed = rows.length
+    flushSync(() => setShowAll(true))
+    listRef.current
+      ?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+      .item(firstRevealed)
+      ?.focus()
+  }
   const selectedInScope = state.scopeModels.filter((model) => state.enabledSet.has(model.id)).length
   const rows = showAll ? state.visibleModels : state.visibleModels.slice(0, INITIAL_ROW_LIMIT)
   const hiddenRows = state.visibleModels.length - rows.length
@@ -106,7 +118,8 @@ export function ModelListPanel({ group, state, actions }: ModelListPanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1 max-sm:max-h-120">
         {state.visibleModels.length === 0 ? (
           state.scopeModels.length === 0 && !state.queryActive ? (
-            <p className="px-2 py-3 text-xs text-text-muted">Loading models&hellip;</p>
+            // The section shows its own loading state; by now the catalog has loaded.
+            <p className="px-2 py-3 text-xs text-text-muted">No models are listed here.</p>
           ) : (
             <EmptyState
               matchesElsewhere={state.matchesElsewhere}
@@ -114,7 +127,7 @@ export function ModelListPanel({ group, state, actions }: ModelListPanelProps) {
             />
           )
         ) : (
-          <div className="space-y-px">
+          <div ref={listRef} className="space-y-px">
             {rows.map((model) => (
               <ModelCheckboxRow
                 key={model.id}
@@ -131,7 +144,7 @@ export function ModelListPanel({ group, state, actions }: ModelListPanelProps) {
                 size="none"
                 type="button"
                 className="px-2 py-2 text-xs"
-                onClick={() => setShowAll(true)}
+                onClick={showRemainingRows}
               >
                 Show {hiddenRows} more
               </Button>

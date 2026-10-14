@@ -224,5 +224,18 @@ describe('AvailableModelsSection', () => {
     expect(screen.getAllByRole('checkbox')).toHaveLength(100)
     fireEvent.click(screen.getByRole('button', { name: 'Show 5 more' }))
     expect(screen.getAllByRole('checkbox')).toHaveLength(105)
+    // Focus moves to the first revealed row instead of being lost with the button.
+    expect(screen.getByRole('checkbox', { name: /Model 100/ })).toHaveFocus()
+  })
+
+  it('says a provider lists no models rather than showing it as loading', () => {
+    useProviderStore.setState({
+      isLoading: false,
+      providerModels: [provider('custom', 'Custom', true, [])],
+    })
+    render(<AvailableModelsSection />)
+
+    expect(screen.getByText('No models are listed here.')).toBeInTheDocument()
+    expect(screen.queryByText(/Loading models/)).not.toBeInTheDocument()
   })
 })

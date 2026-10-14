@@ -3,12 +3,15 @@ import type { AuthEvent, AuthPrompt } from '@earendil-works/pi-ai'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
+import { createLogger } from '../../logger'
 import {
   type OAuthLoginHandlers,
   ProviderOAuthService,
   type ProviderOAuthServiceShape,
 } from '../../ports/provider-oauth-service'
 import { createOpenWaggleGlobalPiSettingsManager } from './openwaggle-pi-settings-storage'
+
+const logger = createLogger('pi-provider-oauth')
 
 function createModelRuntime() {
   return ModelRuntime.create()
@@ -111,7 +114,17 @@ export const PiProviderOAuthLive = Layer.succeed(
               { getDeviceId: () => settingsManager.getOrCreateDeviceId() },
             )
           } finally {
+            // Pi records a failed settings write instead of throwing it. Without a stored ID the
+            // next sign-in would present a different installation, so say so.
             await settingsManager.flush()
+            for (const failure of settingsManager.drainErrors()) {
+              logger.warn('Failed to save Pi settings after sign-in', {
+                provider,
+                scope: failure.scope,
+                path: failure.path,
+                error: failure.error.message,
+              })
+            }
           }
         },
         catch: toError,

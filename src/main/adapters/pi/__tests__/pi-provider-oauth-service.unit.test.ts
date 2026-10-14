@@ -9,6 +9,26 @@ import {
   ProviderOAuthService,
 } from '../../../ports/provider-oauth-service'
 
+interface Warning {
+  readonly message: string
+  readonly data?: object
+}
+
+const warnings = vi.hoisted((): { calls: Warning[] } => ({ calls: [] }))
+
+vi.mock('../../../logger', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../logger')>()
+  return {
+    ...original,
+    createLogger: (namespace: string) => ({
+      ...original.createLogger(namespace),
+      warn: (message: string, data?: object) => {
+        warnings.calls.push({ message, ...(data === undefined ? {} : { data }) })
+      },
+    }),
+  }
+})
+
 const runtime = vi.hoisted(() => ({
   login: async (
     _provider: string,
@@ -40,6 +60,7 @@ let home = ''
 let agentDirectory = ''
 
 beforeEach(async () => {
+  warnings.calls = []
   home = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-oauth-home-'))
   agentDirectory = path.join(home, '.pi', 'agent')
   vi.stubEnv('HOME', home)
@@ -191,5 +212,24 @@ describe('Pi provider sign-in', () => {
       theme: 'dark',
       deviceId: expect.stringMatching(UUID_PATTERN),
     })
+  })
+
+  it('logs when the device ID cannot be saved, instead of failing silently', async () => {
+    const settingsPath = path.join(agentDirectory, 'settings.json')
+    await fs.mkdir(agentDirectory, { recursive: true })
+    await fs.writeFile(settingsPath, '{}\n')
+    await fs.chmod(settingsPath, 0o444)
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      options?.getDeviceId?.()
+    }
+
+    await login('openai-chatgpt', handlers())
+
+    expect(warnings.calls).toEqual([
+      {
+        message: 'Failed to save Pi settings after sign-in',
+        data: expect.objectContaining({ provider: 'openai-chatgpt', scope: 'global' }),
+      },
+    ])
   })
 })
