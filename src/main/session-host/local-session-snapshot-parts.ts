@@ -45,7 +45,7 @@ function byteLength(value: unknown) {
 const jsonObjectSchema = Schema.Record({ key: Schema.String, value: jsonValueSchema })
 /**
  * `MessagePart` as an active Run snapshot carries it. The decode is exact, so every field the Host
- * buffer can put on a part must be listed; `local-session-active-run-snapshots.unit.test.ts` holds
+ * buffer can put on a part must be listed; `local-session-snapshot-parts.unit.test.ts` holds
  * the keys of each member to `MessagePart`'s.
  */
 export const messagePartSchema = Schema.Union(
