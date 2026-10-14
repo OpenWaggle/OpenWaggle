@@ -182,6 +182,36 @@ describe('snapshot deltas', () => {
     expect(withoutTraffic.state.popularDay).toBe(first.state.popularDay)
   })
 
+  it('keeps a package the snapshot skipped, and forwards only what grew once it is back', () => {
+    const first = events(null, snapshot())
+    const skipped = events(first.state, snapshot({ npm: [] }), NOW + DAY)
+
+    expect(skipped.events.filter((event) => event.event === 'npm.downloads')).toEqual([])
+    expect(skipped.state.npm).toEqual(first.state.npm)
+
+    const back = snapshot({
+      npm: [
+        {
+          name: '@openwaggle/extension-sdk',
+          days: [
+            { day: '2026-09-30', downloads: 4 },
+            { day: '2026-10-01', downloads: 6 },
+          ],
+        },
+      ],
+    })
+    const caughtUp = events(skipped.state, back, NOW + 2 * DAY)
+
+    expect(
+      caughtUp.events
+        .filter((event) => event.event === 'npm.downloads')
+        .map((event) => [event.timestamp, event.properties.count]),
+    ).toEqual([
+      ['2026-09-30T12:00:00Z', 1],
+      ['2026-10-01T12:00:00Z', 6],
+    ])
+  })
+
   it('forgets daily totals after 62 days', () => {
     const first = events(null, snapshot())
     const later = events(first.state, snapshot({ traffic: null, npm: [] }), NOW + 70 * DAY)

@@ -5,12 +5,16 @@ import { DEFAULT_SNAPSHOT_URL } from '../usage-stats-snapshot-endpoint'
 import {
   FLUSH_URL,
   FULL_ENV,
+  failingBody,
   job,
   json,
   NPM,
+  networkError,
   RELEASES_PAGE_2,
   RELEASES_URL,
   TRAFFIC,
+  throws,
+  timeoutError,
 } from './usage-stats-snapshot-test-support'
 
 describe('usage statistics snapshot job', () => {
@@ -85,40 +89,85 @@ describe('usage statistics snapshot job', () => {
     expect(lines.some((line) => line.startsWith('::warning::GitHub traffic answered 403'))).toBe(true)
   })
 
-  it('skips npm packages that time out or fail to connect, and keeps the rest of the snapshot', async () => {
+  it('skips npm packages npm cannot serve, and keeps the rest of the snapshot', async () => {
     const { options, lines } = job(FULL_ENV, {
-      [`${NPM}/@openwaggle/extension-sdk`]: () => {
-        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
-      },
-      [`${NPM}/@openwaggle/waggle-core`]: () => {
-        throw new TypeError('fetch failed')
-      },
+      [`${NPM}/@openwaggle/extension-sdk`]: throws(timeoutError()),
+      [`${NPM}/@openwaggle/extension-react`]: throws(networkError('ECONNRESET')),
+      [`${NPM}/@openwaggle/waggle-core`]: failingBody(timeoutError()),
+      [`${NPM}/@openwaggle/pi-waggle`]: () => new Response('<html>Bad gateway</html>', { status: 200 }),
     })
     const snapshot = await collectUsageStatsSnapshot(options)
 
     expect(snapshot.releases).toHaveLength(2)
-    expect(snapshot.npm).toEqual([{ name: '@openwaggle/pi-waggle', days: [{ day: '2026-09-30', downloads: 1 }] }])
+    expect(snapshot.npm).toEqual([])
     expect(validateUsageStatsSnapshot(snapshot)).toEqual({ ok: true, value: snapshot })
-    expect(lines).toContain(
+    const skipped = (name: string) => lines.find((line) => line.startsWith(`::warning::npm downloads for ${name} `))
+    expect(skipped('@openwaggle/extension-sdk')).toBe(
       '::warning::npm downloads for @openwaggle/extension-sdk could not be read (The operation was aborted due to timeout); skipped.',
     )
-    expect(lines).toContain('::warning::npm downloads for @openwaggle/waggle-core could not be read (fetch failed); skipped.')
+    expect(skipped('@openwaggle/extension-react')).toBe(
+      '::warning::npm downloads for @openwaggle/extension-react could not be read (fetch failed: ECONNRESET); skipped.',
+    )
+    expect(skipped('@openwaggle/waggle-core')).toBe(
+      '::warning::npm downloads for @openwaggle/waggle-core could not be read (The operation was aborted due to timeout); skipped.',
+    )
+    expect(skipped('@openwaggle/pi-waggle')).toMatch(/^::warning::npm downloads for @openwaggle\/pi-waggle could not be read \(.+\); skipped\.$/u)
   })
 
-  it('still sends the snapshot when every npm request times out', async () => {
-    const timeout = () => {
-      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
-    }
+  it('skips an npm answer of an unexpected shape without calling it a status', async () => {
+    const { options, lines } = job(FULL_ENV, { [`${NPM}/@openwaggle/pi-waggle`]: () => json({ error: 'gone' }) })
+    const snapshot = await collectUsageStatsSnapshot(options)
+
+    expect(snapshot.npm.map(({ name }) => name)).not.toContain('@openwaggle/pi-waggle')
+    expect(lines).toContain('::warning::npm downloads for @openwaggle/pi-waggle returned an unexpected shape; skipped.')
+  })
+
+  it('still sends the release statistics when every npm request times out', async () => {
     const { options, requests } = job(FULL_ENV, {
-      [`${NPM}/@openwaggle/extension-sdk`]: timeout,
-      [`${NPM}/@openwaggle/extension-react`]: timeout,
-      [`${NPM}/@openwaggle/waggle-core`]: timeout,
-      [`${NPM}/@openwaggle/pi-waggle`]: timeout,
+      [`${NPM}/@openwaggle/extension-sdk`]: throws(timeoutError()),
+      [`${NPM}/@openwaggle/extension-react`]: throws(timeoutError()),
+      [`${NPM}/@openwaggle/waggle-core`]: throws(timeoutError()),
+      [`${NPM}/@openwaggle/pi-waggle`]: throws(timeoutError()),
     })
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
-    const posted = requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)
-    expect(JSON.parse(String(posted?.init.body))).toMatchObject({ npm: [], releases: [{}, {}] })
+    const posted: unknown = JSON.parse(String(requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)?.init.body))
+    expect(validateUsageStatsSnapshot(posted).ok).toBe(true)
+    expect(posted).toMatchObject({ npm: [], releases: [{ tag: 'v1.0.0-beta.4' }, { tag: 'v0.4.0-alpha.7' }] })
+  })
+
+  it('carries no traffic, and keeps the releases, when a traffic request times out or its body fails', async () => {
+    for (const failure of [throws(timeoutError()), failingBody(networkError('UND_ERR_SOCKET'))]) {
+      const { options, lines } = job(FULL_ENV, { [`${TRAFFIC}/clones?per=day`]: failure })
+      const snapshot = await collectUsageStatsSnapshot(options)
+
+      expect(snapshot.traffic).toBeNull()
+      expect(snapshot.releases).toHaveLength(2)
+      expect(snapshot.npm).toHaveLength(3)
+      expect(lines.some((line) => line.startsWith('::warning::GitHub traffic could not be read ('))).toBe(true)
+    }
+  })
+
+  it('blames the token only when GitHub refuses it', async () => {
+    const unavailable = job(FULL_ENV, { [`${TRAFFIC}/views?per=day`]: () => json({}, { status: 503 }) })
+    expect((await collectUsageStatsSnapshot(unavailable.options)).traffic).toBeNull()
+    expect(unavailable.lines).toContain('::warning::GitHub traffic answered 503; the snapshot carries no traffic.')
+
+    const forbidden = job(FULL_ENV, { [`${TRAFFIC}/views?per=day`]: () => json({}, { status: 403 }) })
+    await collectUsageStatsSnapshot(forbidden.options)
+    expect(forbidden.lines).toContain(
+      '::warning::GitHub traffic answered 403; the snapshot carries no traffic. STATS_GITHUB_TOKEN needs Administration: read.',
+    )
+  })
+
+  it('still fails on a traffic answer of an unexpected shape', async () => {
+    const { options } = job(FULL_ENV, { [`${TRAFFIC}/views?per=day`]: () => json({ views: 'none' }) })
+    await expect(collectUsageStatsSnapshot(options)).rejects.toThrow('GitHub traffic returned an unexpected shape.')
+  })
+
+  it('fails when a GitHub releases request times out', async () => {
+    const { options } = job(FULL_ENV, { [RELEASES_URL]: throws(timeoutError()) })
+    await expect(collectUsageStatsSnapshot(options)).rejects.toThrow('The operation was aborted due to timeout')
   })
 
   it('fails when GitHub releases cannot be read', async () => {

@@ -9,9 +9,12 @@
  *   and exits successfully, so forks and unconfigured repositories stay green.
  * - `GITHUB_TOKEN`: the workflow token, for release reads.
  * - `STATS_GITHUB_TOKEN`: optional token with Administration: read, used only for repository
- *   traffic. Without it, or when GitHub refuses it, the snapshot carries no traffic.
+ *   traffic. Without it, or when GitHub refuses or cannot serve it, the snapshot carries no traffic.
  * - `STATS_SNAPSHOT_URL`: optional endpoint override, for local testing; the flush is called on
  *   the same origin.
+ *
+ * Traffic and npm downloads are optional: when GitHub or npm cannot serve them (an error status, a
+ * timeout, a network failure) the job warns and sends the rest. Only release reads fail the job.
  *
  * Usage: `pnpm exec tsx scripts/usage-stats-snapshot.ts [--dry-run]`
  */
@@ -31,10 +34,10 @@ import {
   endpointUrls,
   flushBufferedStatistics,
   postToEndpoint,
-  REQUEST_TIMEOUT_MS,
   SNAPSHOT_USER_AGENT,
   type SnapshotJobOptions,
 } from './usage-stats-snapshot-endpoint'
+import { getJson, type JsonRead, readOptionalJson } from './usage-stats-snapshot-reads'
 
 export const SNAPSHOT_REPOSITORY = 'OpenWaggle/OpenWaggle'
 export const SNAPSHOT_NPM_PACKAGES = [
@@ -73,16 +76,6 @@ function githubHeaders(token: string | undefined): Record<string, string> {
     'User-Agent': SNAPSHOT_USER_AGENT,
     ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
   }
-}
-
-async function getJson(options: SnapshotJobOptions, url: string, headers: Record<string, string>) {
-  const response = await options.fetch(url, {
-    headers,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
-  const body: unknown = response.ok ? await response.json() : undefined
-  if (!response.ok) await response.body?.cancel()
-  return { response, body }
 }
 
 function nextPage(link: string | null) {
@@ -137,7 +130,22 @@ function popular(entries: readonly { name: string; count: number; uniques: numbe
   return entries.map(({ name, count, uniques }): SnapshotPopularEntry => ({ name, count, uniques }))
 }
 
-/** Views, clones, referrers and popular paths, or `null` when they cannot be read. */
+const TRAFFIC_PATHS = ['views?per=day', 'clones?per=day', 'popular/referrers', 'popular/paths'] as const
+const HTTP_UNAUTHORIZED = 401
+const HTTP_FORBIDDEN = 403
+
+function trafficStatusWarning(status: number) {
+  const warning = `::warning::GitHub traffic answered ${String(status)}; the snapshot carries no traffic.`
+  // 401 means an expired or revoked token, 403 one without Administration: read.
+  const refused = status === HTTP_UNAUTHORIZED || status === HTTP_FORBIDDEN
+  return refused ? `${warning} STATS_GITHUB_TOKEN needs Administration: read.` : warning
+}
+
+/**
+ * Views, clones, referrers and popular paths, or `null` with a warning when GitHub refuses or
+ * cannot serve them (an error status, a timeout, a network failure). The 14-day lists refill on
+ * the next run. An answer of an unexpected shape still fails the snapshot: the API changed.
+ */
 export async function collectTraffic(options: SnapshotJobOptions): Promise<SnapshotTraffic | null> {
   const token = configured(options.env.STATS_GITHUB_TOKEN)
   if (token === undefined) {
@@ -146,60 +154,63 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
   }
   const base = `${GITHUB_API}/repos/${SNAPSHOT_REPOSITORY}/traffic`
   const headers = githubHeaders(token)
-  const [views, clones, referrers, paths] = await Promise.all(
-    ['views?per=day', 'clones?per=day', 'popular/referrers', 'popular/paths'].map((path) =>
-      getJson(options, `${base}/${path}`, headers),
-    ),
+  const reads = await Promise.all(
+    TRAFFIC_PATHS.map((path) => readOptionalJson(options, `${base}/${path}`, headers)),
   )
-  const failed = [views, clones, referrers, paths].find(({ response }) => !response.ok)
-  if (failed !== undefined) {
-    // 401 means an expired or revoked token, 403 one without Administration: read.
-    options.log(
-      `::warning::GitHub traffic answered ${String(failed.response.status)}; the snapshot carries no traffic. STATS_GITHUB_TOKEN needs Administration: read.`,
-    )
-    return null
+  const bodies: unknown[] = []
+  for (const read of reads) {
+    if (read.failure !== undefined) {
+      options.log(`::warning::GitHub traffic could not be read (${read.failure}); the snapshot carries no traffic.`)
+      return null
+    }
+    if (!read.response.ok) {
+      options.log(trafficStatusWarning(read.response.status))
+      return null
+    }
+    bodies.push(read.body)
   }
-  if (!isViews(views.body) || !isClones(clones.body)) {
+  const [views, clones, referrers, paths] = bodies
+  if (!isViews(views) || !isClones(clones)) {
     throw new Error('GitHub traffic returned an unexpected shape.')
   }
-  if (!isReferrers(referrers.body) || !isPaths(paths.body)) {
+  if (!isReferrers(referrers) || !isPaths(paths)) {
     throw new Error('GitHub popular lists returned an unexpected shape.')
   }
   return {
-    views: dailyCounts(views.body.views),
-    clones: dailyCounts(clones.body.clones),
-    referrers: popular(referrers.body.map(({ referrer, ...counts }) => ({ name: referrer, ...counts }))),
-    paths: popular(paths.body.map(({ path, ...counts }) => ({ name: path, ...counts }))),
+    views: dailyCounts(views.views),
+    clones: dailyCounts(clones.clones),
+    referrers: popular(referrers.map(({ referrer, ...counts }) => ({ name: referrer, ...counts }))),
+    paths: popular(paths.map(({ path, ...counts }) => ({ name: path, ...counts }))),
   }
 }
 
-async function readNpmRange(options: SnapshotJobOptions, name: string) {
-  try {
-    return await getJson(options, `${NPM_DOWNLOADS_API}/${name}`, { 'User-Agent': SNAPSHOT_USER_AGENT })
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    options.log(`::warning::npm downloads for ${name} could not be read (${reason}); skipped.`)
-    return undefined
-  }
+/** One package's daily downloads, or why it is skipped. */
+function npmDays(read: JsonRead): { readonly days: SnapshotNpmPackage['days'] } | { readonly skipped: string } {
+  if (read.failure !== undefined) return { skipped: `could not be read (${read.failure})` }
+  if (!read.response.ok) return { skipped: `answered ${String(read.response.status)}` }
+  if (!isNpmRange(read.body)) return { skipped: 'returned an unexpected shape' }
+  return { days: read.body.downloads.map(({ day, downloads }) => ({ day, downloads })) }
 }
 
 /**
  * Last month's daily downloads of each published package. A package that is unpublished, or that
- * npm cannot serve right now (an error status, a timeout, a network failure), is skipped with a
- * warning so an npm outage never costs the day's release statistics; the endpoint keeps what it
- * already forwarded, and the next snapshot's month-long range catches up.
+ * npm cannot serve right now (an error status, a timeout, a network failure, a response it cannot
+ * finish), is skipped with a warning, so an npm outage never costs the day's release statistics.
+ * The endpoint keeps what it already forwarded for a skipped package, and the next snapshot's
+ * month-long range catches up on an outage shorter than that month.
  */
 export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<SnapshotNpmPackage[]> {
   const packages: SnapshotNpmPackage[] = []
   for (const name of SNAPSHOT_NPM_PACKAGES) {
-    const read = await readNpmRange(options, name)
-    if (read === undefined) continue
-    const { response, body } = read
-    if (!response.ok || !isNpmRange(body)) {
-      options.log(`::warning::npm downloads for ${name} answered ${String(response.status)}; skipped.`)
+    const read = await readOptionalJson(options, `${NPM_DOWNLOADS_API}/${name}`, {
+      'User-Agent': SNAPSHOT_USER_AGENT,
+    })
+    const result = npmDays(read)
+    if ('skipped' in result) {
+      options.log(`::warning::npm downloads for ${name} ${result.skipped}; skipped.`)
       continue
     }
-    packages.push({ name, days: body.downloads.map(({ day, downloads }) => ({ day, downloads })) })
+    packages.push({ name, days: result.days })
   }
   return packages
 }
