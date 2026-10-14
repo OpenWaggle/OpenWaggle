@@ -5,6 +5,7 @@ import type {
   SessionHostEventCursor,
   SessionHostEventEnvelope,
 } from '@shared/types/session-host-event'
+import { createLogger } from '../logger'
 import { decodeActiveRunSnapshots } from './local-session-active-run-snapshots'
 import {
   isRecord,
@@ -14,7 +15,21 @@ import {
   writeLocalSessionFrame,
 } from './local-session-client-connection'
 import { localSessionClientProtocolError } from './local-session-client-protocol-error'
-import { isSessionHostEventEnvelope } from './local-session-event-validation'
+import { decideSessionHostEvent } from './local-session-event-validation'
+
+const logger = createLogger('session-host/event-client')
+
+/** What the log may say about an event: never its content. */
+function describeEventFrame(event: unknown) {
+  if (!isRecord(event) || !isRecord(event.payload)) return {}
+  const { kind, sessionId } = event.payload
+  const transport = isRecord(event.payload.event) ? event.payload.event.type : undefined
+  return {
+    ...(typeof kind === 'string' ? { kind } : {}),
+    ...(typeof sessionId === 'string' ? { sessionId } : {}),
+    ...(typeof transport === 'string' ? { eventType: transport } : {}),
+  }
+}
 
 export type LocalSessionWatchResult =
   | { readonly status: 'closed' }
@@ -94,10 +109,7 @@ async function consumeSubscriptionFrame(
     throw new Error('Local Session Host returned an invalid event frame.')
   }
   if (frame.kind === 'event' && frame.subscriptionId === subscriptionId) {
-    if (!isSessionHostEventEnvelope(frame.event)) {
-      throw new Error('Local Session Host returned an invalid event.')
-    }
-    await input.onEvent(frame.event)
+    await consumeEvent(frame.event, input)
     return
   }
   if (frame.kind === 'cursor-advanced' && frame.subscriptionId === subscriptionId) {
@@ -109,6 +121,28 @@ async function consumeSubscriptionFrame(
   if (frame.kind === 'error') {
     throw localSessionClientProtocolError(frame, 'Subscription failed.')
   }
+}
+
+async function consumeEvent(event: unknown, input: LocalSessionWatchInput) {
+  const decision = decideSessionHostEvent(event)
+  if (decision.action === 'invalid') {
+    throw new Error('Local Session Host returned an invalid event.')
+  }
+  if (decision.action === 'skip') {
+    logger.error('Skipped a Session Host event this client cannot decode', {
+      ...describeEventFrame(event),
+      sequence: decision.cursor.sequence,
+    })
+    await input.onCursor?.(decision.cursor)
+    return
+  }
+  if (decision.droppedUserMessage) {
+    logger.error('Relayed a Session Host event without the user message it cannot decode', {
+      ...describeEventFrame(event),
+      sequence: decision.envelope.cursor.sequence,
+    })
+  }
+  await input.onEvent(decision.envelope)
 }
 
 async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatchInput) {
