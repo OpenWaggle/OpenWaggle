@@ -7,6 +7,7 @@ import {
   clearInlineVisualizationStatesForTests,
   latestInlineVisualizationContext,
 } from '../../state/inline-visualization-state'
+import { clearPinnedInlineVisualizationFramesForTests } from '../inline-visualization-frame-retention'
 
 const apiMock = vi.hoisted(() => ({
   registerInlineVisualizationFrame: vi.fn(),
@@ -48,6 +49,7 @@ describe('InlineVisualization frame parking', () => {
     intersectionCallback = null
     for (const mock of Object.values(apiMock)) mock.mockReset()
     clearInlineVisualizationStatesForTests()
+    clearPinnedInlineVisualizationFramesForTests()
   })
 
   function dispatchIntersection(isIntersecting: boolean) {
@@ -127,6 +129,9 @@ describe('InlineVisualization frame parking', () => {
     act(() => dispatchIntersection(true))
     await screen.findByTitle('Parked map')
     expect(apiMock.registerInlineVisualizationFrame).toHaveBeenCalledTimes(2)
+    expect(apiMock.registerInlineVisualizationFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({ restoredState: { selectedStage: 'sandbox' } }),
+    )
 
     act(() => dispatchIntersection(false))
     await waitFor(() => expect(screen.queryByTitle('Parked map')).toBeNull())
@@ -140,5 +145,84 @@ describe('InlineVisualization frame parking', () => {
     expect(latestInlineVisualizationContext(sessionId)).toBeNull()
     view.unmount()
     expect(latestInlineVisualizationContext(sessionId)).toBeNull()
+  })
+
+  it('keeps a frame the user is working in loaded after it scrolls away', async () => {
+    const sessionId = SessionId('session-visualization-pinned')
+    render(
+      <InlineVisualization
+        sessionId={sessionId}
+        interactionSessionId={sessionId}
+        reference={{ path: '/repo/picker.html', title: 'Variant picker' }}
+      />,
+    )
+    act(() => dispatchIntersection(true))
+    const frame = await screen.findByTitle('Variant picker')
+    if (!(frame instanceof HTMLIFrameElement)) throw new Error('Expected visualization iframe')
+    // The frame can appear before its passive engagement effect attaches the blur listener.
+    await act(async () => {})
+
+    vi.useFakeTimers()
+    try {
+      act(() => {
+        frame.focus()
+        window.dispatchEvent(new Event('blur'))
+        vi.runOnlyPendingTimers()
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+    act(() => dispatchIntersection(false))
+
+    expect(screen.getByTitle('Variant picker')).toBe(frame)
+    expect(apiMock.unregisterInlineVisualizationFrame).not.toHaveBeenCalled()
+    expect(apiMock.registerInlineVisualizationFrame).toHaveBeenCalledOnce()
+  })
+
+  it('restores the reported state when a frame parks before its engagement registers', async () => {
+    const sessionId = SessionId('session-visualization-race')
+    render(
+      <InlineVisualization
+        sessionId={sessionId}
+        interactionSessionId={sessionId}
+        reference={{ path: '/repo/race-picker.html', title: 'Race picker' }}
+      />,
+    )
+    act(() => dispatchIntersection(true))
+    const frame = await screen.findByTitle('Race picker')
+    if (!(frame instanceof HTMLIFrameElement)) throw new Error('Expected visualization iframe')
+    const url = new URL(frame.getAttribute('src') ?? '')
+    const dispatch = (data: Record<string, unknown>) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: frame.contentWindow,
+          origin: `${url.protocol}//${url.host}`,
+          data: { capability: 'test-capability-1234567890', ...data },
+        }),
+      )
+    act(() => {
+      dispatch({ type: 'openwaggle:inline-visualization:bootstrap' })
+      dispatch({ type: 'openwaggle:inline-visualization:state', state: { selected: 'X' } })
+    })
+
+    vi.useFakeTimers()
+    try {
+      // The frame parks and commits before the engagement timer gets a turn.
+      act(() => {
+        frame.focus()
+        window.dispatchEvent(new Event('blur'))
+        dispatchIntersection(false)
+      })
+      act(() => vi.runOnlyPendingTimers())
+    } finally {
+      vi.useRealTimers()
+    }
+    await waitFor(() => expect(screen.queryByTitle('Race picker')).toBeNull())
+
+    act(() => dispatchIntersection(true))
+    await screen.findByTitle('Race picker')
+    expect(apiMock.registerInlineVisualizationFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({ restoredState: { selected: 'X' } }),
+    )
   })
 })

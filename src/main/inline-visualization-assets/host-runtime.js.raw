@@ -67,11 +67,53 @@
   post('openwaggle:inline-visualization:bootstrap');
   let fragmentReady = false;
   let lucideReady = false;
+  // Lucide loads asynchronously so it never blocks first render, but fragments call the global
+  // `lucide.createIcons(...)` from their first synchronous render. Without a placeholder that call
+  // threw a ReferenceError, which the error listener reports as a crash and the host replaces the
+  // whole visualization with "could not be loaded". The placeholder records the latest requested
+  // options and the real runtime applies them once it and the fragment are both ready.
+  const MAX_DEFERRED_LUCIDE_CALLS = 16;
+  // Captured before fragment code runs, so a fragment that patches Array.prototype cannot observe
+  // or disrupt the deferred queue.
+  const applyLucideIntrinsic = Reflect.apply;
+  const lucideArrayPush = Array.prototype.push;
+  const lucideArrayShift = Array.prototype.shift;
+  const lucideArraySplice = Array.prototype.splice;
+  const deferredLucideCalls = [];
+  const lucidePlaceholder = Object.freeze({
+    createIcons(options) {
+      const runtime = window.lucide;
+      if (
+        lucideReady &&
+        runtime !== lucidePlaceholder &&
+        runtime &&
+        typeof runtime.createIcons === 'function'
+      ) {
+        return runtime.createIcons(options);
+      }
+      if (deferredLucideCalls.length >= MAX_DEFERRED_LUCIDE_CALLS) {
+        applyLucideIntrinsic(lucideArrayShift, deferredLucideCalls, []);
+      }
+      applyLucideIntrinsic(lucideArrayPush, deferredLucideCalls, [options]);
+      return undefined;
+    },
+  });
+  window.lucide = lucidePlaceholder;
   const initializeLucide = () => {
     if (!fragmentReady || !lucideReady) return;
-    if (window.lucide && typeof window.lucide.createIcons === 'function') {
-      window.lucide.createIcons();
+    const runtime = window.lucide;
+    if (runtime === lucidePlaceholder || !runtime || typeof runtime.createIcons !== 'function') {
+      return;
     }
+    const deferred = applyLucideIntrinsic(lucideArraySplice, deferredLucideCalls, [0]);
+    for (let index = 0; index < deferred.length; index += 1) {
+      try {
+        runtime.createIcons(deferred[index]);
+      } catch {
+        // A malformed deferred request must not prevent the static icon pass below.
+      }
+    }
+    runtime.createIcons();
   };
   const lucideScript = document.createElement('script');
   lucideScript.async = true;
@@ -515,6 +557,7 @@
       });
     });
   };
+  // Equal to MAX_INLINE_VISUALIZATION_STATE_BYTES in src/shared/constants/inline-visualization.ts.
   const MAX_VISUALIZATION_STATE_BYTES = 16 * 1024;
   const jsonStringify = JSON.stringify;
   const jsonParse = JSON.parse;
@@ -545,15 +588,23 @@
     }
     return bytes;
   };
-  const isJsonValue = (value, seen = new WeakSet(), depth = 0) => {
+  // Equal to MAX_INLINE_VISUALIZATION_STATE_DEPTH and _NODES in the shared constants: the host
+  // drops a wider or deeper state, so the frame must refuse it rather than report success.
+  const MAX_VISUALIZATION_STATE_DEPTH = 20;
+  const MAX_VISUALIZATION_STATE_NODES = 2000;
+  const isJsonValue = (value, seen = new WeakSet(), depth = 0, budget = { nodes: 0 }) => {
+    budget.nodes += 1;
+    if (budget.nodes > MAX_VISUALIZATION_STATE_NODES || depth > MAX_VISUALIZATION_STATE_DEPTH) {
+      return false;
+    }
     if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
     if (typeof value === 'number') return numberIsFinite(value);
-    if (typeof value !== 'object' || depth > 20) return false;
+    if (typeof value !== 'object') return false;
     if (applyIntrinsic(weakSetHas, seen, [value])) return false;
     applyIntrinsic(weakSetAdd, seen, [value]);
     if (arrayIsArray(value)) {
       for (let index = 0; index < value.length; index += 1) {
-        if (!isJsonValue(value[index], seen, depth + 1)) return false;
+        if (!isJsonValue(value[index], seen, depth + 1, budget)) return false;
       }
       applyIntrinsic(weakSetDelete, seen, [value]);
       return true;
@@ -562,10 +613,36 @@
     if (prototype !== objectPrototype && prototype !== null) return false;
     const keys = applyIntrinsic(objectKeys, Object, [value]);
     for (let index = 0; index < keys.length; index += 1) {
-      if (!isJsonValue(value[keys[index]], seen, depth + 1)) return false;
+      if (!isJsonValue(value[keys[index]], seen, depth + 1, budget)) return false;
     }
     applyIntrinsic(weakSetDelete, seen, [value]);
     return true;
+  };
+  // The latest reported state, seeded from the host when this frame reloads a visualization the
+  // user already changed. Fragments read it before their first render to restore those choices.
+  let currentVisualizationStateJson = null;
+  const restoredStateMetadata = document.querySelector('meta[name="openwaggle-visualization-state"]');
+  if (restoredStateMetadata && typeof restoredStateMetadata.content === 'string') {
+    try {
+      const restored = applyIntrinsic(jsonParse, JSON, [restoredStateMetadata.content]);
+      if (
+        isJsonValue(restored) &&
+        utf8ByteLength(restoredStateMetadata.content) <= MAX_VISUALIZATION_STATE_BYTES
+      ) {
+        currentVisualizationStateJson = applyIntrinsic(jsonStringify, JSON, [restored]);
+      }
+    } catch {
+      currentVisualizationStateJson = null;
+    }
+    restoredStateMetadata.remove?.();
+  }
+  const readVisualizationState = () => {
+    if (currentVisualizationStateJson === null) return null;
+    try {
+      return applyIntrinsic(jsonParse, JSON, [currentVisualizationStateJson]);
+    } catch {
+      return null;
+    }
   };
   const setVisualizationState = (state) => {
     let serialized;
@@ -582,6 +659,7 @@
       return false;
     }
     pendingVisualizationState = snapshot;
+    currentVisualizationStateJson = snapshot === null ? null : serialized;
     if (visualizationStateScheduled) return true;
     visualizationStateScheduled = true;
     enqueueMicrotask(() => flushVisualizationState());
@@ -598,7 +676,15 @@
     configurable: false,
     enumerable: true,
     writable: false,
-    value: Object.freeze({ sendFollowUpMessage, setVisualizationState }),
+    value: Object.freeze(
+      Object.defineProperties(
+        { sendFollowUpMessage, setVisualizationState },
+        {
+          // A fresh copy on every read, so fragment mutations cannot change the reported state.
+          visualizationState: { enumerable: true, get: readVisualizationState },
+        },
+      ),
+    ),
   });
 
   addEventListener('keydown', (event) => {

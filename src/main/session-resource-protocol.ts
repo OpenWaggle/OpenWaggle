@@ -217,6 +217,16 @@ function safeMimeType(mimeType: string) {
     : DEFAULT_MIME_TYPE
 }
 
+/** Streams already-decoded Host bytes without copying them again. */
+function singleChunkStream(bytes: Uint8Array) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
+}
+
 async function defaultReadContent(input: {
   readonly sessionId: SessionId
   readonly resourceId: string
@@ -236,7 +246,7 @@ async function defaultReadContent(input: {
       ? {
           fileName: remote.content.fileName,
           mimeType: remote.content.mimeType,
-          body: new Blob([Buffer.from(remote.content.bytes)]).stream(),
+          body: singleChunkStream(remote.content.bytes),
         }
       : null
   }

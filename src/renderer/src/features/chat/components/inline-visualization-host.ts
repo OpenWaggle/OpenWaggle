@@ -166,5 +166,6 @@ export function unavailableVisualizationMessage(reason: string) {
   if (reason === 'too-large') return 'The visualization is too large to load safely.'
   if (reason === 'session-missing') return 'The visualization no longer belongs to this session.'
   if (reason === 'invalid-path') return 'The visualization source is outside this session.'
+  if (reason === 'crashed') return 'The visualization stopped because one of its scripts failed.'
   return 'The visualization could not be loaded.'
 }
