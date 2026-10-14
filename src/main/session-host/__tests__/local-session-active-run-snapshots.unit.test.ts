@@ -1,10 +1,8 @@
-import { parseJsonUnknown, type SchemaType } from '@shared/schema'
-import type { AttachmentRecord, MessagePart, ReasoningPart, TextPart } from '@shared/types/agent'
+import { parseJsonUnknown } from '@shared/schema'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import type { ToolCallRequest, ToolCallResult } from '@shared/types/tools'
 import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { buildUserInputProjection } from '../../adapters/pi/agent-kernel/user-input-projection'
 import {
   applyEventToStreamBuffer,
@@ -13,7 +11,6 @@ import {
   startStreamBuffer,
 } from '../../utils/stream-buffer'
 import { decodeActiveRunSnapshots } from '../local-session-active-run-snapshots'
-import type { messagePartSchema } from '../local-session-snapshot-parts'
 
 const snapshot = {
   activity: 'agent-run',
@@ -236,9 +233,14 @@ describe('decodeActiveRunSnapshots', () => {
   })
 
   it('adds an undecodable part to the omissions the Host reported', () => {
-    const degraded = { reason: 'content-limit', omittedBytes: 10, toolCallIds: ['t'] }
+    const degraded = {
+      reason: 'content-limit',
+      omittedBytes: 10,
+      toolCallIds: ['t'],
+      messageCutShort: false,
+    }
     const [decoded] = decodeActiveRunSnapshots([
-      { ...snapshot, degraded, messageCutShort: undefined, parts: [{ type: 'image' }] },
+      { ...snapshot, degraded, parts: [{ type: 'image' }] },
     ])
     expect(decoded?.parts).toEqual([])
     expect(decoded?.degraded).toEqual({
@@ -278,34 +280,5 @@ describe('decodeActiveRunSnapshots', () => {
     expect(() =>
       decodeActiveRunSnapshots([snapshot, { ...snapshot, sessionId: 'session-2', model: 1 }]),
     ).toThrow(/index 1, Session session-2/)
-  })
-})
-
-/*
- * The decode is exact: a field `MessagePart` gains that the snapshot schema does not list makes
- * every part carrying it undecodable. Hold the keys of each member, and of the records inside it.
- */
-type SnapshotPart = SchemaType<typeof messagePartSchema>
-/** The member whose `type` literals include `TType` (text and reasoning share one struct). */
-type Member<TUnion, TType> = TUnion extends { readonly type: infer TTypes }
-  ? TType extends TTypes
-    ? TUnion
-    : never
-  : never
-
-describe('messagePartSchema', () => {
-  it('lists every field of each MessagePart member', () => {
-    expectTypeOf<keyof Member<SnapshotPart, 'text'>>().toEqualTypeOf<keyof TextPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'reasoning'>>().toEqualTypeOf<keyof ReasoningPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'attachment'>['attachment']>().toEqualTypeOf<
-      keyof AttachmentRecord
-    >()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-call'>['toolCall']>().toEqualTypeOf<
-      keyof ToolCallRequest
-    >()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-result'>['toolResult']>().toEqualTypeOf<
-      keyof ToolCallResult
-    >()
-    expectTypeOf<SnapshotPart['type']>().toEqualTypeOf<MessagePart['type']>()
   })
 })

@@ -1,4 +1,4 @@
-import { decodeUnknownExactOrThrow, getParseIssues, Schema } from '@shared/schema'
+import { decodeUnknownExactOrThrow, getParseIssuePaths, Schema } from '@shared/schema'
 import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
 import { browserPreviewAttachmentSchema, jsonValueSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
@@ -32,8 +32,8 @@ export function reportUndecodable(
     sessionId: context.sessionId,
     ...(context.runId ? { runId: context.runId } : {}),
     ...details,
-    // The schema paths that failed, not the error message: that one prints the whole schema.
-    issues: getParseIssues(error)?.slice(0, MAX_REPORTED_ISSUES) ?? [describeError(error)],
+    // Where the decode failed, never the values: a part holds transcript and tool content.
+    issues: getParseIssuePaths(error)?.slice(0, MAX_REPORTED_ISSUES) ?? [describeError(error)],
   })
 }
 
