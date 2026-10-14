@@ -1,5 +1,6 @@
 import type { UsageCostBucket, UsageCostDay } from '@shared/types/usage-cost'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 import { formatDayLabel, formatTokenCount, formatUsd } from '../lib/usage-cost-format'
 
 interface UsageCostDailyChartProps {
@@ -11,6 +12,7 @@ interface UsageCostDailyChartProps {
 
 const MIN_BAR_FRACTION = 0.04
 const MAX_VISIBLE_DAYS = 60
+const PERCENT = 100
 
 /**
  * One column per day with spending. Long histories compress to the most recent
@@ -32,23 +34,25 @@ export function UsageCostDailyChart({
   }
 
   const visibleDays = days.slice(-MAX_VISIBLE_DAYS)
-  const maxCost = Math.max(...visibleDays.map((day) => totalOf(day)), 0)
+  const maxCost = Math.max(...visibleDays.map((day) => totalCost(day)), 0)
   const hasEstimated = visibleDays.some((day) => day.estimatedCostUsd > 0)
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-secondary p-4">
       <div className="flex h-36 items-end gap-1">
         {visibleDays.map((day) => {
-          const dayCost = totalOf(day)
+          const dayCost = totalCost(day)
           const isActive = activeDay === day.day
           const heightPercent =
-            dayCost === 0 ? 0 : Math.max((dayCost / maxCost) * 100, MIN_BAR_FRACTION * 100)
+            dayCost === 0 ? 0 : Math.max((dayCost / maxCost) * PERCENT, MIN_BAR_FRACTION * PERCENT)
           const estimatedFraction = dayCost === 0 ? 0 : day.estimatedCostUsd / dayCost
           return (
-            <button
+            <Button
               key={day.day}
               type="button"
               aria-pressed={isActive}
+              variant="unstyled"
+              size="none"
               title={`${formatDayLabel(day.day)} — ${formatUsd(dayCost)} (${formatTokenCount(day.tokens.total)} tokens)`}
               onClick={() => onSelectDay(day.day)}
               className={cn(
@@ -58,9 +62,7 @@ export function UsageCostDailyChart({
               style={{ height: '100%' }}
             >
               <span
-                className={cn(
-                  'flex w-full flex-col-reverse overflow-hidden rounded-sm transition-opacity group-hover:opacity-80',
-                )}
+                className="flex w-full flex-col-reverse overflow-hidden rounded-sm transition-opacity group-hover:opacity-80"
                 style={{ height: `${heightPercent}%` }}
               >
                 <span className="w-full bg-accent" style={{ flexGrow: 1 - estimatedFraction }} />
@@ -68,7 +70,7 @@ export function UsageCostDailyChart({
                   <span className="w-full bg-accent/50" style={{ flexGrow: estimatedFraction }} />
                 ) : null}
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -81,7 +83,7 @@ export function UsageCostDailyChart({
               <span className="ml-1 inline-block size-1.5 rounded-full bg-accent/50" /> estimated
             </span>
           ) : null}
-          <span>{formatUsd(totalOf(totals))} total</span>
+          <span>{formatUsd(totalCost(totals))} total</span>
         </span>
         <span>{formatDayLabel(visibleDays[visibleDays.length - 1]?.day ?? '')}</span>
       </div>
@@ -89,6 +91,6 @@ export function UsageCostDailyChart({
   )
 }
 
-function totalOf(bucket: UsageCostBucket): number {
+function totalCost(bucket: UsageCostBucket) {
   return bucket.recordedCostUsd + bucket.estimatedCostUsd
 }

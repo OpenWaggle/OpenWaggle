@@ -4,7 +4,11 @@ import type {
   UsageCostSessionsResult,
   UsageCostView,
 } from '@shared/types/usage-cost'
-import { aggregateUsageCostView, rangeStartForPreset, selectUsageCostSessions } from '../domain/usage-cost/usage-cost-aggregate'
+import {
+  aggregateUsageCostView,
+  rangeStartForPreset,
+  selectUsageCostSessions,
+} from '../domain/usage-cost/usage-cost-aggregate'
 import type { UsageCostScanner } from '../ports/usage-cost'
 
 /**
@@ -21,13 +25,17 @@ export interface UsageCostService {
 export function createUsageCostService(scanner: UsageCostScanner): UsageCostService {
   const getView = async (query: UsageCostQuery): Promise<UsageCostView> => {
     const now = new Date()
-    const collected = await scanner.collectSessions({ rangeStartMs: rangeStartForPreset(query.preset, now) })
+    const collected = await scanner.collectSessions({
+      rangeStartMs: rangeStartForPreset(query.preset, now),
+    })
     return aggregateUsageCostView(collected, query, now)
   }
 
   const getSessions = async (query: UsageCostSessionQuery): Promise<UsageCostSessionsResult> => {
     const now = new Date()
-    const collected = await scanner.collectSessions({ rangeStartMs: rangeStartForPreset(query.preset, now) })
+    const collected = await scanner.collectSessions({
+      rangeStartMs: rangeStartForPreset(query.preset, now),
+    })
     const sessions = selectUsageCostSessions(collected, query, now)
     return { query, sessions, generatedAtMs: now.getTime() }
   }

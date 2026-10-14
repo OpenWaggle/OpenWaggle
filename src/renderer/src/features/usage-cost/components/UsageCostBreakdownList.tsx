@@ -1,5 +1,6 @@
 import type { UsageCostBucket } from '@shared/types/usage-cost'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 import { formatTokenCount, formatUsd, totalCostUsd, usageShareOf } from '../lib/usage-cost-format'
 
 export interface UsageCostBreakdownEntry {
@@ -16,6 +17,10 @@ interface UsageCostBreakdownListProps {
   readonly rows: readonly UsageCostBreakdownEntry[]
 }
 
+const MAX_VISIBLE_ROWS = 12
+const MIN_SHARE_BAR_PERCENT = 1
+const PERCENT = 100
+
 /**
  * A clickable breakdown of one dimension (model, project). Rows show the
  * bucket's token share; selecting a row drills the session list down to it.
@@ -31,14 +36,16 @@ export function UsageCostBreakdownList({ rows }: UsageCostBreakdownListProps) {
 
   return (
     <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-bg-secondary">
-      {rows.slice(0, 12).map((row) => (
+      {rows.slice(0, MAX_VISIBLE_ROWS).map((row) => (
         <li key={row.key}>
-          <button
+          <Button
             type="button"
             aria-pressed={row.isActive}
+            variant="unstyled"
+            size="none"
             onClick={row.onSelect}
             className={cn(
-              'flex w-full flex-col gap-1.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',
+              'flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors hover:bg-bg-hover',
               row.isActive && 'bg-bg-active',
             )}
           >
@@ -51,7 +58,7 @@ export function UsageCostBreakdownList({ rows }: UsageCostBreakdownListProps) {
               >
                 {row.label}
                 {estimatedTierOnly(row.bucket) ? (
-                  <span className="ml-1.5 align-middle text-[10px] text-text-tertiary">est.</span>
+                  <span className="ml-1.5 text-xs text-text-tertiary">est.</span>
                 ) : null}
               </span>
               <span className="shrink-0 text-xs tabular-nums text-text-tertiary">
@@ -63,23 +70,25 @@ export function UsageCostBreakdownList({ rows }: UsageCostBreakdownListProps) {
               <span className="h-1 flex-1 overflow-hidden rounded-full bg-bg-tertiary">
                 <span
                   className="block h-full rounded-full bg-accent"
-                  style={{ width: `${Math.max(usageShareOf(row.bucket, row.totals) * 100, 1)}%` }}
+                  style={{
+                    width: `${Math.max(usageShareOf(row.bucket, row.totals) * PERCENT, MIN_SHARE_BAR_PERCENT)}%`,
+                  }}
                 />
               </span>
-              <span className="max-w-40 truncate text-[11px] text-text-tertiary">{row.detail}</span>
+              <span className="max-w-40 truncate text-xs text-text-tertiary">{row.detail}</span>
             </span>
-          </button>
+          </Button>
         </li>
       ))}
-      {rows.length > 12 ? (
-        <li className="px-3 py-2 text-center text-[11px] text-text-tertiary">
-          {rows.length - 12} more — drill down to narrow
+      {rows.length > MAX_VISIBLE_ROWS ? (
+        <li className="px-3 py-2 text-center text-xs text-text-tertiary">
+          {rows.length - MAX_VISIBLE_ROWS} more — drill down to narrow
         </li>
       ) : null}
     </ul>
   )
 }
 
-function estimatedTierOnly(bucket: UsageCostBucket): boolean {
+function estimatedTierOnly(bucket: UsageCostBucket) {
   return bucket.recordedCostUsd === 0 && bucket.estimatedCostUsd > 0
 }

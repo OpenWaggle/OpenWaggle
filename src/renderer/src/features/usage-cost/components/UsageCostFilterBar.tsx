@@ -1,5 +1,6 @@
 import type { UsageCostQuery } from '@shared/types/usage-cost'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 
 const RANGE_OPTIONS: readonly {
   readonly value: UsageCostQuery['preset']
@@ -38,31 +39,30 @@ function SegmentedControl<T extends string>({
   readonly onChange: (value: T) => void
 }) {
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label={ariaLabel}
       className="flex shrink-0 rounded-md border border-border bg-bg-secondary p-0.5"
     >
       {options.map((option) => {
         const active = option.value === value
         return (
-          <button
+          <Button
             key={option.value}
             type="button"
             aria-pressed={active}
-            onClick={() => onChange(option.value)}
+            size="xs"
+            variant="ghost"
             className={cn(
-              'rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors',
-              active
-                ? 'bg-bg-active text-text-primary'
-                : 'text-text-tertiary hover:text-text-secondary',
+              'h-7 px-2.5 text-xs',
+              active ? 'bg-bg-active text-text-primary' : 'text-text-tertiary',
             )}
+            onClick={() => onChange(option.value)}
           >
             {option.label}
-          </button>
+          </Button>
         )
       })}
-    </div>
+    </fieldset>
   )
 }
 

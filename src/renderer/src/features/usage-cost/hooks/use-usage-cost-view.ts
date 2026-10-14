@@ -28,7 +28,10 @@ export function useUsageCostView() {
   const queryClient = useQueryClient()
 
   const viewQuery = useQuery(usageCostViewQueryOptions(query))
-  const sessionQuery: UsageCostSessionQuery = useMemo(() => ({ ...query, ...drillDown }), [query, drillDown])
+  const sessionQuery: UsageCostSessionQuery = useMemo(
+    () => ({ ...query, ...drillDown }),
+    [query, drillDown],
+  )
   const sessionsQuery = useQuery(usageCostSessionsQueryOptions(sessionQuery))
 
   const refresh = useCallback(() => {

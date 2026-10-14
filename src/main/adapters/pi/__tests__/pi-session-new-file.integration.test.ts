@@ -17,7 +17,7 @@ import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-prov
 const { state, getPathMock, warnings } = vi.hoisted(() => ({
   state: { userDataDir: '' },
   getPathMock: vi.fn(() => ''),
-  warnings: new Array<string>(),
+  warnings: [] as string[],
 }))
 
 getPathMock.mockImplementation(() => state.userDataDir)

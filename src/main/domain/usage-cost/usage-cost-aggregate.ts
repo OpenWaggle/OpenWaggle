@@ -6,7 +6,6 @@ import type {
   UsageCostSessionOrigin,
   UsageCostSessionQuery,
   UsageCostSessionRow,
-  UsageCostTokens,
   UsageCostView,
 } from '@shared/types/usage-cost'
 
@@ -56,9 +55,12 @@ const UNPRICED_MODEL_ID = 'tools/summaries'
 export const USAGE_COST_TOOLS_MODEL_PROVIDER = UNPRICED_MODEL_PROVIDER
 export const USAGE_COST_TOOLS_MODEL_ID = UNPRICED_MODEL_ID
 
-function emptyTokens(): UsageCostTokens {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-}
+const MS_PER_MINUTE = 60_000
+const ISO_DATE_LENGTH = 10
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const SEVEN_DAY_WINDOW = 7
+const THIRTY_DAY_WINDOW = 30
+const NINETY_DAY_WINDOW = 90
 
 interface MutableTokens {
   input: number
@@ -84,38 +86,33 @@ function newMutableBucket(): MutableBucket {
   }
 }
 
-function addTokens(target: MutableTokens, tokens: UsageCostRecordTokens): void {
+function addTokens(target: MutableTokens, tokens: UsageCostRecordTokens) {
   target.input += tokens.input
   target.output += tokens.output
   target.cacheRead += tokens.cacheRead
   target.cacheWrite += tokens.cacheWrite
 }
 
-function addRecord(bucket: MutableBucket, record: UsageCostRecord): void {
+function addRecord(bucket: MutableBucket, record: UsageCostRecord) {
   addTokens(bucket.tokens, record.tokens)
   bucket.tokens.total += record.totalTokens
   if (record.recordedCostUsd !== null) {
     bucket.recordedCostUsd += record.recordedCostUsd
-  } else if (record.estimatedCostUsd !== null) {
-    bucket.estimatedCostUsd += record.estimatedCostUsd
-  } else {
-    bucket.unpricedTokens += record.totalTokens
+    return
   }
+  if (record.estimatedCostUsd !== null) {
+    bucket.estimatedCostUsd += record.estimatedCostUsd
+    return
+  }
+  bucket.unpricedTokens += record.totalTokens
 }
 
-function recordMatchesOrigin(
-  origin: UsageCostSessionOrigin,
-  filter: UsageCostQuery['origin'],
-): boolean {
+function recordMatchesOrigin(origin: UsageCostSessionOrigin, filter: UsageCostQuery['origin']) {
   if (filter === 'all') return true
   return origin === filter
 }
 
-function recordInWindow(
-  record: UsageCostRecord,
-  rangeStartMs: number | null,
-  rangeEndMs: number,
-): boolean {
+function recordInWindow(record: UsageCostRecord, rangeStartMs: number | null, rangeEndMs: number) {
   if (record.timestampMs > rangeEndMs) return false
   if (rangeStartMs === null) return true
   return record.timestampMs >= rangeStartMs
@@ -123,15 +120,16 @@ function recordInWindow(
 
 /** Local-timezone `YYYY-MM-DD` key, so days match the user's calendar. */
 export function localDayKey(timestampMs: number, now: Date): string {
-  const offsetMs = now.getTimezoneOffset() * 60_000
+  const offsetMs = now.getTimezoneOffset() * MS_PER_MINUTE
   const shifted = new Date(timestampMs - offsetMs)
-  return shifted.toISOString().slice(0, 10)
+  return shifted.toISOString().slice(0, ISO_DATE_LENGTH)
 }
 
 export function rangeStartForPreset(preset: UsageCostQuery['preset'], now: Date): number | null {
   if (preset === 'all') return null
-  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90
-  return now.getTime() - days * 24 * 60 * 60 * 1000
+  const days =
+    preset === '7d' ? SEVEN_DAY_WINDOW : preset === '30d' ? THIRTY_DAY_WINDOW : NINETY_DAY_WINDOW
+  return now.getTime() - days * MS_PER_DAY
 }
 
 export interface AggregateUsageCostViewInput {
@@ -139,10 +137,16 @@ export interface AggregateUsageCostViewInput {
   readonly stats: UsageCostScanStats
 }
 
+function leafDirectoryName(cwd: string) {
+  const trimmed = cwd.length > 1 ? cwd.replace(/\/+$/, '') : cwd
+  const index = trimmed.lastIndexOf('/')
+  return index === -1 ? trimmed : trimmed.slice(index + 1)
+}
+
 /**
  * Builds the Usage & Cost view for a query. Sessions whose records all fall
- * outside the window contribute nothing; drill-down `sessionCount` counts
- * sessions with at least one in-window record after the origin filter.
+ * outside the window contribute nothing; `sessionCount` counts sessions with
+ * at least one in-window record after the origin filter.
  */
 export function aggregateUsageCostView(
   input: AggregateUsageCostViewInput,
@@ -152,12 +156,7 @@ export function aggregateUsageCostView(
   const rangeStartMs = rangeStartForPreset(query.preset, now)
   const rangeEndMs = now.getTime()
 
-  const totals = {
-    tokens: emptyTokens(),
-    recordedCostUsd: 0,
-    estimatedCostUsd: 0,
-    unpricedTokens: 0,
-  }
+  const totals = newMutableBucket()
   const dayBuckets = new Map<string, MutableBucket>()
   const modelBuckets = new Map<string, { row: UsageCostModelRow }>()
   const projectBuckets = new Map<string, { row: UsageCostProjectRow }>()
@@ -228,64 +227,60 @@ export function aggregateUsageCostView(
 
 /**
  * Drill-down: the sessions behind the current filters, most recently active
- * first. Model/origin/day/cwd filters narrow sessions; a session matches when
- * at least one of its in-window records satisfies every dimension.
+ * first. A session matches when at least one of its in-window records
+ * satisfies every selected dimension.
  */
 export function selectUsageCostSessions(
   input: AggregateUsageCostViewInput,
   query: UsageCostSessionQuery,
   now: Date,
 ): UsageCostSessionRow[] {
-  const rangeStartMs = rangeStartForPreset(query.preset, now)
-  const rangeEndMs = now.getTime()
-
   const rows: UsageCostSessionRow[] = []
   for (const session of input.sessions) {
-    if (!recordMatchesOrigin(session.origin, query.origin)) continue
-    if (query.cwd !== undefined && session.cwd !== query.cwd) continue
-    const buckets = new Map<string, MutableBucket>()
-    let lastActivityMs: number | null = null
-    for (const record of session.records) {
-      if (!recordInWindow(record, rangeStartMs, rangeEndMs)) continue
-      if (query.provider !== undefined && record.provider !== query.provider) continue
-      if (query.modelId !== undefined && record.modelId !== query.modelId) continue
-      if (query.day !== undefined && localDayKey(record.timestampMs, now) !== query.day) continue
-      const dayKey = localDayKey(record.timestampMs, now)
-      const bucket = buckets.get(dayKey) ?? {
-        tokens: emptyTokens(),
-        recordedCostUsd: 0,
-        estimatedCostUsd: 0,
-        unpricedTokens: 0,
-      }
-      addRecord(bucket, record)
-      buckets.set(dayKey, bucket)
-      lastActivityMs =
-        lastActivityMs === null ? record.timestampMs : Math.max(lastActivityMs, record.timestampMs)
-    }
-    if (buckets.size === 0) continue
-    const merged = newMutableBucket()
-    for (const bucket of buckets.values()) {
-      addTokens(merged.tokens, bucket.tokens)
-      merged.tokens.total += bucket.tokens.total
-      merged.recordedCostUsd += bucket.recordedCostUsd
-      merged.estimatedCostUsd += bucket.estimatedCostUsd
-      merged.unpricedTokens += bucket.unpricedTokens
-    }
-    rows.push({
-      sessionId: session.sessionId,
-      file: session.file,
-      cwd: session.cwd,
-      origin: session.origin,
-      startedAtMs: session.startedAtMs,
-      lastActivityMs: lastActivityMs ?? session.lastActivityMs,
-      ...merged,
-    })
+    const row = sessionRowForQuery(session, query, now)
+    if (row !== null) rows.push(row)
   }
   return rows.sort((a, b) => (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0))
 }
 
-function leafDirectoryName(cwd: string): string {
-  const trimmed = cwd.length > 1 ? cwd.replace(/\/+$/, '') : cwd
-  const index = trimmed.lastIndexOf('/')
-  return index === -1 ? trimmed : trimmed.slice(index + 1)
+function sessionRowForQuery(
+  session: UsageCostScanSession,
+  query: UsageCostSessionQuery,
+  now: Date,
+): UsageCostSessionRow | null {
+  if (!recordMatchesOrigin(session.origin, query.origin)) return null
+  if (query.cwd !== undefined && session.cwd !== query.cwd) return null
+
+  const rangeStartMs = rangeStartForPreset(query.preset, now)
+  const rangeEndMs = now.getTime()
+  const merged = newMutableBucket()
+  let lastActivityMs: number | null = null
+  let hasRecords = false
+
+  for (const record of session.records) {
+    if (!recordInWindow(record, rangeStartMs, rangeEndMs)) continue
+    if (!recordMatchesDrillDown(record, query, now)) continue
+    addRecord(merged, record)
+    hasRecords = true
+    lastActivityMs =
+      lastActivityMs === null ? record.timestampMs : Math.max(lastActivityMs, record.timestampMs)
+  }
+  if (!hasRecords) return null
+
+  return {
+    sessionId: session.sessionId,
+    file: session.file,
+    cwd: session.cwd,
+    origin: session.origin,
+    startedAtMs: session.startedAtMs,
+    lastActivityMs: lastActivityMs ?? session.lastActivityMs,
+    ...merged,
+  }
+}
+
+function recordMatchesDrillDown(record: UsageCostRecord, query: UsageCostSessionQuery, now: Date) {
+  if (query.provider !== undefined && record.provider !== query.provider) return false
+  if (query.modelId !== undefined && record.modelId !== query.modelId) return false
+  if (query.day !== undefined && localDayKey(record.timestampMs, now) !== query.day) return false
+  return true
 }

@@ -22,7 +22,7 @@ import {
 const { state, getPathMock, events } = vi.hoisted(() => ({
   state: { userDataDir: '' },
   getPathMock: vi.fn(() => ''),
-  events: new Array<{ kind: string; sessionId?: string; change?: string }>(),
+  events: [] as { kind: string; sessionId?: string; change?: string }[],
 }))
 
 vi.mock('../../../session-host/session-host-events', async (importOriginal) => {

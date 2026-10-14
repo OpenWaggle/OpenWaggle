@@ -50,7 +50,7 @@ export function UsageCostSummaryCards({
   )
 }
 
-function tierSummary(totals: UsageCostBucket): string {
+function tierSummary(totals: UsageCostBucket) {
   const recorded = totals.recordedCostUsd > 0
   const estimated = totals.estimatedCostUsd > 0
   if (recorded && estimated) return 'recorded + estimated'

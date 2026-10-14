@@ -1,5 +1,6 @@
 import type { UsageCostSessionRow } from '@shared/types/usage-cost'
 import { X } from 'lucide-react'
+import { Button } from '@/shared/ui/Button'
 import type { UsageCostDrillDown } from '../hooks/use-usage-cost-view'
 import {
   formatTimestampLabel,
@@ -21,6 +22,8 @@ const ORIGIN_LABELS = {
   'other-pi-clients': 'pi CLI & other',
 } as const
 
+const MAX_VISIBLE_SESSIONS = 20
+
 export function UsageCostSessionsPanel({
   sessions,
   isLoading,
@@ -35,26 +38,21 @@ export function UsageCostSessionsPanel({
           Sessions{hasActiveDrillDown ? ' in selection' : ''}
         </h2>
         {hasActiveDrillDown ? (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="xs"
+            className="gap-1 text-text-tertiary"
             onClick={onClearDrillDown}
-            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           >
             <X className="size-3" />
             Clear selection
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {hasActiveDrillDown ? (
-        <p className="text-xs text-text-tertiary">
-          {drillDown.day !== undefined ? `Day ${drillDown.day} · ` : ''}
-          {drillDown.provider !== undefined
-            ? `${drillDown.provider}/${drillDown.modelId ?? ''} · `
-            : ''}
-          {drillDown.cwd !== undefined ? `${drillDown.cwd ?? 'no working directory'} · ` : ''}
-          {sessions.length} session{sessions.length === 1 ? '' : 's'}
-        </p>
+        <SelectionSummary drillDown={drillDown} count={sessions.length} />
       ) : null}
 
       {isLoading ? (
@@ -67,16 +65,16 @@ export function UsageCostSessionsPanel({
         </div>
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-bg-secondary">
-          {sessions.slice(0, 20).map((session) => (
+          {sessions.slice(0, MAX_VISIBLE_SESSIONS).map((session) => (
             <li key={session.file} className="flex items-center justify-between gap-3 px-3 py-2.5">
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm text-text-secondary">
                   {formatTimestampLabel(session.startedAtMs)}
-                  <span className="ml-2 rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                  <span className="ml-2 rounded bg-bg-tertiary px-1.5 py-0.5 text-xs text-text-tertiary">
                     {ORIGIN_LABELS[session.origin]}
                   </span>
                 </span>
-                <span className="truncate text-[11px] text-text-tertiary">
+                <span className="truncate text-xs text-text-tertiary">
                   {session.cwd ?? 'No working directory recorded'}
                 </span>
               </span>
@@ -85,13 +83,32 @@ export function UsageCostSessionsPanel({
               </span>
             </li>
           ))}
-          {sessions.length > 20 ? (
-            <li className="px-3 py-2 text-center text-[11px] text-text-tertiary">
-              {sessions.length - 20} more — narrow the selection
+          {sessions.length > MAX_VISIBLE_SESSIONS ? (
+            <li className="px-3 py-2 text-center text-xs text-text-tertiary">
+              {sessions.length - MAX_VISIBLE_SESSIONS} more — narrow the selection
             </li>
           ) : null}
         </ul>
       )}
     </section>
+  )
+}
+
+function SelectionSummary({
+  drillDown,
+  count,
+}: {
+  readonly drillDown: UsageCostDrillDown
+  readonly count: number
+}) {
+  return (
+    <p className="text-xs text-text-tertiary">
+      {drillDown.day !== undefined ? `Day ${drillDown.day} · ` : ''}
+      {drillDown.provider !== undefined
+        ? `${drillDown.provider}/${drillDown.modelId ?? ''} · `
+        : ''}
+      {drillDown.cwd !== undefined ? `${drillDown.cwd ?? 'no working directory'} · ` : ''}
+      {count} session{count === 1 ? '' : 's'}
+    </p>
   )
 }

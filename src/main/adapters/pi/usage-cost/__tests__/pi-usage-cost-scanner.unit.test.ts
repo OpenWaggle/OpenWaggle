@@ -4,11 +4,11 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createPiUsageCostScanner } from '../pi-usage-cost-scanner'
 
-function sessionLine(id: string, cwd: string): string {
+function sessionLine(id: string, cwd: string) {
   return `${JSON.stringify({ type: 'session', id, cwd, timestamp: '2026-10-14T08:00:00.000Z', version: 3 })}\n`
 }
 
-function modelChangeLine(provider: string, modelId: string, timestamp: string): string {
+function modelChangeLine(provider: string, modelId: string, timestamp: string) {
   return `${JSON.stringify({ type: 'model_change', id: 'm1', parentId: null, timestamp, provider, modelId })}\n`
 }
 
@@ -16,7 +16,7 @@ function assistantLine(
   timestamp: string,
   usage: Record<string, unknown>,
   model: Record<string, string> = { provider: 'anthropic', modelId: 'claude-opus-5-5' },
-): string {
+) {
   const message: Record<string, unknown> = {
     role: 'assistant',
     provider: model.provider,
@@ -26,11 +26,11 @@ function assistantLine(
   return `${JSON.stringify({ type: 'message', id: 'a1', parentId: null, timestamp, message })}\n`
 }
 
-function toolResultLine(timestamp: string, usage: Record<string, unknown>): string {
+function toolResultLine(timestamp: string, usage: Record<string, unknown>) {
   return `${JSON.stringify({ type: 'message', id: 't1', parentId: null, timestamp, message: { role: 'toolResult', usage } })}\n`
 }
 
-function boundaryLine(): string {
+function boundaryLine() {
   return `${JSON.stringify({ type: 'custom', customType: 'openwaggle-run-boundary', data: { version: 1, runId: 'r1' }, id: 'c1', parentId: null, timestamp: '2026-10-14T08:00:01.000Z' })}\n`
 }
 

@@ -38,7 +38,7 @@ export function createMcpOperationsHarness() {
     /** A managed worktree of the project, as a Session in worktree mode runs in. */
     worktreePath: '',
     /** Names of the secrets in the vault. */
-    vaultSecrets: new Array<string>(),
+    vaultSecrets: [] as string[],
     sourceFiles: new Map<string, string>(),
     runtimeCalls,
   }

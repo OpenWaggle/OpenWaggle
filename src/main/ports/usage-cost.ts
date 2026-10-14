@@ -1,4 +1,7 @@
-import type { AggregateUsageCostViewInput, UsageCostScanStats } from '../domain/usage-cost/usage-cost-aggregate'
+import type {
+  AggregateUsageCostViewInput,
+  UsageCostScanStats,
+} from '../domain/usage-cost/usage-cost-aggregate'
 
 /**
  * Port for the Usage & Cost view. Implementations scan Pi session records on
