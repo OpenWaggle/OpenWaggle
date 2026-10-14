@@ -1,8 +1,10 @@
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, type SchemaType } from '@shared/schema'
+import type { AttachmentRecord, MessagePart, ReasoningPart, TextPart } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { ToolCallRequest, ToolCallResult } from '@shared/types/tools'
 import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { buildUserInputProjection } from '../../adapters/pi/agent-kernel/user-input-projection'
 import {
   applyEventToStreamBuffer,
@@ -11,6 +13,7 @@ import {
   startStreamBuffer,
 } from '../../utils/stream-buffer'
 import { decodeActiveRunSnapshots } from '../local-session-active-run-snapshots'
+import type { messagePartSchema } from '../local-session-snapshot-parts'
 
 const snapshot = {
   activity: 'agent-run',
@@ -69,8 +72,12 @@ describe('decodeActiveRunSnapshots', () => {
     ['a fractional log order', { ...userMessage, sessionNodeCreatedOrder: 1.5 }],
     ['a missing timestamp', { ...userMessage, timestamp: undefined }],
     ['an image payload part', { ...userMessage, parts: [{ type: 'image', data: 'base64' }] }],
-  ])('rejects a user message with %s', (_case, invalid) => {
-    expect(() => decodeActiveRunSnapshots([{ ...snapshot, userMessages: [invalid] }])).toThrow()
+  ])('leaves out the user messages when one has %s, keeping the Run', (_case, invalid) => {
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, userMessages: [userMessage, invalid] },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', parts: snapshot.parts })
+    expect(decoded).not.toHaveProperty('userMessages')
   })
 
   /*
@@ -103,9 +110,9 @@ describe('decodeActiveRunSnapshots', () => {
     const [older] = decodeActiveRunSnapshots([snapshot])
     expect(older).not.toHaveProperty('assistantMessages')
     expect(older).not.toHaveProperty('messageStartedAt')
-    expect(() =>
-      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }]),
-    ).toThrow()
+    expect(
+      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }])[0],
+    ).not.toHaveProperty('assistantMessages')
   })
 
   // A newer Host keeps each text and reasoning part's content block; an older one sends none.
@@ -202,18 +209,103 @@ describe('decodeActiveRunSnapshots', () => {
     expect(decodeActiveRunSnapshots([{ ...snapshot, parts }])[0]?.parts).toEqual(parts)
   })
 
-  it('rejects a nested call with an unknown status', () => {
-    const parts = [
-      {
-        type: 'tool-call',
-        toolCall: {
-          id: 'code-1',
-          name: 'codemode',
-          args: {},
-          nestedCalls: { calls: [{ id: 'x', name: 'read', status: 'pending' }], complete: false },
-        },
+  /*
+   * A part this client cannot decode costs that Run's part, never the snapshot: failing it failed
+   * the subscription, and every Session lost its live events.
+   */
+  it('leaves out a part it cannot decode and marks the message cut short', () => {
+    const undecodable = {
+      type: 'tool-call',
+      toolCall: {
+        id: 'code-1',
+        name: 'codemode',
+        args: {},
+        nestedCalls: { calls: [{ id: 'x', name: 'read', status: 'pending' }], complete: false },
       },
-    ]
-    expect(() => decodeActiveRunSnapshots([{ ...snapshot, parts }])).toThrow()
+    }
+    const text = { type: 'text', text: 'Partial answer' }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, runId: 'run-1', parts: [text, undecodable] },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', runId: 'run-1', parts: [text] })
+    expect(decoded?.degraded).toEqual({
+      reason: 'content-limit',
+      omittedBytes: Buffer.byteLength(JSON.stringify(undecodable)),
+      messageCutShort: true,
+    })
+  })
+
+  it('adds an undecodable part to the omissions the Host reported', () => {
+    const degraded = { reason: 'content-limit', omittedBytes: 10, toolCallIds: ['t'] }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, degraded, messageCutShort: undefined, parts: [{ type: 'image' }] },
+    ])
+    expect(decoded?.parts).toEqual([])
+    expect(decoded?.degraded).toEqual({
+      ...degraded,
+      omittedBytes: 10 + Buffer.byteLength(JSON.stringify({ type: 'image' })),
+      messageCutShort: true,
+    })
+  })
+
+  it('leaves out an earlier assistant message holding a part it cannot decode', () => {
+    const kept = { messageId: 'assistant-1', timestamp: 4, parts: [{ type: 'text', text: 'ok' }] }
+    const broken = { messageId: 'assistant-2', timestamp: 5, parts: [{ type: 'image' }] }
+    const [decoded] = decodeActiveRunSnapshots([
+      { ...snapshot, assistantMessages: [kept, broken, { messageId: 'x' }] },
+    ])
+    expect(decoded?.assistantMessages).toEqual([kept])
+    expect(decoded).not.toHaveProperty('degraded')
+  })
+
+  it('keeps the Run when its side channels cannot be decoded', () => {
+    const [decoded] = decodeActiveRunSnapshots([
+      {
+        ...snapshot,
+        activityEvents: [{ kind: 'unknown' }],
+        userMessages: [{ ...userMessage, raw: 'x' }],
+        worktreeLaunch: { status: 'unknown' },
+      },
+    ])
+    expect(decoded).toMatchObject({ sessionId: 'session-running', parts: snapshot.parts })
+    expect(decoded?.activityEvents).toEqual([])
+    expect(decoded).not.toHaveProperty('userMessages')
+    expect(decoded).not.toHaveProperty('worktreeLaunch')
+  })
+
+  // The bridge reads a Session missing from the snapshots as a settled Run, so none is dropped.
+  it('fails on a snapshot without a Run identity, naming it', () => {
+    expect(() =>
+      decodeActiveRunSnapshots([snapshot, { ...snapshot, sessionId: 'session-2', model: 1 }]),
+    ).toThrow(/index 1, Session session-2/)
+  })
+})
+
+/*
+ * The decode is exact: a field `MessagePart` gains that the snapshot schema does not list makes
+ * every part carrying it undecodable. Hold the keys of each member, and of the records inside it.
+ */
+type SnapshotPart = SchemaType<typeof messagePartSchema>
+/** The member whose `type` literals include `TType` (text and reasoning share one struct). */
+type Member<TUnion, TType> = TUnion extends { readonly type: infer TTypes }
+  ? TType extends TTypes
+    ? TUnion
+    : never
+  : never
+
+describe('messagePartSchema', () => {
+  it('lists every field of each MessagePart member', () => {
+    expectTypeOf<keyof Member<SnapshotPart, 'text'>>().toEqualTypeOf<keyof TextPart>()
+    expectTypeOf<keyof Member<SnapshotPart, 'reasoning'>>().toEqualTypeOf<keyof ReasoningPart>()
+    expectTypeOf<keyof Member<SnapshotPart, 'attachment'>['attachment']>().toEqualTypeOf<
+      keyof AttachmentRecord
+    >()
+    expectTypeOf<keyof Member<SnapshotPart, 'tool-call'>['toolCall']>().toEqualTypeOf<
+      keyof ToolCallRequest
+    >()
+    expectTypeOf<keyof Member<SnapshotPart, 'tool-result'>['toolResult']>().toEqualTypeOf<
+      keyof ToolCallResult
+    >()
+    expectTypeOf<SnapshotPart['type']>().toEqualTypeOf<MessagePart['type']>()
   })
 })
