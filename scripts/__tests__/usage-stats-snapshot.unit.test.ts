@@ -85,6 +85,42 @@ describe('usage statistics snapshot job', () => {
     expect(lines.some((line) => line.startsWith('::warning::GitHub traffic answered 403'))).toBe(true)
   })
 
+  it('skips npm packages that time out or fail to connect, and keeps the rest of the snapshot', async () => {
+    const { options, lines } = job(FULL_ENV, {
+      [`${NPM}/@openwaggle/extension-sdk`]: () => {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+      },
+      [`${NPM}/@openwaggle/waggle-core`]: () => {
+        throw new TypeError('fetch failed')
+      },
+    })
+    const snapshot = await collectUsageStatsSnapshot(options)
+
+    expect(snapshot.releases).toHaveLength(2)
+    expect(snapshot.npm).toEqual([{ name: '@openwaggle/pi-waggle', days: [{ day: '2026-09-30', downloads: 1 }] }])
+    expect(validateUsageStatsSnapshot(snapshot)).toEqual({ ok: true, value: snapshot })
+    expect(lines).toContain(
+      '::warning::npm downloads for @openwaggle/extension-sdk could not be read (The operation was aborted due to timeout); skipped.',
+    )
+    expect(lines).toContain('::warning::npm downloads for @openwaggle/waggle-core could not be read (fetch failed); skipped.')
+  })
+
+  it('still sends the snapshot when every npm request times out', async () => {
+    const timeout = () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    }
+    const { options, requests } = job(FULL_ENV, {
+      [`${NPM}/@openwaggle/extension-sdk`]: timeout,
+      [`${NPM}/@openwaggle/extension-react`]: timeout,
+      [`${NPM}/@openwaggle/waggle-core`]: timeout,
+      [`${NPM}/@openwaggle/pi-waggle`]: timeout,
+    })
+    await runUsageStatsSnapshot({ ...options, dryRun: false })
+
+    const posted = requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)
+    expect(JSON.parse(String(posted?.init.body))).toMatchObject({ npm: [], releases: [{}, {}] })
+  })
+
   it('fails when GitHub releases cannot be read', async () => {
     const { options } = job(FULL_ENV, { [RELEASES_URL]: () => json({}, { status: 500 }) })
     await expect(collectUsageStatsSnapshot(options)).rejects.toThrow('GitHub releases answered 500.')

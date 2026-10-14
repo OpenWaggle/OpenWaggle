@@ -173,13 +173,28 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
   }
 }
 
-/** Last month's daily downloads of each published package; unpublished ones are skipped. */
+async function readNpmRange(options: SnapshotJobOptions, name: string) {
+  try {
+    return await getJson(options, `${NPM_DOWNLOADS_API}/${name}`, { 'User-Agent': SNAPSHOT_USER_AGENT })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    options.log(`::warning::npm downloads for ${name} could not be read (${reason}); skipped.`)
+    return undefined
+  }
+}
+
+/**
+ * Last month's daily downloads of each published package. A package that is unpublished, or that
+ * npm cannot serve right now (an error status, a timeout, a network failure), is skipped with a
+ * warning so an npm outage never costs the day's release statistics; the endpoint keeps what it
+ * already forwarded, and the next snapshot's month-long range catches up.
+ */
 export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<SnapshotNpmPackage[]> {
   const packages: SnapshotNpmPackage[] = []
   for (const name of SNAPSHOT_NPM_PACKAGES) {
-    const { response, body } = await getJson(options, `${NPM_DOWNLOADS_API}/${name}`, {
-      'User-Agent': SNAPSHOT_USER_AGENT,
-    })
+    const read = await readNpmRange(options, name)
+    if (read === undefined) continue
+    const { response, body } = read
     if (!response.ok || !isNpmRange(body)) {
       options.log(`::warning::npm downloads for ${name} answered ${String(response.status)}; skipped.`)
       continue
