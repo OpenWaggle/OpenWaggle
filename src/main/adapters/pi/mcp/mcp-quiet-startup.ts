@@ -18,6 +18,11 @@ export function withoutMcpStartupNotice(factory: ExtensionFactory): ExtensionFac
   return (pi) => factory(quietBeforeAgentStart(pi))
 }
 
+/**
+ * `on` cannot be typed as `ExtensionAPI['on']` (one overload per event), and the Proxy trap returns
+ * `any`, so the type system does not check this replacement: `mcp-quiet-startup.integration.test.ts`
+ * does, against Pi's real MCP extension.
+ */
 function quietBeforeAgentStart(pi: ExtensionAPI): ExtensionAPI {
   const on = (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
     const unsubscribe: unknown = Reflect.apply(pi.on, pi, [

@@ -91,7 +91,12 @@ async function noticesOfFirstPrompt(
     sessionManager: SessionManager.inMemory(directory),
     settingsManager,
   })
-  cleanups.push(() => session.dispose())
+  // `dispose()` does not emit `session_shutdown`, where Pi's MCP extension closes its servers, so
+  // emit it as a Run's end does; otherwise the server process outlives the test.
+  cleanups.push(async () => {
+    await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
+    session.dispose()
+  })
   const notify = vi.fn<ExtensionUIContext['notify']>()
   await session.bindExtensions({ uiContext: fromPartial<ExtensionUIContext>({ notify }) })
   await session.prompt('Hello.')
@@ -108,7 +113,7 @@ describe("Pi's MCP extension in OpenWaggle", () => {
     const wrapped = await noticesOfFirstPrompt(withoutMcpStartupNotice(mcpExtension()))
 
     expect(wrapped).toEqual([])
-  }, 60_000)
+  })
 
   it('still warns when an MCP server fails to connect', async () => {
     const notices = await noticesOfFirstPrompt(
@@ -119,5 +124,5 @@ describe("Pi's MCP extension in OpenWaggle", () => {
     expect(notices).toEqual([
       [expect.stringMatching(/MCP servers need attention:\n {2}broken: /), 'warning'],
     ])
-  }, 60_000)
+  })
 })

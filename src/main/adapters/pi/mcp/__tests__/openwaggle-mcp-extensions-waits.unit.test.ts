@@ -1,3 +1,9 @@
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionFactory,
+  ExtensionUIContext,
+} from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +24,15 @@ const mocks = vi.hoisted(() => {
   }
 })
 
+// Pi's MCP extension, reduced to its prompt-start wait for a server that is still connecting.
+vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@earendil-works/pi-coding-agent')>()),
+  createMcpExtension: (): ExtensionFactory => (pi) => {
+    pi.on('before_agent_start', (_event, ctx) => {
+      ctx.ui.notify('MCP servers are still connecting.', 'info')
+    })
+  },
+}))
 vi.mock('../openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpFilesOnce: async () => undefined,
   migrateOpenWaggleMcpSignInsOnce: mocks.signIns,
@@ -99,5 +114,30 @@ describe("a Run's MCP start", () => {
     await createOpenWaggleMcpExtensions(input)
 
     expect(mocks.loads.at(-1)).toMatchObject({ resolveSecret: deferredMcpVaultSecret })
+  })
+})
+
+describe("a Run's MCP extension", () => {
+  it('does not notify that MCP servers are still connecting', async () => {
+    mocks.servers = [{ name: 'off', config: { command: 'x', enabled: false } }]
+    const extensions = await createOpenWaggleMcpExtensions(input)
+    const mcp = extensions.find((extension) => typeof extension !== 'function')
+    const handlers: Array<(event: unknown, ctx: ExtensionContext) => unknown> = []
+    const notify = vi.fn<ExtensionUIContext['notify']>()
+
+    if (typeof mcp === 'function' || !mcp) throw new Error('No MCP extension')
+    await mcp.factory(
+      fromPartial<ExtensionAPI>({
+        on: (_event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
+          handlers.push(handler)
+          return () => undefined
+        },
+      }),
+    )
+    const ctx = fromPartial<ExtensionContext>({ ui: fromPartial<ExtensionUIContext>({ notify }) })
+    for (const handler of handlers) await handler({}, ctx)
+
+    expect(handlers).toHaveLength(1)
+    expect(notify).not.toHaveBeenCalled()
   })
 })
