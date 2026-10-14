@@ -1,3 +1,5 @@
+import type { JsonValue } from './json'
+
 export interface InlineVisualizationReference {
   readonly path: string
   readonly title?: string
@@ -9,6 +11,11 @@ export interface InlineVisualizationFrameRegisterInput {
   readonly reducedMotion: boolean
   readonly sessionId: string
   readonly sourcePath: string
+  /**
+   * The state this visualization last reported, restored into a reloaded frame as
+   * `window.openai.visualizationState` so a parked or remounted frame can keep the user's choices.
+   */
+  readonly restoredState?: JsonValue | null
 }
 
 export interface InlineVisualizationFrameRegisterResult {

@@ -17,7 +17,9 @@ export interface RuntimeWindow {
   readonly openai?: {
     readonly sendFollowUpMessage: (message: string) => Promise<boolean>
     readonly setVisualizationState: (state: unknown) => boolean
+    readonly visualizationState: unknown
   }
+  lucide?: { readonly createIcons: (options?: unknown) => unknown }
 }
 
 interface RuntimeEvent {
@@ -32,6 +34,7 @@ export function runtimeHarness(
   nativeActivationIsActive = false,
   supportsLongTaskAccounting = true,
   initialReducedMotion = false,
+  restoredStateContent: string | null = null,
 ) {
   const postedMessages: unknown[] = []
   const rootStyleValues = new Map<string, string>()
@@ -66,6 +69,7 @@ export function runtimeHarness(
   }
   class NativeRuntimeWindow {
     declare readonly openai?: RuntimeWindow['openai']
+    declare lucide?: RuntimeWindow['lucide']
 
     matchMedia(query: string) {
       return {
@@ -136,6 +140,8 @@ export function runtimeHarness(
       return this.entries
     }
   }
+  const scriptLoadListeners: Array<() => void> = []
+  const restoredStateMetadata = { content: restoredStateContent, remove: vi.fn<() => void>() }
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
     parent,
@@ -151,9 +157,20 @@ export function runtimeHarness(
           documentListeners.set(type, [...(documentListeners.get(type) ?? []), listener])
         },
       ),
-      createElement: vi.fn(() => ({ addEventListener: vi.fn() })),
+      createElement: vi.fn((tagName: string) => {
+        const element = {
+          addEventListener: vi.fn((type: string, listener: () => void) => {
+            if (tagName === 'script' && type === 'load') scriptLoadListeners.push(listener)
+          }),
+        }
+        return element
+      }),
       getElementById: vi.fn(() => null),
-      querySelector: vi.fn(() => null),
+      querySelector: vi.fn((selector: string) =>
+        restoredStateContent !== null && selector === 'meta[name="openwaggle-visualization-state"]'
+          ? restoredStateMetadata
+          : null,
+      ),
       querySelectorAll: vi.fn(() => []),
     },
     navigator,
@@ -256,8 +273,12 @@ export function runtimeHarness(
     flushAnimationFrames: () => {
       for (const callback of animationFrameCallbacks.splice(0)) callback()
     },
+    loadScripts: () => {
+      for (const listener of scriptLoadListeners.splice(0)) listener()
+    },
     navigator,
     mutationObserverOptions,
+    restoredStateMetadata,
     postedMessages,
     rootStyleValues,
     runtimeWindow,

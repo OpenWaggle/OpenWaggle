@@ -10,6 +10,7 @@ export function useConnectionModelGroups(): readonly ModelGroup[] {
     key: providerGroup.provider,
     label: providerGroup.displayName,
     provider: providerGroup.provider,
+    connected: providerGroup.auth.configured,
     models: providerGroup.models,
   }))
 }
