@@ -157,7 +157,10 @@ export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
   readonly degraded?: {
     readonly reason: 'content-limit'
-    /** All the caps omitted over the Run. */
+    /**
+     * All the caps omitted over the Run. On the GUI side it also counts streaming parts the client
+     * could not decode, which mark the message cut short like the caps do.
+     */
     readonly omittedBytes: number
     readonly toolCallIds?: readonly string[]
     /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
