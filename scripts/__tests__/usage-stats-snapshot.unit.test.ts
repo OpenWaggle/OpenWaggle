@@ -68,7 +68,9 @@ describe('usage statistics snapshot job', () => {
 
     expect(snapshot.traffic).toBeNull()
     expect(snapshot.releases).toHaveLength(2)
-    expect(lines.some((line) => line.startsWith('::warning::GitHub traffic answered 401'))).toBe(true)
+    expect(lines).toContain(
+      '::warning::GitHub traffic answered 401; the snapshot carries no traffic. STATS_GITHUB_TOKEN needs Administration: read.',
+    )
   })
 
   it('skips traffic without STATS_GITHUB_TOKEN and never calls the traffic API', async () => {

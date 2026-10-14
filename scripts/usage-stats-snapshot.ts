@@ -14,7 +14,8 @@
  *   the same origin.
  *
  * Traffic and npm downloads are optional: when GitHub or npm cannot serve them (an error status, a
- * timeout, a network failure) the job warns and sends the rest. Only release reads fail the job.
+ * timeout, a network failure) the job warns and sends the rest. Collecting fails the snapshot only
+ * when releases cannot be read, or when GitHub answers in a shape it no longer recognises.
  *
  * Usage: `pnpm exec tsx scripts/usage-stats-snapshot.ts [--dry-run]`
  */
