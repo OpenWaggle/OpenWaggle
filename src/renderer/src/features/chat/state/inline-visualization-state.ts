@@ -17,6 +17,42 @@ interface MountedVisualizationState extends InlineVisualizationContext {
 const mountedStates = new Map<string, MountedVisualizationState>()
 let sequence = 0
 
+/**
+ * The last state each visualization source reported, kept after its frame is parked or unmounted.
+ * A reloaded frame receives it as `window.openai.visualizationState`, so a fragment can restore the
+ * user's choices instead of reporting its defaults as if the user had reset them. Insertion order
+ * doubles as recency, which bounds memory in long sessions.
+ */
+const MAX_RETAINED_STATES = 128
+const retainedStates = new Map<string, JsonValue>()
+
+function retainedStateKey(sessionId: SessionId, sourcePath: string) {
+  return `${sessionId}\u0000${sourcePath}`
+}
+
+export function retainInlineVisualizationState(
+  sessionId: SessionId,
+  sourcePath: string,
+  state: JsonValue | null,
+) {
+  const key = retainedStateKey(sessionId, sourcePath)
+  retainedStates.delete(key)
+  if (state === null) return
+  retainedStates.set(key, state)
+  while (retainedStates.size > MAX_RETAINED_STATES) {
+    const oldest = retainedStates.keys().next()
+    if (oldest.done) break
+    retainedStates.delete(oldest.value)
+  }
+}
+
+export function retainedInlineVisualizationState(
+  sessionId: SessionId,
+  sourcePath: string,
+): JsonValue | null {
+  return retainedStates.get(retainedStateKey(sessionId, sourcePath)) ?? null
+}
+
 function hasBoundedJsonShape(value: unknown) {
   const pending: Array<{ readonly depth: number; readonly value: unknown }> = [{ depth: 0, value }]
   const seen = new WeakSet<object>()
@@ -91,5 +127,6 @@ export function withInlineVisualizationContext(
 
 export function clearInlineVisualizationStatesForTests() {
   mountedStates.clear()
+  retainedStates.clear()
   sequence = 0
 }

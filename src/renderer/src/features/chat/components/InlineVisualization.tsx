@@ -11,11 +11,16 @@ import { Button } from '@/shared/ui/Button'
 import {
   clearInlineVisualizationState,
   reportInlineVisualizationState,
+  retainInlineVisualizationState,
 } from '../state/inline-visualization-state'
 import { unavailableVisualizationMessage } from './inline-visualization-host'
 import { useInlineVisualizationFocusLayer } from './use-inline-visualization-focus-layer'
 import { useInlineVisualizationFrame } from './use-inline-visualization-frame'
 import { useInlineVisualizationModal } from './use-inline-visualization-modal'
+import {
+  useInlineVisualizationEngagement,
+  useInlineVisualizationPin,
+} from './use-inline-visualization-pin'
 import { useInlineVisualizationRegistration } from './use-inline-visualization-registration'
 
 function VisualizationToolbar({
@@ -179,14 +184,17 @@ export function InlineVisualization({
   const [stateInstanceId] = useState(() => crypto.randomUUID())
   const stateScope = `${interactionSessionId ?? ''}\u0000${reference.path}\u0000${title}`
   const { expanded, expand, dismiss } = useInlineVisualizationFocusLayer(sectionRef)
+  const { pinned, pin, unpin } = useInlineVisualizationPin(stateInstanceId)
   const { registration, registrationError, releaseRegistration, retryRegistration } =
     useInlineVisualizationRegistration({
       sectionRef,
       sessionId,
       sourcePath: reference.path,
+      pinned,
     })
   const handleStateChange = useCallback(
     (state: JsonValue | null) => {
+      retainInlineVisualizationState(sessionId, reference.path, state)
       clearInlineVisualizationState(stateInstanceId)
       if (state === null || interactionSessionId === null) return
       reportInlineVisualizationState({
@@ -197,12 +205,13 @@ export function InlineVisualization({
         state,
       })
     },
-    [interactionSessionId, reference.path, stateInstanceId, title],
+    [interactionSessionId, reference.path, sessionId, stateInstanceId, title],
   )
   const handleUnavailable = useCallback(() => {
     clearInlineVisualizationState(stateInstanceId)
+    unpin()
     releaseRegistration()
-  }, [releaseRegistration, stateInstanceId])
+  }, [releaseRegistration, stateInstanceId, unpin])
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
     interactionSessionId,
     frameUrl: registration?.frameUrl ?? null,
@@ -217,6 +226,8 @@ export function InlineVisualization({
     return () => clearInlineVisualizationState(stateInstanceId)
   }, [stateInstanceId, stateScope])
 
+  useInlineVisualizationEngagement({ frameLoaded: registration !== null, frameRef, onEngage: pin })
+
   // An unavailable frame must stop contributing context in the same commit as
   // its error UI, before a user action can read the failed visualization state.
   useLayoutEffect(() => {
@@ -227,6 +238,7 @@ export function InlineVisualization({
 
   const retry = () => {
     clearInlineVisualizationState(stateInstanceId)
+    unpin()
     reset()
     retryRegistration()
   }

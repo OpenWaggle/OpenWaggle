@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { InlineVisualizationFrameRegisterResult } from '@shared/types/inline-visualization'
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { retainedInlineVisualizationState } from '../state/inline-visualization-state'
 
 function useNearViewport(elementRef: React.RefObject<HTMLElement | null>) {
   const [nearViewport, setNearViewport] = useState(() => !('IntersectionObserver' in window))
@@ -25,8 +26,11 @@ export function useInlineVisualizationRegistration(input: {
   readonly sectionRef: React.RefObject<HTMLElement | null>
   readonly sessionId: SessionId
   readonly sourcePath: string
+  /** A frame the user engaged stays loaded off-screen, so its local DOM state survives. */
+  readonly pinned?: boolean
 }) {
   const nearViewport = useNearViewport(input.sectionRef)
+  const wanted = nearViewport || input.pinned === true
   const [frameId, setFrameId] = useState(() => globalThis.crypto.randomUUID())
   const [registration, setRegistration] = useState<InlineVisualizationFrameRegisterResult | null>(
     null,
@@ -39,7 +43,7 @@ export function useInlineVisualizationRegistration(input: {
   }, [])
 
   useEffect(() => {
-    if (!nearViewport || !enabled) return
+    if (!wanted || !enabled) return
     let active = true
     let activeRegistration: InlineVisualizationFrameRegisterResult | null = null
     setRegistration(null)
@@ -50,6 +54,8 @@ export function useInlineVisualizationRegistration(input: {
         reducedMotion: document.documentElement.dataset.motion === 'reduced',
         sessionId: input.sessionId,
         sourcePath: input.sourcePath,
+        // A parked or remounted frame reloads from its document; restore what the user last chose.
+        restoredState: retainedInlineVisualizationState(input.sessionId, input.sourcePath),
       })
       .then((result) => {
         activeRegistration = result
@@ -73,10 +79,10 @@ export function useInlineVisualizationRegistration(input: {
         })
       }
     }
-  }, [enabled, frameId, input.sessionId, input.sourcePath, nearViewport])
+  }, [enabled, frameId, input.sessionId, input.sourcePath, wanted])
 
   return {
-    registration: nearViewport && enabled ? registration : null,
+    registration: wanted && enabled ? registration : null,
     registrationError,
     releaseRegistration,
     retryRegistration() {

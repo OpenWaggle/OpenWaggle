@@ -67,11 +67,44 @@
   post('openwaggle:inline-visualization:bootstrap');
   let fragmentReady = false;
   let lucideReady = false;
+  // Lucide loads asynchronously so it never blocks first render, but fragments call the global
+  // `lucide.createIcons(...)` from their first synchronous render. Without a placeholder that call
+  // threw a ReferenceError, which the error listener reports as a crash and the host replaces the
+  // whole visualization with "could not be loaded". The placeholder records the latest requested
+  // options and the real runtime applies them once it and the fragment are both ready.
+  const MAX_DEFERRED_LUCIDE_CALLS = 16;
+  const deferredLucideCalls = [];
+  const lucidePlaceholder = Object.freeze({
+    createIcons(options) {
+      const runtime = window.lucide;
+      if (
+        lucideReady &&
+        runtime !== lucidePlaceholder &&
+        runtime &&
+        typeof runtime.createIcons === 'function'
+      ) {
+        return runtime.createIcons(options);
+      }
+      if (deferredLucideCalls.length >= MAX_DEFERRED_LUCIDE_CALLS) deferredLucideCalls.shift();
+      deferredLucideCalls.push(options);
+      return undefined;
+    },
+  });
+  window.lucide = lucidePlaceholder;
   const initializeLucide = () => {
     if (!fragmentReady || !lucideReady) return;
-    if (window.lucide && typeof window.lucide.createIcons === 'function') {
-      window.lucide.createIcons();
+    const runtime = window.lucide;
+    if (runtime === lucidePlaceholder || !runtime || typeof runtime.createIcons !== 'function') {
+      return;
     }
+    for (const options of deferredLucideCalls.splice(0)) {
+      try {
+        runtime.createIcons(options);
+      } catch {
+        // A malformed deferred request must not prevent the static icon pass below.
+      }
+    }
+    runtime.createIcons();
   };
   const lucideScript = document.createElement('script');
   lucideScript.async = true;
@@ -567,6 +600,28 @@
     applyIntrinsic(weakSetDelete, seen, [value]);
     return true;
   };
+  // The latest reported state, seeded from the host when this frame reloads a visualization the
+  // user already changed. Fragments read it before their first render to restore those choices.
+  let currentVisualizationStateJson = null;
+  const restoredStateMetadata = document.querySelector('meta[name="openwaggle-visualization-state"]');
+  if (restoredStateMetadata && typeof restoredStateMetadata.content === 'string') {
+    try {
+      const restored = applyIntrinsic(jsonParse, JSON, [restoredStateMetadata.content]);
+      if (
+        isJsonValue(restored) &&
+        utf8ByteLength(restoredStateMetadata.content) <= MAX_VISUALIZATION_STATE_BYTES
+      ) {
+        currentVisualizationStateJson = applyIntrinsic(jsonStringify, JSON, [restored]);
+      }
+    } catch {
+      currentVisualizationStateJson = null;
+    }
+    restoredStateMetadata.remove?.();
+  }
+  const readVisualizationState = () =>
+    currentVisualizationStateJson === null
+      ? null
+      : applyIntrinsic(jsonParse, JSON, [currentVisualizationStateJson]);
   const setVisualizationState = (state) => {
     let serialized;
     let snapshot;
@@ -582,6 +637,7 @@
       return false;
     }
     pendingVisualizationState = snapshot;
+    currentVisualizationStateJson = snapshot === null ? null : serialized;
     if (visualizationStateScheduled) return true;
     visualizationStateScheduled = true;
     enqueueMicrotask(() => flushVisualizationState());
@@ -598,7 +654,15 @@
     configurable: false,
     enumerable: true,
     writable: false,
-    value: Object.freeze({ sendFollowUpMessage, setVisualizationState }),
+    value: Object.freeze(
+      Object.defineProperties(
+        { sendFollowUpMessage, setVisualizationState },
+        {
+          // A fresh copy on every read, so fragment mutations cannot change the reported state.
+          visualizationState: { enumerable: true, get: readVisualizationState },
+        },
+      ),
+    ),
   });
 
   addEventListener('keydown', (event) => {

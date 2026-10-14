@@ -146,7 +146,9 @@ describe('InlineVisualization interaction state', () => {
     })
 
     expect(latestInlineVisualizationContext(activeSessionId)).toBeNull()
-    expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'visualization stopped because one of its scripts failed',
+    )
     expect(apiMock.unregisterInlineVisualizationFrame).toHaveBeenCalledOnce()
   })
 })

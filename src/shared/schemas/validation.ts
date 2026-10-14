@@ -150,7 +150,8 @@ export const preparedAttachmentSchema = Schema.Struct({
 
 const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
 const MAX_INLINE_VISUALIZATION_TITLE_LENGTH = 250
-const inlineVisualizationStateSchema = jsonValueSchema.pipe(
+/** Bounded JSON a visualization reports; the same bound applies when the host restores it. */
+export const inlineVisualizationStateSchema = jsonValueSchema.pipe(
   Schema.filter((value) => {
     try {
       return (

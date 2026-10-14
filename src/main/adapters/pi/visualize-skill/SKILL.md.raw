@@ -155,6 +155,12 @@ Choose the smallest composition that fits.
   visualization state remains relevant. OpenWaggle treats this state as
   untrusted context on the user's next message; reporting it does not send a
   message.
+- Restore reported state before the first render. OpenWaggle reloads a frame
+  that scrolled far away or whose Session was reopened, and passes the last
+  reported state back as `window.openai.visualizationState` (`null` on first
+  load). Apply only the values you recognize, ignore the rest, and then report
+  the restored state, so the user's selections survive the reload and the next
+  message describes what the user actually chose.
 - For drill-down actions that ask Codex to investigate or explain selected data,
   call `await window.openai.sendFollowUpMessage({ prompt, title })`, where the
   optional `title` is a concise confirmation-dialog heading of up to 250
@@ -519,7 +525,9 @@ Choose the smallest composition that fits.
   controls; use a visible label or `aria-label` for icon-only actions.
 - Let the sandbox initialize static icons after the fragment without blocking
   first render. After adding icons dynamically, use
-  `lucide.createIcons({ attrs: { width: 16, height: 16 } })`.
+  `lucide.createIcons({ attrs: { width: 16, height: 16 } })`. The runtime loads
+  after your script starts, so calls made before it is ready are applied once it
+  loads; use only `lucide.createIcons`, never other `lucide` members.
 - Never load Lucide or another icon library from the network.
 - Use visibly labeled buttons and inputs for small interactions. Keep all
   presentation-only interaction local to the fragment and make the first render
