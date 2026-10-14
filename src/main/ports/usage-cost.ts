@@ -11,6 +11,8 @@ export interface UsageCostScanner {
   readonly collectSessions: (input: {
     /** Inclusive lower record-time bound; `null` scans every file. */
     readonly rangeStartMs: number | null
+    /** OpenWaggle's known project paths, for attributing sessions to the project a cwd sits inside. */
+    readonly knownProjects?: readonly string[]
   }) => Promise<{
     readonly sessions: AggregateUsageCostViewInput['sessions']
     readonly stats: UsageCostScanStats

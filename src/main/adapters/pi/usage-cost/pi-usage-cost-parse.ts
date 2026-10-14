@@ -59,6 +59,8 @@ export async function parseSessionFile(
     file,
     sessionId: state.sessionId,
     cwd: state.cwd,
+    // The scanner fills this in per cwd with a cache; parse stays single-file.
+    resolvedProjectPath: null,
     origin: state.origin,
     startedAtMs: state.startedAtMs,
     lastActivityMs: state.lastActivityMs,

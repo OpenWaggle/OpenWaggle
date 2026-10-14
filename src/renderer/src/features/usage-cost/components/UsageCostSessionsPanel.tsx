@@ -75,7 +75,7 @@ export function UsageCostSessionsPanel({
                   </span>
                 </span>
                 <span className="truncate text-xs text-text-tertiary">
-                  {session.cwd ?? 'No working directory recorded'}
+                  {session.projectLabel ?? session.displayCwd ?? 'No working directory recorded'}
                 </span>
               </span>
               <span className="shrink-0 text-xs tabular-nums text-text-tertiary">
@@ -107,7 +107,9 @@ function SelectionSummary({
       {drillDown.provider !== undefined
         ? `${drillDown.provider}/${drillDown.modelId ?? ''} · `
         : ''}
-      {drillDown.cwd !== undefined ? `${drillDown.cwd ?? 'no working directory'} · ` : ''}
+      {drillDown.projectPath !== undefined
+        ? `${drillDown.projectLabel ?? drillDown.projectPath ?? 'no working directory'} · `
+        : ''}
       {count} session{count === 1 ? '' : 's'}
     </p>
   )

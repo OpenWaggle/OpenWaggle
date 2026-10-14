@@ -12,5 +12,5 @@ export const usageCostSessionQuerySchema = Schema.Struct({
   day: Schema.optional(Schema.String),
   provider: Schema.optional(Schema.String),
   modelId: Schema.optional(Schema.String),
-  cwd: Schema.optional(Schema.NullOr(Schema.String)),
+  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
 })

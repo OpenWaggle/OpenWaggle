@@ -37,6 +37,8 @@ export interface UsageCostScanSession {
   readonly file: string
   readonly sessionId: string | null
   readonly cwd: string | null
+  /** Owning project resolved from the cwd (a git worktree's primary repository, a temporary root, a known project), or `null` when the cwd stands alone. */
+  readonly resolvedProjectPath: string | null
   readonly origin: UsageCostSessionOrigin
   readonly startedAtMs: number | null
   readonly lastActivityMs: number | null
@@ -135,12 +137,55 @@ export function rangeStartForPreset(preset: UsageCostQuery['preset'], now: Date)
 export interface AggregateUsageCostViewInput {
   readonly sessions: readonly UsageCostScanSession[]
   readonly stats: UsageCostScanStats
+  /** Display context the pure layer needs to render labels without exposing absolute paths. */
+  readonly display: UsageCostDisplayContext
 }
 
-function leafDirectoryName(cwd: string) {
-  const trimmed = cwd.length > 1 ? cwd.replace(/\/+$/, '') : cwd
-  const index = trimmed.lastIndexOf('/')
+/** Display context for labels and privacy-aware paths, composed from settings in the handler. */
+export interface UsageCostDisplayContext {
+  /** The machine's home directory; paths under it are abbreviated to `~/…`. */
+  readonly homePath: string
+  /** Roots whose sessions group under the 'Temporary directory' label. */
+  readonly temporaryRoots: readonly string[]
+  /** OpenWaggle project display names by project path. */
+  readonly displayNames: Readonly<Record<string, string>>
+}
+
+const NO_PROJECT_KEY = '\u0000null'
+const TEMPORARY_DIRECTORY_LABEL = 'Temporary directory'
+const UNKNOWN_LOCATION_LABEL = 'Unknown location'
+
+function leafDirectoryName(directory: string) {
+  const trimmed = directory.length > 1 ? directory.replace(/[/\\]+$/, '') : directory
+  const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
   return index === -1 ? trimmed : trimmed.slice(index + 1)
+}
+
+/** Privacy rule (CONTEXT.md: Usage & Cost view): never display a raw absolute path. */
+function displayPath(directory: string, homePath: string) {
+  if (homePath === '') return leafDirectoryName(directory)
+  if (directory === homePath) return '~'
+  for (const separator of ['/', '\\']) {
+    const prefix = `${homePath}${separator}`
+    if (directory.startsWith(prefix)) return `~/${directory.slice(prefix.length)}`
+  }
+  return leafDirectoryName(directory)
+}
+
+function projectIdentityFor(
+  session: UsageCostScanSession,
+  display: UsageCostDisplayContext,
+): { readonly key: string; readonly label: string; readonly detail: string | null } {
+  const key = session.resolvedProjectPath ?? session.cwd
+  if (key === null) return { key: NO_PROJECT_KEY, label: UNKNOWN_LOCATION_LABEL, detail: null }
+  if (display.temporaryRoots.includes(key)) {
+    return { key, label: TEMPORARY_DIRECTORY_LABEL, detail: null }
+  }
+  return {
+    key,
+    label: display.displayNames[key] ?? leafDirectoryName(key),
+    detail: displayPath(key, display.homePath),
+  }
 }
 
 /**
@@ -164,6 +209,7 @@ export function aggregateUsageCostView(
 
   for (const session of input.sessions) {
     if (!recordMatchesOrigin(session.origin, query.origin)) continue
+    const project = projectIdentityFor(session, input.display)
     let sessionHasRecords = false
     for (const record of session.records) {
       if (!recordInWindow(record, rangeStartMs, rangeEndMs)) continue
@@ -182,16 +228,16 @@ export function aggregateUsageCostView(
       addRecord(modelBucket.row, record)
       modelBuckets.set(modelKey, modelBucket)
 
-      const projectKey = session.cwd ?? '\u0000null'
-      const projectBucket = projectBuckets.get(projectKey) ?? {
+      const projectBucket = projectBuckets.get(project.key) ?? {
         row: {
-          cwd: session.cwd,
-          label: session.cwd === null ? 'Unknown location' : leafDirectoryName(session.cwd),
+          projectPath: session.cwd === null ? null : project.key,
+          label: project.label,
+          detail: project.detail,
           ...newMutableBucket(),
         },
       }
       addRecord(projectBucket.row, record)
-      projectBuckets.set(projectKey, projectBucket)
+      projectBuckets.set(project.key, projectBucket)
     }
     if (sessionHasRecords) sessionCount += 1
   }
@@ -237,7 +283,7 @@ export function selectUsageCostSessions(
 ): UsageCostSessionRow[] {
   const rows: UsageCostSessionRow[] = []
   for (const session of input.sessions) {
-    const row = sessionRowForQuery(session, query, now)
+    const row = sessionRowForQuery(session, query, input.display, now)
     if (row !== null) rows.push(row)
   }
   return rows.sort((a, b) => (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0))
@@ -246,10 +292,14 @@ export function selectUsageCostSessions(
 function sessionRowForQuery(
   session: UsageCostScanSession,
   query: UsageCostSessionQuery,
+  display: UsageCostDisplayContext,
   now: Date,
 ): UsageCostSessionRow | null {
   if (!recordMatchesOrigin(session.origin, query.origin)) return null
-  if (query.cwd !== undefined && session.cwd !== query.cwd) return null
+  if (query.projectPath !== undefined) {
+    const expected = query.projectPath ?? NO_PROJECT_KEY
+    if (projectIdentityFor(session, display).key !== expected) return null
+  }
 
   const rangeStartMs = rangeStartForPreset(query.preset, now)
   const rangeEndMs = now.getTime()
@@ -270,7 +320,8 @@ function sessionRowForQuery(
   return {
     sessionId: session.sessionId,
     file: session.file,
-    cwd: session.cwd,
+    projectLabel: projectIdentityFor(session, display).label,
+    displayCwd: session.cwd === null ? null : displayPath(session.cwd, display.homePath),
     origin: session.origin,
     startedAtMs: session.startedAtMs,
     lastActivityMs: lastActivityMs ?? session.lastActivityMs,

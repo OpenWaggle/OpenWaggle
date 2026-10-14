@@ -6,7 +6,8 @@ import { formatTokenCount, formatUsd, totalCostUsd, usageShareOf } from '../lib/
 export interface UsageCostBreakdownEntry {
   readonly key: string
   readonly label: string
-  readonly detail: string
+  /** Display-safe detail; `null` renders nothing. Never a raw absolute path. */
+  readonly detail: string | null
   readonly bucket: UsageCostBucket
   readonly totals: UsageCostBucket
   readonly isActive: boolean

@@ -51,8 +51,9 @@ const VIEW: UsageCostView = {
   ],
   projects: [
     {
-      cwd: '/Users/dev/Projects/alpha',
-      label: 'alpha',
+      projectPath: '/Users/dev/Projects/alpha',
+      label: 'Alpha',
+      detail: '~/Projects/alpha',
       tokens: { input: 100, output: 200, cacheRead: 300, cacheWrite: 0, total: 600 },
       recordedCostUsd: 1.25,
       estimatedCostUsd: 0.5,
@@ -69,7 +70,8 @@ const SESSIONS: readonly UsageCostSessionRow[] = [
   {
     sessionId: 'session-1',
     file: '/sessions/a.jsonl',
-    cwd: '/Users/dev/Projects/alpha',
+    projectLabel: 'Alpha',
+    displayCwd: '~/Projects/alpha',
     origin: 'openwaggle',
     startedAtMs: Date.parse('2026-10-14T08:00:00Z'),
     lastActivityMs: Date.parse('2026-10-14T09:00:00Z'),
@@ -109,7 +111,10 @@ describe('UsageCostPage', () => {
     expect(screen.getByText('$1.75')).toBeInTheDocument()
     expect(screen.getByText('Daily spending')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /claude-opus-5-5/ })).toBeInTheDocument()
-    expect(screen.getByText('alpha')).toBeInTheDocument()
+    // The label renders in the project row and the session row; the raw
+    // absolute path never renders.
+    expect(screen.getAllByText('Alpha')).toHaveLength(2)
+    expect(screen.queryByText('/Users/dev/Projects/alpha')).toBeNull()
     expect(screen.getByRole('button', { name: /tools\/summaries/ })).toBeInTheDocument()
   })
 

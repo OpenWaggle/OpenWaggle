@@ -2589,6 +2589,14 @@ _Avoid_: usage (ambiguous with **Usage statistics**), spending, billing, analyti
 The Pi client a session was started from: **OpenWaggle** or **Other Pi clients**.
 _Avoid_: source, launcher, provider (providers are models, not clients), app attribution
 
+**Owning project** (Usage & Cost view):
+The project a session is attributed to. A session's working directory is resolved through its git worktree pointer to the primary repository — never from a worktree or workspace folder name, which is an opaque ID. When the directory is not a worktree, it is attributed to a known OpenWaggle project that contains it; otherwise the directory stands alone.
+_Avoid_: project inference from names, workspace name, cwd label
+
+**Display path**:
+The only form of a filesystem path the Usage & Cost view shows: abbreviated to `~/…` inside the home directory, or the leaf directory name otherwise. Raw absolute paths (which contain the username) are never rendered.
+_Avoid_: absolute path display, full path, raw cwd
+
 **Cost tier**:
 Whether a cost number is **Recorded** (written by Pi into the session), **Estimated** (computed by OpenWaggle from Pi's own model rates), or **Unpriced** (no price available from either).
 _Avoid_: cost source, price state, fallback cost
@@ -2596,3 +2604,4 @@ _Avoid_: cost source, price state, fallback cost
 - **Usage & Cost** shows the user's own local data; it makes no report anywhere and shares nothing with **Usage statistics**.
 - A session has exactly one **Session origin**. OpenWaggle recognizes its own sessions from OpenWaggle's own session entries; it never infers origin from paths, names, or timing.
 - Every token amount has exactly one **Cost tier**. **Estimated** numbers are labelled as estimates and never presented as **Recorded**.
+- Every path in the view is a **Display path** (`~/…` or a leaf name). Sessions are grouped by **Owning project**, so a project's worktrees and subdirectories roll up into one row instead of appearing as opaque-ID folders.

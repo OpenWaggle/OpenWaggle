@@ -30,8 +30,8 @@ export interface UsageCostSessionQuery extends UsageCostQuery {
   readonly day?: string
   readonly provider?: string
   readonly modelId?: string
-  /** Session cwd; `null` selects sessions recorded without a working directory. */
-  readonly cwd?: string | null
+  /** Resolved project path group key; `null` selects sessions recorded without a working directory. */
+  readonly projectPath?: string | null
 }
 
 export interface UsageCostTokens {
@@ -65,17 +65,22 @@ export interface UsageCostModelRow extends UsageCostBucket {
 }
 
 export interface UsageCostProjectRow extends UsageCostBucket {
-  /** Session working directory, or `null` when a record had none. */
-  readonly cwd: string | null
-  /** Leaf directory name, or 'Unknown location'. */
+  /** Owning project path a worktree or subdirectory resolved to, else the raw cwd, or `null`. Drill-down key. */
+  readonly projectPath: string | null
+  /** Display label: project display name, project leaf name, 'Temporary directory', or 'Unknown location'. */
   readonly label: string
+  /** Home-abbreviated display path (`~/…`), or `null` when there is no path to show. Never a raw absolute path. */
+  readonly detail: string | null
 }
 
 export interface UsageCostSessionRow extends UsageCostBucket {
   readonly sessionId: string | null
   /** Absolute session file path; the drill-down key. */
   readonly file: string
-  readonly cwd: string | null
+  /** Display label of the session's owning project, or `null`. */
+  readonly projectLabel: string | null
+  /** Home-abbreviated display path for the session cwd (`~/…`), or `null`. Never a raw absolute path. */
+  readonly displayCwd: string | null
   readonly origin: UsageCostSessionOrigin
   readonly startedAtMs: number | null
   readonly lastActivityMs: number | null

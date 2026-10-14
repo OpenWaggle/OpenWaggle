@@ -17,7 +17,10 @@ export interface UsageCostDrillDown {
   readonly day?: string
   readonly provider?: string
   readonly modelId?: string
-  readonly cwd?: string | null
+  /** Resolved project path group key, sent to the session query. */
+  readonly projectPath?: string | null
+  /** UI-only display label for the selection summary; never sent to the query. */
+  readonly projectLabel?: string
 }
 
 const DEFAULT_QUERY: UsageCostQuery = { preset: '30d', origin: 'all' }
@@ -29,7 +32,14 @@ export function useUsageCostView() {
 
   const viewQuery = useQuery(usageCostViewQueryOptions(query))
   const sessionQuery: UsageCostSessionQuery = useMemo(
-    () => ({ ...query, ...drillDown }),
+    () => ({
+      preset: query.preset,
+      origin: query.origin,
+      day: drillDown.day,
+      provider: drillDown.provider,
+      modelId: drillDown.modelId,
+      projectPath: drillDown.projectPath,
+    }),
     [query, drillDown],
   )
   const sessionsQuery = useQuery(usageCostSessionsQueryOptions(sessionQuery))
@@ -62,12 +72,19 @@ export function useUsageCostView() {
     })
   }, [])
 
-  const toggleProject = useCallback((project: Pick<UsageCostProjectRow, 'cwd'>) => {
-    setDrillDown((current) => ({
-      ...current,
-      cwd: current.cwd === project.cwd ? undefined : project.cwd,
-    }))
-  }, [])
+  const toggleProject = useCallback(
+    (project: Pick<UsageCostProjectRow, 'projectPath' | 'label'>) => {
+      setDrillDown((current) => {
+        const active = current.projectPath === project.projectPath
+        return {
+          ...current,
+          projectPath: active ? undefined : project.projectPath,
+          projectLabel: active ? undefined : project.label,
+        }
+      })
+    },
+    [],
+  )
 
   const clearDrillDown = useCallback(() => {
     setDrillDown({})

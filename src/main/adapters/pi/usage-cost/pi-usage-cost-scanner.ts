@@ -1,4 +1,5 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { calculateCost, createModels, type Usage as PiUsage } from '@earendil-works/pi-ai'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
@@ -6,6 +7,12 @@ import type {
   UsageCostRecordTokens,
   UsageCostScanSession,
 } from '../../../domain/usage-cost/usage-cost-aggregate'
+import {
+  isPathInsideProject,
+  owningProject,
+  type ProjectLocation,
+  projectLocations,
+} from '../pi-session-project-paths'
 import { parseSessionFile } from './pi-usage-cost-parse'
 
 /**
@@ -33,6 +40,8 @@ export interface PiUsageCostScanner {
   readonly collectSessions: (input: {
     /** Inclusive lower record-time bound; `null` scans every file. */
     readonly rangeStartMs: number | null
+    /** OpenWaggle's known project paths, for attributing sessions to the project a cwd sits inside. */
+    readonly knownProjects?: readonly string[]
   }) => Promise<{
     readonly sessions: readonly UsageCostScanSession[]
     readonly stats: {
@@ -47,6 +56,8 @@ export interface CreatePiUsageCostScannerOptions {
   readonly sessionsRoot?: string
   /** Defaults to Pi's own model catalog via `calculateCost`. */
   readonly costEstimator?: UsageCostEstimator
+  /** Roots under which a session counts as temporary rather than project-bound. */
+  readonly temporaryRoots?: readonly string[]
 }
 
 interface SessionCacheEntry {
@@ -55,16 +66,42 @@ interface SessionCacheEntry {
   readonly session: UsageCostScanSession
 }
 
+/**
+ * Structural project resolution. A managed worktree is a real git worktree, so
+ * its `.git` pointer names the primary repository — the project identity is
+ * resolved from git itself, never from the UUID worktree folder name.
+ */
+export function resolvePrimaryRepositoryFromGitDir(gitDir: string): string | null {
+  const normalized = gitDir.replace(/\\/g, '/')
+  const hadWorktreeSuffix = /\/worktrees\/[^/]+$/.test(normalized)
+  const withoutWorktree = normalized.replace(/\/worktrees\/[^/]+$/, '')
+  if (!hadWorktreeSuffix) {
+    if (!withoutWorktree.endsWith('/.git')) return null
+    return withoutWorktree.slice(0, -'/.git'.length)
+  }
+  const primary = withoutWorktree.endsWith('/.git')
+    ? withoutWorktree.slice(0, -'/.git'.length)
+    : withoutWorktree
+  return primary === '' ? null : primary
+}
+
 export function createPiUsageCostScanner(
   options: CreatePiUsageCostScannerOptions = {},
 ): PiUsageCostScanner {
   const cache = new Map<string, SessionCacheEntry>()
   const estimateCost = options.costEstimator ?? createPiCatalogCostEstimator()
+  const projectIdentityByCwd = new Map<string, string | null>()
+  const temporaryRoots = (options.temporaryRoots ?? ['/private/tmp', '/tmp', os.tmpdir()]).toSorted(
+    (a, b) => b.length - a.length,
+  )
+  let knownProjectLocations: readonly ProjectLocation[] = []
+  let knownProjectsSource = ''
 
   const collectSessions: PiUsageCostScanner['collectSessions'] = async (input) => {
     const startedAt = Date.now()
     const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
     const files = await listSessionFiles(sessionsRoot)
+    knownProjectLocations = await syncKnownProjectLocations(input.knownProjects)
 
     let scannedFilesCached = 0
     const sessions: UsageCostScanSession[] = []
@@ -81,20 +118,62 @@ export function createPiUsageCostScanner(
         continue
       }
 
-      const session = await parseSessionFile(file, estimateCost)
+      const parsed = await parseSessionFile(file, estimateCost)
+      const session = {
+        ...parsed,
+        resolvedProjectPath: await resolveProjectIdentity(parsed.cwd),
+      }
       cache.set(file, { size: fileStat.size, mtimeMs: fileStat.mtimeMs, session })
       sessions.push(session)
     }
     evictOldestCacheEntries()
 
     return {
-      sessions,
+      sessions: sessions.map(attributeToKnownProject),
       stats: {
         scannedFiles: files.length,
         scannedFilesCached,
         scanDurationMs: Date.now() - startedAt,
       },
     }
+  }
+
+  /** Longest temporary root wins, so a scratch dir inside `/tmp` still resolves to its exact root. */
+  async function resolveProjectIdentity(cwd: string | null): Promise<string | null> {
+    if (cwd === null) return null
+    const cachedIdentity = projectIdentityByCwd.get(cwd)
+    if (cachedIdentity !== undefined) return cachedIdentity
+    const identity =
+      temporaryRoots.find((root) => isPathInsideProject(cwd, root)) ??
+      (await resolveWorktreePrimaryRepository(cwd))
+    projectIdentityByCwd.set(cwd, identity)
+    return identity
+  }
+
+  async function resolveWorktreePrimaryRepository(cwd: string): Promise<string | null> {
+    let pointer: string
+    try {
+      pointer = await readFile(path.join(cwd, '.git'), 'utf8')
+    } catch {
+      return null
+    }
+    if (!pointer.startsWith('gitdir:')) return null
+    return resolvePrimaryRepositoryFromGitDir(pointer.slice('gitdir:'.length).trim())
+  }
+
+  async function syncKnownProjectLocations(knownProjects: readonly string[] | undefined) {
+    const source = (knownProjects ?? []).join('\u0000')
+    if (source === knownProjectsSource) return knownProjectLocations
+    knownProjectsSource = source
+    knownProjectLocations = await projectLocations(knownProjects ?? [])
+    return knownProjectLocations
+  }
+
+  function attributeToKnownProject(session: UsageCostScanSession): UsageCostScanSession {
+    if (session.resolvedProjectPath !== null || session.cwd === null) return session
+    const owner = owningProject(session.cwd, knownProjectLocations)
+    if (owner === null) return session
+    return { ...session, resolvedProjectPath: owner }
   }
 
   function evictOldestCacheEntries() {

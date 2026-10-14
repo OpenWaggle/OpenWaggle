@@ -28,7 +28,7 @@ export interface UsageCostPageState {
   readonly setOrigin: (origin: UsageCostQuery['origin']) => void
   readonly toggleDay: (day: string) => void
   readonly toggleModel: (model: { provider: string; modelId: string }) => void
-  readonly toggleProject: (project: { cwd: string | null }) => void
+  readonly toggleProject: (project: { projectPath: string | null; label: string }) => void
   readonly clearDrillDown: () => void
 }
 
@@ -38,7 +38,9 @@ interface UsageCostPageProps {
 
 function hasActiveDrillDown(drillDown: UsageCostDrillDown) {
   return (
-    drillDown.day !== undefined || drillDown.provider !== undefined || drillDown.cwd !== undefined
+    drillDown.day !== undefined ||
+    drillDown.provider !== undefined ||
+    drillDown.projectPath !== undefined
   )
 }
 
@@ -187,12 +189,12 @@ function UsageCostContent({
           <h2 className="text-sm font-medium text-text-secondary">By project</h2>
           <UsageCostBreakdownList
             rows={view.projects.map((project) => ({
-              key: project.cwd ?? 'unknown',
+              key: project.projectPath ?? 'unknown',
               label: project.label,
-              detail: project.cwd ?? 'No working directory recorded',
+              detail: project.detail,
               bucket: project,
               totals: view.totals,
-              isActive: state.drillDown.cwd === project.cwd,
+              isActive: state.drillDown.projectPath === project.projectPath,
               onSelect: () => state.toggleProject(project),
             }))}
           />

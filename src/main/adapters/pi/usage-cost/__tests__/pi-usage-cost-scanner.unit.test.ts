@@ -262,4 +262,56 @@ describe('createPiUsageCostScanner', () => {
     const { sessions } = await scanner.collectSessions({ rangeStartMs: null })
     expect(sessions[0]?.records).toHaveLength(1)
   })
+
+  describe('project resolution', () => {
+    it('resolves a managed worktree to its primary repository through the git pointer', async () => {
+      tempDir = await mkdtemp(path.join(tmpdir(), 'usage-cost-worktree-'))
+      const primary = path.join(tempDir, 'primary-project')
+      const worktree = path.join(tempDir, '.openwaggle', 'worktrees', 'primary-project', '873e0584')
+      await mkdir(path.join(worktree), { recursive: true })
+      await mkdir(path.join(tempDir, '--tmp-project--'), { recursive: true })
+      await writeFile(
+        path.join(worktree, '.git'),
+        `gitdir: ${primary}/.git/worktrees/873e0584\n`,
+        'utf8',
+      )
+      await writeFile(
+        path.join(tempDir, '--tmp-project--', '2026-10-14T08-00-00_a.jsonl'),
+        [sessionLine('session-1', worktree)].join(''),
+        'utf8',
+      )
+
+      const scanner = createPiUsageCostScanner({
+        sessionsRoot: tempDir,
+        costEstimator: () => null,
+        temporaryRoots: [],
+      })
+      const { sessions } = await scanner.collectSessions({ rangeStartMs: null })
+      expect(sessions[0]?.resolvedProjectPath).toBe(path.resolve(primary))
+    })
+
+    it('groups sessions under temporary roots and known projects', async () => {
+      tempDir = await mkdtemp(path.join(tmpdir(), 'usage-cost-resolve-'))
+      await mkdir(path.join(tempDir, '--tmp-project--'), { recursive: true })
+      await writeFile(
+        path.join(tempDir, '--tmp-project--', '2026-10-14T08-00-00_a.jsonl'),
+        [sessionLine('session-scratch', path.join(tmpdir(), 'scratch-dir'))].join(''),
+        'utf8',
+      )
+      await writeFile(
+        path.join(tempDir, '--tmp-project--', '2026-10-14T08-01-00_b.jsonl'),
+        [sessionLine('session-known', '/Users/dev/Projects/alpha/subdir')].join(''),
+        'utf8',
+      )
+
+      const scanner = createPiUsageCostScanner({ sessionsRoot: tempDir, costEstimator: () => null })
+      const { sessions } = await scanner.collectSessions({
+        rangeStartMs: null,
+        knownProjects: ['/Users/dev/Projects/alpha'],
+      })
+      const byId = new Map(sessions.map((session) => [session.sessionId, session]))
+      expect(byId.get('session-scratch')?.resolvedProjectPath).toBe(tmpdir())
+      expect(byId.get('session-known')?.resolvedProjectPath).toBe('/Users/dev/Projects/alpha')
+    })
+  })
 })
