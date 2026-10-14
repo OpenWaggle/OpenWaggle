@@ -19,13 +19,15 @@ export function withoutMcpStartupNotice(factory: ExtensionFactory): ExtensionFac
 }
 
 function quietBeforeAgentStart(pi: ExtensionAPI): ExtensionAPI {
-  const on = (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) =>
-    Reflect.apply(pi.on, pi, [
+  const on = (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
+    const unsubscribe: unknown = Reflect.apply(pi.on, pi, [
       event,
       event === 'before_agent_start'
         ? (payload: unknown, ctx: ExtensionContext) => handler(payload, withoutInfoNotices(ctx))
         : handler,
     ])
+    return unsubscribe
+  }
   return new Proxy(pi, {
     get: (target, property) => (property === 'on' ? on : boundMember(target, property)),
   })
