@@ -8,6 +8,7 @@ import {
   ProviderOAuthService,
   type ProviderOAuthServiceShape,
 } from '../../ports/provider-oauth-service'
+import { createOpenWaggleGlobalPiSettingsManager } from './openwaggle-pi-settings-storage'
 
 function createModelRuntime() {
   return ModelRuntime.create()
@@ -95,11 +96,23 @@ export const PiProviderOAuthLive = Layer.succeed(
             throw new Error(`Unknown OAuth provider: ${provider}`)
           }
 
-          await modelRuntime.login(provider, 'oauth', {
-            signal: handlers.signal,
-            notify: (event) => notifyOAuthHandlers(event, handlers),
-            prompt: (prompt) => respondToOAuthPrompt(prompt, handlers),
-          })
+          // Some flows (Sign in with ChatGPT) identify this installation by a stable device ID.
+          // Pi keeps it in its global settings and creates it on first use, as Pi's own login does.
+          const settingsManager = createOpenWaggleGlobalPiSettingsManager()
+          try {
+            await modelRuntime.login(
+              provider,
+              'oauth',
+              {
+                signal: handlers.signal,
+                notify: (event) => notifyOAuthHandlers(event, handlers),
+                prompt: (prompt) => respondToOAuthPrompt(prompt, handlers),
+              },
+              { getDeviceId: () => settingsManager.getOrCreateDeviceId() },
+            )
+          } finally {
+            await settingsManager.flush()
+          }
         },
         catch: toError,
       }),

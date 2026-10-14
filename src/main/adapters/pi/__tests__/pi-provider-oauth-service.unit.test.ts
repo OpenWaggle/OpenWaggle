@@ -1,13 +1,21 @@
-import type { AuthInteraction } from '@earendil-works/pi-ai'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import type { AuthInteraction, LoginOptions } from '@earendil-works/pi-ai'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type OAuthLoginHandlers,
   ProviderOAuthService,
 } from '../../../ports/provider-oauth-service'
 
 const runtime = vi.hoisted(() => ({
-  login: async (_provider: string, _type: string, _interaction: AuthInteraction) => {},
+  login: async (
+    _provider: string,
+    _type: string,
+    _interaction: AuthInteraction,
+    _options?: LoginOptions,
+  ) => {},
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
@@ -15,13 +23,33 @@ vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
   ModelRuntime: {
     create: async () => ({
       getProvider: () => ({ auth: { oauth: {} } }),
-      login: (provider: string, type: string, interaction: AuthInteraction) =>
-        runtime.login(provider, type, interaction),
+      login: (
+        provider: string,
+        type: string,
+        interaction: AuthInteraction,
+        options?: LoginOptions,
+      ) => runtime.login(provider, type, interaction, options),
     }),
   },
 }))
 
 const { PiProviderOAuthLive } = await import('../pi-provider-oauth-service')
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+let home = ''
+let agentDirectory = ''
+
+beforeEach(async () => {
+  home = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-oauth-home-'))
+  agentDirectory = path.join(home, '.pi', 'agent')
+  vi.stubEnv('HOME', home)
+  vi.stubEnv('PI_CODING_AGENT_DIR', agentDirectory)
+})
+
+afterEach(async () => {
+  vi.unstubAllEnvs()
+  await fs.rm(home, { recursive: true, force: true })
+})
 
 function handlers(overrides: Partial<OAuthLoginHandlers> = {}): OAuthLoginHandlers {
   return {
@@ -106,5 +134,24 @@ describe('Pi provider sign-in', () => {
       },
       undefined,
     )
+  })
+
+  it('gives login flows a stable installation device ID that Pi persists', async () => {
+    const deviceIds: string[] = []
+    runtime.login = async (_provider, _type, _interaction, options) => {
+      const deviceId = options?.getDeviceId?.()
+      if (deviceId) deviceIds.push(deviceId, options?.getDeviceId?.() ?? '')
+    }
+
+    await login('openai-chatgpt', handlers())
+    await login('openai-chatgpt', handlers())
+
+    const [first] = deviceIds
+    expect(first).toMatch(UUID_PATTERN)
+    expect(deviceIds).toEqual([first, first, first, first])
+    const stored: unknown = JSON.parse(
+      await fs.readFile(path.join(agentDirectory, 'settings.json'), 'utf8'),
+    )
+    expect(stored).toMatchObject({ deviceId: first })
   })
 })
