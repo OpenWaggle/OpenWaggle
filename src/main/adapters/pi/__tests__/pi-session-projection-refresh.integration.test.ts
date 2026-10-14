@@ -19,11 +19,14 @@ import {
  * again before it is shown or continued when its Pi file changed outside OpenWaggle (ADR 0051).
  */
 
-const { state, getPathMock, events } = vi.hoisted(() => ({
-  state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
-  events: [] as { kind: string; sessionId?: string; change?: string }[],
-}))
+const { state, getPathMock, events } = vi.hoisted(() => {
+  const events: { kind: string; sessionId?: string; change?: string }[] = []
+  return {
+    state: { userDataDir: '' },
+    getPathMock: vi.fn(() => ''),
+    events,
+  }
+})
 
 vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
   const original =

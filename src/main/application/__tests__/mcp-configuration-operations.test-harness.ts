@@ -30,6 +30,7 @@ export function createMcpOperationsHarness() {
     readonly operation: string
     readonly input: McpServerScopeInput | McpConfigurationScopeInput
   }[] = []
+  const vaultSecrets: string[] = []
   const state = {
     root: '',
     homeDir: '',
@@ -38,7 +39,7 @@ export function createMcpOperationsHarness() {
     /** A managed worktree of the project, as a Session in worktree mode runs in. */
     worktreePath: '',
     /** Names of the secrets in the vault. */
-    vaultSecrets: [] as string[],
+    vaultSecrets,
     sourceFiles: new Map<string, string>(),
     runtimeCalls,
   }

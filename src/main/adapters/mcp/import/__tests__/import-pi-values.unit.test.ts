@@ -32,8 +32,8 @@ describe('imported env and header values, as Pi will read them', () => {
     ['vscode', `Bearer \${env:GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
     ['windsurf', `Bearer \${env:GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
     ['opencode', 'Bearer {env:GITHUB_TOKEN}', `Bearer \${GITHUB_TOKEN}`],
-    ['claude-desktop', `Bearer \${GITHUB_TOKEN}`, 'Bearer $${GITHUB_TOKEN}'],
-    ['cursor', `Bearer \${GITHUB_TOKEN}`, 'Bearer $${GITHUB_TOKEN}'],
+    ['claude-desktop', `Bearer \${GITHUB_TOKEN}`, `Bearer $\${GITHUB_TOKEN}`],
+    ['cursor', `Bearer \${GITHUB_TOKEN}`, `Bearer $\${GITHUB_TOKEN}`],
   ] as const)(
     `converts what %s interpolates (%s) to \${NAME} and escapes the rest`,
     (source, value, expected) => {
@@ -42,10 +42,10 @@ describe('imported env and header values, as Pi will read them', () => {
   )
 
   it.each([
-    ['cursor', '${env:WORKSPACE}'],
-    ['vscode', '${input:workspace}'],
+    ['cursor', `\${env:WORKSPACE}`],
+    ['vscode', `\${input:workspace}`],
     ['opencode', '{env:WORKSPACE}'],
-    ['claude-code', '${WORKSPACE}'],
+    ['claude-code', `\${WORKSPACE}`],
   ] as const)(
     'keeps a %s variable in args as written, since Pi does not expand args',
     (source, value) => {
@@ -66,35 +66,35 @@ describe('imported env and header values, as Pi will read them', () => {
 
   it('warns that a variable in the command, working directory, or URL is kept as written', () => {
     const normalized = normalizeImportedEntry('claude-code', 'db', {
-      command: '${HOME}/bin/db-mcp',
-      cwd: '${PROJECT_ROOT}',
+      command: `\${HOME}/bin/db-mcp`,
+      cwd: `\${PROJECT_ROOT}`,
     })
     const remote = normalizeImportedEntry('cursor', 'api', {
-      url: 'https://${env:TENANT}.api.example/mcp',
+      url: `https://\${env:TENANT}.api.example/mcp`,
     })
 
     expect(normalized?.entry).toMatchObject({
-      command: '${HOME}/bin/db-mcp',
-      cwd: '${PROJECT_ROOT}',
+      command: `\${HOME}/bin/db-mcp`,
+      cwd: `\${PROJECT_ROOT}`,
     })
     expect(normalized?.warnings).toEqual([
-      'command uses ${HOME}, which Pi does not expand there; it was kept as written.',
-      'cwd uses ${PROJECT_ROOT}, which Pi does not expand there; it was kept as written.',
+      `command uses \${HOME}, which Pi does not expand there; it was kept as written.`,
+      `cwd uses \${PROJECT_ROOT}, which Pi does not expand there; it was kept as written.`,
     ])
     expect(remote?.warnings).toEqual([
-      'url uses ${env:TENANT}, which Pi does not expand there; it was kept as written.',
+      `url uses \${env:TENANT}, which Pi does not expand there; it was kept as written.`,
     ])
   })
 
   it("warns about VS Code's own variables, which only VS Code fills in", () => {
     const normalized = normalizeImportedEntry('vscode', 'db', {
       command: 'db-mcp',
-      args: ['--root', '${workspaceFolder}'],
-      env: { CACHE: '${userHome}/.cache' },
+      args: ['--root', `\${workspaceFolder}`],
+      env: { CACHE: `\${userHome}/.cache` },
     })
 
-    expect(normalized?.entry.args).toEqual(['--root', '${workspaceFolder}'])
-    expect(normalized?.entry.env).toEqual({ CACHE: '$${userHome}/.cache' })
+    expect(normalized?.entry.args).toEqual(['--root', `\${workspaceFolder}`])
+    expect(normalized?.entry.env).toEqual({ CACHE: `$\${userHome}/.cache` })
     expect(normalized?.warnings).toEqual([
       "args uses VS Code's ${workspaceFolder}, which only VS Code fills in; Pi takes it as written, so put the real value there.",
       "env.CACHE uses VS Code's ${userHome}, which only VS Code fills in; Pi takes it as written, so put the real value there.",
