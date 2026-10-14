@@ -286,8 +286,7 @@ describe('ConnectionsSection', () => {
     render(<ConnectionsSection />)
 
     expect(screen.getByRole('heading', { name: 'Available Models' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /OpenAI Codex.*selected/i }))
-    fireEvent.click(screen.getByRole('button', { name: /OpenRouter.*selected/i }))
+    fireEvent.click(screen.getByRole('button', { name: /All providers/ }))
 
     expect(screen.getAllByText('GPT 5.4')).toHaveLength(2)
     expect(screen.getByText('Auth required')).toBeInTheDocument()

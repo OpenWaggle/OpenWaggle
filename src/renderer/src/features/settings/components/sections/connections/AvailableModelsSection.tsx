@@ -1,52 +1,137 @@
-import type { Provider } from '@shared/types/settings'
+import type { ModelDisplayInfo } from '@shared/types/llm'
 import { useState } from 'react'
 import { useConnectionModelGroups } from '@/features/providers/hooks'
 import type { ModelGroup } from '@/features/providers/model'
 import { usePreferences, useProviders } from '@/features/settings/hooks/useSettings'
-import { ModelGroupAccordion } from './ModelGroupAccordion'
+import {
+  ALL_PROVIDERS,
+  availableModelsView,
+  type ModelFilterId,
+  type ProviderScope,
+} from '@/features/settings/lib/available-models-filter'
+import { ModelFilterChips } from './ModelFilterChips'
+import { ModelListPanel } from './ModelListPanel'
+import { ModelProviderSidebar } from './ModelProviderSidebar'
+import { ModelMatchActions, ModelSearchField } from './ModelSearchControls'
 
-export function AvailableModelsSection() {
+function useEnabledModelSelection() {
   const { settings, setEnabledModels } = usePreferences()
-  const { isLoading } = useProviders()
-  const groups = useConnectionModelGroups()
+  const enabledModels = settings.enabledModels
 
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const enabledSet = new Set(settings.enabledModels)
+  return {
+    enabledSet: new Set<string>(enabledModels),
+    toggle(modelRef: string, enabled: boolean) {
+      const next = enabled
+        ? [...new Set([...enabledModels, modelRef])]
+        : enabledModels.filter((model) => model !== modelRef)
+      void setEnabledModels(next)
+    },
+    select(models: readonly ModelDisplayInfo[]) {
+      const refs = models.map((model) => String(model.id))
+      void setEnabledModels([...new Set([...enabledModels, ...refs])])
+    },
+    deselect(models: readonly ModelDisplayInfo[]) {
+      const refs = new Set(models.map((model) => String(model.id)))
+      void setEnabledModels(enabledModels.filter((model) => !refs.has(model)))
+    },
+  }
+}
 
-  function toggleGroup(key: string) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+function AvailableModelsBrowser({ groups }: { readonly groups: readonly ModelGroup[] }) {
+  const selection = useEnabledModelSelection()
+  const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState<ReadonlySet<ModelFilterId>>(new Set())
+  const [chosenScope, setChosenScope] = useState<ProviderScope | null>(null)
+
+  const view = availableModelsView(groups, { search, filters }, selection.enabledSet, chosenScope)
+
+  function toggleFilter(filter: ModelFilterId) {
+    setFilters((previous) => {
+      const next = new Set(previous)
+      if (next.has(filter)) next.delete(filter)
+      else next.add(filter)
       return next
     })
   }
 
-  function handleToggle(_provider: Provider, modelRef: string, enabled: boolean) {
-    const current = [...settings.enabledModels]
-    const next = enabled
-      ? [...new Set([...current, modelRef])]
-      : current.filter((model) => model !== modelRef)
-    void setEnabledModels(next)
-  }
+  return (
+    <>
+      <div className="space-y-2">
+        <ModelSearchField value={search} onChange={setSearch} />
+        <ModelFilterChips active={filters} counts={view.counts} onToggle={toggleFilter} />
+      </div>
 
-  function handleSelectAll(group: ModelGroup) {
-    const refs = group.models.map((model) => String(model.id))
-    void setEnabledModels([...new Set([...settings.enabledModels, ...refs])])
-  }
+      {view.queryActive && (
+        <ModelMatchActions
+          matching={view.visibleModels}
+          selectedCount={
+            view.visibleModels.filter((model) => selection.enabledSet.has(model.id)).length
+          }
+          onSelect={selection.select}
+          onDeselect={selection.deselect}
+          onReset={() => {
+            setSearch('')
+            setFilters(new Set())
+          }}
+        />
+      )}
 
-  function handleClear(group: ModelGroup) {
-    const modelRefs = new Set(group.models.map((model) => String(model.id)))
-    void setEnabledModels([...settings.enabledModels].filter((model) => !modelRefs.has(model)))
-  }
+      <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-bg sm:h-128 sm:flex-row">
+        <ModelProviderSidebar
+          groups={groups}
+          scope={view.scope}
+          matches={view.matches}
+          queryActive={view.queryActive}
+          enabledSet={selection.enabledSet}
+          onSelectScope={setChosenScope}
+        />
+        <ModelListPanel
+          key={view.scope}
+          group={view.scopedGroup}
+          state={{
+            scopeModels: view.scopeModels,
+            visibleModels: view.visibleModels,
+            search,
+            queryActive: view.queryActive,
+            enabledSet: selection.enabledSet,
+            providerLabels: new Map(groups.map((group) => [group.provider, group.label])),
+            matchesElsewhere: view.matchesElsewhere,
+          }}
+          actions={{
+            onToggleModel: selection.toggle,
+            onSelectModels: selection.select,
+            onDeselectModels: selection.deselect,
+            onShowAllProviders: () => setChosenScope(ALL_PROVIDERS),
+          }}
+        />
+      </div>
+    </>
+  )
+}
+
+export function AvailableModelsSection() {
+  const { settings } = usePreferences()
+  const { isLoading } = useProviders()
+  const groups = useConnectionModelGroups()
+  const catalogModels = groups.flatMap((group) => group.models)
+  const enabledSet = new Set<string>(settings.enabledModels)
+  const selectedCount = catalogModels.filter((model) => enabledSet.has(model.id)).length
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold text-text-primary">Available Models</h3>
-        <p className="text-xs text-text-tertiary">
-          Choose which models appear in the model selector.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-text-primary">Available Models</h3>
+          <p className="text-xs text-text-tertiary">
+            Choose which models appear in the model selector.
+          </p>
+        </div>
+        {catalogModels.length > 0 && (
+          <p className="text-xs text-text-tertiary tabular-nums">
+            <span className="text-accent">{selectedCount}</span> of {catalogModels.length} models
+            selected
+          </p>
+        )}
       </div>
 
       {isLoading && groups.length === 0 ? (
@@ -54,25 +139,7 @@ export function AvailableModelsSection() {
       ) : groups.length === 0 ? (
         <p className="text-xs text-text-muted">No providers or models were reported.</p>
       ) : (
-        <div className="rounded-lg border border-border bg-bg overflow-hidden">
-          {groups.map((group, i) => (
-            <ModelGroupAccordion
-              key={group.key}
-              group={group}
-              state={{
-                isExpanded: expandedGroups.has(group.key),
-                isLast: i === groups.length - 1,
-                enabledSet,
-              }}
-              actions={{
-                onToggleExpand: toggleGroup,
-                onToggleModel: handleToggle,
-                onSelectAll: handleSelectAll,
-                onClear: handleClear,
-              }}
-            />
-          ))}
-        </div>
+        <AvailableModelsBrowser groups={groups} />
       )}
     </div>
   )
