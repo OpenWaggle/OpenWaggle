@@ -18,7 +18,6 @@ const descriptor: McpAppDescriptor = {
   toolName: 'show_weather',
   toolTitle: 'Show weather',
   resourceUri: 'ui://weather/app',
-  allowedNetworkDomains: [],
 }
 
 describe('useMcpAppResource', () => {

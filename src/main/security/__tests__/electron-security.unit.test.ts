@@ -168,6 +168,8 @@ describe('buildContentSecurityPolicy', () => {
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
     expect(CONTENT_SECURITY_POLICY).toContain('openwaggle-session-resource:')
     expect(CONTENT_SECURITY_POLICY).toContain("frame-src 'self' blob: openwaggle-extension-frame:")
+    // MCP App documents load from their own frame origins (ADR 0053).
+    expect(CONTENT_SECURITY_POLICY).toMatch(/frame-src [^;]*openwaggle-mcp-app:/)
     expect(CONTENT_SECURITY_POLICY).toContain(
       "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:* https://api.github.com",
     )

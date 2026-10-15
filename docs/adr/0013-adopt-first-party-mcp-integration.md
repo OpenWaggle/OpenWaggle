@@ -114,7 +114,7 @@ The initial hard limits are 64,000 source bytes, 120,000 ms wall time, 10,000 in
 - The existing federated-module system may provide reusable sandbox-host primitives, lifecycle chrome, theme tokens, sizing, focus management, and broker transport. Extension adapters and MCP App adapters remain distinct policy boundaries.
 - Rendering grants no tool authority. App-originated calls pass through the same handle, approval, outbound-data, and audit policies as model calls.
 - `ui/message` creates an editable attributed draft. Model-context contributions are staged, visible, session-scoped, and opt-in.
-- Device, link, download, clipboard, persistent storage, and network capabilities require explicit grants. App state, origin, and grants are isolated by server/app identity and content hash.
+- Device, link, download, clipboard, persistent storage, and network capabilities require explicit grants. App state, origin, and grants are isolated by server/app identity and content hash. (Network access: superseded by ADR 0053, an App reaches the origins its server declares.)
 
 ## Data, Context, And Retention
 

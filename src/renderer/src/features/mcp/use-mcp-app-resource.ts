@@ -9,7 +9,7 @@ interface ResourceState {
   readonly error: string | null
 }
 
-const RESOURCE_REQUEST_FIELD_COUNT = 6
+const RESOURCE_REQUEST_FIELD_COUNT = 5
 
 interface ResourceRequest {
   readonly projectPath: string | null
@@ -17,15 +17,10 @@ interface ResourceRequest {
   readonly serverInstanceId: string
   readonly serverConfigHash: string
   readonly resourceUri: string
-  readonly allowedNetworkDomains: readonly string[]
 }
 
 function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value)
-}
-
-function isStringArray(value: unknown): value is readonly string[] {
-  return isUnknownArray(value) && value.every((entry) => typeof entry === 'string')
 }
 
 function decodeResourceRequest(requestKey: string): ResourceRequest {
@@ -33,14 +28,13 @@ function decodeResourceRequest(requestKey: string): ResourceRequest {
   if (!isUnknownArray(value) || value.length !== RESOURCE_REQUEST_FIELD_COUNT) {
     throw new Error('Invalid MCP App resource request identity.')
   }
-  const [projectPath, sessionId, serverInstanceId, serverConfigHash, resourceUri, domains] = value
+  const [projectPath, sessionId, serverInstanceId, serverConfigHash, resourceUri] = value
   if (
     (projectPath !== null && typeof projectPath !== 'string') ||
     (sessionId !== null && typeof sessionId !== 'string') ||
     typeof serverInstanceId !== 'string' ||
     typeof serverConfigHash !== 'string' ||
-    typeof resourceUri !== 'string' ||
-    !isStringArray(domains)
+    typeof resourceUri !== 'string'
   ) {
     throw new Error('Invalid MCP App resource request identity.')
   }
@@ -50,7 +44,6 @@ function decodeResourceRequest(requestKey: string): ResourceRequest {
     serverInstanceId,
     serverConfigHash,
     resourceUri,
-    allowedNetworkDomains: domains,
   }
 }
 
@@ -65,7 +58,6 @@ export function useMcpAppResource(
     descriptor.serverInstanceId,
     descriptor.serverConfigHash,
     descriptor.resourceUri,
-    descriptor.allowedNetworkDomains,
   ])
   const [state, setState] = useState<ResourceState>({
     requestKey,
@@ -87,7 +79,7 @@ export function useMcpAppResource(
         if (active) {
           setState({
             requestKey,
-            resource: parseMcpAppResource(result, request.allowedNetworkDomains),
+            resource: parseMcpAppResource(result),
             error: null,
           })
         }

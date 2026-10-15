@@ -1,4 +1,8 @@
-import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge'
+import {
+  AppBridge,
+  type McpUiHostContext,
+  PostMessageTransport,
+} from '@modelcontextprotocol/ext-apps/app-bridge'
 import {
   CallToolResultSchema,
   ListPromptsResultSchema,
@@ -8,7 +12,7 @@ import {
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
@@ -17,7 +21,6 @@ import { mcpAppDraftText } from './mcp-app-draft-text'
 import type { ParsedMcpAppResource } from './mcp-app-resource'
 
 const JSON_INDENT_SPACES = 2
-const MAX_FRAME_HEIGHT = 800
 
 function jsonValue(value: unknown): McpJsonValue {
   const serialized = JSON.stringify(value)
@@ -51,9 +54,33 @@ interface McpAppBridgeInput {
   readonly initialArguments: Readonly<Record<string, McpJsonValue>>
   readonly initialResult?: McpAppToolCallResult
   readonly resource: ParsedMcpAppResource
+  readonly maxHeight: number
   readonly onHeightChange: (height: number) => void
+  /** The App finished its handshake: it runs, so it is not shown as starting any more. */
+  readonly onInitialized: () => void
   readonly onStagedContext: (value: unknown) => void
   readonly onClose: () => void
+}
+
+/** What the App lays itself out for, which changes while it runs. */
+export interface McpAppLayout {
+  readonly theme: 'light' | 'dark'
+  /** The frame's width in CSS pixels, once measured. */
+  readonly width: number | null
+}
+
+/** The whole host context; the bridge replaces it on every change and sends what differs. */
+function hostContext(layout: McpAppLayout, maxHeight: number): McpUiHostContext {
+  return {
+    theme: layout.theme,
+    displayMode: 'inline',
+    availableDisplayModes: ['inline'],
+    locale: navigator.language,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    platform: 'desktop',
+    containerDimensions:
+      layout.width === null ? { maxHeight } : { maxHeight, width: Math.round(layout.width) },
+  }
 }
 
 async function confirmToolCall(input: McpAppBridgeInput, name: string, arguments_: unknown) {
@@ -153,7 +180,7 @@ function registerHostHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
   }
 }
 
-function createBridge(input: McpAppBridgeInput) {
+function createBridge(input: McpAppBridgeInput, layout: McpAppLayout) {
   const bridge = new AppBridge(
     null,
     { name: 'OpenWaggle', version: '1.0.0' },
@@ -169,19 +196,17 @@ function createBridge(input: McpAppBridgeInput) {
         resourceLink: {},
         structuredContent: {},
       },
-      sandbox: { permissions: {}, csp: input.resource.csp },
-    },
-    {
-      hostContext: {
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-        displayMode: 'inline',
-        availableDisplayModes: ['inline'],
-        locale: navigator.language,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        platform: 'desktop',
-        containerDimensions: { maxHeight: MAX_FRAME_HEIGHT },
+      sandbox: {
+        permissions: {},
+        csp: {
+          connectDomains: [...input.resource.csp.connectDomains],
+          resourceDomains: [...input.resource.csp.resourceDomains],
+          frameDomains: [...input.resource.csp.frameDomains],
+          baseUriDomains: [...input.resource.csp.baseUriDomains],
+        },
       },
     },
+    { hostContext: hostContext(layout, input.maxHeight) },
   )
   registerServerHandlers(bridge, input)
   registerHostHandlers(bridge, input)
@@ -190,6 +215,7 @@ function createBridge(input: McpAppBridgeInput) {
   })
   bridge.addEventListener('requestteardown', input.onClose)
   bridge.addEventListener('initialized', () => {
+    input.onInitialized()
     void bridge.sendToolInput({ arguments: input.initialArguments }).then(() => {
       if (input.initialResult) void bridge.sendToolResult(appToolResult(input.initialResult))
     })
@@ -197,13 +223,33 @@ function createBridge(input: McpAppBridgeInput) {
   return bridge
 }
 
-export function useMcpAppBridge(input: McpAppBridgeInput | null) {
+/**
+ * Connects the App in `input`'s frame, once per frame. A change of `layout` (the panel is resized,
+ * the theme changes) is sent to the running App as a host context change, so it lays its data out
+ * again instead of being reloaded.
+ */
+export function useMcpAppBridge(input: McpAppBridgeInput | null, layout: McpAppLayout) {
+  const bridgeRef = useRef<AppBridge | null>(null)
+  const layoutRef = useRef(layout)
+  const maxHeight = input?.maxHeight
+  // Declared first, so a bridge created below starts from the current layout.
+  useEffect(() => {
+    layoutRef.current = layout
+    if (maxHeight === undefined) return
+    try {
+      bridgeRef.current?.setHostContext(hostContext(layout, maxHeight))
+    } catch {
+      // Not connected yet: the bridge sends its current context when the App initializes.
+    }
+  }, [layout, maxHeight])
   useEffect(() => {
     if (!input) return
-    const bridge = createBridge(input)
+    const bridge = createBridge(input, layoutRef.current)
+    bridgeRef.current = bridge
     const transport = new PostMessageTransport(input.contentWindow, input.contentWindow)
     void bridge.connect(transport)
     return () => {
+      if (bridgeRef.current === bridge) bridgeRef.current = null
       void bridge.teardownResource({}).catch(() => undefined)
       void bridge.close()
     }

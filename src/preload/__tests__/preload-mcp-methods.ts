@@ -22,4 +22,6 @@ export const PRELOAD_MCP_METHODS = [
   'readMcpResource',
   'listMcpAppCatalog',
   'callMcpAppTool',
+  'registerMcpAppFrame',
+  'unregisterMcpAppFrame',
 ] as const
