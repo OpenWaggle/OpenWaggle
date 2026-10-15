@@ -29,6 +29,8 @@ interface HandshakeChannel {
  * `notifications/initialized` is sent once.
  */
 export class McpConnectionHandshake {
+  /** The `initialize` params that went upstream, so a replacement upstream is initialized alike. */
+  private requested: { readonly params: unknown } | undefined
   private result: { readonly value: unknown } | undefined
   private initializing: Promise<unknown> | undefined
   private initializedSent = false
@@ -42,6 +44,7 @@ export class McpConnectionHandshake {
 
   ensure(params: unknown) {
     if (this.result) return Promise.resolve(this.result.value)
+    this.requested ??= { params }
     this.initializing ??= this.channel
       .request(INITIALIZE, this.channel.augmentParams?.(params) ?? params)
       .then(
@@ -68,6 +71,21 @@ export class McpConnectionHandshake {
       clientInfo: INTERNAL_CLIENT_INFO,
     })
     await this.initialized({ jsonrpc: '2.0', method: INITIALIZED })
+  }
+
+  /**
+   * Initializes a replacement upstream with the params the first one got, then sends
+   * `notifications/initialized` if the first one had it. Clients keep the result they were given.
+   */
+  async replay() {
+    const requested = this.requested
+    const wasInitialized = this.initializedSent
+    this.result = undefined
+    this.initializing = undefined
+    this.initializedSent = false
+    if (!requested) return
+    await this.ensure(requested.params)
+    if (wasInitialized) await this.initialized({ jsonrpc: '2.0', method: INITIALIZED })
   }
 
   /** A client's `notifications/initialized`, forwarded the first time only. */

@@ -320,6 +320,18 @@ Session's pooled connection for that server.
   already sent are answered (or after 30 s), and any request still open then gets an error
   response. Closing also closes what the upstream holds beside its transport (the pinned-DNS
   fetch of HTTP and SSE servers).
+- A server process can get stuck without closing. Datadog's `datadog_mcp_cli` (a stdio proxy to
+  Datadog's HTTP endpoint) does this: once its own HTTP connection breaks, it answers every
+  request with JSON-RPC "Internal error" for as long as it lives, and a warm connection would hand
+  that process to every later Run ("datadog: failed: Internal error" each time). When a listing
+  (`tools/list`, `resources/list`, `resources/templates/list`, `prompts/list`) gets an internal
+  error, the connection replaces its process: it closes it, opens a fresh one, initializes it with
+  the first `initialize` params, and sends the listing again, so the lease never sees the error
+  (`mcp-upstream-replacement.ts`, with `mcp-upstream-slot.ts` owning the process). Clients'
+  messages wait while that happens. The connection only does this when nothing else is open on
+  the old process, and at most once a minute. Otherwise, or when the fresh process fails the same
+  way, the lease gets the error and the connection retires, so the next Run opens its own process.
+  A failed `tools/call` is never sent again: the tool may already have done its work.
 - Legacy SSE servers get the Pi auth provider through a wrapped fetch (bearer token, one retry
   after `onUnauthorized`, then `McpAuthRequiredError`). Legacy WebSocket servers follow the HTTP
   rules: plain `ws:` and private addresses are allowed for the configured server.

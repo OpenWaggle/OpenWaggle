@@ -1,0 +1,90 @@
+import type { Pending } from './mcp-connection-support'
+import { JSON_RPC_ERROR_CODES, type JsonRpcResponse } from './mcp-wire'
+
+type LeasePending = Extract<Pending, { readonly kind: 'lease' }>
+
+/**
+ * Listings a client asks for when it connects. They change nothing on the server, so one that a
+ * stuck server process fails can be asked again of a fresh process; a tool call is never resent.
+ */
+const RELISTED_METHODS = new Set([
+  'tools/list',
+  'resources/list',
+  'resources/templates/list',
+  'prompts/list',
+])
+
+/** A connection replaces its server process at most this often; one failing faster stays failed. */
+export const UPSTREAM_REPLACEMENT_INTERVAL_MS = 60_000
+
+/** What replacing the server process of one pooled connection needs from it. */
+export interface McpUpstreamReplacementHost {
+  /** Closed or retiring. */
+  readonly isClosed: () => boolean
+  /** Whether a request, a client's or OpenWaggle's, still waits on the current process. */
+  readonly hasPending: () => boolean
+  /** Closes the current process, then opens and initializes another in its place. */
+  readonly replaceUpstream: () => Promise<void>
+  /** Sends a client's request again, on the current process. */
+  readonly resend: (pending: LeasePending) => Promise<void>
+  /** Takes no new client and closes once its open requests settle. */
+  readonly retire: () => void
+}
+
+/**
+ * Recovers a pooled connection whose server process got stuck. A stdio proxy whose own HTTP
+ * connection broke (Datadog's `datadog_mcp_cli`) answers every request with "Internal error" from
+ * then on, and a warm connection would hand that process to every later Run, each warning that
+ * the server "needs attention". A listing failing so is asked again of a fresh process, so the
+ * client never sees it.
+ */
+export class McpUpstreamReplacement {
+  private replacing: Promise<void> | undefined
+  private lastReplacementAt: number | undefined
+
+  constructor(
+    private readonly host: McpUpstreamReplacementHost,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  /** Resolves once a replacement in progress is done, whatever its outcome. */
+  settled() {
+    return this.replacing?.catch(() => undefined)
+  }
+
+  /**
+   * Handles a client's request that the server answered with an error; `false` leaves the error
+   * to be delivered. A failed listing is sent again on a fresh process only when nothing else is
+   * open on the old one (its requests would be lost) and it was not replaced in the last minute;
+   * otherwise the client gets the error and the connection retires, so the next Run starts its
+   * own process.
+   */
+  handleError(
+    pending: LeasePending,
+    failed: JsonRpcResponse & { readonly error: { readonly code: number } },
+  ) {
+    if (!RELISTED_METHODS.has(pending.method)) return false
+    if (failed.error.code !== JSON_RPC_ERROR_CODES.internalError) return false
+    const deliverFailure = () => pending.lease.deliver({ ...failed, id: pending.id })
+    const now = this.now()
+    const recently =
+      this.lastReplacementAt !== undefined &&
+      now - this.lastReplacementAt < UPSTREAM_REPLACEMENT_INTERVAL_MS
+    if (this.host.isClosed() || this.replacing || recently || this.host.hasPending()) {
+      deliverFailure()
+      this.host.retire()
+      return true
+    }
+    this.lastReplacementAt = now
+    const replacing = this.host.replaceUpstream()
+    this.replacing = replacing
+    void replacing
+      // A fresh process that cannot start closes the connection; the client is told either way.
+      .then(() => (pending.lease.isDetached ? undefined : this.host.resend(pending)))
+      .catch(deliverFailure)
+      .finally(() => {
+        if (this.replacing === replacing) this.replacing = undefined
+      })
+    return true
+  }
+}

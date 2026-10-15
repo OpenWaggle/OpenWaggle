@@ -10,10 +10,11 @@ import {
   INITIALIZED,
   type McpPooledConnectionOptions,
   McpServerError,
-  type McpUpstream,
   PROGRESS,
 } from './mcp-connection-support'
 import { McpServerRequestRouter } from './mcp-server-request-router'
+import { McpUpstreamReplacement } from './mcp-upstream-replacement'
+import { McpUpstreamSlot } from './mcp-upstream-slot'
 import {
   isJsonRpcNotification,
   isJsonRpcRequest,
@@ -35,13 +36,25 @@ const RETIRE_GRACE_MS = 30_000
  * (`McpClientRequestLedger`); server requests go through `McpServerRequestRouter`.
  */
 export class McpPooledConnection {
-  private upstream: McpUpstream | undefined
-  private starting: Promise<void> | undefined
   private closed = false
   /** No longer offered to new clients; closes once its open requests are answered. */
   private retiring = false
-  private released: Promise<void> | undefined
   private lastErrorValue: string | undefined
+  private readonly slot: McpUpstreamSlot
+  /** Replaces a stuck server process; clients' messages wait while it does. */
+  private readonly replacement = new McpUpstreamReplacement({
+    isClosed: () => this.isClosed,
+    hasPending: () => this.ledger.hasPending,
+    replaceUpstream: async () => {
+      await this.slot.replace()
+      await this.handshake.replay()
+    },
+    resend: ({ lease, id, method, params }) => {
+      const request = this.ledger.trackLease(lease, { jsonrpc: '2.0', id, method, params })
+      return this.sendUpstream(request, () => this.ledger.forget(request.id))
+    },
+    retire: () => this.retire(),
+  })
   private readonly ledger = new McpClientRequestLedger()
   private readonly leases = new Set<McpConnectionLease>()
   private readonly handshake: McpConnectionHandshake
@@ -52,7 +65,23 @@ export class McpPooledConnection {
       request: (method, params) => this.sendInternal(method, params),
       notify: (message) => this.sendUpstream(message),
       augmentParams: options.augmentInitializeParams,
-      onProtocolVersion: (version) => this.upstream?.transport.setProtocolVersion?.(version),
+      onProtocolVersion: (version) => this.slot.current?.transport.setProtocolVersion?.(version),
+    })
+    this.slot = new McpUpstreamSlot({
+      serverName: options.serverName,
+      open: options.open,
+      isClosed: () => this.closed,
+      closedError: () => this.closedConnectionError(),
+      onMessage: (message) => this.handleUpstreamMessage(message),
+      onError: (error) => {
+        this.lastErrorValue = error.message
+        for (const lease of this.leases) lease.deliverError(error)
+      },
+      onClosed: (error) => this.markClosed(error),
+      onOpenFailed: (error) => {
+        this.lastErrorValue = error.message
+        this.markClosed(error)
+      },
     })
     this.router = new McpServerRequestRouter({
       send: (message) => this.sendUpstream(message),
@@ -84,7 +113,7 @@ export class McpPooledConnection {
   }
 
   get stderrTail() {
-    return this.upstream?.stderrTail?.() ?? ''
+    return this.slot.stderrTail
   }
 
   /** A new client attaches; the connection opens on its `start()` if it is not open yet. */
@@ -102,6 +131,7 @@ export class McpPooledConnection {
 
   /** An OpenWaggle request over the connection, initializing it first when no client has. */
   async request(method: string, params?: unknown, options: { signal?: AbortSignal } = {}) {
+    await this.replacement.settled()
     await this.start()
     await this.handshake.ensureInitialized()
     return this.sendInternal(method, params, options.signal)
@@ -110,22 +140,7 @@ export class McpPooledConnection {
   async close() {
     if (!this.closed)
       this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
-    await this.releaseUpstream()
-  }
-
-  /**
-   * Closes the transport, then what the upstream holds beside it; once. Nothing is recorded while
-   * the upstream is still opening, so the open that finds the connection closed releases it.
-   */
-  private releaseUpstream() {
-    const upstream = this.upstream
-    if (!upstream) return Promise.resolve()
-    this.released ??= upstream.transport
-      .close()
-      .catch(() => undefined)
-      .then(() => upstream.close?.())
-      .catch(() => undefined)
-    return this.released
+    await this.slot.release()
   }
 
   /**
@@ -148,39 +163,7 @@ export class McpPooledConnection {
 
   private start() {
     if (this.isClosed) return Promise.reject(this.closedConnectionError())
-    this.starting ??= this.openUpstream()
-    return this.starting
-  }
-
-  private async openUpstream() {
-    try {
-      const upstream = await this.options.open()
-      this.upstream = upstream
-      // Closed while it was opening (it may read vault secrets first): release it below.
-      if (this.closed) throw this.closedConnectionError()
-      upstream.transport.onMessage((message) => this.handleUpstreamMessage(message))
-      upstream.transport.onError((error) => {
-        this.lastErrorValue = error.message
-        for (const lease of this.leases) lease.deliverError(error)
-      })
-      upstream.transport.onClose(() => {
-        this.markClosed(
-          this.withStderr(new Error(`MCP server "${this.serverName}" closed the connection`)),
-        )
-      })
-      await upstream.transport.start()
-    } catch (error) {
-      const failure = this.withStderr(toError(error))
-      this.lastErrorValue = failure.message
-      this.markClosed(failure)
-      await this.releaseUpstream()
-      throw failure
-    }
-  }
-
-  private withStderr(error: Error) {
-    const stderr = this.stderrTail.trim()
-    return stderr ? new Error(`${error.message}\n${stderr}`) : error
+    return this.slot.start()
   }
 
   /**
@@ -189,7 +172,7 @@ export class McpPooledConnection {
    * answered.
    */
   private sendUpstream(message: JsonRpcMessage, settleFailed?: (failure: Error) => void) {
-    const upstream = this.upstream
+    const upstream = this.slot.current
     if (!upstream || this.closed) return Promise.reject(this.closedConnectionError())
     return upstream.transport.send(message).catch((error: unknown) => {
       const failure = toError(error)
@@ -221,6 +204,7 @@ export class McpPooledConnection {
   }
 
   private async sendFromLease(lease: McpConnectionLease, message: JsonRpcMessage) {
+    await this.replacement.settled()
     if (isJsonRpcRequest(message)) {
       if (this.retiring) throw this.closedConnectionError()
       if (message.method === INITIALIZE) return this.handshake.answer(lease, message)
@@ -294,7 +278,10 @@ export class McpPooledConnection {
       return pending.reject(new McpServerError(text, code, data))
     }
     if (pending.lease.isDetached) return
-    if (!('result' in message)) return pending.lease.deliver({ ...message, id: pending.id })
+    if (!('result' in message)) {
+      if (this.replacement.handleError(pending, message)) return
+      return pending.lease.deliver({ ...message, id: pending.id })
+    }
     this.options.observeResult?.(pending.method, pending.params, message.result)
     const result = this.options.adaptResult?.(pending.method, message.result) ?? message.result
     pending.lease.deliver({ ...message, id: pending.id, result })
@@ -324,6 +311,6 @@ export class McpPooledConnection {
     this.handshake.fail(error)
     for (const lease of [...this.leases]) lease.detach()
     this.options.onClosed()
-    void this.releaseUpstream()
+    void this.slot.release()
   }
 }
