@@ -22,24 +22,32 @@ function createdSessionId(resultContent: unknown) {
   return stringField(objectField(objectField(body.response)?.outcome)?.sessionId)
 }
 
-/** The id of the Session a sessions-tool call acts on, when its arguments or result name one. */
-export function sessionsToolTargetId(args: JsonObject, resultContent: unknown): string | null {
+/**
+ * The id of the Session a sessions-tool call acts on, when its arguments or result name one. A
+ * fork without a `sessionId` forks the calling Session, whose transcript the row sits in.
+ */
+export function sessionsToolTargetId(
+  args: JsonObject,
+  resultContent: unknown,
+  callerSessionId: string | null,
+): string | null {
   const action = stringField(args.action)
   if (action !== null && CREATING_ACTIONS.has(action)) return createdSessionId(resultContent)
   if (action === 'report') {
     const target = objectField(args.target)
     return target?.type === 'session' ? stringField(target.sessionId) : null
   }
+  if (action === 'fork') return stringField(args.sessionId) ?? callerSessionId
   return stringField(args.sessionId)
 }
 
-/** The Session as the Hive panel shows it; null when this Hive does not hold it. */
-export function sessionsToolTarget(
-  id: string | null,
-  sessions: readonly HiveSession[],
-): SessionsToolTarget | null {
+export function findHiveSession(id: string | null, sessions: readonly HiveSession[]) {
   if (id === null) return null
-  const session = sessions.find((candidate) => String(candidate.id) === id)
+  return sessions.find((candidate) => String(candidate.id) === id) ?? null
+}
+
+/** The Session as the Hive panel shows it. */
+export function sessionsToolTarget(session: HiveSession | null): SessionsToolTarget | null {
   if (!session) return null
   return {
     title: session.title,

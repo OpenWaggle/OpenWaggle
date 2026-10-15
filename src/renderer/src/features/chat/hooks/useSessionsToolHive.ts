@@ -6,14 +6,14 @@ import {
   hiveTreeRoot,
   sessionHiveTreeQueryOptions,
 } from '@/queries/session-hive-tree'
-import { useToolRowSessionId } from '../components/ToolRowSessionContext'
+import { useToolRowSessionId } from './ToolRowSessionContext'
 
 const NO_SESSIONS: readonly HiveSession[] = []
 
 /**
  * The Sessions of the transcript's Hive, read through the Hive panel's own query so a row names
- * Workers as the panel does and refreshes with it. Members past the first page are not read here;
- * their rows keep the bare "Worker".
+ * Workers as the panel does and refreshes with it. Only pages already loaded are read (the first,
+ * unless the Hive panel loaded more); a Worker on a later page keeps the bare "Worker".
  */
 export function useSessionsToolHive(): readonly HiveSession[] {
   const sessionId = useToolRowSessionId()

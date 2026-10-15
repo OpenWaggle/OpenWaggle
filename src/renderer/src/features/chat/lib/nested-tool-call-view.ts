@@ -1,6 +1,7 @@
 import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
 import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import type { ToolCallResultPayload } from './tool-call-block'
+import { isHiddenSessionsToolCall } from './tool-labels-sessions'
 
 const EMPTY_TOOL_ARGS = '{}'
 
@@ -72,8 +73,10 @@ export function nestedToolCallsView(
 ): NestedToolCallsView {
   const record = live ?? persisted
   if (!record) return NO_NESTED_CALLS
+  // A Worker wait gets no row here either, so the list, its count and its frame agree.
+  const shown = record.calls.filter((call) => !isHiddenSessionsToolCall(call.name, call.args ?? {}))
   return {
-    calls: record.calls.map((call) => callView(call, parentFinished)),
+    calls: shown.map((call) => callView(call, parentFinished)),
     omittedCalls: omittedCallsNote(record),
   }
 }

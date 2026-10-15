@@ -1,9 +1,11 @@
 import type { JsonObject } from '@shared/types/json'
 import { describe, expect, it } from 'vitest'
+import { parseToolArgs } from '../tool-args'
 import {
   isHiddenSessionsToolCall,
   type SessionsToolTarget,
   sessionsLabel,
+  showsOnlyHiddenSessionsToolCalls,
 } from '../tool-labels-sessions'
 
 const REVIEWER: SessionsToolTarget = {
@@ -40,6 +42,8 @@ describe('sessionsLabel', () => {
 
   it('falls back to a bare Worker when the Hive does not know the target', () => {
     expect(done({ action: 'message', sessionId: 'w1' })).toBe('Messaged Worker')
+    // A fork's source is often the caller itself, which need not be a Worker.
+    expect(done({ action: 'fork' })).toBe('Forked session')
   })
 
   it('names a spawn by what it asked for until the Hive knows the Worker', () => {
@@ -67,6 +71,15 @@ describe('sessionsLabel', () => {
     expect(done({ action: 'report', target: { type: 'upstream' } })).toBe('Reported to its parent')
     expect(done({ action: 'report', target: { type: 'session', sessionId: 'w1' } }, REVIEWER)).toBe(
       'Reported to Worker (reviewer) · Review tool icons',
+    )
+    expect(done({ action: 'report', target: { type: 'session', sessionId: 'gone' } })).toBe(
+      'Reported to Worker',
+    )
+    expect(done({ action: 'report', target: { type: 'worker_reference', reference: 'r' } })).toBe(
+      'Reported to Worker',
+    )
+    expect(done({ action: 'report', target: { type: 'sessions', sessionIds: ['a', 'b'] } })).toBe(
+      'Reported to 2 Workers',
     )
   })
 
@@ -109,5 +122,41 @@ describe('isHiddenSessionsToolCall', () => {
     expect(isHiddenSessionsToolCall('sessions', { action: 'wait' })).toBe(true)
     expect(isHiddenSessionsToolCall('sessions', { action: 'spawn' })).toBe(false)
     expect(isHiddenSessionsToolCall('wait', { action: 'wait' })).toBe(false)
+  })
+
+  it('hides a call whose action has not streamed in, so a wait never flashes a row', () => {
+    expect(isHiddenSessionsToolCall('sessions', {}, 'input-streaming')).toBe(true)
+    expect(isHiddenSessionsToolCall('sessions', {}, 'input-complete')).toBe(false)
+  })
+})
+
+describe('showsOnlyHiddenSessionsToolCalls', () => {
+  const wait = { type: 'tool-call', name: 'sessions', arguments: '{"action":"wait"}' }
+
+  it('is true for a message of hidden waits and their results only', () => {
+    expect(
+      showsOnlyHiddenSessionsToolCalls(
+        [{ type: 'text', content: ' ' }, wait, { type: 'tool-result' }],
+        parseToolArgs,
+      ),
+    ).toBe(true)
+  })
+
+  it('is false once anything else would show', () => {
+    expect(
+      showsOnlyHiddenSessionsToolCalls(
+        [{ type: 'text', content: 'Waiting.' }, wait],
+        parseToolArgs,
+      ),
+    ).toBe(false)
+    expect(
+      showsOnlyHiddenSessionsToolCalls(
+        [wait, { type: 'tool-call', name: 'read', arguments: '{}' }],
+        parseToolArgs,
+      ),
+    ).toBe(false)
+    expect(showsOnlyHiddenSessionsToolCalls([{ type: 'text', content: '' }], parseToolArgs)).toBe(
+      false,
+    )
   })
 })

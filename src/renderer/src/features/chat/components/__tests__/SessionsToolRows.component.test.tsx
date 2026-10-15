@@ -110,6 +110,14 @@ describe('sessions-tool rows', () => {
     expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
   })
 
+  it('keeps a spawn the Hive does not know yet to its requested name, without controls', async () => {
+    listHiveTreeSessionCatalogPage.mockResolvedValue({ ...hivePage(), members: [] })
+    renderRow(call({ action: 'spawn', objective: 'Check main', agent: 'reviewer' }))
+
+    expect(await screen.findByText('Spawned Worker (reviewer) · Check main')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+  })
+
   it('shows no row for a wait', () => {
     const { container } = renderRow(call({ action: 'wait', sessionIds: ['w1'] }))
 

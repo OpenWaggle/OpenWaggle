@@ -1,0 +1,9 @@
+# Transcript Rows Name the Worker
+
+Status: accepted
+
+When an agent coordinates its Hive, the transcript shows each call the way the rest of the product already speaks about Workers, rather than the way Codex or T3 Code speak about sub-agents. A row says **Worker**, never "sub-agent" or "agent": the bee analogy is intended (a Worker takes any job; the **Queen Session** originates the Hive rather than commanding it), and the Hive panel, sidebar and identity header already say Worker. A row names the Session it acts on as "verb Worker (Agent definition name) · current title", read from the same Hive query as the Hive panel so both always show the same title; a Session outside the Hive reads "session · title", and an unknown target a bare "Worker". The row icon is the `Pickaxe` that ADR 0020 gives every Worker, not a separate robot or bot glyph, so a Worker has one glyph everywhere.
+
+Following the **Codex parity baseline**, a `wait` call gets no row: a spawn row instead carries the Worker's live state, in the Hive panel's words, and an **Open** control. We deliberately depart from Codex and T3 Code in two places. Rows say Worker rather than agent or subagent. Consecutive spawns are not grouped under a "Created 3 agents" header, because the Hive panel is the only place Workers are listed and a grouped, expandable header would be a second Worker list.
+
+Considered and rejected: T3 Code's full sub-agent cards (model, progress line, elapsed time), Codex's per-agent activity rows ("Euler finished") and composer strip, and keeping a robot icon beside or instead of the pickaxe. The Hive panel and the Session Hub's Hive row already carry that information.

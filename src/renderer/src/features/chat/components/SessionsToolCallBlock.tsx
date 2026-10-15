@@ -1,12 +1,17 @@
 import { useNavigate } from '@tanstack/react-router'
 import { SquareArrowOutUpRight } from 'lucide-react'
-import { sessionsToolTarget, sessionsToolTargetId } from '@/features/chat/lib/sessions-tool-target'
+import {
+  findHiveSession,
+  sessionsToolTarget,
+  sessionsToolTargetId,
+} from '@/features/chat/lib/sessions-tool-target'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { useHiveSessionState } from '@/features/hive-panel'
 import type { HiveSession } from '@/queries/session-hive-contract'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { useToolRowSessionId } from '../hooks/ToolRowSessionContext'
 import { useSessionsToolHive } from '../hooks/useSessionsToolHive'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -22,20 +27,25 @@ interface SessionsToolCallBlockProps {
 
 /**
  * A sessions-tool row names the Session it acts on as the Hive panel does (its current title and
- * Agent definition). A spawn row also carries the Worker's live state and opens it.
+ * Agent definition). A spawn row also carries the Worker's live state and opens it. A spawn made
+ * inside a script has no recorded result, so its row keeps the requested name without them.
  */
 export function SessionsToolCallBlock(props: SessionsToolCallBlockProps) {
   const hive = useSessionsToolHive()
+  const callerSessionId = useToolRowSessionId()
   const parsedArgs = parseToolArgs(props.args)
-  const targetId = sessionsToolTargetId(parsedArgs, props.result?.content)
-  const session =
-    targetId === null ? null : (hive.find((item) => String(item.id) === targetId) ?? null)
+  const targetId = sessionsToolTargetId(
+    parsedArgs,
+    props.result?.content,
+    callerSessionId === null ? null : String(callerSessionId),
+  )
+  const session = findHiveSession(targetId, hive)
   const spawned = parsedArgs.action === 'spawn' && session !== null ? session : null
   return (
     <ToolCallBlock
       {...props}
       hive={{
-        target: sessionsToolTarget(targetId, hive),
+        target: sessionsToolTarget(session),
         headerAddon: spawned ? <WorkerSpawnControls session={spawned} /> : null,
       }}
     />
@@ -54,6 +64,7 @@ function WorkerSpawnControls({ session }: { readonly session: HiveSession }) {
         )}
         title={state.hint}
       >
+        {/* The long form: the panel's short State cell leans on its group heading. */}
         {state.label}
       </span>
       <Button

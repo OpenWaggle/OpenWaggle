@@ -117,6 +117,32 @@ describe('CodemodeToolCallBlock', () => {
     expect(within(calls).getByText('bash')).not.toHaveClass('activity-shimmer')
   })
 
+  it('leaves Worker waits out of the listed calls and their count', () => {
+    render(
+      <CodemodeToolCallBlock
+        args={JSON.stringify({ code: SCRIPT })}
+        state="complete"
+        result={{
+          state: 'complete',
+          content: {
+            content: [{ type: 'text', text: 'Script completed\nWall time 0.4 seconds\nOutput:\n' }],
+            details: {
+              calls: [
+                { id: 's/1', name: 'sessions', args: '{"action":"wait"}', status: 'ok' },
+                { id: 's/2', name: 'bash', args: '{"command":"ls"}', status: 'ok' },
+              ],
+            },
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText('1 tool call')).toBeInTheDocument()
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).queryByText('sessions')).toBeNull()
+    expect(within(calls).getByText('bash')).toBeInTheDocument()
+  })
+
   it('shows the script and its output when expanded', () => {
     render(
       <CodemodeToolCallBlock

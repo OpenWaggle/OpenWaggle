@@ -13,11 +13,11 @@ import {
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { ToolRowSessionContext } from '../hooks/ToolRowSessionContext'
 import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
 import { WithNestedToolCalls } from './NestedToolCallList'
 import { SessionsToolCallBlock } from './SessionsToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
-import { ToolRowSessionContext } from './ToolRowSessionContext'
 
 const JSON_STRINGIFY_INDENT = 2
 const EMPTY_PROJECT_PATHS: readonly string[] = []
@@ -114,7 +114,7 @@ export function ToolCallRouter({
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
   onBranchFromMessage,
 }: ToolCallRouterProps) {
-  if (isHiddenSessionsToolCall(part.name, parseToolArgs(part.arguments))) return null
+  if (isHiddenSessionsToolCall(part.name, parseToolArgs(part.arguments), part.state)) return null
   const finalResult = toolResults.get(part.id)
   const visibleResult =
     finalResult ??

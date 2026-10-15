@@ -9,6 +9,7 @@ import {
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { toolKind } from '@/features/chat/lib/tool-kind'
+import { isHiddenSessionsToolCall } from '@/features/chat/lib/tool-labels-sessions'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration, formatUsd } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
@@ -190,7 +191,11 @@ export function CodemodeToolCallBlock({
   const phase = scriptPhase(view, state, result, isStreaming)
   const label = PHASE_LABELS[phase]
   const status = PHASE_STATUS[phase]
-  const listedCalls = nestedCallsShown ? view.calls.filter(isCodemodeModelCall) : view.calls
+  // A Worker wait gets no row and no count here either, as everywhere in the transcript.
+  const calls = view.calls.filter(
+    (call) => !isHiddenSessionsToolCall(call.name, parseToolArgs(call.args)),
+  )
+  const listedCalls = nestedCallsShown ? calls.filter(isCodemodeModelCall) : calls
 
   return (
     <div className="group/tool">
@@ -205,8 +210,8 @@ export function CodemodeToolCallBlock({
         <ToolRowIcon kind="script" status={status} />
         <span className={cn('truncate', toolRowLabelClassName(status))}>{label}</span>
         {phase === 'failed' && <ToolRowFailureMark />}
-        {view.calls.length > 0 && (
-          <span className="shrink-0 text-xs text-text-muted">{callCountLabel(view.calls)}</span>
+        {calls.length > 0 && (
+          <span className="shrink-0 text-xs text-text-muted">{callCountLabel(calls)}</span>
         )}
         {view.modelCost !== undefined && (
           <span className="shrink-0 text-xs text-text-muted">{formatUsd(view.modelCost)}</span>

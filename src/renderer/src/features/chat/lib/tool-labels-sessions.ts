@@ -1,7 +1,7 @@
 import type { JsonObject } from '@shared/types/json'
 import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
 
-/** The Pi tool through which an agent coordinates its Workers (renamed `hive` in ADR 0053). */
+/** The Pi tool through which an agent coordinates its Workers (to be renamed `hive`, ADR 0053). */
 export const SESSIONS_TOOL_NAME = 'sessions'
 
 /** How much of a title or objective a row shows; the full text is in the expanded arguments. */
@@ -128,12 +128,16 @@ function requestedTarget(action: string, args: JsonObject): SessionsToolTarget |
   return null
 }
 
+/** Who an unresolved report went to; a reported Session the Hive does not know is a Worker. */
 function reportTargetPhrase(args: JsonObject) {
   const target = args.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return 'Worker'
   if (target.type === 'queen') return 'the Queen'
   if (target.type === 'upstream') return 'its parent'
-  return null
+  if (target.type === 'sessions' && Array.isArray(target.sessionIds)) {
+    return plural(target.sessionIds.length, 'Worker')
+  }
+  return 'Worker'
 }
 
 /**
@@ -141,9 +145,10 @@ function reportTargetPhrase(args: JsonObject) {
  * Audit deps" for a Session outside the Hive, and a bare "Worker" when the title is unknown.
  */
 function targetPhrase(action: string, args: JsonObject, target: SessionsToolTarget | null) {
-  if (action === 'report' && !target) return reportTargetPhrase(args) ?? 'a session'
+  if (action === 'report' && !target) return reportTargetPhrase(args)
   const known = target ?? requestedTarget(action, args)
-  if (!known) return 'Worker'
+  // A fork's source is often the calling Session itself, which need not be a Worker.
+  if (!known) return action === 'fork' ? 'session' : 'Worker'
   if (known.isWorker) return workerPhrase(known.agentName, known.title)
   const name = known.agentName ? `session (${known.agentName})` : 'session'
   return withDetail(name, shortDetail(known.title))
@@ -194,7 +199,49 @@ export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | nul
   }
 }
 
-/** `wait` calls get no row, as in Codex: a spawn row's live state shows what the wait is for. */
-export function isHiddenSessionsToolCall(name: string, args: JsonObject) {
-  return name === SESSIONS_TOOL_NAME && stringArg(args, 'action') === 'wait'
+/**
+ * `wait` calls get no row, as in Codex: a spawn row's live state shows what the wait is for. A
+ * call whose action has not streamed in yet gets none either, so a wait never flashes a row.
+ */
+export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?: string) {
+  if (name !== SESSIONS_TOOL_NAME) return false
+  const action = stringArg(args, 'action')
+  return action === 'wait' || (action === null && state === 'input-streaming')
+}
+
+interface MessagePartLike {
+  readonly type: string
+  readonly name?: string
+  readonly arguments?: string
+  readonly state?: string
+  readonly content?: unknown
+}
+
+/**
+ * Whether a message shows nothing but hidden Worker waits (and their results), so its bubble
+ * would be an empty row with hover actions. `parseArgs` is the transcript's argument parser.
+ */
+export function showsOnlyHiddenSessionsToolCalls(
+  parts: readonly MessagePartLike[],
+  parseArgs: (args: string) => JsonObject,
+) {
+  let hidden = 0
+  for (const part of parts) {
+    if (part.type === 'tool-result') continue
+    if (part.type === 'tool-call') {
+      if (
+        !isHiddenSessionsToolCall(part.name ?? '', parseArgs(part.arguments ?? '{}'), part.state)
+      ) {
+        return false
+      }
+      hidden += 1
+      continue
+    }
+    if ((part.type === 'text' || part.type === 'thinking') && typeof part.content === 'string') {
+      if (part.content.trim()) return false
+      continue
+    }
+    return false
+  }
+  return hidden > 0
 }
