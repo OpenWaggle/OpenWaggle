@@ -3,6 +3,7 @@ import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints }
 import { Children, cloneElement, isValidElement, type ReactNode, useEffect } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
@@ -18,7 +19,12 @@ import { renderTextWithMentions } from './MentionText'
 import { OptimisticMessageImages } from './OptimisticMessageImages'
 import { SteerDeliveryStatus } from './SteerDeliveryStatus'
 
-const USER_REMARK_PLUGINS = [remarkGfm]
+/**
+ * People write prompts as typed text, not strict CommonMark: a single newline they type or paste
+ * is meant as a line break. `remark-breaks` keeps those lines instead of folding them into one
+ * paragraph, while Markdown (lists, headings, fences, tables) still renders.
+ */
+const USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
 /**
  * Recursively walks ReactNode children, replacing string nodes with
