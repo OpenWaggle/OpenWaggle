@@ -111,6 +111,21 @@ describe("a renderer's MCP App frames", () => {
     })
   })
 
+  it('refuses a document over the size limit in UTF-8 bytes, not characters', async () => {
+    const { sender } = renderer()
+    // 1.5 M three-byte characters: within 4 MB as a string length, over it as UTF-8.
+    const html = '漢'.repeat(1_500_000)
+
+    await expect(
+      Effect.runPromise(
+        handler('mcp:register-app-frame')(
+          { sender },
+          { frameId: globalThis.crypto.randomUUID(), html, csp: CSP },
+        ),
+      ),
+    ).rejects.toThrow('MCP App document is too large')
+  })
+
   it('refuses a malformed registration', async () => {
     const { sender } = renderer()
 
