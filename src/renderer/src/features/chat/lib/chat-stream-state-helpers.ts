@@ -166,12 +166,23 @@ export function stringifyToolInput(input: unknown) {
   }
 }
 
+function isEmptyToolInput(input: unknown) {
+  return (
+    input !== null &&
+    typeof input === 'object' &&
+    !Array.isArray(input) &&
+    Object.keys(input).length === 0
+  )
+}
+
 export function ensureToolCall(
   messages: readonly UIMessage[],
   messageId: string,
   toolCallId: string,
   toolName: string,
   input?: unknown,
+  /** The call has only started: an empty first input is Pi's placeholder, still streaming. */
+  started = false,
 ) {
   const ensuredMessages = ensureAssistantMessage(messages, messageId)
   return updateAssistantParts(ensuredMessages, messageId, (parts) => {
@@ -186,7 +197,10 @@ export function ensureToolCall(
         id: toolCallId,
         name: toolName,
         arguments: stringifyToolInput(input),
-        state: input === undefined ? 'input-streaming' : 'input-complete',
+        state:
+          input === undefined || (started && isEmptyToolInput(input))
+            ? 'input-streaming'
+            : 'input-complete',
       },
     ]
   })

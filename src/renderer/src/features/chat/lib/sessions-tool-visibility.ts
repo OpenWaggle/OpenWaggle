@@ -5,8 +5,11 @@ import { isWholeSessionsAction, SESSIONS_TOOL_NAME } from './tool-labels-session
 
 type MessagePart = UIMessage['parts'][number]
 
-/** The leading `"action"` of arguments cut short, as Pi codemode previews a call's arguments. */
-const PREVIEW_ACTION = /^\{\s*"action"\s*:\s*"([a-z_]+)"/
+/**
+ * The `"action"` of arguments cut short, as Pi codemode previews a call's arguments; keys keep the
+ * script's order, so it need not come first. Sessions-tool arguments nest no `action` key.
+ */
+const PREVIEW_ACTION = /(?<!\\)"action"\s*:\s*"([a-z_]+)"/
 
 /**
  * `wait` calls get no row, as in Codex (ADR 0054): a spawn row's live state shows what the wait
@@ -22,7 +25,7 @@ export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?:
 
 /**
  * The same rule for a call known only by its JSON arguments, which a script's call list cuts to
- * a preview: an unparseable preview still names its action at the start.
+ * a preview: an unparseable preview still names its action, unless the cut fell before it.
  */
 export function isHiddenSessionsToolCallJson(name: string, argsJson: string, state?: string) {
   if (name !== SESSIONS_TOOL_NAME) return false
