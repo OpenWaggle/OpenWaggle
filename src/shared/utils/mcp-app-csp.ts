@@ -6,12 +6,13 @@ import type { McpAppCsp } from '@shared/types/mcp-app-frame'
 
 /**
  * A declared origin as a CSP source: an http(s) or ws(s) scheme, a host (optionally `*.` for its
- * subdomains), an optional port and path. Anything else, such as a bare `*`, a keyword like
- * `'unsafe-eval'`, or text that would end the directive, is dropped: the server chooses which
- * origins its App reaches, not how the frame's policy is built.
+ * subdomains), an optional port and a path of printable ASCII. Anything else, such as a bare `*`,
+ * a keyword like `'unsafe-eval'`, text that would end the directive, a fragment, or a control or
+ * non-ASCII character that a header could mangle, is dropped: the server chooses which origins
+ * its App reaches, not how the frame's policy is built.
  */
 const CSP_SOURCE =
-  /^(?:https?|wss?):\/\/(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?(?:\/[^\s;,'"]*)?$/i
+  /^(?:https?|wss?):\/\/(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?(?:\/[!$%&(-+\--:<-~]*)?$/i
 
 /** The declared origins that are plain origins, without duplicates, in their order. */
 export function mcpAppCspSources(declared: readonly unknown[]) {

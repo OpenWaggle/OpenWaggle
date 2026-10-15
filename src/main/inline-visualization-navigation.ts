@@ -1,8 +1,10 @@
 import { type WebContents, type WebFrameMain, webFrameMain } from 'electron'
 import {
   isInlineVisualizationUrl,
+  isMcpAppFrameUrl,
   shouldBlockInlineVisualizationDocumentRequest,
   shouldBlockInlineVisualizationFrameNavigation,
+  shouldBlockMcpAppFrameNavigation,
 } from './security/electron-security'
 import { shouldBlockSessionResourceRequest } from './session-resource-protocol'
 
@@ -12,19 +14,29 @@ function frameKey(frame: WebFrameMain) {
 
 export function installInlineVisualizationNavigationGuard(webContents: WebContents) {
   const visualizationFrames = new Set<string>()
+  /** Frames that loaded an MCP App document; they may not be navigated off it (ADR 0053). */
+  const mcpAppFrames = new Set<string>()
   const pruneDetachedFrames = () => {
     const activeFrames = new Set(webContents.mainFrame.framesInSubtree.map(frameKey))
-    for (const key of visualizationFrames) {
-      if (!activeFrames.has(key)) visualizationFrames.delete(key)
+    for (const frames of [visualizationFrames, mcpAppFrames]) {
+      for (const key of frames) {
+        if (!activeFrames.has(key)) frames.delete(key)
+      }
     }
   }
   webContents.on(
     'did-frame-navigate',
     (_event, url, _responseCode, _statusText, isMainFrame, processId, routingId) => {
       pruneDetachedFrames()
-      if (isMainFrame || !isInlineVisualizationUrl(url)) return
+      if (isMainFrame) return
+      const frames = isInlineVisualizationUrl(url)
+        ? visualizationFrames
+        : isMcpAppFrameUrl(url)
+          ? mcpAppFrames
+          : null
+      if (!frames) return
       const frame = webFrameMain.fromId(processId, routingId)
-      if (frame) visualizationFrames.add(frameKey(frame))
+      if (frame) frames.add(frameKey(frame))
     },
   )
   webContents.on('will-frame-navigate', (event) => {
@@ -36,7 +48,14 @@ export function installInlineVisualizationNavigationGuard(webContents: WebConten
       frameIsVisualization: event.frame ? visualizationFrames.has(frameKey(event.frame)) : false,
       ...(event.initiator ? { initiatorUrl: event.initiator.url } : {}),
     })
-    if (shouldBlock) event.preventDefault()
+    const leavesMcpApp = shouldBlockMcpAppFrameNavigation({
+      isMainFrame: event.isMainFrame,
+      isSameDocument: event.isSameDocument,
+      destinationUrl: event.url,
+      ...(event.frame ? { frameUrl: event.frame.url } : {}),
+      frameIsMcpApp: event.frame ? mcpAppFrames.has(frameKey(event.frame)) : false,
+    })
+    if (shouldBlock || leavesMcpApp) event.preventDefault()
   })
   webContents.session.webRequest.onBeforeRequest((details, callback) => {
     callback({

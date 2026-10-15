@@ -17,10 +17,12 @@ import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { mcpAppDraftText } from './mcp-app-draft-text'
 import type { ParsedMcpAppResource } from './mcp-app-resource'
 
 const JSON_INDENT_SPACES = 2
+const logger = createRendererLogger('mcp-app')
 
 function jsonValue(value: unknown): McpJsonValue {
   const serialized = JSON.stringify(value)
@@ -238,8 +240,9 @@ export function useMcpAppBridge(input: McpAppBridgeInput | null, layout: McpAppL
     if (maxHeight === undefined) return
     try {
       bridgeRef.current?.setHostContext(hostContext(layout, maxHeight))
-    } catch {
-      // Not connected yet: the bridge sends its current context when the App initializes.
+    } catch (error) {
+      // Expected while the bridge connects: the App gets the current context when it initializes.
+      logger.debug('Host context not sent yet', { error: String(error) })
     }
   }, [layout, maxHeight])
   useEffect(() => {

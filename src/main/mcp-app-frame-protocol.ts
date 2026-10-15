@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { MAX_MCP_APP_DOCUMENT_BYTES, MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
 import type {
   McpAppFrameRegisterInput,
@@ -10,8 +11,29 @@ import { protocol } from 'electron'
 const TEXT_HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
 const HTTP_NOT_FOUND_STATUS = 404
 const FRAME_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-const PERMISSIONS_POLICY =
-  'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), serial=(), hid=(), clipboard-read=(), clipboard-write=()'
+const PERMISSIONS_POLICY = [
+  'accelerometer',
+  'ambient-light-sensor',
+  'bluetooth',
+  'camera',
+  'clipboard-read',
+  'clipboard-write',
+  'display-capture',
+  'geolocation',
+  'gyroscope',
+  'hid',
+  'magnetometer',
+  'microphone',
+  'midi',
+  'payment',
+  'publickey-credentials-get',
+  'screen-wake-lock',
+  'serial',
+  'usb',
+  'xr-spatial-tracking',
+]
+  .map((feature) => `${feature}=()`)
+  .join(', ')
 
 interface RegisteredMcpAppFrame {
   readonly registrationId: string
@@ -22,7 +44,6 @@ interface RegisteredMcpAppFrame {
 
 /** App documents by frame host. Each is served only to frames of the renderer that registered. */
 const registeredFrames = new Map<string, RegisteredMcpAppFrame>()
-let registrationSequence = 0
 let protocolRegistered = false
 
 function frameHost(frameId: string) {
@@ -45,8 +66,7 @@ export function registerMcpAppFrame(
   }
   const host = frameHost(input.frameId)
   if (registeredFrames.has(host)) throw new Error('MCP App frame id is already registered')
-  registrationSequence += 1
-  const registrationId = `mcp-app-frame-registration-${String(registrationSequence)}`
+  const registrationId = randomUUID()
   registeredFrames.set(host, {
     registrationId,
     ownerId,

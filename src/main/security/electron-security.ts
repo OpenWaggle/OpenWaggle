@@ -138,6 +138,33 @@ export function shouldBlockInlineVisualizationFrameNavigation(input: {
   )
 }
 
+export function isMcpAppFrameUrl(url: string | undefined) {
+  if (!url) return false
+  try {
+    return new URL(url).protocol === `${MCP_APP_FRAME_PROTOCOL.SCHEME}:`
+  } catch {
+    return false
+  }
+}
+
+/**
+ * An MCP App frame stays on the document the Host served it (ADR 0053): navigating it elsewhere
+ * would replace the App, and the policy built for it, with any page. Same-document navigations
+ * (hash, history) are the App's own. Frames an App opens itself are its `frameDomains`, which its
+ * policy already limits, so they are not blocked here.
+ */
+export function shouldBlockMcpAppFrameNavigation(input: {
+  readonly isMainFrame: boolean
+  readonly isSameDocument: boolean
+  readonly destinationUrl?: string
+  readonly frameUrl?: string
+  readonly frameIsMcpApp?: boolean
+}) {
+  if (input.isMainFrame || input.isSameDocument) return false
+  const isApp = input.frameIsMcpApp === true || isMcpAppFrameUrl(input.frameUrl)
+  return isApp && input.destinationUrl !== input.frameUrl
+}
+
 export function shouldBlockInlineVisualizationDocumentRequest(input: {
   readonly resourceType: string
   readonly requestUrl: string

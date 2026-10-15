@@ -34,7 +34,9 @@ export function McpAppHost({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const layout = useMcpAppFrameLayout(containerRef)
-  const [frameReady, setFrameReady] = useState(false)
+  // The URL whose document the frame has loaded, so a new frame URL waits for its own load.
+  const [loadedFrameUrl, setLoadedFrameUrl] = useState<string | null>(null)
+  const frameReady = frameUrl !== null && loadedFrameUrl === frameUrl
   const frame = useMcpAppFrameSize(frameUrl !== null)
   const { onHeightChange, onInitialized } = frame
   const [stagedContext, setStagedContext] = useState<unknown>(null)
@@ -120,7 +122,7 @@ export function McpAppHost({
           src={frameUrl}
           className="block w-full border-0 bg-bg"
           style={{ height: frame.frameHeight }}
-          onLoad={() => setFrameReady(true)}
+          onLoad={() => setLoadedFrameUrl(frameUrl)}
         />
       )}
       {stagedContext !== null && (

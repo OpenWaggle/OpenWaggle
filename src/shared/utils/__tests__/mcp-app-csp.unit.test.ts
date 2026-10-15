@@ -52,8 +52,17 @@ describe("an MCP App frame's Content-Security-Policy", () => {
         ' https://ok.example.com/ ',
         'https://ok.example.com',
         'http://localhost:5173',
+        'https://cdn.example.com/p\u0000x',
+        'https://cdn.example.com/p#fragment',
+        'https://cdn.example.com/pé',
+        "https://cdn.example.com/a'b",
+        'https://cdn.example.com/assets/app.js?v=1',
       ]),
-    ).toEqual(['https://ok.example.com', 'http://localhost:5173'])
+    ).toEqual([
+      'https://ok.example.com',
+      'http://localhost:5173',
+      'https://cdn.example.com/assets/app.js?v=1',
+    ])
     expect(
       mcpAppContentSecurityPolicy({
         ...NONE,
