@@ -168,7 +168,8 @@ function reportTargetPhrase(args: JsonObject) {
 
 /**
  * The Session an action names: "Worker (reviewer) · Review tool icons" for a Worker, "session ·
- * Audit deps" for a Session outside the Hive, and a bare "Worker" when the title is unknown.
+ * Audit deps" for a Hive member that is not a Worker (the Queen) or a Session the call launched or
+ * created, and a bare "Worker" when the Hive does not know the target.
  */
 function targetPhrase(action: string, args: JsonObject, target: SessionsToolTarget | null) {
   if (action === 'report' && !target) return reportTargetPhrase(args)

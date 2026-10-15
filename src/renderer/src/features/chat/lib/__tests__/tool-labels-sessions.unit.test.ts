@@ -25,7 +25,7 @@ describe('sessionsLabel', () => {
     )
   })
 
-  it('names a Session outside the Hive as a session', () => {
+  it('names a Hive member that is not a Worker as a session', () => {
     expect(
       done(
         { action: 'follow_up', sessionId: 's1' },
