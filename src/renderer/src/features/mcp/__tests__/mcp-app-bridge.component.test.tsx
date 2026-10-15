@@ -67,6 +67,7 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => {
 })
 
 const { useMcpAppBridge } = await import('../mcp-app-bridge')
+type McpAppLayout = import('../mcp-app-bridge').McpAppLayout
 
 const BRIDGE_INPUT = {
   contentWindow: window,
@@ -165,15 +166,16 @@ describe('MCP App message bridge', () => {
     bridgeState.created = 0
     bridgeState.options.length = 0
     bridgeState.hostContexts.length = 0
+    const dark: McpAppLayout = { theme: 'dark', width: 600 }
     const hook = renderHook(({ layout }) => useMcpAppBridge(BRIDGE_INPUT, layout), {
-      initialProps: { layout: { theme: 'dark' as const, width: 600 } },
+      initialProps: { layout: dark },
     })
     await waitFor(() => expect(bridgeState.created).toBe(1))
     expect(bridgeState.options[0]).toMatchObject({
       hostContext: { theme: 'dark', containerDimensions: { width: 600, maxHeight: 800 } },
     })
 
-    hook.rerender({ layout: { theme: 'light' as const, width: 420 } })
+    hook.rerender({ layout: { theme: 'light', width: 420 } })
 
     expect(bridgeState.created).toBe(1)
     expect(bridgeState.hostContexts.at(-1)).toMatchObject({
