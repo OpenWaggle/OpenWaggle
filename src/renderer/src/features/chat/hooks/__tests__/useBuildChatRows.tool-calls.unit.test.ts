@@ -82,7 +82,7 @@ describe('buildChatRows tool-call rendering', () => {
     expect(assistantRows.map((row) => row.message.id)).toEqual(['assistant-1'])
   })
 
-  it('keeps a failed response whose only call is a hidden wait, so its failure still shows', () => {
+  it('keeps a failed Waggle response whose only call is a hidden wait, so its turn shows it', () => {
     const failed: UIMessage = {
       id: 'assistant-failed',
       role: 'assistant',
@@ -97,10 +97,21 @@ describe('buildChatRows tool-call rendering', () => {
         },
       ],
     }
+    const messages = [createUserMessage('user-1', 'coordinate'), failed]
 
-    const rows = getAssistantMessageRows([createUserMessage('user-1', 'coordinate'), failed])
-
-    expect(rows.map((row) => row.message.id)).toEqual(['assistant-failed'])
+    const waggleRows = getWaggleTurnRows(messages, {
+      'assistant-failed': {
+        agentIndex: 0,
+        agentLabel: 'Advocate',
+        agentColor: 'blue',
+        turnNumber: 0,
+      },
+    })
+    expect(waggleRows.map((row) => row.messages.map((item) => item.message.id))).toEqual([
+      ['assistant-failed'],
+    ])
+    // Outside Waggle the failure shows in the Run error row; the empty message row is dropped.
+    expect(getAssistantMessageRows(messages)).toEqual([])
   })
 
   it('keeps repeated tool calls when they belong to different user turns', () => {
