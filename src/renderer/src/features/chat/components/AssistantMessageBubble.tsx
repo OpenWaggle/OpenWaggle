@@ -11,8 +11,7 @@ import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { getLastRenderableTextPartIndex } from '../lib/message-bubble-utils'
-import { parseToolArgs } from '../lib/tool-args'
-import { showsOnlyHiddenSessionsToolCalls } from '../lib/tool-labels-sessions'
+import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
 import { AgentLabel } from './AgentLabel'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
@@ -191,7 +190,7 @@ export function AssistantMessageBubble({
   const lastRenderableTextPartIndex = getLastRenderableTextPartIndex(message.parts)
 
   const { toolResults, messageToolCallIds } = collectMessageToolState(message)
-  if (showsOnlyHiddenSessionsToolCalls(message.parts, parseToolArgs)) return null
+  if (showsOnlyHiddenSessionsToolCalls(message.parts)) return null
 
   return (
     <div className="group/assistant-msg relative w-full">

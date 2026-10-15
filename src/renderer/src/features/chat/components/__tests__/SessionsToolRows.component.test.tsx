@@ -118,6 +118,46 @@ describe('sessions-tool rows', () => {
     expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
   })
 
+  it('names a Worker from a call a script made, and leaves its wait out', async () => {
+    renderWithQueryClient(
+      <ToolCallRouter
+        part={{
+          type: 'tool-call',
+          id: 'code-1',
+          name: 'codemode',
+          arguments: '{}',
+          state: 'input-complete',
+          nestedCalls: {
+            complete: true,
+            calls: [
+              {
+                id: 'code-1/1',
+                name: 'sessions',
+                args: { action: 'message', sessionId: 'w1' },
+                status: 'ok',
+              },
+              {
+                id: 'code-1/2',
+                name: 'sessions',
+                args: { action: 'wait', sessionIds: ['w1'] },
+                status: 'ok',
+              },
+            ],
+          },
+        }}
+        toolResults={new Map([['code-1', { content: 'done', state: 'output-available' }]])}
+        sessionId={QUEEN_ID}
+        isStreaming={false}
+      />,
+    )
+
+    const nested = await screen.findByRole('list', { name: 'Tool calls made by codemode' })
+    expect(
+      await screen.findByText('Messaged Worker (reviewer) · Review tool icons'),
+    ).toBeInTheDocument()
+    expect(nested.querySelectorAll('li')).toHaveLength(1)
+  })
+
   it('shows no row for a wait', () => {
     const { container } = renderRow(call({ action: 'wait', sessionIds: ['w1'] }))
 

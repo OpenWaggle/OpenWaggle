@@ -4,12 +4,10 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { NestedToolCalls } from '@shared/types/tools'
 import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
 import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
+import { isHiddenSessionsToolCall } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
-import {
-  isHiddenSessionsToolCall,
-  SESSIONS_TOOL_NAME,
-} from '@/features/chat/lib/tool-labels-sessions'
+import { SESSIONS_TOOL_NAME } from '@/features/chat/lib/tool-labels-sessions'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'

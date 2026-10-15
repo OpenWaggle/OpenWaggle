@@ -1,5 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import { formatElapsed } from '../hooks/useStreamingPhase'
+import { isShownToolCallPart } from './sessions-tool-visibility'
 import type { ChatRow, MessageChatRow, TurnFoldChatRow, WaggleTurnChatRow } from './types-chat-row'
 
 export interface TurnFoldInput {
@@ -48,7 +49,8 @@ function isAssistantMessageRow(row: ChatRow): row is MessageChatRow {
 }
 
 function hasFoldableWork(message: UIMessage) {
-  return message.parts.some((part) => part.type === 'tool-call' || part.type === 'thinking')
+  // A hidden Worker wait is not work the reader could unfold.
+  return message.parts.some((part) => isShownToolCallPart(part) || part.type === 'thinking')
 }
 
 function hasRenderableText(message: UIMessage) {

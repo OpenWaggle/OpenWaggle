@@ -2,7 +2,7 @@
 
 OpenWaggle is an Electron desktop coding-agent workspace built on Pi. This glossary captures product-domain language that should stay stable across planning, issues, docs, and implementation.
 
-Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below; older entries that describe the pre-cutover runtime are historical context.
+Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below, though until ADR 0053's rename lands the tool, CLI and MCP tool are still named `sessions`, `openwaggle sessions` and `openwaggle_sessions`; older entries that describe the pre-cutover runtime are historical context.
 
 ## Language
 

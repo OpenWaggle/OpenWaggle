@@ -6,10 +6,10 @@ import {
   codemodeToolView,
   isCodemodeModelCall,
 } from '@/features/chat/lib/codemode-tool-view'
+import { isHiddenSessionsToolCall } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { toolKind } from '@/features/chat/lib/tool-kind'
-import { isHiddenSessionsToolCall } from '@/features/chat/lib/tool-labels-sessions'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration, formatUsd } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'

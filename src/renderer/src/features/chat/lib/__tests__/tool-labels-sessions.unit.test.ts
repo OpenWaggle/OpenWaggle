@@ -1,12 +1,6 @@
 import type { JsonObject } from '@shared/types/json'
 import { describe, expect, it } from 'vitest'
-import { parseToolArgs } from '../tool-args'
-import {
-  isHiddenSessionsToolCall,
-  type SessionsToolTarget,
-  sessionsLabel,
-  showsOnlyHiddenSessionsToolCalls,
-} from '../tool-labels-sessions'
+import { type SessionsToolTarget, sessionsLabel } from '../tool-labels-sessions'
 
 const REVIEWER: SessionsToolTarget = {
   title: 'Review tool icons',
@@ -89,7 +83,7 @@ describe('sessionsLabel', () => {
     expect(done({ action: 'delegation_accept' })).toBe("Accepted a Worker's work")
     expect(done({ action: 'delegation_claim' })).toBe('Updated a delegation')
     expect(done({ action: 'agent_definitions_search', query: 'review' })).toBe(
-      'Searched agents · review',
+      'Searched agent definitions · review',
     )
   })
 
@@ -113,50 +107,6 @@ describe('sessionsLabel', () => {
     expect(done({ action: 'teleport' })).toBe('Hive action · teleport')
     expect(sessionsLabel({ action: 'message', sessionId: 'w1' }, REVIEWER).requested).toBe(
       'Requested: messaging Worker (reviewer) · Review tool icons',
-    )
-  })
-})
-
-describe('isHiddenSessionsToolCall', () => {
-  it('hides only sessions-tool waits', () => {
-    expect(isHiddenSessionsToolCall('sessions', { action: 'wait' })).toBe(true)
-    expect(isHiddenSessionsToolCall('sessions', { action: 'spawn' })).toBe(false)
-    expect(isHiddenSessionsToolCall('wait', { action: 'wait' })).toBe(false)
-  })
-
-  it('hides a call whose action has not streamed in, so a wait never flashes a row', () => {
-    expect(isHiddenSessionsToolCall('sessions', {}, 'input-streaming')).toBe(true)
-    expect(isHiddenSessionsToolCall('sessions', {}, 'input-complete')).toBe(false)
-  })
-})
-
-describe('showsOnlyHiddenSessionsToolCalls', () => {
-  const wait = { type: 'tool-call', name: 'sessions', arguments: '{"action":"wait"}' }
-
-  it('is true for a message of hidden waits and their results only', () => {
-    expect(
-      showsOnlyHiddenSessionsToolCalls(
-        [{ type: 'text', content: ' ' }, wait, { type: 'tool-result' }],
-        parseToolArgs,
-      ),
-    ).toBe(true)
-  })
-
-  it('is false once anything else would show', () => {
-    expect(
-      showsOnlyHiddenSessionsToolCalls(
-        [{ type: 'text', content: 'Waiting.' }, wait],
-        parseToolArgs,
-      ),
-    ).toBe(false)
-    expect(
-      showsOnlyHiddenSessionsToolCalls(
-        [wait, { type: 'tool-call', name: 'read', arguments: '{}' }],
-        parseToolArgs,
-      ),
-    ).toBe(false)
-    expect(showsOnlyHiddenSessionsToolCalls([{ type: 'text', content: '' }], parseToolArgs)).toBe(
-      false,
     )
   })
 })

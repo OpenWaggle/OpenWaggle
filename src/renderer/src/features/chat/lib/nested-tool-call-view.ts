@@ -1,7 +1,7 @@
 import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
 import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
+import { isHiddenSessionsToolCall } from './sessions-tool-visibility'
 import type { ToolCallResultPayload } from './tool-call-block'
-import { isHiddenSessionsToolCall } from './tool-labels-sessions'
 
 const EMPTY_TOOL_ARGS = '{}'
 

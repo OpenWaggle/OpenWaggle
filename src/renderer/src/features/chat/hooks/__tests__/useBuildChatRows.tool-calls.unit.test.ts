@@ -56,6 +56,32 @@ describe('buildChatRows tool-call rendering', () => {
     ])
   })
 
+  it('leaves out a message of Worker waits, its nested result included', () => {
+    const waitMessage: UIMessage = {
+      id: 'assistant-wait',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'wait-1',
+          name: 'sessions',
+          arguments: '{"action":"wait","sessionIds":["w1"]}',
+          state: 'input-complete',
+        },
+      ],
+    }
+    const messages: UIMessage[] = [
+      createUserMessage('user-1', 'coordinate'),
+      createAssistantToolMessage('assistant-1', 'tool-a'),
+      waitMessage,
+      createToolResultMessage('wait-result', 'wait-1'),
+    ]
+
+    const assistantRows = getAssistantMessageRows(messages)
+
+    expect(assistantRows.map((row) => row.message.id)).toEqual(['assistant-1'])
+  })
+
   it('keeps repeated tool calls when they belong to different user turns', () => {
     const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),

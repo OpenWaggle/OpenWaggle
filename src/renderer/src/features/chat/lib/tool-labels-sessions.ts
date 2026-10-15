@@ -85,10 +85,18 @@ const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
       'Checking delegation conflicts',
       'Checked delegation conflicts',
     ),
-    agent_definitions_list: untargeted('Listing agents', 'Listed agents'),
-    agent_definitions_search: untargeted('Searching agents', 'Searched agents'),
+    agent_definitions_list: untargeted('Listing agent definitions', 'Listed agent definitions'),
+    agent_definitions_search: untargeted(
+      'Searching agent definitions',
+      'Searched agent definitions',
+    ),
   }),
 )
+
+/** Whether the sessions tool has this action, so a half-streamed name is not mistaken for one. */
+export function isKnownSessionsAction(action: string) {
+  return action === 'wait' || actionVerbs(action) !== null
+}
 
 function actionVerbs(action: string): ActionVerbs | null {
   const known = ACTION_VERBS.get(action)
@@ -197,51 +205,4 @@ export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | nul
     done: `${verbs.done} ${phrase}`,
     requested: requestedText(running),
   }
-}
-
-/**
- * `wait` calls get no row, as in Codex: a spawn row's live state shows what the wait is for. A
- * call whose action has not streamed in yet gets none either, so a wait never flashes a row.
- */
-export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?: string) {
-  if (name !== SESSIONS_TOOL_NAME) return false
-  const action = stringArg(args, 'action')
-  return action === 'wait' || (action === null && state === 'input-streaming')
-}
-
-interface MessagePartLike {
-  readonly type: string
-  readonly name?: string
-  readonly arguments?: string
-  readonly state?: string
-  readonly content?: unknown
-}
-
-/**
- * Whether a message shows nothing but hidden Worker waits (and their results), so its bubble
- * would be an empty row with hover actions. `parseArgs` is the transcript's argument parser.
- */
-export function showsOnlyHiddenSessionsToolCalls(
-  parts: readonly MessagePartLike[],
-  parseArgs: (args: string) => JsonObject,
-) {
-  let hidden = 0
-  for (const part of parts) {
-    if (part.type === 'tool-result') continue
-    if (part.type === 'tool-call') {
-      if (
-        !isHiddenSessionsToolCall(part.name ?? '', parseArgs(part.arguments ?? '{}'), part.state)
-      ) {
-        return false
-      }
-      hidden += 1
-      continue
-    }
-    if ((part.type === 'text' || part.type === 'thinking') && typeof part.content === 'string') {
-      if (part.content.trim()) return false
-      continue
-    }
-    return false
-  }
-  return hidden > 0
 }
