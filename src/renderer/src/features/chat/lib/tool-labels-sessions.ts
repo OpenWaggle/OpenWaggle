@@ -9,57 +9,87 @@ import {
 } from './tool-label-parts'
 
 const SUBAGENTS_TITLE = 'sub-agents'
+/** How much of an objective a row shows; the full text is in the expanded arguments. */
+const DETAIL_MAX_CHARS = 80
+const GENERIC_VERBS: Verbs = { running: 'Sub-agents', done: 'Sub-agents' }
 
+function verbs(running: string, done: string): Verbs {
+  return { running, done }
+}
+
+/** Every action of the sessions tool (`sessions-tool-*-parameters.ts`), by what it does. */
 const SESSION_VERBS: ReadonlyMap<string, Verbs> = new Map(
   Object.entries({
-    spawn: { running: 'Spawning sub-agent', done: 'Spawned sub-agent' },
-    launch: { running: 'Launching session', done: 'Launched session' },
-    create: { running: 'Creating session', done: 'Created session' },
-    fork: { running: 'Forking session', done: 'Forked session' },
-    message: { running: 'Messaging sub-agent', done: 'Messaged sub-agent' },
-    start: { running: 'Starting sub-agent', done: 'Started sub-agent' },
-    follow_up: { running: 'Sending follow-up', done: 'Sent follow-up' },
-    steer: { running: 'Steering sub-agent', done: 'Steered sub-agent' },
-    replace: { running: 'Restarting sub-agent', done: 'Restarted sub-agent' },
-    promote: { running: 'Promoting follow-up', done: 'Promoted follow-up' },
-    interrupt: { running: 'Interrupting sub-agent', done: 'Interrupted sub-agent' },
-    interrupt_descendants: { running: 'Interrupting sub-agents', done: 'Interrupted sub-agents' },
-    report: { running: 'Sending report', done: 'Sent report' },
-    handoff: { running: 'Handing off session', done: 'Handed off session' },
-    rename: { running: 'Renaming session', done: 'Renamed session' },
-    archive: { running: 'Archiving session', done: 'Archived session' },
-    unarchive: { running: 'Restoring session', done: 'Restored session' },
-    list: { running: 'Listing sessions', done: 'Listed sessions' },
-    search: { running: 'Searching sessions', done: 'Searched sessions' },
-    read: { running: 'Reading session', done: 'Read session' },
-    status: { running: 'Checking session', done: 'Checked session' },
-    turns: { running: 'Reading session', done: 'Read session' },
-    items: { running: 'Reading session', done: 'Read session' },
-    delegation_submit: { running: 'Submitting work', done: 'Submitted work' },
-    delegation_accept: { running: 'Accepting sub-agent work', done: 'Accepted sub-agent work' },
-    delegation_request_revision: { running: 'Requesting revision', done: 'Requested revision' },
-    delegation_verify: { running: 'Verifying sub-agent work', done: 'Verified sub-agent work' },
-    delegation_cancel: { running: 'Cancelling delegation', done: 'Cancelled delegation' },
-    agent_definitions_list: { running: 'Listing agents', done: 'Listed agents' },
-    agent_definitions_search: { running: 'Searching agents', done: 'Searched agents' },
+    spawn: verbs('Spawning sub-agent', 'Spawned sub-agent'),
+    launch: verbs('Launching session', 'Launched session'),
+    create: verbs('Creating session', 'Created session'),
+    fork: verbs('Forking session', 'Forked session'),
+    message: verbs('Messaging sub-agent', 'Messaged sub-agent'),
+    start: verbs('Starting sub-agent', 'Started sub-agent'),
+    follow_up: verbs('Sending follow-up', 'Sent follow-up'),
+    steer: verbs('Steering sub-agent', 'Steered sub-agent'),
+    replace: verbs('Restarting sub-agent', 'Restarted sub-agent'),
+    promote: verbs('Promoting follow-up', 'Promoted follow-up'),
+    interrupt: verbs('Interrupting sub-agent', 'Interrupted sub-agent'),
+    interrupt_descendants: verbs('Interrupting sub-agents', 'Interrupted sub-agents'),
+    report: verbs('Sending report', 'Sent report'),
+    handoff: verbs('Handing off session', 'Handed off session'),
+    rename: verbs('Renaming session', 'Renamed session'),
+    archive: verbs('Archiving session', 'Archived session'),
+    unarchive: verbs('Restoring session', 'Restored session'),
+    list: verbs('Listing sessions', 'Listed sessions'),
+    search: verbs('Searching sessions', 'Searched sessions'),
+    read: verbs('Reading session', 'Read session'),
+    status: verbs('Checking session', 'Checked session'),
+    turns: verbs('Reading session', 'Read session'),
+    items: verbs('Reading session', 'Read session'),
+    queue_list: verbs('Reading follow-ups', 'Read follow-ups'),
+    queue_withdraw: verbs('Withdrawing follow-ups', 'Withdrew follow-ups'),
+    queue_reorder: verbs('Reordering follow-ups', 'Reordered follow-ups'),
+    queue_pause: verbs('Pausing follow-ups', 'Paused follow-ups'),
+    queue_resume: verbs('Resuming follow-ups', 'Resumed follow-ups'),
+    requests_list: verbs('Reading sub-agent requests', 'Read sub-agent requests'),
+    request_respond: verbs('Answering sub-agent request', 'Answered sub-agent request'),
+    approval_respond: verbs('Answering approval', 'Answered approval'),
+    authorization_set: verbs('Setting sub-agent access', 'Set sub-agent access'),
+    export: verbs('Exporting session', 'Exported session'),
+    export_create: verbs('Exporting session', 'Started session export'),
+    export_cancel: verbs('Cancelling export', 'Cancelled export'),
+    exports_list: verbs('Listing exports', 'Listed exports'),
+    exports_read: verbs('Checking export', 'Checked export'),
+    exports_wait: verbs('Waiting on export', 'Waited on export'),
+    delegation_submit: verbs('Submitting work', 'Submitted work'),
+    delegation_accept: verbs('Accepting sub-agent work', 'Accepted sub-agent work'),
+    delegation_request_revision: verbs('Requesting revision', 'Requested revision'),
+    delegation_verify: verbs('Verifying sub-agent work', 'Verified sub-agent work'),
+    delegation_reopen: verbs('Reopening delegation', 'Reopened delegation'),
+    delegation_cancel: verbs('Cancelling delegation', 'Cancelled delegation'),
+    delegations_list: verbs('Listing delegations', 'Listed delegations'),
+    delegations_read: verbs('Reading delegation', 'Read delegation'),
+    delegations_conflicts: verbs('Checking delegation conflicts', 'Checked delegation conflicts'),
+    agent_definitions_list: verbs('Listing agents', 'Listed agents'),
+    agent_definitions_search: verbs('Searching agents', 'Searched agents'),
   }),
 )
 
-function sessionVerbs(action: string): Verbs {
+function sessionVerbs(action: string): Verbs | null {
   const known = SESSION_VERBS.get(action)
   if (known) return known
-  if (action === 'wait') return { running: 'Waiting on sub-agents', done: 'Waited on sub-agents' }
-  if (action.startsWith('delegations_')) {
-    return { running: 'Reading delegations', done: 'Read delegations' }
-  }
-  if (action.startsWith('delegation_')) {
-    return { running: 'Updating delegation', done: 'Updated delegation' }
-  }
-  if (action.startsWith('queue_') || action === 'requests_list') {
-    return { running: 'Reading session queue', done: 'Read session queue' }
-  }
-  if (action.startsWith('export')) return { running: 'Exporting session', done: 'Exported session' }
-  return { running: 'Sub-agents', done: 'Sub-agents' }
+  // The remaining delegation actions (state, claim, dependency, amendments…) all update it.
+  if (action.startsWith('delegation_')) return verbs('Updating delegation', 'Updated delegation')
+  return null
+}
+
+/** The first line of a long objective, cut to fit a row and its accessible name. */
+function shortDetail(text: string | null) {
+  if (!text) return null
+  const line =
+    text
+      .split('\n')
+      .find((candidate) => candidate.trim())
+      ?.trim() ?? ''
+  if (line.length <= DETAIL_MAX_CHARS) return line || null
+  return `${line.slice(0, DETAIL_MAX_CHARS - 1).trimEnd()}…`
 }
 
 /** The sessions tool, which the transcript calls sub-agents. */
@@ -74,11 +104,12 @@ export function sessionsLabel(args: JsonObject): ToolLabel {
       requested: `Requested ${SUBAGENTS_TITLE}`,
     }
   }
-  const verbs = sessionVerbs(action)
-  const detail =
-    stringArg(args, 'title') ??
-    stringArg(args, 'objective') ??
-    stringArg(args, 'query') ??
-    (verbs.done === 'Sub-agents' && action ? action : null)
-  return label(verbs, detail, SUBAGENTS_TITLE)
+  const known = sessionVerbs(action)
+  // An action this list does not know yet keeps its name visible.
+  const detail = known
+    ? shortDetail(
+        stringArg(args, 'title') ?? stringArg(args, 'objective') ?? stringArg(args, 'query'),
+      )
+    : action || null
+  return label(known ?? GENERIC_VERBS, detail, SUBAGENTS_TITLE)
 }

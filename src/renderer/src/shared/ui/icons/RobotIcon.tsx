@@ -1,9 +1,9 @@
 import type { ComponentPropsWithoutRef } from 'react'
 
 /**
- * The outline robot from Tabler Icons (MIT, see THIRD_PARTY_NOTICES.md). Lucide's `bot` reads as a
- * chat bot; this one stands for a sub-agent doing work. It uses Lucide's stroke geometry.
- * It takes any SVG attribute, as a Lucide icon does.
+ * Tabler Icons 3.34.0 outline `robot` (MIT, see THIRD_PARTY_NOTICES.md). Lucide's `bot` reads as
+ * a chat bot; this one stands for a sub-agent doing work. It uses Lucide's stroke geometry and
+ * takes any SVG attribute, as a Lucide icon does.
  */
 export function RobotIcon(props: ComponentPropsWithoutRef<'svg'>) {
   return (

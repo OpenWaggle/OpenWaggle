@@ -24,7 +24,31 @@ describe('openWaggleToolLabel', () => {
     expect(labelOf('sessions', { action: 'delegation_accept' }).done).toBe(
       'Accepted sub-agent work',
     )
-    expect(labelOf('sessions', { action: 'delegations_read' }).done).toBe('Read delegations')
+    expect(labelOf('sessions', { action: 'delegations_read' }).done).toBe('Read delegation')
+    expect(labelOf('sessions', { action: 'delegation_claim' }).done).toBe('Updated delegation')
+  })
+
+  it('names every sessions action by what it does', () => {
+    expect(labelOf('sessions', { action: 'queue_pause' }).done).toBe('Paused follow-ups')
+    expect(labelOf('sessions', { action: 'queue_withdraw' }).done).toBe('Withdrew follow-ups')
+    expect(labelOf('sessions', { action: 'queue_list' }).done).toBe('Read follow-ups')
+    expect(labelOf('sessions', { action: 'export_cancel' }).done).toBe('Cancelled export')
+    expect(labelOf('sessions', { action: 'exports_wait' }).done).toBe('Waited on export')
+    expect(labelOf('sessions', { action: 'approval_respond' }).done).toBe('Answered approval')
+    expect(labelOf('sessions', { action: 'request_respond' }).done).toBe(
+      'Answered sub-agent request',
+    )
+    expect(labelOf('sessions', { action: 'authorization_set' }).done).toBe('Set sub-agent access')
+  })
+
+  it('shows only the first line of a long objective', () => {
+    const objective = `\n${'Review the tool icons '.repeat(6)}\nSecond paragraph`
+    const done = labelOf('sessions', { action: 'spawn', objective }).done
+    expect(done).not.toContain('\n')
+    expect(done).not.toContain('Second paragraph')
+    expect(done.startsWith('Spawned sub-agent · Review the tool icons')).toBe(true)
+    expect(done.endsWith('…')).toBe(true)
+    expect(done.length).toBeLessThanOrEqual('Spawned sub-agent · '.length + 80)
   })
 
   it('keeps an unknown sessions action visible', () => {
@@ -50,6 +74,10 @@ describe('openWaggleToolLabel', () => {
     )
     expect(
       labelOf('preview_navigate', { target: { kind: 'environment-port', port: 5173, path: '/a' } })
+        .done,
+    ).toBe('Navigated to port 5173/a')
+    expect(
+      labelOf('preview_navigate', { target: { kind: 'environment-port', port: 5173, path: 'a' } })
         .done,
     ).toBe('Navigated to port 5173/a')
     expect(labelOf('preview_navigate').done).toBe('Navigated browser preview')

@@ -12,7 +12,6 @@ import {
   MousePointerClick,
   PencilLine,
   ScanSearch,
-  Sparkles,
   Terminal,
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
@@ -26,7 +25,6 @@ const TOOL_KIND_ICONS: Record<ToolKind, ToolKindIconComponent> = {
   subagents: RobotIcon,
   mcp: McpIcon,
   script: CodeXml,
-  model: Sparkles,
   shell: Terminal,
   read: FileText,
   edit: FilePenLine,

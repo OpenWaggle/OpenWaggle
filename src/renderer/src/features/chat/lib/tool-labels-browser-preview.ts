@@ -26,7 +26,11 @@ function previewUrl(args: JsonObject) {
   const targetUrl = stringArg(target, 'url')
   if (targetUrl) return targetUrl
   const port = numberArg(target, 'port')
-  return port === null ? null : `port ${String(port)}${stringArg(target, 'path') ?? ''}`
+  if (port === null) return null
+  // The Host resolves a relative path against the origin, so `a` and `/a` are the same page.
+  const path = stringArg(target, 'path')
+  const shownPath = path === null ? '' : path.startsWith('/') ? path : `/${path}`
+  return `port ${String(port)}${shownPath}`
 }
 
 function previewKey(args: JsonObject) {
@@ -64,8 +68,7 @@ interface PreviewLabel {
   readonly bare?: Verbs
 }
 
-/** The `preview_*` tools that drive the Session's browser preview. */
-export function previewLabels(): ReadonlyMap<string, PreviewLabel> {
+function previewLabels(): ReadonlyMap<string, PreviewLabel> {
   const fixed = (running: string, done: string): PreviewLabel => ({
     verbs: { running, done },
     detail: () => null,

@@ -1,8 +1,9 @@
 import type { ComponentPropsWithoutRef } from 'react'
 
 /**
- * The Model Context Protocol logo, from Simple Icons (CC0 1.0). Lucide has no MCP glyph; this one
- * is a filled path in Lucide's 24-unit box, painted with `currentColor`.
+ * The Model Context Protocol logo: Simple Icons 15.22.0, slug `modelcontextprotocol` (CC0 1.0, see
+ * THIRD_PARTY_NOTICES.md). Lucide has no MCP glyph; this one is a filled path in Lucide's 24-unit
+ * box, painted with `currentColor`.
  * It takes any SVG attribute, as a Lucide icon does.
  */
 export function McpIcon(props: ComponentPropsWithoutRef<'svg'>) {

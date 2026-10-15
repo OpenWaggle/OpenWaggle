@@ -55,9 +55,9 @@ describe('CodemodeToolCallBlock', () => {
       />,
     )
 
-    expect(screen.getByText('Running a script…')).toBeInTheDocument()
+    expect(screen.getByText('Running a script…')).toHaveClass('activity-shimmer')
     const calls = screen.getByRole('list', { name: 'Calls made by the script' })
-    expect(within(calls).getByText('bash')).toBeInTheDocument()
+    expect(within(calls).getByText('bash')).toHaveClass('activity-shimmer')
     expect(within(calls).getByText('{"command":"ls"}')).toBeInTheDocument()
     expect(within(calls).getByLabelText('Running')).toBeInTheDocument()
   })
@@ -86,7 +86,35 @@ describe('CodemodeToolCallBlock', () => {
     const kinds = [...calls.querySelectorAll('[data-tool-kind]')].map((icon) =>
       icon.getAttribute('data-tool-kind'),
     )
-    expect(kinds).toEqual(['shell', 'model'])
+    expect(kinds).toEqual(['shell', 'other'])
+  })
+
+  it('marks failed and cancelled calls of a script apart', () => {
+    render(
+      <CodemodeToolCallBlock
+        args={JSON.stringify({ code: SCRIPT })}
+        state="complete"
+        result={{
+          state: 'complete',
+          content: {
+            content: [{ type: 'text', text: 'Script completed\nWall time 0.4 seconds\nOutput:\n' }],
+            details: {
+              calls: [
+                { id: 's/1', name: 'bash', args: '{}', status: 'error', error: 'exit 1' },
+                { id: 's/2', name: 'read', args: '{}', status: 'cancelled' },
+              ],
+            },
+          },
+        }}
+      />,
+    )
+
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(within(calls).getByRole('img', { name: 'Cancelled' })).toBeInTheDocument()
+    expect(calls.querySelector('[data-tool-kind="shell"]')).toHaveClass('text-error/80')
+    expect(calls.querySelector('[data-tool-kind="read"]')).toHaveClass('text-error/80')
+    expect(within(calls).getByText('bash')).not.toHaveClass('activity-shimmer')
   })
 
   it('shows the script and its output when expanded', () => {

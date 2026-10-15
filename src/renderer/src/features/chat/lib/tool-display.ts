@@ -55,7 +55,7 @@ function getDefaultEntry(name: string) {
 }
 
 function isPiNativeToolName(name: string): name is PiNativeToolName {
-  return name in PI_TOOL_DISPLAY
+  return Object.hasOwn(PI_TOOL_DISPLAY, name)
 }
 
 function getToolEntry(name: string) {

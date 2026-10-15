@@ -1,5 +1,5 @@
 import type { JsonObject } from '@shared/types/json'
-import { parseMcpToolName } from './tool-kind'
+import { parseMcpToolName } from '@shared/utils/mcp-tool-names'
 import { label, stringArg, type ToolLabel, type Verbs, withDetail } from './tool-label-parts'
 import { previewLabel } from './tool-labels-browser-preview'
 import { sessionsLabel } from './tool-labels-sessions'
@@ -16,31 +16,9 @@ function mcpToolTitle(name: string) {
   return parsed ? `${mcpServerName(parsed.server)} › ${parsed.tool}` : null
 }
 
-function mcpResourceLabel(name: string, args: JsonObject): ToolLabel | null {
-  if (name === 'list_mcp_resources' || name === 'list_mcp_resource_templates') {
-    const noun = name === 'list_mcp_resources' ? 'MCP resources' : 'MCP resource templates'
-    return label(
-      { running: `Listing ${noun}`, done: `Listed ${noun}` },
-      stringArg(args, 'server'),
-      noun,
-    )
-  }
-  if (name === 'read_mcp_resource') {
-    return label(
-      { running: 'Reading MCP resource', done: 'Read MCP resource' },
-      stringArg(args, 'uri'),
-      'MCP resource',
-      ' ',
-    )
-  }
-  if (name === 'tool_search') {
-    return label(
-      { running: 'Searching tools', done: 'Searched tools' },
-      stringArg(args, 'query'),
-      'tool search',
-    )
-  }
-  return null
+function mcpResourcesLabel(noun: string) {
+  return (args: JsonObject) =>
+    label({ running: `Listing ${noun}`, done: `Listed ${noun}` }, stringArg(args, 'server'), noun)
 }
 
 function mcpLabel(name: string): ToolLabel | null {
@@ -88,27 +66,53 @@ function shellLabel(args: JsonObject): ToolLabel {
   }
 }
 
+type LabelBuilder = (args: JsonObject) => ToolLabel
+
+const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelBuilder>([
+  ['sessions', sessionsLabel],
+  ['powershell', shellLabel],
+  ['project_actions', projectActionsLabel],
+  ['source_control', sourceControlLabel],
+  ['create_goal', () => label({ running: 'Creating goal', done: 'Created goal' }, null, 'goal')],
+  ['get_goal', () => label({ running: 'Reading goal', done: 'Read goal' }, null, 'goal')],
+  [
+    'waggle_invoke',
+    (args) =>
+      label(
+        { running: 'Handing off to Waggle', done: 'Handed off to Waggle' },
+        stringArg(args, 'preset'),
+        'Waggle handoff',
+      ),
+  ],
+  ['list_mcp_resources', mcpResourcesLabel('MCP resources')],
+  ['list_mcp_resource_templates', mcpResourcesLabel('MCP resource templates')],
+  [
+    'read_mcp_resource',
+    (args) =>
+      label(
+        { running: 'Reading MCP resource', done: 'Read MCP resource' },
+        stringArg(args, 'uri'),
+        'MCP resource',
+        ' ',
+      ),
+  ],
+  [
+    'tool_search',
+    (args) =>
+      label(
+        { running: 'Searching tools', done: 'Searched tools' },
+        stringArg(args, 'query'),
+        'tool search',
+      ),
+  ],
+])
+
 /**
  * Labels for the tools OpenWaggle adds to Pi (sessions, browser preview, project actions…) and
  * for MCP tools. Null for any other tool, which keeps its Pi name.
  */
 export function openWaggleToolLabel(name: string, args: JsonObject): ToolLabel | null {
-  if (name === 'sessions') return sessionsLabel(args)
-  if (name === 'powershell') return shellLabel(args)
-  if (name === 'project_actions') return projectActionsLabel(args)
-  if (name === 'source_control') return sourceControlLabel(args)
-  if (name === 'create_goal') {
-    return label({ running: 'Creating goal', done: 'Created goal' }, null, 'goal')
-  }
-  if (name === 'get_goal') {
-    return label({ running: 'Reading goal', done: 'Read goal' }, null, 'goal')
-  }
-  if (name === 'waggle_invoke') {
-    return label(
-      { running: 'Handing off to Waggle', done: 'Handed off to Waggle' },
-      stringArg(args, 'preset'),
-      'Waggle handoff',
-    )
-  }
-  return mcpResourceLabel(name, args) ?? previewLabel(name, args) ?? mcpLabel(name)
+  const builder = LABELS_BY_TOOL.get(name)
+  if (builder) return builder(args)
+  return previewLabel(name, args) ?? mcpLabel(name)
 }

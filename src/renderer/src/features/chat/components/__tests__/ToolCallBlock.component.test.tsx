@@ -95,11 +95,13 @@ describe('ToolCallBlock', () => {
       <ToolCallBlock name="write" args='{"path":"out.txt"}' state="input-complete" />,
     )
 
-    expect(screen.getByText('Requested write out.txt')).toBeInTheDocument()
-    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('Requested write out.txt')).not.toHaveClass('activity-shimmer')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(container.querySelector('[data-tool-kind="write"]')).toHaveClass('text-text-muted')
   })
 
-  it('shows check icon when completed successfully', () => {
+  it('shows only the kind icon, with no status mark, when completed successfully', () => {
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -108,10 +110,25 @@ describe('ToolCallBlock', () => {
         result={{ content: 'file content', state: 'success' }}
       />,
     )
-    // Check icon is rendered as an SVG — look for the completed action text style
-    expect(screen.getByText('Read file.ts')).toBeInTheDocument()
-    // No spinner should be present
-    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('Read file.ts')).toHaveClass('text-text-muted')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(container.querySelector('[data-tool-kind="read"]')).toHaveClass('text-text-muted')
+  })
+
+  it('keeps a streaming call that already reported an error marked as running', () => {
+    render(
+      <ToolCallBlock
+        name="bash"
+        args='{"command":"make"}'
+        state="executing"
+        isStreaming
+        result={{ content: '', state: 'error', error: 'exit 2' }}
+      />,
+    )
+    expect(screen.getByRole('status', { name: 'Running' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Running `make` — expand details$/u })).toBeVisible()
   })
 
   it('marks a failed call with a trailing mark and keeps its text', () => {

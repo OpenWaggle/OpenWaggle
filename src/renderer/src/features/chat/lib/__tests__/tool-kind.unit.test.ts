@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMcpToolName, toolKind } from '../tool-kind'
+import { toolKind } from '../tool-kind'
 
 describe('toolKind', () => {
   it('groups Pi and OpenWaggle tools by family', () => {
@@ -33,30 +33,10 @@ describe('toolKind', () => {
     expect(toolKind('tool_search')).toBe('mcp')
   })
 
-  it('marks a script model call and falls back for anything else', () => {
-    expect(toolKind('models.classify')).toBe('model')
+  it('falls back for anything else, a script model call included', () => {
+    expect(toolKind('models.classify')).toBe('other')
     expect(toolKind('my_extension_tool')).toBe('other')
     expect(toolKind('mcp__')).toBe('other')
     expect(toolKind('toString')).toBe('other')
-  })
-})
-
-describe('parseMcpToolName', () => {
-  it('splits at the first separator after the prefix', () => {
-    expect(parseMcpToolName('mcp__chrome_devtools__take_screenshot')).toEqual({
-      server: 'chrome_devtools',
-      tool: 'take_screenshot',
-    })
-    expect(parseMcpToolName('mcp__docs__search__v2')).toEqual({
-      server: 'docs',
-      tool: 'search__v2',
-    })
-  })
-
-  it('rejects names without a server or a tool', () => {
-    expect(parseMcpToolName('read')).toBeNull()
-    expect(parseMcpToolName('mcp____tool')).toBeNull()
-    expect(parseMcpToolName('mcp__docs__')).toBeNull()
-    expect(parseMcpToolName('mcp__docs')).toBeNull()
   })
 })

@@ -88,7 +88,14 @@ function ScriptCallRow({ call }: { readonly call: CodemodeCallView }) {
     <li className="flex min-w-0 flex-col gap-0.5 py-0.5">
       <div className="flex min-w-0 items-center gap-2 text-xs">
         <ToolRowIcon kind={toolKind(call.name)} status={CALL_STATUS[call.status]} size="sm" />
-        <span className="shrink-0 font-mono text-text-secondary">{call.name}</span>
+        <span
+          className={cn(
+            'shrink-0 font-mono',
+            call.status === 'running' ? toolRowLabelClassName('running') : 'text-text-secondary',
+          )}
+        >
+          {call.name}
+        </span>
         <span className="min-w-0 truncate font-mono text-text-tertiary" title={call.args}>
           {call.args}
         </span>

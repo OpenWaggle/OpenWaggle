@@ -7,7 +7,12 @@ import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
 import { DiffStatLabel, describeDiffStat } from './DiffStatLabel'
 import type { ToolCallViewModel } from './ToolCallBlock'
-import { ToolRowFailureMark, ToolRowIcon, toolRowLabelClassName } from './ToolRowStatus'
+import {
+  ToolRowFailureMark,
+  ToolRowIcon,
+  type ToolRowStatus,
+  toolRowLabelClassName,
+} from './ToolRowStatus'
 
 interface ToolCallHeaderProps {
   readonly expanded: boolean
@@ -27,19 +32,20 @@ export function ToolCallHeader({
   onToggleExpanded,
 }: ToolCallHeaderProps) {
   const actionText = useChatDisplayText(view.actionText)
+  const status = toolRowStatus(view, result)
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={toolHeaderLabel(actionText, view, expanded)}
+        aria-label={toolHeaderLabel(actionText, view, status, expanded)}
         onClick={onToggleExpanded}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
-        <ToolRowIcon kind={view.kind} status={toolRowStatus(view, result)} />
-        <ToolActionLabel view={view} result={result} />
-        {result && view.isError && <ToolRowFailureMark />}
+        <ToolRowIcon kind={view.kind} status={status} />
+        <span className={cn('truncate', toolRowLabelClassName(status))}>{actionText}</span>
+        {status === 'failed' && <ToolRowFailureMark />}
         <ToolDiffSummary view={view} />
         {duration > 0 && !view.isRunning && (
           <span className="text-xs text-text-muted shrink-0">{formatDuration(duration)}</span>
@@ -61,32 +67,26 @@ export function ToolCallHeader({
  * The toggle's label replaces its content, so it uses the same display text the row
  * shows (label in name) and carries the diff stat and the failure itself.
  */
-function toolHeaderLabel(actionText: string, view: ToolCallViewModel, expanded: boolean) {
+function toolHeaderLabel(
+  actionText: string,
+  view: ToolCallViewModel,
+  status: ToolRowStatus,
+  expanded: boolean,
+) {
   const stat = view.diff ? `, ${describeDiffStat(view.diff)}` : ''
-  const failed = view.isError ? ', failed' : ''
+  const failed = status === 'failed' ? ', failed' : ''
   return `${actionText}${failed}${stat} — ${expanded ? 'collapse' : 'expand'} details`
 }
 
-function toolRowStatus(view: ToolCallViewModel, result: ToolCallResultPayload | undefined) {
+/** Running wins over a failure a streaming call already reported, as the old spinner did. */
+function toolRowStatus(
+  view: ToolCallViewModel,
+  result: ToolCallResultPayload | undefined,
+): ToolRowStatus {
   if (view.isRunning) return 'running'
   if (result && view.isError) return 'failed'
   if (view.hasConcreteResult && result) return 'done'
   return 'requested'
-}
-
-function ToolActionLabel({
-  view,
-  result,
-}: {
-  readonly view: ToolCallViewModel
-  readonly result: ToolCallResultPayload | undefined
-}) {
-  const actionText = useChatDisplayText(view.actionText)
-  return (
-    <span className={cn('truncate', toolRowLabelClassName(toolRowStatus(view, result)))}>
-      {actionText}
-    </span>
-  )
 }
 
 function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {

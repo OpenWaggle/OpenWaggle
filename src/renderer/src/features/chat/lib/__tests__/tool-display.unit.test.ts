@@ -67,6 +67,8 @@ describe('resolveActionText', () => {
     expect(actionText('read', {}, false)).toBe('Read')
     expect(actionText('customTool', {}, true)).toBe('customTool...')
     expect(actionText('customTool', {}, false)).toBe('customTool')
+    // A tool named like an Object.prototype key is not a Pi-native tool.
+    expect(actionText('toString', {}, false)).toBe('toString')
   })
 
   it('formats Pi filesystem tool targets', () => {
