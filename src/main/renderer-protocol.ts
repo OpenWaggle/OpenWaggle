@@ -67,8 +67,9 @@ export function registerRendererScheme() {
       },
     },
     {
-      // Each App document has its own `frame-<id>` host, so the scheme is standard; the frame's
-      // origin stays opaque (`sandbox="allow-scripts"`), and nothing under it is fetched by CORS.
+      // Each App document has its own `frame-<id>` host, so the scheme is standard; the frame is
+      // same-origin with that host only, never with OpenWaggle, and nothing under it is fetched
+      // by CORS (ADR 0053).
       scheme: MCP_APP_FRAME_PROTOCOL.SCHEME,
       privileges: {
         standard: true,

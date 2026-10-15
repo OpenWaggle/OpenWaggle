@@ -16,9 +16,15 @@ const loadedResource = vi.hoisted(() => ({
 }))
 vi.mock('../use-mcp-app-resource', () => ({ useMcpAppResource: () => loadedResource }))
 const FRAME_URL = 'openwaggle-mcp-app://frame-12345678-1234-4123-8123-123456789abc/document'
-const registration: { frameUrl: string | null } = vi.hoisted(() => ({ frameUrl: null }))
+const registration: { frameUrl: string | null; error: string | null } = vi.hoisted(() => ({
+  frameUrl: null,
+  error: null,
+}))
 vi.mock('../use-mcp-app-frame-registration', () => ({
-  useMcpAppFrameRegistration: () => ({ frameUrl: registration.frameUrl, error: null }),
+  useMcpAppFrameRegistration: () => ({
+    frameUrl: registration.frameUrl,
+    error: registration.error,
+  }),
 }))
 vi.mock('@/features/chat/lib', () => ({ setComposerTextValue: setComposerTextValueMock }))
 
@@ -84,6 +90,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   bridgeMock.mockClear()
   registration.frameUrl = FRAME_URL
+  registration.error = null
 })
 registration.frameUrl = FRAME_URL
 
@@ -182,6 +189,18 @@ describe('McpAppHost layout', () => {
     act(() => first.onHeightChange(240))
 
     expect(readyBridgeInput()).toBe(first)
+  })
+
+  it('says why when the Host refuses to serve the App document', () => {
+    registration.frameUrl = null
+    registration.error = 'MCP App document is too large'
+
+    render(<McpAppHost descriptor={DESCRIPTOR} projectPath="/project" sessionId="session-1" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'MCP App could not load: MCP App document is too large',
+    )
+    expect(screen.queryByTitle('Show weather MCP App')).not.toBeInTheDocument()
   })
 
   it('connects a new bridge when the App reloads its document', () => {
