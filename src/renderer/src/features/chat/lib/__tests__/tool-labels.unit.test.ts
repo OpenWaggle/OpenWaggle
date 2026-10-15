@@ -100,6 +100,8 @@ describe('openWaggleToolLabel', () => {
     expect(labelOf('project_actions', { action: 'later' }).done).toBe('Project actions · later')
     expect(labelOf('source_control', { action: 'status' }).done).toBe('Checked source control')
     expect(labelOf('get_goal').done).toBe('Read goal')
+    expect(labelOf('update_goal').running).toBe('Updating goal...')
+    expect(labelOf('update_goal_task').done).toBe('Updated goal task')
     expect(labelOf('waggle_invoke', { preset: 'code-review' }).done).toBe(
       'Handed off to Waggle · code-review',
     )

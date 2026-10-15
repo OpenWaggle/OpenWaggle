@@ -11,6 +11,9 @@ export const MCP_SERVER_REACH_TOOL_NAMES = [
   'read_mcp_resource',
 ] as const
 
+/** OpenWaggle's former MCP gateway tools, which older transcripts still show. */
+export const LEGACY_MCP_GATEWAY_TOOL_NAMES = ['mcp', 'mcp_run'] as const
+
 const MCP_TOOL_PREFIX = 'mcp__'
 const MCP_NAME_SEPARATOR = '__'
 
@@ -30,6 +33,10 @@ export function parseMcpToolName(name: string): McpToolName | null {
   return { server: name.slice(MCP_TOOL_PREFIX.length, separator), tool }
 }
 
+/** A Pi tool that reaches MCP servers, or a former gateway tool that did. */
 export function isMcpServerReachToolName(name: string) {
-  return MCP_SERVER_REACH_TOOL_NAMES.some((tool) => tool === name)
+  return (
+    MCP_SERVER_REACH_TOOL_NAMES.some((tool) => tool === name) ||
+    LEGACY_MCP_GATEWAY_TOOL_NAMES.some((tool) => tool === name)
+  )
 }

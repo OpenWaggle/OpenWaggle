@@ -17,6 +17,9 @@ describe('toolKind', () => {
     expect(toolKind('source_control')).toBe('scm')
     expect(toolKind('create_goal')).toBe('goals')
     expect(toolKind('get_goal')).toBe('goals')
+    expect(toolKind('update_goal')).toBe('goals')
+    expect(toolKind('set_goal_tasks')).toBe('goals')
+    expect(toolKind('propose_goal_draft')).toBe('goals')
     expect(toolKind('waggle_invoke')).toBe('waggle')
   })
 
@@ -31,6 +34,9 @@ describe('toolKind', () => {
     expect(toolKind('list_mcp_resource_templates')).toBe('mcp')
     expect(toolKind('read_mcp_resource')).toBe('mcp')
     expect(toolKind('tool_search')).toBe('mcp')
+    // OpenWaggle's former gateway, in older transcripts.
+    expect(toolKind('mcp')).toBe('mcp')
+    expect(toolKind('mcp_run')).toBe('mcp')
   })
 
   it('falls back for anything else, a script model call included', () => {

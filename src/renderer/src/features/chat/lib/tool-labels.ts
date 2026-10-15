@@ -68,13 +68,30 @@ function shellLabel(args: JsonObject): ToolLabel {
 
 type LabelBuilder = (args: JsonObject) => ToolLabel
 
+/** The goal tools of the pi-goal-x extension. */
+function goalLabels(): [string, LabelBuilder][] {
+  const goal =
+    (running: string, done: string): LabelBuilder =>
+    () =>
+      label({ running, done }, null, 'goal')
+  return [
+    ['create_goal', goal('Creating goal', 'Created goal')],
+    ['get_goal', goal('Reading goal', 'Read goal')],
+    ['update_goal', goal('Updating goal', 'Updated goal')],
+    ['set_goal_tasks', goal('Setting goal tasks', 'Set goal tasks')],
+    ['update_goal_task', goal('Updating goal task', 'Updated goal task')],
+    ['goal_question', goal('Asking about the goal', 'Asked about the goal')],
+    ['goal_questionnaire', goal('Asking goal questions', 'Asked goal questions')],
+    ['propose_goal_draft', goal('Proposing a goal', 'Proposed a goal')],
+  ]
+}
+
 const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelBuilder>([
   ['sessions', sessionsLabel],
   ['powershell', shellLabel],
   ['project_actions', projectActionsLabel],
   ['source_control', sourceControlLabel],
-  ['create_goal', () => label({ running: 'Creating goal', done: 'Created goal' }, null, 'goal')],
-  ['get_goal', () => label({ running: 'Reading goal', done: 'Read goal' }, null, 'goal')],
+  ...goalLabels(),
   [
     'waggle_invoke',
     (args) =>

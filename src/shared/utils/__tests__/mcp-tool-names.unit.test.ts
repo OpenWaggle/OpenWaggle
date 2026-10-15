@@ -25,6 +25,7 @@ describe('isMcpServerReachToolName', () => {
   it('names the Pi tools that reach MCP servers', () => {
     expect(isMcpServerReachToolName('tool_search')).toBe(true)
     expect(isMcpServerReachToolName('read_mcp_resource')).toBe(true)
+    expect(isMcpServerReachToolName('mcp_run')).toBe(true)
     expect(isMcpServerReachToolName('codemode')).toBe(false)
   })
 })

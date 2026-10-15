@@ -1,7 +1,7 @@
 # Third-party notices
 
 OpenWaggle includes material adapted from the projects below. Each is used under the license
-reproduced here, which also ships with the packaged app.
+reproduced or linked here, which also ships with the packaged app.
 
 ## T3 Code
 
@@ -103,5 +103,5 @@ Source: https://github.com/simple-icons/simple-icons
 
 The Model Context Protocol logo on MCP tool rows (`src/renderer/src/shared/ui/icons/McpIcon.tsx`)
 comes from Simple Icons, which dedicates its icons to the public domain under CC0 1.0 Universal
-(https://creativecommons.org/publicdomain/zero/1.0/). The logo remains a mark of the Model Context
-Protocol project.
+(https://creativecommons.org/publicdomain/zero/1.0/). CC0 asks for no notice; this entry records
+where the logo came from. The logo remains a mark of the Model Context Protocol project.

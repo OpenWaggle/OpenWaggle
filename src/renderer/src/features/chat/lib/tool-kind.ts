@@ -38,8 +38,15 @@ const TOOL_KINDS_BY_NAME: ReadonlyMap<string, ToolKind> = new Map<string, ToolKi
   ['ls', 'ls'],
   ['project_actions', 'actions'],
   ['source_control', 'scm'],
+  // The goal tools of the pi-goal-x extension.
   ['create_goal', 'goals'],
   ['get_goal', 'goals'],
+  ['update_goal', 'goals'],
+  ['set_goal_tasks', 'goals'],
+  ['update_goal_task', 'goals'],
+  ['goal_question', 'goals'],
+  ['goal_questionnaire', 'goals'],
+  ['propose_goal_draft', 'goals'],
   ['waggle_invoke', 'waggle'],
 ])
 
