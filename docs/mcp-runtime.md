@@ -329,7 +329,8 @@ Session's pooled connection for that server.
   the first `initialize` params, and sends the listing again, so the lease never sees the error
   (`mcp-upstream-replacement.ts`, with `mcp-upstream-slot.ts` owning the process). Clients'
   messages wait while that happens. The connection only does this when nothing else is open on
-  the old process, and at most once a minute. Otherwise, or when the fresh process fails its
+  the old process (no client or OpenWaggle request, and none of the server's own requests, whose
+  answer would reach the fresh process), and at most once a minute. Otherwise, or when the fresh process fails its
   `initialize` or the same listing, the lease gets the error and the connection retires, so the next Run opens its own process.
   A failed `tools/call` is never sent again: the tool may already have done its work.
 - Legacy SSE servers get the Pi auth provider through a wrapped fetch (bearer token, one retry
