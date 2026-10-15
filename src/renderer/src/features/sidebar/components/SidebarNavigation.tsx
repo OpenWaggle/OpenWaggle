@@ -1,6 +1,7 @@
 import {
   ArrowDownAZ,
   Calendar,
+  ChartColumn,
   Check,
   Clock,
   Edit3,
@@ -152,10 +153,19 @@ export function SidebarProjectsHeader({
  *
  * The gear icon is deliberately the app's existing one. The prototype swapped in a different
  * glyph and the maintainer asked to keep this.
+ *
+ * Usage & Cost (the cross-session view) sits at the row's right edge as its own hit target:
+ * the full-width row keeps opening Settings.
  */
-export function SidebarSettingsButton({ onOpenSettings }: { readonly onOpenSettings: () => void }) {
+export function SidebarSettingsButton({
+  onOpenSettings,
+  onOpenUsageCost,
+}: {
+  readonly onOpenSettings: () => void
+  readonly onOpenUsageCost: () => void
+}) {
   return (
-    <div className="no-drag shrink-0 border-t border-border px-1.5 py-1">
+    <div className="no-drag flex shrink-0 items-center gap-0.5 border-t border-border px-1.5 py-1">
       <Button
         variant="row"
         size="none"
@@ -163,10 +173,22 @@ export function SidebarSettingsButton({ onOpenSettings }: { readonly onOpenSetti
         aria-label="Settings"
         data-qa="sidebar-settings"
         onClick={onOpenSettings}
-        className="flex h-7.5 w-full gap-2 px-2 font-normal text-xs text-text-tertiary"
+        className="flex h-7.5 min-w-0 flex-1 gap-2 px-2 font-normal text-xs text-text-tertiary"
       >
-        <Settings className="size-3.5" />
+        <Settings className="size-3.5 shrink-0" />
         <span>Settings</span>
+      </Button>
+      <Button
+        variant="row"
+        size="none"
+        radius="md"
+        aria-label="Usage & Cost"
+        data-qa="sidebar-usage-cost"
+        title="Usage & Cost"
+        onClick={onOpenUsageCost}
+        className="flex h-7.5 shrink-0 gap-2 px-2 font-normal text-xs text-text-tertiary"
+      >
+        <ChartColumn className="size-3.5 shrink-0" />
       </Button>
     </div>
   )

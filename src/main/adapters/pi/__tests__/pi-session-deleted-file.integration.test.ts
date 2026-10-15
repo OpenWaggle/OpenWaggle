@@ -20,11 +20,14 @@ import {
  * in a new file under the same Pi session id, which would bring the deleted session back.
  */
 
-const { state, getPathMock, events } = vi.hoisted(() => ({
-  state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
-  events: new Array<{ kind: string; sessionId?: string; change?: string }>(),
-}))
+const { state, getPathMock, events } = vi.hoisted(() => {
+  const events: { kind: string; sessionId?: string; change?: string }[] = []
+  return {
+    state: { userDataDir: '' },
+    getPathMock: vi.fn(() => ''),
+    events,
+  }
+})
 
 getPathMock.mockImplementation(() => state.userDataDir)
 

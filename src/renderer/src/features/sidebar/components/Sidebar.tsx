@@ -131,7 +131,10 @@ export function Sidebar() {
             ) : null}
           </div>
         </div>
-        <SidebarSettingsButton onOpenSettings={controller.handleOpenSettings} />
+        <SidebarSettingsButton
+          onOpenSettings={controller.handleOpenSettings}
+          onOpenUsageCost={controller.handleOpenUsageCost}
+        />
       </nav>
     </div>
   )

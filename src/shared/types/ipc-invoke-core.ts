@@ -62,6 +62,12 @@ import type {
 import type { FollowUpEditHoldReference } from './session-control-queue'
 import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
 import type { Settings } from './settings'
+import type {
+  UsageCostQuery,
+  UsageCostSessionQuery,
+  UsageCostSessionsResult,
+  UsageCostView,
+} from './usage-cost'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -89,6 +95,14 @@ export interface IpcCoreInvokeChannelMap
   'agent-definitions:set-enabled': {
     args: [projectPath: string, name: string, enabled: boolean]
     return: undefined
+  }
+  'usage-cost:get-view': {
+    args: [query: UsageCostQuery]
+    return: UsageCostView
+  }
+  'usage-cost:get-sessions': {
+    args: [query: UsageCostSessionQuery]
+    return: UsageCostSessionsResult
   }
   'access-profiles:manage': {
     args: [command: LocalSessionProfileUiCommand]
