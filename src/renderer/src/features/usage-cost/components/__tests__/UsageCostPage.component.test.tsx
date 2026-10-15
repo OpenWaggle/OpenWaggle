@@ -105,7 +105,7 @@ function baseState(overrides: Partial<UsageCostPageState> = {}): UsageCostPageSt
 
 describe('UsageCostPage', () => {
   it('renders summary cards, the daily chart, and both breakdowns', () => {
-    render(<UsageCostPage state={baseState()} />)
+    render(<UsageCostPage onBack={vi.fn()} state={baseState()} />)
 
     expect(screen.getByText('Estimated spend')).toBeInTheDocument()
     expect(screen.getByText('$1.75')).toBeInTheDocument()
@@ -119,7 +119,7 @@ describe('UsageCostPage', () => {
   })
 
   it('shows the unpriced-tokens notice when a share has no price', () => {
-    render(<UsageCostPage state={baseState()} />)
+    render(<UsageCostPage onBack={vi.fn()} state={baseState()} />)
     expect(screen.getByText(/no recorded price and are excluded from cost/i)).toBeInTheDocument()
   })
 
@@ -132,7 +132,7 @@ describe('UsageCostPage', () => {
         models: VIEW.models.map((model) => ({ ...model, unpricedTokens: 0 })),
       },
     })
-    render(<UsageCostPage state={state} />)
+    render(<UsageCostPage onBack={vi.fn()} state={state} />)
     expect(screen.queryByText(/no recorded price and are excluded/i)).toBeNull()
   })
 
@@ -142,7 +142,7 @@ describe('UsageCostPage', () => {
       drillDown: { provider: 'anthropic', modelId: 'claude-opus-5-5' },
       toggleModel,
     })
-    render(<UsageCostPage state={state} />)
+    render(<UsageCostPage onBack={vi.fn()} state={state} />)
 
     fireEvent.click(screen.getByRole('button', { name: /claude-opus-5-5/ }))
     expect(toggleModel).toHaveBeenCalledWith(
@@ -169,7 +169,7 @@ describe('UsageCostPage', () => {
       },
       sessions: [],
     })
-    render(<UsageCostPage state={state} />)
+    render(<UsageCostPage onBack={vi.fn()} state={state} />)
 
     expect(screen.getByText('No spending in this window')).toBeInTheDocument()
     expect(screen.queryByText('Daily spending')).toBeNull()
@@ -178,11 +178,29 @@ describe('UsageCostPage', () => {
   it('surfaces a retryable error state', () => {
     const refresh = vi.fn()
     render(
-      <UsageCostPage state={baseState({ isError: true, errorMessage: 'Scan failed.', refresh })} />,
+      <UsageCostPage
+        onBack={vi.fn()}
+        state={baseState({ isError: true, errorMessage: 'Scan failed.', refresh })}
+      />,
     )
 
     expect(screen.getByText('Usage & Cost is unavailable')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(refresh).toHaveBeenCalled()
+  })
+
+  it('offers a way back to the app in every state', () => {
+    const onBack = vi.fn()
+    const { rerender } = render(<UsageCostPage onBack={onBack} state={baseState({ view: null })} />)
+    expect(screen.getByText('Scanning Pi sessions…')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /back to app/i }))
+
+    rerender(<UsageCostPage onBack={onBack} state={baseState({ isError: true })} />)
+    fireEvent.click(screen.getByRole('button', { name: /back to app/i }))
+
+    rerender(<UsageCostPage onBack={onBack} state={baseState()} />)
+    fireEvent.click(screen.getByRole('button', { name: /back to app/i }))
+
+    expect(onBack).toHaveBeenCalledTimes(3)
   })
 })

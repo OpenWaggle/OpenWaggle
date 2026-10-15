@@ -4,8 +4,11 @@ import type {
   UsageCostSessionRow,
   UsageCostView,
 } from '@shared/types/usage-cost'
-import { RotateCw } from 'lucide-react'
+import { ArrowLeft, RotateCw } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { useFullscreen } from '@/shell/useFullscreen'
 import type { UsageCostDrillDown } from '../hooks/use-usage-cost-view'
 import { formatTimestampLabel } from '../lib/usage-cost-format'
 import { UsageCostBreakdownList } from './UsageCostBreakdownList'
@@ -34,6 +37,8 @@ export interface UsageCostPageState {
 
 interface UsageCostPageProps {
   readonly state: UsageCostPageState
+  /** Leaves the full-page view; the shell hides the sidebar and header on this route. */
+  readonly onBack: () => void
 }
 
 function hasActiveDrillDown(drillDown: UsageCostDrillDown) {
@@ -58,12 +63,52 @@ function formatTierSummary(totals: UsageCostBucket) {
   return parts.length > 0 ? parts.join(', ') : 'no priced tokens yet'
 }
 
-export function UsageCostPage({ state }: UsageCostPageProps) {
+export function UsageCostPage({ state, onBack }: UsageCostPageProps) {
+  return (
+    <div className="flex size-full flex-col bg-bg">
+      <UsageCostTopBar onBack={onBack} />
+      <div className="min-h-0 flex-1">
+        <UsageCostBody state={state} />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Mirrors the Settings top bar: window drag region, traffic-light inset, and a way back.
+ * The page heading below names the view, so the bar carries only the back action.
+ */
+function UsageCostTopBar({ onBack }: { readonly onBack: () => void }) {
+  const isFullscreen = useFullscreen()
+  return (
+    <div
+      className={cn(
+        'drag-region flex h-12 shrink-0 items-center gap-3 border-b border-border px-4',
+        !isFullscreen && 'pl-20',
+      )}
+    >
+      <Button
+        variant="unstyled"
+        onClick={onBack}
+        className="no-drag flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+      >
+        <ArrowLeft className="size-4" />
+        <span className="text-xs">Back to app</span>
+      </Button>
+    </div>
+  )
+}
+
+function CenteredMessage({ children }: { readonly children: ReactNode }) {
+  return <div className="flex size-full items-center justify-center bg-bg p-8">{children}</div>
+}
+
+function UsageCostBody({ state }: { readonly state: UsageCostPageState }) {
   const { view } = state
 
   if (state.isError) {
     return (
-      <div className="flex size-full items-center justify-center bg-bg p-8">
+      <CenteredMessage>
         <div className="max-w-sm text-center">
           <h1 className="text-base font-semibold text-text-primary">Usage & Cost is unavailable</h1>
           <p className="mt-2 text-sm text-text-tertiary">
@@ -73,15 +118,17 @@ export function UsageCostPage({ state }: UsageCostPageProps) {
             Try again
           </Button>
         </div>
-      </div>
+      </CenteredMessage>
     )
   }
 
   if (!view) {
     return (
-      <div className="flex size-full items-center justify-center bg-bg" aria-live="polite">
-        <p className="text-sm text-text-tertiary">Scanning Pi sessions…</p>
-      </div>
+      <CenteredMessage>
+        <p className="text-sm text-text-tertiary" aria-live="polite">
+          Scanning Pi sessions…
+        </p>
+      </CenteredMessage>
     )
   }
 
