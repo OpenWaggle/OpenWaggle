@@ -16,6 +16,12 @@ interface FrameLoad {
   readonly count: number
 }
 
+/** The current load of the frame's document: 0 until it loads, so one that never loads stalls. */
+function loadKey(frameUrl: string | null, load: FrameLoad | null) {
+  if (frameUrl === null) return null
+  return load?.url === frameUrl ? load.count : 0
+}
+
 const EMPTY_ARGUMENTS: Readonly<Record<string, McpJsonValue>> = {}
 
 export function McpAppHost({
@@ -41,7 +47,7 @@ export function McpAppHost({
   const layout = useMcpAppFrameLayout(container)
   // Each load of the frame's document: a new URL waits for its own, a reload gets a new bridge.
   const [frameLoad, setFrameLoad] = useState<FrameLoad | null>(null)
-  const frame = useMcpAppFrameSize(frameUrl !== null)
+  const frame = useMcpAppFrameSize(loadKey(frameUrl, frameLoad))
   const { onHeightChange, onInitialized } = frame
   const stalled = frame.state === 'stalled'
   const [stagedContext, setStagedContext] = useState<unknown>(null)

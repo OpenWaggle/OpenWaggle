@@ -42,7 +42,10 @@ interface RegisteredMcpAppFrame {
   readonly policy: string
 }
 
-/** App documents by frame host. Each is served only to frames of the renderer that registered. */
+/**
+ * App documents by frame host. A document is served to whoever asks for its URL, whose random
+ * frame id only the registering renderer knows; only that renderer can unregister it.
+ */
 const registeredFrames = new Map<string, RegisteredMcpAppFrame>()
 let protocolRegistered = false
 

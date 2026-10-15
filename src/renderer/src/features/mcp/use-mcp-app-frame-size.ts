@@ -16,17 +16,20 @@ const APP_START_TIMEOUT_MS = 15_000
 /**
  * Where an App is: `starting` until it finishes the MCP Apps handshake (its frame is 1 px high,
  * so a slow or broken App leaves no empty box), `running` after, `stalled` when it did not
- * within `APP_START_TIMEOUT_MS` of its resource loading.
+ * within `APP_START_TIMEOUT_MS` of its document loading.
  */
 export type McpAppState = 'starting' | 'running' | 'stalled'
 
-/** The state and frame height of an App whose resource has `loaded`, following its data. */
-export function useMcpAppFrameSize(loaded: boolean) {
+/**
+ * The state and frame height of an App, following its data. `load` identifies the current load of
+ * its document (null before the first): each load, including an App reloading itself, starts over.
+ */
+export function useMcpAppFrameSize(load: number | null) {
   const [state, setState] = useState<McpAppState>('starting')
   const [reportedHeight, setReportedHeight] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!loaded) return
+    if (load === null) return
     // A new frame starts over: it has not run or reported a size yet.
     setState('starting')
     setReportedHeight(null)
@@ -35,7 +38,7 @@ export function useMcpAppFrameSize(loaded: boolean) {
       APP_START_TIMEOUT_MS,
     )
     return () => clearTimeout(timer)
-  }, [loaded])
+  }, [load])
 
   // Stable: the App's bridge is created once per frame from callbacks that include these.
   const onHeightChange = useCallback((height: number) => {
