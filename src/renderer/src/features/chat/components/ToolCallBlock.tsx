@@ -15,6 +15,7 @@ import {
   type ToolCallResultPayload,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
+import { type ToolKind, toolKind } from '@/features/chat/lib/tool-kind'
 import { EditRowDiff } from './EditRowDiff'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
 import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
@@ -49,6 +50,7 @@ export interface ToolCallViewModel {
   readonly hasConcreteResult: boolean
   readonly isError: boolean
   readonly isRunning: boolean
+  readonly kind: ToolKind
   readonly liveOutputPreview: string
   readonly parsedArgs: JsonObject
   readonly path: string | null
@@ -109,7 +111,7 @@ function buildToolCallViewModel({
   const resultText = readableResultText(result, expanded, isRunning, isError)
 
   return {
-    actionText: resolveActionText({ name, args: parsedArgs, awaitingResult, isError, isRunning }),
+    actionText: resolveActionText({ name, args: parsedArgs, awaitingResult, isRunning }),
     awaitingResult,
     branchSourceMessageId: result?.sourceMessageId,
     command: getStringArg(parsedArgs, 'command'),
@@ -118,6 +120,7 @@ function buildToolCallViewModel({
     hasConcreteResult,
     isError,
     isRunning,
+    kind: toolKind(name),
     parsedArgs,
     path: getStringArg(parsedArgs, 'path'),
     resultError,

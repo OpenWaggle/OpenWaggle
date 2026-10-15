@@ -81,11 +81,12 @@ describe('CodemodeToolCallBlock', () => {
     expect(
       within(screen.getByRole('button', { name: /Ran a script/u })).getByText('$0.0123'),
     ).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('list', { name: 'Calls made by the script' })).getByText(
-        'models.classify',
-      ),
-    ).toBeInTheDocument()
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).getByText('models.classify')).toBeInTheDocument()
+    const kinds = [...calls.querySelectorAll('[data-tool-kind]')].map((icon) =>
+      icon.getAttribute('data-tool-kind'),
+    )
+    expect(kinds).toEqual(['shell', 'model'])
   })
 
   it('shows the script and its output when expanded', () => {
@@ -122,7 +123,9 @@ describe('CodemodeToolCallBlock', () => {
       />,
     )
 
-    expect(screen.getByText('Script failed')).toBeInTheDocument()
+    expect(screen.getByText('Ran a script')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Ran a script, failed/u })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Error: boom')
   })
 

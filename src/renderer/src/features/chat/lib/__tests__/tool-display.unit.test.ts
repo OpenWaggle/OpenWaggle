@@ -7,7 +7,6 @@ function actionText(name: string, args: JsonObject, isRunning: boolean) {
     name,
     args,
     awaitingResult: false,
-    isError: false,
     isRunning,
   })
 }
@@ -22,22 +21,26 @@ describe('resolveActionText', () => {
         name: 'write',
         args: writeArgs,
         awaitingResult: true,
-        isError: false,
         isRunning: false,
       }),
     ).toBe('Requested write test.txt')
   })
 
-  it('returns error text when isError', () => {
+  it('names OpenWaggle and MCP tools by what they did', () => {
+    expect(actionText('sessions', { action: 'spawn', objective: 'Review' }, false)).toBe(
+      'Spawned sub-agent · Review',
+    )
+    expect(actionText('mcp__chrome_devtools__take_screenshot', {}, true)).toBe(
+      'Chrome devtools › take_screenshot...',
+    )
     expect(
       resolveActionText({
-        name: 'bash',
-        args: bashArgs,
-        awaitingResult: false,
-        isError: true,
+        name: 'mcp__datadog__search_logs',
+        args: {},
+        awaitingResult: true,
         isRunning: false,
       }),
-    ).toBe('Failed bash `pnpm test`')
+    ).toBe('Requested Datadog › search_logs')
   })
 
   it('returns running text when isRunning', () => {

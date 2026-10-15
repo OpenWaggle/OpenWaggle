@@ -1,5 +1,6 @@
 import { match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
+import { openWaggleToolLabel } from './tool-labels'
 
 type PiNativeToolName = 'read' | 'write' | 'edit' | 'bash' | 'grep' | 'find' | 'ls'
 
@@ -122,17 +123,21 @@ interface ActionTextParams {
   readonly name: string
   readonly args: JsonObject
   readonly awaitingResult: boolean
-  readonly isError: boolean
   readonly isRunning: boolean
 }
 
+/**
+ * A failed call keeps the text of the call it was: the row marks the failure with its icon, as
+ * T3 Code's work log does.
+ */
 export function resolveActionText(params: ActionTextParams): string {
+  const label = isPiNativeToolName(params.name)
+    ? null
+    : openWaggleToolLabel(params.name, params.args)
   if (params.awaitingResult) {
-    return formatStatusActionText('Requested', params.name, params.args)
+    return label?.requested ?? formatStatusActionText('Requested', params.name, params.args)
   }
-  if (params.isError) {
-    return formatStatusActionText('Failed', params.name, params.args)
-  }
+  if (label) return params.isRunning ? label.running : label.done
   return getToolActionText(params.name, params.args, params.isRunning)
 }
 

@@ -55,12 +55,39 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Reading src/index.ts...')).toBeInTheDocument()
   })
 
-  it('shows spinner when tool is running', () => {
+  it('marks a running tool with its kind icon and a shimmering label', () => {
     const { container } = render(
       <ToolCallBlock name="bash" args='{"command":"ls"}' state="running" isStreaming />,
     )
-    const spinner = container.querySelector('.animate-spin')
-    expect(spinner).toBeTruthy()
+    const running = screen.getByRole('status', { name: 'Running' })
+    expect(running.querySelector('[data-tool-kind="shell"]')).toBeTruthy()
+    expect(screen.getByText('Running `ls`')).toHaveClass('activity-shimmer')
+    expect(container.querySelector('.animate-spin')).toBeNull()
+  })
+
+  it('shows the kind icon of each tool family', () => {
+    const { container } = render(
+      <>
+        <ToolCallBlock
+          name="sessions"
+          args='{"action":"spawn","objective":"Review the diff"}'
+          state="input-complete"
+          result={{ content: 'ok', state: 'success' }}
+        />
+        <ToolCallBlock
+          name="mcp__datadog__analyze_datadog_logs"
+          args="{}"
+          state="input-complete"
+          result={{ content: 'ok', state: 'success' }}
+        />
+      </>,
+    )
+    expect(screen.getByText('Spawned sub-agent · Review the diff')).toBeInTheDocument()
+    expect(screen.getByText('Datadog › analyze_datadog_logs')).toBeInTheDocument()
+    const kinds = [...container.querySelectorAll('[data-tool-kind]')].map((icon) =>
+      icon.getAttribute('data-tool-kind'),
+    )
+    expect(kinds).toEqual(['subagents', 'mcp'])
   })
 
   it('does not render running state for historical unresolved tool calls', () => {
@@ -87,8 +114,8 @@ describe('ToolCallBlock', () => {
     expect(container.querySelector('.animate-spin')).toBeNull()
   })
 
-  it('shows error text when result has error', () => {
-    render(
+  it('marks a failed call with a trailing mark and keeps its text', () => {
+    const { container } = render(
       <ToolCallBlock
         name="read"
         args='{"path":"missing.ts"}'
@@ -96,7 +123,12 @@ describe('ToolCallBlock', () => {
         result={{ content: '', state: 'error', error: 'File not found' }}
       />,
     )
-    expect(screen.getByText('Failed read missing.ts')).toBeInTheDocument()
+    expect(screen.getByText('Read missing.ts')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Read missing.ts, failed — expand details' }),
+    ).toBeInTheDocument()
+    expect(container.querySelector('[data-tool-kind="read"]')).toHaveClass('text-error/80')
   })
 
   it('treats a terminal empty Pi envelope as completed rather than pending', () => {

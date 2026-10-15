@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Loader2, X } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import {
   type CodemodeCallView,
@@ -8,12 +8,19 @@ import {
 } from '@/features/chat/lib/codemode-tool-view'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
+import { toolKind } from '@/features/chat/lib/tool-kind'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration, formatUsd } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { CopyButton } from './ToolCallBlockParts'
+import {
+  ToolRowFailureMark,
+  ToolRowIcon,
+  type ToolRowStatus,
+  toolRowLabelClassName,
+} from './ToolRowStatus'
 
 interface CodemodeToolCallBlockProps {
   readonly args: string
@@ -40,11 +47,26 @@ function scriptPhase(
   return view.failed || result.state === 'error' || state === 'error' ? 'failed' : 'completed'
 }
 
+/** A failed script keeps its text; the row marks the failure, as every tool row does. */
 const PHASE_LABELS: Record<ScriptPhase, string> = {
   running: 'Running a script…',
   completed: 'Ran a script',
-  failed: 'Script failed',
+  failed: 'Ran a script',
   requested: 'Requested a script',
+}
+
+const PHASE_STATUS: Record<ScriptPhase, ToolRowStatus> = {
+  running: 'running',
+  completed: 'done',
+  failed: 'failed',
+  requested: 'requested',
+}
+
+const CALL_STATUS: Record<CodemodeCallView['status'], ToolRowStatus> = {
+  running: 'running',
+  ok: 'done',
+  error: 'failed',
+  cancelled: 'failed',
 }
 
 function countLabel(count: number, noun: string) {
@@ -61,46 +83,18 @@ function callCountLabel(calls: readonly CodemodeCallView[]) {
   ].join(', ')
 }
 
-function PhaseIcon({ phase }: { readonly phase: ScriptPhase }) {
-  if (phase === 'running') {
-    return (
-      <Loader2
-        role="status"
-        aria-label="Running"
-        className="size-3.5 shrink-0 animate-spin text-text-tertiary"
-      />
-    )
-  }
-  if (phase === 'completed') return <Check className="size-3.5 shrink-0 text-text-muted" />
-  if (phase === 'failed') return <X className="size-3.5 shrink-0 text-error/80" />
-  return null
-}
-
-function CallStatusIcon({ status }: { readonly status: CodemodeCallView['status'] }) {
-  if (status === 'running') {
-    return (
-      <Loader2 aria-label="Running" className="size-3 shrink-0 animate-spin text-text-tertiary" />
-    )
-  }
-  if (status === 'ok')
-    return <Check aria-label="Done" className="size-3 shrink-0 text-text-muted" />
-  return (
-    <X
-      aria-label={status === 'cancelled' ? 'Cancelled' : 'Failed'}
-      className="size-3 shrink-0 text-error/80"
-    />
-  )
-}
-
 function ScriptCallRow({ call }: { readonly call: CodemodeCallView }) {
   return (
     <li className="flex min-w-0 flex-col gap-0.5 py-0.5">
       <div className="flex min-w-0 items-center gap-2 text-xs">
-        <CallStatusIcon status={call.status} />
+        <ToolRowIcon kind={toolKind(call.name)} status={CALL_STATUS[call.status]} size="sm" />
         <span className="shrink-0 font-mono text-text-secondary">{call.name}</span>
         <span className="min-w-0 truncate font-mono text-text-tertiary" title={call.args}>
           {call.args}
         </span>
+        {(call.status === 'error' || call.status === 'cancelled') && (
+          <ToolRowFailureMark label={call.status === 'cancelled' ? 'Cancelled' : 'Failed'} />
+        )}
         {call.cost !== undefined && (
           <span className="shrink-0 text-text-muted">{formatUsd(call.cost)}</span>
         )}
@@ -188,6 +182,7 @@ export function CodemodeToolCallBlock({
   const view = codemodeToolView(parseToolArgs(args), result?.content)
   const phase = scriptPhase(view, state, result, isStreaming)
   const label = PHASE_LABELS[phase]
+  const status = PHASE_STATUS[phase]
   const listedCalls = nestedCallsShown ? view.calls.filter(isCodemodeModelCall) : view.calls
 
   return (
@@ -196,21 +191,13 @@ export function CodemodeToolCallBlock({
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={`${label} — ${expanded ? 'collapse' : 'expand'} details`}
+        aria-label={`${label}${phase === 'failed' ? ', failed' : ''} — ${expanded ? 'collapse' : 'expand'} details`}
         onClick={() => setExpanded(!expanded)}
         className="flex w-full min-w-0 items-center gap-2 py-0.5 text-sm transition-colors"
       >
-        <PhaseIcon phase={phase} />
-        <span
-          className={cn(
-            'truncate',
-            phase === 'running' && 'text-text-tertiary',
-            phase === 'completed' && 'text-text-muted',
-            phase === 'failed' && 'text-error/80',
-          )}
-        >
-          {label}
-        </span>
+        <ToolRowIcon kind="script" status={status} />
+        <span className={cn('truncate', toolRowLabelClassName(status))}>{label}</span>
+        {phase === 'failed' && <ToolRowFailureMark />}
         {view.calls.length > 0 && (
           <span className="shrink-0 text-xs text-text-muted">{callCountLabel(view.calls)}</span>
         )}
