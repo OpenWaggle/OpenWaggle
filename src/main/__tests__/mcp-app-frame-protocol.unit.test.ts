@@ -62,6 +62,7 @@ describe('the MCP App frame protocol', () => {
 
     expect(mcpAppFrameResponse(`openwaggle-mcp-app://frame-${FRAME_ID}/other`).status).toBe(404)
     expect(mcpAppFrameResponse(`${DOCUMENT_URL}?x=1`).status).toBe(404)
+    expect(mcpAppFrameResponse(`${DOCUMENT_URL}#x`).status).toBe(404)
     expect(
       mcpAppFrameResponse(
         'openwaggle-mcp-app://frame-87654321-1234-4123-8123-123456789abc/document',

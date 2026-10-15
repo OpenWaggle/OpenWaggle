@@ -27,6 +27,9 @@ export function useMcpAppFrameSize(loaded: boolean) {
 
   useEffect(() => {
     if (!loaded) return
+    // A new frame starts over: it has not run or reported a size yet.
+    setState('starting')
+    setReportedHeight(null)
     const timer = setTimeout(
       () => setState((current) => (current === 'starting' ? 'stalled' : current)),
       APP_START_TIMEOUT_MS,

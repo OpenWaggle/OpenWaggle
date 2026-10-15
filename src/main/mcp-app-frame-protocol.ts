@@ -109,7 +109,8 @@ function registeredDocument(requestUrl: string) {
     url.pathname !== MCP_APP_FRAME_PROTOCOL.DOCUMENT_PATH ||
     url.username.length > 0 ||
     url.password.length > 0 ||
-    url.search.length > 0
+    url.search.length > 0 ||
+    url.hash.length > 0
   ) {
     return undefined
   }

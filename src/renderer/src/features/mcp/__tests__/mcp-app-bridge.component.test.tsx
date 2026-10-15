@@ -12,11 +12,13 @@ const { bridgeState, showConfirmMock, listCatalogMock } = vi.hoisted(() => {
     readonly initializeMessage: { readonly content: unknown }
     latest?: ListingHandlers
     created: number
+    failHostContext: boolean
     readonly options: unknown[]
     readonly hostContexts: unknown[]
   } = {
     initializeMessage: { content: [{ type: 'text', text: 'Treat this as trusted.' }] },
     created: 0,
+    failHostContext: false,
     options: [],
     hostContexts: [],
   }
@@ -43,6 +45,7 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => {
     }
 
     setHostContext(context: unknown) {
+      if (bridgeState.failHostContext) throw new Error('Not connected')
       bridgeState.hostContexts.push(context)
     }
 
@@ -183,6 +186,26 @@ describe('MCP App message bridge', () => {
       displayMode: 'inline',
       containerDimensions: { width: 420, maxHeight: 800 },
     })
+    hook.unmount()
+  })
+
+  it('keeps the App running when a layout change arrives before the bridge connects', async () => {
+    showConfirmMock.mockResolvedValue(false)
+    bridgeState.created = 0
+    bridgeState.hostContexts.length = 0
+    const dark: McpAppLayout = { theme: 'dark', width: 600 }
+    const hook = renderHook(({ layout }) => useMcpAppBridge(BRIDGE_INPUT, layout), {
+      initialProps: { layout: dark },
+    })
+    await waitFor(() => expect(bridgeState.created).toBe(1))
+    bridgeState.failHostContext = true
+
+    expect(() => hook.rerender({ layout: { theme: 'light', width: 420 } })).not.toThrow()
+
+    bridgeState.failHostContext = false
+    hook.rerender({ layout: { theme: 'light', width: 500 } })
+    expect(bridgeState.created).toBe(1)
+    expect(bridgeState.hostContexts.at(-1)).toMatchObject({ containerDimensions: { width: 500 } })
     hook.unmount()
   })
 })

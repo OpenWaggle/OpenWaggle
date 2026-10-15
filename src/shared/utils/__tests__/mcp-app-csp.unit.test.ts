@@ -56,11 +56,17 @@ describe("an MCP App frame's Content-Security-Policy", () => {
         'https://cdn.example.com/p#fragment',
         'https://cdn.example.com/pé',
         "https://cdn.example.com/a'b",
+        'https://cdn.example.com/a\\b',
+        'https://cdn.example.com/<script>',
+        'https://cdn.example.com:0',
+        'https://cdn.example.com:65536',
+        'https://cdn.example.com:443',
         'https://cdn.example.com/assets/app.js?v=1',
       ]),
     ).toEqual([
       'https://ok.example.com',
       'http://localhost:5173',
+      'https://cdn.example.com:443',
       'https://cdn.example.com/assets/app.js?v=1',
     ])
     expect(
@@ -69,6 +75,17 @@ describe("an MCP App frame's Content-Security-Policy", () => {
         connectDomains: ["https://a.example.com 'unsafe-eval'"],
       }),
     ).toContain("connect-src 'none'")
+  })
+
+  it('takes WebSocket origins only as connect sources', () => {
+    const policy = mcpAppContentSecurityPolicy({
+      ...NONE,
+      resourceDomains: ['wss://live.example.com', 'https://cdn.example.com'],
+      connectDomains: ['wss://live.example.com'],
+    })
+
+    expect(policy).toContain("script-src 'unsafe-inline' https://cdn.example.com;")
+    expect(policy).toContain('connect-src wss://live.example.com')
   })
 
   it('caps how many origins one directive may list', () => {

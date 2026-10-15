@@ -41,6 +41,8 @@ function monitorOwner(sender: WebContents) {
   const stop = () => {
     purge()
     sender.removeListener('did-start-navigation', onNavigation)
+    sender.removeListener('render-process-gone', stop)
+    sender.removeListener('destroyed', stop)
     monitoredOwners.delete(ownerId)
   }
   sender.on('did-start-navigation', onNavigation)

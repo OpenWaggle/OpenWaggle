@@ -39,11 +39,13 @@ export function McpAppHost({
   const frameReady = frameUrl !== null && loadedFrameUrl === frameUrl
   const frame = useMcpAppFrameSize(frameUrl !== null)
   const { onHeightChange, onInitialized } = frame
+  const stalled = frame.state === 'stalled'
   const [stagedContext, setStagedContext] = useState<unknown>(null)
   const [closed, setClosed] = useState(false)
   const bridgeInput = useMemo(() => {
     const contentWindow = iframeRef.current?.contentWindow
-    if (!resource || !frameUrl || !frameReady || !contentWindow) return null
+    // A stalled App's frame is removed, so its bridge goes with it.
+    if (!resource || !frameUrl || !frameReady || !contentWindow || stalled) return null
     return {
       contentWindow,
       descriptor,
@@ -69,6 +71,7 @@ export function McpAppHost({
     projectPath,
     resource,
     sessionId,
+    stalled,
   ])
   useMcpAppBridge(bridgeInput, layout)
 
