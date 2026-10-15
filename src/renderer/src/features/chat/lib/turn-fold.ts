@@ -50,7 +50,9 @@ function isAssistantMessageRow(row: ChatRow): row is MessageChatRow {
 
 function hasFoldableWork(message: UIMessage) {
   // A hidden Worker wait is not work the reader could unfold.
-  return message.parts.some((part) => isShownToolCallPart(part) || part.type === 'thinking')
+  return message.parts.some(
+    (part) => isShownToolCallPart(part, message.parts) || part.type === 'thinking',
+  )
 }
 
 function hasRenderableText(message: UIMessage) {

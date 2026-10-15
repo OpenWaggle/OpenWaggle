@@ -32,6 +32,7 @@ describe('isHiddenSessionsToolCall', () => {
     expect(isHiddenSessionsToolCall('sessions', { action: 'wai' }, 'input-streaming')).toBe(true)
     expect(isHiddenSessionsToolCall('sessions', { action: 'spawn' }, 'input-streaming')).toBe(false)
     expect(isHiddenSessionsToolCall('sessions', {}, 'input-complete')).toBe(false)
+    expect(isHiddenSessionsToolCallJson('sessions', '{}', 'input-complete', false)).toBe(true)
   })
 })
 
@@ -88,8 +89,21 @@ describe('showsOnlyHiddenSessionsToolCalls', () => {
 
 describe('isShownToolCallPart', () => {
   it('counts every tool call but a hidden wait', () => {
-    expect(isShownToolCallPart(WAIT)).toBe(false)
-    expect(isShownToolCallPart(call('sessions', { action: 'spawn' }))).toBe(true)
-    expect(isShownToolCallPart({ type: 'text', content: 'x' })).toBe(false)
+    expect(isShownToolCallPart(WAIT, [WAIT])).toBe(false)
+    const spawn = call('sessions', { action: 'spawn' })
+    expect(isShownToolCallPart(spawn, [spawn])).toBe(true)
+    expect(isShownToolCallPart({ type: 'text', content: 'x' }, [])).toBe(false)
+  })
+
+  it('hides an action-less call until it has a result, as a reconnect may mark it complete', () => {
+    const empty = call('sessions', {})
+    expect(isShownToolCallPart(empty, [empty])).toBe(false)
+    const answered: Part = {
+      type: 'tool-result',
+      toolCallId: empty.type === 'tool-call' ? empty.id : '',
+      content: 'err',
+      state: 'error',
+    }
+    expect(isShownToolCallPart(empty, [empty, answered])).toBe(true)
   })
 })

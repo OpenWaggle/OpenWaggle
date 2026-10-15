@@ -112,8 +112,12 @@ export function ToolCallRouter({
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
   onBranchFromMessage,
 }: ToolCallRouterProps) {
-  if (isHiddenSessionsToolCallJson(part.name, part.arguments, part.state)) return null
   const finalResult = toolResults.get(part.id)
+  if (
+    isHiddenSessionsToolCallJson(part.name, part.arguments, part.state, finalResult !== undefined)
+  ) {
+    return null
+  }
   const visibleResult =
     finalResult ??
     (part.partialOutput === undefined

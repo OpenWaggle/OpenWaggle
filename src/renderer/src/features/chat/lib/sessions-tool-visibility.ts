@@ -27,24 +27,34 @@ export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?:
  * The same rule for a call known only by its JSON arguments, which a script's call list cuts to
  * a preview: an unparseable preview still names its action, unless the cut fell before it.
  */
-export function isHiddenSessionsToolCallJson(name: string, argsJson: string, state?: string) {
+export function isHiddenSessionsToolCallJson(
+  name: string,
+  argsJson: string,
+  state?: string,
+  hasResult = true,
+) {
   if (name !== SESSIONS_TOOL_NAME) return false
   const args = parseToolArgs(argsJson)
   if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
   const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
-  return isHiddenSessionsToolCall(name, previewed ? { action: previewed } : args, state)
+  if (previewed) return isHiddenSessionsToolCall(name, { action: previewed }, state)
+  // No action and no result yet: a reconnect's stream buffer marks a just-started `{}` call as
+  // complete. The tool requires an action, so a call without one is still arriving.
+  return !hasResult || isHiddenSessionsToolCall(name, args, state)
 }
 
-function isHiddenToolCallPart(part: MessagePart) {
+function isHiddenToolCallPart(part: MessagePart, parts: readonly MessagePart[]) {
   // The name is checked before the arguments are parsed: this runs for every call on each delta.
-  return (
-    part.type === 'tool-call' && isHiddenSessionsToolCallJson(part.name, part.arguments, part.state)
+  if (part.type !== 'tool-call' || part.name !== SESSIONS_TOOL_NAME) return false
+  const hasResult = parts.some(
+    (candidate) => candidate.type === 'tool-result' && candidate.toolCallId === part.id,
   )
+  return isHiddenSessionsToolCallJson(part.name, part.arguments, part.state, hasResult)
 }
 
-/** A tool call the transcript shows: anything but a hidden Worker wait. */
-export function isShownToolCallPart(part: MessagePart) {
-  return part.type === 'tool-call' && !isHiddenToolCallPart(part)
+/** A tool call the transcript shows among its message's `parts`: anything but a hidden wait. */
+export function isShownToolCallPart(part: MessagePart, parts: readonly MessagePart[]) {
+  return part.type === 'tool-call' && !isHiddenToolCallPart(part, parts)
 }
 
 /**
@@ -55,7 +65,7 @@ export function showsOnlyHiddenSessionsToolCalls(parts: readonly MessagePart[]) 
   let hidden = 0
   for (const part of parts) {
     if (part.type === 'tool-result') continue
-    if (isHiddenToolCallPart(part)) {
+    if (isHiddenToolCallPart(part, parts)) {
       hidden += 1
       continue
     }
