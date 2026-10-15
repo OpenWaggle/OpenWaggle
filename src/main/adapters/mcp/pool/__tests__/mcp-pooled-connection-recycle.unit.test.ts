@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpPooledConnection } from '../mcp-pooled-connection'
-import type { JsonRpcRequest } from '../mcp-wire'
+import type { JsonRpcMessage, JsonRpcRequest } from '../mcp-wire'
 import { collect, FakeUpstream, flush, initializeRequest } from './fake-upstream'
 
 const TOOLS = { tools: [{ name: 'search', inputSchema: { type: 'object' } }] }
@@ -28,6 +28,21 @@ function server(state: { stuck: boolean; failing?: readonly string[] }) {
     return {}
   })
   return upstream
+}
+
+/** A server process that starts but answers `initialize` with an error. */
+class FailingInitializeUpstream extends FakeUpstream {
+  override async send(message: JsonRpcMessage) {
+    if ('method' in message && message.method === 'initialize' && 'id' in message) {
+      this.received.push(message)
+      const { id } = message
+      queueMicrotask(() =>
+        this.push({ jsonrpc: '2.0', id, error: { code: -32_603, message: 'Not ready' } }),
+      )
+      return
+    }
+    return super.send(message)
+  }
 }
 
 function pooled(upstreams: FakeUpstream[]) {
@@ -114,6 +129,54 @@ describe('a pooled MCP connection whose server process gets stuck', () => {
 
     expect(tooSoon.listing).toMatchObject({ error: { message: 'Internal error' } })
     expect(opened).toHaveLength(2)
+    expect(connection.isClosed).toBe(true)
+  })
+
+  it('retires instead of replacing when two listings are open on the stuck process at once', async () => {
+    // Replacing the process while another request waits on it would lose that request's answer,
+    // so both clients get the error and the next Run opens its own process.
+    const stuck = { stuck: false }
+    const { connection, opened } = pooled([server(stuck), server({ stuck: false })])
+    await run(connection)
+    const leases = [connection.attach(), connection.attach()]
+    const clients = leases.map((lease) => collect(lease))
+    for (const lease of leases) {
+      await lease.start()
+      await lease.send(initializeRequest(1))
+      await lease.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    }
+    await flush()
+
+    stuck.stuck = true
+    await Promise.all(
+      leases.map((lease) => lease.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' })),
+    )
+    await flush()
+    await flush()
+
+    const listings = clients.map((client) =>
+      client.messages.find((message) => 'id' in message && message.id === 2),
+    )
+    expect(listings).toEqual([
+      expect.objectContaining({ error: expect.objectContaining({ message: 'Internal error' }) }),
+      expect.objectContaining({ error: expect.objectContaining({ message: 'Internal error' }) }),
+    ])
+    expect(opened).toHaveLength(1)
+    expect(connection.isClosed).toBe(true)
+  })
+
+  it('retires when the fresh process starts but fails its initialize', async () => {
+    const stuck = { stuck: false }
+    const fresh = new FailingInitializeUpstream()
+    const { connection, opened } = pooled([server(stuck), fresh])
+    await run(connection)
+
+    stuck.stuck = true
+    const next = await run(connection)
+
+    expect(next.listing).toMatchObject({ error: { message: 'Internal error' } })
+    expect(opened).toEqual([expect.anything(), fresh])
+    expect(fresh.methods()).toEqual(['initialize'])
     expect(connection.isClosed).toBe(true)
   })
 

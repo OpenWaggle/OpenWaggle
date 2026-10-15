@@ -68,7 +68,7 @@ export class McpUpstreamSlot {
     await this.start()
   }
 
-  withStderr(error: Error) {
+  private withStderr(error: Error) {
     const stderr = this.stderrTail.trim()
     return stderr ? new Error(`${error.message}\n${stderr}`) : error
   }

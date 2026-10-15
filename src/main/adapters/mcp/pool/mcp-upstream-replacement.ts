@@ -70,18 +70,26 @@ export class McpUpstreamReplacement {
     const recently =
       this.lastReplacementAt !== undefined &&
       now - this.lastReplacementAt < UPSTREAM_REPLACEMENT_INTERVAL_MS
-    if (this.host.isClosed() || this.replacing || recently || this.host.hasPending()) {
+    const giveUp = () => {
       deliverFailure()
       this.host.retire()
+    }
+    if (this.host.isClosed()) {
+      deliverFailure()
+      return true
+    }
+    if (this.replacing || recently || this.host.hasPending()) {
+      giveUp()
       return true
     }
     this.lastReplacementAt = now
     const replacing = this.host.replaceUpstream()
     this.replacing = replacing
     void replacing
-      // A fresh process that cannot start closes the connection; the client is told either way.
       .then(() => (pending.lease.isDetached ? undefined : this.host.resend(pending)))
-      .catch(deliverFailure)
+      // A fresh process that cannot start has closed the connection already. One that starts but
+      // fails its `initialize`, or the listing sent again, must not serve the next Run either.
+      .catch(giveUp)
       .finally(() => {
         if (this.replacing === replacing) this.replacing = undefined
       })
