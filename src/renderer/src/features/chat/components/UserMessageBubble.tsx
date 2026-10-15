@@ -20,8 +20,8 @@ import { OptimisticMessageImages } from './OptimisticMessageImages'
 import { SteerDeliveryStatus } from './SteerDeliveryStatus'
 
 /**
- * People write prompts as typed text, not strict CommonMark: every newline they type or paste is
- * meant as a line break. `remark-breaks` keeps those lines instead of folding them into one
+ * People write prompts as typed text, not strict CommonMark: a single newline they type or paste
+ * is meant as a line break. `remark-breaks` keeps those lines instead of folding them into one
  * paragraph, while Markdown (lists, headings, fences, tables) still renders.
  */
 const USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
