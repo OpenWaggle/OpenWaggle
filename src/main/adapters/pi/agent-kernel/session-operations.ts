@@ -1,11 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import {
-  type AgentSession,
-  type ContextUsage,
-  createMcpExtension,
-  type InlineExtension,
-  type SessionManager,
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
 import type { SessionDetail } from '@shared/types/session'
 import {
@@ -65,24 +59,10 @@ function toContextUsageSnapshot(
 async function readPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
   read: (session: AgentSession) => T,
-  extensionFactories?: readonly InlineExtension[],
 ) {
   const warming = idleCacheWarming.borrow(input.session.id)
   if (warming && warming.sessionFile === input.session.piSessionFile) return read(warming)
-  return withReadOnlyPiSession(input, read, extensionFactories)
-}
-
-/**
- * Pi's MCP extension, with no server, for the slash menu: every Run loads it with the project's
- * servers, so its `/mcp` is listed before a Run did, as for a New session draft.
- */
-function mcpCommandsExtension(): InlineExtension {
-  return {
-    name: 'mcp',
-    factory: createMcpExtension({ loadConfig: () => ({ servers: [], errors: [] }) }),
-    replaceable: true,
-    builtin: true,
-  }
+  return withReadOnlyPiSession(input, read)
 }
 
 export async function getPiContextUsage(
@@ -97,10 +77,7 @@ export async function getPiContextUsage(
 export async function getPiExtensionCommands(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withRunExtensionCommands(
-    input.session.id,
-    await readPiSession(input, piExtensionCommands, [mcpCommandsExtension()]),
-  )
+  return withRunExtensionCommands(input.session.id, await readPiSession(input, piExtensionCommands))
 }
 
 /**
