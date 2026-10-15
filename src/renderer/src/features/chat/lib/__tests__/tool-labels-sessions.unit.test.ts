@@ -81,7 +81,8 @@ describe('sessionsLabel', () => {
     expect(done({ action: 'list' })).toBe('Listed sessions')
     expect(done({ action: 'search', query: 'auth' })).toBe('Searched sessions · auth')
     expect(done({ action: 'delegation_accept' })).toBe("Accepted a Worker's work")
-    expect(done({ action: 'delegation_claim' })).toBe('Updated a delegation')
+    expect(done({ action: 'delegation_claim' })).toBe('Claimed work')
+    expect(done({ action: 'delegation_future' })).toBe('Updated a delegation')
     expect(done({ action: 'agent_definitions_search', query: 'review' })).toBe(
       'Searched agent definitions · review',
     )

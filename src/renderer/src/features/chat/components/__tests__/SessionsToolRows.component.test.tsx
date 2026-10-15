@@ -94,7 +94,7 @@ describe('sessions-tool rows', () => {
     expect(screen.getByText('Ready for review')).toBeInTheDocument()
     expect(document.querySelector('[data-tool-kind="workers"]')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Review tool icons' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Worker Session: Review tool icons' }))
     expect(navigate).toHaveBeenCalledWith({
       to: '/sessions/$sessionId',
       params: { sessionId: 'w1' },

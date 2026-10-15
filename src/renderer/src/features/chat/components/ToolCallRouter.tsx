@@ -4,7 +4,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { NestedToolCalls } from '@shared/types/tools'
 import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
 import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
-import { isHiddenSessionsToolCall } from '@/features/chat/lib/sessions-tool-visibility'
+import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { SESSIONS_TOOL_NAME } from '@/features/chat/lib/tool-labels-sessions'
@@ -112,7 +112,7 @@ export function ToolCallRouter({
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
   onBranchFromMessage,
 }: ToolCallRouterProps) {
-  if (isHiddenSessionsToolCall(part.name, parseToolArgs(part.arguments), part.state)) return null
+  if (isHiddenSessionsToolCallJson(part.name, part.arguments, part.state)) return null
   const finalResult = toolResults.get(part.id)
   const visibleResult =
     finalResult ??

@@ -79,6 +79,15 @@ const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
     delegation_verify: untargeted("Verifying a Worker's work", "Verified a Worker's work"),
     delegation_reopen: untargeted('Reopening a delegation', 'Reopened a delegation'),
     delegation_cancel: untargeted('Cancelling a delegation', 'Cancelled a delegation'),
+    delegation_state: untargeted('Updating a delegation', 'Updated a delegation'),
+    delegation_claim: untargeted('Claiming work', 'Claimed work'),
+    delegation_conflict_acknowledge: untargeted(
+      'Acknowledging a conflict',
+      'Acknowledged a conflict',
+    ),
+    delegation_dependency: untargeted('Updating a dependency', 'Updated a dependency'),
+    delegation_propose_amendment: untargeted('Proposing an amendment', 'Proposed an amendment'),
+    delegation_amend: untargeted('Amending a delegation', 'Amended a delegation'),
     delegations_list: untargeted('Listing delegations', 'Listed delegations'),
     delegations_read: untargeted('Reading a delegation', 'Read a delegation'),
     delegations_conflicts: untargeted(
@@ -93,15 +102,24 @@ const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
   }),
 )
 
-/** Whether the sessions tool has this action, so a half-streamed name is not mistaken for one. */
-export function isKnownSessionsAction(action: string) {
-  return action === 'wait' || actionVerbs(action) !== null
+const ACTION_NAMES: readonly string[] = ['wait', ...ACTION_VERBS.keys()]
+
+/**
+ * Whether a streaming action name is whole: a known action that is not the start of a longer
+ * one (`export` of `export_create`, `interrupt` of `interrupt_descendants`), so a half-streamed
+ * name never shows another action's label.
+ */
+export function isWholeSessionsAction(action: string) {
+  return (
+    ACTION_NAMES.includes(action) &&
+    !ACTION_NAMES.some((other) => other !== action && other.startsWith(action))
+  )
 }
 
 function actionVerbs(action: string): ActionVerbs | null {
   const known = ACTION_VERBS.get(action)
   if (known) return known
-  // The remaining delegation actions (state, claim, dependency, amendments…) all update it.
+  // A delegation action added after this list still reads as one.
   if (action.startsWith('delegation_')) {
     return untargeted('Updating a delegation', 'Updated a delegation')
   }

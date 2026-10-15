@@ -128,7 +128,13 @@ describe('CodemodeToolCallBlock', () => {
             content: [{ type: 'text', text: 'Script completed\nWall time 0.4 seconds\nOutput:\n' }],
             details: {
               calls: [
-                { id: 's/1', name: 'sessions', args: '{"action":"wait"}', status: 'ok' },
+                {
+                  id: 's/1',
+                  name: 'sessions',
+                  // Pi previews a script call's arguments cut to 200 characters.
+                  args: `${JSON.stringify({ action: 'wait', sessionIds: Array(8).fill('00000000-0000-0000-0000-000000000000') }).slice(0, 200)}...`,
+                  status: 'ok',
+                },
                 { id: 's/2', name: 'bash', args: '{"command":"ls"}', status: 'ok' },
               ],
             },

@@ -71,7 +71,7 @@ function WorkerSpawnControls({ session }: { readonly session: HiveSession }) {
         variant="ghost"
         size="xs"
         leftIcon={<SquareArrowOutUpRight aria-hidden="true" className="size-3" />}
-        aria-label={`Open ${session.title}`}
+        aria-label={`Open Worker Session: ${session.title}`}
         onClick={() => {
           void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(session.id) } })
         }}

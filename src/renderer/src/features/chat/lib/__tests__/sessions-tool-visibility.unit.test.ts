@@ -2,6 +2,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import {
   isHiddenSessionsToolCall,
+  isHiddenSessionsToolCallJson,
   isShownToolCallPart,
   showsOnlyHiddenSessionsToolCalls,
 } from '../sessions-tool-visibility'
@@ -31,6 +32,34 @@ describe('isHiddenSessionsToolCall', () => {
     expect(isHiddenSessionsToolCall('sessions', { action: 'wai' }, 'input-streaming')).toBe(true)
     expect(isHiddenSessionsToolCall('sessions', { action: 'spawn' }, 'input-streaming')).toBe(false)
     expect(isHiddenSessionsToolCall('sessions', {}, 'input-complete')).toBe(false)
+  })
+})
+
+describe('isHiddenSessionsToolCallJson', () => {
+  it('reads the action of a preview cut short, as a script call list records it', () => {
+    const ids = Array.from(
+      { length: 8 },
+      (_, index) => `00000000-0000-0000-0000-00000000000${index}`,
+    )
+    const preview = `${JSON.stringify({ action: 'wait', sessionIds: ids }).slice(0, 200)}...`
+    expect(isHiddenSessionsToolCallJson('sessions', preview)).toBe(true)
+    expect(isHiddenSessionsToolCallJson('sessions', '{"action":"spawn","objective":"x')).toBe(false)
+    expect(isHiddenSessionsToolCallJson('read', preview)).toBe(false)
+  })
+
+  it('keeps a streaming name hidden while it is still the start of another action', () => {
+    expect(
+      isHiddenSessionsToolCallJson('sessions', '{"action":"delegation_s"}', 'input-streaming'),
+    ).toBe(true)
+    expect(isHiddenSessionsToolCallJson('sessions', '{"action":"export"}', 'input-streaming')).toBe(
+      true,
+    )
+    expect(isHiddenSessionsToolCallJson('sessions', '{"action":"export"}', 'input-complete')).toBe(
+      false,
+    )
+    expect(
+      isHiddenSessionsToolCallJson('sessions', '{"action":"delegation_claim"}', 'input-streaming'),
+    ).toBe(false)
   })
 })
 

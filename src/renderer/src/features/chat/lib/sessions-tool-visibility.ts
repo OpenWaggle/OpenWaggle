@@ -1,9 +1,12 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { JsonObject } from '@shared/types/json'
 import { parseToolArgs } from './tool-args'
-import { isKnownSessionsAction, SESSIONS_TOOL_NAME } from './tool-labels-sessions'
+import { isWholeSessionsAction, SESSIONS_TOOL_NAME } from './tool-labels-sessions'
 
 type MessagePart = UIMessage['parts'][number]
+
+/** The leading `"action"` of arguments cut short, as Pi codemode previews a call's arguments. */
+const PREVIEW_ACTION = /^\{\s*"action"\s*:\s*"([a-z_]+)"/
 
 /**
  * `wait` calls get no row, as in Codex (ADR 0054): a spawn row's live state shows what the wait
@@ -14,13 +17,25 @@ export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?:
   if (name !== SESSIONS_TOOL_NAME) return false
   const action = typeof args.action === 'string' ? args.action : null
   if (action === 'wait') return true
-  return state === 'input-streaming' && (action === null || !isKnownSessionsAction(action))
+  return state === 'input-streaming' && (action === null || !isWholeSessionsAction(action))
+}
+
+/**
+ * The same rule for a call known only by its JSON arguments, which a script's call list cuts to
+ * a preview: an unparseable preview still names its action at the start.
+ */
+export function isHiddenSessionsToolCallJson(name: string, argsJson: string, state?: string) {
+  if (name !== SESSIONS_TOOL_NAME) return false
+  const args = parseToolArgs(argsJson)
+  if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
+  const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
+  return isHiddenSessionsToolCall(name, previewed ? { action: previewed } : args, state)
 }
 
 function isHiddenToolCallPart(part: MessagePart) {
+  // The name is checked before the arguments are parsed: this runs for every call on each delta.
   return (
-    part.type === 'tool-call' &&
-    isHiddenSessionsToolCall(part.name, parseToolArgs(part.arguments), part.state)
+    part.type === 'tool-call' && isHiddenSessionsToolCallJson(part.name, part.arguments, part.state)
   )
 }
 

@@ -6,7 +6,7 @@ import {
   codemodeToolView,
   isCodemodeModelCall,
 } from '@/features/chat/lib/codemode-tool-view'
-import { isHiddenSessionsToolCall } from '@/features/chat/lib/sessions-tool-visibility'
+import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { toolKind } from '@/features/chat/lib/tool-kind'
@@ -192,9 +192,7 @@ export function CodemodeToolCallBlock({
   const label = PHASE_LABELS[phase]
   const status = PHASE_STATUS[phase]
   // A Worker wait gets no row and no count here either, as everywhere in the transcript.
-  const calls = view.calls.filter(
-    (call) => !isHiddenSessionsToolCall(call.name, parseToolArgs(call.args)),
-  )
+  const calls = view.calls.filter((call) => !isHiddenSessionsToolCallJson(call.name, call.args))
   const listedCalls = nestedCallsShown ? calls.filter(isCodemodeModelCall) : calls
 
   return (

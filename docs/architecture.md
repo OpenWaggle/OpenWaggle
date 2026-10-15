@@ -68,6 +68,10 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0049-users-can-recover-desktop-tools-after-an-unclean-quit.md`
 - `docs/adr/0050-edit-rows-show-their-diff-on-demand.md`
 - `docs/adr/0051-openwaggle-is-the-gui-for-the-pi-ecosystem.md`
+- `docs/adr/0051-workers-live-in-a-hive-panel-not-the-sidebar.md`
+- `docs/adr/0052-session-origin-is-recognized-never-inferred.md`
+- `docs/adr/0053-the-coordination-surface-is-named-hive-everywhere.md`
+- `docs/adr/0054-transcript-rows-name-the-worker.md`
 
 ## Testing
 
