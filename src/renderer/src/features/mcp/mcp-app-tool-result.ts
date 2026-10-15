@@ -35,9 +35,6 @@ function descriptor(value: unknown): McpAppDescriptor | null {
   ) {
     return null
   }
-  const allowedNetworkDomains = Array.isArray(value.allowedNetworkDomains)
-    ? value.allowedNetworkDomains.filter((entry): entry is string => typeof entry === 'string')
-    : []
   return {
     serverInstanceId,
     serverLabel,
@@ -46,7 +43,6 @@ function descriptor(value: unknown): McpAppDescriptor | null {
     toolName,
     toolTitle,
     resourceUri,
-    allowedNetworkDomains,
   }
 }
 

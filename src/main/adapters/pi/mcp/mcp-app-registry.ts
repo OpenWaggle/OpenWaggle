@@ -95,7 +95,6 @@ export function mcpAppDescriptor(input: {
     toolName: tool.name,
     toolTitle: tool.title ?? tool.name,
     resourceUri: tool.resourceUri,
-    allowedNetworkDomains: [],
   }
 }
 

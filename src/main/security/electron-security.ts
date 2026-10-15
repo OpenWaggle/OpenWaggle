@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import { MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import type { Session, WebPreferences } from 'electron'
 
@@ -29,11 +30,13 @@ const SESSION_RESOURCE_IMAGE_SOURCE = `${SESSION_RESOURCE_PROTOCOL.SCHEME}:` as 
 const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:', SESSION_RESOURCE_IMAGE_SOURCE] as const
 const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
 const INLINE_VISUALIZATION_FRAME_SOURCE = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` as const
+const MCP_APP_FRAME_SOURCE = `${MCP_APP_FRAME_PROTOCOL.SCHEME}:` as const
 const FRAME_SRC_VALUES = [
   "'self'",
   'blob:',
   EXTENSION_FRAME_SOURCE,
   INLINE_VISUALIZATION_FRAME_SOURCE,
+  MCP_APP_FRAME_SOURCE,
 ] as const
 const CONNECT_SRC_VALUES = [
   "'self'",
@@ -101,7 +104,8 @@ function hasProtocolManagedContentSecurityPolicy(url: string) {
     const requestProtocol = new URL(url).protocol
     return (
       requestProtocol === `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` ||
-      requestProtocol === `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`
+      requestProtocol === `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` ||
+      requestProtocol === `${MCP_APP_FRAME_PROTOCOL.SCHEME}:`
     )
   } catch {
     return false
@@ -132,6 +136,33 @@ export function shouldBlockInlineVisualizationFrameNavigation(input: {
       currentVisualizationIsLeaving ||
       isInlineVisualizationUrl(input.initiatorUrl))
   )
+}
+
+export function isMcpAppFrameUrl(url: string | undefined) {
+  if (!url) return false
+  try {
+    return new URL(url).protocol === `${MCP_APP_FRAME_PROTOCOL.SCHEME}:`
+  } catch {
+    return false
+  }
+}
+
+/**
+ * An MCP App frame stays on the document the Host served it (ADR 0053): navigating it elsewhere
+ * would replace the App, and the policy built for it, with any page. Same-document navigations
+ * (hash, history) are the App's own. Frames an App opens itself are its `frameDomains`, which its
+ * policy already limits, so they are not blocked here.
+ */
+export function shouldBlockMcpAppFrameNavigation(input: {
+  readonly isMainFrame: boolean
+  readonly isSameDocument: boolean
+  readonly destinationUrl?: string
+  readonly frameUrl?: string
+  readonly frameIsMcpApp?: boolean
+}) {
+  if (input.isMainFrame || input.isSameDocument) return false
+  const isApp = input.frameIsMcpApp === true || isMcpAppFrameUrl(input.frameUrl)
+  return isApp && input.destinationUrl !== input.frameUrl
 }
 
 export function shouldBlockInlineVisualizationDocumentRequest(input: {

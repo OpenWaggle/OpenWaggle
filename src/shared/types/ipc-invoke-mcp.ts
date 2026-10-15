@@ -10,6 +10,11 @@ import type {
   McpSetSecretInput,
 } from './mcp'
 import type {
+  McpAppFrameRegisterInput,
+  McpAppFrameRegisterResult,
+  McpAppFrameUnregisterInput,
+} from './mcp-app-frame'
+import type {
   McpConfigurationView,
   McpServerInspection,
   McpServerStatusView,
@@ -94,4 +99,9 @@ export interface IpcMcpInvokeChannelMap {
     args: [input: McpAppToolCallInput]
     return: McpAppToolCallResult
   }
+  'mcp:register-app-frame': {
+    args: [input: McpAppFrameRegisterInput]
+    return: McpAppFrameRegisterResult
+  }
+  'mcp:unregister-app-frame': { args: [input: McpAppFrameUnregisterInput]; return: undefined }
 }

@@ -139,6 +139,14 @@ const config: DoctorConfig = {
         files: ['src/renderer/src/features/chat/components/InlineVisualization.tsx'],
         rules: ['react-doctor/iframe-missing-sandbox'],
       },
+      {
+        // `allow-scripts allow-same-origin` is safe here only because the frame's document comes
+        // from its own `openwaggle-mcp-app://frame-<uuid>` origin, never OpenWaggle's, so being
+        // same-origin gives it nothing of the page (ADR 0053). Apps need it for cookies and
+        // IndexedDB, as inline visualizations do above.
+        files: ['src/renderer/src/features/mcp/McpAppHost.tsx'],
+        rules: ['react-doctor/iframe-missing-sandbox'],
+      },
     ],
   },
 }

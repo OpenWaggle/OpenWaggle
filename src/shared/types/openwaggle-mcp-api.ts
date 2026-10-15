@@ -10,6 +10,11 @@ import type {
   McpSetSecretInput,
 } from './mcp'
 import type {
+  McpAppFrameRegisterInput,
+  McpAppFrameRegisterResult,
+  McpAppFrameUnregisterInput,
+} from './mcp-app-frame'
+import type {
   McpConfigurationView,
   McpServerInspection,
   McpServerStatusView,
@@ -63,4 +68,7 @@ export interface OpenWaggleMcpApi {
   readMcpResource(input: McpReadResourceInput): Promise<McpResourceResult>
   listMcpAppCatalog(input: McpAppCatalogInput): Promise<McpAppCatalogResult>
   callMcpAppTool(input: McpAppToolCallInput): Promise<McpAppToolCallResult>
+  /** Serves an App document under its own frame origin and policy (ADR 0053). */
+  registerMcpAppFrame(input: McpAppFrameRegisterInput): Promise<McpAppFrameRegisterResult>
+  unregisterMcpAppFrame(input: McpAppFrameUnregisterInput): Promise<void>
 }
