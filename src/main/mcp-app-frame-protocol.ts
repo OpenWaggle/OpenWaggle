@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { MAX_MCP_APP_DOCUMENT_BYTES, MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
+import {
+  MAX_MCP_APP_DOCUMENT_BYTES,
+  MAX_MCP_APP_FRAMES_PER_RENDERER,
+  MCP_APP_FRAME_PROTOCOL,
+} from '@shared/constants/mcp-app-frame'
 import type {
   McpAppFrameRegisterInput,
   McpAppFrameRegisterResult,
@@ -69,6 +73,8 @@ export function registerMcpAppFrame(
   }
   const host = frameHost(input.frameId)
   if (registeredFrames.has(host)) throw new Error('MCP App frame id is already registered')
+  const owned = [...registeredFrames.values()].filter((frame) => frame.ownerId === ownerId).length
+  if (owned >= MAX_MCP_APP_FRAMES_PER_RENDERER) throw new Error('Too many MCP App frames are open')
   const registrationId = randomUUID()
   registeredFrames.set(host, {
     registrationId,

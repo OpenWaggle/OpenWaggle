@@ -113,4 +113,18 @@ describe('the MCP App frame protocol', () => {
       ),
     ).toThrow('too large')
   })
+
+  it('caps how many App documents one renderer has open at once', () => {
+    for (let index = 0; index < 32; index += 1) {
+      registerMcpAppFrame({ frameId: globalThis.crypto.randomUUID(), html: '', csp: CSP }, 2)
+    }
+
+    expect(() =>
+      registerMcpAppFrame({ frameId: globalThis.crypto.randomUUID(), html: '', csp: CSP }, 2),
+    ).toThrow('Too many MCP App frames are open')
+    // Another renderer is not affected.
+    expect(() =>
+      registerMcpAppFrame({ frameId: globalThis.crypto.randomUUID(), html: '', csp: CSP }, 1),
+    ).not.toThrow()
+  })
 })
