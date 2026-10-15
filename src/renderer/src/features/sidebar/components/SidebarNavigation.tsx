@@ -178,15 +178,16 @@ export function SidebarSettingsButton({
         <Settings className="size-3.5 shrink-0" />
         <span>Settings</span>
       </Button>
+      {/* ghost, not row: the row variant is w-full and would crowd the Settings label out. */}
       <Button
-        variant="row"
+        variant="ghost"
         size="none"
         radius="md"
         aria-label="Usage & Cost"
         data-qa="sidebar-usage-cost"
         title="Usage & Cost"
         onClick={onOpenUsageCost}
-        className="flex h-7.5 shrink-0 gap-2 px-2 font-normal text-xs text-text-tertiary"
+        className="size-7.5"
       >
         <ChartColumn className="size-3.5 shrink-0" />
       </Button>

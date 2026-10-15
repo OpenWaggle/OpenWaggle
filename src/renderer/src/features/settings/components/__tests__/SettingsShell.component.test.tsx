@@ -15,8 +15,17 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
 }))
 
-vi.mock('@/features/chat/hooks', () => ({
+vi.mock('@/features/chat/hooks/useChat', () => ({
   useChat: () => chatMock(),
+}))
+
+// The real back-to-app hook, reading the mocked active session, so this stays an end-to-end check.
+vi.mock('@/features/chat/hooks', async () => ({
+  useNavigateBackToApp: (
+    await vi.importActual<typeof import('@/features/chat/hooks/useNavigateBackToApp')>(
+      '@/features/chat/hooks/useNavigateBackToApp',
+    )
+  ).useNavigateBackToApp,
 }))
 
 vi.mock('@/shell/useFullscreen', () => ({

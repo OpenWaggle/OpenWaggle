@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useNavigateBackToApp } from '@/features/chat/hooks'
 import { UsageCostPage, useUsageCostView } from '@/features/usage-cost'
 
 export const Route = createFileRoute('/usage')({
@@ -7,5 +8,6 @@ export const Route = createFileRoute('/usage')({
 
 function UsageCostRouteView() {
   const state = useUsageCostView()
-  return <UsageCostPage state={state} />
+  const navigateBackToApp = useNavigateBackToApp()
+  return <UsageCostPage state={state} onBack={navigateBackToApp} />
 }
