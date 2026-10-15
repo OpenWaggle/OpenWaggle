@@ -49,6 +49,9 @@ describe('isHiddenSessionsToolCallJson', () => {
     // Keys keep the script's order, so the cut can come before or after the action.
     const late = `${JSON.stringify({ sessionIds: ids.slice(0, 3), action: 'wait', timeoutMs: 1 }).slice(0, 180)}...`
     expect(isHiddenSessionsToolCallJson('sessions', late)).toBe(true)
+    const cutBeforeAction = `${JSON.stringify({ sessionIds: ids, action: 'wait' }).slice(0, 200)}...`
+    expect(cutBeforeAction).not.toContain('"action"')
+    expect(isHiddenSessionsToolCallJson('sessions', cutBeforeAction)).toBe(true)
   })
 
   it('keeps a streaming name hidden while it is still the start of another action', () => {

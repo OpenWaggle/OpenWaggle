@@ -82,6 +82,27 @@ describe('buildChatRows tool-call rendering', () => {
     expect(assistantRows.map((row) => row.message.id)).toEqual(['assistant-1'])
   })
 
+  it('keeps a failed response whose only call is a hidden wait, so its failure still shows', () => {
+    const failed: UIMessage = {
+      id: 'assistant-failed',
+      role: 'assistant',
+      metadata: { error: 'provider overloaded' },
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'wait-1',
+          name: 'sessions',
+          arguments: '{"action":"wait"}',
+          state: 'input-complete',
+        },
+      ],
+    }
+
+    const rows = getAssistantMessageRows([createUserMessage('user-1', 'coordinate'), failed])
+
+    expect(rows.map((row) => row.message.id)).toEqual(['assistant-failed'])
+  })
+
   it('keeps repeated tool calls when they belong to different user turns', () => {
     const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),

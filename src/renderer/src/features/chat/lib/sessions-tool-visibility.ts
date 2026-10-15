@@ -10,6 +10,7 @@ type MessagePart = UIMessage['parts'][number]
  * script's order, so it need not come first. Sessions-tool arguments nest no `action` key.
  */
 const PREVIEW_ACTION = /(?<!\\)"action"\s*:\s*"([a-z_]+)"/
+const WAIT_PREVIEW = /^\{\s*"sessionIds"\s*:/
 
 /**
  * `wait` calls get no row, as in Codex (ADR 0054): a spawn row's live state shows what the wait
@@ -38,6 +39,8 @@ export function isHiddenSessionsToolCallJson(
   if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
   const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
   if (previewed) return isHiddenSessionsToolCall(name, { action: previewed }, state)
+  // A preview cut inside a long `sessionIds` list, before its action: only a wait takes that list.
+  if (WAIT_PREVIEW.test(argsJson)) return true
   // No action and no result yet: a reconnect's stream buffer marks a just-started `{}` call as
   // complete. The tool requires an action, so a call without one is still arriving.
   return !hasResult || isHiddenSessionsToolCall(name, args, state)

@@ -161,8 +161,12 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
   appendInterruptedRunRow(rows, params)
   // After results nest into their calls: a message of hidden Worker waits leaves no row.
+  // A failed response keeps its row, so a Waggle turn can still show the failure.
   const shownRows = rows.filter(
-    (row) => row.type !== 'message' || !showsOnlyHiddenSessionsToolCalls(row.message.parts),
+    (row) =>
+      row.type !== 'message' ||
+      row.message.metadata?.error !== undefined ||
+      !showsOnlyHiddenSessionsToolCalls(row.message.parts),
   )
   return applyTurnFolds(
     withWaggleTurnFailures(groupWaggleTurnRows(shownRows), { isLoading: params.isLoading }),
