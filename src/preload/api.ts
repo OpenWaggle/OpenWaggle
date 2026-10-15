@@ -89,6 +89,8 @@ export const api: OpenWaggleApi = {
   reloadExtension: invoke('extensions:reload'),
   discoverDocs: invoke('docs:discover'),
   resolveDocsTopic: invoke('docs:resolve-topic'),
+  getUsageCostView: invoke('usage-cost:get-view'),
+  getUsageCostSessions: invoke('usage-cost:get-sessions'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),

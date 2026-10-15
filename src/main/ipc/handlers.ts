@@ -27,6 +27,7 @@ import { registerSkillsHandlers } from './skills-handler'
 import { registerSyntaxThemeHandlers } from './syntax-themes-handler'
 import { registerTerminalHandlers } from './terminal-handler'
 import { registerUpdaterHandlers } from './updater-handler'
+import { registerUsageCostHandlers } from './usage-cost-handler'
 import { registerVoiceHandlers } from './voice-handler'
 import { registerWaggleHandlers } from './waggle-handler'
 import { registerWagglePresetsHandlers } from './waggle-presets-handler'
@@ -57,6 +58,7 @@ export function registerAllIpcHandlers(): void {
   registerProjectActionHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
+  registerUsageCostHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()

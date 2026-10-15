@@ -45,13 +45,13 @@ describe('credentials in other command-line forms', () => {
 
   it('keeps a Docker variable the source tool fills in, as an env reference', () => {
     const result = imported(
-      { command: 'docker', args: ['run', '-e', 'GITHUB_TOKEN=${GH}', 'img'] },
+      { command: 'docker', args: ['run', '-e', `GITHUB_TOKEN=\${GH}`, 'img'] },
       'claude-code',
     )
 
     expect(result.entry).toMatchObject({
       args: ['run', '-e', 'GITHUB_TOKEN', 'img'],
-      env: { GITHUB_TOKEN: '${GH}' },
+      env: { GITHUB_TOKEN: `\${GH}` },
     })
   })
 
@@ -79,7 +79,7 @@ describe('credentials in other command-line forms', () => {
         'mcp-remote@latest',
         'https://x/mcp',
         '--header',
-        'Authorization:Bearer ${AUTHORIZATION}',
+        `Authorization:Bearer \${AUTHORIZATION}`,
       ],
       env: { AUTHORIZATION: { secret: 'AUTHORIZATION' } },
     })
@@ -95,7 +95,7 @@ describe('credentials in other command-line forms', () => {
 
     expect(result.entry).toMatchObject({
       command: 'mcp-remote',
-      args: ['https://x/mcp', '--header', 'X-Api-Key:${X_API_KEY}'],
+      args: ['https://x/mcp', '--header', `X-Api-Key:\${X_API_KEY}`],
       env: { X_API_KEY: { secret: 'X_API_KEY' } },
     })
     expect(result.warnings.join('\n')).toContain("holds the header's full value")
@@ -114,8 +114,8 @@ describe('credentials in other command-line forms', () => {
   })
 
   it.each([
-    ['r', 'Authorization: Bearer ${AUTH_TOKEN}', 'AUTH_TOKEN', 'tok'],
-    ['r2', 'Authorization:${AUTH_HEADER}', 'AUTH_HEADER', 'Bearer sk-live'],
+    ['r', `Authorization: Bearer \${AUTH_TOKEN}`, 'AUTH_TOKEN', 'tok'],
+    ['r2', `Authorization:\${AUTH_HEADER}`, 'AUTH_HEADER', 'Bearer sk-live'],
   ])(
     'keeps an mcp-remote header that reads a variable, and vaults the variable (%s)',
     (_, header, variable, value) => {

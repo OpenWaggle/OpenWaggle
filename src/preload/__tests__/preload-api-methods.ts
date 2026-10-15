@@ -1,14 +1,15 @@
 /**
  * Every method the preload bridge exposes.
- *
  * Kept beside the test rather than inside it, like PRELOAD_MCP_METHODS, so the contract list can
  * grow without pushing the test file past its line budget.
  */
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 import { PRELOAD_SOURCE_CONTROL_METHODS } from './preload-source-control-methods'
+import { PRELOAD_USAGE_COST_METHODS } from './preload-usage-cost-methods'
 
 export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
+  ...PRELOAD_USAGE_COST_METHODS,
   'getCliShimStatus',
   'installCliShim',
   'removeCliShim',

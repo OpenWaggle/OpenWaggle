@@ -56,7 +56,7 @@ describe('credentials in an imported server entry', () => {
 
   it('treats a value only the source tool would have expanded as a credential in Codex', () => {
     const codex = imported({ command: 'api-mcp', args: ['--api-key', '!pass show api'] }, 'codex')
-    const literal = imported({ command: 'api-mcp', args: ['--api-key', '${API_KEY}'] }, 'codex')
+    const literal = imported({ command: 'api-mcp', args: ['--api-key', `\${API_KEY}`] }, 'codex')
 
     expect(codex.entry.args).toBeUndefined()
     expect(literal.entry.args).toBeUndefined()
@@ -111,7 +111,7 @@ describe('credentials in an imported server entry', () => {
         'https://mcp.example/sse',
         '--header',
         // The scheme stays, so the secret holds only the token; mcp-remote fills in ${NAME}.
-        'Authorization:Bearer ${AUTHORIZATION}',
+        `Authorization:Bearer \${AUTHORIZATION}`,
       ],
       env: { AUTHORIZATION: { secret: 'AUTHORIZATION' } },
     })
