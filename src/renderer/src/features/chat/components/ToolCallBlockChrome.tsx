@@ -1,4 +1,5 @@
 import { ChevronRight, GitBranch } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
@@ -21,6 +22,8 @@ interface ToolCallHeaderProps {
   readonly view: ToolCallViewModel
   readonly onBranchFromMessage?: (messageId: string) => void
   readonly onToggleExpanded: () => void
+  /** Controls of the row's subject that sit outside its toggle, such as a Worker's Open. */
+  readonly addon?: ReactNode
 }
 
 export function ToolCallHeader({
@@ -30,6 +33,7 @@ export function ToolCallHeader({
   view,
   onBranchFromMessage,
   onToggleExpanded,
+  addon,
 }: ToolCallHeaderProps) {
   const actionText = useChatDisplayText(view.actionText)
   const status = toolRowStatus(view, result)
@@ -58,6 +62,7 @@ export function ToolCallHeader({
           )}
         />
       </Button>
+      {addon}
       <BranchFromToolButton view={view} onBranchFromMessage={onBranchFromMessage} />
     </div>
   )

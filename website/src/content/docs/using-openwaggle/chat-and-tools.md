@@ -102,7 +102,9 @@ Replies appear as the model generates them. The conversation can include formatt
 
 A tool is an action the agent can take outside its reply, such as reading a file or running a test command. Read the tool activity as well as the final answer. An agent saying a test passed is less useful than the actual command and result.
 
-Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, a robot for sub-agents, the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**; a finished call has no extra mark. The agent's `sessions` tool reads as sub-agent work (for example **Spawned sub-agent · Review the diff**), and an MCP tool reads as its server and tool name (**Datadog › analyze_datadog_logs**).
+Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, the pickaxe for Workers (the same one the sidebar and Hive panel use), the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**; a finished call has no extra mark. An MCP tool reads as its server and tool name (**Datadog › analyze_datadog_logs**).
+
+When the agent coordinates [Workers](/docs/using-openwaggle/hives-and-sessions), each row names the Worker it acted on by its current title and agent definition, for example **Spawned Worker (reviewer) · Review the diff** or **Messaged Worker · Check main process**. A spawn row also shows the Worker's state as the Hive panel words it and an **Open** button. Waiting on Workers adds no row; the spawn rows and the Hive panel show what the agent is waiting for.
 
 Expand a tool row to inspect its arguments and output. Shell output can appear while the command is still running; a live excerpt is progress, not a success result. Failed commands keep their available output for inspection. Use **Copy command** or **Copy output** when those controls are available.
 

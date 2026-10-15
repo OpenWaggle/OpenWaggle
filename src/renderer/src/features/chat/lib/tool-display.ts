@@ -1,6 +1,7 @@
 import { match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 import { openWaggleToolLabel } from './tool-labels'
+import type { SessionsToolTarget } from './tool-labels-sessions'
 
 type PiNativeToolName = 'read' | 'write' | 'edit' | 'bash' | 'grep' | 'find' | 'ls'
 
@@ -124,6 +125,8 @@ interface ActionTextParams {
   readonly args: JsonObject
   readonly awaitingResult: boolean
   readonly isRunning: boolean
+  /** The Session a sessions-tool call acts on, as the Hive knows it. */
+  readonly sessionTarget?: SessionsToolTarget | null
 }
 
 /**
@@ -133,7 +136,7 @@ interface ActionTextParams {
 export function resolveActionText(params: ActionTextParams): string {
   const label = isPiNativeToolName(params.name)
     ? null
-    : openWaggleToolLabel(params.name, params.args)
+    : openWaggleToolLabel(params.name, params.args, params.sessionTarget ?? null)
   if (params.awaitingResult) {
     return label?.requested ?? formatStatusActionText('Requested', params.name, params.args)
   }

@@ -6,7 +6,7 @@ import { CODEMODE_TOOL_NAME } from './codemode-tool-view'
  * name is Pi's; MCP tools are named `mcp__<namespace>__<tool>` as Pi names them.
  */
 export type ToolKind =
-  | 'subagents'
+  | 'workers'
   | 'mcp'
   | 'script'
   | 'shell'
@@ -26,7 +26,7 @@ export type ToolKind =
 const BROWSER_PREVIEW_TOOL_PREFIX = 'preview_'
 
 const TOOL_KINDS_BY_NAME: ReadonlyMap<string, ToolKind> = new Map<string, ToolKind>([
-  ['sessions', 'subagents'],
+  ['sessions', 'workers'],
   [CODEMODE_TOOL_NAME, 'script'],
   ['bash', 'shell'],
   ['powershell', 'shell'],

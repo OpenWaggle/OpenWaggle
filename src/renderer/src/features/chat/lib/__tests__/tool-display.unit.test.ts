@@ -28,8 +28,17 @@ describe('resolveActionText', () => {
 
   it('names OpenWaggle and MCP tools by what they did', () => {
     expect(actionText('sessions', { action: 'spawn', objective: 'Review' }, false)).toBe(
-      'Spawned sub-agent · Review',
+      'Spawned Worker · Review',
     )
+    expect(
+      resolveActionText({
+        name: 'sessions',
+        args: { action: 'message', sessionId: 'w1' },
+        awaitingResult: false,
+        isRunning: false,
+        sessionTarget: { title: 'Check main', agentName: 'reviewer', isWorker: true },
+      }),
+    ).toBe('Messaged Worker (reviewer) · Check main')
     expect(actionText('mcp__chrome_devtools__take_screenshot', {}, true)).toBe(
       'Chrome devtools › take_screenshot...',
     )

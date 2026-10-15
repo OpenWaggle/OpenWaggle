@@ -9,53 +9,6 @@ function labelOf(name: string, args: JsonObject = {}) {
 }
 
 describe('openWaggleToolLabel', () => {
-  it('calls the sessions tool by what it did to sub-agents', () => {
-    expect(labelOf('sessions', { action: 'spawn', objective: 'Review icons' })).toEqual({
-      running: 'Spawning sub-agent · Review icons...',
-      done: 'Spawned sub-agent · Review icons',
-      requested: 'Requested sub-agents · Review icons',
-    })
-    expect(labelOf('sessions', { action: 'wait', sessionIds: ['a'] }).running).toBe(
-      'Waiting on 1 sub-agent...',
-    )
-    expect(labelOf('sessions', { action: 'wait', sessionIds: ['a', 'b'] }).done).toBe(
-      'Waited on 2 sub-agents',
-    )
-    expect(labelOf('sessions', { action: 'delegation_accept' }).done).toBe(
-      'Accepted sub-agent work',
-    )
-    expect(labelOf('sessions', { action: 'delegations_read' }).done).toBe('Read delegation')
-    expect(labelOf('sessions', { action: 'delegation_claim' }).done).toBe('Updated delegation')
-  })
-
-  it('names every sessions action by what it does', () => {
-    expect(labelOf('sessions', { action: 'queue_pause' }).done).toBe('Paused follow-ups')
-    expect(labelOf('sessions', { action: 'queue_withdraw' }).done).toBe('Withdrew follow-ups')
-    expect(labelOf('sessions', { action: 'queue_list' }).done).toBe('Read follow-ups')
-    expect(labelOf('sessions', { action: 'export_cancel' }).done).toBe('Cancelled export')
-    expect(labelOf('sessions', { action: 'exports_wait' }).done).toBe('Waited on export')
-    expect(labelOf('sessions', { action: 'approval_respond' }).done).toBe('Answered approval')
-    expect(labelOf('sessions', { action: 'request_respond' }).done).toBe(
-      'Answered sub-agent request',
-    )
-    expect(labelOf('sessions', { action: 'authorization_set' }).done).toBe('Set sub-agent access')
-  })
-
-  it('shows only the first line of a long objective', () => {
-    const objective = `\n${'Review the tool icons '.repeat(6)}\nSecond paragraph`
-    const done = labelOf('sessions', { action: 'spawn', objective }).done
-    expect(done).not.toContain('\n')
-    expect(done).not.toContain('Second paragraph')
-    expect(done.startsWith('Spawned sub-agent · Review the tool icons')).toBe(true)
-    expect(done.endsWith('…')).toBe(true)
-    expect(done.length).toBeLessThanOrEqual('Spawned sub-agent · '.length + 80)
-  })
-
-  it('keeps an unknown sessions action visible', () => {
-    expect(labelOf('sessions', { action: 'teleport' }).done).toBe('Sub-agents · teleport')
-    expect(labelOf('sessions').done).toBe('Sub-agents')
-  })
-
   it('names an MCP tool by its server', () => {
     expect(labelOf('mcp__datadog__analyze_datadog_logs')).toEqual({
       running: 'Datadog › analyze_datadog_logs...',

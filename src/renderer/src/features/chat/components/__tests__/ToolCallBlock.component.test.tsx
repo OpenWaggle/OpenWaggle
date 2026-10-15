@@ -82,12 +82,12 @@ describe('ToolCallBlock', () => {
         />
       </>,
     )
-    expect(screen.getByText('Spawned sub-agent · Review the diff')).toBeInTheDocument()
+    expect(screen.getByText('Spawned Worker · Review the diff')).toBeInTheDocument()
     expect(screen.getByText('Datadog › analyze_datadog_logs')).toBeInTheDocument()
     const kinds = [...container.querySelectorAll('[data-tool-kind]')].map((icon) =>
       icon.getAttribute('data-tool-kind'),
     )
-    expect(kinds).toEqual(['subagents', 'mcp'])
+    expect(kinds).toEqual(['workers', 'mcp'])
   })
 
   it('does not render running state for historical unresolved tool calls', () => {

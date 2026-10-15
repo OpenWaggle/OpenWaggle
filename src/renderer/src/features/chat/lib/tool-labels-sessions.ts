@@ -1,86 +1,106 @@
 import type { JsonObject } from '@shared/types/json'
-import {
-  arrayLength,
-  label,
-  plural,
-  stringArg,
-  type ToolLabel,
-  type Verbs,
-} from './tool-label-parts'
+import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
 
-const SUBAGENTS_TITLE = 'sub-agents'
-/** How much of an objective a row shows; the full text is in the expanded arguments. */
+/** The Pi tool through which an agent coordinates its Workers (renamed `hive` in ADR 0053). */
+export const SESSIONS_TOOL_NAME = 'sessions'
+
+/** How much of a title or objective a row shows; the full text is in the expanded arguments. */
 const DETAIL_MAX_CHARS = 80
-const GENERIC_VERBS: Verbs = { running: 'Sub-agents', done: 'Sub-agents' }
 
-function verbs(running: string, done: string): Verbs {
-  return { running, done }
+/**
+ * The Session a sessions-tool call acts on, as the Hive panel knows it: its current title, its
+ * Agent definition, and whether it is a Worker of this Hive.
+ */
+export interface SessionsToolTarget {
+  readonly title: string
+  readonly agentName: string | null
+  readonly isWorker: boolean
+}
+
+interface ActionVerbs {
+  readonly running: string
+  readonly done: string
+  /** The action names the Session it acts on, as in "Messaged Worker · Review". */
+  readonly targeted: boolean
+}
+
+function targeted(running: string, done: string): ActionVerbs {
+  return { running, done, targeted: true }
+}
+
+function untargeted(running: string, done: string): ActionVerbs {
+  return { running, done, targeted: false }
 }
 
 /** Every action of the sessions tool (`sessions-tool-*-parameters.ts`), by what it does. */
-const SESSION_VERBS: ReadonlyMap<string, Verbs> = new Map(
+const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
   Object.entries({
-    spawn: verbs('Spawning sub-agent', 'Spawned sub-agent'),
-    launch: verbs('Launching session', 'Launched session'),
-    create: verbs('Creating session', 'Created session'),
-    fork: verbs('Forking session', 'Forked session'),
-    message: verbs('Messaging sub-agent', 'Messaged sub-agent'),
-    start: verbs('Starting sub-agent', 'Started sub-agent'),
-    follow_up: verbs('Sending follow-up', 'Sent follow-up'),
-    steer: verbs('Steering sub-agent', 'Steered sub-agent'),
-    replace: verbs('Restarting sub-agent', 'Restarted sub-agent'),
-    promote: verbs('Promoting follow-up', 'Promoted follow-up'),
-    interrupt: verbs('Interrupting sub-agent', 'Interrupted sub-agent'),
-    interrupt_descendants: verbs('Interrupting sub-agents', 'Interrupted sub-agents'),
-    report: verbs('Sending report', 'Sent report'),
-    handoff: verbs('Handing off session', 'Handed off session'),
-    rename: verbs('Renaming session', 'Renamed session'),
-    archive: verbs('Archiving session', 'Archived session'),
-    unarchive: verbs('Restoring session', 'Restored session'),
-    list: verbs('Listing sessions', 'Listed sessions'),
-    search: verbs('Searching sessions', 'Searched sessions'),
-    read: verbs('Reading session', 'Read session'),
-    status: verbs('Checking session', 'Checked session'),
-    turns: verbs('Reading session', 'Read session'),
-    items: verbs('Reading session', 'Read session'),
-    queue_list: verbs('Reading follow-ups', 'Read follow-ups'),
-    queue_withdraw: verbs('Withdrawing follow-ups', 'Withdrew follow-ups'),
-    queue_reorder: verbs('Reordering follow-ups', 'Reordered follow-ups'),
-    queue_pause: verbs('Pausing follow-ups', 'Paused follow-ups'),
-    queue_resume: verbs('Resuming follow-ups', 'Resumed follow-ups'),
-    requests_list: verbs('Reading sub-agent requests', 'Read sub-agent requests'),
-    request_respond: verbs('Answering sub-agent request', 'Answered sub-agent request'),
-    approval_respond: verbs('Answering approval', 'Answered approval'),
-    authorization_set: verbs('Setting sub-agent access', 'Set sub-agent access'),
-    export: verbs('Exporting session', 'Exported session'),
-    export_create: verbs('Exporting session', 'Started session export'),
-    export_cancel: verbs('Cancelling export', 'Cancelled export'),
-    exports_list: verbs('Listing exports', 'Listed exports'),
-    exports_read: verbs('Checking export', 'Checked export'),
-    exports_wait: verbs('Waiting on export', 'Waited on export'),
-    delegation_submit: verbs('Submitting work', 'Submitted work'),
-    delegation_accept: verbs('Accepting sub-agent work', 'Accepted sub-agent work'),
-    delegation_request_revision: verbs('Requesting revision', 'Requested revision'),
-    delegation_verify: verbs('Verifying sub-agent work', 'Verified sub-agent work'),
-    delegation_reopen: verbs('Reopening delegation', 'Reopened delegation'),
-    delegation_cancel: verbs('Cancelling delegation', 'Cancelled delegation'),
-    delegations_list: verbs('Listing delegations', 'Listed delegations'),
-    delegations_read: verbs('Reading delegation', 'Read delegation'),
-    delegations_conflicts: verbs('Checking delegation conflicts', 'Checked delegation conflicts'),
-    agent_definitions_list: verbs('Listing agents', 'Listed agents'),
-    agent_definitions_search: verbs('Searching agents', 'Searched agents'),
+    spawn: targeted('Spawning', 'Spawned'),
+    launch: targeted('Launching', 'Launched'),
+    create: targeted('Creating', 'Created'),
+    fork: targeted('Forking', 'Forked'),
+    message: targeted('Messaging', 'Messaged'),
+    start: targeted('Starting', 'Started'),
+    follow_up: targeted('Sending a follow-up to', 'Sent a follow-up to'),
+    steer: targeted('Steering', 'Steered'),
+    replace: targeted('Restarting', 'Restarted'),
+    promote: targeted('Promoting a follow-up for', 'Promoted a follow-up for'),
+    interrupt: targeted('Interrupting', 'Interrupted'),
+    interrupt_descendants: targeted('Interrupting the Workers of', 'Interrupted the Workers of'),
+    report: targeted('Reporting to', 'Reported to'),
+    handoff: targeted('Handing off', 'Handed off'),
+    rename: targeted('Renaming', 'Renamed'),
+    archive: targeted('Archiving', 'Archived'),
+    unarchive: targeted('Restoring', 'Restored'),
+    read: targeted('Reading', 'Read'),
+    status: targeted('Checking', 'Checked'),
+    turns: targeted('Reading', 'Read'),
+    items: targeted('Reading', 'Read'),
+    queue_list: targeted('Reading follow-ups of', 'Read follow-ups of'),
+    queue_withdraw: targeted('Withdrawing follow-ups of', 'Withdrew follow-ups of'),
+    queue_reorder: targeted('Reordering follow-ups of', 'Reordered follow-ups of'),
+    queue_pause: targeted('Pausing follow-ups of', 'Paused follow-ups of'),
+    queue_resume: targeted('Resuming follow-ups of', 'Resumed follow-ups of'),
+    requests_list: targeted('Reading requests of', 'Read requests of'),
+    request_respond: targeted('Answering a request of', 'Answered a request of'),
+    approval_respond: targeted('Answering an approval for', 'Answered an approval for'),
+    authorization_set: targeted('Setting access for', 'Set access for'),
+    export: targeted('Exporting', 'Exported'),
+    export_create: targeted('Starting an export of', 'Started an export of'),
+    export_cancel: targeted('Cancelling an export of', 'Cancelled an export of'),
+    exports_list: targeted('Listing exports of', 'Listed exports of'),
+    exports_read: targeted('Checking an export of', 'Checked an export of'),
+    exports_wait: targeted('Waiting on an export of', 'Waited on an export of'),
+    list: untargeted('Listing sessions', 'Listed sessions'),
+    search: untargeted('Searching sessions', 'Searched sessions'),
+    delegation_submit: untargeted('Submitting work', 'Submitted work'),
+    delegation_accept: untargeted("Accepting a Worker's work", "Accepted a Worker's work"),
+    delegation_request_revision: untargeted('Requesting a revision', 'Requested a revision'),
+    delegation_verify: untargeted("Verifying a Worker's work", "Verified a Worker's work"),
+    delegation_reopen: untargeted('Reopening a delegation', 'Reopened a delegation'),
+    delegation_cancel: untargeted('Cancelling a delegation', 'Cancelled a delegation'),
+    delegations_list: untargeted('Listing delegations', 'Listed delegations'),
+    delegations_read: untargeted('Reading a delegation', 'Read a delegation'),
+    delegations_conflicts: untargeted(
+      'Checking delegation conflicts',
+      'Checked delegation conflicts',
+    ),
+    agent_definitions_list: untargeted('Listing agents', 'Listed agents'),
+    agent_definitions_search: untargeted('Searching agents', 'Searched agents'),
   }),
 )
 
-function sessionVerbs(action: string): Verbs | null {
-  const known = SESSION_VERBS.get(action)
+function actionVerbs(action: string): ActionVerbs | null {
+  const known = ACTION_VERBS.get(action)
   if (known) return known
   // The remaining delegation actions (state, claim, dependency, amendments…) all update it.
-  if (action.startsWith('delegation_')) return verbs('Updating delegation', 'Updated delegation')
+  if (action.startsWith('delegation_')) {
+    return untargeted('Updating a delegation', 'Updated a delegation')
+  }
   return null
 }
 
-/** The first line of a long objective, cut to fit a row and its accessible name. */
+/** The first line of a long title or objective, cut to fit a row and its accessible name. */
 function shortDetail(text: string | null) {
   if (!text) return null
   const line =
@@ -92,24 +112,89 @@ function shortDetail(text: string | null) {
   return `${line.slice(0, DETAIL_MAX_CHARS - 1).trimEnd()}…`
 }
 
-/** The sessions tool, which the transcript calls sub-agents. */
-export function sessionsLabel(args: JsonObject): ToolLabel {
+function workerPhrase(agentName: string | null, title: string | null) {
+  return withDetail(agentName ? `Worker (${agentName})` : 'Worker', shortDetail(title))
+}
+
+/** A new Session's name before the Hive knows it: what the spawning call asked for. */
+function requestedTarget(action: string, args: JsonObject): SessionsToolTarget | null {
+  const title = stringArg(args, 'title') ?? stringArg(args, 'objective')
+  if (action === 'spawn') {
+    return { title: title ?? '', agentName: stringArg(args, 'agent'), isWorker: true }
+  }
+  if (action === 'launch' || action === 'create') {
+    return { title: title ?? '', agentName: stringArg(args, 'agent'), isWorker: false }
+  }
+  return null
+}
+
+function reportTargetPhrase(args: JsonObject) {
+  const target = args.target
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
+  if (target.type === 'queen') return 'the Queen'
+  if (target.type === 'upstream') return 'its parent'
+  return null
+}
+
+/**
+ * The Session an action names: "Worker (reviewer) · Review tool icons" for a Worker, "session ·
+ * Audit deps" for a Session outside the Hive, and a bare "Worker" when the title is unknown.
+ */
+function targetPhrase(action: string, args: JsonObject, target: SessionsToolTarget | null) {
+  if (action === 'report' && !target) return reportTargetPhrase(args) ?? 'a session'
+  const known = target ?? requestedTarget(action, args)
+  if (!known) return 'Worker'
+  if (known.isWorker) return workerPhrase(known.agentName, known.title)
+  const name = known.agentName ? `session (${known.agentName})` : 'session'
+  return withDetail(name, shortDetail(known.title))
+}
+
+function waitLabel(args: JsonObject): ToolLabel {
+  const count = arrayLength(args, 'sessionIds')
+  const workers = count === null ? 'Workers' : plural(count, 'Worker')
+  return {
+    running: `Waiting on ${workers}...`,
+    done: `Waited on ${workers}`,
+    requested: `Requested a wait on ${workers}`,
+  }
+}
+
+function requestedText(running: string) {
+  return `Requested: ${running.charAt(0).toLowerCase()}${running.slice(1)}`
+}
+
+/**
+ * The sessions tool, named for the Workers it coordinates (ADR 0053). `target` is the Session the
+ * call acts on as the Hive knows it now, so a row keeps the title the Hive panel shows.
+ */
+export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | null): ToolLabel {
   const action = stringArg(args, 'action') ?? ''
-  if (action === 'wait') {
-    const count = arrayLength(args, 'sessionIds')
-    const target = count === null ? 'sub-agents' : plural(count, 'sub-agent')
+  if (action === 'wait') return waitLabel(args)
+  const verbs = actionVerbs(action)
+  // An action this list does not know yet keeps its name visible.
+  if (!verbs) {
+    const name = action ? `Hive action · ${action}` : 'Hive action'
+    return { running: `${name}...`, done: name, requested: `Requested ${name}` }
+  }
+  if (!verbs.targeted) {
+    const detail = shortDetail(stringArg(args, 'query'))
+    const running = withDetail(verbs.running, detail)
     return {
-      running: `Waiting on ${target}...`,
-      done: `Waited on ${target}`,
-      requested: `Requested ${SUBAGENTS_TITLE}`,
+      running: `${running}...`,
+      done: withDetail(verbs.done, detail),
+      requested: requestedText(running),
     }
   }
-  const known = sessionVerbs(action)
-  // An action this list does not know yet keeps its name visible.
-  const detail = known
-    ? shortDetail(
-        stringArg(args, 'title') ?? stringArg(args, 'objective') ?? stringArg(args, 'query'),
-      )
-    : action || null
-  return label(known ?? GENERIC_VERBS, detail, SUBAGENTS_TITLE)
+  const phrase = targetPhrase(action, args, target)
+  const running = `${verbs.running} ${phrase}`
+  return {
+    running: `${running}...`,
+    done: `${verbs.done} ${phrase}`,
+    requested: requestedText(running),
+  }
+}
+
+/** `wait` calls get no row, as in Codex: a spawn row's live state shows what the wait is for. */
+export function isHiddenSessionsToolCall(name: string, args: JsonObject) {
+  return name === SESSIONS_TOOL_NAME && stringArg(args, 'action') === 'wait'
 }

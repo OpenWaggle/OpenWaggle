@@ -3,7 +3,7 @@ import { toolKind } from '../tool-kind'
 
 describe('toolKind', () => {
   it('groups Pi and OpenWaggle tools by family', () => {
-    expect(toolKind('sessions')).toBe('subagents')
+    expect(toolKind('sessions')).toBe('workers')
     expect(toolKind('codemode')).toBe('script')
     expect(toolKind('bash')).toBe('shell')
     expect(toolKind('powershell')).toBe('shell')

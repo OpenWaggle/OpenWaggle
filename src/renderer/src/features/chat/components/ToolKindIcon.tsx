@@ -11,18 +11,18 @@ import {
   Goal,
   MousePointerClick,
   PencilLine,
+  Pickaxe,
   ScanSearch,
   Terminal,
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import type { ToolKind } from '@/features/chat/lib/tool-kind'
 import { McpIcon } from '@/shared/ui/icons/McpIcon'
-import { RobotIcon } from '@/shared/ui/icons/RobotIcon'
 
 type ToolKindIconComponent = ComponentType<ComponentPropsWithoutRef<'svg'>>
 
 const TOOL_KIND_ICONS: Record<ToolKind, ToolKindIconComponent> = {
-  subagents: RobotIcon,
+  workers: Pickaxe,
   mcp: McpIcon,
   script: CodeXml,
   shell: Terminal,

@@ -2,7 +2,7 @@ import type { JsonObject } from '@shared/types/json'
 import { parseMcpToolName } from '@shared/utils/mcp-tool-names'
 import { label, stringArg, type ToolLabel, type Verbs, withDetail } from './tool-label-parts'
 import { previewLabel } from './tool-labels-browser-preview'
-import { sessionsLabel } from './tool-labels-sessions'
+import { SESSIONS_TOOL_NAME, type SessionsToolTarget, sessionsLabel } from './tool-labels-sessions'
 
 /** An MCP server's Pi namespace as a name, such as `chrome_devtools` to `Chrome devtools`. */
 function mcpServerName(namespace: string) {
@@ -87,7 +87,6 @@ function goalLabels(): [string, LabelBuilder][] {
 }
 
 const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelBuilder>([
-  ['sessions', sessionsLabel],
   ['powershell', shellLabel],
   ['project_actions', projectActionsLabel],
   ['source_control', sourceControlLabel],
@@ -128,7 +127,12 @@ const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelB
  * Labels for the tools OpenWaggle adds to Pi (sessions, browser preview, project actions…) and
  * for MCP tools. Null for any other tool, which keeps its Pi name.
  */
-export function openWaggleToolLabel(name: string, args: JsonObject): ToolLabel | null {
+export function openWaggleToolLabel(
+  name: string,
+  args: JsonObject,
+  sessionTarget: SessionsToolTarget | null = null,
+): ToolLabel | null {
+  if (name === SESSIONS_TOOL_NAME) return sessionsLabel(args, sessionTarget)
   const builder = LABELS_BY_TOOL.get(name)
   if (builder) return builder(args)
   return previewLabel(name, args) ?? mcpLabel(name)
