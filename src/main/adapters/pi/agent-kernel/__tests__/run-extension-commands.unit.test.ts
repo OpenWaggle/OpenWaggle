@@ -10,9 +10,9 @@ afterEach(() => {
 })
 
 describe('the extension commands a Session listed in its last Run', () => {
-  it('add the commands only a Run loads, such as MCP’s /mcp, to those read from its file', () => {
+  it('add the commands only a Run loads, to those read from its file', () => {
     rememberRunExtensionCommands('session-1', [
-      { name: 'mcp', description: 'Manage MCP servers' },
+      { name: 'qa-run-only', description: 'Only in a Run' },
       { name: 'qa-hello', description: 'From the Run' },
     ])
 
@@ -20,12 +20,12 @@ describe('the extension commands a Session listed in its last Run', () => {
       withRunExtensionCommands('session-1', [{ name: 'qa-hello', description: 'Read' }]),
     ).toEqual([
       { name: 'qa-hello', description: 'Read' },
-      { name: 'mcp', description: 'Manage MCP servers' },
+      { name: 'qa-run-only', description: 'Only in a Run' },
     ])
   })
 
   it('are forgotten with the Session', () => {
-    rememberRunExtensionCommands('session-1', [{ name: 'mcp' }])
+    rememberRunExtensionCommands('session-1', [{ name: 'qa-run-only' }])
     forgetRunExtensionCommands('session-1')
 
     expect(withRunExtensionCommands('session-1', [])).toEqual([])

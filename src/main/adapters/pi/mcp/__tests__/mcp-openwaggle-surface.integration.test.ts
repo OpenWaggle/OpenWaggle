@@ -14,7 +14,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { withoutMcpStartupNotice } from '../mcp-quiet-startup'
+import { forOpenWaggleMcpSurface } from '../mcp-openwaggle-surface'
 
 /** A stdio MCP server that never answers, so it is still connecting when the prompt starts. */
 const SILENT_SERVER = "require('node:readline').createInterface({ input: process.stdin })"
@@ -60,7 +60,7 @@ async function noticesOfFirstPrompt(
   extension: ExtensionFactory,
   settled: (calls: readonly unknown[]) => boolean = () => true,
 ) {
-  const directory = mkdtempSync(path.join(tmpdir(), 'ow-mcp-quiet-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'ow-mcp-surface-'))
   cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
   const faux = fauxProvider({ provider: 'quiet-provider', models: [{ id: 'quiet-model' }] })
   faux.setResponses([fauxAssistantMessage('done')])
@@ -110,19 +110,25 @@ describe("Pi's MCP extension in OpenWaggle", () => {
     const unwrapped = await noticesOfFirstPrompt(mcpExtension())
     expect(unwrapped).toContainEqual([expect.stringContaining('still connecting'), 'info'])
 
-    const wrapped = await noticesOfFirstPrompt(withoutMcpStartupNotice(mcpExtension()))
+    const wrapped = await noticesOfFirstPrompt(forOpenWaggleMcpSurface(mcpExtension()))
 
     expect(wrapped).toEqual([])
   })
 
-  it('still warns when an MCP server fails to connect', async () => {
+  it('still warns when an MCP server fails to connect, pointing at Settings > MCP', async () => {
     const notices = await noticesOfFirstPrompt(
-      withoutMcpStartupNotice(mcpExtension('broken', BROKEN_SERVER)),
+      forOpenWaggleMcpSurface(mcpExtension('broken', BROKEN_SERVER)),
       (calls) => calls.length > 0,
     )
 
     expect(notices).toEqual([
-      [expect.stringMatching(/MCP servers need attention:\n {2}broken: /), 'warning'],
+      [
+        expect.stringMatching(
+          /^MCP servers need attention:\n {2}broken: [\s\S]*\nOpen Settings > MCP to fix this\.$/,
+        ),
+        'warning',
+      ],
     ])
+    expect(notices[0]?.[0]).not.toContain('/mcp')
   })
 })

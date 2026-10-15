@@ -158,6 +158,19 @@ An Agent definition's tool allowlist is enforced by a `tool_call` hook
 MCP approval, so a refused call is never offered for approval. Pi loads extensions from paths and
 packages before every inline factory, so their `tool_call` hooks see a call before the guard.
 
+### Pi's commands and notices
+
+Pi's MCP extension is written for its terminal: a `/mcp` menu, and notices and tool errors that
+say "Run /mcp to fix." or "Run /mcp to sign in.". OpenWaggle manages servers in Settings > MCP, so
+`forOpenWaggleMcpSurface` (`adapters/pi/mcp/mcp-openwaggle-surface.ts`) wraps the extension:
+`/mcp` is not registered (the slash menu never offers it), notices and tool results that name
+`/mcp` or `/login <provider>` name Settings > MCP or Settings > Connections instead, and the `info`
+notices of Pi's `before_agent_start` wait are dropped (see [When servers connect](#when-servers-connect)).
+Only Pi's exact wording is rewritten, so a server's own text is left alone. The rest of this page
+still names Pi's `/mcp` where Pi's `updateConfig` and `openUrl` options are described. With `/mcp`
+gone, nothing in a Run reaches them today; they stay wired so that anything in Pi's extension that
+writes or signs in lands the same way as Settings.
+
 ## Writes
 
 | Change | Destination |
