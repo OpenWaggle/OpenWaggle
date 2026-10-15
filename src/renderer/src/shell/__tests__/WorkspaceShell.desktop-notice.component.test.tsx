@@ -73,7 +73,7 @@ describe('workspace shell desktop tools notice', () => {
     expect(follows(notice, screen.getByText('Route content'))).toBe(true)
   })
 
-  it.each(['/settings', '/settings/actions'])(
+  it.each(['/settings', '/settings/actions', '/usage'])(
     'moves below the route at %s, clear of the window controls and the Settings title bar',
     async (pathname) => {
       mocks.pathname = pathname

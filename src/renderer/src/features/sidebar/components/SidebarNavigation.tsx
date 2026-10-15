@@ -187,7 +187,7 @@ export function SidebarSettingsButton({
         data-qa="sidebar-usage-cost"
         title="Usage & Cost"
         onClick={onOpenUsageCost}
-        className="size-7.5 shrink-0 justify-center"
+        className="size-7.5"
       >
         <ChartColumn className="size-3.5 shrink-0" />
       </Button>

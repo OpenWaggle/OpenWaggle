@@ -1,7 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
-import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { useChat } from '@/features/chat/hooks'
+import { useNavigateBackToApp } from '@/features/chat/hooks'
 import { ProjectActionsSettings } from '@/features/project-actions'
 import { SkillsPanel } from '@/features/skills/components'
 import { cn } from '@/shared/lib/cn'
@@ -27,21 +26,8 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ activeTab }: SettingsPageProps) {
-  const navigate = useNavigate()
-  const { activeSessionId } = useChat()
+  const navigateBackToApp = useNavigateBackToApp()
   const isFullscreen = useFullscreen()
-
-  function navigateBackToApp() {
-    if (activeSessionId) {
-      void navigate({
-        to: '/sessions/$sessionId',
-        params: { sessionId: String(activeSessionId) },
-      })
-      return
-    }
-
-    void navigate({ to: '/' })
-  }
 
   return (
     <div className="@container/settings flex size-full flex-col bg-bg">

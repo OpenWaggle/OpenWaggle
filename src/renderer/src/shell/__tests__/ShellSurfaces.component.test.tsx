@@ -147,7 +147,7 @@ describe('shell surfaces', () => {
     expect(onOpen).toHaveBeenCalledWith()
   })
 
-  it.each(['/', '/settings', '/settings/actions'])(
+  it.each(['/', '/settings', '/settings/actions', '/usage'])(
     'mounts route-appropriate chrome and shared workspace controls at %s',
     async (pathname) => {
       shellMocks.pathname = pathname

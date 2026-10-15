@@ -192,7 +192,9 @@ describe('UsageCostPage', () => {
   it('offers a way back to the app in every state', () => {
     const onBack = vi.fn()
     const { rerender } = render(<UsageCostPage onBack={onBack} state={baseState({ view: null })} />)
-    expect(screen.getByText('Scanning Pi sessions…')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Scanning Pi sessions…')
+    // The top bar names the view even before the scan finishes.
+    expect(screen.getByText('Usage & Cost')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /back to app/i }))
 
     rerender(<UsageCostPage onBack={onBack} state={baseState({ isError: true })} />)

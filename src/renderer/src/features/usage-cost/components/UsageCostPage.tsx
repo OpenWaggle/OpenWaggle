@@ -74,10 +74,7 @@ export function UsageCostPage({ state, onBack }: UsageCostPageProps) {
   )
 }
 
-/**
- * Mirrors the Settings top bar: window drag region, traffic-light inset, and a way back.
- * The page heading below names the view, so the bar carries only the back action.
- */
+/** Mirrors the Settings top bar: window drag region, traffic-light inset, and a way back. */
 function UsageCostTopBar({ onBack }: { readonly onBack: () => void }) {
   const isFullscreen = useFullscreen()
   return (
@@ -95,6 +92,7 @@ function UsageCostTopBar({ onBack }: { readonly onBack: () => void }) {
         <ArrowLeft className="size-4" />
         <span className="text-xs">Back to app</span>
       </Button>
+      <span className="no-drag text-base font-medium text-text-primary">Usage & Cost</span>
     </div>
   )
 }
@@ -125,9 +123,9 @@ function UsageCostBody({ state }: { readonly state: UsageCostPageState }) {
   if (!view) {
     return (
       <CenteredMessage>
-        <p className="text-sm text-text-tertiary" aria-live="polite">
+        <output aria-live="polite" className="text-sm text-text-tertiary">
           Scanning Pi sessions…
-        </p>
+        </output>
       </CenteredMessage>
     )
   }
