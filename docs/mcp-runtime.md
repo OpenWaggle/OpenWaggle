@@ -368,7 +368,10 @@ through Host operations that send internal requests over the same pooled connect
 connection is opened on demand exactly like a Run's (the Session's working path for `cwd` and
 roots, Pi's OAuth settings, the server identity), so the next Run reuses it. Apps can also list the
 server's resources and prompts (`mcp:list-app-catalog`); every App request gives up after 60 s.
-The descriptor's
+The frame's
+Content-Security-Policy allows the origins the resource declares in `_meta.ui.csp`, validated as
+plain origins (ADR 0053), and the document is served from its own `openwaggle-mcp-app://frame-<uuid>` origin with that policy as a header (`mcp-app-frame-protocol.ts`; a `srcdoc` frame would inherit the page's CSP). The frame sizes itself to the height the App reports and gets the
+panel's width and theme as host context changes (`McpAppHost`, `use-mcp-app-frame-layout.ts`). The descriptor's
 `serverInstanceId` is the server name and its `serverConfigHash` the server identity, so an App
 opened for a server that was since replaced is refused.
 

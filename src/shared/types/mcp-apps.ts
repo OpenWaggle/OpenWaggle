@@ -15,7 +15,6 @@ export interface McpAppDescriptor {
   readonly toolName: string
   readonly toolTitle: string
   readonly resourceUri: string
-  readonly allowedNetworkDomains: readonly string[]
 }
 
 export interface McpResourceResult {

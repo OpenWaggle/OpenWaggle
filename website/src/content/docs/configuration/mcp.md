@@ -189,7 +189,7 @@ A session's servers stop after 5 minutes without a new message, when the session
 
 ## Apps, sampling, and input requests
 
-- **MCP Apps** are small interactive pages a server attaches to a tool result. They appear under the tool call in the conversation and run isolated from OpenWaggle.
+- **MCP Apps** are small interactive pages a server attaches to a tool result. They appear under the tool call in the conversation and run isolated from OpenWaggle. An App can load code and data from the sites its server declares, and nothing else. It sizes itself to what it shows; if it doesn't start within 15 seconds, OpenWaggle says so and the tool call keeps its result as text.
 - **Sampling** lets a server ask your model to write something. OpenWaggle asks for your approval and never shares the conversation.
 - **Input requests** (elicitation) let a server ask you for information, in a form or on a web page the server names.
 

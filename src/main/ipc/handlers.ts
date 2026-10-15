@@ -11,6 +11,7 @@ import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
 import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
+import { registerMcpAppFrameHandlers } from './mcp-app-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
 import { registerProfileAccessHandlers } from './profile-access-handler'
 import { registerProjectActionHandlers } from './project-actions-handler'
@@ -54,6 +55,7 @@ export function registerAllIpcHandlers(): void {
   registerExtensionBrokerHandlers()
   registerExtensionFrameHandlers()
   registerInlineVisualizationFrameHandlers()
+  registerMcpAppFrameHandlers()
   registerMcpHandlers()
   registerProjectActionHandlers()
   registerProjectHandlers()

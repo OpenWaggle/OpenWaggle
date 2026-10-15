@@ -6,6 +6,7 @@ import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-auto
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import { MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import { app, net, protocol } from 'electron'
 import { env } from './env'
@@ -58,6 +59,18 @@ export function registerRendererScheme() {
     },
     {
       scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: false,
+      },
+    },
+    {
+      // Each App document has its own `frame-<id>` host, so the scheme is standard; the frame is
+      // same-origin with that host only, never with OpenWaggle, and nothing under it is fetched
+      // by CORS (ADR 0053).
+      scheme: MCP_APP_FRAME_PROTOCOL.SCHEME,
       privileges: {
         standard: true,
         secure: true,
