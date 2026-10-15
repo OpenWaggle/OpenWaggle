@@ -7,7 +7,7 @@ afterEach(() => {
 })
 
 function layoutFor(element: HTMLElement | null) {
-  return renderHook(() => useMcpAppFrameLayout({ current: element }))
+  return renderHook(() => useMcpAppFrameLayout(element))
 }
 
 describe("an MCP App frame's layout", () => {

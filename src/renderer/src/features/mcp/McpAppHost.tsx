@@ -11,6 +11,11 @@ import { useMcpAppFrameRegistration } from './use-mcp-app-frame-registration'
 import { MAX_FRAME_HEIGHT, useMcpAppFrameSize } from './use-mcp-app-frame-size'
 import { useMcpAppResource } from './use-mcp-app-resource'
 
+interface FrameLoad {
+  readonly url: string
+  readonly count: number
+}
+
 const EMPTY_ARGUMENTS: Readonly<Record<string, McpJsonValue>> = {}
 
 export function McpAppHost({
@@ -30,13 +35,12 @@ export function McpAppHost({
 }) {
   const { resource, error: resourceError } = useMcpAppResource(descriptor, projectPath, sessionId)
   const { frameUrl, error: frameError } = useMcpAppFrameRegistration(resource)
-  const error = resourceError ?? frameError
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const layout = useMcpAppFrameLayout(containerRef)
-  // The URL whose document the frame has loaded, so a new frame URL waits for its own load.
-  const [loadedFrameUrl, setLoadedFrameUrl] = useState<string | null>(null)
-  const frameReady = frameUrl !== null && loadedFrameUrl === frameUrl
+  // State, not a ref: the container mounts once the document is registered; observe it then.
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const layout = useMcpAppFrameLayout(container)
+  // Each load of the frame's document: a new URL waits for its own, a reload gets a new bridge.
+  const [frameLoad, setFrameLoad] = useState<FrameLoad | null>(null)
   const frame = useMcpAppFrameSize(frameUrl !== null)
   const { onHeightChange, onInitialized } = frame
   const stalled = frame.state === 'stalled'
@@ -45,7 +49,8 @@ export function McpAppHost({
   const bridgeInput = useMemo(() => {
     const contentWindow = iframeRef.current?.contentWindow
     // A stalled App's frame is removed, so its bridge goes with it.
-    if (!resource || !frameUrl || !frameReady || !contentWindow || stalled) return null
+    const ready = frameUrl !== null && frameLoad?.url === frameUrl && !stalled
+    if (!resource || !ready || !contentWindow) return null
     return {
       contentWindow,
       descriptor,
@@ -62,7 +67,7 @@ export function McpAppHost({
     }
   }, [
     descriptor,
-    frameReady,
+    frameLoad,
     frameUrl,
     initialArguments,
     initialResult,
@@ -75,6 +80,7 @@ export function McpAppHost({
   ])
   useMcpAppBridge(bridgeInput, layout)
 
+  const error = resourceError ?? frameError
   if (closed) return null
   if (error) {
     return (
@@ -96,7 +102,7 @@ export function McpAppHost({
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainer}
       className="overflow-hidden rounded-lg border border-border bg-bg-secondary"
     >
       <McpAppHeader
@@ -125,7 +131,7 @@ export function McpAppHost({
           src={frameUrl}
           className="block w-full border-0 bg-bg"
           style={{ height: frame.frameHeight }}
-          onLoad={() => setLoadedFrameUrl(frameUrl)}
+          onLoad={() => setFrameLoad((load) => ({ url: frameUrl, count: (load?.count ?? 0) + 1 }))}
         />
       )}
       {stagedContext !== null && (

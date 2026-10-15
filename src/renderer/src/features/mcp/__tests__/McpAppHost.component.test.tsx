@@ -1,25 +1,24 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const bridgeMock = vi.hoisted(() => vi.fn<(input: unknown) => void>())
+const bridgeMock = vi.hoisted(() => vi.fn<(input: unknown, layout: unknown) => void>())
 const setComposerTextValueMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../mcp-app-bridge', () => ({ useMcpAppBridge: bridgeMock }))
-vi.mock('../use-mcp-app-resource', () => ({
-  useMcpAppResource: () => ({
-    resource: {
-      html: '<main>Weather</main>',
-      csp: { connectDomains: [], resourceDomains: [], frameDomains: [], baseUriDomains: [] },
-      requestedPermissions: [],
-    },
-    error: null,
-  }),
+// One resource, as the real hook keeps it across renders once loaded.
+const loadedResource = vi.hoisted(() => ({
+  resource: {
+    html: '<main>Weather</main>',
+    csp: { connectDomains: [], resourceDomains: [], frameDomains: [], baseUriDomains: [] },
+    requestedPermissions: [],
+  },
+  error: null,
 }))
+vi.mock('../use-mcp-app-resource', () => ({ useMcpAppResource: () => loadedResource }))
+const FRAME_URL = 'openwaggle-mcp-app://frame-12345678-1234-4123-8123-123456789abc/document'
+const registration: { frameUrl: string | null } = vi.hoisted(() => ({ frameUrl: null }))
 vi.mock('../use-mcp-app-frame-registration', () => ({
-  useMcpAppFrameRegistration: () => ({
-    frameUrl: 'openwaggle-mcp-app://frame-12345678-1234-4123-8123-123456789abc/document',
-    error: null,
-  }),
+  useMcpAppFrameRegistration: () => ({ frameUrl: registration.frameUrl, error: null }),
 }))
 vi.mock('@/features/chat/lib', () => ({ setComposerTextValue: setComposerTextValueMock }))
 
@@ -82,17 +81,17 @@ function renderLoadedApp() {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
   bridgeMock.mockClear()
+  registration.frameUrl = FRAME_URL
 })
+registration.frameUrl = FRAME_URL
 
 describe('McpAppHost frame size', () => {
   it('loads the App from its own frame origin, not from the page', () => {
     const frame = renderLoadedApp()
 
-    expect(frame).toHaveAttribute(
-      'src',
-      'openwaggle-mcp-app://frame-12345678-1234-4123-8123-123456789abc/document',
-    )
+    expect(frame).toHaveAttribute('src', FRAME_URL)
     expect(frame).not.toHaveAttribute('srcdoc')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin')
   })
@@ -145,6 +144,53 @@ describe('McpAppHost frame size', () => {
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(frame).toHaveStyle({ height: '200px' })
+  })
+})
+
+describe('McpAppHost layout', () => {
+  it("measures the panel width once the App's document is registered, as it is in the app", () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(DOMRect.fromRect({ width: 640, height: 10 }))
+    registration.frameUrl = null
+    const view = render(
+      <McpAppHost descriptor={DESCRIPTOR} projectPath="/project" sessionId="session-1" />,
+    )
+    expect(screen.queryByTitle('Show weather MCP App')).not.toBeInTheDocument()
+
+    registration.frameUrl = FRAME_URL
+    view.rerender(
+      <McpAppHost descriptor={DESCRIPTOR} projectPath="/project" sessionId="session-1" />,
+    )
+
+    expect(bridgeMock.mock.calls.at(-1)?.[1]).toMatchObject({ width: 640 })
+    rect.mockRestore()
+  })
+
+  it('keeps one bridge while the App starts, runs, and resizes', () => {
+    renderLoadedApp()
+    const first = readyBridgeInput()
+
+    act(() => first.onInitialized())
+    act(() => first.onHeightChange(240))
+
+    expect(readyBridgeInput()).toBe(first)
+  })
+
+  it('connects a new bridge when the App reloads its document', () => {
+    const frame = renderLoadedApp()
+    const first = readyBridgeInput()
+
+    fireEvent.load(frame)
+
+    expect(readyBridgeInput()).not.toBe(first)
   })
 })
 

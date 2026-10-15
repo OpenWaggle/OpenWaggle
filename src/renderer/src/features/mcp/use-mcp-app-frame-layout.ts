@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import type { OpenWaggleAppearanceName } from '@/shared/lib/appearance'
 import type { McpAppLayout } from './mcp-app-bridge'
@@ -13,12 +13,12 @@ function appTheme(appearance: OpenWaggleAppearanceName): McpAppLayout['theme'] {
  * frame is shown, so a running App can lay its data out again when the chat panel is resized or
  * the theme changes.
  */
-export function useMcpAppFrameLayout(container: RefObject<HTMLElement | null>): McpAppLayout {
+export function useMcpAppFrameLayout(container: HTMLElement | null): McpAppLayout {
   const [width, setWidth] = useState<number | null>(null)
   const theme = appTheme(useAppearanceName())
 
   useEffect(() => {
-    const element = container.current
+    const element = container
     if (!element || typeof ResizeObserver === 'undefined') return
     const measure = () => {
       const measured = Math.round(element.getBoundingClientRect().width)
