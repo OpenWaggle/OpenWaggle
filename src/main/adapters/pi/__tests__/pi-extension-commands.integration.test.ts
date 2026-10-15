@@ -1,6 +1,7 @@
 import { createMcpExtension } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vitest'
 import { piExtensionCommands } from '../agent-kernel/pi-extension-commands'
+import { forOpenWaggleMcpSurface } from '../mcp/mcp-openwaggle-surface'
 import {
   cleanupOpenWagglePiSessions,
   createOpenWagglePiSession,
@@ -34,24 +35,16 @@ describe("a Session's Pi extension commands", () => {
   })
 })
 
-describe("Pi's /mcp command in OpenWaggle", () => {
-  it('is listed with its description and runs under OpenWaggle’s interface', async () => {
-    const { session, events } = await createOpenWagglePiSession({
-      extensionFactories: [createMcpExtension({ loadConfig: () => ({ servers: [], errors: [] }) })],
+describe("Pi's MCP extension in OpenWaggle", () => {
+  it('registers no /mcp command, since MCP is managed in Settings > MCP', async () => {
+    const { session } = await createOpenWagglePiSession({
+      extensionFactories: [
+        forOpenWaggleMcpSurface(
+          createMcpExtension({ loadConfig: () => ({ servers: [], errors: [] }) }),
+        ),
+      ],
     })
 
-    expect(piExtensionCommands(session)).toContainEqual({
-      name: 'mcp',
-      description: expect.stringContaining('Manage MCP servers'),
-    })
-
-    await session.prompt('/mcp')
-
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'agent_interaction_request',
-        interaction: expect.objectContaining({ kind: 'notify' }),
-      }),
-    )
+    expect(piExtensionCommands(session).map((command) => command.name)).not.toContain('mcp')
   })
 })

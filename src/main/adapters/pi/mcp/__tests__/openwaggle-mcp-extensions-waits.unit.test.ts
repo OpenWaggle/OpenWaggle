@@ -128,8 +128,8 @@ describe("a Run's MCP extension", () => {
     if (typeof mcp === 'function' || !mcp) throw new Error('No MCP extension')
     await mcp.factory(
       fromPartial<ExtensionAPI>({
-        on: (_event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
-          handlers.push(handler)
+        on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
+          if (event === 'before_agent_start') handlers.push(handler)
           return () => undefined
         },
       }),
