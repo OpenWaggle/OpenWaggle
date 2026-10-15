@@ -44,7 +44,7 @@ export class McpPooledConnection {
   /** Replaces a stuck server process; clients' messages wait while it does. */
   private readonly replacement = new McpUpstreamReplacement({
     isClosed: () => this.isClosed,
-    hasPending: () => this.ledger.hasPending,
+    hasPending: () => this.ledger.hasPending || this.router.hasOpenRequests,
     replaceUpstream: async () => {
       await this.slot.replace()
       await this.handshake.replay()
@@ -148,7 +148,7 @@ export class McpPooledConnection {
    * the connection takes no new clients, lets the requests already sent settle, then closes.
    */
   private retire() {
-    if (this.retiring) return
+    if (this.retiring || this.closed) return
     this.retiring = true
     if (!this.ledger.hasPending) {
       void this.close()

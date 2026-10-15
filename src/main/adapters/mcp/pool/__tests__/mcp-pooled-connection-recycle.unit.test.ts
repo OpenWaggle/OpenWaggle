@@ -180,6 +180,40 @@ describe('a pooled MCP connection whose server process gets stuck', () => {
     expect(connection.isClosed).toBe(true)
   })
 
+  it('replaces the process for any listing a client asks for when it connects', async () => {
+    const stuck = { stuck: false, failing: ['resources/list'] }
+    const fresh = server({ stuck: false })
+    const { connection, opened } = pooled([server(stuck), fresh])
+    const { lease, client } = await run(connection)
+
+    stuck.stuck = true
+    await lease.send({ jsonrpc: '2.0', id: 3, method: 'resources/list' })
+    await flush()
+    await flush()
+
+    expect(client.messages.at(-1)).toEqual({ jsonrpc: '2.0', id: 3, result: {} })
+    expect(opened).toHaveLength(2)
+    expect(fresh.methods()).toEqual(['initialize', 'notifications/initialized', 'resources/list'])
+  })
+
+  it('keeps the process while one of its own requests waits for a client, and retires instead', async () => {
+    // The client's answer belongs to the process that asked; a fresh one would get it instead.
+    const stuck = { stuck: false }
+    const first = server(stuck)
+    const { connection, opened } = pooled([first, server({ stuck: false })])
+    const { client } = await run(connection)
+    first.push({ jsonrpc: '2.0', id: 'server-1', method: 'custom/confirm', params: {} })
+    await flush()
+    expect(client.messages.at(-1)).toMatchObject({ id: 'server-1', method: 'custom/confirm' })
+
+    stuck.stuck = true
+    const next = await run(connection)
+
+    expect(next.listing).toMatchObject({ error: { message: 'Internal error' } })
+    expect(opened).toHaveLength(1)
+    expect(connection.isClosed).toBe(true)
+  })
+
   it('does not send a failed tool call again, since running a tool twice may do its work twice', async () => {
     const stuck = { stuck: false, failing: ['tools/call'] }
     const { connection, opened } = pooled([server(stuck), server({ stuck: false })])

@@ -48,7 +48,9 @@ export function withOpenWaggleMcpGuidance(text: string): string {
 /**
  * A tool error that tells the model to have the user run `/mcp`, with OpenWaggle's guidance, so
  * the model repeats instructions that work here. Codemode scripts report the errors of the MCP
- * calls they make in their own result, so every tool's text is checked, not only `mcp__` tools'.
+ * calls they make in their own result, so every tool's text is checked, not only `mcp__` tools';
+ * only Pi's exact sentences match. Structured content is kept: Pi drops it when a handler replaces
+ * the content alone, and an MCP App reads it.
  */
 function withOpenWaggleMcpGuidanceInResult(event: ToolResultEvent) {
   let changed = false
@@ -59,7 +61,10 @@ function withOpenWaggleMcpGuidanceInResult(event: ToolResultEvent) {
     changed = true
     return { ...part, text }
   })
-  return changed ? { content } : undefined
+  if (!changed) return undefined
+  return event.structuredContent === undefined
+    ? { content }
+    : { content, structuredContent: event.structuredContent }
 }
 
 /**

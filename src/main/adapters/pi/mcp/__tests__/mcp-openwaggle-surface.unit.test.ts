@@ -102,6 +102,22 @@ describe('forOpenWaggleMcpSurface', () => {
     expect(untouched).toBeUndefined()
   })
 
+  it('keeps the structured content of a result whose text it rewrites, for MCP Apps', async () => {
+    const { pi, emit } = recordingPi()
+    await forOpenWaggleMcpSurface(() => {})(pi)
+    const structuredContent = { content: [], isError: true }
+
+    const [rewritten] = await emit('tool_result', {
+      ...toolResult('Run /mcp to fix.'),
+      structuredContent,
+    })
+
+    expect(rewritten).toEqual({
+      content: [{ type: 'text', text: 'Open Settings > MCP to fix this.' }],
+      structuredContent,
+    })
+  })
+
   it('leaves the rest of the Pi API as it is', async () => {
     const { pi } = recordingPi()
     let tools: unknown

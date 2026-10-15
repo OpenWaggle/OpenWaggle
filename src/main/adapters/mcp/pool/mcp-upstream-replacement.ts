@@ -21,13 +21,16 @@ export const UPSTREAM_REPLACEMENT_INTERVAL_MS = 60_000
 export interface McpUpstreamReplacementHost {
   /** Closed or retiring. */
   readonly isClosed: () => boolean
-  /** Whether a request, a client's or OpenWaggle's, still waits on the current process. */
+  /**
+   * Whether anything still waits on the current process: a request of a client's or OpenWaggle's,
+   * or one of the server's own requests, whose answer would otherwise reach the fresh process.
+   */
   readonly hasPending: () => boolean
   /** Closes the current process, then opens and initializes another in its place. */
   readonly replaceUpstream: () => Promise<void>
   /** Sends a client's request again, on the current process. */
   readonly resend: (pending: LeasePending) => Promise<void>
-  /** Takes no new client and closes once its open requests settle. */
+  /** Takes no new client and closes once its open requests settle; nothing once closed. */
   readonly retire: () => void
 }
 
@@ -74,11 +77,7 @@ export class McpUpstreamReplacement {
       deliverFailure()
       this.host.retire()
     }
-    if (this.host.isClosed()) {
-      deliverFailure()
-      return true
-    }
-    if (this.replacing || recently || this.host.hasPending()) {
+    if (this.host.isClosed() || this.replacing || recently || this.host.hasPending()) {
       giveUp()
       return true
     }

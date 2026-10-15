@@ -1,7 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  InMemoryCredentialStore,
+} from '@earendil-works/pi-ai'
 import {
   createAgentSession,
   createMcpExtension,
@@ -12,7 +17,9 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
+import { isRecord } from '@shared/utils/validation'
 import { fromPartial } from '@total-typescript/shoehorn'
+import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { forOpenWaggleMcpSurface } from '../mcp-openwaggle-surface'
 
@@ -60,10 +67,19 @@ async function noticesOfFirstPrompt(
   extension: ExtensionFactory,
   settled: (calls: readonly unknown[]) => boolean = () => true,
 ) {
+  return (await firstPrompt(extension, settled)).notices
+}
+
+/** Runs one prompt with the extension; the model answers with `responses`, in turn. */
+async function firstPrompt(
+  extension: ExtensionFactory,
+  settled: (calls: readonly unknown[]) => boolean = () => true,
+  responses = [fauxAssistantMessage('done')],
+) {
   const directory = mkdtempSync(path.join(tmpdir(), 'ow-mcp-surface-'))
   cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
   const faux = fauxProvider({ provider: 'quiet-provider', models: [{ id: 'quiet-model' }] })
-  faux.setResponses([fauxAssistantMessage('done')])
+  faux.setResponses(responses)
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     refreshOnCreate: false,
@@ -101,7 +117,18 @@ async function noticesOfFirstPrompt(
   await session.bindExtensions({ uiContext: fromPartial<ExtensionUIContext>({ notify }) })
   await session.prompt('Hello.')
   await waitUntil(() => settled(notify.mock.calls))
-  return notify.mock.calls
+  return { notices: notify.mock.calls, session }
+}
+
+/** The text of every tool result the model was given in the Session. */
+function toolResultTexts(session: { readonly messages: readonly unknown[] }) {
+  return session.messages.flatMap((message) =>
+    isRecord(message) && message.role === 'toolResult' && Array.isArray(message.content)
+      ? message.content.flatMap((part: unknown) =>
+          isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+        )
+      : [],
+  )
 }
 
 describe("Pi's MCP extension in OpenWaggle", () => {
@@ -113,6 +140,30 @@ describe("Pi's MCP extension in OpenWaggle", () => {
     const wrapped = await noticesOfFirstPrompt(forOpenWaggleMcpSurface(mcpExtension()))
 
     expect(wrapped).toEqual([])
+  })
+
+  it('tells the model to use Settings > MCP when a tool result says to run /mcp', async () => {
+    // A tool that fails as Pi's MCP tools do when their server needs sign-in.
+    const signInRequired = forOpenWaggleMcpSurface((pi) => {
+      pi.registerTool({
+        name: 'mcp__docs__search',
+        label: 'search',
+        description: 'Searches the docs.',
+        parameters: Type.Object({}),
+        execute: async () => {
+          throw new Error('MCP server "docs" requires sign-in. Run /mcp to sign in.')
+        },
+      })
+    })
+
+    const { session } = await firstPrompt(signInRequired, () => true, [
+      fauxAssistantMessage(fauxToolCall('mcp__docs__search', {})),
+      fauxAssistantMessage('done'),
+    ])
+
+    expect(toolResultTexts(session)).toEqual([
+      'MCP server "docs" requires sign-in. Sign in from Settings > MCP.',
+    ])
   })
 
   it('still warns when an MCP server fails to connect, pointing at Settings > MCP', async () => {

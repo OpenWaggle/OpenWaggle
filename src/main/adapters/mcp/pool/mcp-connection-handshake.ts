@@ -76,6 +76,9 @@ export class McpConnectionHandshake {
   /**
    * Initializes a replacement upstream with the params the first one got, then sends
    * `notifications/initialized` if the first one had it. Clients keep the result they were given.
+   * Only for a connection past its handshake: a replacement is asked for by a failed listing, which
+   * a client sends after `initialize`, and clients' messages wait while it runs, so no `initialize`
+   * is in flight to be lost.
    */
   async replay() {
     const requested = this.requested

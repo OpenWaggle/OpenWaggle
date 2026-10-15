@@ -61,6 +61,14 @@ export class McpServerRequestRouter {
     return lease
   }
 
+  /**
+   * Whether a request of the server's is still being answered, here or by a client. Its answer
+   * belongs to the process that asked, so that process must not be replaced meanwhile.
+   */
+  get hasOpenRequests() {
+    return this.active.size > 0 || this.forwarded.size > 0
+  }
+
   /** A client answered a server request it was given. */
   answered(id: JsonRpcId) {
     this.forwarded.delete(id)
