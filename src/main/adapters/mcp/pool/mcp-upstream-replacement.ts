@@ -1,5 +1,5 @@
 import type { Pending } from './mcp-connection-support'
-import { JSON_RPC_ERROR_CODES, type JsonRpcResponse } from './mcp-wire'
+import { JSON_RPC_ERROR_CODES, type JsonRpcErrorResponse, toError } from './mcp-wire'
 
 type LeasePending = Extract<Pending, { readonly kind: 'lease' }>
 
@@ -62,19 +62,20 @@ export class McpUpstreamReplacement {
    * otherwise the client gets the error and the connection retires, so the next Run starts its
    * own process.
    */
-  handleError(
-    pending: LeasePending,
-    failed: JsonRpcResponse & { readonly error: { readonly code: number } },
-  ) {
+  handleError(pending: LeasePending, failed: JsonRpcErrorResponse) {
     if (!RELISTED_METHODS.has(pending.method)) return false
     if (failed.error.code !== JSON_RPC_ERROR_CODES.internalError) return false
-    const deliverFailure = () => pending.lease.deliver({ ...failed, id: pending.id })
     const now = this.now()
     const recently =
       this.lastReplacementAt !== undefined &&
       now - this.lastReplacementAt < UPSTREAM_REPLACEMENT_INTERVAL_MS
-    const giveUp = () => {
-      deliverFailure()
+    /** `replacementError` names why a fresh process did not help, next to the server's error. */
+    const giveUp = (replacementError?: unknown) => {
+      const message =
+        replacementError === undefined
+          ? failed.error.message
+          : `${failed.error.message} (a fresh server process failed too: ${toError(replacementError).message})`
+      pending.lease.deliver({ ...failed, id: pending.id, error: { ...failed.error, message } })
       this.host.retire()
     }
     if (this.host.isClosed() || this.replacing || recently || this.host.hasPending()) {
@@ -88,7 +89,7 @@ export class McpUpstreamReplacement {
       .then(() => (pending.lease.isDetached ? undefined : this.host.resend(pending)))
       // A fresh process that cannot start has closed the connection already. One that starts but
       // fails its `initialize`, or the listing sent again, must not serve the next Run either.
-      .catch(giveUp)
+      .catch((error: unknown) => giveUp(error))
       .finally(() => {
         if (this.replacing === replacing) this.replacing = undefined
       })

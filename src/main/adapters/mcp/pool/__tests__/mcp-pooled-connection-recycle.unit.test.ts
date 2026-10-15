@@ -45,11 +45,16 @@ class FailingInitializeUpstream extends FakeUpstream {
   }
 }
 
-function pooled(upstreams: FakeUpstream[]) {
+/**
+ * A pooled connection over `upstreams`, one per process it opens. A replacement process opens
+ * only once `replacementGate` resolves, so a test can act while the replacement is in flight.
+ */
+function pooled(upstreams: FakeUpstream[], replacementGate?: Promise<void>) {
   const opened: FakeUpstream[] = []
   const connection = new McpPooledConnection({
     serverName: 'datadog',
-    open: () => {
+    open: async () => {
+      if (opened.length > 0) await replacementGate
       const next = upstreams[opened.length]
       if (!next) throw new Error('No more server processes')
       opened.push(next)
@@ -110,6 +115,91 @@ describe('a pooled MCP connection whose server process gets stuck', () => {
     expect(opened).toHaveLength(2)
     // Not reused by the next Run, which opens its own process.
     expect(connection.isClosed).toBe(true)
+  })
+
+  it('replaces a process again once a minute has passed since the last time', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const freshState = { stuck: false }
+    const { connection, opened } = pooled([
+      server({ stuck: true }),
+      server(freshState),
+      server({ stuck: false }),
+    ])
+    expect((await run(connection)).listing).toMatchObject({ result: TOOLS })
+
+    freshState.stuck = true
+    vi.setSystemTime(Date.now() + 61_000)
+    const later = await run(connection)
+
+    expect(later.listing).toEqual({ jsonrpc: '2.0', id: 2, result: TOOLS })
+    expect(opened).toHaveLength(3)
+    expect(connection.isClosed).toBe(false)
+  })
+
+  it('closes, without a retiring timer, when the fresh process cannot even start', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    const stuck = { stuck: false }
+    const fresh = server({ stuck: false })
+    fresh.failStart = new Error('spawn ENOENT')
+    const { connection } = pooled([server(stuck), fresh])
+    await run(connection)
+
+    stuck.stuck = true
+    const next = await run(connection)
+
+    expect(next.listing).toBeUndefined()
+    expect(next.client.closed).toBe(true)
+    expect(connection.isClosed).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("holds OpenWaggle's own requests until the fresh process is initialized", async () => {
+    let openFresh = () => {}
+    const gate = new Promise<void>((resolve) => {
+      openFresh = resolve
+    })
+    const stuck = { stuck: false }
+    const fresh = server({ stuck: false })
+    const { connection } = pooled([server(stuck), fresh], gate)
+    await run(connection)
+    stuck.stuck = true
+    const next = run(connection)
+    await flush()
+
+    const inspection = connection.request('tools/list')
+    await flush()
+    expect(fresh.methods()).toEqual([])
+    openFresh()
+
+    await expect(inspection).resolves.toEqual(TOOLS)
+    expect((await next).listing).toMatchObject({ result: TOOLS })
+    expect(fresh.methods()).toEqual([
+      'initialize',
+      'notifications/initialized',
+      'tools/list',
+      'tools/list',
+    ])
+  })
+
+  it('does not send the listing again for a client that left during the replacement', async () => {
+    let openFresh = () => {}
+    const gate = new Promise<void>((resolve) => {
+      openFresh = resolve
+    })
+    const stuck = { stuck: false }
+    const fresh = server({ stuck: false })
+    const { connection } = pooled([server(stuck), fresh], gate)
+    await run(connection)
+    stuck.stuck = true
+    const next = await run(connection)
+
+    await next.lease.close()
+    openFresh()
+    await flush()
+    await flush()
+
+    expect(fresh.methods()).toEqual(['initialize', 'notifications/initialized'])
+    expect(connection.isReady).toBe(true)
   })
 
   it('replaces a process at most once a minute', async () => {
@@ -174,7 +264,10 @@ describe('a pooled MCP connection whose server process gets stuck', () => {
     stuck.stuck = true
     const next = await run(connection)
 
-    expect(next.listing).toMatchObject({ error: { message: 'Internal error' } })
+    // The client learns why the fresh process did not help, next to the server's own error.
+    expect(next.listing).toMatchObject({
+      error: { message: 'Internal error (a fresh server process failed too: Not ready)' },
+    })
     expect(opened).toEqual([expect.anything(), fresh])
     expect(fresh.methods()).toEqual(['initialize'])
     expect(connection.isClosed).toBe(true)
