@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
+import { stubDocsToolServices } from './openwaggle-docs-tool.test-harness'
 
 const runMocks = vi.hoisted(() => ({
   ensureSessionWorktreeProjectPath: vi.fn(async () => '/repo/worktree'),
@@ -44,9 +45,10 @@ vi.mock('../../git/remote-sync', () => ({
 
 function actionWorkspaceDependencies(): Pick<
   Parameters<typeof runPiAgentKernel>[1],
-  'projectActions' | 'preparation'
+  'projectActions' | 'preparation' | 'docs'
 > {
   return {
+    docs: stubDocsToolServices('/docs-bundle'),
     projectActions: fromPartial({
       workspaces: {
         getBound: () =>

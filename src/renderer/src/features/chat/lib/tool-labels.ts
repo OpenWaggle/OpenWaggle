@@ -56,6 +56,23 @@ function sourceControlLabel(args: JsonObject): ToolLabel {
   return label(verbs, stringArg(args, 'change'), 'source control')
 }
 
+const DOCS_VERBS: ReadonlyMap<string, Verbs> = new Map(
+  Object.entries({
+    list: { running: 'Listing OpenWaggle docs', done: 'Listed OpenWaggle docs' },
+    search: { running: 'Searching OpenWaggle docs', done: 'Searched OpenWaggle docs' },
+    read: { running: 'Reading OpenWaggle docs', done: 'Read OpenWaggle docs' },
+  }),
+)
+
+function openWaggleDocsLabel(args: JsonObject): ToolLabel {
+  const verbs = DOCS_VERBS.get(stringArg(args, 'action') ?? '')
+  return label(
+    verbs ?? { running: 'OpenWaggle docs', done: 'OpenWaggle docs' },
+    stringArg(args, 'topic') ?? stringArg(args, 'query'),
+    'OpenWaggle docs',
+  )
+}
+
 function shellLabel(args: JsonObject): ToolLabel {
   const command = stringArg(args, 'command')
   const quoted = command ? `\`${command}\`` : null
@@ -90,6 +107,7 @@ const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelB
   ['powershell', shellLabel],
   ['project_actions', projectActionsLabel],
   ['source_control', sourceControlLabel],
+  ['openwaggle_docs', openWaggleDocsLabel],
   ...goalLabels(),
   [
     'waggle_invoke',

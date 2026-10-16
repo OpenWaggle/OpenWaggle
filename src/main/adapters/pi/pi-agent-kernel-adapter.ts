@@ -12,6 +12,7 @@ import {
   type NavigateAgentKernelSessionInput,
 } from '../../ports/agent-kernel-service'
 import { BrowserPreviewAutomationService } from '../../ports/browser-preview-automation-service'
+import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
@@ -31,6 +32,7 @@ import {
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
 import { createPiSession } from './agent-kernel/session-runtime'
+import { createOpenWaggleDocsToolServices } from './openwaggle-docs-tool-services'
 import {
   listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
@@ -118,6 +120,10 @@ export const piAgentKernelLayer = (mcpPool: McpConnectionPool) =>
       const terminalService = yield* TerminalService
       const browserPreviewAutomationService = yield* BrowserPreviewAutomationService
       const settingsService = yield* SettingsService
+      const docs = createOpenWaggleDocsToolServices({
+        docsBundle: yield* DocsBundleService,
+        extensionSelection: extensionSelectionServices,
+      })
 
       return AgentKernelService.of({
         createSession: (input) =>
@@ -142,6 +148,7 @@ export const piAgentKernelLayer = (mcpPool: McpConnectionPool) =>
               terminal: terminalService,
               browserPreviewAutomation: browserPreviewAutomationService,
               enableBrowserPreviewAutomation,
+              docs,
               mcpPool,
             })
           }),
