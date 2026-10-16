@@ -27,7 +27,7 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
-import { withoutMcpStartupNotice } from './mcp-quiet-startup'
+import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
@@ -55,7 +55,7 @@ export interface OpenWaggleMcpSessionInput {
   readonly serverAllowlist?: readonly string[]
   /** Session-level MCP off. */
   readonly sessionMcpEnabled?: boolean
-  /** Told when Pi's `/mcp` saves a change, so Settings can refresh. */
+  /** Told when Pi's MCP extension saves a change, so Settings can refresh. */
   readonly onConfigChanged?: (filePath: string) => void
 }
 
@@ -274,7 +274,7 @@ export async function createOpenWaggleMcpExtensions(
     ])
   }
   const extensionServers = createMcpExtensionServers()
-  const mcp = withoutMcpStartupNotice(
+  const mcp = forOpenWaggleMcpSurface(
     createMcpExtension({
       loadConfig: () => withShellResolvedClientSecrets(config.loaded),
       createTransport: openWaggleMcpTransport(input, config),

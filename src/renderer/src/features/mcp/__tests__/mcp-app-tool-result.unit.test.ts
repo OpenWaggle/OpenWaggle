@@ -18,7 +18,6 @@ describe('MCP App transcript launch projection', () => {
               toolName: 'show_map',
               toolTitle: 'Show map',
               resourceUri: 'ui://maps/app',
-              allowedNetworkDomains: [],
             },
             toolResult: {
               content: [{ type: 'text', text: 'done' }],

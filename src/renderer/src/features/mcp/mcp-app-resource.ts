@@ -1,12 +1,13 @@
 import type { McpJsonValue, McpResourceResult } from '@shared/types/mcp'
+import type { McpAppCsp } from '@shared/types/mcp-app-frame'
+import { sanitizedMcpAppCsp } from '@shared/utils/mcp-app-csp'
 
-interface McpAppCsp {
-  readonly connectDomains: string[]
-  readonly resourceDomains: string[]
-}
+export type { McpAppCsp } from '@shared/types/mcp-app-frame'
 
 export interface ParsedMcpAppResource {
+  /** The App's HTML as the server sent it; the Host serves it with its policy. */
   readonly html: string
+  /** The origins the server declares for the App, reduced to plain origins (ADR 0053). */
   readonly csp: McpAppCsp
   readonly requestedPermissions: readonly string[]
 }
@@ -15,10 +16,8 @@ function isObject(value: McpJsonValue | undefined): value is Record<string, McpJ
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function strings(value: McpJsonValue | undefined) {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : []
+function list(value: McpJsonValue | undefined) {
+  return Array.isArray(value) ? value : []
 }
 
 function uiMetadata(content: Record<string, McpJsonValue>) {
@@ -32,52 +31,13 @@ function permissionNames(value: McpJsonValue | undefined) {
   return Object.keys(value).filter((key) => isObject(value[key]))
 }
 
-function origin(value: string) {
-  try {
-    const url = new URL(value.replace('*.', 'wildcard.'))
-    if (!['https:', 'wss:', 'http:', 'ws:'].includes(url.protocol)) return null
-    return value.replace(/\/$/, '')
-  } catch {
-    return null
-  }
-}
-
-function allowedDeclaredDomains(declared: readonly string[], granted: readonly string[]) {
-  const grants = new Set(granted.map(origin).filter((value): value is string => value !== null))
-  return declared
-    .map(origin)
-    .filter((value): value is string => value !== null && grants.has(value))
-}
-
-function injectCsp(html: string, csp: McpAppCsp) {
-  const resourceDomains = csp.resourceDomains.join(' ')
-  const connectDomains = csp.connectDomains.join(' ')
-  const policy = [
-    "default-src 'none'",
-    `script-src 'unsafe-inline' ${resourceDomains}`.trim(),
-    `style-src 'unsafe-inline' ${resourceDomains}`.trim(),
-    `img-src data: blob: ${resourceDomains}`.trim(),
-    `font-src ${resourceDomains || "'none'"}`,
-    `media-src blob: ${resourceDomains}`.trim(),
-    `connect-src ${connectDomains || "'none'"}`,
-    "frame-src 'none'",
-    "object-src 'none'",
-    "worker-src 'none'",
-    "base-uri 'none'",
-    "form-action 'none'",
-  ].join('; ')
-  const document_ = new DOMParser().parseFromString(html, 'text/html')
-  const meta = document_.createElement('meta')
-  meta.httpEquiv = 'Content-Security-Policy'
-  meta.content = policy
-  document_.head.prepend(meta)
-  return `<!doctype html>${document_.documentElement.outerHTML}`
-}
-
-export function parseMcpAppResource(
-  result: McpResourceResult,
-  allowedNetworkDomains: readonly string[],
-): ParsedMcpAppResource {
+/**
+ * The App document and the origins its server declares in the resource's `_meta.ui.csp` (or the
+ * older `ui/csp`). Adding a server is the trust decision (ADR 0051), so its App may reach what it
+ * declares; it runs in a sandboxed, opaque-origin frame with no Electron, Node, storage, or
+ * device access, and reaches nothing it did not declare.
+ */
+export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppResource {
   if (!Array.isArray(result.contents)) throw new Error('MCP App resource has no content list.')
   const content = result.contents.find((entry) => isObject(entry) && typeof entry.text === 'string')
   if (!isObject(content) || typeof content.text !== 'string') {
@@ -89,16 +49,15 @@ export function parseMcpAppResource(
     : isObject(metadata['ui/csp'])
       ? metadata['ui/csp']
       : {}
-  const declaredConnect = strings(cspValue.connectDomains)
-  const declaredResources = strings(cspValue.resourceDomains)
-  const csp = {
-    connectDomains: allowedDeclaredDomains(declaredConnect, allowedNetworkDomains),
-    resourceDomains: allowedDeclaredDomains(declaredResources, allowedNetworkDomains),
-  }
   const permissions = metadata.permissions ?? metadata['ui/permissions']
   return {
-    html: injectCsp(content.text, csp),
-    csp,
+    html: content.text,
+    csp: sanitizedMcpAppCsp({
+      connectDomains: list(cspValue.connectDomains).filter((v) => typeof v === 'string'),
+      resourceDomains: list(cspValue.resourceDomains).filter((v) => typeof v === 'string'),
+      frameDomains: list(cspValue.frameDomains).filter((v) => typeof v === 'string'),
+      baseUriDomains: list(cspValue.baseUriDomains).filter((v) => typeof v === 'string'),
+    }),
     requestedPermissions: permissionNames(permissions),
   }
 }

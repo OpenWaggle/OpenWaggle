@@ -33,7 +33,6 @@ describe('MCP App registry', () => {
       toolName: 'show_map',
       toolTitle: 'Show map',
       resourceUri: 'ui://maps/app',
-      allowedNetworkDomains: [],
     })
     expect(describe('legacy')?.resourceUri).toBe('ui://maps/legacy')
     expect(describe('plain')).toBeUndefined()

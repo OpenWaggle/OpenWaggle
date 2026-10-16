@@ -2,8 +2,9 @@ import type { AgentExtensionCommand } from '@shared/types/extension-command'
 
 /**
  * The extension commands each Session's latest Run had. A Run loads extensions a read of the
- * Session's file does not, such as Pi's MCP extension and its `/mcp`, whose "Run /mcp to fix"
- * notice only a Run shows; the slash menu lists them from here.
+ * Session's file does not; the slash menu lists their commands from here. Pi's MCP extension is one
+ * of them, but its `/mcp` is left out: MCP is managed in Settings > MCP
+ * (`mcp-openwaggle-surface.ts`).
  */
 const runCommandsBySession = new Map<string, readonly AgentExtensionCommand[]>()
 

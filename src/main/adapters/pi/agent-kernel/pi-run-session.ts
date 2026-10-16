@@ -104,7 +104,7 @@ export async function createPiSessionForRun(input: {
   if (hasExistingMessages && input.thinkingLevel) {
     result.session.setThinkingLevel(input.thinkingLevel)
   }
-  // The slash menu lists the commands of the extensions only a Run loads, such as MCP's /mcp.
+  // The slash menu lists the commands of the extensions only a Run loads.
   if (input.openWaggleUi) {
     rememberRunExtensionCommands(input.openWaggleUi.sessionId, piExtensionCommands(result.session))
   }

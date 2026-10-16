@@ -5,7 +5,6 @@ import {
   type CreateAgentSessionRuntimeFactory,
   createAgentSessionFromServices,
   createAgentSessionRuntime,
-  type InlineExtension,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
@@ -119,8 +118,6 @@ export async function withPiSession<T>(
 export async function withReadOnlyPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
   operation: PiSessionOperation<T>,
-  /** Extensions the read loads besides the Session's, as those a Run always has. */
-  extensionFactories?: readonly InlineExtension[],
 ) {
   const projectPath = resolveSessionWorkingPath(input.session)
   const sessionManager = await createReadOnlySessionManagerForSession(input.session, projectPath)
@@ -134,7 +131,6 @@ export async function withReadOnlyPiSession<T>(
       compactionThresholdPercent:
         input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-      ...(extensionFactories ? { extensionFactories } : {}),
     },
     createSession: ({ services, model }) =>
       createAgentSessionFromServices({ services, model, sessionManager }),

@@ -6,9 +6,9 @@ import { run, setUpPiDiscoveryFixture } from './pi-session-discovery.test-suppor
 import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-provider.test-support'
 
 /**
- * The slash menu lists the commands a Session's Pi extensions register, and Pi's own `/mcp`,
- * which every Run has: for a Session before and after its first message, and for a New session
- * draft in a project, from the project.
+ * The slash menu lists the commands a Session's Pi extensions register: for a Session before and
+ * after its first message, and for a New session draft in a project, from the project. Pi's own
+ * `/mcp`, from the MCP extension every Run loads, is never one: MCP is managed in Settings > MCP.
  */
 
 const { state, getPathMock } = vi.hoisted(() => ({
@@ -51,17 +51,17 @@ async function listed(sessionId: string | null, projectPath?: string) {
 }
 
 describe("The slash menu's Pi extension commands", () => {
-  it('lists a global extension’s command and Pi’s /mcp for a new Session', async () => {
+  it('lists a global extension’s command, and not Pi’s /mcp, for a new Session', async () => {
     await installQaExtension()
     const sessionId = await createSession(fixture)
 
     const commands = await listed(sessionId)
 
     expect(commands).toContainEqual({ name: 'qa-hello', description: 'QA hello' })
-    expect(commands).toContainEqual(expect.objectContaining({ name: 'mcp' }))
+    expect(commands).not.toContainEqual(expect.objectContaining({ name: 'mcp' }))
   })
 
-  it('lists them once the Session has a transcript', async () => {
+  it('lists them once the Session has a transcript, still without /mcp from its Run', async () => {
     await installQaExtension()
     const sessionId = await createSession(fixture)
     expect((await sendMessage(sessionId, 'First', 'run-first')).outcome).toBe('success')
@@ -69,7 +69,7 @@ describe("The slash menu's Pi extension commands", () => {
     const commands = await listed(sessionId)
 
     expect(commands).toContainEqual({ name: 'qa-hello', description: 'QA hello' })
-    expect(commands).toContainEqual(expect.objectContaining({ name: 'mcp' }))
+    expect(commands).not.toContainEqual(expect.objectContaining({ name: 'mcp' }))
   })
 
   it('lists them for a New session draft in the project, before there is a Session', async () => {
@@ -78,6 +78,6 @@ describe("The slash menu's Pi extension commands", () => {
     const commands = await listed(null, fixture.project)
 
     expect(commands).toContainEqual({ name: 'qa-hello', description: 'QA hello' })
-    expect(commands).toContainEqual(expect.objectContaining({ name: 'mcp' }))
+    expect(commands).not.toContainEqual(expect.objectContaining({ name: 'mcp' }))
   })
 })
