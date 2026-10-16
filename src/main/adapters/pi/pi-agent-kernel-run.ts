@@ -22,6 +22,10 @@ import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-confi
 import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
 import { migrateOpenWaggleMcpFilesOnce } from './mcp/openwaggle-mcp-migration'
 import {
+  createOpenWaggleDocsToolExtension,
+  type OpenWaggleDocsToolServices,
+} from './openwaggle-docs-tool-extension'
+import {
   createWorktreeLaunchReporter,
   prepareScratchDirectory,
   prepareVisualizationDirectory,
@@ -129,6 +133,8 @@ export function runPiAgentKernel(
     readonly terminal: TerminalServiceShape
     readonly browserPreviewAutomation: BrowserPreviewAutomationServiceShape
     readonly enableBrowserPreviewAutomation: boolean
+    /** The installed OpenWaggle docs, exposed to the agent as the `openwaggle_docs` tool. */
+    readonly docs: OpenWaggleDocsToolServices
     /** The Host's MCP connection pool, which keeps the Session's servers across Runs. */
     readonly mcpPool: McpConnectionPool
   },
@@ -165,15 +171,17 @@ function runPiAgentKernelTurn(
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
     const input = yield* withLegacyMcpServerNames(originalInput, projectPath)
-    const [, visualizationDirectory, scratchDirectory, extensionFactories] = yield* Effect.all(
-      [
-        refreshFirstRunBranch(input, executionPath, launchReporter.report),
-        prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
-        prepareScratchDirectory(input.session.id),
-        prepareMcpExtensions(input, projectPath, dependencies.mcpPool),
-      ],
-      { concurrency: 'unbounded' },
-    ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
+    const [, visualizationDirectory, scratchDirectory, extensionFactories, docsBundlePath] =
+      yield* Effect.all(
+        [
+          refreshFirstRunBranch(input, executionPath, launchReporter.report),
+          prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
+          prepareScratchDirectory(input.session.id),
+          prepareMcpExtensions(input, projectPath, dependencies.mcpPool),
+          dependencies.docs.availableBundlePath(),
+        ],
+        { concurrency: 'unbounded' },
+      ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
     const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
     const browserPreviewResources = createBrowserPreviewRuntimeResources({
       enabled: dependencies.enableBrowserPreviewAutomation,
@@ -191,6 +199,11 @@ function runPiAgentKernelTurn(
       createSourceControlToolExtension({
         sessionId: input.session.id,
         workspaces: dependencies.projectActions.workspaces,
+      }),
+      createOpenWaggleDocsToolExtension({
+        services: dependencies.docs,
+        projectPath,
+        bundlePath: docsBundlePath,
       }),
     ]
     launchReporter.reportTaskStarting(executionPath)

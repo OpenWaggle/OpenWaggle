@@ -15,6 +15,7 @@ describe('toolKind', () => {
     expect(toolKind('ls')).toBe('ls')
     expect(toolKind('project_actions')).toBe('actions')
     expect(toolKind('source_control')).toBe('scm')
+    expect(toolKind('openwaggle_docs')).toBe('read')
     expect(toolKind('create_goal')).toBe('goals')
     expect(toolKind('get_goal')).toBe('goals')
     expect(toolKind('update_goal')).toBe('goals')

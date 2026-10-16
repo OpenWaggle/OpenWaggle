@@ -44,9 +44,14 @@ vi.mock('../../git/remote-sync', () => ({
 
 function actionWorkspaceDependencies(): Pick<
   Parameters<typeof runPiAgentKernel>[1],
-  'projectActions' | 'preparation'
+  'projectActions' | 'preparation' | 'docs'
 > {
   return {
+    docs: {
+      bundlePath: () => Effect.succeed('/docs-bundle'),
+      availableBundlePath: () => Effect.succeed('/docs-bundle'),
+      discover: () => Effect.die('docs discovery is not used by this test'),
+    },
     projectActions: fromPartial({
       workspaces: {
         getBound: () =>

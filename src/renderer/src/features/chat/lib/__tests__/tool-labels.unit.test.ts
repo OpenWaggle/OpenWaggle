@@ -60,6 +60,21 @@ describe('openWaggleToolLabel', () => {
     )
   })
 
+  it('describes OpenWaggle docs lookups by query or topic', () => {
+    expect(labelOf('openwaggle_docs', { action: 'search', query: 'hives' }).done).toBe(
+      'Searched OpenWaggle docs · hives',
+    )
+    expect(
+      labelOf('openwaggle_docs', {
+        action: 'read',
+        topic: 'openwaggle:using-openwaggle/hives-and-sessions',
+      }).running,
+    ).toBe('Reading OpenWaggle docs · openwaggle:using-openwaggle/hives-and-sessions...')
+    expect(labelOf('openwaggle_docs', { action: 'list' }).requested).toBe(
+      'Requested OpenWaggle docs',
+    )
+  })
+
   it('shows a powershell command the way a bash command shows', () => {
     expect(labelOf('powershell', { command: 'dir' })).toEqual({
       running: 'Running `dir`',

@@ -52,9 +52,14 @@ vi.mock('../../git/remote-sync', () => ({
 
 function actionWorkspaceDependencies(): Pick<
   Parameters<typeof runPiAgentKernel>[1],
-  'projectActions' | 'preparation'
+  'projectActions' | 'preparation' | 'docs'
 > {
   return {
+    docs: {
+      bundlePath: () => Effect.succeed('/docs-bundle'),
+      availableBundlePath: () => Effect.succeed('/docs-bundle'),
+      discover: () => Effect.die('docs discovery is not used by this test'),
+    },
     projectActions: fromPartial({
       workspaces: {
         getBound: () =>
@@ -152,7 +157,9 @@ describe('runPiAgentKernel', () => {
       if (typeof factory !== 'function') continue
       factory({ registerTool: (tool: { name: string }) => registeredTools.push(tool.name) })
     }
-    expect(registeredTools).toEqual(expect.arrayContaining(['project_actions', 'source_control']))
+    expect(registeredTools).toEqual(
+      expect.arrayContaining(['project_actions', 'source_control', 'openwaggle_docs']),
+    )
     expect(runMocks.retainSessionScratchDirectory).toHaveBeenCalledWith('session-1')
     expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(

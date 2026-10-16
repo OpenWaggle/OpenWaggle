@@ -1,4 +1,5 @@
 import { Layer } from 'effect'
+import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { McpSessionConnectionPool } from './adapters/mcp/pool/mcp-session-connection-pool'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
@@ -39,8 +40,13 @@ export const McpServicesLive = Layer.mergeAll(
   PiMcpRuntimeServicesLive,
 )
 
-/** The agent kernel, whose Runs lease from the same pool. */
-export const HostPiAgentKernelLive = piAgentKernelLayer(hostMcpConnectionPool)
+/**
+ * The agent kernel, whose Runs lease from the same pool. Its `openwaggle_docs` tool reads the
+ * installed docs bundle.
+ */
+export const HostPiAgentKernelLive = piAgentKernelLayer(hostMcpConnectionPool).pipe(
+  Layer.provide(FilesystemDocsBundleLive),
+)
 
 /** At Host stop: stdio MCP servers must not outlive the Host, even those ignoring SIGTERM. */
 export async function closeHostMcpConnections() {

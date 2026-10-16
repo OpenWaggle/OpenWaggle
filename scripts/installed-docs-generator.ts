@@ -243,7 +243,7 @@ function rootReadme(manifest: InstalledDocsManifest) {
     '# OpenWaggle Installed Docs',
     '',
     'This bundle is generated from `website/src/content/docs/**` and installed Pi package docs.',
-    'Agents should discover paths and metadata through the typed OpenWaggle docs API instead of assuming source-tree paths.',
+    'Agents in OpenWaggle Sessions should find topics with the `openwaggle_docs` tool (list, search, read), and extensions through the typed OpenWaggle docs API, instead of assuming source-tree paths.',
     '',
   ]
 
