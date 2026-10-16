@@ -7,7 +7,7 @@ describe('CompactionTimelineRow', () => {
     const { rerender } = render(<CompactionTimelineRow state="automatic-running" />)
 
     const running = screen.getByText('Context automatically compacting')
-    expect(running).toHaveClass('compaction-shimmer')
+    expect(running).toHaveClass('activity-shimmer')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
     rerender(<CompactionTimelineRow state="automatic-complete" />)

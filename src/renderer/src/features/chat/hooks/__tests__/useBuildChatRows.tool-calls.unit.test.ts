@@ -56,6 +56,64 @@ describe('buildChatRows tool-call rendering', () => {
     ])
   })
 
+  it('leaves out a message of Worker waits, its nested result included', () => {
+    const waitMessage: UIMessage = {
+      id: 'assistant-wait',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'wait-1',
+          name: 'sessions',
+          arguments: '{"action":"wait","sessionIds":["w1"]}',
+          state: 'input-complete',
+        },
+      ],
+    }
+    const messages: UIMessage[] = [
+      createUserMessage('user-1', 'coordinate'),
+      createAssistantToolMessage('assistant-1', 'tool-a'),
+      waitMessage,
+      createToolResultMessage('wait-result', 'wait-1'),
+    ]
+
+    const assistantRows = getAssistantMessageRows(messages)
+
+    expect(assistantRows.map((row) => row.message.id)).toEqual(['assistant-1'])
+  })
+
+  it('keeps a failed Waggle response whose only call is a hidden wait, so its turn shows it', () => {
+    const failed: UIMessage = {
+      id: 'assistant-failed',
+      role: 'assistant',
+      metadata: { error: 'provider overloaded' },
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'wait-1',
+          name: 'sessions',
+          arguments: '{"action":"wait"}',
+          state: 'input-complete',
+        },
+      ],
+    }
+    const messages = [createUserMessage('user-1', 'coordinate'), failed]
+
+    const waggleRows = getWaggleTurnRows(messages, {
+      'assistant-failed': {
+        agentIndex: 0,
+        agentLabel: 'Advocate',
+        agentColor: 'blue',
+        turnNumber: 0,
+      },
+    })
+    expect(waggleRows.map((row) => row.messages.map((item) => item.message.id))).toEqual([
+      ['assistant-failed'],
+    ])
+    // Outside Waggle the failure shows in the Run error row; the empty message row is dropped.
+    expect(getAssistantMessageRows(messages)).toEqual([])
+  })
+
   it('keeps repeated tool calls when they belong to different user turns', () => {
     const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),

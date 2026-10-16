@@ -7,7 +7,6 @@ function actionText(name: string, args: JsonObject, isRunning: boolean) {
     name,
     args,
     awaitingResult: false,
-    isError: false,
     isRunning,
   })
 }
@@ -22,22 +21,35 @@ describe('resolveActionText', () => {
         name: 'write',
         args: writeArgs,
         awaitingResult: true,
-        isError: false,
         isRunning: false,
       }),
     ).toBe('Requested write test.txt')
   })
 
-  it('returns error text when isError', () => {
+  it('names OpenWaggle and MCP tools by what they did', () => {
+    expect(actionText('sessions', { action: 'spawn', objective: 'Review' }, false)).toBe(
+      'Spawned Worker · Review',
+    )
     expect(
       resolveActionText({
-        name: 'bash',
-        args: bashArgs,
+        name: 'sessions',
+        args: { action: 'message', sessionId: 'w1' },
         awaitingResult: false,
-        isError: true,
+        isRunning: false,
+        sessionTarget: { title: 'Check main', agentName: 'reviewer', isWorker: true },
+      }),
+    ).toBe('Messaged Worker (reviewer) · Check main')
+    expect(actionText('mcp__chrome_devtools__take_screenshot', {}, true)).toBe(
+      'Chrome devtools › take_screenshot...',
+    )
+    expect(
+      resolveActionText({
+        name: 'mcp__datadog__search_logs',
+        args: {},
+        awaitingResult: true,
         isRunning: false,
       }),
-    ).toBe('Failed bash `pnpm test`')
+    ).toBe('Requested Datadog › search_logs')
   })
 
   it('returns running text when isRunning', () => {
@@ -64,6 +76,8 @@ describe('resolveActionText', () => {
     expect(actionText('read', {}, false)).toBe('Read')
     expect(actionText('customTool', {}, true)).toBe('customTool...')
     expect(actionText('customTool', {}, false)).toBe('customTool')
+    // A tool named like an Object.prototype key is not a Pi-native tool.
+    expect(actionText('toString', {}, false)).toBe('toString')
   })
 
   it('formats Pi filesystem tool targets', () => {

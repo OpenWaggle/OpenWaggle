@@ -1,4 +1,5 @@
-import { Check, ChevronRight, GitBranch, Loader2, X } from 'lucide-react'
+import { ChevronRight, GitBranch } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
@@ -7,6 +8,12 @@ import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
 import { DiffStatLabel, describeDiffStat } from './DiffStatLabel'
 import type { ToolCallViewModel } from './ToolCallBlock'
+import {
+  ToolRowFailureMark,
+  ToolRowIcon,
+  type ToolRowStatus,
+  toolRowLabelClassName,
+} from './ToolRowStatus'
 
 interface ToolCallHeaderProps {
   readonly expanded: boolean
@@ -15,6 +22,8 @@ interface ToolCallHeaderProps {
   readonly view: ToolCallViewModel
   readonly onBranchFromMessage?: (messageId: string) => void
   readonly onToggleExpanded: () => void
+  /** Controls of the row's subject that sit outside its toggle, such as a Worker's Open. */
+  readonly addon?: ReactNode
 }
 
 export function ToolCallHeader({
@@ -24,20 +33,23 @@ export function ToolCallHeader({
   view,
   onBranchFromMessage,
   onToggleExpanded,
+  addon,
 }: ToolCallHeaderProps) {
   const actionText = useChatDisplayText(view.actionText)
+  const status = toolRowStatus(view, result)
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={toolHeaderLabel(actionText, view, expanded)}
+        aria-label={toolHeaderLabel(actionText, view, status, expanded)}
         onClick={onToggleExpanded}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
-        <ToolStatusIcon view={view} result={result} />
-        <ToolActionLabel view={view} result={result} />
+        <ToolRowIcon kind={view.kind} status={status} />
+        <span className={cn('truncate', toolRowLabelClassName(status))}>{actionText}</span>
+        {status === 'failed' && <ToolRowFailureMark />}
         <ToolDiffSummary view={view} />
         {duration > 0 && !view.isRunning && (
           <span className="text-xs text-text-muted shrink-0">{formatDuration(duration)}</span>
@@ -50,6 +62,7 @@ export function ToolCallHeader({
           )}
         />
       </Button>
+      {addon}
       <BranchFromToolButton view={view} onBranchFromMessage={onBranchFromMessage} />
     </div>
   )
@@ -57,58 +70,28 @@ export function ToolCallHeader({
 
 /**
  * The toggle's label replaces its content, so it uses the same display text the row
- * shows (label in name) and carries the diff stat itself.
+ * shows (label in name) and carries the diff stat and the failure itself.
  */
-function toolHeaderLabel(actionText: string, view: ToolCallViewModel, expanded: boolean) {
+function toolHeaderLabel(
+  actionText: string,
+  view: ToolCallViewModel,
+  status: ToolRowStatus,
+  expanded: boolean,
+) {
   const stat = view.diff ? `, ${describeDiffStat(view.diff)}` : ''
-  return `${actionText}${stat} — ${expanded ? 'collapse' : 'expand'} details`
+  const failed = status === 'failed' ? ', failed' : ''
+  return `${actionText}${failed}${stat} — ${expanded ? 'collapse' : 'expand'} details`
 }
 
-function ToolStatusIcon({
-  view,
-  result,
-}: {
-  readonly view: ToolCallViewModel
-  readonly result: ToolCallResultPayload | undefined
-}) {
-  if (view.isRunning) {
-    return (
-      <Loader2
-        role="status"
-        aria-label="Running"
-        className="size-3.5 text-text-tertiary animate-spin shrink-0"
-      />
-    )
-  }
-  if (view.hasConcreteResult && result && !view.isError) {
-    return <Check className="size-3.5 text-text-muted shrink-0" />
-  }
-  if (result && view.isError) {
-    return <X className="size-3.5 text-error/80 shrink-0" />
-  }
-  return null
-}
-
-function ToolActionLabel({
-  view,
-  result,
-}: {
-  readonly view: ToolCallViewModel
-  readonly result: ToolCallResultPayload | undefined
-}) {
-  const actionText = useChatDisplayText(view.actionText)
-  return (
-    <span
-      className={cn(
-        'truncate',
-        view.isRunning && 'text-text-tertiary',
-        view.hasConcreteResult && result && !view.isError && 'text-text-muted',
-        result && view.isError && 'text-error/80',
-      )}
-    >
-      {actionText}
-    </span>
-  )
+/** Running wins over a failure a streaming call already reported, as the old spinner did. */
+function toolRowStatus(
+  view: ToolCallViewModel,
+  result: ToolCallResultPayload | undefined,
+): ToolRowStatus {
+  if (view.isRunning) return 'running'
+  if (result && view.isError) return 'failed'
+  if (view.hasConcreteResult && result) return 'done'
+  return 'requested'
 }
 
 function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {

@@ -15,6 +15,7 @@ import {
   createCompactionRowAppender,
   createCompactionStatusRows,
 } from '../lib/compaction-chat-row-model'
+import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
 import { applyTurnFolds, type TurnFoldInput } from '../lib/turn-fold'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 import { groupWaggleTurnRows, withWaggleTurnFailures } from '../lib/waggle-turn-rows'
@@ -159,8 +160,16 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   rows.push(...cards.withoutMessages)
   appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
   appendInterruptedRunRow(rows, params)
+  // After results nest into their calls: a message of hidden Worker waits leaves no row.
+  // A failed Waggle response keeps its row, so its turn can still show the failure.
+  const shownRows = rows.filter(
+    (row) =>
+      row.type !== 'message' ||
+      (row.waggleMeta !== undefined && row.message.metadata?.error !== undefined) ||
+      !showsOnlyHiddenSessionsToolCalls(row.message.parts),
+  )
   return applyTurnFolds(
-    withWaggleTurnFailures(groupWaggleTurnRows(rows), { isLoading: params.isLoading }),
+    withWaggleTurnFailures(groupWaggleTurnRows(shownRows), { isLoading: params.isLoading }),
     toTurnFoldInput(params),
   )
 }

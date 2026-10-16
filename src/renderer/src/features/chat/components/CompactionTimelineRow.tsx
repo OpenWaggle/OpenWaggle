@@ -36,7 +36,7 @@ export function CompactionTimelineRow({ state, accessible = false }: CompactionT
         className="size-4 shrink-0 text-text-muted"
         strokeWidth={COMPACTION_ICON_STROKE_WIDTH}
       />
-      <span className={running ? 'compaction-shimmer font-medium' : undefined}>
+      <span className={running ? 'activity-shimmer font-medium' : undefined}>
         {compactionTimelineLabel(state)}
       </span>
     </div>

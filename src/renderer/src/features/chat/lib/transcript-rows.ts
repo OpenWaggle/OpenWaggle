@@ -1,3 +1,4 @@
+import { isShownToolCallPart } from './sessions-tool-visibility'
 import type { TranscriptRowIndex } from './transcript-sent-turn'
 import type { ChatRow } from './types-chat-row'
 
@@ -8,7 +9,7 @@ export function turnHasWork(rows: readonly ChatRow[], keys: readonly string[], s
   return rows.slice(start + 1).some((row) => {
     if (row.type === 'waggle-turn') return true
     if (row.type !== 'message' || row.message.role === 'user') return false
-    return row.message.parts.some((part) => part.type === 'tool-call')
+    return row.message.parts.some((part) => isShownToolCallPart(part, row.message.parts))
   })
 }
 

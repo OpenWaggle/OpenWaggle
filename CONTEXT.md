@@ -2,7 +2,7 @@
 
 OpenWaggle is an Electron desktop coding-agent workspace built on Pi. This glossary captures product-domain language that should stay stable across planning, issues, docs, and implementation.
 
-Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Sessions-tool model below; older entries that describe the pre-cutover runtime are historical context.
+Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below, though until ADR 0053's rename lands the tool, CLI and MCP tool are still named `sessions`, `openwaggle sessions` and `openwaggle_sessions`; older entries that describe the pre-cutover runtime are historical context.
 
 ## Language
 
@@ -86,9 +86,9 @@ _Avoid_: Electron window process, CLI daemon, MCP session server
 The authenticated local full-duplex connection through which out-of-process OpenWaggle clients call and subscribe to the Session Host.
 _Avoid_: WebSocket API, database coordination, loopback MCP
 
-**Sessions tool**:
-The compact capability-scoped Pi-native surface through which an OpenWaggle-hosted agent invokes Session Control.
-_Avoid_: CLI shell command, loopback MCP tool, parallel session runtime
+**Hive tool**:
+The compact capability-scoped Pi-native surface, named `hive`, through which an OpenWaggle-hosted agent invokes Session Control: coordinating its Workers first, and reaching other authorized Sessions in service of that work.
+_Avoid_: Sessions tool, CLI shell command, loopback MCP tool, parallel session runtime
 
 **Session Control contract version**:
 The declared schema revision of a Session Control boundary adapter's commands, results, events, and errors, used to reject incompatible mutation semantics rather than reinterpret them silently.
@@ -120,7 +120,7 @@ _Avoid_: every parent Session, privileged Session, supervisor process
 
 **Worker Session**:
 Any non-root Session in a Hive, including one that is itself the parent of further Worker Sessions.
-_Avoid_: disposable subagent, child process, leaf Session
+_Avoid_: disposable subagent, sub-agent, subagent, child process, leaf Session
 
 **Delegation Contract**:
 The durable objective-bearing agreement attached to a Session spawn that progressively records the assigned outcome, scope claims, deliverables, acceptance criteria, dependencies, and completion evidence.
@@ -386,23 +386,19 @@ _Avoid_: silent secret filtering, read authorization, lossy format
 The durable Session Host work record that produces a destination file or bundle independently of the initiating client connection.
 _Avoid_: stdout stream, agent run
 
-**Sessions CLI**:
-The stable `openwaggle sessions` command family through which people and external agentic tools invoke Session Control.
-_Avoid_: session shell, Pi CLI, MCP session client
-
-**Delegations CLI**:
-The stable `openwaggle delegations` command family through which people and external agentic tools discover, contribute to, review, and verify Delegation Contracts.
-_Avoid_: nested session transcript command, task-file editor, child process controller
+**Hive CLI**:
+The stable `openwaggle hive` command family through which people and external agentic tools invoke Session Control. It mirrors the **Hive tool** exactly: each tool action is a `hive` subcommand of the same name, Delegation and Agent-definition discovery included.
+_Avoid_: Sessions CLI, Delegations CLI, session shell, Pi CLI, MCP session client
 
 **Access CLI**:
 The administrative `openwaggle access` command family for user-authorized management of optional local caller identities and credentials outside Session Control.
 _Avoid_: sessions access command, authentication daemon, project policy file
 
-**Sessions CLI machine output**:
-The schema-versioned JSON or JSONL response contract emitted only when explicitly requested by a Sessions CLI caller.
+**Hive CLI machine output**:
+The schema-versioned JSON or JSONL response contract emitted only when explicitly requested by a Hive CLI caller.
 _Avoid_: TTY detection, parsed human output, mixed progress stream
 
-**Sessions CLI message input**:
+**Hive CLI message input**:
 The single explicit text, stdin, UTF-8 file, typed request, or attachment-bearing source selected for one messaging command.
 _Avoid_: implicit prompt, inferred pipe, shell-history message
 
@@ -1029,7 +1025,7 @@ A known bug that loses user data, prevents launch, or blocks updating. It blocks
 _Avoid_: P0, critical bug, v1-required (v1-required work is planned scope, not a defect)
 
 **Covered surface**:
-A user-relied-on part of OpenWaggle that the **Compatibility promise** protects: user data, the Sessions, Delegations, and Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, and the supported platforms. The extension host contract follows the extension SDK's own version, and Pi-owned resources follow Pi's compatibility; neither is a Covered surface of the app.
+A user-relied-on part of OpenWaggle that the **Compatibility promise** protects: user data, the Hive and Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, and the supported platforms. The extension host contract follows the extension SDK's own version, and Pi-owned resources follow Pi's compatibility; neither is a Covered surface of the app.
 _Avoid_: public API (user data and platforms are covered too), stable surface
 
 **Dual package output**:
@@ -1437,7 +1433,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The **Codex parity baseline** decides defaults and observable semantics wherever Codex has a defined behavior; OpenWaggle-specific behavior may be additive but cannot silently change that default.
 - A departure from the **Codex parity baseline** requires an explicit documented incompatibility or an explicit user decision, plus a parity-focused acceptance test.
 - Full Codex parity means observable lifecycle, interaction, control, safety, workspace, CLI, and activity behavior; it does not make Codex App Server's evolving wire schema or storage representation OpenWaggle's domain model.
-- **Session Control** owns versioned platform-neutral commands, results, events, and capability negotiation; GUI, CLI, MCP, internal Sessions tool, Local Session transport, and any **Codex protocol adapter** translate at its boundaries.
+- **Session Control** owns versioned platform-neutral commands, results, events, and capability negotiation; GUI, CLI, MCP, internal Hive tool, Local Session transport, and any **Codex protocol adapter** translate at its boundaries.
 - A **Codex protocol adapter** may claim compatibility only for a declared protocol revision and method subset covered by bidirectional conformance tests; unsupported methods fail explicitly rather than approximating behavior.
 - A **Hive** has exactly one **Queen Session** and one or more **Worker Sessions** connected by **Spawn lineage**.
 - **Queen Session** and **Worker Session** are user-facing and agent-facing roles, while parent and child remain the precise structural relationship between two Sessions in **Spawn lineage**.
@@ -1508,20 +1504,19 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Setting a session override to **YOLO (Full access)** is stronger than approving one request because it may automatically resolve the current **Authorization request** and subsequent Authorization requests, so `sessions:authorization` is never implied by `sessions:approve`, session ownership, or run ownership.
 - A **Run authorization override** is selected when a command creates a run, applies only to that run and its spawned descendants, and requires no persistent session mutation.
 - A request for a **Run authorization override** above the caller's **Authorization ceiling** fails explicitly rather than silently downgrading or changing the session's persistent mode.
-- The **Sessions CLI** accepts a **Run authorization override** and a **Session thinking level** only on commands that start a run on an idle Session: `launch`, `spawn`, and a `start` or adaptive `message` that starts one (`create` accepts a thinking level but no override, since it starts no run). A `message` that would be queued, and every `follow-up`, `steer`, and `replace`, refuses them with `run_authorization_override_requires_idle_session` or `thinking_level_requires_idle_session`.
-- The **Sessions CLI** uses the canonical Session Control action names and never collapses Message submission, Steering message, Run replacement, and Run interruption into an ambiguous send operation.
-- `sessions launch` atomically returns an independent root session and its initial run identities, while `sessions spawn` returns the child session, initial run, and Delegation Contract identities and later contract operations use the first-class **Delegations CLI**.
-- The **Delegations CLI** exposes `list`, `read`, `submit`, `accept`, `request-revision`, `reopen`, `cancel`, `claim`, `dependency`, `amend`, `conflicts`, and explicit `verify` operations with parent, child, project, state, dependency, and conflict filters where applicable.
-- The **Delegations CLI** follows the Sessions CLI's machine-output, cursor, idempotency, stdout, diagnostic, and structured-error contracts.
-- `sessions message` exposes adaptive **Message submission**, while `start`, `follow-up`, `steer`, `promote`, `replace`, and `interrupt` preserve their stricter preconditions.
-- **Sessions CLI machine output** uses explicit JSON for single responses and JSONL for streams, keeps stdout data-only, sends progress and diagnostics to stderr, and reports stable structured error kinds and exit codes.
-- The **Sessions CLI** does not change output semantics merely because a stream is or is not attached to a TTY.
-- A messaging command accepts exactly one **Sessions CLI message input** through short text, explicit stdin, a UTF-8 input file, or a typed JSON request, with explicit attachment paths where applicable.
-- Missing or conflicting **Sessions CLI message input** fails immediately and never opens an implicit interactive prompt.
-- Every mutating **Sessions CLI** command accepts a **Mutation idempotency key**, and Session Control scopes its stored outcome to the caller, operation, and target.
-- When a caller omits the key, the **Sessions CLI** generates one, reuses it for retries within that invocation, and reports it in machine output; retrying from another invocation requires explicit reuse.
+- The **Hive CLI** accepts a **Run authorization override** and a **Session thinking level** only on commands that start a run on an idle Session: `launch`, `spawn`, and a `start` or adaptive `message` that starts one (`create` accepts a thinking level but no override, since it starts no run). A `message` that would be queued, and every `follow-up`, `steer`, and `replace`, refuses them with `run_authorization_override_requires_idle_session` or `thinking_level_requires_idle_session`.
+- The **Hive CLI** uses the canonical Session Control action names and never collapses Message submission, Steering message, Run replacement, and Run interruption into an ambiguous send operation.
+- `hive launch` atomically returns an independent root session and its initial run identities, while `hive spawn` returns the child session, initial run, and Delegation Contract identities; later contract operations are the **Hive CLI**'s Delegation subcommands.
+- The **Hive CLI** exposes every Delegation operation the **Hive tool** has, under the same names (`delegations-list`, `delegations-read`, `delegation-submit`, `delegation-accept`, `delegation-request-revision`, `delegation-reopen`, `delegation-cancel`, `delegation-claim`, `delegation-dependency`, `delegation-amend`, `delegations-conflicts`, `delegation-verify`, …), with parent, child, project, state, dependency, and conflict filters where applicable.
+- `hive message` exposes adaptive **Message submission**, while `start`, `follow-up`, `steer`, `promote`, `replace`, and `interrupt` preserve their stricter preconditions.
+- **Hive CLI machine output** uses explicit JSON for single responses and JSONL for streams, keeps stdout data-only, sends progress and diagnostics to stderr, and reports stable structured error kinds and exit codes.
+- The **Hive CLI** does not change output semantics merely because a stream is or is not attached to a TTY.
+- A messaging command accepts exactly one **Hive CLI message input** through short text, explicit stdin, a UTF-8 input file, or a typed JSON request, with explicit attachment paths where applicable.
+- Missing or conflicting **Hive CLI message input** fails immediately and never opens an implicit interactive prompt.
+- Every mutating **Hive CLI** command accepts a **Mutation idempotency key**, and Session Control scopes its stored outcome to the caller, operation, and target.
+- When a caller omits the key, the **Hive CLI** generates one, reuses it for retries within that invocation, and reports it in machine output; retrying from another invocation requires explicit reuse.
 - The **Local Session transport** verifies the connecting process's OS peer user identity through Unix-domain-socket peer credentials or Windows named-pipe security; a hardware or machine identifier is not an authorization principal.
-- A same-user **Sessions CLI** request uses the zero-setup **Local-user identity** unless the caller explicitly selects an optional named **CLI client profile** with `--profile <name>` or `OPENWAGGLE_PROFILE`.
+- A same-user **Hive CLI** request uses the zero-setup **Local-user identity** unless the caller explicitly selects an optional named **CLI client profile** with `--profile <name>` or `OPENWAGGLE_PROFILE`.
 - Repository-controlled configuration cannot select a **CLI client profile**, preventing a project from choosing privileged credentials when a caller enters its workspace.
 - A named **CLI client profile** is revocable, non-escalating, capability- and target-scoped, authenticated by local peer identity plus a protected profile credential, and recorded in the operation audit trail.
 - The **Local-user identity** permits **YOLO (Full access)** under the user's normal OpenWaggle settings, while a named external **CLI client profile** defaults to an **Ask for Approval** Authorization ceiling.
@@ -1541,7 +1536,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Optional **CLI client profiles** enforce declared, auditable non-escalation for cooperative callers and callers whose surrounding OS or tool sandbox keeps other profile credentials inaccessible.
 - The **Same-user hostile-process boundary** excludes a hostile danger-full-access process from that guarantee; containing it requires an external trust boundary such as a separate OS account, sandbox, container, or repeated user-presence authentication.
 - OpenWaggle never describes a profile credential as protection from a process that can already read or impersonate the user's unrestricted local environment.
-- The initial **Sessions CLI** is distributed through a **Bundled CLI shim**, keeping its protocol and native runtime aligned with the installed desktop application.
+- The initial **Hive CLI** is distributed through a **Bundled CLI shim**, keeping its protocol and native runtime aligned with the installed desktop application.
 - Installing or removing a **Bundled CLI shim** is an explicit user action and never edits shell startup files silently.
 - Session Host clients support the current and previous protocol revisions and negotiate before issuing commands or subscribing.
 - An incompatible installed client may perform **Session Host handoff** only after the current host is idle; active work returns an upgrade-pending state and continues under its existing owner.
@@ -1561,7 +1556,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The selected embedding model and vector runtime ship with OpenWaggle so the full cutover is deterministic and works offline, accepting the installer-size and one-time migration-duration cost.
 - Once cutover succeeds, application code contains no legacy database read, write, task, queue, or Workspace fallback path.
 - Development may use an internal non-user-facing gate and isolated data roots while the feature is incomplete, but the **Session Host cutover change** removes that gate and all legacy orchestration paths before merge.
-- The **Session Host cutover change** is one integration pull request and one alpha release; schema, host, Pi Sessions tool, GUI, CLI, MCP adapter, Agent definitions and import, migration, user documentation, performance gates, deterministic CI, Electron QA, and live-provider release evidence are not split into independently shipped features.
+- The **Session Host cutover change** is one integration pull request and one alpha release; schema, host, Pi Hive tool, GUI, CLI, MCP adapter, Agent definitions and import, migration, user documentation, performance gates, deterministic CI, Electron QA, and live-provider release evidence are not split into independently shipped features.
 - Reviewable commits and internal implementation slices are permitted inside the pull request, but no partial slice may merge or migrate user data independently.
 - Merge readiness requires every Codex-parity acceptance test and the complete Definition of Done; follow-up issues cannot substitute for an agreed capability in the cutover scope.
 - A successful cutover retains one **Pre-cutover recovery copy** until the user explicitly removes it; normal Session Host reads and writes never consult that copy.
@@ -1573,22 +1568,22 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The **Session Host** starts on demand for the first GUI or CLI client and keeps accepted runs alive when the GUI closes.
 - The **Session Host** remains alive while a client, run, automatic Follow-up delivery, semantic preparation, export operation, wait, or subscription is active.
 - With no client and no active work, the **Session Host** exits after an app-global configurable idle grace period whose product default is five minutes; paused Follow-up queues alone do not keep it alive.
-- A headless run with a pending agent-loop interaction remains active in the **Session Host**, and its request appears through subscriptions, GUI reconnection, Session watch, and Sessions CLI request inspection.
-- Closing the GUI never answers a pending interaction; an authorized caller responds explicitly through the GUI or **Sessions CLI**.
+- A headless run with a pending agent-loop interaction remains active in the **Session Host**, and its request appears through subscriptions, GUI reconnection, Session watch, and Hive CLI request inspection.
+- Closing the GUI never answers a pending interaction; an authorized caller responds explicitly through the GUI or **Hive CLI**.
 - A pending agent-loop interaction has no automatic expiry by default and continues to keep its run and the **Session Host** active until it is answered or explicitly interrupted.
 - A caller may set a bounded interaction deadline when it launches, starts, or spawns a run; expiry interrupts that run with an explicit interaction-timeout outcome and never synthesizes an answer.
 - Electron, CLI, and MCP adapters use the **Local Session transport**, while an agent already running inside the **Session Host** invokes **Session Control** through an injected application port.
-- The **Sessions tool** is a new OpenWaggle-owned Pi-native extension capability to implement; it does not depend on Pi exposing Codex's collaboration tools or an existing subagent runtime.
-- The Pi adapter registers the **Sessions tool** through Pi's native extension tool surface and injects a capability-scoped Session Control port, preserving Pi tool-call and tool-result event semantics end to end.
-- The current externally served MCP `openwaggle_sessions` tool is not the **Sessions tool** and is not a second orchestration authority; it must be migrated into an adapter over Session Control as the new host replaces its direct task and persistence paths.
-- The external MCP tool retains the stable `openwaggle_sessions` name while its canonical adapter reports **Session Control contract version** `2` in structured results.
+- The **Hive tool** is a new OpenWaggle-owned Pi-native extension capability to implement; it does not depend on Pi exposing Codex's collaboration tools or an existing subagent runtime.
+- The Pi adapter registers the **Hive tool** through Pi's native extension tool surface and injects a capability-scoped Session Control port, preserving Pi tool-call and tool-result event semantics end to end.
+- The externally served MCP `openwaggle_hive` tool is not the **Hive tool** and is not a second orchestration authority; it is an adapter over Session Control.
+- The external MCP tool is named `openwaggle_hive` and its operations carry the **Hive CLI** subcommand names, so the agent's tool, the terminal, and MCP clients share one vocabulary; its canonical adapter reports **Session Control contract version** `2` in structured results.
 - Contract-v2 `steer` requires an **Expected run identity** and means active-turn Steering message delivery; `replace` explicitly performs interruption followed by a new run.
 - A legacy MCP `steer` request that cannot prove contract-v2 intent fails before mutation with `ambiguous_legacy_steer` and migration guidance; OpenWaggle never silently maps the old cancel-and-start meaning to true steering or vice versa.
 - Existing MCP discovery, read, creation, and organization requests remain compatible where their semantics are unchanged; every incompatible mutation fails explicitly rather than being guessed from an older payload shape.
-- The **Sessions tool** carries the source session and run identity plus its **Session capability grant** into every Session Control operation.
-- The Pi runtime injects no separate Delegations tool; the compact **Sessions tool** exposes capability-filtered Delegation operations through the same Session Control port.
+- The **Hive tool** carries the source session and run identity plus its **Session capability grant** into every Session Control operation.
+- The Pi runtime injects no separate Delegations tool; the compact **Hive tool** exposes capability-filtered Delegation operations through the same Session Control port.
 - `launch` accepts an initial objective and returns `sessionId` and `runId`, while `spawn` accepts a structured initial **Delegation specification** and returns `sessionId`, `runId`, and `delegationId` after atomic acceptance.
-- A child receives a bounded current-contract summary and may use the **Sessions tool** to update claims and state, wait on dependencies, submit evidence, or propose amendments.
+- A child receives a bounded current-contract summary and may use the **Hive tool** to update claims and state, wait on dependencies, submit evidence, or propose amendments.
 - Delegation review operations are absent from the model-facing tool surface unless the caller's derived grant carries `delegations:review` for the exact target.
 - **Session creation** returns an idle root identity, **Session launch** returns an independent root and its initial Run identities, and **Session spawn** returns a child and its initial Run identities.
 - **Session launch** is atomic so a failed initial **Run start** cannot leave a successfully reported but unintended idle root Session.
@@ -1655,7 +1650,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Internal **Launch profile seeding** copies the initiating Session's model, thinking level, tools, MCP, and skills when launch supplies no explicit values, while the new root's authorization resolves independently from the caller profile and **Authorization ceiling**.
 - GUI launch uses the selected composer execution settings, while CLI launch resolves explicit flags before project and app-global defaults; neither path creates parent inheritance or a derived grant.
 - Multi-agent tools are enabled by default, but an OpenWaggle-hosted agent launches or spawns another Session only after a direct user request or an applicable project or skill instruction authorizes delegation; requests for depth, research, or thoroughness alone do not authorize additional agent work.
-- Matching Codex, users may disable model multi-agent capability globally or for a project; disabling it removes Session-launch and Session-spawn operations from the OpenWaggle-hosted agent's **Sessions tool** but does not disable GUI, CLI, or external MCP session discovery and management.
+- Matching Codex, users may disable model multi-agent capability globally or for a project; disabling it removes Session-launch and Session-spawn operations from the OpenWaggle-hosted agent's **Hive tool** but does not disable GUI, CLI, or external MCP session discovery and management.
 - OpenWaggle requires no named **Agent definition** for normal launch or spawn behavior and provides no mandatory implementer, explorer, reviewer, Queen, or Worker classes.
 - The default launch or spawn behavior is represented by an absent **Agent role selection**, not by resolving a built-in or stored definition named `default`.
 - Users may create project- and user-scoped **Agent definitions** with arbitrary stable names, and an authorized user or agent may select one independently for each launch or spawn.
@@ -1703,7 +1698,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - `openwaggle agents import` uses a source-specific adapter for an explicitly named Codex, Claude, Cursor, Gemini CLI, GitHub Copilot, or OpenCode definition and produces an **Agent definition import plan** before any write.
 - Import never passes foreign frontmatter directly to the OpenWaggle validator and never silently discards a field; every source field is classified as mapped, defaulted, dropped, incompatible, or requiring a user choice.
 - Model, tool, MCP, and skill mappings resolve against Pi/OpenWaggle runtime catalogs rather than hard-coded vendor registries; unresolved or security-sensitive mappings block writing until explicitly resolved or explicitly accepted as a restrictive omission.
-- The Settings import wizard and Sessions CLI use the same conversion and validation application service; machine mode supports schema-versioned dry-run output and explicit non-interactive mapping inputs.
+- The Settings import wizard and Hive CLI use the same conversion and validation application service; machine mode supports schema-versioned dry-run output and explicit non-interactive mapping inputs.
 - A converted document is written only after the complete target validates, using a temporary sibling and atomic installation, and existing destinations are never overwritten without explicit intent.
 - Successful conversion creates an **Imported Agent snapshot**; OpenWaggle never watches, executes, or automatically synchronizes the foreign source directory.
 - `openwaggle agents import --refresh` re-reads the recorded source explicitly, runs the current source adapter, and presents the complete conversion diff before validation and installation.
@@ -1725,7 +1720,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The **Host run ceiling** is resource admission only: it introduces no Workspace lock, session-count limit, lineage-depth limit, or restriction on reading and organizing sessions.
 - Settings and capacity responses show the effective parent allowance and remaining host slots so a raised **Parent concurrency limit** is not mistaken for immediately available host capacity.
 - CI uses a deterministic controllable Pi provider to cover Session Host ownership, spawn lineage, shared and isolated Workspaces, steering, Follow-up delivery, waits, interruption, authorization, event resynchronization, exports, crashes, and all boundary adapters without network or paid-provider variability.
-- The **Live orchestration smoke suite** is a release gate, not an ordinary CI job; it must spawn real child agents through an OpenWaggle-hosted parent and exercise GUI, Sessions CLI, and external MCP observation and control against the same Session Host.
+- The **Live orchestration smoke suite** is a release gate, not an ordinary CI job; it must spawn real child agents through an OpenWaggle-hosted parent and exercise GUI, Hive CLI, and external MCP observation and control against the same Session Host.
 - Release evidence records provider/model identity, packaged app version, platform, session and run identities, workspace selections, commands, expected and observed state transitions, and final outcomes without recording credentials or sensitive transcript content.
 - A release cannot claim Session Control or Codex parity when the **Live orchestration smoke suite** is skipped or fails on the release candidate.
 - A spawned child is a normal durable session that remains searchable, readable, exportable, and directly openable subject to authorization.
@@ -1831,9 +1826,9 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Each session has at most one semantic representation of its **Session discovery text**; default discovery never embeds every transcript message.
 - **Session discovery** returns bounded cursor-paginated summaries and never loads, resumes, or subscribes to a matching session.
 - Session-list and **Session discovery** cursors remain deterministic when sessions share the same update time or search rank.
-- Matching Codex, the **Sessions CLI** defaults list, search, and interactive selection to **Session catalog scope** `working-path`; `--project` includes every Workspace in the resolved repository project, and `--all` selects the complete authorized catalog.
+- Matching Codex, the **Hive CLI** defaults list, search, and interactive selection to **Session catalog scope** `working-path`; `--project` includes every Workspace in the resolved repository project, and `--all` selects the complete authorized catalog.
 - An explicit stable Session identity addresses that Session directly regardless of the caller's default **Session catalog scope**, while normal authorization and discoverability checks still apply.
-- The internal **Sessions tool** requires an explicit **Session catalog scope** for discovery beyond the current session's Working path, preventing model-generated searches from broadening silently while still permitting authorized all-session retrieval.
+- The internal **Hive tool** requires an explicit **Session catalog scope** for discovery beyond the current session's Working path, preventing model-generated searches from broadening silently while still permitting authorized all-session retrieval.
 - The **Local Session transport** uses an authenticated Unix-domain socket or Windows named pipe with request-response commands, subscriptions, version negotiation, canonical snapshots, and bounded **Session event cursors**.
 - The Electron main process projects **Session Host** events to renderer IPC so CLI and agent actions update every open window live.
 - A Session snapshot includes a state revision and **Session event cursor**; subscribing after that cursor replays any events still in the bounded host window before continuing with live ordered events.
@@ -2318,6 +2313,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Flagged ambiguities
 
+- `openwaggle agents` keeps only Agent-definition authoring (`validate`, `import`, `explain`), which edits files rather than coordinating a **Hive**; discovering definitions is the **Hive CLI**'s `agent-definitions-list` and `agent-definitions-search`, so each action has one command.
+- "sessions" named the agent's coordination tool, its CLI and its MCP tool, which hid that their main job is coordinating Workers and collided with Pi sessions. Resolved: the **Hive tool**, **Hive CLI** and `openwaggle_hive` MCP tool use `hive`, a full beta migration with no old name kept (ADR 0053); a Session stays a Session, and `hive` names the coordination surface over Session Control.
+- "sub-agent" was proposed for the Sessions an agent creates, as Codex and T3 Code say. Resolved: they are **Worker Sessions** everywhere, transcript included (ADR 0054).
+- "grouped Worker spawns" (Codex's "Created 3 agents") would make the transcript a second Worker list. Resolved: the **Hive panel** stays the only place Workers are listed (ADR 0054).
 - "notification" was used for both an announcement the agent sends and a request that holds the run. Resolved: an **Agent notification** can never be answered and lives in the **Notification stack**; an **Authorization request** or user-input request holds the run and docks to the composer.
 - "composer-adjacent notifications" was chosen from a design prototype and later reversed on purpose. Resolved: notifications float clear of the composer so that everything docked to the composer is something the user must answer.
 - "title" was used both for a stable label and for a summary that tracks the conversation. Resolved: a **Session title** is a stable recognition label; it changes after its start only by rename, **Title regeneration**, or one bounded **Title refinement**. Titling deliberately follows T3Code rather than the **Codex parity baseline** (ADR 0043).

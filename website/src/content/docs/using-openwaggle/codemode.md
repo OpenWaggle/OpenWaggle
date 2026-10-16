@@ -40,9 +40,9 @@ Every tool call a script makes goes through the same approval as a direct call. 
 
 ## Reading a codemode card
 
-A codemode call appears in the conversation as **Ran a script** (or **Running a script…** while it works). The card shows:
+A codemode call appears in the conversation as **Ran a script** (or **Running a script…** while it works). A failed script keeps that text and ends with a red **×**. The card shows:
 
-- Each tool call the script made, with its arguments, whether it finished, failed or was cancelled, and how long it took. The list fills in while the script runs.
+- Each tool call the script made, with its kind icon, its arguments, whether it finished, failed or was cancelled (a red **×**), and how long it took. The list fills in while the script runs.
 - The cost of any model calls the script made, next to the call and in the card header.
 - The images the script showed.
 - The error, when the script failed.
