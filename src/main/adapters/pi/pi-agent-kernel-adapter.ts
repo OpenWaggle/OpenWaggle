@@ -122,8 +122,7 @@ export const piAgentKernelLayer = (mcpPool: McpConnectionPool) =>
       const settingsService = yield* SettingsService
       const docs = createOpenWaggleDocsToolServices({
         docsBundle: yield* DocsBundleService,
-        extensionManager: extensionSelectionServices.manager,
-        extensionLifecycle: extensionSelectionServices.lifecycleRepository,
+        extensionSelection: extensionSelectionServices,
       })
 
       return AgentKernelService.of({

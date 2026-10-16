@@ -9,6 +9,7 @@ import { docsReadText, docsReadWindow, readDocsToolTopicFile } from './openwaggl
 import {
   docsToolTopics,
   type OpenWaggleDocsToolTopic,
+  relatedOpenWaggleTopics,
   resolveDocsToolTopic,
   searchDocsToolTopics,
   sortDocsToolTopics,
@@ -204,7 +205,8 @@ async function readTopic(
   params: Extract<OpenWaggleDocsToolParameters, { action: 'read' }>,
 ) {
   const view = await discover(input, true)
-  const resolved = resolveDocsToolTopic(docsToolTopics(view), params.topic)
+  const topics = docsToolTopics(view)
+  const resolved = resolveDocsToolTopic(topics, params.topic)
   if (!resolved) {
     throw new Error(
       `No OpenWaggle docs topic is named ${JSON.stringify(params.topic)}. Use search or list to find its id.`,
@@ -213,13 +215,15 @@ async function readTopic(
   const entry = resolved.topic
   const window = docsReadWindow(await readDocsToolTopicFile(entry), params.offset ?? 1)
   const { content: _content, ...lines } = window
+  const related = relatedOpenWaggleTopics(topics, params.topic, entry)
   return {
-    text: docsReadText({ entry, window, alternatives: resolved.alternatives }),
+    text: docsReadText({ entry, window, alternatives: resolved.alternatives, related }),
     details: {
       ...topicSummary(entry),
       source: entry.source,
       path: entry.path,
       ...(resolved.alternatives.length > 0 ? { otherMatches: resolved.alternatives } : {}),
+      ...(related.length > 0 ? { relatedOpenWaggleTopics: related } : {}),
       ...lines,
     },
   }
@@ -254,7 +258,7 @@ export function createOpenWaggleDocsToolExtension(
       name: OPENWAGGLE_DOCS_TOOL_NAME,
       label: 'OpenWaggle Docs',
       description:
-        'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs of OpenWaggle extensions the user trusted and enabled (written by each extension\'s author). "list" returns every topic id with its title and description, "search" ranks topics for a question, OpenWaggle topics first, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".',
+        'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs of the OpenWaggle extensions this Session loads (written by each extension\'s author). "list" returns every topic id with its title and description, "search" ranks topics for a question, OpenWaggle topics first, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".',
       promptSnippet:
         'Look up OpenWaggle and Pi documentation by topic when asked how OpenWaggle works.',
       promptGuidelines: openWaggleDocsPromptGuidelines(input.bundlePath),

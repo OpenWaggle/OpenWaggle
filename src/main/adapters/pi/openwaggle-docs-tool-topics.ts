@@ -252,6 +252,26 @@ export function resolveDocsToolTopic(
   return first ? { topic: first, alternatives: rest.map((topic) => topic.topic) } : null
 }
 
+const RELATED_TOPIC_LIMIT = 3
+
+/**
+ * OpenWaggle topics on the subject `reference` names when it resolved to a Pi or extension topic
+ * without its full id, so `read settings` on Pi's settings page still points at OpenWaggle's.
+ */
+export function relatedOpenWaggleTopics(
+  topics: readonly OpenWaggleDocsToolTopic[],
+  reference: string,
+  resolved: OpenWaggleDocsToolTopic,
+) {
+  if (resolved.source === 'openwaggle' || normalize(resolved.topic) === normalize(reference)) {
+    return []
+  }
+  const openWaggleTopics = topics.filter((topic) => topic.source === 'openwaggle')
+  return searchDocsToolTopics(openWaggleTopics, reference, RELATED_TOPIC_LIMIT).map(
+    (topic) => topic.topic,
+  )
+}
+
 export function sortDocsToolTopics(topics: readonly OpenWaggleDocsToolTopic[]) {
   return [...topics].sort(compareTopics)
 }

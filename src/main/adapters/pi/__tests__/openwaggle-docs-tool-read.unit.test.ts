@@ -45,6 +45,34 @@ describe('openwaggle_docs read', () => {
     })
   })
 
+  it('counts a final newline as the end of the last line, as Pi read does', async () => {
+    const tool = registerTool()
+    await writeFile(path.join(docsRoot(), 'first-party.md'), '# MCP\nbody\n')
+    const read = await callRead(tool, { topic: 'openwaggle:configuration/mcp' })
+    expect(read.header).toContain('Lines 1-2 of 2.')
+    expect(read.details).toMatchObject({ startLine: 1, endLine: 2, totalLines: 2 })
+    expect(read.details).not.toHaveProperty('nextOffset')
+    expect(read.body).toBe('# MCP\nbody')
+
+    await writeFile(path.join(docsRoot(), 'first-party.md'), '')
+    const empty = await callRead(tool, { topic: 'openwaggle:configuration/mcp' })
+    expect(empty.header).toContain('The topic is empty.')
+    expect(empty.details).toMatchObject({ endLine: 0, totalLines: 0 })
+  })
+
+  it('points a bare name that resolves to Pi at the OpenWaggle topics on it', async () => {
+    const read = await callRead(registerTool(), { topic: 'settings' })
+    expect(read.details).toMatchObject({
+      topic: 'pi:settings',
+      relatedOpenWaggleTopics: ['openwaggle:configuration/app-settings'],
+    })
+    expect(read.header).toContain(
+      'OpenWaggle topics on the same subject: openwaggle:configuration/app-settings',
+    )
+    const exact = await callRead(registerTool(), { topic: 'pi:settings' })
+    expect(exact.details).not.toHaveProperty('relatedOpenWaggleTopics')
+  })
+
   it('cuts a single line longer than the byte budget', async () => {
     await writeFile(path.join(docsRoot(), 'first-party.md'), `${'é'.repeat(40_000)}\nnext`)
     const read = await callRead(registerTool(), { topic: 'openwaggle:configuration/mcp' })

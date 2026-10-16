@@ -7,8 +7,8 @@ import * as Effect from 'effect/Effect'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { generateInstalledDocs } from '../../../../../scripts/installed-docs-generator'
 import { DocsBundleService } from '../../../ports/docs-bundle-service'
-import type { ExtensionLifecycleRepositoryShape } from '../../../ports/extension-lifecycle-repository'
 import type { ExtensionManagerServiceShape } from '../../../ports/extension-manager-service'
+import type { OpenWagglePiExtensionSelectionServices } from '../openwaggle-pi-extension-selection'
 
 // The packaged layout: the bundle sits at `<resourcesPath>/openwaggle-docs`.
 vi.mock('electron', () => ({ app: { isPackaged: true } }))
@@ -30,10 +30,11 @@ async function docsServices() {
   )
   return createOpenWaggleDocsToolServices({
     docsBundle,
-    extensionManager: fromPartial<ExtensionManagerServiceShape>({
-      listPackages: () => Effect.succeed([]),
+    extensionSelection: fromPartial<OpenWagglePiExtensionSelectionServices>({
+      manager: fromPartial<ExtensionManagerServiceShape>({
+        listPackages: () => Effect.succeed([]),
+      }),
     }),
-    extensionLifecycle: fromPartial<ExtensionLifecycleRepositoryShape>({}),
   })
 }
 
@@ -100,6 +101,8 @@ describe('openwaggle_docs over the generated installed docs bundle', () => {
       path: path.join(bundlePath ?? '', 'topics/openwaggle/using-openwaggle/hives-and-sessions.md'),
     })
     expect(read.text).toContain('Queen')
+    // Generated topics end with a newline, which does not count as another line.
+    expect(read.details).not.toHaveProperty('nextOffset')
 
     const pi = await call(tool, { action: 'read', topic: 'pi:extensions' })
     expect(pi.isError).toBe(false)
