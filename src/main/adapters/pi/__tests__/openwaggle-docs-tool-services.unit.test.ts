@@ -31,15 +31,15 @@ const BUNDLE_PATH = '/resources/openwaggle-docs'
 const PROJECT_PATH = '/repo'
 const PACKAGE_HASH = 'package-hash'
 const NOW = 1_798_761_600_000
-let tempDir: string | null = null
+const tempDirs: string[] = []
 
 afterEach(async () => {
-  if (tempDir) await rm(tempDir, { recursive: true, force: true })
-  tempDir = null
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
 async function extensionPackage(): Promise<DiscoveredExtensionPackage> {
-  tempDir = await mkdtemp(path.join(tmpdir(), 'ow-docs-services-'))
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'ow-docs-services-'))
+  tempDirs.push(tempDir)
   const packagePath = path.join(tempDir, 'deploy')
   await mkdir(path.join(packagePath, 'docs'), { recursive: true })
   await writeFile(path.join(packagePath, 'docs', 'usage.md'), '# Deploy\n')
