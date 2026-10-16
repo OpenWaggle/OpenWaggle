@@ -28,6 +28,7 @@ import {
   recordRefusedContinuation,
   refusedContinuationFor,
 } from './pi-session-refused-continuations'
+import { requestSessionTitleRefinement } from './session-title-scheduler'
 
 /**
  * A Session discovered from the `pi` CLI is projected the first time it is opened, and any Session
@@ -182,6 +183,8 @@ function afterProjection(
       } else forgetRefusedContinuation(sessionId)
     }
     yield* followPiSessionName(sessionId, state, snapshot)
+    // A vague generated title is refined once the first turn's answer, maybe from the file, is in.
+    if (state.piEntryNodeIdPrefix) requestSessionTitleRefinement(sessionId)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
   })
 }

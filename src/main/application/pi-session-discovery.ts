@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { boundGeneratedSessionTitle } from '@shared/session-title'
-import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import type { SessionId } from '@shared/types/brand'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
-import { buildDeterministicTitle } from '../agent/title-generator'
 import { createLogger } from '../logger'
 import {
+  type AdoptDiscoveredPiSessionInput,
   type DiscoveredPiSession,
   PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX,
   PiSessionDiscoveryRepository,
@@ -24,6 +22,11 @@ import {
   removeUnattachedDiscoveredSessions,
 } from './pi-session-discovery-cleanup'
 import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
+import {
+  discoveredTitle,
+  requestDiscoveredSessionTitle,
+  titleDiscoveredSessions,
+} from './pi-session-discovery-titles'
 
 /**
  * Pi session discovery (ADR 0051). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -59,14 +62,6 @@ function openWaggleProjectPaths(sessionProjectPaths: readonly string[]) {
   })
 }
 
-function discoveredTitle(session: DiscoveredPiSession) {
-  if (session.name) return boundGeneratedSessionTitle(session.name)
-  if (session.firstUserMessage) {
-    return boundGeneratedSessionTitle(buildDeterministicTitle(session.firstUserMessage))
-  }
-  return DEFAULT_SESSION_TITLE
-}
-
 /** What discovery asks of the Session Host's lifecycle to create a discovered Session. */
 export interface DiscoveredSessionCreateInput {
   readonly projectPath: string
@@ -97,12 +92,13 @@ export function discoveredSessionCreateKey(
  */
 function createSessionForFile<R>(
   session: DiscoveredPiSession,
+  title: string,
   create: DiscoveredSessionCreator<R>,
   keys: string[],
 ) {
   return Effect.gen(function* () {
     const key = discoveredSessionCreateKey(session)
-    const input = { projectPath: session.projectPath, title: discoveredTitle(session) }
+    const input = { projectPath: session.projectPath, title }
     keys.push(key)
     const created = yield* create({ ...input, idempotencyKey: key })
     if (!created?.replayed) return created?.sessionId ?? null
@@ -116,7 +112,11 @@ function createSessionForFile<R>(
   })
 }
 
-function attachFile(session: DiscoveredPiSession, sessionId: SessionId) {
+function attachFile(
+  session: DiscoveredPiSession,
+  sessionId: SessionId,
+  titleSource: AdoptDiscoveredPiSessionInput['titleSource'],
+) {
   return Effect.gen(function* () {
     const adopted = yield* (yield* PiSessionDiscoveryRepository).adoptDiscovered({
       sessionId,
@@ -125,6 +125,7 @@ function attachFile(session: DiscoveredPiSession, sessionId: SessionId) {
       cwd: session.cwd,
       createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
       updatedAt: Math.floor(session.updatedAt),
+      titleSource,
       isStillWanted: () => !isPiSessionDiscoveryPaused(session.projectPath),
     })
     if (adopted) return sessionId
@@ -136,20 +137,22 @@ function attachFile(session: DiscoveredPiSession, sessionId: SessionId) {
 function createDiscoveredSession<R>(
   session: DiscoveredPiSession,
   create: DiscoveredSessionCreator<R>,
+  now: number,
 ) {
   const keys: string[] = []
+  const title = discoveredTitle(session, now)
   // Once the Session is attached or removed, the Host start no longer needs to know of it. A
   // create that failed, or one a Host stop interrupted, keeps its record for that start.
   const forget = Effect.flatMap(PiSessionDiscoveryRepository, (repository) =>
     repository.forgetDiscoveryCreates(keys),
   ).pipe(Effect.ignore)
   return Effect.gen(function* () {
-    const sessionId = yield* createSessionForFile(session, create, keys)
+    const sessionId = yield* createSessionForFile(session, title.title, create, keys)
     if (!sessionId) {
       yield* forget
       return null
     }
-    const attached = yield* attachFile(session, sessionId).pipe(
+    const attached = yield* attachFile(session, sessionId, title.source).pipe(
       Effect.onError((cause) =>
         removeUnadoptedSession(sessionId).pipe(
           Effect.zipRight(Cause.isInterrupted(cause) ? Effect.void : forget),
@@ -158,6 +161,7 @@ function createDiscoveredSession<R>(
       ),
     )
     yield* forget
+    if (attached && title.source === 'provisional') requestDiscoveredSessionTitle(attached, session)
     return attached
   })
 }
@@ -257,7 +261,7 @@ export function discoverPiSessions<R>(options: {
     for (const session of pending) {
       if (listed.length >= MAX_SESSIONS_LISTED_PER_PASS) break
       if (!(yield* isStillListed(session.projectPath, scope.sessionProjectPaths))) continue
-      const sessionId = yield* createDiscoveredSession(session, options.createSession).pipe(
+      const sessionId = yield* createDiscoveredSession(session, options.createSession, now).pipe(
         Effect.catchAllCause((cause) =>
           Effect.sync(() => {
             logger.warn('Could not list a Pi session', {
@@ -282,6 +286,7 @@ export function discoverPiSessions<R>(options: {
       publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     }
     if (listed.length > 0) logger.info('Listed Pi sessions', { count: listed.length })
+    yield* titleDiscoveredSessions(now)
     return listed
   })
 }

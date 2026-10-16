@@ -1,4 +1,5 @@
 import { PERCENT_BASE } from '@shared/constants/math'
+import { PI_SESSION_CONTINUATION_CHOICES } from '@shared/pi-session-continuation'
 import { Schema } from '@shared/schema'
 import { appearancePreferencesSchema } from '@shared/schemas/appearance-preferences'
 import {
@@ -211,6 +212,14 @@ export const settingsUpdateSchema = Schema.Struct({
   multiAgentEnabled: Schema.optional(Schema.Boolean),
   multiAgentEnabledByProject: Schema.optional(
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
+  ),
+  piSessionContinuationByProject: Schema.optional(
+    Schema.mutable(
+      Schema.Record({
+        key: Schema.String,
+        value: Schema.Literal(...PI_SESSION_CONTINUATION_CHOICES),
+      }),
+    ),
   ),
   browserLinkTarget: Schema.optional(Schema.Literal(...BROWSER_LINK_TARGETS)),
   browserProfiles: Schema.optional(Schema.mutable(browserProfilesSchema)),

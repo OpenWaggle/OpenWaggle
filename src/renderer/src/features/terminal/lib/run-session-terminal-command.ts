@@ -13,11 +13,14 @@ interface SessionTerminalCommand {
   readonly cwd: string
   readonly command: string
   readonly title: string
+  /** False types the command without running it, for the user to check and press Enter. */
+  readonly submit?: boolean
 }
 
 /**
  * Opens a fresh terminal tab in the Session's visible terminal layout and types `command` into it.
- * The input queues until the pane attaches, so the command runs once the shell is ready. Returns
+ * The input queues until the pane attaches, so the command runs once the shell is ready, unless
+ * `submit` is false, which leaves it typed at the prompt. Returns
  * the terminal id, or null when the Session has no terminal owner or Working path.
  */
 export function runSessionTerminalCommand(input: SessionTerminalCommand): string | null {
@@ -36,7 +39,7 @@ export function runSessionTerminalCommand(input: SessionTerminalCommand): string
     )
   if (tab) store.renameTab(layoutOwnerKey, tab.id, input.title)
   const client = terminalInputDispatcher.acquire(input.ownerKey, terminalId)
-  client.enqueue(`${input.command}\r`)
+  client.enqueue(input.submit === false ? input.command : `${input.command}\r`)
   // Queued input keeps the dispatcher state alive until the pane attaches and drains it.
   client.release()
   return terminalId

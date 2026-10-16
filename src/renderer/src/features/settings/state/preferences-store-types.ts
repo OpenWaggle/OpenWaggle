@@ -1,3 +1,4 @@
+import type { PiSessionContinuationChoice } from '@shared/pi-session-continuation'
 import type { SessionTitleModelSetting } from '@shared/session-title-model'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
@@ -49,6 +50,11 @@ export interface PreferencesState {
   setSessionHostIdleGracePeriodMs: (milliseconds: number) => Promise<void>
   setProjectMultiAgentEnabled: (projectPath: string, enabled: boolean | null) => Promise<void>
   setProjectParentConcurrencyLimit: (projectPath: string, limit: number | null) => Promise<void>
+  /** Remembers a project's Pi continuation choice, or forgets it with null (ADR 0051). */
+  setProjectPiSessionContinuation: (
+    projectPath: string,
+    choice: PiSessionContinuationChoice | null,
+  ) => Promise<void>
   setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
   setSyntaxTheme: (variant: SyntaxAppearanceVariant, themeId: SyntaxThemeId) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>

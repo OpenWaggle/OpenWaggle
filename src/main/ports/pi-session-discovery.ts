@@ -17,17 +17,25 @@ export interface PiSessionFileFingerprint {
   readonly mtimeMs: number
 }
 
-export interface DiscoveredPiSession {
+/** What a discovered Session is titled from, read from the start of its Pi file. */
+export interface PiSessionTitleSource {
+  /** The session's Pi `/name`, when one was found. */
+  readonly name: string | null
+  /** The first user message's text, when one was found. */
+  readonly firstUserMessage: string | null
+  /** When the first user message was sent, when known. */
+  readonly firstUserMessageAt: number | null
+  /** The model the session had when the first user message was sent, as `provider/model`. */
+  readonly model: string | null
+}
+
+export interface DiscoveredPiSession extends PiSessionTitleSource {
   readonly piSessionId: string
   readonly piSessionFile: string
   /** The working directory recorded in the session header. */
   readonly cwd: string
   /** The OpenWaggle project the working directory is inside: the most specific one. */
   readonly projectPath: string
-  /** The session's Pi `/name`, when one was found. */
-  readonly name: string | null
-  /** The first user message's text, when one was found. */
-  readonly firstUserMessage: string | null
   readonly createdAt: number
   /** When the session was last used: the file's last modification. */
   readonly updatedAt: number
@@ -87,10 +95,23 @@ export type PiSessionContinuation =
   | { readonly kind: 'new' }
   | { readonly kind: 'unsearchable'; readonly folder: string }
 
+/**
+ * Who wrote a Pi file's latest prompt: an OpenWaggle Run, or something outside OpenWaggle such as
+ * the `pi` CLI.
+ */
+export type PiSessionPromptOrigin = 'openwaggle' | 'outside'
+
 export interface PiSessionFilesShape {
   readonly discover: (
     input: PiSessionDiscoveryInput,
   ) => Effect.Effect<readonly DiscoveredPiSession[], Error>
+  /**
+   * What titles a Pi file OpenWaggle already lists, read as discovery reads a new one; null when
+   * it is not a Pi session or cannot be read.
+   */
+  readonly titleSource: (piSessionFile: string) => Effect.Effect<PiSessionTitleSource | null>
+  /** Who wrote the file's latest prompt; null when it has none or cannot be read. */
+  readonly lastPromptOrigin: (piSessionFile: string) => Effect.Effect<PiSessionPromptOrigin | null>
   /** Null when the file does not exist (yet). */
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
   /** The file was deleted: it is missing while its folder is there. */
@@ -147,10 +168,21 @@ export interface AdoptDiscoveredPiSessionInput {
   readonly createdAt: number
   readonly updatedAt: number
   /**
+   * Who chose the title the Session was created with: `default` for none, `provisional` for one
+   * a Title model request will replace, `generated` for one discovery keeps (a Pi `/name`).
+   */
+  readonly titleSource: 'default' | 'provisional' | 'generated'
+  /**
    * Asked inside the adoption's transaction; false refuses it. Discovery uses it to stay out of a
    * project whose removal started after the Session was created.
    */
   readonly isStillWanted: () => boolean
+}
+
+export interface TitleOwedDiscoveredSession {
+  readonly sessionId: SessionId
+  readonly piSessionFile: string
+  readonly titleSource: 'default' | 'provisional'
 }
 
 export interface PiSessionProjectionState {
@@ -218,6 +250,14 @@ export interface PiSessionDiscoveryRepositoryShape {
   readonly deletionRefusal: (
     sessionId: SessionId,
   ) => Effect.Effect<string | undefined, SessionProjectionRepositoryError>
+  /**
+   * Unarchived discovered Sessions whose title discovery still owes: those without one, and
+   * those with a Provisional title last used after `activeAfter`, most recent first.
+   */
+  readonly listTitleOwedDiscoveredSessions: (input: {
+    readonly activeAfter: number
+    readonly limit: number
+  }) => Effect.Effect<readonly TitleOwedDiscoveredSession[], SessionProjectionRepositoryError>
   /** Every discovered Session that has its Pi file attached, with the file. */
   readonly listAdoptedPiSessionFiles: () => Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],

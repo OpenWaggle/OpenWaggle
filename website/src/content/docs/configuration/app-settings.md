@@ -13,7 +13,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 
 | Section | Use it to |
 |---------|-----------|
-| General | Choose where links open, adjust automatic context compaction, turn codemode and prompt cache warming on or off, check for updates, and turn off usage statistics. |
+| General | Choose where links open, adjust automatic context compaction, choose where sessions the `pi` CLI used last continue, turn codemode and prompt cache warming on or off, check for updates, and turn off usage statistics. |
 | Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
 | Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
 | Shortcuts | View and customize keyboard bindings. |
@@ -59,6 +59,8 @@ Below the controls, select a project to read its agent definitions or enable and
 **Open web links in** chooses whether links open in OpenWaggle or your external browser.
 
 **Context compaction** controls when OpenWaggle reduces the older context sent to a model so a long conversation can continue. **Automatic compaction threshold** defaults to **80%** of the model's context capacity. It applies across models, projects, and sessions. The model's capabilities determine whether this uses native compaction or a portable summary; there is no provider-specific switch.
+
+**Pi sessions** lists your projects with what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. The choice is yours only. It is stored in your OpenWaggle settings, not in the project, so others working on the project choose for themselves.
 
 **About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
 

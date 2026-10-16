@@ -160,6 +160,12 @@ export interface SessionDetail {
    * message starts a new transcript. Only a Session read for the chat view carries it.
    */
   readonly piSessionFileDeleted?: string
+  /**
+   * Set when the Session's Pi file's latest prompt came from outside OpenWaggle, such as the `pi`
+   * CLI: sending from the composer first asks whether to continue it in OpenWaggle or keep running
+   * it in pi (ADR 0051). Only a Session read for the chat view while it is idle carries it.
+   */
+  readonly piSessionLastPromptOutside?: true
 }
 
 /**
