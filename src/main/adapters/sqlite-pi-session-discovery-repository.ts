@@ -25,6 +25,7 @@ import {
   readPiSessionDiscoveryScope,
   recordPiSessionDiscoveryCreate,
 } from '../store/session-details/pi-session-discovery-store'
+import { listTitleOwedDiscoveredPiSessions } from '../store/session-details/pi-session-title-owed-store'
 
 function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
   return Effect.tryPromise({
@@ -59,6 +60,10 @@ function createPiSessionDiscoveryRepository(
       ),
     deletionRefusal: (sessionId) =>
       repositoryOperation('piSessionDeletionRefusal', () => piSessionDeletionRefusal(sessionId)),
+    listTitleOwedDiscoveredSessions: (input) =>
+      repositoryOperation('listTitleOwedDiscoveredPiSessions', () =>
+        listTitleOwedDiscoveredPiSessions(input),
+      ),
     listAdoptedPiSessionFiles: () =>
       repositoryOperation('listAdoptedPiSessionFiles', listAdoptedPiSessionFiles),
     listCreatedPiSessionFiles: () =>

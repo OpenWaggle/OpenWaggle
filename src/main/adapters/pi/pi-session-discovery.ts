@@ -1,8 +1,13 @@
-import { open, readdir, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
-import type { DiscoveredPiSession, PiSessionDiscoveryInput } from '../../ports/pi-session-discovery'
+import type {
+  DiscoveredPiSession,
+  PiSessionDiscoveryInput,
+  PiSessionTitleSource,
+} from '../../ports/pi-session-discovery'
 import { resolvePiSessionDirectory } from './pi-session-directory'
+import { type PiSessionFileHeader, readPiSessionFileHeader } from './pi-session-file-prefix'
 import {
   encodedPathPrefix,
   owningProject,
@@ -21,149 +26,20 @@ import {
  * (`/a/b-c` and `/a/b/c` encode alike), so a candidate is confirmed from the `cwd` in its header.
  * Only a bounded prefix of each new file is read: the header, the first user message, and an early
  * `/name`. Pi's own `SessionManager.list` streams every file in full, which is too slow to repeat
- * across thousands of sessions.
+ * across thousands of sessions. Pi records the whole system prompt, with every tool schema, before
+ * the first user message (88–165 KB in real sessions), so a file whose first 64 KiB hold no user
+ * message is read further, up to a bound.
  */
 
-/** How much of a new session file is read for its header, name, and first message. */
-const DISCOVERY_PREFIX_BYTES = 64 * 1024
-/** Pi's own bound for finding a header past blank or malformed lines (`readSessionHeader`). */
-const MAX_HEADER_SCAN_BYTES = 1024 * 1024
 const PI_SESSION_FILE_SUFFIX = '.jsonl'
-/** Enough of the first message for a title, without remembering whole pasted prompts. */
-const MAX_REMEMBERED_MESSAGE_LENGTH = 1024
 
 export interface PiSessionDiscoveryScanner {
   readonly scan: (input: PiSessionDiscoveryInput) => Promise<readonly DiscoveredPiSession[]>
-}
-
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseLine(line: string): unknown {
-  if (!line.trim()) return null
-  try {
-    return JSON.parse(line)
-  } catch {
-    // A line cut by the prefix bound, or one Pi itself would skip as malformed.
-    return null
-  }
-}
-
-/** The complete lines of the file's first `limit` bytes; a cut-off last line is dropped. */
-async function readLines(file: string, limit: number) {
-  const handle = await open(file, 'r')
-  try {
-    const buffer = Buffer.alloc(limit)
-    const { bytesRead } = await handle.read(buffer, 0, limit, 0)
-    const lines = buffer.subarray(0, bytesRead).toString('utf8').split('\n')
-    if (bytesRead === limit) lines.pop()
-    return { lines, complete: bytesRead < limit }
-  } finally {
-    await handle.close()
-  }
-}
-
-type HeaderSearch =
-  | {
-      readonly kind: 'header'
-      readonly header: { readonly [key: string]: unknown }
-      readonly index: number
-    }
-  | { readonly kind: 'not-a-session' }
-  | { readonly kind: 'not-found' }
-
-/**
- * Mirrors Pi's `readSessionHeader`: blank and malformed lines are skipped, and the first entry
- * that parses decides. A session header makes the file a session; anything else means it is not.
- */
-function findHeader(lines: readonly string[]): HeaderSearch {
-  for (const [index, line] of lines.entries()) {
-    const entry = parseLine(line)
-    if (entry === null) continue
-    if (isRecord(entry) && entry.type === 'session' && typeof entry.id === 'string') {
-      return { kind: 'header', header: entry, index }
-    }
-    return { kind: 'not-a-session' }
-  }
-  return { kind: 'not-found' }
-}
-
-function userMessageText(entry: { readonly [key: string]: unknown }) {
-  if (entry.type !== 'message' || !isRecord(entry.message)) return null
-  const message = entry.message
-  if (message.role !== 'user') return null
-  if (typeof message.content === 'string') return message.content.trim() || null
-  if (!Array.isArray(message.content)) return null
-  const text = message.content
-    .flatMap((part: unknown) =>
-      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
-    )
-    .join(' ')
-    .trim()
-  return text || null
-}
-
-interface PiSessionPrefix {
-  readonly id: string
-  readonly cwd: string
-  readonly timestamp: string | null
-  readonly name: string | null
-  readonly firstUserMessage: string | null
-}
-
-function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
-  const search = findHeader(lines)
-  if (search.kind !== 'header') return null
-  const header = search.header
-  if (typeof header.id !== 'string' || !header.id) return null
-  if (typeof header.cwd !== 'string' || !header.cwd) return null
-  let name: string | null = null
-  let firstUserMessage: string | null = null
-  for (const line of lines.slice(search.index + 1)) {
-    const entry = parseLine(line)
-    if (!isRecord(entry)) continue
-    if (entry.type === 'session_info') {
-      name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : null
-    }
-    firstUserMessage ??= userMessageText(entry)
-  }
-  return {
-    id: header.id,
-    cwd: header.cwd,
-    timestamp: typeof header.timestamp === 'string' ? header.timestamp : null,
-    name,
-    firstUserMessage,
-  }
-}
-
-/** The file's leading lines: 64 KiB, or up to Pi's 1 MiB header bound when no entry parsed. */
-async function readLeadingLines(file: string) {
-  const prefix = await readLines(file, DISCOVERY_PREFIX_BYTES)
-  if (prefix.complete || findHeader(prefix.lines).kind !== 'not-found') return prefix.lines
-  return (await readLines(file, MAX_HEADER_SCAN_BYTES)).lines
-}
-
-interface PiSessionFileHeader extends PiSessionPrefix {
-  readonly createdAt: number
-}
-
-/** Null when the file is not a Pi session, or has no header yet (it may still be being written). */
-async function readHeader(file: string): Promise<PiSessionFileHeader | null> {
-  try {
-    const [lines, stats] = await Promise.all([readLeadingLines(file), stat(file)])
-    const parsed = parsePrefix(lines)
-    if (!parsed) return null
-    const createdAt = parsed.timestamp ? Date.parse(parsed.timestamp) : Number.NaN
-    return {
-      ...parsed,
-      firstUserMessage: parsed.firstUserMessage?.slice(0, MAX_REMEMBERED_MESSAGE_LENGTH) ?? null,
-      createdAt: Number.isFinite(createdAt) ? createdAt : stats.birthtimeMs,
-    }
-  } catch {
-    // Discovery is best effort: a file removed or unreadable mid-scan is simply not listed.
-    return null
-  }
+  /**
+   * What titles a file OpenWaggle already lists, from the same bounded read; null when it is not
+   * a Pi session or cannot be read. A file is read again only once it changed.
+   */
+  readonly titleSource: (piSessionFile: string) => Promise<PiSessionTitleSource | null>
 }
 
 interface FileVersion {
@@ -209,7 +85,7 @@ export function createPiSessionDiscoveryScanner(
     if (remembered?.size === state.size && remembered.mtimeMs === state.mtimeMs) {
       return remembered.header
     }
-    const header = await readHeader(file)
+    const header = await readPiSessionFileHeader(file)
     headers.set(file, { ...state, header })
     return header
   }
@@ -230,6 +106,8 @@ export function createPiSessionDiscoveryScanner(
       projectPath,
       name: header.name,
       firstUserMessage: header.firstUserMessage,
+      firstUserMessageAt: header.firstUserMessageAt,
+      model: header.model,
       createdAt: header.createdAt,
       updatedAt: state.mtimeMs,
       size: state.size,
@@ -291,6 +169,19 @@ export function createPiSessionDiscoveryScanner(
     return [...discovered.values()]
   }
 
+  const titleSource = async (file: string): Promise<PiSessionTitleSource | null> => {
+    const state = await fileState(file)
+    if (state === null) return null
+    const header = await headerOf(file, state)
+    if (!header) return null
+    return {
+      name: header.name,
+      firstUserMessage: header.firstUserMessage,
+      firstUserMessageAt: header.firstUserMessageAt,
+      model: header.model,
+    }
+  }
+
   return {
     scan: async (input) => {
       listedFiles.clear()
@@ -300,5 +191,6 @@ export function createPiSessionDiscoveryScanner(
         forgetUnlistedFiles()
       }
     },
+    titleSource,
   }
 }

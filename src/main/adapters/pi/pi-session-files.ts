@@ -25,6 +25,7 @@ import { findExistingPiSessionFile } from './agent-kernel/session-manager'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
 import { onlyUsageAppendedAfter } from './agent-kernel/usage-only-appends'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
+import { createPiSessionPromptOrigins } from './pi-session-prompt-origin'
 import { isPiVirtualModel } from './pi-virtual-models'
 
 function toError(cause: unknown) {
@@ -201,8 +202,11 @@ function continuationOf(session: SessionDetail): PiSessionContinuation {
 
 export function createPiSessionFiles(options: { readonly sessionsRoot?: string } = {}) {
   const scanner = createPiSessionDiscoveryScanner(options)
+  const promptOrigins = createPiSessionPromptOrigins()
   return {
     discover: (input) => Effect.tryPromise({ try: () => scanner.scan(input), catch: toError }),
+    titleSource: (file) => Effect.promise(() => scanner.titleSource(file)),
+    lastPromptOrigin: (file) => Effect.promise(() => promptOrigins.lastPromptOrigin(file)),
     fingerprint: (file) => Effect.promise(() => fingerprintOf(file)),
     isDeleted: (file) =>
       Effect.promise(() => fileAvailability(file)).pipe(

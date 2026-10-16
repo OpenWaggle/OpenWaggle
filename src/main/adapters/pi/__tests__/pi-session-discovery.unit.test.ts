@@ -139,6 +139,48 @@ describe('Pi session discovery scanner', () => {
     expect(found).toMatchObject({ name: 'Login fix', firstUserMessage: 'Fix the flaky login test' })
   })
 
+  it('reads the first user message past the system prompt Pi records before it', async () => {
+    const project = path.join(root, 'app')
+    const file = await writePiSession({
+      id: 'long-system-prompt',
+      cwd: project,
+      entries: [
+        {
+          type: 'model_change',
+          id: 'm1',
+          parentId: null,
+          timestamp: '',
+          provider: 'amazon-bedrock',
+          modelId: 'eu.anthropic.claude-opus-5',
+        },
+        {
+          type: 'message',
+          id: 's1',
+          parentId: 'm1',
+          timestamp: '',
+          message: { role: 'system', content: '', sections: { tools: 'x'.repeat(160 * 1024) } },
+        },
+        userEntry('u1', 's1', 'Reply with the session id'),
+      ],
+    })
+
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
+    const [found] = await scanner.scan({ projectPaths: [project], isKnownFile: () => false })
+
+    const titleSource = {
+      name: null,
+      firstUserMessage: 'Reply with the session id',
+      firstUserMessageAt: 1,
+      model: 'amazon-bedrock/eu.anthropic.claude-opus-5',
+    }
+    expect(found).toMatchObject(titleSource)
+    // A file OpenWaggle already lists is read the same way for its title.
+    expect(await scanner.titleSource(file)).toEqual(titleSource)
+  })
+
   it('ignores files without a Pi session header and lists nothing without projects', async () => {
     const project = path.join(root, 'app')
     const directory = path.join(sessionsRoot, piSessionDirName(project))

@@ -26,6 +26,10 @@ _Avoid_: Pi import, Pi compatibility mode, partial Pi support
 A Pi session created outside OpenWaggle, such as by the `pi` CLI, whose working directory is an OpenWaggle project or a folder inside it, listed in that project as an ordinary Session that keeps using the same Pi session file.
 _Avoid_: imported session, Pi session import, Session discovery (which is search)
 
+**Pi continuation choice**:
+A person's answer, when they send from the composer in a Session the `pi` CLI wrote to last, to continue it in OpenWaggle or keep running it in pi; it may be remembered for one project, for that person only.
+_Avoid_: session takeover, Pi lock
+
 **Pi MCP parity**:
 The guarantee that a user or project already configured for Pi's MCP support works unchanged in OpenWaggle: the same configuration files, server and tool names, exposure meanings, and model-facing tools.
 _Avoid_: MCP import, Pi-compatible MCP, partial parity

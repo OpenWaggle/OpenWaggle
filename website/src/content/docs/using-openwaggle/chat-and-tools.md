@@ -45,9 +45,11 @@ If you also use the `pi` command, the sessions you start with it show up in Open
 
 It is the same session, not a copy. Open it to read the conversation, then send a message to carry on. Later, `pi --resume` in the terminal picks up the same history, including what you added in OpenWaggle. If you continue the session in the terminal while OpenWaggle is open, OpenWaggle reads the new messages the next time you open it or send a message. Avoid writing to the same session from both at the same moment, since neither one waits for the other.
 
+When you send a message in a session that `pi` used last, OpenWaggle first asks where to continue it. **Continue in OpenWaggle** sends the message. **Keep running in pi** opens the session's terminal in the folder the session ran in, with `pi --session <file>` typed in for you to run, and keeps your message in the composer. Tick **Remember for this project** to skip the question in that project next time. The choice is yours only: it is saved in your OpenWaggle settings, not in the project, and you can change it per project in **Settings > General > Pi sessions**. Messages from agents and the `openwaggle` CLI are never held back by it.
+
 A few things to know:
 
-- The title is the name you gave it with `/name` in Pi, or its first message. A later `/name` changes it too, unless you renamed the session in OpenWaggle; then your title stays.
+- The title is the name you gave it with `/name` in Pi. Without one, it is titled like a session started in OpenWaggle: from its first message, and then by the Title model when that message is less than a day old. Older sessions keep the first message as their title. A later `/name` changes it too, unless you renamed the session in OpenWaggle; then your title stays.
 - When you continue it, the agent works in the folder you started the `pi` session in, with the model and thinking level the session last used, the same way `pi --resume` would. If the session never changed its thinking level, it uses Pi's default thinking level: a `.pi/settings.json` in the folder you started the session in wins over your global Pi settings, as it does for `pi`. A model that offers fewer levels gets the nearest one it has.
 - If you keep Pi's sessions somewhere else with `PI_CODING_AGENT_SESSION_DIR` or the `sessionDir` setting, OpenWaggle looks there too, and stores its own new sessions there so `pi --resume` finds them.
 - Sessions from folders that aren't an OpenWaggle project stay hidden. Add the folder as a project and its `pi` sessions appear.

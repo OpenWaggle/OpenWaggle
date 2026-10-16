@@ -66,6 +66,7 @@ import {
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
 import { withDeletedPiSessionFileNotice } from './pi-session-deleted-files'
 import { openedSessionId } from './pi-session-projection-refresh'
+import { withPiSessionPromptOrigin } from './pi-session-prompt-origin'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -147,7 +148,7 @@ function getSessionDetail(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
     const detail = (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
-    return yield* withDeletedPiSessionFileNotice(yield* detail)
+    return yield* withPiSessionPromptOrigin(yield* withDeletedPiSessionFileNotice(yield* detail))
   })
 }
 

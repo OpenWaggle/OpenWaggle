@@ -1,3 +1,4 @@
+import type { PiSessionContinuationChoice } from '../pi-session-continuation'
 import { DEFAULT_SESSION_TITLE_MODEL, type SessionTitleModelSetting } from '../session-title-model'
 import {
   type AgentAuthorizationMode,
@@ -138,6 +139,11 @@ export interface Settings {
   readonly multiAgentEnabled: boolean
   /** Optional project overrides for model-initiated launch and spawn capability. */
   readonly multiAgentEnabledByProject: Readonly<Record<string, boolean>>
+  /**
+   * The Pi continuation choice this person remembered per project (ADR 0051); a project without
+   * one asks. Kept in the app's own settings, never in a project's settings file.
+   */
+  readonly piSessionContinuationByProject: Readonly<Record<string, PiSessionContinuationChoice>>
   /** Default destination for http(s) links opened from Session surfaces. */
   readonly browserLinkTarget: BrowserLinkTarget
   /** User-created persistent browser profiles; built-ins are resolved at runtime. */
@@ -223,6 +229,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sessionHostIdleGracePeriodMs: DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
   multiAgentEnabled: true,
   multiAgentEnabledByProject: {},
+  piSessionContinuationByProject: {},
   browserLinkTarget: 'system',
   browserProfiles: [],
   browserDefaultProfileId: DEFAULT_BROWSER_PROFILE_ID,

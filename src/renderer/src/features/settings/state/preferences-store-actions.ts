@@ -18,6 +18,7 @@ import {
   persistAppearanceTypography,
 } from './appearance-preferences-actions'
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
+import { createPiSessionContinuationPreferencesActions } from './pi-session-continuation-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
 import {
@@ -214,6 +215,7 @@ export function createPreferencesActions(
   return {
     ...createBrowserAndScalarPreferencesActions(set),
     ...createProjectHivePreferencesActions(set, get),
+    ...createPiSessionContinuationPreferencesActions(set, get),
     ...createAppearancePreferencesActions(set, get),
     loadSettings: () => loadSettings(set, get),
     retryLoad: async () => {

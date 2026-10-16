@@ -122,7 +122,7 @@ export async function adoptDiscoveredPiSession(
             SET pi_session_id = ${input.piSessionId}, pi_session_file = ${input.piSessionFile},
                 created_at = ${input.createdAt}, updated_at = ${input.updatedAt},
                 title_source = CASE WHEN title = ${DEFAULT_SESSION_TITLE}
-                  THEN ${'default'} ELSE ${'generated'} END
+                  THEN ${'default'} ELSE ${input.titleSource} END
             WHERE id = ${input.sessionId}
           `
           yield* sql`

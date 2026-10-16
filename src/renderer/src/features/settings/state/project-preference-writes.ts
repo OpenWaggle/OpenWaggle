@@ -87,6 +87,7 @@ async function reconcileProjectIdentity(
       ...hostSettings.agentDefinitionTogglesByProject,
     }),
     multiAgentEnabledByProject: rekeyFlat({ ...settings.multiAgentEnabledByProject }),
+    piSessionContinuationByProject: rekeyFlat({ ...settings.piSessionContinuationByProject }),
     sessionHostParentConcurrencyLimitsByProject: rekeyFlat({
       ...settings.sessionHostParentConcurrencyLimitsByProject,
     }),

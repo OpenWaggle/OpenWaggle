@@ -104,6 +104,8 @@ function mergeSessionHostSettings(current: Settings, partial: Partial<Settings>)
     multiAgentEnabled: partial.multiAgentEnabled ?? current.multiAgentEnabled,
     multiAgentEnabledByProject:
       partial.multiAgentEnabledByProject ?? current.multiAgentEnabledByProject,
+    piSessionContinuationByProject:
+      partial.piSessionContinuationByProject ?? current.piSessionContinuationByProject,
   }
 }
 
@@ -188,6 +190,7 @@ function cloneSettings(settings: Settings): Settings {
       ...settings.sessionHostParentConcurrencyLimitsByProject,
     },
     multiAgentEnabledByProject: { ...settings.multiAgentEnabledByProject },
+    piSessionContinuationByProject: { ...settings.piSessionContinuationByProject },
     syntaxThemeSelections: { ...settings.syntaxThemeSelections },
     appearancePreferences: {
       ...settings.appearancePreferences,

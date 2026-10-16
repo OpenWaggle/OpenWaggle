@@ -7,6 +7,10 @@ import {
   SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
   SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
 } from './keys'
+import {
+  resolveNextPiSessionContinuationSettings,
+  resolveStoredPiSessionContinuationSettings,
+} from './pi-session-continuation-settings'
 import { isObjectRecord } from './sanitizers'
 
 function resolvePositiveSafeInteger(raw: unknown, fallback: number) {
@@ -80,6 +84,7 @@ export function resolveStoredSessionHostSettings(
     multiAgentEnabledByProject: sanitizeBooleanByProject(
       storedValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT),
     ),
+    ...resolveStoredPiSessionContinuationSettings(storedSettings),
   }
 }
 
@@ -116,5 +121,6 @@ export function resolveNextSessionHostSettings(current: Settings, partial: Parti
     sessionHostIdleGracePeriodMs,
     multiAgentEnabled,
     multiAgentEnabledByProject,
+    ...resolveNextPiSessionContinuationSettings(current, partial),
   }
 }

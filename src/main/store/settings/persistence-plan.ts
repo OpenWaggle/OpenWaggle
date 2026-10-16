@@ -36,6 +36,7 @@ import {
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import { appendPiRuntimeSettingsWrites } from './pi-runtime-settings'
+import { appendPiSessionContinuationSettingsWrites } from './pi-session-continuation-settings'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 import { appendSourceControlSettingsWrites } from './source-control-settings'
@@ -272,6 +273,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendUsageStatisticsSettingsWrites(writes, partial, next)
   appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
+  appendPiSessionContinuationSettingsWrites(writes, partial, next)
   appendSourceControlSettingsWrites(writes, partial, next)
 
   return writes

@@ -10,6 +10,7 @@ import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { SegmentedRadioGroup } from '@/shared/ui/SegmentedRadioGroup'
 import { AgentToolsSettings } from './AgentToolsSettings'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
+import { PiSessionContinuationSetting } from './PiSessionContinuationSetting'
 import { UpdateChannelSetting } from './UpdateChannelSetting'
 import { UsageStatisticsSetting } from './UsageStatisticsSetting'
 import { getStatusRow } from './update-status-row'
@@ -167,6 +168,8 @@ export function GeneralSection() {
       <BrowserLinkTargetSettings />
 
       <CompactionThresholdSetting />
+
+      <PiSessionContinuationSetting />
 
       <AgentToolsSettings />
 
