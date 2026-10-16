@@ -56,7 +56,11 @@ async function call(tool: ToolDefinition, params: unknown) {
   const result = await tool.execute('call-1', params, undefined, undefined, fromPartial({}))
   const [first] = result.content
   if (first?.type !== 'text') throw new Error('Expected a text result')
-  return { isError: 'isError' in result && result.isError === true, text: first.text }
+  return {
+    isError: 'isError' in result && result.isError === true,
+    text: first.text,
+    details: result.details,
+  }
 }
 
 beforeAll(async () => {
@@ -91,16 +95,15 @@ describe('openwaggle_docs over the generated installed docs bundle', () => {
       topic: 'openwaggle:using-openwaggle/hives-and-sessions',
     })
     expect(read.isError).toBe(false)
-    const readResult: unknown = JSON.parse(read.text)
-    expect(readResult).toMatchObject({
+    expect(read.details).toMatchObject({
       source: 'openwaggle',
       path: path.join(bundlePath ?? '', 'topics/openwaggle/using-openwaggle/hives-and-sessions.md'),
-      content: expect.stringContaining('Queen'),
     })
+    expect(read.text).toContain('Queen')
 
     const pi = await call(tool, { action: 'read', topic: 'pi:extensions' })
-    const piResult: unknown = JSON.parse(pi.text)
-    expect(piResult).toMatchObject({ source: 'pi', path: expect.stringContaining('topics/pi/') })
+    expect(pi.isError).toBe(false)
+    expect(pi.details).toMatchObject({ source: 'pi', path: expect.stringContaining('topics/pi/') })
   })
 
   it('keeps the Run going when the bundle is missing', async () => {

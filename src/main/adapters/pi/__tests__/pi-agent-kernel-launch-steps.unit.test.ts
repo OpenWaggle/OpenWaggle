@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
+import { stubDocsToolServices } from './openwaggle-docs-tool.test-harness'
 
 const runMocks = vi.hoisted(() => ({
   ensureSessionWorktreeProjectPath: vi.fn(async () => '/repo/worktree'),
@@ -47,11 +48,7 @@ function actionWorkspaceDependencies(): Pick<
   'projectActions' | 'preparation' | 'docs'
 > {
   return {
-    docs: {
-      bundlePath: () => Effect.succeed('/docs-bundle'),
-      availableBundlePath: () => Effect.succeed('/docs-bundle'),
-      discover: () => Effect.die('docs discovery is not used by this test'),
-    },
+    docs: stubDocsToolServices('/docs-bundle'),
     projectActions: fromPartial({
       workspaces: {
         getBound: () =>

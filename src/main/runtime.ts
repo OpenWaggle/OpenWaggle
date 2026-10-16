@@ -7,10 +7,7 @@ import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { AgentRequestedWaggleServiceLive } from './adapters/agent-requested-waggle-adapter'
 import { LiveAgentRunInterruptionService } from './adapters/agent-run-interruption-service'
-import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
-import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
-import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
 import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemSessionExportArtifactWriterLive } from './adapters/filesystem-session-export-artifact-writer'
 import { FilesystemSessionExportResourceResolverLive } from './adapters/filesystem-session-export-resource-resolver'
@@ -37,8 +34,6 @@ import { SessionLifecyclePreparationServiceLive } from './adapters/session-lifec
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
 import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
-import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
-import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
 import { SqliteSessionRepositoryLive as SqliteSessionRepositoryWithoutRepairLive } from './adapters/sqlite-session-repository'
@@ -64,6 +59,7 @@ import {
   SessionProjectionWithActionsLive as SqliteSessionProjectionRepositoryLive,
 } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
+import { ExtensionRuntimeSelectionLive } from './runtime-extension-selection'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import {
   type HostServiceOptions,
@@ -84,12 +80,6 @@ import { setStoreEffectRunner } from './store/store-runtime'
 const SqliteSessionRepositoryLive = SqliteSessionRepositoryWithoutRepairLive.pipe(
   Layer.provide(PiSessionTranscriptRepairLive),
 )
-const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
-  Layer.provide(AppDatabaseLive),
-)
-const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesRepositoryLive.pipe(
-  Layer.provide(AppDatabaseLive),
-)
 const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
@@ -101,13 +91,6 @@ const SessionResourceCleanupRepositoryLive = SqliteSessionResourceCleanupReposit
 )
 const SessionOutputRetryRepositoryLive = SqliteSessionOutputRetryRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
-)
-const ExtensionRuntimeSelectionLive = Layer.mergeAll(
-  ExtensionLifecycleRepositoryLive,
-  ExtensionProjectOverridesRepositoryLive,
-  FilesystemExtensionManagerLive,
-  FilesystemExtensionPackageRepositoryLive,
-  ExtensionBuildRunnerLive,
 )
 const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
@@ -121,6 +104,7 @@ const PiAgentKernelWithExtensionSelectionLive = HostPiAgentKernelLive.pipe(
       ExtensionRuntimeSelectionLive,
       ActionKernelServicesLive,
       FilesystemInlineVisualizationLive,
+      FilesystemDocsBundleLive,
       DesktopServicesLive,
       SettingsService.Live,
     ),

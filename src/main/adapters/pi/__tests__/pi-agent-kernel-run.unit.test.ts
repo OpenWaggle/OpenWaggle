@@ -1,6 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -13,6 +14,7 @@ import type {
 import type { InlineVisualizationServiceShape } from '../../../ports/inline-visualization-service'
 import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
+import { stubDocsToolServices } from './openwaggle-docs-tool.test-harness'
 
 const runMocks = vi.hoisted(() => ({
   ensureSessionWorktreeProjectPath: vi.fn(async () => '/repo/worktree'),
@@ -55,11 +57,7 @@ function actionWorkspaceDependencies(): Pick<
   'projectActions' | 'preparation' | 'docs'
 > {
   return {
-    docs: {
-      bundlePath: () => Effect.succeed('/docs-bundle'),
-      availableBundlePath: () => Effect.succeed('/docs-bundle'),
-      discover: () => Effect.die('docs discovery is not used by this test'),
-    },
+    docs: stubDocsToolServices('/docs-bundle'),
     projectActions: fromPartial({
       workspaces: {
         getBound: () =>
@@ -151,15 +149,17 @@ describe('runPiAgentKernel', () => {
       }),
     )
     // The Run holds its scratch directory until it ends, so an archive mid-Run cannot delete it.
-    const registeredTools: string[] = []
+    const tools: Pick<ToolDefinition, 'name' | 'promptGuidelines'>[] = []
     const trusted: unknown = runMocks.runPiSession.mock.calls[0]?.[0]?.trustedExtensionFactories
     for (const factory of Array.isArray(trusted) ? trusted : []) {
-      if (typeof factory !== 'function') continue
-      factory({ registerTool: (tool: { name: string }) => registeredTools.push(tool.name) })
+      if (typeof factory === 'function')
+        factory({ registerTool: (tool: ToolDefinition) => tools.push(tool) })
     }
-    expect(registeredTools).toEqual(
+    expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining(['project_actions', 'source_control', 'openwaggle_docs']),
     )
+    const docs = tools.find((tool) => tool.name === 'openwaggle_docs')
+    expect(docs?.promptGuidelines?.join('\n')).toContain('"/docs-bundle"')
     expect(runMocks.retainSessionScratchDirectory).toHaveBeenCalledWith('session-1')
     expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(

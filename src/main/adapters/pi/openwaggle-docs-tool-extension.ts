@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { DocsDiscoveryView, DocsListInput } from '@shared/types/docs'
@@ -6,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import { type Static, type TSchema, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
 import { createLogger } from '../../logger'
+import { docsReadText, docsReadWindow, readDocsToolTopicFile } from './openwaggle-docs-tool-read'
 import {
   docsToolTopics,
   type OpenWaggleDocsToolTopic,
@@ -23,11 +23,6 @@ const MAX_QUERY_LENGTH = 500
 const MAX_TOPIC_LENGTH = 500
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 50
-/** Matches Pi's `read` tool, so one call returns about as much as one file read. */
-const MAX_READ_LINES = 2000
-const BYTES_PER_KIBIBYTE = 1024
-const MAX_READ_KIBIBYTES = 50
-const MAX_READ_BYTES = MAX_READ_KIBIBYTES * BYTES_PER_KIBIBYTE
 
 /** The Host services the tool reads docs through: the installed bundle plus extension docs. */
 export interface OpenWaggleDocsToolServices {
@@ -133,8 +128,20 @@ function topicSummary(entry: OpenWaggleDocsToolTopic) {
     title: entry.title,
     ...(entry.section !== undefined ? { section: entry.section } : {}),
     ...(entry.description !== undefined ? { description: entry.description } : {}),
-    ...(entry.extension ? { extension: entry.extension } : {}),
+    ...(entry.extension
+      ? { extension: { id: entry.extension.id, name: entry.extension.name } }
+      : {}),
   }
+}
+
+/** One action's result: the text the model reads, and the structured details kept with it. */
+interface DocsToolOutput {
+  readonly text: string
+  readonly details: unknown
+}
+
+function jsonOutput(details: unknown): DocsToolOutput {
+  return { text: JSON.stringify(details), details }
 }
 
 function filterSource(
@@ -168,12 +175,12 @@ async function listTopics(
 ) {
   const view = await discover(input, wanted === undefined || wanted === 'extension')
   const topics = sortDocsToolTopics(filterSource(docsToolTopics(view), wanted))
-  return {
+  return jsonOutput({
     bundlePath: view.bundlePath,
     generatedAt: view.generatedAt,
     topics: topics.map(topicSummary),
     ...(view.diagnostics.length > 0 ? { diagnostics: view.diagnostics } : {}),
-  }
+  })
 }
 
 async function searchTopics(
@@ -183,40 +190,13 @@ async function searchTopics(
   const view = await discover(input, params.source === undefined || params.source === 'extension')
   const topics = filterSource(docsToolTopics(view), params.source)
   const results = searchDocsToolTopics(topics, params.query, params.limit ?? DEFAULT_SEARCH_LIMIT)
-  return {
+  return jsonOutput({
     query: params.query,
     results: results.map(topicSummary),
     ...(results.length === 0
       ? { hint: 'No topic matched. Try fewer or different words, or use list to see every topic.' }
       : {}),
-  }
-}
-
-/** Lines from `startLine` (1-based) until either the line or the byte budget runs out. */
-function lineWindow(content: string, startLine: number) {
-  const lines = content.split('\n')
-  const selected: string[] = []
-  let bytes = 0
-  for (let index = startLine - 1; index < lines.length; index += 1) {
-    const line = lines[index] ?? ''
-    const lineBytes = Buffer.byteLength(line, 'utf8') + 1
-    if (
-      selected.length >= MAX_READ_LINES ||
-      (selected.length > 0 && bytes + lineBytes > MAX_READ_BYTES)
-    ) {
-      break
-    }
-    selected.push(line)
-    bytes += lineBytes
-  }
-  const endLine = startLine + selected.length - 1
-  return {
-    content: selected.join('\n'),
-    startLine,
-    endLine,
-    totalLines: lines.length,
-    ...(endLine < lines.length ? { nextOffset: endLine + 1 } : {}),
-  }
+  })
 }
 
 async function readTopic(
@@ -231,26 +211,21 @@ async function readTopic(
     )
   }
   const entry = resolved.topic
-  const content = await readFile(entry.path, 'utf8')
-  const startLine = params.offset ?? 1
-  const window = lineWindow(content, startLine)
-  if (startLine > window.totalLines) {
-    throw new Error(
-      `Offset ${startLine} is past the end of ${entry.topic}, which has ${window.totalLines} lines.`,
-    )
-  }
+  const window = docsReadWindow(await readDocsToolTopicFile(entry), params.offset ?? 1)
+  const { content: _content, ...lines } = window
   return {
-    topic: entry.topic,
-    title: entry.title,
-    source: entry.source,
-    path: entry.path,
-    ...(entry.extension ? { extension: entry.extension } : {}),
-    ...(resolved.alternatives.length > 0 ? { otherMatches: resolved.alternatives } : {}),
-    ...window,
+    text: docsReadText({ entry, window, alternatives: resolved.alternatives }),
+    details: {
+      ...topicSummary(entry),
+      source: entry.source,
+      path: entry.path,
+      ...(resolved.alternatives.length > 0 ? { otherMatches: resolved.alternatives } : {}),
+      ...lines,
+    },
   }
 }
 
-function execute(input: OpenWaggleDocsToolInput, params: unknown): Promise<unknown> {
+function execute(input: OpenWaggleDocsToolInput, params: unknown): Promise<DocsToolOutput> {
   assertDocsToolArguments(params)
   return match(params)
     .with({ action: 'list' }, (list) => listTopics(input, list.source))
@@ -265,7 +240,7 @@ export function openWaggleDocsPromptGuidelines(bundlePath: string | null) {
     `For questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the sessions CLI), use ${OPENWAGGLE_DOCS_TOOL_NAME} search or list, then read the topic, instead of guessing from memory or file paths.`,
     ...(bundlePath
       ? [
-          `The installed OpenWaggle docs bundle is ${JSON.stringify(bundlePath)}: ${BUNDLE_README} and ${BUNDLE_INDEX} at its root, Markdown under topics/. Its topics/pi/ holds the Pi docs as plain files. Paths inside app.asar open only with the read tool; bash, ls, and find cannot list them.`,
+          `The installed OpenWaggle docs bundle is ${JSON.stringify(bundlePath)}: ${BUNDLE_README} and ${BUNDLE_INDEX} at its root, Markdown under topics/. Its topics/pi/ holds the Pi docs as plain files: paths inside app.asar open with the read and ls tools, not from shell commands, find, or grep.`,
         ]
       : []),
   ]
@@ -279,7 +254,7 @@ export function createOpenWaggleDocsToolExtension(
       name: OPENWAGGLE_DOCS_TOOL_NAME,
       label: 'OpenWaggle Docs',
       description:
-        'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs from installed OpenWaggle extensions. "list" returns every topic id with its title and description, "search" ranks topics for a question, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".',
+        'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs of OpenWaggle extensions the user trusted and enabled (written by each extension\'s author). "list" returns every topic id with its title and description, "search" ranks topics for a question, OpenWaggle topics first, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".',
       promptSnippet:
         'Look up OpenWaggle and Pi documentation by topic when asked how OpenWaggle works.',
       promptGuidelines: openWaggleDocsPromptGuidelines(input.bundlePath),
@@ -289,7 +264,7 @@ export function createOpenWaggleDocsToolExtension(
         try {
           signal?.throwIfAborted()
           const result = await execute(input, params)
-          return { content: [{ type: 'text', text: JSON.stringify(result) }], details: result }
+          return { content: [{ type: 'text', text: result.text }], details: result.details }
         } catch (error) {
           return {
             content: [
