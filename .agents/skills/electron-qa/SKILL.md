@@ -33,6 +33,8 @@ Automation disables executable Pi extensions, which also hides OpenWaggle's firs
 
 To give a QA run a fixture Pi extension, such as a faux provider or a virtual model, name its files in `OPENWAGGLE_AUTOMATION_PI_EXTENSIONS` (separated by the platform path delimiter, `:` on macOS and Linux), for example `OPENWAGGLE_AUTOMATION_PI_EXTENSIONS=$TMPDIR/qa-ext/qa-router.js pnpm dev:debug`. Automation loads those files and no other discovered extensions. The variable is ignored outside automation (`OPENWAGGLE_AUTOMATION=1`), so it cannot load code into a normal app. Pi caches the extension module, so restart the QA app after editing a fixture. Keep fixtures outside the repository, for example in the session scratch directory.
 
+A fake model for such a fixture is `fauxProvider` from `@earendil-works/pi-ai`, registered with `pi.registerProvider(faux.provider)`. Its scripted responses must find the user's prompt by content, not as the last user message: the Host adds its Run identity message after the prompt. Select the model under **Settings > Connections > Available Models** and set **Session titles** to **Off** first, or the background title request consumes a scripted response. A first send on the current checkout runs the launch step that fast-forward pulls the branch from its upstream (`session-branch-freshness.ts`), so QA on a branch that tracks a remote picks up its new commits.
+
 Verify CDP is reachable:
 
 ```bash

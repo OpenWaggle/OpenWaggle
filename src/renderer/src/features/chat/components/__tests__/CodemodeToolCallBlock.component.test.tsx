@@ -55,9 +55,9 @@ describe('CodemodeToolCallBlock', () => {
       />,
     )
 
-    expect(screen.getByText('Running a script…')).toBeInTheDocument()
+    expect(screen.getByText('Running a script…')).toHaveClass('activity-shimmer')
     const calls = screen.getByRole('list', { name: 'Calls made by the script' })
-    expect(within(calls).getByText('bash')).toBeInTheDocument()
+    expect(within(calls).getByText('bash')).toHaveClass('activity-shimmer')
     expect(within(calls).getByText('{"command":"ls"}')).toBeInTheDocument()
     expect(within(calls).getByLabelText('Running')).toBeInTheDocument()
   })
@@ -81,11 +81,72 @@ describe('CodemodeToolCallBlock', () => {
     expect(
       within(screen.getByRole('button', { name: /Ran a script/u })).getByText('$0.0123'),
     ).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('list', { name: 'Calls made by the script' })).getByText(
-        'models.classify',
-      ),
-    ).toBeInTheDocument()
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).getByText('models.classify')).toBeInTheDocument()
+    const kinds = [...calls.querySelectorAll('[data-tool-kind]')].map((icon) =>
+      icon.getAttribute('data-tool-kind'),
+    )
+    expect(kinds).toEqual(['shell', 'other'])
+  })
+
+  it('marks failed and cancelled calls of a script apart', () => {
+    render(
+      <CodemodeToolCallBlock
+        args={JSON.stringify({ code: SCRIPT })}
+        state="complete"
+        result={{
+          state: 'complete',
+          content: {
+            content: [{ type: 'text', text: 'Script completed\nWall time 0.4 seconds\nOutput:\n' }],
+            details: {
+              calls: [
+                { id: 's/1', name: 'bash', args: '{}', status: 'error', error: 'exit 1' },
+                { id: 's/2', name: 'read', args: '{}', status: 'cancelled' },
+              ],
+            },
+          },
+        }}
+      />,
+    )
+
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(within(calls).getByRole('img', { name: 'Cancelled' })).toBeInTheDocument()
+    expect(calls.querySelector('[data-tool-kind="shell"]')).toHaveClass('text-error/80')
+    expect(calls.querySelector('[data-tool-kind="read"]')).toHaveClass('text-error/80')
+    expect(within(calls).getByText('bash')).not.toHaveClass('activity-shimmer')
+  })
+
+  it('leaves Worker waits out of the listed calls and their count', () => {
+    render(
+      <CodemodeToolCallBlock
+        args={JSON.stringify({ code: SCRIPT })}
+        state="complete"
+        result={{
+          state: 'complete',
+          content: {
+            content: [{ type: 'text', text: 'Script completed\nWall time 0.4 seconds\nOutput:\n' }],
+            details: {
+              calls: [
+                {
+                  id: 's/1',
+                  name: 'sessions',
+                  // Pi previews a script call's arguments cut to 200 characters.
+                  args: `${JSON.stringify({ action: 'wait', sessionIds: Array(8).fill('00000000-0000-0000-0000-000000000000') }).slice(0, 200)}...`,
+                  status: 'ok',
+                },
+                { id: 's/2', name: 'bash', args: '{"command":"ls"}', status: 'ok' },
+              ],
+            },
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText('1 tool call')).toBeInTheDocument()
+    const calls = screen.getByRole('list', { name: 'Calls made by the script' })
+    expect(within(calls).queryByText('sessions')).toBeNull()
+    expect(within(calls).getByText('bash')).toBeInTheDocument()
   })
 
   it('shows the script and its output when expanded', () => {
@@ -122,7 +183,9 @@ describe('CodemodeToolCallBlock', () => {
       />,
     )
 
-    expect(screen.getByText('Script failed')).toBeInTheDocument()
+    expect(screen.getByText('Ran a script')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Ran a script, failed/u })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Error: boom')
   })
 

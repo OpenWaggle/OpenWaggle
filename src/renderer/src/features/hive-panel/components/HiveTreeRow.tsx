@@ -1,9 +1,9 @@
 import { SessionId } from '@shared/types/brand'
-import { IDLE_ROW_COLOR_VAR, resolveSessionStatusPill } from '@shared/types/session-status'
+import { IDLE_ROW_COLOR_VAR } from '@shared/types/session-status'
 import { ChessQueen, Pickaxe } from 'lucide-react'
 import { useState } from 'react'
 import { SessionTitleInput, useSessionTitleRename } from '@/features/session-title'
-import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
+import { useSessionStore } from '@/features/sessions/state'
 import { SessionItemContextMenu } from '@/features/sidebar/components'
 import { usePinnedSessionsStore } from '@/features/sidebar/state'
 import { useUnarchiveSessionMutation } from '@/queries/archived-sessions'
@@ -11,7 +11,8 @@ import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
-import { type HiveTreeRow, hiveRowStateLabel } from '../lib/hive-tree-model'
+import { useHiveSessionState } from '../hooks/useHiveSessionState'
+import type { HiveTreeRow } from '../lib/hive-tree-model'
 
 /**
  * The Hive rows are a three-column table (ADR 0051 review): Session, Workspace, State — with one
@@ -60,8 +61,7 @@ const ROW_CLASS =
 function useHiveRowView(row: HiveTreeRow, isRoot: boolean) {
   const session = row.session
   const sessionId = SessionId(String(session.id))
-  const status = useSessionStatusStore((store) => store.statuses.get(sessionId) ?? 'idle')
-  const statusView = resolveSessionStatusPill(status)
+  const { statusColor, state } = useHiveSessionState(session)
   const isPinned = usePinnedSessionsStore((store) =>
     store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
   )
@@ -70,8 +70,8 @@ function useHiveRowView(row: HiveTreeRow, isRoot: boolean) {
     sessionId,
     via: row.via,
     isPinned,
-    statusColor: statusView?.colorVar ?? IDLE_ROW_COLOR_VAR,
-    state: hiveRowStateLabel(session, statusView?.shortLabel ?? 'Idle'),
+    statusColor: statusColor ?? IDLE_ROW_COLOR_VAR,
+    state,
     role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
     // projectName takes the last segment of either separator, so Windows paths shorten too.
     workspace: session.worktreePath ? projectName(session.worktreePath) : 'Checkout',

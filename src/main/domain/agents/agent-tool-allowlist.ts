@@ -6,18 +6,16 @@
  * it lists none. Naming any MCP tool also allows the Pi tools that reach MCP tools (codemode,
  * tool search, and the resource tools); a codemode child call still has to be allowed itself.
  */
+import {
+  LEGACY_MCP_GATEWAY_TOOL_NAMES,
+  MCP_SERVER_REACH_TOOL_NAMES,
+} from '@shared/utils/mcp-tool-names'
 import { mcpNamespace } from '../mcp/config/mcp-server-config'
 
-export const LEGACY_AGENT_MCP_TOOL_NAMES = ['mcp', 'mcp_run'] as const
+export const LEGACY_AGENT_MCP_TOOL_NAMES = LEGACY_MCP_GATEWAY_TOOL_NAMES
 
 /** Pi's tools through which the model reaches MCP tools. */
-export const MCP_REACH_TOOL_NAMES = [
-  'codemode',
-  'tool_search',
-  'list_mcp_resources',
-  'list_mcp_resource_templates',
-  'read_mcp_resource',
-] as const
+export const MCP_REACH_TOOL_NAMES = ['codemode', ...MCP_SERVER_REACH_TOOL_NAMES] as const
 
 const MCP_TOOL_REFERENCE = /^mcp__[A-Za-z0-9_]+__.+$/
 

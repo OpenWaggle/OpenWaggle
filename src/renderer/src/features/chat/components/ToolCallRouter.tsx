@@ -4,12 +4,17 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { NestedToolCalls } from '@shared/types/tools'
 import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
 import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
+import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
+import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
+import { SESSIONS_TOOL_NAME } from '@/features/chat/lib/tool-labels-sessions'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { ToolRowSessionContext } from '../hooks/ToolRowSessionContext'
 import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
 import { WithNestedToolCalls } from './NestedToolCallList'
+import { SessionsToolCallBlock } from './SessionsToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -56,6 +61,48 @@ function repairProposalFor(
   return proposal ? <CommandRepairProposalCard proposal={proposal} /> : null
 }
 
+/**
+ * A tool call's own card. A codemode card shows the script, its output, images and model calls;
+ * the tool calls the script made come from Pi's nested call events and record, like any other
+ * tool's. A sessions-tool card names the Worker it acts on.
+ */
+function ToolCallCard({
+  part,
+  result,
+  isStreaming,
+  nestedCallsShown,
+  onBranchFromMessage,
+}: {
+  readonly part: ToolCallRouterProps['part']
+  readonly result: ToolCallResultPayload | undefined
+  readonly isStreaming: boolean
+  readonly nestedCallsShown: boolean
+  readonly onBranchFromMessage?: (messageId: string) => void
+}) {
+  if (part.name === CODEMODE_TOOL_NAME) {
+    return (
+      <CodemodeToolCallBlock
+        args={part.arguments}
+        state={part.state}
+        result={result}
+        isStreaming={isStreaming}
+        nestedCallsShown={nestedCallsShown}
+      />
+    )
+  }
+  const Block = part.name === SESSIONS_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
+  return (
+    <Block
+      name={part.name}
+      args={part.arguments}
+      state={part.state}
+      result={result}
+      isStreaming={isStreaming}
+      onBranchFromMessage={onBranchFromMessage}
+    />
+  )
+}
+
 export function ToolCallRouter({
   part,
   toolResults,
@@ -66,6 +113,11 @@ export function ToolCallRouter({
   onBranchFromMessage,
 }: ToolCallRouterProps) {
   const finalResult = toolResults.get(part.id)
+  if (
+    isHiddenSessionsToolCallJson(part.name, part.arguments, part.state, finalResult !== undefined)
+  ) {
+    return null
+  }
   const visibleResult =
     finalResult ??
     (part.partialOutput === undefined
@@ -77,31 +129,25 @@ export function ToolCallRouter({
     finalResult?.nestedCalls,
     finalResult !== undefined || !isStreaming,
   )
-  // A codemode card shows the script, its output, images and model calls; the tool calls the
-  // script made come from Pi's nested call events and record, like any other tool's.
-  const ownCard =
-    part.name === CODEMODE_TOOL_NAME ? (
-      <CodemodeToolCallBlock
-        args={part.arguments}
-        state={part.state}
-        result={visibleResult}
-        isStreaming={isStreaming}
-        nestedCallsShown={nestedCalls.calls.length > 0}
-      />
-    ) : (
-      <ToolCallBlock
-        name={part.name}
-        args={part.arguments}
-        state={part.state}
-        result={visibleResult}
-        isStreaming={isStreaming}
-        onBranchFromMessage={onBranchFromMessage}
-      />
-    )
+  const ownCard = (
+    <ToolCallCard
+      part={part}
+      result={visibleResult}
+      isStreaming={isStreaming}
+      nestedCallsShown={nestedCalls.calls.length > 0}
+      onBranchFromMessage={onBranchFromMessage}
+    />
+  )
   const toolCallBlock = (
-    <WithNestedToolCalls parentName={part.name} nestedCalls={nestedCalls} isStreaming={isStreaming}>
-      {ownCard}
-    </WithNestedToolCalls>
+    <ToolRowSessionContext value={sessionId}>
+      <WithNestedToolCalls
+        parentName={part.name}
+        nestedCalls={nestedCalls}
+        isStreaming={isStreaming}
+      >
+        {ownCard}
+      </WithNestedToolCalls>
+    </ToolRowSessionContext>
   )
   const appLaunch = finalResult
     ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))

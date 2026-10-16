@@ -1,6 +1,6 @@
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput } from '@shared/utils/tool-result-state'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   type EditDiffData,
   getEditDiff,
@@ -15,6 +15,8 @@ import {
   type ToolCallResultPayload,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
+import { type ToolKind, toolKind } from '@/features/chat/lib/tool-kind'
+import type { SessionsToolTarget } from '@/features/chat/lib/tool-labels-sessions'
 import { EditRowDiff } from './EditRowDiff'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
 import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
@@ -28,6 +30,13 @@ interface ToolCallBlockProps {
   onBranchFromMessage?: (messageId: string) => void
   /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
   resultNotRecorded?: boolean
+  /** A sessions-tool row's Session, as the Hive knows it, and the controls its header carries. */
+  hive?: ToolCallHiveContext
+}
+
+interface ToolCallHiveContext {
+  readonly target: SessionsToolTarget | null
+  readonly headerAddon: ReactNode
 }
 
 interface ToolCallViewModelInput {
@@ -37,6 +46,7 @@ interface ToolCallViewModelInput {
   readonly result: ToolCallResultPayload | undefined
   readonly isStreaming: boolean
   readonly expanded: boolean
+  readonly sessionTarget: SessionsToolTarget | null
 }
 
 export interface ToolCallViewModel {
@@ -49,6 +59,7 @@ export interface ToolCallViewModel {
   readonly hasConcreteResult: boolean
   readonly isError: boolean
   readonly isRunning: boolean
+  readonly kind: ToolKind
   readonly liveOutputPreview: string
   readonly parsedArgs: JsonObject
   readonly path: string | null
@@ -96,6 +107,7 @@ function buildToolCallViewModel({
   result,
   isStreaming,
   expanded,
+  sessionTarget,
 }: ToolCallViewModelInput): ToolCallViewModel {
   const hasConcreteResult = result
     ? result.state !== 'partial' || hasConcreteToolOutput(result.content)
@@ -109,7 +121,13 @@ function buildToolCallViewModel({
   const resultText = readableResultText(result, expanded, isRunning, isError)
 
   return {
-    actionText: resolveActionText({ name, args: parsedArgs, awaitingResult, isError, isRunning }),
+    actionText: resolveActionText({
+      name,
+      args: parsedArgs,
+      awaitingResult,
+      isRunning,
+      sessionTarget,
+    }),
     awaitingResult,
     branchSourceMessageId: result?.sourceMessageId,
     command: getStringArg(parsedArgs, 'command'),
@@ -118,6 +136,7 @@ function buildToolCallViewModel({
     hasConcreteResult,
     isError,
     isRunning,
+    kind: toolKind(name),
     parsedArgs,
     path: getStringArg(parsedArgs, 'path'),
     resultError,
@@ -134,11 +153,20 @@ export function ToolCallBlock({
   isStreaming = false,
   onBranchFromMessage,
   resultNotRecorded = false,
+  hive,
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const startTime = useRef<number | null>(null)
   const [duration, setDuration] = useState(0)
-  const view = buildToolCallViewModel({ name, args, state, result, isStreaming, expanded })
+  const view = buildToolCallViewModel({
+    name,
+    args,
+    state,
+    result,
+    isStreaming,
+    expanded,
+    sessionTarget: hive?.target ?? null,
+  })
 
   useEffect(() => {
     if (view.isRunning && !startTime.current) {
@@ -159,6 +187,7 @@ export function ToolCallBlock({
         view={view}
         onBranchFromMessage={onBranchFromMessage}
         onToggleExpanded={() => setExpanded(!expanded)}
+        addon={hive?.headerAddon}
       />
       <CollapsedToolPreview view={view} expanded={expanded} />
       {expanded && (

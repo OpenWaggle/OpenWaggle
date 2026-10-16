@@ -39,6 +39,19 @@ describe('nestedToolCallsView', () => {
     ])
   })
 
+  it('leaves out Worker waits, so the list and its frame match what shows', () => {
+    const waits: NestedToolCalls = {
+      calls: [
+        { id: 'code-1/1', name: 'sessions', args: { action: 'wait' }, status: 'ok' },
+        { id: 'code-1/2', name: 'sessions', args: { action: 'spawn' }, status: 'ok' },
+      ],
+      complete: true,
+    }
+    expect(nestedToolCallsView(waits, undefined, true).calls.map((call) => call.id)).toEqual([
+      'code-1/2',
+    ])
+  })
+
   it('prefers the live record and falls back to the persisted one', () => {
     const persisted: NestedToolCalls = {
       calls: [{ id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok' }],
