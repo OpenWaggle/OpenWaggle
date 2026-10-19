@@ -6,8 +6,10 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
+import { createLogger } from '../logger'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
@@ -27,6 +29,8 @@ import {
   beginPiSessionProjectRemoval,
   deleteSessionForProjectRemoval,
 } from './pi-session-project-removal'
+
+const logger = createLogger('host-ui-session-copy')
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -159,7 +163,25 @@ export function forkSession(args: readonly unknown[], position: 'before' | 'at')
         ? { editorText: result.response.outcome.editorText }
         : {}),
     }
-  })
+  }).pipe(
+    // The desktop app shows the reason in a toast and nothing else kept it, so a copy that kept
+    // failing left no trace to diagnose it from. A busy Session's refusal is thrown, so it is a
+    // defect of the cause, not its error. An interrupted copy (the Host stopping) did not fail.
+    Effect.tapErrorCause((cause) =>
+      Cause.isInterruptedOnly(cause)
+        ? Effect.void
+        : Effect.sync(() =>
+            logger.warn('Desktop Session copy failed', {
+              // `before` forks before a user message; `at` clones or forks from a response.
+              position,
+              sourceSessionId: typeof args[0] === 'string' ? args[0] : undefined,
+              targetNodeId:
+                typeof args[TWO_ARGUMENTS] === 'string' ? args[TWO_ARGUMENTS] : undefined,
+              error: Cause.pretty(cause).split('\n')[0],
+            }),
+          ),
+    ),
+  )
 }
 
 export function organizeSession(

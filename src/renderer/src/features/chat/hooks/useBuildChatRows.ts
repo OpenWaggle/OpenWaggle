@@ -17,6 +17,7 @@ import {
 } from '../lib/compaction-chat-row-model'
 import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
 import { applyTurnFolds, type TurnFoldInput } from '../lib/turn-fold'
+import { markTurnReplies } from '../lib/turn-reply-actions'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 import { groupWaggleTurnRows, withWaggleTurnFailures } from '../lib/waggle-turn-rows'
 import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
@@ -170,8 +171,11 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
       (row.waggleMeta !== undefined && row.message.metadata?.error !== undefined) ||
       !showsOnlyHiddenSessionsToolCalls(row.message.parts),
   )
-  return applyTurnFolds(
-    withWaggleTurnFailures(groupWaggleTurnRows(shownRows), { isLoading: params.isLoading }),
-    toTurnFoldInput(params),
+  return markTurnReplies(
+    applyTurnFolds(
+      withWaggleTurnFailures(groupWaggleTurnRows(shownRows), { isLoading: params.isLoading }),
+      toTurnFoldInput(params),
+    ),
+    { isLoading: params.isLoading },
   )
 }

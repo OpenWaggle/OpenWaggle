@@ -1,4 +1,4 @@
-import { ChevronRight, GitBranch } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
@@ -20,7 +20,6 @@ interface ToolCallHeaderProps {
   readonly duration: number
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
-  readonly onBranchFromMessage?: (messageId: string) => void
   readonly onToggleExpanded: () => void
   /** Controls of the row's subject that sit outside its toggle, such as a Worker's Open. */
   readonly addon?: ReactNode
@@ -31,7 +30,6 @@ export function ToolCallHeader({
   duration,
   result,
   view,
-  onBranchFromMessage,
   onToggleExpanded,
   addon,
 }: ToolCallHeaderProps) {
@@ -63,7 +61,6 @@ export function ToolCallHeader({
         />
       </Button>
       {addon}
-      <BranchFromToolButton view={view} onBranchFromMessage={onBranchFromMessage} />
     </div>
   )
 }
@@ -106,29 +103,6 @@ function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {
         layout="inline"
       />
     </span>
-  )
-}
-
-function BranchFromToolButton({
-  view,
-  onBranchFromMessage,
-}: {
-  readonly view: ToolCallViewModel
-  readonly onBranchFromMessage?: (messageId: string) => void
-}) {
-  if (!view.branchSourceMessageId || !onBranchFromMessage) {
-    return null
-  }
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      title="Branch from tool result"
-      onClick={() => onBranchFromMessage(view.branchSourceMessageId ?? '')}
-      className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
-    >
-      <GitBranch className="size-3.5" />
-    </Button>
   )
 }
 

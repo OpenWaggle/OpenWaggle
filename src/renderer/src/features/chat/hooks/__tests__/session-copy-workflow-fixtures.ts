@@ -22,3 +22,17 @@ export function userNode(id: string, sessionId: SessionId): SessionNode {
     metadataJson: '{}',
   }
 }
+
+export function assistantNode(id: string, sessionId: SessionId): SessionNode {
+  return {
+    ...userNode(id, sessionId),
+    kind: 'assistant_message',
+    role: 'assistant',
+    message: {
+      id: MessageId(id),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Here is the answer' }],
+      createdAt: 2,
+    },
+  }
+}

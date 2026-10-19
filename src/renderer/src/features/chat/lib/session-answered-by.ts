@@ -24,7 +24,8 @@ function loadedSession(sessionId: SessionId) {
 }
 
 /**
- * Whether a Session can act on `model`: send, switch branches, fork, clone, navigate or compact.
+ * Whether a Session can act on `model`: send, switch branches, navigate or compact. A fork or
+ * clone runs no model of the renderer's, so it does not ask.
  * Like a send, each falls back on the Host to the model that answered last when `model` is gone.
  * Takes the Session itself, such as a detail just fetched, or its id to read the loaded one.
  */

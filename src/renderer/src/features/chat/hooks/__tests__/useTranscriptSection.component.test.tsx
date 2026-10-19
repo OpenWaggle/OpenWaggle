@@ -149,6 +149,7 @@ function transcriptParams(
     openSettings: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
+    handleForkFromResponse: vi.fn(),
     handleDismissInterruptedRun: vi.fn(),
     pendingSend: null,
     onPendingSendConsumed: vi.fn(),

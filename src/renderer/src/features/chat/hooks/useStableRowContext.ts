@@ -55,6 +55,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
       latest.current.onDismissInterruptedRun(...args),
     onBranchFromMessage: (messageId: string) => latest.current.onBranchFromMessage(messageId),
     onForkFromMessage: (messageId: string) => latest.current.onForkFromMessage(messageId),
+    onForkFromResponse: (messageId: string) => latest.current.onForkFromResponse(messageId),
     onViewTurnDiff: (messageId: string, filePath?: string) =>
       latest.current.onViewTurnDiff(messageId, filePath),
     onToggleTurnFold: (turnKey: string) => latest.current.onToggleTurnFold(turnKey),
@@ -68,6 +69,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
   const turnsByAnchorNodeId = useContentStable(section.turnsByAnchorNodeId, sameTurns)
   const projectPaths = useContentStable(section.extensionProjectPaths, sameList)
   const sessionId = section.activeSessionId
+  const copiesBlocked = section.copiesBlocked
   const registry = section.extensionRegistry
 
   const [context, setContext] = useState<ChatRowRenderContext | null>(null)
@@ -77,7 +79,8 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
     context.extensions.registry === registry &&
     context.extensions.projectPaths === projectPaths &&
     context.turnsByAnchorNodeId === turnsByAnchorNodeId &&
-    context.actions.turnAnchorMessageIds === turnAnchorMessageIds
+    context.actions.turnAnchorMessageIds === turnAnchorMessageIds &&
+    context.actions.copiesBlocked === copiesBlocked
       ? context
       : null
   if (current) return current
@@ -91,6 +94,8 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
       onDismissInterruptedRun: callbacks.onDismissInterruptedRun,
       onBranchFromMessage: callbacks.onBranchFromMessage,
       onForkFromMessage: callbacks.onForkFromMessage,
+      onForkFromResponse: callbacks.onForkFromResponse,
+      copiesBlocked,
       onViewTurnDiff: callbacks.onViewTurnDiff,
       turnAnchorMessageIds,
       onToggleTurnFold: callbacks.onToggleTurnFold,

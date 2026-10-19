@@ -92,6 +92,8 @@ function createSection(
     onDismissError: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
+    onForkFromResponse: vi.fn(),
+    copiesBlocked: false,
     onViewTurnDiff: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,

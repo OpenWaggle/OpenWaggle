@@ -3,7 +3,7 @@ import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
-import { isSessionModelActionable, resolveCurrentConversationNode } from '@/features/chat/lib'
+import { resolveCurrentConversationNode, runSessionCopyOnce } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
@@ -139,34 +139,52 @@ function activateClonedSession(deps: SidebarSessionActionDeps, sessionId: Sessio
 async function cloneTargetNodeId(deps: SidebarSessionActionDeps, sessionId: SessionId) {
   const draft = useSessionStore.getState().draftBranch
   if (draft?.sessionId === sessionId) return draft.sourceNodeId
+  // A Session that is not open has nothing loaded to fall back on, so a failed read of its
+  // conversation is the clone's failure, not "no history".
+  if (useChatStore.getState().activeSessionId !== sessionId) {
+    const workspace = await api.getSessionWorkspace(sessionId)
+    return workspace?.tree.session.id === sessionId ? workspace.activeNodeId : null
+  }
+  const loadedTree =
+    deps.matchingActiveSessionTree?.session.id === sessionId ? deps.matchingActiveSessionTree : null
   return (
     (await resolveCurrentConversationNode(sessionId, deps.matchingActiveWorkspace ?? null)) ??
-    deps.matchingActiveSessionTree?.session.lastActiveNodeId ??
+    loadedTree?.session.lastActiveNodeId ??
     null
   )
 }
 
+/**
+ * Clones any listed Session, open or not: its current conversation is read from the Host. The Host
+ * builds the copy's runtime from the Session's own model; the model named here is only validated,
+ * so a Session whose model cannot run now can still be cloned.
+ */
 async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
-  if (deps.activeSessionId !== sessionId) {
-    deps.showToast('Open this session before cloning it.')
-    return
-  }
-  if (!isSessionModelActionable(sessionId, deps.selectedModel)) {
+  const model = deps.selectedModel
+  if (!model) {
     deps.showToast('Select a model before cloning.')
     return
   }
+  await runSessionCopyOnce(sessionId, () => cloneSessionWithModel(deps, sessionId, model))
+}
 
+async function cloneSessionWithModel(
+  deps: SidebarSessionActionDeps,
+  sessionId: SessionId,
+  model: SupportedModelId,
+) {
+  const activeAtStart = useChatStore.getState().activeSessionId
   try {
     const targetNodeId = await cloneTargetNodeId(deps, sessionId)
-    // The head may have been re-read from the Host; do not clone a Session the user has left.
-    if (useChatStore.getState().activeSessionId !== sessionId) return
+    // The head may have been re-read from the Host; do not move a user who went elsewhere.
+    if (useChatStore.getState().activeSessionId !== activeAtStart) return
     if (!targetNodeId) {
       deps.showToast('No session history to clone.')
       return
     }
     const result = await api.cloneSessionToNew(
       sessionId,
-      deps.selectedModel,
+      model,
       SessionNodeId(String(targetNodeId)),
     )
     if (result.cancelled) {
