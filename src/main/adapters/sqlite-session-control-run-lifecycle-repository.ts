@@ -1,12 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { waitsOnHeldNextFollowUp } from '../domain/session-control/follow-up-delivery'
 import {
   activateStartingRun,
-  replaceWithExternalSessionRun,
   startExternalSessionRun,
 } from '../domain/session-control/run-lifecycle'
 import { returnUndeliveredSteersReportingDrops } from '../domain/session-control/undelivered-steering'
@@ -23,6 +20,10 @@ import {
   settleDeferredWorkerDelegation,
   takeDeferredWorkerSettlement,
 } from './sqlite-deferred-worker-settlement'
+import {
+  externalRunAdmission,
+  replaceWithExternal,
+} from './sqlite-session-control-external-run-replacement'
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
   planRunSettlement,
@@ -40,27 +41,6 @@ const PROMOTION_SETTLEMENT_RETRY_LIMIT = 10
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
-}
-
-function externalRunAdmission(
-  sql: SqlClient.SqlClient,
-  input: { readonly sessionId: SessionId; readonly hostRunCeiling?: number },
-) {
-  return Effect.gen(function* () {
-    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    if (!parentAdmission.admitted) {
-      return { accepted: false, code: 'parent_concurrency_limit_reached' } as const
-    }
-    const rows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count
-      FROM session_control_states
-      WHERE active_run_id IS NOT NULL
-    `
-    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-    return (rows[0]?.count ?? 0) >= hostRunCeiling
-      ? ({ accepted: false, code: 'host_run_ceiling_reached' } as const)
-      : undefined
-  })
 }
 
 function settledRunResponse(
@@ -143,51 +123,6 @@ function startExternal(
         cause instanceof SessionControlRepositoryError
           ? cause
           : repositoryError('start-external-run', cause),
-      ),
-    )
-}
-
-function replaceWithExternal(
-  sql: SqlClient.SqlClient,
-  input: Parameters<
-    NonNullable<SessionControlRunLifecycleRepositoryShape['replaceWithExternal']>
-  >[0],
-) {
-  return sql
-    .withTransaction(
-      Effect.gen(function* () {
-        const state = yield* loadSessionControlState(sql, input.sessionId)
-        const replaced = replaceWithExternalSessionRun(
-          state,
-          input.previousRunId,
-          input.runId,
-          input.intent,
-        )
-        if (!replaced.accepted) return replaced
-        if (state.run.state === 'idle') {
-          const admission = yield* externalRunAdmission(sql, input)
-          if (admission) return admission
-        }
-        const now = Date.now()
-        if (state.run.state !== 'idle') {
-          yield* sql`
-            UPDATE session_runs SET status = ${'interrupted'}, updated_at = ${now}
-            WHERE id = ${state.run.runId} AND session_id = ${input.sessionId}
-          `
-        }
-        yield* persistSessionControlState(sql, replaced.state, now)
-        return {
-          accepted: true,
-          stateRevision: replaced.state.revision,
-          intent: input.intent,
-        } as const
-      }),
-    )
-    .pipe(
-      Effect.mapError((cause) =>
-        cause instanceof SessionControlRepositoryError
-          ? cause
-          : repositoryError('replace-with-external-run', cause),
       ),
     )
 }
