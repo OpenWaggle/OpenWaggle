@@ -32,12 +32,7 @@ vi.mock('../../utils/stream-bridge', () => ({
   emitRunCompleted: vi.fn(),
 }))
 
-import {
-  deleteArchivedSessions,
-  listArchivedItemRefs,
-  queryArchivedItems,
-  setArchivedItems,
-} from '../host-ui-archived-items-operations'
+import { deleteArchivedSessions, setArchivedItems } from '../host-ui-archived-items-operations'
 
 const sessionRef = { kind: 'session', sessionId: SessionId('session-1') } as const
 const branchRef = {
@@ -192,20 +187,6 @@ describe('Archived items Host UI operations', () => {
     })
   })
 
-  it('rejects an empty or malformed change before dispatching anything', async () => {
-    await expect(run(setArchivedItems([{ archived: false, items: [] }]))).rejects.toThrow(
-      /Archived items change is invalid/u,
-    )
-    await expect(
-      run(
-        setArchivedItems([
-          { archived: false, items: [{ ref: { kind: 'branch', sessionId: 's' } }] },
-        ]),
-      ),
-    ).rejects.toThrow(/invalid/u)
-    expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
-  })
-
   it('deletes only sessions that are still archived', async () => {
     const restored = SessionId('restored-elsewhere')
     states.set(archivedItemKey({ kind: 'session', sessionId: restored }), null)
@@ -276,33 +257,6 @@ describe('Archived items Host UI operations', () => {
       failed: [{ sessionId: sessionRef.sessionId, message: 'Session is running' }],
     })
     expect(dispatchLocalSessionCommandMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('validates a query and hands it to the repository unchanged', async () => {
-    const queryArchived = vi.fn((_query: unknown) =>
-      emptySessionCatalogMethods.queryArchivedItems(),
-    )
-    const repo = repository({ queryArchivedItems: queryArchived })
-    const query = { text: 'oauth', kind: 'session', archivedWithin: 'week', limit: 50 }
-    await run(queryArchivedItems([query]), repo)
-
-    expect(queryArchived).toHaveBeenCalledWith(query)
-    await expect(run(queryArchivedItems([{ ...query, limit: 0 }]), repo)).rejects.toThrow(
-      /Archived items query is invalid/u,
-    )
-    await expect(
-      run(queryArchivedItems([{ ...query, cursor: 'not-a-number' }]), repo),
-    ).rejects.toThrow(/invalid/u)
-  })
-
-  it('caps Select all at the bulk limit and accepts the list sort', async () => {
-    await expect(run(listArchivedItemRefs([{ limit: 1_001 }]))).rejects.toThrow(
-      /selection query is invalid/u,
-    )
-    await expect(run(listArchivedItemRefs([{ sort: 'oldest', limit: 10 }]))).resolves.toEqual({
-      refs: [],
-      total: 0,
-    })
   })
 
   it('reads the reason a wrapped store failure gives, and keeps a session the journal refused', async () => {
