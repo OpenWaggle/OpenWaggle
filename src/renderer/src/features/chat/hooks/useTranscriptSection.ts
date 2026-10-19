@@ -21,6 +21,7 @@ import {
   mergeInteractionEvents,
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
+import { areCopiesBlocked } from '../lib/copies-blocked'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
@@ -103,6 +104,7 @@ export interface TranscriptSectionParams {
   readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
   readonly handleForkFromMessage: (messageId: string) => void
+  readonly handleForkFromResponse: (messageId: string) => void
   readonly handleViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
@@ -146,6 +148,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage,
+    handleForkFromResponse,
     pendingSend,
     onPendingSendConsumed,
     compactionStatus,
@@ -265,6 +268,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onDismissInterruptedRun: handleDismissInterruptedRun,
     onBranchFromMessage: handleBranchFromMessage,
     onForkFromMessage: handleForkFromMessage,
+    onForkFromResponse: handleForkFromResponse,
+    copiesBlocked: areCopiesBlocked({ isLoading, isFinishing, compactionStatus }),
     onViewTurnDiff: params.handleViewTurnDiff,
     turnAnchorMessageIds: params.turnAnchorMessageIds,
     turnsByAnchorNodeId: params.turnsByAnchorNodeId,

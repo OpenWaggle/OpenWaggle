@@ -71,6 +71,7 @@ function useChatTranscript({ sessionId, session }: OpenedSession) {
     openSettings: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
+    handleForkFromResponse: vi.fn(),
     handleDismissInterruptedRun: vi.fn(),
     pendingSend: null,
     onPendingSendConsumed: vi.fn(),

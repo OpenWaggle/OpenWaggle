@@ -21,7 +21,6 @@ interface SessionsToolCallBlockProps {
   readonly state: string
   readonly result?: ToolCallResultPayload
   readonly isStreaming?: boolean
-  readonly onBranchFromMessage?: (messageId: string) => void
   readonly resultNotRecorded?: boolean
 }
 

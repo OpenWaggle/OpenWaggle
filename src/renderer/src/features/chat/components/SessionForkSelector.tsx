@@ -51,21 +51,23 @@ export function SessionForkSelector({
               No user messages are available to fork.
             </div>
           ) : (
-            targets.map((target) => (
+            targets.map((target, index) => (
               <Button
                 variant="unstyled"
                 key={String(target.entryId)}
                 type="button"
+                aria-label={`Message ${String(targets.length - index)}: ${previewText(target.text)}`}
                 onClick={() => onSelect(target)}
                 className={cn(
-                  'block w-full border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0',
+                  'flex w-full items-start gap-3 border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0',
                   'hover:bg-bg-hover focus:bg-bg-hover focus:outline-none',
                 )}
               >
-                <span className="block text-xs font-medium text-text-secondary">
-                  {String(target.entryId)}
+                {/* Repeated prompts, such as "continue", read the same; their place tells them apart. */}
+                <span className="mt-0.5 w-5 shrink-0 text-right text-xs tabular-nums text-text-muted">
+                  {targets.length - index}
                 </span>
-                <span className="mt-1 line-clamp-3 block text-xs leading-5 text-text-tertiary">
+                <span className="line-clamp-3 min-w-0 flex-1 text-xs leading-5 text-text-secondary">
                   {previewText(target.text)}
                 </span>
               </Button>

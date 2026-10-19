@@ -12,22 +12,12 @@ vi.mock('@/features/diff-panel/components', () => ({
 }))
 
 describe('chat auxiliary cards', () => {
-  it('renders branch summaries and delegates branch creation', () => {
-    const onBranchFromMessage = vi.fn()
-
-    render(
-      <BranchSummaryCard
-        id="message-1"
-        summary="Use a dedicated renderer feature boundary."
-        onBranchFromMessage={onBranchFromMessage}
-      />,
-    )
-
-    fireEvent.click(screen.getByTitle('Branch from summary'))
+  it('renders branch summaries without a branch action; the Session tree branches', () => {
+    render(<BranchSummaryCard summary="Use a dedicated renderer feature boundary." />)
 
     expect(screen.getByText('Branch summary')).toBeInTheDocument()
     expect(screen.getByText('Use a dedicated renderer feature boundary.')).toBeInTheDocument()
-    expect(onBranchFromMessage).toHaveBeenCalledWith('message-1')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('renders the diff pane wrapper and refresh/close actions', () => {

@@ -81,7 +81,7 @@ async function openBeforeNormalHydration(
   mocks.getSessionWorkspace.mockResolvedValue(source)
   render(<BranchActions params={params} />)
   await act(async () => {
-    fireEvent.click(screen.getByTitle('Branch from message'))
+    fireEvent.click(screen.getByTitle('Edit from here'))
   })
   expect(screen.getByRole('button', { name: 'Summarize' })).toBeVisible()
   expect(useSessionStore.getState().activeWorkspace).toBeNull()
@@ -193,7 +193,7 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
       fireEvent.click(screen.getByRole('button', { name: 'Summarize' }))
     })
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Branch from message'))
+      fireEvent.click(screen.getByTitle('Edit from here'))
     })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Summarize' }))
@@ -224,7 +224,7 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
     })
     expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID)
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Branch from message'))
+      fireEvent.click(screen.getByTitle('Edit from here'))
     })
     const newPrompt = useBranchSummaryStore.getState().prompt
     const newDraft = useSessionStore.getState().draftBranch
@@ -274,10 +274,10 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
     mocks.getSessionWorkspace.mockResolvedValue(ownedWorkspace('/repo'))
     render(<BranchActions params={workflowParams()} />)
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Branch from message'))
+      fireEvent.click(screen.getByTitle('Edit from here'))
     })
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Branch from message'))
+      fireEvent.click(screen.getByTitle('Edit from here'))
     })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Summarize' }))

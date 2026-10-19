@@ -51,4 +51,33 @@ describe('applyTurnFolds during an active run', () => {
     expect(result.at(-1)).toBe(rows.at(-1))
     expect(result.filter((candidate) => candidate.type === 'turn-fold')).toHaveLength(1)
   })
+
+  it('keeps the running turn open while a steer the agent has not read renders after it', () => {
+    const steer = row('u3-steer', 'user', { type: 'text', content: 'Also check tests' })
+    const rows: ChatRow[] = [
+      row('u1', 'user', { type: 'text', content: 'First' }),
+      row('a1', 'assistant', { type: 'text', content: 'First done.' }),
+      row('u2', 'user', { type: 'text', content: 'Second' }),
+      row('a2', 'assistant', {
+        type: 'tool-call',
+        id: 'tool-2',
+        name: 'edit',
+        arguments: '{}',
+        state: 'done',
+      }),
+      { ...row('a3', 'assistant', { type: 'text', content: 'Working on it' }), isStreaming: true },
+      { ...steer, message: { ...steer.message, metadata: { steerDelivery: 'sending' } } },
+    ]
+
+    const result = applyTurnFolds(rows, {
+      isLoading: true,
+      settledRunDurationMs: null,
+      turnDurationsByAnchorMessageId: new Map(),
+      interrupted: false,
+      expandedTurnKeys: new Set(),
+    })
+
+    expect(result.filter((candidate) => candidate.type === 'turn-fold')).toHaveLength(0)
+    expect(result).toEqual(rows)
+  })
 })

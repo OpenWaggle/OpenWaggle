@@ -27,7 +27,6 @@ interface ToolCallBlockProps {
   state: string
   result?: ToolCallResultPayload
   isStreaming?: boolean
-  onBranchFromMessage?: (messageId: string) => void
   /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
   resultNotRecorded?: boolean
   /** A sessions-tool row's Session, as the Hive knows it, and the controls its header carries. */
@@ -52,7 +51,6 @@ interface ToolCallViewModelInput {
 export interface ToolCallViewModel {
   readonly actionText: string
   readonly awaitingResult: boolean
-  readonly branchSourceMessageId: string | undefined
   readonly command: string | null
   readonly diff: EditDiffData | null
   readonly failedOutputPreview: string
@@ -129,7 +127,6 @@ function buildToolCallViewModel({
       sessionTarget,
     }),
     awaitingResult,
-    branchSourceMessageId: result?.sourceMessageId,
     command: getStringArg(parsedArgs, 'command'),
     diff,
     failedOutputPreview: previewText(!expanded && isError, resultText),
@@ -151,7 +148,6 @@ export function ToolCallBlock({
   state,
   result,
   isStreaming = false,
-  onBranchFromMessage,
   resultNotRecorded = false,
   hive,
 }: ToolCallBlockProps) {
@@ -185,7 +181,6 @@ export function ToolCallBlock({
         duration={duration}
         result={result}
         view={view}
-        onBranchFromMessage={onBranchFromMessage}
         onToggleExpanded={() => setExpanded(!expanded)}
         addon={hive?.headerAddon}
       />

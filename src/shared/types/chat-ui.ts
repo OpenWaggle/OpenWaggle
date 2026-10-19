@@ -35,7 +35,6 @@ export interface ChatToolResultPart {
   readonly toolCallId: string
   readonly content: unknown
   readonly state: string
-  readonly sourceMessageId?: string
   readonly error?: string
   readonly output?: unknown
   /** Nested calls Pi recorded on the persisted tool result. */

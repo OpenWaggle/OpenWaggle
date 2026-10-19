@@ -80,9 +80,7 @@ function appendToolResultParts(target: UIMessage, toolResults: readonly ToolResu
 }
 
 function nestedRow(previousRow: MessageChatRow, message: UIMessage): MessageChatRow | null {
-  const toolResults = message.parts
-    .filter((part) => part.type === 'tool-result')
-    .map((part) => ({ ...part, sourceMessageId: message.id }))
+  const toolResults = message.parts.filter((part) => part.type === 'tool-result')
   if (!canNestToolResultMessage(previousRow.message, toolResults)) return null
   return { ...previousRow, message: appendToolResultParts(previousRow.message, toolResults) }
 }
