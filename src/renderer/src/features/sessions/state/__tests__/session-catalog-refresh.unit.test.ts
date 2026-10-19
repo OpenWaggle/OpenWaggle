@@ -32,10 +32,8 @@ function resetStore() {
     hiveSessions: [],
     hiveContextSessionId: null,
     sessionsNextCursor: null,
-    archivedSessionsNextCursor: null,
     hiveWorkersNextCursor: null,
     sessionsLoadingMore: false,
-    archivedSessionsLoadingMore: false,
   })
 }
 

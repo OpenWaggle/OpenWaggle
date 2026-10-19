@@ -111,11 +111,35 @@ function catalogSearchFilter(sql: SqlClient.SqlClient, searchText: string | unde
       WHERE session_catalog_search MATCH ${ftsQuery}
     )`
   }
-  const likeQuery = `%${query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
-  return sql`(
-    lower(sessions.title) LIKE ${likeQuery} ESCAPE '\\'
-    OR lower(COALESCE(sessions.project_path, '')) LIKE ${likeQuery} ESCAPE '\\'
-  )`
+  const patterns = shortQueryCasings(query).map(
+    (casing) =>
+      `%${casing.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`,
+  )
+  return sql.or(
+    patterns.flatMap((pattern) => [
+      sql`sessions.title LIKE ${pattern} ESCAPE '\\'`,
+      sql`COALESCE(sessions.project_path, '') LIKE ${pattern} ESCAPE '\\'`,
+    ]),
+  )
+}
+
+/**
+ * Every lower/upper casing of a query too short for the trigram index. LIKE folds only ASCII
+ * case, so `üb` must also be tried as `Üb`, `üB`, and `ÜB` to find "Über"; the query has at
+ * most two characters, so that is at most four patterns.
+ */
+function shortQueryCasings(query: string) {
+  return [...query].reduce<readonly string[]>(
+    (casings, character) => [
+      ...new Set(
+        casings.flatMap((casing) => [
+          `${casing}${character.toLowerCase()}`,
+          `${casing}${character.toUpperCase()}`,
+        ]),
+      ),
+    ],
+    [''],
+  )
 }
 
 function listResult(request: ListRequest, rows: readonly ListResultRow[]) {

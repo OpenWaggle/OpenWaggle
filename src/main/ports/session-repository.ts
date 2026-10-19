@@ -1,4 +1,11 @@
 import type { MessageRole } from '@shared/types/agent'
+import type {
+  ArchivedItemRef,
+  ArchivedItemRefsPage,
+  ArchivedItemsPage,
+  ArchivedItemsQuery,
+  ArchivedItemsRefsQuery,
+} from '@shared/types/archived-items'
 import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -113,6 +120,25 @@ export interface SessionRepositoryShape {
   readonly listArchivedBranches: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  /** One page of Settings > Archived items, with its Archive facet counts. */
+  readonly queryArchivedItems: (
+    query: ArchivedItemsQuery,
+  ) => Effect.Effect<ArchivedItemsPage, SessionProjectionRepositoryError>
+  /** The Archived items a filter matches, for Select all. */
+  readonly listArchivedItemRefs: (
+    query: ArchivedItemsRefsQuery,
+  ) => Effect.Effect<ArchivedItemRefsPage, SessionProjectionRepositoryError>
+  /**
+   * Each item's Archive time keyed by `archivedItemKey`, or null when it is not archived; an item
+   * that does not exist has no entry.
+   */
+  readonly readArchivedItemStates: (
+    refs: readonly ArchivedItemRef[],
+  ) => Effect.Effect<ReadonlyMap<string, number | null>, SessionProjectionRepositoryError>
+  /** Puts back the Archive times an Undo carries, on items that are archived. */
+  readonly setArchiveTimes: (
+    entries: readonly { readonly ref: ArchivedItemRef; readonly archivedAt: number }[],
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>

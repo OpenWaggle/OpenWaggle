@@ -16,6 +16,8 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'sessions:list-hive-page',
     'sessions:list-hive-tree-page',
     'sessions:list-archived-branches',
+    'sessions:query-archived-items',
+    'sessions:list-archived-item-refs',
     'sessions:get-tree',
     'sessions:get-workspace',
     'sessions:turn-checkpoints:list',

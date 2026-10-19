@@ -6,6 +6,7 @@ import {
   PI_SESSION_ADOPTION_MIGRATION_ID,
   PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
   PI_SESSION_FILE_STATE_MIGRATION_ID,
+  SESSION_ARCHIVE_TIME_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
   SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID,
@@ -98,6 +99,7 @@ const currentIdentities = [
   { id: PI_SESSION_FILE_STATE_MIGRATION_ID, name: 'pi-session-file-state' },
   { id: SESSION_MCP_SWITCH_MIGRATION_ID, name: 'session-mcp-switch' },
   { id: PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID, name: 'pi-session-discovery-creates' },
+  { id: SESSION_ARCHIVE_TIME_MIGRATION_ID, name: 'session-archive-time' },
 ]
 
 export interface MigrationIdentity {

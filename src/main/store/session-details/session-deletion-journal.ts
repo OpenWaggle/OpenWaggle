@@ -1,5 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/archived-items'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDeleteOptions } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
@@ -87,6 +88,20 @@ export async function getSessionDeletion(id: SessionId): Promise<SessionDeletion
   )
 }
 
+/**
+ * The delete from Settings > Archived items keeps a session restored since it was selected. This
+ * check runs in the transaction that journals the deletion, so a restore either commits before it
+ * (the session is kept) or is refused by the removal fence while the delete proceeds.
+ */
+function assertSessionArchived(sql: SqlClient.SqlClient, id: SessionId) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly archived: number }>`
+      SELECT archived FROM sessions WHERE id = ${id} LIMIT 1
+    `
+    if (rows[EMPTY_INDEX]?.archived !== 1) throw new Error(SESSION_NOT_ARCHIVED_MESSAGE)
+  })
+}
+
 /** `transcriptFile` stands in for a Pi file the Session never recorded, for cleanup to find. */
 /** Journals a Session's deletion; see `journaledPiSessionFile` for a discovered Pi file. */
 export async function prepareSessionDeletion(
@@ -120,6 +135,7 @@ export async function prepareSessionDeletion(
           `
           const session = sessions[EMPTY_INDEX]
           if (!session) throw new Error(`Session ${id} does not exist.`)
+          if (options.requireArchived) yield* assertSessionArchived(sql, id)
           const now = Date.now()
           const piSessionFile = yield* PiSessionDismissals.journaledPiSessionFile(sql, {
             id,

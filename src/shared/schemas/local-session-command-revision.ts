@@ -16,10 +16,12 @@ import {
   HOST_UI_REVISION_24_ARGUMENT_COUNTS,
   HOST_UI_REVISION_24_REQUIRED_CHANNELS,
   HOST_UI_REVISION_24_SESSION_CHANNELS,
+  HOST_UI_REVISION_25_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
 import {
+  LOCAL_SESSION_ARCHIVED_ITEMS_REVISION,
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
@@ -66,10 +68,19 @@ function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) 
   )
 }
 
+/** Settings > Archived items ships with revision 25; MCP configuration and more with 24. */
+function newestRevisionRequirement(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  if (HOST_UI_REVISION_25_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel)) {
+    return LOCAL_SESSION_ARCHIVED_ITEMS_REVISION
+  }
+  return requiresRevision24(request) ? LOCAL_SESSION_MCP_CONFIGURATION_REVISION : null
+}
+
 /** The revision a Host UI request needs: its channel's, or later for an argument added since. */
 export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
-  if (requiresRevision24(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
+  const newest = newestRevisionRequirement(request)
+  if (newest !== null) return newest
   if (HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_SOURCE_CONTROL_REVISION
   }

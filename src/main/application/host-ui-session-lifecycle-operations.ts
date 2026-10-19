@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
+import type { SessionDeleteOptions } from '@shared/types/session'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
@@ -281,10 +282,18 @@ export function deleteSession(args: readonly unknown[]) {
     yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
     const sessionId = yield* validateSessionId(args[0])
     const options = yield* validateDeleteOptions(args[1])
+    yield* deleteSessionWithOptions(sessionId, options)
+  })
+}
+
+/** Deletes one session through the Host and forgets its local run state. */
+export function deleteSessionWithOptions(sessionId: SessionId, options: SessionDeleteOptions) {
+  return Effect.gen(function* () {
     const deletion = mutateLocalUiSession({
       operation: 'delete',
       sessionId,
       ...(options.removingProject ? { removingProject: true } : {}),
+      ...(options.requireArchived ? { requireArchived: true } : {}),
     })
     yield* options.removingProject ? deleteSessionForProjectRemoval(sessionId, deletion) : deletion
     yield* Effect.sync(() => {

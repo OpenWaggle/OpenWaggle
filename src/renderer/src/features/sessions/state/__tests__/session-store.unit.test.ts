@@ -30,10 +30,8 @@ function resetStore() {
     hiveSessions: [],
     hiveContextSessionId: null,
     sessionsNextCursor: null,
-    archivedSessionsNextCursor: null,
     hiveWorkersNextCursor: null,
     sessionsLoadingMore: false,
-    archivedSessionsLoadingMore: false,
     activeSessionTree: null,
     activeWorkspace: null,
     draftBranch: null,
@@ -166,39 +164,6 @@ describe('useSessionStore unit', () => {
       's2',
       's3',
     ])
-  })
-
-  it('appends archived keyset pages without duplicating Sessions', async () => {
-    mockApi.listSessionCatalogPage.mockImplementation(
-      async (archived: boolean, _limit: number, cursor?: string) => {
-        if (!archived) return { sessions: [] }
-        if (cursor) {
-          return {
-            sessions: [
-              { ...makeSession('archived-2'), archived: true },
-              { ...makeSession('archived-3'), archived: true },
-            ],
-          }
-        }
-        return {
-          sessions: [
-            { ...makeSession('archived-1'), archived: true },
-            { ...makeSession('archived-2'), archived: true },
-          ],
-          nextCursor: 'next-archived',
-        }
-      },
-    )
-
-    await useSessionStore.getState().loadSessions()
-    await useSessionStore.getState().loadMoreArchivedSessions()
-
-    expect(useSessionStore.getState().archivedSessions.map((session) => session.id)).toEqual([
-      'archived-1',
-      'archived-2',
-      'archived-3',
-    ])
-    expect(useSessionStore.getState().archivedSessionsNextCursor).toBeNull()
   })
 
   it('loads focused Hive context independently from the global page', async () => {
