@@ -27,7 +27,7 @@ describe('sessionOperationFailureMessage', () => {
   })
 
   it('says a Session held by its Run is busy, without the internal writer name', () => {
-    for (const kind of ['classic', 'tree-mutation', 'compaction']) {
+    for (const kind of ['classic', 'tree-mutation', 'compaction'] as const) {
       const error = new Error(`${REMOTE}${sessionWriterBusyMessage('cefe5371-3676', kind)}`)
 
       expect(sessionOperationFailureMessage('Failed to fork session', error)).toBe(

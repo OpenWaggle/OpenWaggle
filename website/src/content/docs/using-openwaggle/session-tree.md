@@ -63,6 +63,7 @@ You can also start from the conversation itself. Hover a message to see its acti
 |----|--------|--------------|
 | Your message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
 | Your message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
+| Your message | **Copy message** | Copies the message's text. |
 | The agent's reply that ends a turn | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
 | The agent's reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and a blank message box. |
 | The agent's reply that ends a turn | **Copy response** | Copies the reply's text. |

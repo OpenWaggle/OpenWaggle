@@ -165,17 +165,20 @@ export function forkSession(args: readonly unknown[], position: 'before' | 'at')
   }).pipe(
     // The desktop app shows the reason in a toast and nothing else kept it, so a copy that kept
     // failing left no trace to diagnose it from. A busy Session's refusal is thrown, so it is a
-    // defect of the cause, not its error.
+    // defect of the cause, not its error. An interrupted copy (the Host stopping) did not fail.
     Effect.tapErrorCause((cause) =>
-      Effect.sync(() =>
-        logger.warn('Desktop Session copy failed', {
-          // `before` forks before a user message; `at` clones or forks from a response.
-          position,
-          sourceSessionId: typeof args[0] === 'string' ? args[0] : undefined,
-          targetNodeId: typeof args[TWO_ARGUMENTS] === 'string' ? args[TWO_ARGUMENTS] : undefined,
-          error: Cause.pretty(cause).split('\n')[0],
-        }),
-      ),
+      Cause.isInterruptedOnly(cause)
+        ? Effect.void
+        : Effect.sync(() =>
+            logger.warn('Desktop Session copy failed', {
+              // `before` forks before a user message; `at` clones or forks from a response.
+              position,
+              sourceSessionId: typeof args[0] === 'string' ? args[0] : undefined,
+              targetNodeId:
+                typeof args[TWO_ARGUMENTS] === 'string' ? args[TWO_ARGUMENTS] : undefined,
+              error: Cause.pretty(cause).split('\n')[0],
+            }),
+          ),
     ),
   )
 }

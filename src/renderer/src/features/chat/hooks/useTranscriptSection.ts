@@ -20,7 +20,7 @@ import {
   mergeInteractionEvents,
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
-import { isCompactionRunning } from '../lib/compaction-lifecycle'
+import { areCopiesBlocked } from '../lib/copies-blocked'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
@@ -121,18 +121,6 @@ function isTranscriptLoading(flags: {
 }) {
   if (flags.isSteering) return true
   return flags.isLoading && !flags.isFinishing
-}
-
-/**
- * Whether the Host holds the Session's writer: from a send until its Run settles, which outlasts
- * the transcript's own loading state, and while a compaction runs in an otherwise idle Session.
- */
-function areCopiesBlocked(flags: {
-  readonly isLoading: boolean
-  readonly isFinishing: boolean
-  readonly compactionStatus: AgentCompactionStatus | null
-}) {
-  return flags.isLoading || flags.isFinishing || isCompactionRunning(flags.compactionStatus)
 }
 
 export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {

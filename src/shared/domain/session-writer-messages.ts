@@ -3,7 +3,10 @@
  * or a copy), and how the GUI recognizes it. Both sides read this module, so the message the Host
  * throws and the one the GUI turns into "this Session is busy" cannot drift apart.
  */
-export function sessionWriterBusyMessage(sessionId: string, writerKind: string) {
+/** What holds a Session's Pi file: a classic or Waggle Run, a compaction, or a tree mutation. */
+export type SessionWriterKind = 'classic' | 'waggle' | 'compaction' | 'tree-mutation'
+
+export function sessionWriterBusyMessage(sessionId: string, writerKind: SessionWriterKind) {
   return `Session ${sessionId} already has an active ${writerKind} Pi writer.`
 }
 

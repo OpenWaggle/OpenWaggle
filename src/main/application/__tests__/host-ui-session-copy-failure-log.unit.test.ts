@@ -55,3 +55,19 @@ it.each([
     }),
   )
 })
+
+it('does not log a copy that was interrupted, as when the Host stops', async () => {
+  warn.mockClear()
+  dispatchLocalSessionCommandMock.mockReturnValue(Effect.interrupt)
+  const effect = dispatchHostBackedSessionGuiOperation('sessions:fork-to-new', [
+    SESSION_ID,
+    'local/model',
+    'n1',
+  ])
+
+  await Effect.runPromiseExit(
+    fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect),
+  )
+
+  expect(warn).not.toHaveBeenCalled()
+})

@@ -1,7 +1,10 @@
-import { sessionWriterBusyMessage } from '@shared/domain/session-writer-messages'
+import {
+  type SessionWriterKind,
+  sessionWriterBusyMessage,
+} from '@shared/domain/session-writer-messages'
 import type { SessionId } from '@shared/types/brand'
 
-export type SessionWriterKind = 'classic' | 'waggle' | 'compaction' | 'tree-mutation'
+export type { SessionWriterKind }
 
 interface SessionWriterEntry {
   readonly controller: AbortController
