@@ -15,10 +15,12 @@ import {
   useSetArchivedItemsMutation,
 } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { useUIStore } from '@/shell/ui-store'
 
+/** The reason alone: Electron prefixes a failed call with "Error invoking remote method …". */
 function describeError(error: unknown, fallback: string) {
-  return error instanceof Error && error.message.trim() ? error.message : fallback
+  return ipcErrorMessage(error).trim() || fallback
 }
 
 function itemsLabel(count: number) {

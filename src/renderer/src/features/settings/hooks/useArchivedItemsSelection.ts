@@ -8,6 +8,7 @@ import {
 } from '@shared/types/archived-items'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 
 type Selection = ReadonlyMap<string, ArchivedItemRef>
 
@@ -42,9 +43,7 @@ function scoped(current: ScopedSelection, scope: string): ScopedSelection {
 }
 
 function describeError(error: unknown) {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : 'Could not select every match.'
+  return ipcErrorMessage(error).trim() || 'Could not select every match.'
 }
 
 /**

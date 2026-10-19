@@ -266,13 +266,19 @@ describe('ArchivedSection', () => {
   })
 
   it('tells the user when Select all fails', async () => {
-    api.listArchivedItemRefs.mockRejectedValue(new Error('Session Host is unavailable'))
+    api.listArchivedItemRefs.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'sessions:list-archived-item-refs': Error: Session Host is unavailable",
+      ),
+    )
     renderWithQueryClient(<ArchivedSection />)
     await screen.findByText('Migrate settings to Effect Schema')
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all 3' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Session Host is unavailable')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Session Host is unavailable')
+    expect(alert).not.toHaveTextContent('Error invoking remote method')
     expect(screen.queryByRole('group', SELECTION)).toBeNull()
   })
 
