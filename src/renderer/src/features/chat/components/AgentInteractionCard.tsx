@@ -117,9 +117,13 @@ function InteractionSummary({ interaction }: { readonly interaction: AgentLoopIn
 
   return (
     <div>
-      <div className="text-sm font-medium text-text-primary">{displayTitle}</div>
+      <div className="text-sm font-medium text-text-primary [overflow-wrap:anywhere]">
+        {displayTitle}
+      </div>
       {displayMessage ? (
-        <p className="mt-1 text-xs leading-5 text-text-tertiary">{displayMessage}</p>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary [overflow-wrap:anywhere]">
+          {displayMessage}
+        </p>
       ) : null}
     </div>
   )
@@ -139,7 +143,7 @@ export function AgentInteractionCard({
   readonly submit: SubmitInteractionResponse
 }) {
   return (
-    <section className="grid gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
+    <section className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
       <InteractionHeader interaction={interaction} />
       <InteractionExtensionSurfaces
         busy={busy}

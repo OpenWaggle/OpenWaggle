@@ -19,7 +19,11 @@ export function InteractionMessage({ message }: { readonly message: string }) {
   const isMultiLine = displayMessage.trimEnd().includes('\n')
 
   if (!isMultiLine) {
-    return <p className="mt-2 text-xs leading-5 text-text-secondary">{displayMessage}</p>
+    return (
+      <p className="mt-2 text-xs leading-5 text-text-secondary [overflow-wrap:anywhere]">
+        {displayMessage}
+      </p>
+    )
   }
 
   return (
