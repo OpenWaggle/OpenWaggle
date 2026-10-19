@@ -70,6 +70,10 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('listArchivedSessionBranches', () =>
         deps.store.listArchivedSessionBranches(limit),
       ),
+    queryArchivedItems: (query) =>
+      repositoryOperation('queryArchivedItems', () => deps.store.queryArchivedItems(query)),
+    listArchivedItemRefs: (query) =>
+      repositoryOperation('listArchivedItemRefs', () => deps.store.listArchivedItemRefs(query)),
     getTree: (sessionId) =>
       repositoryOperation('getSessionTree', () => deps.store.getSessionTree(sessionId)),
     listResourceProjectionPage: (sessionId, afterCreatedOrder, limit) =>
@@ -99,6 +103,8 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
     | 'listHiveTreeCatalogPage'
     | 'listArchivedBranchCatalogPage'
     | 'listArchivedBranches'
+    | 'queryArchivedItems'
+    | 'listArchivedItemRefs'
     | 'getTree'
     | 'listResourceProjectionPage'
     | 'getResourceProjectionNodes'

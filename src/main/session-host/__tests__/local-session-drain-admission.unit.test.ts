@@ -138,6 +138,8 @@ describe('commands a draining Session Host still accepts', () => {
       'sessions:list-hive-page',
       'sessions:list-hive-tree-page',
       'sessions:list-archived-branches',
+      'sessions:query-archived-items',
+      'sessions:list-archived-item-refs',
       'sessions:get-tree',
       'sessions:get-workspace',
       'sessions:turn-checkpoints:list',

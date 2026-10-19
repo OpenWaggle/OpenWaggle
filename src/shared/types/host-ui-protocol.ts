@@ -2,6 +2,15 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
+ * Settings > Archived items ships with revision 25: one searchable, faceted list of archived
+ * sessions and branches, its Select all, and restoring many items (or undoing that) in one call.
+ */
+export const HOST_UI_REVISION_25_REQUIRED_CHANNELS = [
+  'sessions:query-archived-items',
+  'sessions:list-archived-item-refs',
+  'sessions:set-archived-items',
+] as const satisfies readonly IpcInvokeChannel[]
+/**
  * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0051),
  * including MCP Registry search and install, MCP App resource and prompt listing, and the
  * per-Session MCP switch, ship with revision 24.
@@ -145,6 +154,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_25_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_24_SESSION_CHANNELS,
   ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,

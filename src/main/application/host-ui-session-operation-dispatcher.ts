@@ -18,6 +18,11 @@ import type { TerminalService } from '../ports/terminal-service'
 import type { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import type { SettingsService } from '../services/settings-service'
 import {
+  listArchivedItemRefs,
+  queryArchivedItems,
+  setArchivedItems,
+} from './host-ui-archived-items-operations'
+import {
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listHiveTreeSessionCatalogPage,
@@ -125,6 +130,9 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
     .with('sessions:list-hive-tree-page', () => listHiveTreeSessionCatalogPage(args))
     .with('sessions:list-archived-branches', () => listArchivedSessionBranchCatalogPage(args))
+    .with('sessions:query-archived-items', () => queryArchivedItems(args))
+    .with('sessions:list-archived-item-refs', () => listArchivedItemRefs(args))
+    .with('sessions:set-archived-items', () => setArchivedItems(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
     .with('sessions:navigate-tree', () => navigateSessionTree(args))

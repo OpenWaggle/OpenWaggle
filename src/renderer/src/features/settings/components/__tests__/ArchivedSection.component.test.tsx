@@ -1,329 +1,243 @@
-import { SessionBranchId, SessionId } from '@shared/types/brand'
-import type { SessionSummary } from '@shared/types/session'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { SessionId } from '@shared/types/brand'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import {
+  archivedPage,
+  branchItem,
+  sessionItem,
+  transcriptItem,
+} from './archived-section.test-utils'
+
+const api = vi.hoisted(() => ({
+  queryArchivedItems: vi.fn(),
+  listArchivedItemRefs: vi.fn(),
+  setArchivedItems: vi.fn(),
+  deleteSession: vi.fn(),
+  showConfirm: vi.fn(),
+  closeBrowserPreview: vi.fn(async () => undefined),
+  unregisterBrowserPreviewOwner: vi.fn(async () => undefined),
+}))
+const navigate = vi.hoisted(() => vi.fn(async () => undefined))
+const loadSessions = vi.hoisted(() => vi.fn(async () => undefined))
+
+vi.mock('@/shared/lib/ipc', () => ({ api }))
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useNavigate: () => navigate,
+}))
+vi.mock('@/features/sessions/state', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useSessionStore: (selector: (state: { loadSessions: typeof loadSessions }) => unknown) =>
+    selector({ loadSessions }),
+}))
+
 import { ArchivedSection } from '../sections/ArchivedSection'
 
-const {
-  closeBrowserPreviewMock,
-  deleteSessionMock,
-  listArchivedSessionBranchesMock,
-  loadMoreArchivedSessionsMock,
-  loadSessionsMock,
-  restoreSessionBranchMock,
-  showConfirmMock,
-  unarchiveSessionMock,
-  unregisterBrowserPreviewOwnerMock,
-} = vi.hoisted(() => ({
-  closeBrowserPreviewMock: vi.fn(),
-  deleteSessionMock: vi.fn(),
-  listArchivedSessionBranchesMock: vi.fn(),
-  loadMoreArchivedSessionsMock: vi.fn(),
-  loadSessionsMock: vi.fn(),
-  restoreSessionBranchMock: vi.fn(),
-  showConfirmMock: vi.fn(),
-  unarchiveSessionMock: vi.fn(),
-  unregisterBrowserPreviewOwnerMock: vi.fn(),
-}))
-
-const cleanupFailure = vi.hoisted(() => ({ enabled: false }))
-
-vi.mock('@/shell/workspace-panel-cleanup', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/shell/workspace-panel-cleanup')>()
-  return {
-    ...actual,
-    deleteWorkspaceOwner: async (ownerKey: string) => {
-      await actual.deleteWorkspaceOwner(ownerKey)
-      if (cleanupFailure.enabled) throw new Error('Cleanup failed')
-    },
-  }
-})
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    closeBrowserPreview: closeBrowserPreviewMock,
-    listArchivedSessionBranches: listArchivedSessionBranchesMock,
-    unarchiveSession: unarchiveSessionMock,
-    restoreSessionBranch: restoreSessionBranchMock,
-    deleteSession: deleteSessionMock,
-    showConfirm: showConfirmMock,
-    unregisterBrowserPreviewOwner: unregisterBrowserPreviewOwnerMock,
-  },
-}))
-
-interface MockSessionStoreState {
-  archivedSessions: SessionSummary[]
-  archivedSessionsNextCursor: string | null
-  archivedSessionsLoadingMore: boolean
-  loadMoreArchivedSessions: typeof loadMoreArchivedSessionsMock
-  loadSessions: typeof loadSessionsMock
-}
-
-const sessionStoreState: MockSessionStoreState = {
-  archivedSessions: [],
-  archivedSessionsNextCursor: null,
-  archivedSessionsLoadingMore: false,
-  loadMoreArchivedSessions: loadMoreArchivedSessionsMock,
-  loadSessions: loadSessionsMock,
-}
-
-vi.mock('@/features/sessions/state/session-store', () => ({
-  useSessionStore: (selector: (state: typeof sessionStoreState) => unknown) =>
-    selector(sessionStoreState),
-}))
-
-function createArchivedSession(overrides?: Partial<SessionSummary>) {
-  return {
-    id: SessionId('session-1'),
-    title: 'Archived session',
-    projectPath: '/tmp/project',
-    messageCount: 4,
-    createdAt: 1,
-    updatedAt: 2,
-    archived: true,
-    ...overrides,
-  }
-}
-
-function createArchivedBranchSession(overrides?: Partial<SessionSummary>) {
-  const sessionId = SessionId('session-1')
-  return {
-    id: sessionId,
-    title: 'Session with archived branch',
-    projectPath: '/tmp/project',
-    archived: false,
-    createdAt: 1,
-    updatedAt: 2,
-    lastActiveNodeId: null,
-    lastActiveBranchId: null,
-    branches: [
-      {
-        id: SessionBranchId('branch-1'),
-        sessionId,
-        sourceNodeId: null,
-        headNodeId: null,
-        name: 'Archived branch',
-        isMain: false,
-        archived: true,
-        archivedAt: 2,
-        createdAt: 1,
-        updatedAt: 2,
-      },
-    ],
-    treeUiState: null,
-    ...overrides,
-  }
-}
-
-function createDeferredPromise<T>() {
-  let resolvePromise: (value: T) => void = () => undefined
-  const promise = new Promise<T>((resolve) => {
-    resolvePromise = resolve
-  })
-
-  return {
-    promise,
-    resolve: resolvePromise,
-  }
+function rowFor(title: string) {
+  const row = [...document.querySelectorAll('[data-qa="archived-item-row"]')].find((candidate) =>
+    candidate.textContent?.includes(title),
+  )
+  if (!(row instanceof HTMLElement)) throw new Error(`No row for ${title}`)
+  return row
 }
 
 describe('ArchivedSection', () => {
   beforeEach(() => {
-    cleanupFailure.enabled = false
-    closeBrowserPreviewMock.mockReset()
-    deleteSessionMock.mockReset()
-    listArchivedSessionBranchesMock.mockReset()
-    loadMoreArchivedSessionsMock.mockReset()
-    loadSessionsMock.mockReset()
-    restoreSessionBranchMock.mockReset()
-    showConfirmMock.mockReset()
-    unarchiveSessionMock.mockReset()
-    sessionStoreState.archivedSessions = []
-    sessionStoreState.archivedSessionsNextCursor = null
-    sessionStoreState.archivedSessionsLoadingMore = false
-    listArchivedSessionBranchesMock.mockResolvedValue({ sessions: [] })
-    loadMoreArchivedSessionsMock.mockResolvedValue(undefined)
-    unregisterBrowserPreviewOwnerMock.mockReset()
-    closeBrowserPreviewMock.mockResolvedValue(undefined)
-    loadSessionsMock.mockResolvedValue(undefined)
-    unregisterBrowserPreviewOwnerMock.mockResolvedValue(undefined)
+    for (const mock of Object.values(api)) mock.mockReset()
+    api.queryArchivedItems.mockResolvedValue(
+      archivedPage([sessionItem, transcriptItem, branchItem]),
+    )
+    api.setArchivedItems.mockImplementation(async ({ items }) => ({ changed: items, failed: [] }))
+    api.showConfirm.mockResolvedValue(true)
+    api.deleteSession.mockResolvedValue(undefined)
+    navigate.mockClear()
+    loadSessions.mockClear()
+    useUIStore.getState().clearToast()
   })
 
-  it('shows a loading state while archived sessions are being fetched', () => {
-    const deferred = createDeferredPromise<{ sessions: readonly SessionSummary[] }>()
-    listArchivedSessionBranchesMock.mockReturnValueOnce(deferred.promise)
-
+  it('lists archived sessions and branches by archive date with facet counts', async () => {
     renderWithQueryClient(<ArchivedSection />)
 
-    expect(screen.getByText(/loading archived sessions/i)).toBeInTheDocument()
-    deferred.resolve({ sessions: [] })
+    expect(await screen.findByText('Migrate settings to Effect Schema')).toBeInTheDocument()
+    expect(api.queryArchivedItems).toHaveBeenCalledWith({ sort: 'recent', limit: 50 })
+    expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument()
+    expect(screen.getByText(/Branch of Archive search prototypes/u)).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'openwaggle (2)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Branches 1' })).toBeInTheDocument()
+    expect(screen.getByText('3 results')).toBeInTheDocument()
   })
 
-  it('shows the empty state when there are no archived sessions or branches', async () => {
+  it('searches as the user types and shows the transcript excerpt', async () => {
     renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
+    api.queryArchivedItems.mockResolvedValue(archivedPage([transcriptItem]))
 
-    expect(await screen.findByText(/no archived sessions/i)).toBeInTheDocument()
-  })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search archived items' }), {
+      target: { value: 'token' },
+    })
 
-  it('loads another bounded page when archived Sessions remain', async () => {
-    sessionStoreState.archivedSessions = Array.from({ length: 100 }, (_, index) =>
-      createArchivedSession({
-        id: SessionId(`archived-${String(index)}`),
-        title: `Archived ${String(index)}`,
+    await waitFor(() =>
+      expect(api.queryArchivedItems).toHaveBeenLastCalledWith({
+        text: 'token',
+        sort: 'match',
+        limit: 50,
       }),
     )
-    sessionStoreState.archivedSessionsNextCursor = 'next-archived-page'
-
-    renderWithQueryClient(<ArchivedSection />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Load more archived items' }))
-
-    await waitFor(() => expect(loadMoreArchivedSessionsMock).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.queryByText('Migrate settings to Effect Schema')).toBeNull())
+    expect(screen.getByRole('heading', { name: 'Best matches' })).toBeInTheDocument()
+    expect(screen.getByText('refresh', { selector: 'mark' })).toBeInTheDocument()
   })
 
-  it('loads archived branch pages by keyset cursor', async () => {
-    const session = createArchivedBranchSession()
-    listArchivedSessionBranchesMock
-      .mockResolvedValueOnce({ sessions: [session], nextCursor: 'next-branch-page' })
-      .mockResolvedValueOnce({ sessions: [] })
-
+  it('narrows by project and type, and clears the filters', async () => {
     renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Load more archived items' }))
-
-    await waitFor(() => {
-      expect(listArchivedSessionBranchesMock).toHaveBeenNthCalledWith(1, 100, undefined)
-      expect(listArchivedSessionBranchesMock).toHaveBeenNthCalledWith(2, 100, 'next-branch-page')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), {
+      target: { value: '/work/ts-match' },
     })
+    fireEvent.click(screen.getByRole('radio', { name: 'Branches 1' }))
+
+    await waitFor(() =>
+      expect(api.queryArchivedItems).toHaveBeenLastCalledWith({
+        project: { projectPath: '/work/ts-match' },
+        kind: 'branch',
+        sort: 'recent',
+        limit: 50,
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('__all__')
+    expect(screen.getByRole('radio', { name: /^All/u })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
   })
 
-  it('restores an archived session and refreshes the bounded catalog', async () => {
-    const session = createArchivedSession()
-    sessionStoreState.archivedSessions = [session]
-    unarchiveSessionMock.mockResolvedValueOnce(undefined)
-
+  it('restores one item and offers Undo, which archives it again', async () => {
     renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
 
-    fireEvent.click(await screen.findByTitle('Restore session'))
+    fireEvent.click(
+      within(rowFor('Migrate settings')).getByRole('button', {
+        name: 'Restore Migrate settings to Effect Schema',
+      }),
+    )
 
-    await waitFor(() => {
-      expect(unarchiveSessionMock).toHaveBeenCalledWith(session.id)
-      expect(loadSessionsMock).toHaveBeenCalledOnce()
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData?.message).toBe(
+        'Restored “Migrate settings to Effect Schema”',
+      ),
+    )
+    expect(api.setArchivedItems).toHaveBeenCalledWith({ archived: false, items: [sessionItem.ref] })
+    expect(loadSessions).toHaveBeenCalled()
+
+    useUIStore.getState().toastData?.action?.onClick?.()
+    await waitFor(() =>
+      expect(api.setArchivedItems).toHaveBeenLastCalledWith({
+        archived: true,
+        items: [sessionItem.ref],
+      }),
+    )
+  })
+
+  it('restores a shift-click range in one call', async () => {
+    renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Select Migrate settings to Effect Schema' }),
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alternative approach' }), {
+      shiftKey: true,
     })
+    expect(screen.getByText('3 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Restore 3$/u }))
+    await waitFor(() =>
+      expect(api.setArchivedItems).toHaveBeenCalledWith({
+        archived: false,
+        items: [sessionItem.ref, transcriptItem.ref, branchItem.ref],
+      }),
+    )
+    await waitFor(() => expect(screen.queryByText('3 selected')).toBeNull())
+    expect(useUIStore.getState().toastData?.message).toBe('Restored 3 items')
   })
 
-  it('restores an archived branch without navigating to it', async () => {
-    const session = createArchivedBranchSession()
-    const branch = session.branches?.[0]
-    listArchivedSessionBranchesMock
-      .mockResolvedValueOnce({ sessions: [session] })
-      .mockResolvedValueOnce({ sessions: [] })
-    restoreSessionBranchMock.mockResolvedValueOnce(undefined)
-
-    renderWithQueryClient(<ArchivedSection />)
-
-    fireEvent.click(await screen.findByTitle('Restore branch'))
-
-    await waitFor(() => {
-      expect(branch).toBeDefined()
-      expect(restoreSessionBranchMock).toHaveBeenCalledWith(session.id, branch?.id)
-      expect(listArchivedSessionBranchesMock).toHaveBeenCalledTimes(2)
-      expect(loadSessionsMock).toHaveBeenCalledOnce()
-      expect(screen.getByText(/no archived sessions or branches/i)).toBeInTheDocument()
+  it('selects every match through the Host, including rows not loaded yet', async () => {
+    api.listArchivedItemRefs.mockResolvedValue({
+      refs: [sessionItem.ref, transcriptItem.ref, branchItem.ref],
+      total: 3,
     })
+    renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all 3' }))
+
+    expect(await screen.findByText('3 selected')).toBeInTheDocument()
+    expect(api.listArchivedItemRefs).toHaveBeenCalledWith({ limit: 1_000 })
   })
 
-  it('reveals archived branches when their owning Session is restored', async () => {
-    sessionStoreState.archivedSessions = [createArchivedSession()]
-    listArchivedSessionBranchesMock
-      .mockResolvedValueOnce({ sessions: [] })
-      .mockResolvedValue({ sessions: [createArchivedBranchSession()] })
-    unarchiveSessionMock.mockResolvedValueOnce(undefined)
-
+  it('deletes only after confirmation, and never offers delete for a branch', async () => {
     renderWithQueryClient(<ArchivedSection />)
-    fireEvent.click(await screen.findByTitle('Restore session'))
+    await screen.findByText('Migrate settings to Effect Schema')
+    expect(
+      within(rowFor('Alternative approach')).queryByRole('button', { name: /Delete/u }),
+    ).toBeNull()
 
-    expect(await screen.findByTitle('Restore branch')).toBeInTheDocument()
-    expect(listArchivedSessionBranchesMock).toHaveBeenCalledTimes(2)
+    api.showConfirm.mockResolvedValueOnce(false)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Migrate settings to Effect Schema permanently' }),
+    )
+    await waitFor(() => expect(api.showConfirm).toHaveBeenCalledTimes(1))
+    expect(api.deleteSession).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Migrate settings to Effect Schema permanently' }),
+    )
+    await waitFor(() =>
+      expect(api.deleteSession).toHaveBeenCalledWith(SessionId('session-settings')),
+    )
+    expect(api.showConfirm).toHaveBeenLastCalledWith(
+      'Delete permanently?',
+      'This permanently deletes this session. This cannot be undone.',
+    )
   })
 
-  it('keeps the archived catalog when restoring a Session fails', async () => {
-    sessionStoreState.archivedSessions = [createArchivedSession()]
-    unarchiveSessionMock.mockRejectedValueOnce(new Error('Restore rejected'))
-
+  it('opens an archived session without restoring it', async () => {
     renderWithQueryClient(<ArchivedSection />)
-    fireEvent.click(await screen.findByTitle('Restore session'))
+    await screen.findByText('Migrate settings to Effect Schema')
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Restore rejected'))
-    expect(screen.getByText('Archived session')).toBeInTheDocument()
-    expect(listArchivedSessionBranchesMock).toHaveBeenCalledTimes(1)
-    expect(loadSessionsMock).not.toHaveBeenCalled()
-  })
+    fireEvent.click(screen.getByRole('button', { name: 'Open Migrate settings to Effect Schema' }))
 
-  it('deletes an archived session after confirmation and refreshes the bounded catalog', async () => {
-    const session = createArchivedSession()
-    sessionStoreState.archivedSessions = [session]
-    showConfirmMock.mockResolvedValueOnce(true)
-    deleteSessionMock.mockResolvedValueOnce(undefined)
-
-    renderWithQueryClient(<ArchivedSection />)
-
-    fireEvent.click(await screen.findByTitle('Delete permanently'))
-
-    await waitFor(() => {
-      expect(showConfirmMock).toHaveBeenCalled()
-      expect(deleteSessionMock).toHaveBeenCalledWith(session.id)
-      expect(loadSessionsMock).toHaveBeenCalledOnce()
-      expect(unregisterBrowserPreviewOwnerMock).toHaveBeenCalledWith(String(session.id))
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/sessions/$sessionId',
+      params: { sessionId: 'session-settings' },
     })
+    expect(api.setArchivedItems).not.toHaveBeenCalled()
   })
 
-  it('keeps archived sessions visible when deleting fails after confirmation', async () => {
-    const session = createArchivedSession()
-    sessionStoreState.archivedSessions = [session]
-    showConfirmMock.mockResolvedValueOnce(true)
-    deleteSessionMock.mockRejectedValueOnce(new Error('Delete exploded'))
-
+  it('shows the empty state when nothing is archived', async () => {
+    api.queryArchivedItems.mockResolvedValue(archivedPage([]))
     renderWithQueryClient(<ArchivedSection />)
 
-    fireEvent.click(await screen.findByTitle('Delete permanently'))
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Delete exploded')
-      expect(screen.getByText('Archived session')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('No archived sessions or branches')).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).toBeNull()
   })
 
-  it('refreshes the archived catalog if cleanup fails after deletion commits', async () => {
-    const session = createArchivedSession()
-    sessionStoreState.archivedSessions = [session]
-    showConfirmMock.mockResolvedValueOnce(true)
-    deleteSessionMock.mockResolvedValueOnce(undefined)
-    cleanupFailure.enabled = true
-
-    renderWithQueryClient(<ArchivedSection />)
-    fireEvent.click(await screen.findByTitle('Delete permanently'))
-
-    await waitFor(() => {
-      expect(deleteSessionMock).toHaveBeenCalledWith(session.id)
-      expect(screen.getByRole('alert')).toHaveTextContent('Cleanup failed')
-      expect(loadSessionsMock).toHaveBeenCalledOnce()
+  it('names the items a restore could not bring back', async () => {
+    api.setArchivedItems.mockResolvedValue({
+      changed: [],
+      failed: [{ ref: sessionItem.ref, message: 'Session is busy' }],
     })
-  })
-
-  it('shows an inline error when opening the delete confirmation fails', async () => {
-    const session = createArchivedSession()
-    sessionStoreState.archivedSessions = [session]
-    showConfirmMock.mockRejectedValueOnce(new Error('Dialog unavailable'))
-
     renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
 
-    fireEvent.click(await screen.findByTitle('Delete permanently'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restore Migrate settings to Effect Schema' }),
+    )
 
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Dialog unavailable')
-      expect(screen.getByText('Archived session')).toBeInTheDocument()
-    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not restore 1 item: Session is busy',
+    )
   })
 })

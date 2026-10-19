@@ -1,4 +1,10 @@
 import type { MessageRole } from '@shared/types/agent'
+import type {
+  ArchivedItemRefsPage,
+  ArchivedItemsPage,
+  ArchivedItemsQuery,
+  ArchivedItemsRefsQuery,
+} from '@shared/types/archived-items'
 import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -113,6 +119,14 @@ export interface SessionRepositoryShape {
   readonly listArchivedBranches: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  /** One page of Settings > Archived items, with its Archive facet counts. */
+  readonly queryArchivedItems: (
+    query: ArchivedItemsQuery,
+  ) => Effect.Effect<ArchivedItemsPage, SessionProjectionRepositoryError>
+  /** The Archived items a filter matches, for Select all. */
+  readonly listArchivedItemRefs: (
+    query: ArchivedItemsRefsQuery,
+  ) => Effect.Effect<ArchivedItemRefsPage, SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>

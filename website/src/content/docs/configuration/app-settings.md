@@ -25,7 +25,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 | Permissions | Set default and project access modes, and revoke saved approvals. |
 | MCP | Connect external tools and services, choose how the agent reaches their tools, and diagnose connection problems. |
 | Worktrees | Choose the default checkout mode and manage Git worktrees. |
-| Archived items | Restore archived sessions or conversation branches, and permanently delete archived sessions. |
+| Archived items | Search archived sessions and conversation branches, restore them (with Undo), and permanently delete archived sessions. |
 | Connections | Connect provider accounts and choose which models appear beside the message box. |
 
 ## Agent tools
@@ -141,7 +141,16 @@ MCP connects the agent to tools and services outside its built-in file and comma
 
 ## Archived items
 
-Restore archived sessions and conversation branches here, or permanently delete an archived session. Archived branches are hidden from normal sidebar navigation but remain marked in the full Session Tree. Deleting individual branches is not currently available.
+Every archived session, and every archived conversation branch of a session you still use, is listed here in one place, newest first. Use it to find a session you archived by mistake and bring it back.
+
+- **Search** finds words in a session's title, its project, the session a branch belongs to, and the conversation itself. Every word you type must appear somewhere; the end of a word is optional, so `refac` finds "refactor". A match inside the conversation shows the passage it came from.
+- **Project**, **Archived date** (last 24 hours, 7 days, 30 days, or older), and **Type** (sessions or branches) narrow the list. Each option shows how many items you would see if you chose it.
+- While you search, the best matches come first. Otherwise, items are grouped by when they were archived: Today, Yesterday, Earlier this week, and so on. **Sort** switches to newest or oldest first.
+- **Restore** brings an item back to the sidebar, and the confirmation offers **Undo**, which archives it again. Select several items, Shift-click to select a run, or select every match (up to 1,000) to restore them together.
+- **Open** shows an archived session without restoring it; it keeps its archived notice and **Restore** action, and stays out of the sidebar until you restore it. A branch opens the session it belongs to.
+- **Delete** permanently deletes archived sessions after you confirm, once for the whole selection. It cannot be undone. Branches can only be restored, never deleted.
+
+Archived branches are hidden from normal sidebar navigation but remain marked in the full Session Tree.
 
 ## Data storage
 

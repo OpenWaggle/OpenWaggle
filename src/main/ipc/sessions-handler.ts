@@ -7,6 +7,15 @@ export function registerSessionsHandlers(): void {
   typedHandle('sessions:list-archived-branches', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list-archived-branches', args),
   )
+  typedHandle('sessions:query-archived-items', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:query-archived-items', args),
+  )
+  typedHandle('sessions:list-archived-item-refs', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:list-archived-item-refs', args),
+  )
+  typedHandle('sessions:set-archived-items', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:set-archived-items', args),
+  )
   typedHandle('sessions:get-tree', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:get-tree', args),
   )

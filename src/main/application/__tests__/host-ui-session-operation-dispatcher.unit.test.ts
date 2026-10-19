@@ -33,6 +33,9 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:query-archived-items',
+  'sessions:list-archived-item-refs',
+  'sessions:set-archived-items',
   'sessions:begin-project-removal',
   'sessions:set-thinking-level',
   'sessions:get-default-thinking-level',

@@ -10,6 +10,17 @@ export const emptySessionCatalogMethods = {
   listHiveCatalogPage: () => Effect.succeed({ context: [], workers: [] }),
   listHiveTreeCatalogPage: () => Effect.succeed({ root: null, members: [], attentionCount: 0 }),
   listArchivedBranchCatalogPage: () => Effect.succeed({ sessions: [] }),
+  queryArchivedItems: () =>
+    Effect.succeed({
+      items: [],
+      total: 0,
+      facets: {
+        projects: [],
+        archivedWithin: { any: 0, day: 0, week: 0, month: 0, older: 0 },
+        kinds: { all: 0, session: 0, branch: 0 },
+      },
+    }),
+  listArchivedItemRefs: () => Effect.succeed({ refs: [], total: 0 }),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
@@ -22,6 +33,8 @@ export const emptySessionCatalogMethods = {
   | 'listHiveCatalogPage'
   | 'listHiveTreeCatalogPage'
   | 'listArchivedBranchCatalogPage'
+  | 'queryArchivedItems'
+  | 'listArchivedItemRefs'
   | 'listResourceProjectionPage'
   | 'getResourceProjectionNodes'
 >

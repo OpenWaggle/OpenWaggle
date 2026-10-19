@@ -1,4 +1,12 @@
 import type { AgentAuthorizationMode } from './agent-authorization'
+import type {
+  ArchivedItemRefsPage,
+  ArchivedItemsChange,
+  ArchivedItemsChangeResult,
+  ArchivedItemsPage,
+  ArchivedItemsQuery,
+  ArchivedItemsRefsQuery,
+} from './archived-items'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SupportedModelId } from './llm'
 import type {
@@ -107,6 +115,18 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:list-archived-branches': {
     args: [limit: number, cursor?: string]
     return: SessionCatalogPage
+  }
+  /** One page of Settings > Archived items, with its Archive facet counts. */
+  'sessions:query-archived-items': { args: [query: ArchivedItemsQuery]; return: ArchivedItemsPage }
+  /** The Archived items a filter matches, for Select all. */
+  'sessions:list-archived-item-refs': {
+    args: [query: ArchivedItemsRefsQuery]
+    return: ArchivedItemRefsPage
+  }
+  /** Restores many Archived items at once, or archives them again to undo a restore. */
+  'sessions:set-archived-items': {
+    args: [change: ArchivedItemsChange]
+    return: ArchivedItemsChangeResult
   }
   'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
   'sessions:get-workspace': {
