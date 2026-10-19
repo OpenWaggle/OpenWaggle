@@ -7,6 +7,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
+import { useIsFinishingRunStoppable } from '@/features/chat/state/run-finishing-store'
 import { BranchSummaryPrompt, Composer, QueuedMessages } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
@@ -49,6 +50,12 @@ function runStatusTone(status: ChatComposerSectionState['status']) {
   if (status === 'streaming' || status === 'submitted') return 'running' as const
   if (status === 'compacting' || status === 'retrying') return 'running' as const
   return 'neutral' as const
+}
+
+/** A finishing Run offers Stop while its agent still works on, such as an extension's check. */
+function composerRunFinishing(status: ChatComposerSectionState['status'], stoppable: boolean) {
+  if (status !== 'finishing') return undefined
+  return stoppable ? ('stoppable' as const) : ('settling' as const)
 }
 
 function canSteerQueuedMessages(section: ChatComposerSectionState) {
@@ -190,7 +197,6 @@ export function ChatComposerStack({
     isLoading,
     onSendWithWaggle,
     onSteer,
-    onCancel,
     onToast,
     onSkipBranchSummary,
     onSummarizeBranch,
@@ -211,6 +217,7 @@ export function ChatComposerStack({
     send: guardedSend,
   })
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
+  const finishingStoppable = useIsFinishingRunStoppable(activeSessionId)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
   return (
     <>
@@ -280,9 +287,9 @@ export function ChatComposerStack({
                 onToast,
               })
             }
-            onCancel={onCancel}
+            onCancel={section.onCancel}
             isLoading={isLoading}
-            isFinishing={section.status === 'finishing'}
+            finishing={composerRunFinishing(section.status, finishingStoppable)}
             mode={{
               ...branchSummaryComposerMode(
                 branchSummaryMode,

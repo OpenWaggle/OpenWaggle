@@ -3,7 +3,11 @@ import { buildChatRows, createUserMessage } from './useBuildChatRows.test-utils'
 
 const IDLE_PHASE = { current: null, completed: [], totalElapsedMs: 0 }
 
-function rowsFor(input: { readonly isFinishing: boolean; readonly error?: Error }) {
+function rowsFor(input: {
+  readonly isFinishing: boolean
+  readonly error?: Error
+  readonly extensionStatus?: Parameters<typeof buildChatRows>[0]['extensionStatus']
+}) {
   return buildChatRows({
     messages: [
       createUserMessage('user-1', 'Build it'),
@@ -18,6 +22,7 @@ function rowsFor(input: { readonly isFinishing: boolean; readonly error?: Error 
     sessionId: 'session-a',
     waggleMetadataLookup: {},
     phase: IDLE_PHASE,
+    extensionStatus: input.extensionStatus,
   })
 }
 
@@ -37,6 +42,26 @@ describe('buildChatRows while a Run is finishing', () => {
 
   it('keeps showing the failure of a Run that is still settling', () => {
     expect(statusRows(rowsFor({ isFinishing: true, error: new Error('402') }))).toEqual(['error'])
+  })
+
+  // A slow agent_before_settle check said nothing about why the Run was still finishing.
+  it('shows what the Run extensions report on the finishing row', () => {
+    const rows = rowsFor({
+      isFinishing: true,
+      extensionStatus: {
+        statuses: [{ key: 'club-hooks', text: 'TypeScript hooks: lint, type-check, tests' }],
+        workingMessage: 'Running checks',
+      },
+    })
+
+    expect(rows.filter((row) => row.type === 'phase-indicator')).toEqual([
+      {
+        type: 'phase-indicator',
+        label: 'Running checks',
+        elapsedMs: 0,
+        details: [{ key: 'club-hooks', text: 'TypeScript hooks: lint, type-check, tests' }],
+      },
+    ])
   })
 
   it('shows nothing once the Run has settled', () => {

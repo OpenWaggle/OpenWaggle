@@ -96,7 +96,8 @@ describe('createSessionListener Pi compatibility', () => {
     ])
   })
 
-  it('does not duplicate Pi settlement or extension-entry persistence as transport events', () => {
+  // Pi may still run agent_before_settle handlers until agent_settled; Stop is offered until then.
+  it('reports Pi settlement, but not extension-entry persistence, as transport events', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(
       {
@@ -107,7 +108,7 @@ describe('createSessionListener Pi compatibility', () => {
       'run-1',
     )
 
-    listener({ type: 'agent_settled', aborted: false })
+    listener({ type: 'agent_settled', aborted: true })
     listener({
       type: 'entry_appended',
       entry: {
@@ -120,7 +121,8 @@ describe('createSessionListener Pi compatibility', () => {
       },
     })
 
-    expect(emitted).toEqual([])
+    expect(emitted).toMatchObject([{ type: 'agent_settled', runId: 'run-1', aborted: true }])
+    expect(emitted).toHaveLength(1)
   })
 
   it('emits authoritative context usage after each completed assistant response', () => {

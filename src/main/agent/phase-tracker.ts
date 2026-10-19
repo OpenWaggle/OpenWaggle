@@ -100,6 +100,8 @@ export function updatePhaseFromTransportEvent(
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
+      'extension_status',
+      'agent_settled',
       () => ({ changed: false, phase: state.current }),
     )
     .exhaustive()

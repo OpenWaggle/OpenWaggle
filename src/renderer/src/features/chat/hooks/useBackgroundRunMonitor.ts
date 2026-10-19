@@ -8,6 +8,10 @@ import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-s
 import { takeRestoredRunId } from '@/features/chat/state/background-run-activity-restore'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
+import {
+  trackExtensionStatus,
+  useExtensionStatusStore,
+} from '@/features/chat/state/extension-status-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
@@ -58,6 +62,7 @@ export function useBackgroundRunMonitor(): void {
     const unsubEvent = api.onAgentEvent((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       trackRunFinishing(payload.sessionId, payload.event)
+      trackExtensionStatus(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
         useFirstSendPendingStore.getState().clear(payload.sessionId)
@@ -102,6 +107,8 @@ export function useBackgroundRunMonitor(): void {
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      // A settled Run's extension statuses go with it, whatever runs next.
+      useExtensionStatusStore.getState().clearRun(payload.sessionId, payload.runId)
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
       // The snapshot holds the settled Run now; the next Run's start must not keep its answers.
       noteRunRenderSnapshotRunSettled(payload.sessionId, payload.runId)
