@@ -1,7 +1,8 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { ArchivedItemSnippet } from '@shared/types/archived-items'
 import * as Effect from 'effect/Effect'
-import { type ArchivedSearchTerm, likeContains, prefixRange } from './archived-items-sql'
+import { shownInRow } from './archived-items-metadata'
+import { type ArchivedSearchTerm, prefixRange } from './archived-items-sql'
 
 const SNIPPET_OPEN = '\u0002'
 const SNIPPET_CLOSE = '\u0003'
@@ -19,11 +20,6 @@ interface SnippetSourceRow {
 interface MatchedTermRow {
   readonly term: string
   readonly search_rowid: number
-}
-
-/** Whether the term matched what the row shows anyway: its title, parent title, or project. */
-function shownInRow(row: SnippetSourceRow, term: ArchivedSearchTerm) {
-  return [row.title, row.parent_title, row.project_path].some((value) => likeContains(value, term))
 }
 
 /** Strips FTS5's highlight markers, keeping where each highlighted run starts and ends. */

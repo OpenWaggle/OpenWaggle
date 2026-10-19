@@ -13,6 +13,7 @@ import type {
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
+import { loadMetadataHits } from './archived-items-metadata'
 import { loadArchivedItemSnippets } from './archived-items-snippets'
 import {
   type ArchivedSearchTerm,
@@ -147,13 +148,14 @@ function queryArchivedItemsPage(
   sql: SqlClient.SqlClient,
   query: ArchivedItemsQuery,
   terms: readonly ArchivedSearchTerm[],
+  metadataHits: string,
   now: number,
 ) {
   const conditions = filterConditions(sql, query, now)
   const offset = decodeOffset(query.cursor)
   const order = archivedItemsOrder(sql, query.sort, terms.length > 0)
   return sql<ArchivedItemsPageRow>`
-    WITH ${matchedArchivedItemsCtes(sql, terms)},
+    WITH ${matchedArchivedItemsCtes(sql, terms, metadataHits)},
     facets AS (${facetsSelect(sql, conditions)}),
     page AS (
       SELECT matched.kind, matched.session_id, matched.branch_id, matched.title,
@@ -174,7 +176,8 @@ export function archivedItemsPageEffect(query: ArchivedItemsQuery, now: number) 
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const terms = archivedSearchTerms(query.text)
-    const rows = yield* queryArchivedItemsPage(sql, query, terms, now)
+    const metadataHits = yield* loadMetadataHits(sql, terms)
+    const rows = yield* queryArchivedItemsPage(sql, query, terms, metadataHits, now)
     const itemRows = rows.flatMap((row) => {
       const item = pageItemRow(row)
       return item ? [item] : []
@@ -207,12 +210,13 @@ export function archivedItemRefsEffect(query: ArchivedItemsRefsQuery, now: numbe
     const sql = yield* SqlClient.SqlClient
     const terms = archivedSearchTerms(query.text)
     const conditions = filterConditions(sql, query, now)
+    const metadataHits = yield* loadMetadataHits(sql, terms)
     const rows = yield* sql<
       Pick<ArchivedItemRow, 'kind' | 'session_id' | 'branch_id'> & {
         readonly total: number
       }
     >`
-      WITH ${matchedArchivedItemsCtes(sql, terms)}
+      WITH ${matchedArchivedItemsCtes(sql, terms, metadataHits)}
       SELECT matched.kind, matched.session_id, matched.branch_id, COUNT(*) OVER () AS total
       FROM matched
       WHERE ${conditions.project} AND ${conditions.within} AND ${conditions.kind}

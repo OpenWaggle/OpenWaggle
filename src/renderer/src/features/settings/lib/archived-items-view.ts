@@ -83,16 +83,47 @@ export function archivedDateGroup(archivedAt: number, now: number): ArchivedDate
 
 export type TextRange = readonly [start: number, end: number]
 
+/** A base character and the combining marks after it, folded together. */
+const CHARACTER_CLUSTER = /\P{M}\p{M}*|\p{M}+/gu
+
+const DOTTED_I = 'i\u0307'
+
+/** As the archive search folds (see the main store's `foldSearchText`). */
+function foldText(value: string) {
+  return value.normalize('NFC').toLowerCase().replaceAll(DOTTED_I, 'i')
+}
+
+/**
+ * `text` Unicode case-folded as the archive search folds it, with, for each folded code unit, the
+ * span of the original text it came from. Folding can change length (`İ` lowercases to two
+ * units, a decomposed `é` composes to one), so ranges found in the folded text map back here.
+ */
+function foldedWithSources(text: string) {
+  let folded = ''
+  const sources: TextRange[] = []
+  for (const cluster of text.matchAll(CHARACTER_CLUSTER)) {
+    const start = cluster.index
+    const part = foldText(cluster[0])
+    folded += part
+    for (let unit = 0; unit < part.length; unit += 1) {
+      sources.push([start, start + cluster[0].length])
+    }
+  }
+  return { folded, sources }
+}
+
 /** Where the search words occur in `text`, case-insensitively, merged where they overlap. */
 export function searchHighlightRanges(text: string, search: string): readonly TextRange[] {
-  const lower = text.toLowerCase()
-  const words = [...new Set(search.toLowerCase().split(/\s+/u))].filter((word) => word.length > 0)
+  const { folded, sources } = foldedWithSources(text)
+  const words = [...new Set(foldText(search).split(/\s+/u))].filter((word) => word.length > 0)
   const ranges: [number, number][] = []
   for (const word of words) {
-    let from = lower.indexOf(word)
+    let from = folded.indexOf(word)
     while (from !== -1) {
-      ranges.push([from, from + word.length])
-      from = lower.indexOf(word, from + word.length)
+      const first = sources[from]
+      const last = sources[from + word.length - 1]
+      if (first && last) ranges.push([first[0], last[1]])
+      from = folded.indexOf(word, from + word.length)
     }
   }
   ranges.sort((left, right) => left[0] - right[0])

@@ -35,6 +35,13 @@ describe('searchHighlightRanges', () => {
     expect(searchHighlightRanges('aaaa', 'aa a')).toEqual([[0, 4]])
     expect(searchHighlightRanges('Anything', '   ')).toEqual([])
   })
+
+  it('folds Unicode case and accents as the search does, in ranges of the original text', () => {
+    expect(searchHighlightRanges('Plan GrünÖl', 'grünöl')).toEqual([[5, 11]])
+    expect(searchHighlightRanges('Cafe\u0301 menu', 'CAFÉ')).toEqual([[0, 5]])
+    expect(searchHighlightRanges('İstanbul plan', 'plan')).toEqual([[9, 13]])
+    expect(searchHighlightRanges('İstanbul', 'istan')).toEqual([[0, 5]])
+  })
 })
 
 describe('archivedItemsFilter', () => {

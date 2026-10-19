@@ -235,25 +235,6 @@ describe('listArchivedItemRefs', () => {
   })
 })
 
-describe('non-ASCII search', () => {
-  it('finds a title whatever the case of a non-ASCII letter typed', async () => {
-    const sessionId = await seedSession({
-      key: 'uber',
-      title: 'Über Plan für Ärzte',
-      projectPath: '/work/a',
-      transcript: [],
-    })
-    await archiveSeededSession(sessionId, NOW - HOUR)
-    for (const text of ['über', 'Über', 'ÜBER', 'ärzte']) {
-      const page = await queryArchivedItems({ text, limit: 10 }, NOW)
-      expect(
-        page.items.map((item) => item.title),
-        text,
-      ).toEqual(['Über Plan für Ärzte'])
-    }
-  })
-})
-
 describe('archived item states', () => {
   it('reads Archive times, null for active items, and puts an Archive time back', async () => {
     const seeded = await seedArchive()

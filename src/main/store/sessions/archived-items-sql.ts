@@ -12,25 +12,17 @@ const WEEK_DAYS = 7
 const MONTH_DAYS = 30
 /** The greatest code point: `term < prefix + this` bounds a prefix range in binary collation. */
 const PREFIX_RANGE_END = '\u{10FFFF}'
+/** What `İ` lowercases to: `i` and a combining dot above. */
+const DOTTED_I = 'i\u0307'
 
-/** Relevance per search term, best first: where in the item the term was found. */
-export const ARCHIVED_MATCH_SCORE = {
-  titleStart: 100,
-  titleWordStart: 80,
-  title: 60,
-  context: 40,
-  transcript: 20,
-} as const
+/** A term matched only in the transcript scores below any match in the item's own text. */
+const ARCHIVED_TRANSCRIPT_SCORE = 20
 
 export interface ArchivedSearchTerm {
   /** The term as typed, trimmed. */
   readonly text: string
-  /**
-   * The spellings matched as substrings of the title, parent title, and project path. SQLite's
-   * LIKE folds only ASCII case, so a non-ASCII word is also tried lowercased, capitalized, and
-   * uppercased: `über` then finds "Über".
-   */
-  readonly variants: readonly string[]
+  /** The term Unicode-folded (see `foldSearchText`), matched within the item's own text. */
+  readonly folded: string
   /** The term's transcript tokens, each matched as a word prefix. */
   readonly tokens: readonly string[]
 }
@@ -39,6 +31,16 @@ export interface ArchivedWithinBounds {
   readonly day: number
   readonly week: number
   readonly month: number
+}
+
+/**
+ * Unicode case folding, which SQLite's `lower()` and `LIKE` lack (they fold ASCII only): `Über`,
+ * `ÜBER`, and `über` fold alike, and so do composed and decomposed accents. `İ` folds to `i`
+ * rather than `i` plus a combining dot, so `istanbul` finds "İstanbul". The renderer's
+ * highlighting folds the same way (`searchHighlightRanges`).
+ */
+export function foldSearchText(value: string | null) {
+  return (value ?? '').normalize('NFC').toLowerCase().replaceAll(DOTTED_I, 'i')
 }
 
 export function archivedWithinBounds(now: number): ArchivedWithinBounds {
@@ -57,61 +59,13 @@ export function archivedSearchTerms(text: string | undefined): readonly Archived
   ]
   return words.slice(0, ARCHIVED_ITEMS_MAX_TERMS).map((word) => ({
     text: word,
-    variants: caseVariants(word),
+    folded: foldSearchText(word),
     tokens: [...new Set(tokenizeSessionTranscriptTerms(word))],
   }))
 }
 
-const NON_ASCII = /[^\p{ASCII}]/u
-
-function caseVariants(word: string) {
-  if (!NON_ASCII.test(word)) return [word]
-  const lower = word.toLowerCase()
-  const capitalized = `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`
-  return [...new Set([word, lower, capitalized, word.toUpperCase()])]
-}
-
-function asciiFold(value: string) {
-  return value.replace(/[A-Z]/gu, (letter) => letter.toLowerCase())
-}
-
-/** The JavaScript twin of {@link metadataMatch}'s LIKE test, for one value. */
-export function likeContains(value: string | null, term: ArchivedSearchTerm) {
-  const folded = asciiFold(value ?? '')
-  return term.variants.some((variant) => folded.includes(asciiFold(variant)))
-}
-
-function likeEscape(value: string) {
-  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
-}
-
 export function prefixRange(token: string) {
   return { from: token, to: `${token}${PREFIX_RANGE_END}` }
-}
-
-/** LIKE folds ASCII case itself; `lower()` would not fold anything else either. */
-function likeAny(sql: SqlClient.SqlClient, column: string, patterns: readonly string[]) {
-  return sql.or(
-    patterns.map(
-      (pattern) => sql`COALESCE(${sql.literal(column)}, '') LIKE ${pattern} ESCAPE '\\'`,
-    ),
-  )
-}
-
-function contains(sql: SqlClient.SqlClient, column: string, term: ArchivedSearchTerm) {
-  return likeAny(
-    sql,
-    column,
-    term.variants.map((variant) => `%${likeEscape(variant)}%`),
-  )
-}
-
-function metadataMatch(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
-  return sql.or([
-    contains(sql, 'archived_items.title', term),
-    contains(sql, 'archived_items.parent_title', term),
-    contains(sql, 'archived_items.project_path', term),
-  ])
 }
 
 /**
@@ -139,33 +93,11 @@ function transcriptMatch(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
   ])
 }
 
-function termScore(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
-  const escaped = term.variants.map(likeEscape)
-  const title = 'archived_items.title'
-  return sql`CASE
-    WHEN ${likeAny(
-      sql,
-      title,
-      escaped.map((variant) => `${variant}%`),
-    )}
-      THEN ${ARCHIVED_MATCH_SCORE.titleStart}
-    WHEN ${likeAny(
-      sql,
-      title,
-      escaped.map((variant) => `% ${variant}%`),
-    )}
-      THEN ${ARCHIVED_MATCH_SCORE.titleWordStart}
-    WHEN ${contains(sql, title, term)} THEN ${ARCHIVED_MATCH_SCORE.title}
-    WHEN ${metadataMatch(sql, term)} THEN ${ARCHIVED_MATCH_SCORE.context}
-    ELSE ${ARCHIVED_MATCH_SCORE.transcript}
-  END`
-}
-
 /**
  * Archived sessions, and the archived branches of sessions that are not archived themselves
  * (an archived session's branches come back with it), as one row shape.
  */
-function archivedItemsCte(sql: SqlClient.SqlClient) {
+export function archivedItemsCte(sql: SqlClient.SqlClient) {
   return sql`archived_items AS MATERIALIZED (
     SELECT 'session' AS kind, sessions.id AS session_id, NULL AS branch_id,
       sessions.title AS title, NULL AS parent_title, sessions.project_path AS project_path,
@@ -181,23 +113,61 @@ function archivedItemsCte(sql: SqlClient.SqlClient) {
   )`
 }
 
-/** The archived items that match every search term, scored, before any facet applies. */
+/**
+ * The archived items that match every search term, scored, before any facet applies. A term
+ * matches an item's own text by `metadataHits` (folded in JavaScript, see
+ * `loadMetadataHits`) or its transcript by the term index.
+ */
 export function matchedArchivedItemsCtes(
   sql: SqlClient.SqlClient,
   terms: readonly ArchivedSearchTerm[],
+  metadataHits: string,
 ) {
+  const metadataScore = (index: number) =>
+    sql.literal(`COALESCE(metadata.score_${String(index)}, 0)`)
   const matches = terms.map(
-    (term) => sql`(${metadataMatch(sql, term)} OR ${transcriptMatch(sql, term)})`,
+    (term, index) => sql`(${metadataScore(index)} > 0 OR ${transcriptMatch(sql, term)})`,
   )
   const score =
     terms.length === 0
       ? sql.literal('0')
-      : sql.join(' + ', true, '0')(terms.map((term) => termScore(sql, term)))
-  return sql`${archivedItemsCte(sql)}, matched AS MATERIALIZED (
+      : sql.join(
+          ' + ',
+          true,
+          '0',
+        )(
+          terms.map(
+            (_term, index) => sql`MAX(${metadataScore(index)}, ${ARCHIVED_TRANSCRIPT_SCORE})`,
+          ),
+        )
+  const scoreColumns = terms.map((_term, index) =>
+    sql.literal(`, json_extract(value, '$.scores[${String(index)}]') AS score_${String(index)}`),
+  )
+  return sql`${archivedItemsCte(sql)}, metadata AS MATERIALIZED (
+    SELECT json_extract(value, '$.key') AS key ${sql.join('', false)(scoreColumns)}
+    FROM json_each(${metadataHits})
+  ), matched AS MATERIALIZED (
     SELECT archived_items.*, ${score} AS score
     FROM archived_items
+    LEFT JOIN metadata ON metadata.key = ${sql.literal(archivedItemSqlKey('archived_items'))}
     WHERE ${sql.and(matches)}
   )`
+}
+
+/**
+ * One archived item's identity as a single value, for matching it to its metadata scores: the
+ * JSON array `archivedItemKey` writes in JavaScript.
+ */
+function archivedItemSqlKey(table: string) {
+  return `json_array(${table}.kind, ${table}.session_id, ${table}.branch_id)`
+}
+
+export function archivedItemKey(row: {
+  readonly kind: string
+  readonly session_id: string
+  readonly branch_id: string | null
+}) {
+  return JSON.stringify([row.kind, row.session_id, row.branch_id])
 }
 
 export function projectCondition(
