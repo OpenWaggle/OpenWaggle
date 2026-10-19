@@ -13,14 +13,7 @@ import {
 } from './local-session-command-dispatcher.test-support'
 import { unusedDispatcherCommandDependencies } from './local-session-command-dispatcher-dependencies.test-support'
 import { makePromotionReplacementLayer } from './session-control-promotion-replacement.test-support'
-
-/** The dispatcher runs uninterruptibly, so an Effect timeout would wait for it: race instead. */
-function within<A>(promise: Promise<A>, message: string) {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), 1_000)),
-  ])
-}
+import { settlesWithin } from './settles-within.test-support'
 
 describe('Session commands during a pending promotion', () => {
   it('queues a Follow-up while a promotion waits for Pi to incorporate its steer', async () => {
@@ -89,7 +82,7 @@ describe('Session commands during a pending promotion', () => {
     )
     try {
       await steeringEntered.promise
-      const followUp = await within(
+      const followUp = await settlesWithin(
         Effect.runPromise(
           dispatchAdmittedSessionControlCommand({
             caller: localUser,
@@ -108,8 +101,19 @@ describe('Session commands during a pending promotion', () => {
     }
 
     await expect(
-      within(promote, 'The delivered promotion never completed.'),
-    ).resolves.toMatchObject({ response: { outcome: { effect: 'promoted-follow-up' } } })
+      settlesWithin(promote, 'The delivered promotion never completed.'),
+    ).resolves.toMatchObject({
+      response: {
+        // The Follow-up queued meanwhile bumped both revisions: the promotion reports the
+        // revisions its own change reached, not the claim's plus one.
+        outcome: {
+          effect: 'promoted-follow-up',
+          queueRevision: 4,
+          stateRevision: 7,
+        },
+      },
+    })
+    expect(setup.state()).toMatchObject({ revision: 7, followUpQueue: { revision: 4 } })
     expect(setup.state().followUpQueue.items.map((item) => item.intent.text)).toEqual([
       'And then do this.',
     ])

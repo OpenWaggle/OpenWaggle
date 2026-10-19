@@ -1604,7 +1604,18 @@ outlive the run. A promotion also held the Session's attachment transition while
 for durable delivery, which lasts until Pi's next turn boundary, so queue changes waited minutes
 (a promote 259 s, a follow-up 214 s); `releaseSessionAttachmentTransitionWhile` steps aside for
 that wait, which is safe because a pending promotion durably reserves the queue
-(`follow_up_reserved`). The renderer's Follow-up queue read used `staleTime: Infinity` with the
+(`follow_up_reserved`). Stepping aside from the transition alone deadlocked (#324): the promotion
+still held the Session's command serialization, a Follow-up sent meanwhile took the transition and
+waited on the serialization, and the delivered promotion waited on the transition, so the Run
+stayed "Finishing…" until the Host restarted. It now also steps aside from the serialization
+(`releaseSessionCommandSerializationWhile`), released outermost so the transition is taken back
+first and the serialization last, in the dispatcher's lock order. Commands admitted meanwhile must
+be safe against the pending promotion: queue changes and a second promote of the item are refused,
+`replace` is refused with `follow_up_reserved` (it holds both locks while waiting for the Run to
+settle, settlement retries a pending promotion only about 1 s, and the item then stayed queued
+after being steered), and the promotion reports the revisions of the final state
+(`outcomeForFinalState`), since a Follow-up queued meanwhile bumps both. The renderer's Follow-up
+queue read used `staleTime: Infinity` with the
 app default `retry: false`, so one read that timed out during a stall kept "Follow-up queue
 unavailable" up until a manual Retry; it now retries and re-reads every 5 s while failing.
 Remaining Host CPU in that profile came from Pi's synchronous skill and extension resource scans

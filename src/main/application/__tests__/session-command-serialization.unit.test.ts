@@ -5,14 +5,7 @@ import {
   releaseSessionCommandSerializationWhile,
   withSessionCommandSerialization,
 } from '../session-command-serialization'
-
-/** Serialized work runs uninterruptibly in places, so race rather than use an Effect timeout. */
-function within<A>(promise: Promise<A>, message: string) {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), 1_000)),
-  ])
-}
+import { settlesWithin } from './settles-within.test-support'
 
 describe('Session command serialization', () => {
   it('admits another command for the Session while the holder steps aside', async () => {
@@ -37,7 +30,7 @@ describe('Session command serialization', () => {
       ),
     )
     await steppedAside.promise
-    await within(
+    await settlesWithin(
       Effect.runPromise(
         withSessionCommandSerialization(
           sessionId,
@@ -163,9 +156,85 @@ describe('Session command serialization', () => {
         ),
       ),
     ).rejects.toThrow('steering failed')
-    await within(
+    await settlesWithin(
       Effect.runPromise(withSessionCommandSerialization(sessionId, Effect.void)),
       'A failed step-aside left the Session serialized.',
     )
+  })
+
+  it('takes the serialization back exactly once when the stepped-aside holder is interrupted', async () => {
+    const sessionId = 'session-step-aside-interrupted'
+    const steppedAside = Promise.withResolvers<void>()
+    const holder = Effect.runFork(
+      withSessionCommandSerialization(
+        sessionId,
+        releaseSessionCommandSerializationWhile({
+          sessionId,
+          effect: Effect.sync(() => steppedAside.resolve()).pipe(Effect.zipRight(Effect.never)),
+        }),
+      ),
+    )
+    await steppedAside.promise
+    // Another command holds the Session (and keeps its semaphore alive) across the interruption.
+    const otherEntered = Promise.withResolvers<void>()
+    const finishOther = Promise.withResolvers<void>()
+    const order: string[] = []
+    const other = Effect.runPromise(
+      withSessionCommandSerialization(
+        sessionId,
+        Effect.promise(async () => {
+          otherEntered.resolve()
+          await finishOther.promise
+          order.push('other')
+        }),
+      ),
+    )
+    await otherEntered.promise
+    const interrupted = Effect.runPromise(Fiber.interrupt(holder))
+    const next = Effect.runPromise(
+      withSessionCommandSerialization(
+        sessionId,
+        Effect.sync(() => order.push('next')),
+      ),
+    )
+    // Releasing without taking back would admit the next command beside the other one.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(order).toEqual([])
+    finishOther.resolve()
+    await Promise.all([other, interrupted, next])
+    expect(order).toEqual(['other', 'next'])
+  })
+
+  it('steps aside from the named Session only when the fiber holds several', async () => {
+    const outer = 'session-outer'
+    const inner = 'session-inner'
+    const steppedAside = Promise.withResolvers<void>()
+    const resume = Promise.withResolvers<void>()
+    const holder = Effect.runPromise(
+      withSessionCommandSerialization(
+        outer,
+        withSessionCommandSerialization(
+          inner,
+          releaseSessionCommandSerializationWhile({
+            sessionId: inner,
+            effect: Effect.promise(async () => {
+              steppedAside.resolve()
+              await resume.promise
+            }),
+          }),
+        ),
+      ),
+    )
+    await steppedAside.promise
+    await settlesWithin(
+      Effect.runPromise(withSessionCommandSerialization(inner, Effect.void)),
+      'The inner Session stayed serialized while its holder stepped aside.',
+    )
+    const outerAdmitted = Effect.runFork(withSessionCommandSerialization(outer, Effect.void))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect((await Effect.runPromise(Fiber.poll(outerAdmitted)))._tag).toBe('None')
+    resume.resolve()
+    await holder
+    await Effect.runPromise(Fiber.join(outerAdmitted))
   })
 })

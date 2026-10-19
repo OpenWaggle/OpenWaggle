@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import type { AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import { FollowUpId, RunId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
@@ -57,10 +58,12 @@ function promotedSteeringInput(
 
 /**
  * Durable delivery resolves only once Pi incorporates the steer at its next turn boundary, which
- * can be minutes into a tool call. The pending promotion already reserves its Follow-up
- * (`follow_up_reserved`, and settlement waits for it), and its attachments stay referenced by the
- * queued item until it completes, so the Session's other commands need not wait: the promotion
- * steps aside from both the command serialization and the attachment transition.
+ * can be minutes into a tool call. The pending promotion's journal row reserves its Follow-up:
+ * queue changes that could move or remove it are refused (`follow_up_reserved`), as are a second
+ * promotion of it and a replacement of the Run, and settlement retries briefly before failing.
+ * Its attachments stay referenced by the queued item until it completes. So the Session's other
+ * commands need not wait: the promotion steps aside from both the command serialization and the
+ * attachment transition, and takes them back before it completes.
  *
  * Stepping aside from only the transition deadlocked: a Follow-up queued meanwhile took the
  * transition and waited on the serialization, and the delivered promotion then waited on the
@@ -130,24 +133,30 @@ function completeClaimedPromotion(input: {
               Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
             ),
           )
+    const promoted = (
+      receipt: AgentSteerDeliveryReceipt,
+      revisions: { readonly queueRevision: number; readonly stateRevision: number },
+    ): SessionControlMutationOutcome => ({
+      operation: 'promote',
+      effect: 'promoted-follow-up',
+      receipt,
+      sessionId: input.operation.request.command.sessionId,
+      runId: input.expectedRunId,
+      followUpId: input.followUpId,
+      ...revisions,
+    })
     const outcome: SessionControlMutationOutcome = steering.accepted
-      ? {
-          operation: 'promote',
-          effect: 'promoted-follow-up',
-          receipt: steering.receipt,
-          sessionId: input.operation.request.command.sessionId,
-          runId: input.expectedRunId,
-          followUpId: input.followUpId,
+      ? promoted(steering.receipt, {
           queueRevision: input.queueRevision + 1,
           stateRevision: input.stateRevision + 1,
-        }
+        })
       : {
           operation: 'promote',
           effect: 'rejected',
           sessionId: input.operation.request.command.sessionId,
           code: steering.code,
         }
-    yield* journal.complete({
+    const recorded = yield* journal.complete({
       callerId: input.operation.callerId,
       request: input.operation.request,
       outcome,
@@ -155,10 +164,18 @@ function completeClaimedPromotion(input: {
         ? {
             finalizeState: (state) =>
               applyAcceptedFollowUpPromotion(state, input.expectedRunId, input.followUpId),
+            // Other commands for the Session run while the promotion waits for delivery (a
+            // Follow-up queued meanwhile bumps both revisions), so report what the final state
+            // reached rather than the claim's revisions plus one.
+            outcomeForFinalState: (state) =>
+              promoted(steering.receipt, {
+                queueRevision: state.followUpQueue.revision,
+                stateRevision: state.revision,
+              }),
           }
         : {}),
     })
-    const completedResponse = response(input.operation, false, outcome)
+    const completedResponse = response(input.operation, false, recorded)
     return steering.accepted
       ? yield* preserveOutcomeAfterAttachmentCleanup({
           effect: Effect.succeed(completedResponse),
