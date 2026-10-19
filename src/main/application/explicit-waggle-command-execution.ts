@@ -47,6 +47,7 @@ const FOLLOW_UP_RESERVED_WAGGLE_MESSAGE =
  * as an outcome that could not be confirmed.
  */
 class ExplicitWaggleRefusal extends Data.TaggedError('ExplicitWaggleRefusal')<{
+  readonly code: string
   readonly message: string
 }> {}
 
@@ -60,7 +61,7 @@ export function reportRefusedExplicitWaggle<E, R>(
         Effect.succeed({
           outcome: 'refused',
           message: refusal.message,
-          code: 'follow_up_reserved',
+          code: refusal.code,
         } satisfies AgentSendReport),
     ),
   )
@@ -117,7 +118,10 @@ export function prepareExplicitWaggleReplacement(input: {
       lease.release()
       if (preparation.code === 'follow_up_reserved') {
         return yield* Effect.fail(
-          new ExplicitWaggleRefusal({ message: FOLLOW_UP_RESERVED_WAGGLE_MESSAGE }),
+          new ExplicitWaggleRefusal({
+            code: preparation.code,
+            message: FOLLOW_UP_RESERVED_WAGGLE_MESSAGE,
+          }),
         )
       }
       return yield* Effect.fail(

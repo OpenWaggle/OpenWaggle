@@ -1610,17 +1610,18 @@ serialization, and the delivered promotion waited on the transition, so the Run 
 until the Host restarted. It now also steps aside from the serialization
 (`releaseSessionCommandSerializationWhile`), released outermost so the transition is taken back
 first and the serialization last, in the dispatcher's lock order. Commands admitted meanwhile must
-be safe against the pending promotion: queue changes and a second promote of the item are refused,
-`replace` and an explicit Waggle replacing the Run (`replaceWithExternal`) are refused with
-`follow_up_reserved` (a replace holds both locks while waiting for the Run to settle, settlement
-retries a pending promotion only about 1 s, and the item then stayed queued after being steered),
-and the promotion reports the revisions of the final state (`outcomeForFinalState`), since a
-Follow-up queued meanwhile bumps both, and releases the Follow-up's attachments only when the
-journal recorded the promotion. The renderer's Follow-up queue read used `staleTime: Infinity` with
-the app default `retry: false`, so one read that timed out during a stall kept "Follow-up queue
-unavailable" up until a manual Retry; it now retries and re-reads every 5 s while failing. Remaining
-Host CPU in that profile came from Pi's synchronous skill and extension resource scans
-(`loadSkills`, `collectSkillEntries`, jiti), spread out rather than one long stall. An earlier
+be safe against the pending promotion: queue changes that could move or remove the item and a second
+promote of it are refused, `replace` and an explicit Waggle replacing the Run
+(`replaceWithExternal`) are refused with `follow_up_reserved` (a replace holds both locks while
+waiting for the Run to settle, settlement retries a pending promotion only about 1 s, and the item
+then stayed queued after being steered), and the promotion reports the revisions of the final state
+(`outcomeForFinalState`), since a Follow-up queued meanwhile bumps both, and releases the
+Follow-up's attachments only when the journal recorded the promotion. The renderer's Follow-up queue
+read used `staleTime: Infinity` with the app default `retry: false`, so one read that timed out
+during a stall kept "Follow-up queue unavailable" up until a manual Retry; it now retries and
+re-reads every 5 s while failing. Remaining Host CPU in that profile came from Pi's synchronous
+skill and extension resource scans (`loadSkills`, `collectSkillEntries`, jiti), spread out rather
+than one long stall. An earlier
 4.4-hour Host silence (desktop heartbeat failing every 5 s, no Host log lines, no crash report,
 machine awake) stayed unexplained.
 

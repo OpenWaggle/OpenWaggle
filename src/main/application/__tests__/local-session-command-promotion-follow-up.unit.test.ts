@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionControlRepository } from '../../ports/session-control-repository'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
+import { withSessionAttachmentTransition } from '../session-attachment-cleanup'
 import { withSessionCommandSerialization } from '../session-command-serialization'
 import { noUndeliveredSteers } from './agent-steering-test-layer'
 import {
@@ -86,6 +87,27 @@ function pendingPromotion(sessionId: SessionId) {
   return { setup, steeringEntered, delivered, promote, followUp }
 }
 
+/**
+ * Resolves once something holds the Session's attachment transition: a probe for it no longer
+ * completes at once. Each probe left waiting runs harmlessly when the holder releases it.
+ */
+async function transitionTakenBack(sessionId: SessionId) {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    let probed = false
+    void Effect.runPromise(
+      withSessionAttachmentTransition({
+        sessionId,
+        effect: Effect.sync(() => {
+          probed = true
+        }),
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    if (!probed) return
+  }
+  throw new Error('Nothing took the attachment transition.')
+}
+
 describe('Session commands during a pending promotion', () => {
   it('queues a Follow-up while a promotion waits for Pi to incorporate its steer', async () => {
     // Steering a queued message promotes it with durable delivery, which resolves only at Pi's
@@ -145,8 +167,13 @@ describe('Session commands during a pending promotion', () => {
       )
       await serialized.promise
       delivered.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await settlesWithin(
+        transitionTakenBack(sessionId),
+        'The delivered promotion did not take the attachment transition back first.',
+      )
       const queued = followUp()
+      // The Follow-up takes the transition only after the promotion releases it, so it is still
+      // waiting on it here; were it holding it, it would wait on the serialization as before.
       await new Promise((resolve) => setTimeout(resolve, 20))
       finishSerialized.resolve()
       await other
