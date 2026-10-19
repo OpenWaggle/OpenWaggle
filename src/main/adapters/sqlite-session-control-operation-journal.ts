@@ -42,6 +42,33 @@ function pendingPromotionReservation(
   )
 }
 
+/**
+ * A replacement interrupts the Run and waits for it to settle while it holds the Session's
+ * command serialization and attachment transition. A pending promotion steps aside from both while
+ * Pi incorporates its steer and must take them back to complete; settlement waits for it only
+ * briefly (`promotion-pending`), so a replacement admitted meanwhile failed the Run's settlement
+ * and then left an already-steered Follow-up queued for a second delivery. Refuse it instead.
+ */
+function pendingPromotionReplaceRejection(
+  sql: SqlClient.SqlClient,
+  input: Parameters<SessionControlOperationJournalShape['claim']>[0],
+) {
+  const command = input.request.command
+  if (command.operation !== 'replace') return Effect.succeed(undefined)
+  return reservedFollowUpIds(sql, command.sessionId).pipe(
+    Effect.map((ids) =>
+      ids.size === 0
+        ? undefined
+        : ({
+            operation: 'replace',
+            effect: 'rejected',
+            sessionId: command.sessionId,
+            code: 'follow_up_reserved',
+          } as const),
+    ),
+  )
+}
+
 function claimExternalOperation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlOperationJournalShape['claim']>[0],
@@ -92,8 +119,11 @@ function claimExternalOperation(
           return { status: 'pending', replayed: true } as const
         }
 
+        const replaceRejection = yield* pendingPromotionReplaceRejection(sql, input)
         const state = yield* loadSessionControlState(sql, targetScope)
-        const decision = input.decide(state)
+        const decision = replaceRejection
+          ? ({ accepted: false, outcome: replaceRejection } as const)
+          : input.decide(state)
         const now = Date.now()
         if (decision.accepted) {
           if (decision.state) yield* persistSessionControlState(sql, decision.state, now)
