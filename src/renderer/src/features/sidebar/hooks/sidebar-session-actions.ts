@@ -139,6 +139,12 @@ function activateClonedSession(deps: SidebarSessionActionDeps, sessionId: Sessio
 async function cloneTargetNodeId(deps: SidebarSessionActionDeps, sessionId: SessionId) {
   const draft = useSessionStore.getState().draftBranch
   if (draft?.sessionId === sessionId) return draft.sourceNodeId
+  // A Session that is not open has nothing loaded to fall back on, so a failed read of its
+  // conversation is the clone's failure, not "no history".
+  if (useChatStore.getState().activeSessionId !== sessionId) {
+    const workspace = await api.getSessionWorkspace(sessionId)
+    return workspace?.tree.session.id === sessionId ? workspace.activeNodeId : null
+  }
   const loadedTree =
     deps.matchingActiveSessionTree?.session.id === sessionId ? deps.matchingActiveSessionTree : null
   return (
@@ -149,8 +155,9 @@ async function cloneTargetNodeId(deps: SidebarSessionActionDeps, sessionId: Sess
 }
 
 /**
- * Clones any listed Session, open or not: its current conversation is read from the Host. A copy
- * runs no model, so the model is only named, whether or not it can run now.
+ * Clones any listed Session, open or not: its current conversation is read from the Host. The Host
+ * builds the copy's runtime from the Session's own model; the model named here is only validated,
+ * so a Session whose model cannot run now can still be cloned.
  */
 async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
   const model = deps.selectedModel

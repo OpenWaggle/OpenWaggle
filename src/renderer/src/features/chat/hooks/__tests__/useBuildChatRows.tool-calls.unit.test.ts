@@ -51,7 +51,6 @@ describe('buildChatRows tool-call rendering', () => {
         type: 'tool-result',
         toolCallId: 'tool-a',
         state: 'complete',
-        sourceMessageId: 'tool-result-1',
       },
     ])
   })

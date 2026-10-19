@@ -110,3 +110,45 @@ it('makes one clone however often Clone is chosen while the first is on its way'
 
   expect(apiMock.cloneSessionToNew).toHaveBeenCalledTimes(1)
 })
+
+it("clones a Session that is not open from the Host, ignoring the open Session's draft branch", async () => {
+  useChatStore.setState({ activeSessionId: SESSION_ID })
+  useSessionStore.setState({
+    draftBranch: fromPartial({ sessionId: SESSION_ID, sourceNodeId: SessionNodeId('open-draft') }),
+  })
+  apiMock.getSessionWorkspace.mockResolvedValue(
+    fromPartial({
+      tree: { session: { id: OTHER_SESSION_ID }, branches: [] },
+      activeBranchId: null,
+      activeNodeId: SessionNodeId('other-head'),
+    }),
+  )
+
+  createSidebarSessionActions(
+    fromPartial({ activeSessionId: SESSION_ID, selectedModel: MINI, showToast: vi.fn() }),
+  ).clone(OTHER_SESSION_ID)
+
+  await vi.waitFor(() =>
+    expect(apiMock.cloneSessionToNew).toHaveBeenCalledWith(
+      OTHER_SESSION_ID,
+      MINI,
+      SessionNodeId('other-head'),
+    ),
+  )
+})
+
+it("reports a failed read of a closed Session's conversation as the clone's failure", async () => {
+  useChatStore.setState({ activeSessionId: SESSION_ID })
+  useSessionStore.setState({ draftBranch: null })
+  apiMock.getSessionWorkspace.mockRejectedValue(new Error('Host unavailable'))
+  const showToast = vi.fn()
+
+  createSidebarSessionActions(
+    fromPartial({ activeSessionId: SESSION_ID, selectedModel: MINI, showToast }),
+  ).clone(OTHER_SESSION_ID)
+
+  await vi.waitFor(() =>
+    expect(showToast).toHaveBeenCalledWith('Failed to clone session: Host unavailable'),
+  )
+  expect(apiMock.cloneSessionToNew).not.toHaveBeenCalled()
+})

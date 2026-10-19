@@ -8,12 +8,13 @@ const targets = [
   { entryId: SessionNodeId('7c3c9401-73ad-4b60-a7f7-db4212d6d491'), text: 'Q: first' },
 ]
 
-it('lists each fork point by its message, never by its node id', () => {
+it('lists each fork point by its message and place, never by its node id', () => {
   const onSelect = vi.fn()
   render(<SessionForkSelector open targets={targets} onSelect={onSelect} onClose={vi.fn()} />)
 
   expect(screen.queryByText(String(targets[0]?.entryId))).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Q: first' }))
+  expect(screen.getByRole('button', { name: 'Message 2: Q: fresh' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Message 1: Q: first' }))
 
   expect(onSelect).toHaveBeenCalledWith(targets[1])
 })

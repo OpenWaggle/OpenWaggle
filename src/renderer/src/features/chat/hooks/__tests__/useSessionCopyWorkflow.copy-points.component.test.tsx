@@ -114,3 +114,112 @@ it("forks after a turn's reply: a copy through the reply's persisted node, with 
   expect(setActiveSession).toHaveBeenCalledWith(forkedSessionId)
   expect(useComposerStore.getState().input).toBe('')
 })
+
+function workflow(
+  sessionId: SessionId,
+  overrides: Partial<Parameters<typeof useSessionCopyWorkflow>[0]> = {},
+) {
+  return renderHook(() =>
+    useSessionCopyWorkflow({
+      activeSessionId: sessionId,
+      activeWorkspace: null,
+      messages: [
+        {
+          id: 'reply-row',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Here is the answer' }],
+          metadata: { sessionNodeId: 'reply-node' },
+        },
+      ],
+      draftBranchSourceNodeId: null,
+      model: SupportedModelId('openai/gpt-5.5'),
+      navigate: vi.fn(),
+      setActiveSession: vi.fn(),
+      loadSessions: vi.fn().mockResolvedValue(undefined),
+      refreshSession: vi.fn().mockResolvedValue(undefined),
+      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
+      showToast: vi.fn(),
+      ...overrides,
+    }),
+  )
+}
+
+function hostWorkspace(sessionId: SessionId): SessionWorkspace {
+  const reply = assistantNode('reply-node', sessionId)
+  return fromPartial({
+    tree: { session: { id: sessionId }, nodes: [reply], branches: [] },
+    activeBranchId: null,
+    activeNodeId: reply.id,
+    transcriptPath: [{ node: reply, branchId: null, isActive: true }],
+  })
+}
+
+it('reads a reply sent since the workspace loaded from the Host before forking after it', async () => {
+  const sessionId = SessionId('session-live-reply')
+  useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
+  apiMock.getSessionWorkspace.mockReset().mockResolvedValue(hostWorkspace(sessionId))
+  apiMock.cloneSessionToNew.mockReset().mockResolvedValue({ cancelled: true })
+  const { result } = workflow(sessionId)
+
+  await act(() => result.current.forkResponseToNewSession('reply-row'))
+
+  expect(apiMock.getSessionWorkspace).toHaveBeenCalled()
+  expect(apiMock.cloneSessionToNew).toHaveBeenCalledWith(
+    sessionId,
+    SupportedModelId('openai/gpt-5.5'),
+    SessionNodeId('reply-node'),
+  )
+})
+
+it('does not fork a Session the user left while its reply was read from the Host', async () => {
+  const sessionId = SessionId('session-left')
+  useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
+  apiMock.getSessionWorkspace.mockReset().mockImplementation(async () => {
+    useChatStore.setState({ activeSessionId: SessionId('session-elsewhere') })
+    return hostWorkspace(sessionId)
+  })
+  apiMock.cloneSessionToNew.mockReset()
+  const { result } = workflow(sessionId)
+
+  await act(() => result.current.forkResponseToNewSession('reply-row'))
+
+  expect(apiMock.cloneSessionToNew).not.toHaveBeenCalled()
+})
+
+it('makes one copy however often Fork is clicked while the first is on its way', async () => {
+  const sessionId = SessionId('session-double-click')
+  useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
+  let finishRead: (workspace: SessionWorkspace) => void = () => undefined
+  apiMock.getSessionWorkspace
+    .mockReset()
+    .mockImplementation(() => new Promise((resolve) => (finishRead = resolve)))
+  apiMock.cloneSessionToNew.mockReset().mockResolvedValue({ cancelled: true })
+  const { result } = workflow(sessionId)
+
+  await act(async () => {
+    const first = result.current.forkResponseToNewSession('reply-row')
+    const second = result.current.forkResponseToNewSession('reply-row')
+    finishRead(hostWorkspace(sessionId))
+    await Promise.all([first, second])
+  })
+
+  expect(apiMock.getSessionWorkspace).toHaveBeenCalledTimes(1)
+  expect(apiMock.cloneSessionToNew).toHaveBeenCalledTimes(1)
+})
+
+it('lets a copy run again after one that failed', async () => {
+  const sessionId = SessionId('session-retry')
+  useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
+  apiMock.getSessionWorkspace.mockReset().mockResolvedValue(hostWorkspace(sessionId))
+  apiMock.cloneSessionToNew.mockReset().mockRejectedValueOnce(new Error('Host stopped'))
+  apiMock.cloneSessionToNew.mockResolvedValueOnce({ cancelled: true })
+  const showToast = vi.fn()
+  const { result } = workflow(sessionId, { showToast })
+
+  await act(() => result.current.forkResponseToNewSession('reply-row'))
+  await act(() => result.current.forkResponseToNewSession('reply-row'))
+
+  expect(showToast).toHaveBeenCalledWith('Failed to fork session: Host stopped')
+  expect(apiMock.cloneSessionToNew).toHaveBeenCalledTimes(2)
+  expect(showToast).toHaveBeenLastCalledWith('Session fork cancelled.')
+})

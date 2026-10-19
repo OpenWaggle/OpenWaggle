@@ -21,6 +21,9 @@ vi.mock('../StreamingText', () => ({
   StreamingText: ({ text }: { readonly text: string }) => <span>{text}</span>,
 }))
 vi.mock('../AgentLabel', () => ({ AgentLabel: () => <span>Agent</span> }))
+vi.mock('@/features/waggle/components', () => ({
+  TurnDivider: () => <div data-testid="turn-divider" />,
+}))
 vi.mock('../ChangedFilesCard', () => ({
   ChangedFilesCard: () => <div data-testid="changed-files-card" />,
 }))
@@ -107,6 +110,21 @@ describe('Transcript edit and fork points', () => {
     expect(buttonNames()).toEqual([])
   })
 
+  it('hands Continue and Fork from this response the reply it sits under', () => {
+    render(
+      <ChatRowRenderer
+        row={messageRow('assistant', { replyActions: 'reply' })}
+        context={context()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue from here' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fork from this response' }))
+
+    expect(actions.onBranchFromMessage).toHaveBeenCalledWith('assistant-1')
+    expect(actions.onForkFromResponse).toHaveBeenCalledWith('assistant-1')
+  })
+
   it.each(['user', 'assistant'] as const)(
     'offers no edit or fork point on a %s message while the Session runs',
     (role) => {
@@ -127,4 +145,38 @@ describe('Transcript edit and fork points', () => {
       }
     },
   )
+
+  it("keeps a reply's bar, with Copy, in place while the Session runs, so sending does not move it", () => {
+    const { container } = render(
+      <ChatRowRenderer
+        row={messageRow('assistant', { replyActions: 'latest', isRunActive: true })}
+        context={context()}
+      />,
+    )
+
+    expect(container.querySelector('[data-turn-reply-actions]')).not.toBeNull()
+    expect(buttonNames()).toEqual(['Copy response'])
+  })
+
+  it("shows an expanded Waggle turn's changed files and ends the turn with its reply's bar", () => {
+    const reply = messageRow('assistant', { replyActions: 'latest' })
+    const turns = new Map([['assistant-1', fromPartial<TurnCheckpointSummary>({ turnIndex: 0 })]])
+    const { container } = render(
+      <ChatRowRenderer
+        row={{
+          type: 'waggle-turn',
+          id: 'waggle-1',
+          turnDividerProps: { turnNumber: 0, agentLabel: 'Architect', agentColor: 'blue' },
+          agentColor: 'blue',
+          messages: [reply],
+          folded: false,
+        }}
+        context={context(turns)}
+      />,
+    )
+
+    const card = screen.getByTestId('changed-files-card')
+    const bar = container.querySelector('[data-turn-reply-actions]')
+    expect(bar && card.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

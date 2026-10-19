@@ -67,14 +67,14 @@ You can also start from the conversation itself. Hover a message to see its acti
 | The agent's reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and a blank message box. |
 | The agent's reply that ends a turn | **Copy response** | Copies the reply's text. |
 
-Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. These actions are not shown while the session is working.
+Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. While the session is working, only **Copy** and **Copy response** are shown.
 
 To copy history into a separate session from the keyboard, use `/fork` or `/clone` in the message box, or open the command palette and use:
 
 - **Fork to new session** to choose a previous user message and start a new session with that message ready to edit and resend.
 - **Clone current session** to copy the selected conversation path into a new session with a blank message box.
 
-Both leave the original conversation intact. The new session is named after the original, marked `(fork)` or `(copy)`; you can rename it. A copy of a session that is still called New session stays New session, and takes its name from its next message. They copy conversation history, not a backup of your working files.
+All of these leave the original conversation intact. The new session is named after the original, marked `(fork)` when it starts before one of your messages and `(copy)` for a clone or a fork from a response; you can rename it. A copy of a session that is still called New session stays New session, and takes its name from its next message. They copy conversation history, not a backup of your working files.
 
 For saved links, the app can retain `branch`, `node`, and `panel=session-tree` in the route. An unsent draft branch is temporary and is not restored from a copied URL.
 

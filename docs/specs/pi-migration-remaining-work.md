@@ -315,6 +315,8 @@ Still remaining:
 
 ### Same-session branch-out
 
+> Superseded by [ADR 0055](../adr/0055-edit-and-fork-points-are-user-messages-and-turn-replies.md): the transcript offers branch and copy actions only on user messages and turn replies; the Session tree reaches every other node. The requirement below is kept for history.
+
 The chat transcript must show a Git branch-out affordance everywhere the user can validly branch out.
 
 Show `Branch from here` on visible branchable rows that map to real Pi session nodes:

@@ -1,3 +1,4 @@
+import { sessionWriterBusyMessage } from '@shared/domain/session-writer-messages'
 import { SessionId } from '@shared/types/brand'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -35,7 +36,7 @@ it.each([
   ['sessions:fork-to-new', 'fork'],
   ['sessions:clone-to-new', 'clone'],
 ] as const)('logs a %s refused by a busy Session', async (channel, copy) => {
-  const busy = `Session ${SESSION_ID} already has an active classic Pi writer.`
+  const busy = sessionWriterBusyMessage(SESSION_ID, 'tree-mutation')
   dispatchLocalSessionCommandMock.mockReturnValue(Effect.die(new Error(busy)))
   const effect = dispatchHostBackedSessionGuiOperation(channel, [SESSION_ID, 'local/model', 'n1'])
 

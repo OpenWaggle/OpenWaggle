@@ -1,4 +1,5 @@
 import { extractInnerErrorMessage } from '@shared/domain/error-message-extraction'
+import { isSessionWriterBusyMessage } from '@shared/domain/session-writer-messages'
 import { classifyErrorMessage } from '@shared/types/errors'
 import { ipcErrorMessage } from './ipc-error-message'
 
@@ -11,11 +12,10 @@ const LIFECYCLE_PREPARATION_PREFIX = /^SessionLifecyclePreparationError \([^)]*\
 
 /**
  * The Host refuses a fork, clone, branch switch, or compaction while another writer, such as an
- * active Run, holds the Session: `Session <id> already has an active classic Pi writer.` The id and
- * the writer kind are internal.
+ * active Run or a compaction, holds the Session. Its message names internal ids and writer kinds.
  */
-const SESSION_WRITER_BUSY = /^Session \S+ already has an active \S+ Pi writer\.?$/
-const SESSION_BUSY_REASON = 'this Session is busy. Wait for its Run to finish, then try again.'
+const SESSION_BUSY_REASON =
+  'this Session is busy. Wait for what it is doing to finish, then try again.'
 
 /** A reason that starts by saying what failed, as `Branch summarization failed: `. */
 const FAILURE_CLAUSE = /^[^:]{1,80} failed: /
@@ -31,7 +31,7 @@ export function sessionOperationFailureMessage(failed: string, error: unknown) {
   const message = ipcErrorMessage(error).replace(LIFECYCLE_PREPARATION_PREFIX, '')
   const info = classifyErrorMessage(message)
   if (info.code === 'pi-session-file-deleted') return info.userMessage
-  if (SESSION_WRITER_BUSY.test(message.trim())) return `${failed}: ${SESSION_BUSY_REASON}`
+  if (isSessionWriterBusyMessage(message)) return `${failed}: ${SESSION_BUSY_REASON}`
   // `failed` says it failed already, and a provider's JSON is shown by its message.
   const reason = message.replace(FAILURE_CLAUSE, '')
   return `${failed}: ${extractInnerErrorMessage(reason)?.message ?? reason}`

@@ -55,3 +55,77 @@ describe('markTurnReplies', () => {
     expect(marked(markTurnReplies(rows, { isLoading: true }))).toEqual(['a1:latest'])
   })
 })
+
+describe('markTurnReplies: what is a reply', () => {
+  const textAndTool = (id: string) =>
+    row(id, 'assistant', [
+      { type: 'text', content: 'Let me check' },
+      {
+        type: 'tool-call',
+        id: `${id}-call`,
+        name: 'read',
+        arguments: '{}',
+        state: 'input-complete',
+      },
+    ])
+
+  it('gives no reply to a step a steer cut short, so a copy never ends on a call', () => {
+    const rows = [user('u1'), textAndTool('a1-step'), user('u2-steer'), reply('a2')]
+
+    expect(marked(markTurnReplies(rows, { isLoading: false }))).toEqual(['a2:latest'])
+  })
+
+  it('gives no reply to an interrupted turn that ended on text and a call', () => {
+    const rows = [user('u1'), reply('a1'), user('u2'), textAndTool('a2-step')]
+
+    expect(marked(markTurnReplies(rows, { isLoading: false }))).toEqual(['a1:latest'])
+  })
+
+  it('gives no reply to a failed response', () => {
+    const failed = row('a2-failed', 'assistant', [{ type: 'text', content: 'partial' }])
+    const withError = { ...failed, message: { ...failed.message, metadata: { error: 'boom' } } }
+    const rows = [user('u1'), reply('a1'), user('u2'), withError]
+
+    expect(marked(markTurnReplies(rows, { isLoading: false }))).toEqual(['a1:latest'])
+  })
+
+  it('marks nothing while a Session with no user row runs', () => {
+    expect(marked(markTurnReplies([reply('a1')], { isLoading: true }))).toEqual([])
+  })
+
+  it("marks each Waggle agent turn's reply, the last one latest", () => {
+    const turn = (id: string, messages: MessageChatRow[]): ChatRow => ({
+      type: 'waggle-turn',
+      id,
+      turnDividerProps: { turnNumber: 0, agentLabel: id, agentColor: 'blue' },
+      agentColor: 'blue',
+      messages,
+    })
+    const rows = [
+      user('u1'),
+      turn('w1', [toolStep('w1-tools'), reply('w1-reply')]),
+      turn('w2', [reply('w2-reply')]),
+    ]
+
+    const result = markTurnReplies(rows, { isLoading: false })
+
+    const marks = result.flatMap((item) =>
+      item.type === 'waggle-turn'
+        ? item.messages.flatMap((m) =>
+            m.replyActions ? [`${m.message.id}:${m.replyActions}`] : [],
+          )
+        : [],
+    )
+    expect(marks).toEqual(['w1-reply:reply', 'w2-reply:latest'])
+  })
+
+  it('keeps a marked row the same object while its input row is unchanged', () => {
+    const rows = [user('u1'), reply('a1'), user('u2'), reply('a2')]
+
+    const first = markTurnReplies(rows, { isLoading: false })
+    const second = markTurnReplies(rows, { isLoading: false })
+
+    expect(second[1]).toBe(first[1])
+    expect(second[3]).toBe(first[3])
+  })
+})

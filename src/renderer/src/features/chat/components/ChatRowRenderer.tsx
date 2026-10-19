@@ -57,7 +57,7 @@ function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
   }
 }
 
-/** A settled turn's reply actions, at the end of the turn; none while the Session runs. */
+/** A settled turn's reply actions, at the end of the turn; only Copy while the Session runs. */
 function ReplyActionsFooter({
   row,
   context,
@@ -65,12 +65,13 @@ function ReplyActionsFooter({
   readonly row: MessageChatRow
   readonly context: ChatRowRenderContext
 }) {
-  if (!row.replyActions || row.isRunActive) return null
+  if (!row.replyActions) return null
   return (
     <TurnReplyActions
       message={row.message}
       actions={context.actions}
       latest={row.replyActions === 'latest'}
+      running={row.isRunActive}
     />
   )
 }
@@ -129,11 +130,12 @@ function WaggleTurnRow({
   readonly row: WaggleTurnChatRow
   readonly context: ChatRowRenderContext
 }) {
-  // ADR 0034: every settled turn with a Turn diff renders a changed-files card,
-  // including waggle agent turns (checkpoint anchors the run's terminal node).
-  const terminalMessageId = row.folded
-    ? row.messages.find((messageRow) => messageRow.turnPresentation === 'folded')?.message.id
-    : undefined
+  // ADR 0034: every settled turn with a Turn diff renders a changed-files card, including waggle
+  // agent turns (checkpoint anchors the run's terminal node), folded or expanded: its reply has
+  // no View turn diff of its own (ADR 0055).
+  const terminalMessageId = row.messages.find((messageRow) =>
+    context.turnsByAnchorNodeId.has(messageRow.message.id),
+  )?.message.id
   const turn = terminalMessageId ? context.turnsByAnchorNodeId.get(terminalMessageId) : undefined
   const reply = row.messages.find((messageRow) => messageRow.replyActions !== undefined)
   return (

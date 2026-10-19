@@ -5,7 +5,7 @@ import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
-export interface TurnReplyActionHandlers {
+interface TurnReplyActionHandlers {
   readonly onBranchFromMessage?: (messageId: string) => void
   readonly onForkFromResponse?: (messageId: string) => void
 }
@@ -15,10 +15,15 @@ interface TurnReplyActionsProps {
   readonly actions: TurnReplyActionHandlers
   /** The latest reply keeps its actions in view; earlier ones show them on hover. */
   readonly latest: boolean
+  /**
+   * While the Session runs it takes no branch or copy, so only Copy response stays; the bar keeps
+   * its place, so sending does not move the reply above the new turn.
+   */
+  readonly running: boolean
 }
 
 /** The text a reply shows, as Copy copies it: its text parts, without tool calls or thinking. */
-export function replyText(message: UIMessage) {
+function replyText(message: UIMessage) {
   return message.parts
     .flatMap((part) => (part.type === 'text' && part.content.trim() ? [part.content] : []))
     .join('\n\n')
@@ -52,10 +57,11 @@ function ActionButton({
  * text, and its changed-files card, which opens the turn's diff (ADR 0055). Continue, Fork, and
  * Copy mirror a user message's Edit, Fork, and Copy.
  */
-export function TurnReplyActions({ message, actions, latest }: TurnReplyActionsProps) {
+export function TurnReplyActions({ message, actions, latest, running }: TurnReplyActionsProps) {
   const { copied, copy } = useCopyToClipboard()
   const text = replyText(message)
-  const { onBranchFromMessage, onForkFromResponse } = actions
+  const onBranchFromMessage = running ? undefined : actions.onBranchFromMessage
+  const onForkFromResponse = running ? undefined : actions.onForkFromResponse
   return (
     <div
       data-turn-reply-actions={message.id}

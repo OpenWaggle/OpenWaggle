@@ -27,7 +27,6 @@ interface ToolCallRouterProps {
     {
       content: unknown
       state: string
-      sourceMessageId?: string
       error?: string
       nestedCalls?: NestedToolCalls
     }

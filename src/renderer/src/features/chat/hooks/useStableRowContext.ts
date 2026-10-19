@@ -55,7 +55,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
       latest.current.onDismissInterruptedRun(...args),
     onBranchFromMessage: (messageId: string) => latest.current.onBranchFromMessage(messageId),
     onForkFromMessage: (messageId: string) => latest.current.onForkFromMessage(messageId),
-    onForkFromResponse: (messageId: string) => latest.current.onForkFromResponse?.(messageId),
+    onForkFromResponse: (messageId: string) => latest.current.onForkFromResponse(messageId),
     onViewTurnDiff: (messageId: string, filePath?: string) =>
       latest.current.onViewTurnDiff(messageId, filePath),
     onToggleTurnFold: (turnKey: string) => latest.current.onToggleTurnFold(turnKey),

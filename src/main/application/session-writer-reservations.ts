@@ -1,3 +1,4 @@
+import { sessionWriterBusyMessage } from '@shared/domain/session-writer-messages'
 import type { SessionId } from '@shared/types/brand'
 
 export type SessionWriterKind = 'classic' | 'waggle' | 'compaction' | 'tree-mutation'
@@ -35,7 +36,7 @@ export function reserveSessionWriter(input: {
   const claimedSuccessor =
     existing?.released === true && existing.successor?.token === input.successorToken
   if (existing && !claimedSuccessor) {
-    throw new Error(`Session ${input.sessionId} already has an active ${existing.kind} Pi writer.`)
+    throw new Error(sessionWriterBusyMessage(input.sessionId, existing.kind))
   }
   const controller = input.controller ?? new AbortController()
   let settle: () => void = () => undefined

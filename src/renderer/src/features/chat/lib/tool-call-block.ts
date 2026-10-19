@@ -18,7 +18,6 @@ export const FILE_CONTENT_ARG_KEYS = new Set(['content', 'oldString', 'newString
 export interface ToolCallResultPayload {
   readonly content: unknown
   readonly state: string
-  readonly sourceMessageId?: string
   readonly error?: string
 }
 

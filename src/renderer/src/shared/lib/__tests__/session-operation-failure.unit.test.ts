@@ -1,3 +1,4 @@
+import { sessionWriterBusyMessage } from '@shared/domain/session-writer-messages'
 import { describe, expect, it } from 'vitest'
 import { sessionOperationFailureMessage } from '../session-operation-failure'
 
@@ -26,13 +27,13 @@ describe('sessionOperationFailureMessage', () => {
   })
 
   it('says a Session held by its Run is busy, without the internal writer name', () => {
-    const error = new Error(
-      `${REMOTE}Session cefe5371-3676-4ded-922c-f231125b7d7f already has an active classic Pi writer.`,
-    )
+    for (const kind of ['classic', 'tree-mutation', 'compaction']) {
+      const error = new Error(`${REMOTE}${sessionWriterBusyMessage('cefe5371-3676', kind)}`)
 
-    expect(sessionOperationFailureMessage('Failed to fork session', error)).toBe(
-      'Failed to fork session: this Session is busy. Wait for its Run to finish, then try again.',
-    )
+      expect(sessionOperationFailureMessage('Failed to fork session', error)).toBe(
+        'Failed to fork session: this Session is busy. Wait for what it is doing to finish, then try again.',
+      )
+    }
   })
 
   it('keeps any other reason as it is', () => {

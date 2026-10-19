@@ -95,7 +95,6 @@ function MessageActionButtons({
 type ToolResultEntry = {
   content: unknown
   state: string
-  sourceMessageId?: string
   error?: string
   nestedCalls?: NestedToolCalls
 }
@@ -112,7 +111,6 @@ function collectMessageToolState(message: UIMessage) {
     toolResults.set(part.toolCallId, {
       content: part.content,
       state: part.state,
-      sourceMessageId: part.sourceMessageId,
       error: part.error,
       nestedCalls: part.nestedCalls,
     })
