@@ -42,7 +42,7 @@ export function capturePiMessageBoundary(session: AgentSession): PiMessageBounda
   }
 }
 
-function collectPiMessagesAfterBoundary(session: AgentSession, boundary: PiMessageBoundary) {
+export function collectPiMessagesAfterBoundary(session: AgentSession, boundary: PiMessageBoundary) {
   const branch = session.sessionManager.getBranch()
   if (branch.length === 0 && boundary.entryIds.size === 0) {
     return session.agent.state.messages.slice(boundary.messageCount)

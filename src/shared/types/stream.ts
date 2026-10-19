@@ -291,6 +291,28 @@ export interface AgentTransportInteractionResolvedEvent extends TransportEventBa
   readonly error?: AgentTransportErrorInfo
 }
 
+export type AgentExtensionStatusSlot =
+  | { readonly kind: 'status'; readonly key: string }
+  | { readonly kind: 'working-message' }
+
+/** Pi `ctx.ui.setStatus(key, text)` or `setWorkingMessage(text)`; no `text` clears it. Live only. */
+export interface AgentTransportExtensionStatusEvent extends TransportEventBase {
+  readonly type: 'extension_status'
+  readonly runId: string
+  readonly slot: AgentExtensionStatusSlot
+  readonly text?: string
+}
+
+/**
+ * Pi `agent_settled`: Pi's post-loop work (`agent_before_settle` handlers) is done. Stop stops that
+ * work after a terminal `agent_end`; after this event only the Host's own settlement is left.
+ */
+export interface AgentTransportAgentSettledEvent extends TransportEventBase {
+  readonly type: 'agent_settled'
+  readonly runId: string
+  readonly aborted: boolean
+}
+
 export type AgentTransportEvent =
   | AgentTransportAgentStartEvent
   | AgentTransportAgentEndEvent
@@ -311,3 +333,5 @@ export type AgentTransportEvent =
   | AgentTransportCustomEvent
   | AgentTransportInteractionRequestEvent
   | AgentTransportInteractionResolvedEvent
+  | AgentTransportExtensionStatusEvent
+  | AgentTransportAgentSettledEvent

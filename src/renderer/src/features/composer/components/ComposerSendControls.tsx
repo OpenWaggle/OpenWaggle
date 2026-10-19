@@ -2,10 +2,17 @@ import { ArrowUp, Check, Square } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
+/**
+ * How a Run the agent ended is finishing. `settling`: the Host saves it and nothing is left to stop.
+ * `stoppable`: Pi still runs post-loop work, such as an extension's `agent_before_settle` check,
+ * and Stop aborts it.
+ */
+export type ComposerRunFinishing = 'settling' | 'stoppable'
+
 interface ComposerSendControlsProps {
   readonly isLoading: boolean
-  /** The agent has ended the Run and the Host is settling it; there is nothing left to stop. */
-  readonly isFinishing?: boolean
+  /** The agent has ended the Run; undefined while it is not finishing. */
+  readonly finishing?: ComposerRunFinishing
   readonly canSend: boolean
   readonly sendTitle?: string
   /** Save a queued-message edit rather than send a new message. */
@@ -16,7 +23,7 @@ interface ComposerSendControlsProps {
 
 export function ComposerSendControls({
   isLoading,
-  isFinishing = false,
+  finishing,
   canSend,
   sendTitle,
   savesEdit = false,
@@ -25,8 +32,8 @@ export function ComposerSendControls({
 }: ComposerSendControlsProps) {
   return (
     <>
-      {isFinishing ? <FinishingRunNotice /> : null}
-      {isLoading && !isFinishing ? <CancelRunButton onCancel={onCancel} /> : null}
+      {finishing ? <FinishingRunNotice finishing={finishing} /> : null}
+      {isLoading && finishing !== 'settling' ? <CancelRunButton onCancel={onCancel} /> : null}
       <SendMessageButton
         isLoading={isLoading && !savesEdit}
         savesEdit={savesEdit}
@@ -39,14 +46,18 @@ export function ComposerSendControls({
 }
 
 /*
- * In place of Stop while the Host settles a Run the agent already ended. A message sent now waits
- * in the queue and starts once the Run has settled.
+ * While a Run the agent already ended is finishing, in place of Stop or, while the agent still
+ * works on, beside it. A message sent now waits in the queue and starts once the Run has settled.
  */
-function FinishingRunNotice() {
+function FinishingRunNotice({ finishing }: { readonly finishing: ComposerRunFinishing }) {
   return (
     <span
       className="text-xs whitespace-nowrap text-text-tertiary"
-      title="The agent is done. OpenWaggle is saving this Run; a message sent now starts right after."
+      title={
+        finishing === 'stoppable'
+          ? 'The reply is done, but an extension is still working before the Run ends. Stop ends it; a message sent now starts right after.'
+          : 'The agent is done. OpenWaggle is saving this Run; a message sent now starts right after.'
+      }
     >
       Finishing…
     </span>

@@ -209,6 +209,8 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
+      'extension_status',
+      'agent_settled',
       () => undefined,
     )
     .exhaustive()
