@@ -24,6 +24,7 @@ import { cancelAgentLoopInteractionsForRun } from './agent-loop-interaction-brok
 import {
   executePreparedExplicitWaggle,
   prepareExplicitWaggleReplacement,
+  reportRefusedExplicitWaggle,
   reservePreparedExplicitWaggleWriter,
 } from './explicit-waggle-command-execution'
 import {
@@ -240,7 +241,7 @@ function runExplicitWaggleCommand(input: {
           preAdmissionReleased = true
         },
         ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),
-      })
+      }).pipe(reportRefusedExplicitWaggle)
       const report = yield* preserveOutcomeAfterAttachmentCleanup({
         effect,
         cleanup: withSessionAttachmentTransition({

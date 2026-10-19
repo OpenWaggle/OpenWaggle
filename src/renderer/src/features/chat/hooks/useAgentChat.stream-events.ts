@@ -155,6 +155,8 @@ function handleForegroundAgentStateEvent(
       'tool_execution_update',
       'tool_execution_end',
       'queue_update',
+      'extension_status',
+      'agent_settled',
       () => undefined,
     )
     .exhaustive()

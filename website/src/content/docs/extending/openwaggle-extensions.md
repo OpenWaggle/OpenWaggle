@@ -575,6 +575,9 @@ Common Pi APIs used by extensions include:
 - `renderCall` and `renderResult` for Pi TUI tool rendering
 - `pi.registerMessageRenderer()` for Pi TUI custom messages
 - `ctx.ui.confirm()`, `ctx.ui.select()`, `ctx.ui.input()`, `ctx.ui.editor()`, `ctx.ui.notify()`, and `ctx.ui.custom()` for user interaction
+- `ctx.ui.setStatus(key, text)` and `ctx.ui.setWorkingMessage(text)` for status text, which OpenWaggle shows on the Run's status row while the Run is running or finishing. Pass `undefined` to clear it. Each Run starts without status text.
+
+An `agent_before_settle` handler runs after the agent's last answer, while the Run shows "Finishing". If the handler takes longer than a moment, Stop shows next to "Finishing", and pressing it aborts `ctx.signal`, so a slow check should stop when that signal aborts. If the handler ignores the signal, OpenWaggle ends the Run a few seconds after Stop anyway.
 
 OpenWaggle desktop renderers bind to Pi-native identifiers such as tool names, custom message types, standard interaction kinds, and custom interaction types. This keeps Pi TUI and OpenWaggle desktop rendering aligned to the same runtime event.
 

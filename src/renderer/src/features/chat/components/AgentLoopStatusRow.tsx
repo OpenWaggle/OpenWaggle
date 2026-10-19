@@ -7,11 +7,19 @@ import type { ChatRowRenderContext } from './ChatRowRenderContext'
 
 type StatusChatRow = Extract<ChatRow, { readonly type: 'phase-indicator' | 'retry-status' }>
 
+type StatusDetail = NonNullable<
+  Extract<ChatRow, { readonly type: 'phase-indicator' }>['details']
+>[number]
+
+const NO_DETAILS: readonly StatusDetail[] = []
+
 function CoreStatusIndicator({
   text,
+  details,
   separated,
 }: {
   readonly text: string
+  readonly details: readonly StatusDetail[]
   readonly separated: boolean
 }) {
   return (
@@ -19,6 +27,19 @@ function CoreStatusIndicator({
       <div className="flex h-6 min-w-0 items-baseline px-1 text-sm leading-relaxed text-text-tertiary tabular-nums">
         <span className="truncate">{text}</span>
       </div>
+      {details.length > 0 ? (
+        <ul aria-label="Extension status" className="grid gap-0.5 px-1">
+          {details.map((detail) => (
+            <li
+              key={detail.key}
+              className="truncate text-xs text-text-tertiary"
+              title={detail.text}
+            >
+              {detail.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }
@@ -47,6 +68,7 @@ export function StatusRow({
       fallback={
         <CoreStatusIndicator
           text={label}
+          details={row.type === 'phase-indicator' ? (row.details ?? NO_DETAILS) : NO_DETAILS}
           separated={
             !isRetry &&
             row.type === 'phase-indicator' &&

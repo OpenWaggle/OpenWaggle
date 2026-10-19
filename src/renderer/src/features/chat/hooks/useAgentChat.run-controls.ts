@@ -10,6 +10,7 @@ import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
+import { useRunFinishingStore } from '../state/run-finishing-store'
 import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import {
   beginForegroundRun,
@@ -290,6 +291,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     if (sessionId) {
       // A promotion this Stop rejects is the user's doing, not a steering failure.
       useOptimisticSteerStore.getState().noteUserStop(sessionId)
+      useRunFinishingStore.getState().endStopOffer(sessionId)
       void api.cancelAgent(sessionId).catch((cancelError: unknown) => {
         const normalizedError = normalizeError(cancelError)
         params.setError(normalizedError)

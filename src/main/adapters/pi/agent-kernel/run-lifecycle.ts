@@ -20,19 +20,22 @@ import {
   notePiRunProjectDefaultForUsageStatistics,
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
-import { logger } from './constants'
 import { notifyModelFallback, type PiInteractionUiContextInput } from './interaction-ui-context'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
+import {
+  abortPreCancelledRun,
+  createAbortListener,
+  runPiOperationWithinAbortGrace,
+} from './pi-run-abort'
 import { createPiRunControl } from './pi-run-control'
 import { createPiSessionForRun } from './pi-run-session'
 import {
   buildFailedRunAfterSettlement,
   buildFailedSubscribedRunResult,
   capturePiMessageBoundary,
+  collectPiMessagesAfterBoundary,
   collectSettledPiMessages,
-  describePiRunError,
-  runPiOperation,
 } from './run-lifecycle-failure'
 import {
   createIsolatedPiProjectRuntime,
@@ -201,20 +204,6 @@ export async function createPiRunSessionRuntime(
   }
 }
 
-function createAbortListener(session: AgentSession, warning: string) {
-  return () => {
-    void abortPiSession(session, warning)
-  }
-}
-
-async function abortPiSession(session: AgentSession, warning: string) {
-  await session.abort().catch((error) => {
-    logger.warn(warning, {
-      error: describePiRunError(error),
-    })
-  })
-}
-
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
   readonly nodeIds: PiEntryNodeIds
@@ -233,21 +222,6 @@ function buildSuccessfulRunResult(input: {
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
-}
-
-async function abortPreCancelledRun(
-  session: AgentSession,
-  nodeIds: PiEntryNodeIds,
-  warning: string,
-) {
-  await abortPiSession(session, warning)
-  return {
-    newMessages: [],
-    piSessionId: session.sessionId,
-    piSessionFile: session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
-    aborted: true,
-  } satisfies AgentKernelRunResult
 }
 
 export async function runSubscribedPiOperation(input: {
@@ -278,13 +252,21 @@ export async function runSubscribedPiOperation(input: {
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
 
   try {
-    const operationOutcome = await runPiOperation(input.operation)
+    const operationOutcome = await runPiOperationWithinAbortGrace({
+      operation: input.operation,
+      signal: input.runInput.signal,
+      session: input.session,
+    })
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
 
     settlementAttempted = true
-    const appended = await collectSettledPiMessages(input.session, messageBoundary)
+    // An abandoned operation is still in Pi's post-loop work, so Pi would not settle in time.
+    const appended =
+      operationOutcome.status === 'abandoned'
+        ? collectPiMessagesAfterBoundary(input.session, messageBoundary)
+        : await collectSettledPiMessages(input.session, messageBoundary)
 
     if (operationOutcome.status === 'failed') {
       return buildFailedSubscribedRunResult({

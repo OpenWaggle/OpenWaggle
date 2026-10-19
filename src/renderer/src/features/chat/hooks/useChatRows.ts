@@ -29,6 +29,7 @@ export function useChatRows(inputs: {
   compactionStatus?: AgentCompactionStatus | null
   turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   expandedTurnKeys?: ReadonlySet<string>
+  extensionStatus?: Parameters<typeof buildChatRows>[0]['extensionStatus']
 }): ChatRow[] {
   return buildChatRows({
     messages: inputs.messages,
@@ -49,5 +50,6 @@ export function useChatRows(inputs: {
     compactionStatus: inputs.compactionStatus,
     turnDurationsByAnchorMessageId: inputs.turnDurationsByAnchorMessageId,
     expandedTurnKeys: inputs.expandedTurnKeys,
+    extensionStatus: inputs.extensionStatus,
   })
 }

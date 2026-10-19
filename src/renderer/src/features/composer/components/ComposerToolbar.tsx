@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { ComposerAttachButton } from './ComposerAttachButton'
 import { ComposerModelPicker } from './ComposerModelPicker'
-import { ComposerSendControls } from './ComposerSendControls'
+import { type ComposerRunFinishing, ComposerSendControls } from './ComposerSendControls'
 import { ComposerVoiceButton } from './ComposerVoiceButton'
 import { ContextMeter } from './ContextMeter'
 import { ThinkingLevelMenu } from './ThinkingLevelMenu'
@@ -13,7 +13,7 @@ interface ComposerToolbarProps {
     readonly onSend: () => void
     readonly onCancel: () => void
     readonly isLoading: boolean
-    readonly isFinishing?: boolean
+    readonly finishing?: ComposerRunFinishing
     readonly canSend: boolean
     readonly sendTitle?: string
     /** The primary action saves a queued-message edit instead of sending. */
@@ -56,7 +56,7 @@ export function ComposerToolbar({
         <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} disabled={disabled} />
         <ComposerSendControls
           isLoading={submission.isLoading}
-          isFinishing={submission.isFinishing}
+          finishing={submission.finishing}
           canSend={submission.canSend}
           sendTitle={submission.sendTitle}
           savesEdit={submission.savesEdit}
