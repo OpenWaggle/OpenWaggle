@@ -180,6 +180,52 @@ describe('Pi interaction UI context', () => {
     ])
   })
 
+  // Pi's footer status was dropped, so an extension's slow agent_before_settle check said nothing.
+  it('emits extension status per key, and clears it with undefined', () => {
+    const { emitted, ui } = createContext()
+
+    ui.setStatus('club-hooks', 'TypeScript hooks: lint, type-check, tests')
+    ui.setStatus('club-hooks', undefined)
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'extension_status',
+        runId: 'run-pi-ui',
+        slot: { kind: 'status', key: 'club-hooks' },
+        text: 'TypeScript hooks: lint, type-check, tests',
+      },
+      { type: 'extension_status', slot: { kind: 'status', key: 'club-hooks' } },
+    ])
+    expect(emitted[1]).not.toHaveProperty('text')
+  })
+
+  it('sends extension status as one plain line, since Pi TUI styles it with ANSI colors', () => {
+    const { emitted, ui } = createContext()
+
+    ui.setStatus('x', '\u001b[33mbusy\u001b[39m\n  checking')
+    ui.setStatus('y', '  \u001b[2m\u001b[22m ')
+
+    expect(emitted).toMatchObject([
+      { slot: { key: 'x' }, text: 'busy checking' },
+      { slot: { key: 'y' } },
+    ])
+    // Blank text clears, as Pi's footer drops it.
+    expect(emitted[1]).not.toHaveProperty('text')
+  })
+
+  it('emits the working message, and restores the default without one', () => {
+    const { emitted, ui } = createContext()
+
+    ui.setWorkingMessage('Running checks')
+    ui.setWorkingMessage()
+
+    expect(emitted).toMatchObject([
+      { type: 'extension_status', slot: { kind: 'working-message' }, text: 'Running checks' },
+      { type: 'extension_status', slot: { kind: 'working-message' } },
+    ])
+    expect(emitted[1]).not.toHaveProperty('text')
+  })
+
   it('bridges Pi custom interactions to pending OpenWaggle desktop interactions', async () => {
     const { emitted, ui } = createContext()
 
