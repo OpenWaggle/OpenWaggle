@@ -146,6 +146,28 @@ describe('Transcript edit and fork points', () => {
     },
   )
 
+  it.each(['user', 'assistant'] as const)(
+    'offers no edit or fork point on a %s message while the Host settles the Run',
+    (role) => {
+      const settling = context()
+      render(
+        <ChatRowRenderer
+          row={messageRow(role, { replyActions: 'latest' })}
+          context={{ ...settling, actions: { ...settling.actions, copiesBlocked: true } }}
+        />,
+      )
+
+      for (const name of [
+        'Edit from here',
+        'Fork from here',
+        'Continue from here',
+        'Fork from this response',
+      ]) {
+        expect(buttonNames()).not.toContain(name)
+      }
+    },
+  )
+
   it("keeps a reply's bar, with Copy, in place while the Session runs, so sending does not move it", () => {
     const { container } = render(
       <ChatRowRenderer

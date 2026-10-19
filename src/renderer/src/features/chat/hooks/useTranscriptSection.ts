@@ -265,6 +265,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onBranchFromMessage: handleBranchFromMessage,
     onForkFromMessage: handleForkFromMessage,
     onForkFromResponse: handleForkFromResponse,
+    copiesBlocked: isLoading || isFinishing,
     onViewTurnDiff: params.handleViewTurnDiff,
     turnAnchorMessageIds: params.turnAnchorMessageIds,
     turnsByAnchorNodeId: params.turnsByAnchorNodeId,

@@ -64,6 +64,8 @@ it("forks after a turn's reply: a copy through the reply's persisted node, with 
   const forkedSessionId = SessionId('session-reply-fork')
   const reply = assistantNode('reply-node', sessionId)
   useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
+  // A draft left in the composer must not follow the user into the copy.
+  useComposerStore.setState({ input: 'stale draft' })
   apiMock.getSessionWorkspace.mockReset().mockResolvedValue(null)
   apiMock.cloneSessionToNew.mockReset().mockResolvedValue({
     cancelled: false,
@@ -159,7 +161,14 @@ it('reads a reply sent since the workspace loaded from the Host before forking a
   useChatStore.setState({ activeSessionId: sessionId, sessionById: new Map() })
   apiMock.getSessionWorkspace.mockReset().mockResolvedValue(hostWorkspace(sessionId))
   apiMock.cloneSessionToNew.mockReset().mockResolvedValue({ cancelled: true })
-  const { result } = workflow(sessionId)
+  // The loaded workspace predates the reply.
+  const loaded: SessionWorkspace = fromPartial({
+    tree: { session: { id: sessionId }, nodes: [], branches: [] },
+    activeBranchId: null,
+    activeNodeId: null,
+    transcriptPath: [],
+  })
+  const { result } = workflow(sessionId, { activeWorkspace: loaded })
 
   await act(() => result.current.forkResponseToNewSession('reply-row'))
 

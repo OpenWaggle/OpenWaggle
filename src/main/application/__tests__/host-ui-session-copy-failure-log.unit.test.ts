@@ -33,9 +33,9 @@ import { dispatchHostBackedSessionGuiOperation } from '../host-ui-session-operat
 const SESSION_ID = SessionId('session-1')
 
 it.each([
-  ['sessions:fork-to-new', 'fork'],
-  ['sessions:clone-to-new', 'clone'],
-] as const)('logs a %s refused by a busy Session', async (channel, copy) => {
+  ['sessions:fork-to-new', 'before'],
+  ['sessions:clone-to-new', 'at'],
+] as const)('logs a %s refused by a busy Session', async (channel, position) => {
   const busy = sessionWriterBusyMessage(SESSION_ID, 'tree-mutation')
   dispatchLocalSessionCommandMock.mockReturnValue(Effect.die(new Error(busy)))
   const effect = dispatchHostBackedSessionGuiOperation(channel, [SESSION_ID, 'local/model', 'n1'])
@@ -48,7 +48,7 @@ it.each([
     'host-ui-session-copy',
     'Desktop Session copy failed',
     expect.objectContaining({
-      copy,
+      position,
       sourceSessionId: SESSION_ID,
       targetNodeId: 'n1',
       error: expect.stringContaining(busy),

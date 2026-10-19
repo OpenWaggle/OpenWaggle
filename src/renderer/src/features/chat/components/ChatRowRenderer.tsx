@@ -71,7 +71,7 @@ function ReplyActionsFooter({
       message={row.message}
       actions={context.actions}
       latest={row.replyActions === 'latest'}
-      running={row.isRunActive}
+      running={row.isRunActive || context.actions.copiesBlocked === true}
     />
   )
 }

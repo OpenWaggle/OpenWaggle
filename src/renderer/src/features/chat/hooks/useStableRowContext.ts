@@ -69,6 +69,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
   const turnsByAnchorNodeId = useContentStable(section.turnsByAnchorNodeId, sameTurns)
   const projectPaths = useContentStable(section.extensionProjectPaths, sameList)
   const sessionId = section.activeSessionId
+  const copiesBlocked = section.copiesBlocked
   const registry = section.extensionRegistry
 
   const [context, setContext] = useState<ChatRowRenderContext | null>(null)
@@ -78,7 +79,8 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
     context.extensions.registry === registry &&
     context.extensions.projectPaths === projectPaths &&
     context.turnsByAnchorNodeId === turnsByAnchorNodeId &&
-    context.actions.turnAnchorMessageIds === turnAnchorMessageIds
+    context.actions.turnAnchorMessageIds === turnAnchorMessageIds &&
+    context.actions.copiesBlocked === copiesBlocked
       ? context
       : null
   if (current) return current
@@ -93,6 +95,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
       onBranchFromMessage: callbacks.onBranchFromMessage,
       onForkFromMessage: callbacks.onForkFromMessage,
       onForkFromResponse: callbacks.onForkFromResponse,
+      copiesBlocked,
       onViewTurnDiff: callbacks.onViewTurnDiff,
       turnAnchorMessageIds,
       onToggleTurnFold: callbacks.onToggleTurnFold,

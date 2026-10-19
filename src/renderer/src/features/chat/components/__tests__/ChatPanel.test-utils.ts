@@ -61,6 +61,7 @@ export function createSections(
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
     onForkFromResponse: vi.fn(),
+    copiesBlocked: false,
     onViewTurnDiff: vi.fn(),
     onToggleTurnFold: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),

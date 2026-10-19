@@ -18,10 +18,6 @@ function isUserRow(row: ChatRow): row is MessageChatRow {
   return row.type === 'message' && row.message.role === 'user'
 }
 
-function isAssistantRow(row: ChatRow): row is MessageChatRow {
-  return row.type === 'message' && row.message.role === 'assistant'
-}
-
 function lastReplyIndex(messages: readonly MessageChatRow[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
@@ -66,11 +62,16 @@ function markWaggleTurn(row: WaggleTurnChatRow, mark: ReplyMark) {
   }))
 }
 
+/** A steer the agent has not read yet renders last, but the turn it steers is still running. */
+function isPendingSteer(row: MessageChatRow) {
+  return row.message.metadata?.steerDelivery !== undefined
+}
+
 function activeTurnStart(rows: readonly ChatRow[], isLoading: boolean) {
   if (!isLoading) return rows.length
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const row = rows[index]
-    if (row && isUserRow(row)) return index
+    if (row && isUserRow(row) && !isPendingSteer(row)) return index
   }
   return 0
 }
@@ -80,16 +81,19 @@ function replyRowIndexes(rows: readonly ChatRow[], activeStart: number) {
   let candidate = -1
   for (const [index, row] of rows.entries()) {
     if (index >= activeStart) break
-    if (isUserRow(row)) {
-      if (candidate !== -1) replies.push(candidate)
+    if (row.type === 'message') {
+      const { role } = row.message
+      // A user message closes the turn before it; an assistant message is its latest candidate.
+      if (role === 'user' && candidate !== -1) replies.push(candidate)
+      if (role === 'user') candidate = -1
+      if (role === 'assistant') candidate = isReply(row) && !row.isStreaming ? index : -1
+      continue
+    }
+    if (row.type === 'waggle-turn') {
+      // The Waggle turn answered after it: the message before is no longer the turn's reply.
       candidate = -1
-      continue
+      if (lastReplyIndex(row.messages) !== -1) replies.push(index)
     }
-    if (isAssistantRow(row)) {
-      candidate = isReply(row) ? index : -1
-      continue
-    }
-    if (row.type === 'waggle-turn' && lastReplyIndex(row.messages) !== -1) replies.push(index)
   }
   if (candidate !== -1) replies.push(candidate)
   return replies

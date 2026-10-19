@@ -32,6 +32,7 @@ interface MessageBubbleProps {
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
+    readonly copiesBlocked?: boolean
     readonly onViewTurnDiff?: (messageId: string) => void
     readonly turnAnchorMessageIds?: ReadonlySet<string>
   }
@@ -48,7 +49,7 @@ export function MessageBubble({
   // Edit and fork points are a user message and a settled turn's reply (ADR 0055); a reply's sit at
   // the end of its turn (`TurnReplyActions`). A running Session takes none of them, since the Host
   // refuses a copy or a branch while it runs.
-  const idle = run?.isRunActive !== true
+  const idle = run?.isRunActive !== true && actions?.copiesBlocked !== true
   if (message.role === 'user') {
     return (
       <UserMessageBubble

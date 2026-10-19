@@ -129,3 +129,34 @@ describe('markTurnReplies: what is a reply', () => {
     expect(second[3]).toBe(first[3])
   })
 })
+
+describe('markTurnReplies: the running turn', () => {
+  it('keeps a turn steered while it streams from getting a reply before it settles', () => {
+    const streaming = { ...reply('a2-streaming'), isStreaming: true }
+    const steer = user('u3-steer')
+    const pendingSteer = {
+      ...steer,
+      message: { ...steer.message, metadata: { steerDelivery: 'sending' as const } },
+    }
+    const rows = [user('u1'), reply('a1'), user('u2'), streaming, pendingSteer]
+
+    expect(marked(markTurnReplies(rows, { isLoading: true }))).toEqual(['a1:latest'])
+  })
+
+  it('gives a plain message the Waggle turn answered after no reply', () => {
+    const waggle: ChatRow = {
+      type: 'waggle-turn',
+      id: 'w1',
+      turnDividerProps: { turnNumber: 0, agentLabel: 'w1', agentColor: 'blue' },
+      agentColor: 'blue',
+      messages: [reply('w1-reply')],
+    }
+    const result = markTurnReplies([user('u1'), reply('a0'), waggle], { isLoading: false })
+
+    expect(marked(result)).toEqual([])
+    const waggleRow = result[2]
+    expect(waggleRow?.type === 'waggle-turn' ? waggleRow.messages[0]?.replyActions : null).toBe(
+      'latest',
+    )
+  })
+})

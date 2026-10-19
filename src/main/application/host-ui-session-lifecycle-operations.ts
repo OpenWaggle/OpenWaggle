@@ -169,7 +169,8 @@ export function forkSession(args: readonly unknown[], position: 'before' | 'at')
     Effect.tapErrorCause((cause) =>
       Effect.sync(() =>
         logger.warn('Desktop Session copy failed', {
-          copy: position === 'at' ? 'clone' : 'fork',
+          // `before` forks before a user message; `at` clones or forks from a response.
+          position,
           sourceSessionId: typeof args[0] === 'string' ? args[0] : undefined,
           targetNodeId: typeof args[TWO_ARGUMENTS] === 'string' ? args[TWO_ARGUMENTS] : undefined,
           error: Cause.pretty(cause).split('\n')[0],
