@@ -306,6 +306,7 @@ export function UserMessageBubble({
             variant="unstyled"
             type="button"
             title="Copy message"
+            aria-label="Copy message"
             onClick={handleCopy}
             className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
           >

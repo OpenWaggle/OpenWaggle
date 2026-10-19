@@ -1,5 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import { formatElapsed } from '../hooks/useStreamingPhase'
+import { activeTurnStartIndex } from './active-turn'
 import { isShownToolCallPart } from './sessions-tool-visibility'
 import type { ChatRow, MessageChatRow, TurnFoldChatRow, WaggleTurnChatRow } from './types-chat-row'
 
@@ -179,15 +180,7 @@ function buildFoldPlan(
     foldedWaggleByIndex: new Map(),
   }
 
-  let activeStartIndex: number | null = null
-  if (input.isLoading) {
-    for (let index = rows.length - 1; index >= 0; index -= 1) {
-      if (rows[index] && isUserMessageRow(rows[index])) {
-        activeStartIndex = index
-        break
-      }
-    }
-  }
+  const activeStartIndex = activeTurnStartIndex(rows, input.isLoading)
 
   for (const [position, unit] of units.entries()) {
     if (!unit.hasWork) continue

@@ -1,3 +1,4 @@
+import { activeTurnStartIndex } from './active-turn'
 import type { ChatRow, MessageChatRow, WaggleTurnChatRow } from './types-chat-row'
 
 type ReplyMark = NonNullable<MessageChatRow['replyActions']>
@@ -12,10 +13,6 @@ function isReply(row: MessageChatRow) {
   if (message.role !== 'assistant' || message.metadata?.error !== undefined) return false
   if (message.parts.some((part) => part.type === 'tool-call')) return false
   return message.parts.some((part) => part.type === 'text' && part.content.trim().length > 0)
-}
-
-function isUserRow(row: ChatRow): row is MessageChatRow {
-  return row.type === 'message' && row.message.role === 'user'
 }
 
 function lastReplyIndex(messages: readonly MessageChatRow[]) {
@@ -62,18 +59,10 @@ function markWaggleTurn(row: WaggleTurnChatRow, mark: ReplyMark) {
   }))
 }
 
-/** A steer the agent has not read yet renders last, but the turn it steers is still running. */
-function isPendingSteer(row: MessageChatRow) {
-  return row.message.metadata?.steerDelivery !== undefined
-}
-
+/** The rows before the running turn; all of them while the Session is idle. */
 function activeTurnStart(rows: readonly ChatRow[], isLoading: boolean) {
   if (!isLoading) return rows.length
-  for (let index = rows.length - 1; index >= 0; index -= 1) {
-    const row = rows[index]
-    if (row && isUserRow(row) && !isPendingSteer(row)) return index
-  }
-  return 0
+  return activeTurnStartIndex(rows, isLoading) ?? 0
 }
 
 function replyRowIndexes(rows: readonly ChatRow[], activeStart: number) {

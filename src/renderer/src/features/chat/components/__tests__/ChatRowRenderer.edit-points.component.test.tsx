@@ -79,8 +79,7 @@ describe('Transcript edit and fork points', () => {
   it('lets a user message be edited, forked from, or copied', () => {
     render(<ChatRowRenderer row={messageRow('user')} context={context()} />)
 
-    expect(buttonNames()).toEqual(['Edit from here', 'Fork from here', null])
-    expect(screen.getByTitle('Copy message')).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['Edit from here', 'Fork from here', 'Copy message'])
   })
 
   it("puts a reply's Continue, Fork, and Copy at the end of its turn, after the changed files", () => {
@@ -130,7 +129,10 @@ describe('Transcript edit and fork points', () => {
     (role) => {
       render(
         <ChatRowRenderer
-          row={messageRow(role, { replyActions: 'latest', isRunActive: true })}
+          row={messageRow(role, {
+            ...(role === 'assistant' ? { replyActions: 'latest' as const } : {}),
+            isRunActive: true,
+          })}
           context={context()}
         />,
       )
@@ -152,7 +154,7 @@ describe('Transcript edit and fork points', () => {
       const settling = context()
       render(
         <ChatRowRenderer
-          row={messageRow(role, { replyActions: 'latest' })}
+          row={messageRow(role, role === 'assistant' ? { replyActions: 'latest' } : {})}
           context={{ ...settling, actions: { ...settling.actions, copiesBlocked: true } }}
         />,
       )
