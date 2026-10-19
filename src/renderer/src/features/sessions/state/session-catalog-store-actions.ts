@@ -28,14 +28,11 @@ export interface SessionCatalogState {
   hiveSessions: readonly SessionSummary[]
   hiveContextSessionId: SessionId | null
   sessionsNextCursor: string | null
-  archivedSessionsNextCursor: string | null
   hiveWorkersNextCursor: string | null
   sessionsLoadingMore: boolean
-  archivedSessionsLoadingMore: boolean
   loadSessions: () => Promise<void>
   loadMoreSessions: () => Promise<void>
   refreshCatalogSessions: (sessionIds: readonly SessionId[]) => Promise<void>
-  loadMoreArchivedSessions: () => Promise<void>
   loadHiveSessions: (sessionId: SessionId) => Promise<void>
   loadMoreHiveSessions: (sessionId: SessionId) => Promise<void>
 }
@@ -102,9 +99,7 @@ async function loadCatalog(set: CatalogSet) {
           state.archivedSessions.filter((session) => protectedIds.has(String(session.id))),
         ),
         sessionsNextCursor: active.nextCursor ?? null,
-        archivedSessionsNextCursor: archived.nextCursor ?? null,
         sessionsLoadingMore: false,
-        archivedSessionsLoadingMore: false,
       }
     })
   } catch (error) {
@@ -182,10 +177,8 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
     hiveSessions: [],
     hiveContextSessionId: null,
     sessionsNextCursor: null,
-    archivedSessionsNextCursor: null,
     hiveWorkersNextCursor: null,
     sessionsLoadingMore: false,
-    archivedSessionsLoadingMore: false,
     loadSessions: () => loadCatalog(set),
     async loadMoreSessions() {
       const cursor = get().sessionsNextCursor
@@ -217,35 +210,6 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       }
     },
     refreshCatalogSessions: (sessionIds) => refreshCatalogSessions(set, get, sessionIds),
-    async loadMoreArchivedSessions() {
-      const cursor = get().archivedSessionsNextCursor
-      if (!cursor || get().archivedSessionsLoadingMore) return
-      set({ archivedSessionsLoadingMore: true })
-      catalogOperationId += 1
-      const operationId = catalogOperationId
-      activeCatalogReadOperationIds.add(operationId)
-      try {
-        const page = await api.listSessionCatalogPage(true, PAGE_SIZE, cursor)
-        if (get().archivedSessionsNextCursor !== cursor) {
-          set({ archivedSessionsLoadingMore: false })
-          return
-        }
-        const currentPage = page.sessions.filter(
-          (session) => (targetedSessionOperationIds.get(String(session.id)) ?? 0) <= operationId,
-        )
-        set((state) => ({
-          archivedSessions: appendUnique(state.archivedSessions, currentPage),
-          archivedSessionsNextCursor: page.nextCursor ?? null,
-          archivedSessionsLoadingMore: false,
-        }))
-      } catch (error) {
-        set({ archivedSessionsLoadingMore: false })
-        logger.error('Failed to load more archived Sessions', { error: String(error) })
-      } finally {
-        activeCatalogReadOperationIds.delete(operationId)
-        pruneTargetedSessionOperationIds()
-      }
-    },
     async loadHiveSessions(sessionId) {
       latestHiveRequestId += 1
       const requestId = latestHiveRequestId

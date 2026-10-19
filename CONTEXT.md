@@ -1338,6 +1338,20 @@ _Avoid_: sort mode (ambiguous with the project list's own session sort), filter 
 The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
 _Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
 
+### Archived items
+
+**Archived items**:
+The Settings section that lists every archived session and archived branch in one searchable list, so a session archived by mistake is found again by what the user remembers about it: words from its title or transcript, its project, or roughly when it was archived. It stays in Settings; the sidebar never lists archived sessions.
+_Avoid_: trash, recycle bin, archive library, archive page
+
+**Archive time**:
+When a session or branch was archived; archiving an already archived item keeps it. It is its own fact, separate from the session's `updated_at`, and it drives the Today / Yesterday / This week grouping and the Archived date filter in **Archived items**.
+_Avoid_: archived date taken from last activity, updated time
+
+**Archive facet**:
+One filter dimension of **Archived items** (Project, Archived date, Type) whose option counts reflect the search text and every other active facet, but not the facet's own selection, so each count says how many results choosing that option would show.
+_Avoid_: tag, category, chip
+
 ### Right panel navigation
 
 **Right panel**:
@@ -1905,6 +1919,8 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An **OpenWaggle publishable package** is distinct from the OpenWaggle desktop app artifact and from a **Development extension fixture**.
 - A **Pinned session** is one session; it appears in the **Pinned section** and not in its project group, so no session is listed twice.
 - A **Pinned session** keeps its pin when archived; the row leaves the **Pinned section** while archived and returns on unarchive.
+- **Archived items** offers Undo only for restore, because restore is reversible by archiving again; Undo archives again exactly the items that restore brought back, with the **Archive time** each had. Deleting from **Archived items** stays permanent, is always confirmed first, once per bulk action, and never deletes a selected session that is no longer archived.
+- Opening an item from **Archived items** shows the session with the archived notice and its Restore action; opening alone never restores it, so it stays out of the sidebar until the user restores it.
 - The **Pinned section** is ordered by exactly one **Pinned sort**; only **Manual order** is user-authored, and the derived sorts never overwrite it.
 - A **Pinned shortcut** belongs to a **position** in the **Pinned section**, never to a particular **Pinned session**.
 - Projects are not pinnable: quick access is expressed only through **Pinned sessions**.

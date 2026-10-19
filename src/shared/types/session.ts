@@ -292,6 +292,8 @@ export interface SessionWorkspaceSelection {
 export interface SessionDeleteOptions {
   /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
   readonly removingProject?: boolean
+  /** Only while still archived (Settings > Archived items); see `SESSION_NOT_ARCHIVED_MESSAGE`. */
+  readonly requireArchived?: boolean
 }
 
 export interface SessionNavigateTreeOptions {

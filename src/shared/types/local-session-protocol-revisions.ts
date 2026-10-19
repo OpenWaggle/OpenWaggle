@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 24 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 25 as const
+export const LOCAL_SESSION_ARCHIVED_ITEMS_REVISION = 25 as const
 export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 23 as const
 export const LOCAL_SESSION_MCP_CONFIGURATION_REVISION = 24 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
@@ -50,6 +51,12 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * `mcp:set-session-enabled`), the slash menu's Pi extension commands
  * (`agent:list-extension-commands`), `sessions:begin-project-removal`, and the options argument of
  * `sessions:delete`.
+ * Revision 25 adds Settings > Archived items: one searchable list of archived sessions and branches
+ * with Archive facet counts (`sessions:query-archived-items`), its Select all
+ * (`sessions:list-archived-item-refs`), and restoring many items, or archiving them again to undo
+ * that, in one call (`sessions:set-archived-items`), and permanently deleting only the selected
+ * sessions that are still archived (`sessions:delete-archived-sessions`); the Local UI `delete`
+ * command gains `requireArchived` for it, checked inside the removal fence.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -175,4 +182,9 @@ export const LOCAL_SESSION_REVISION_24_CAPABILITIES = [
   'host-ui:mcp-configuration-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_24_CAPABILITIES
+export const LOCAL_SESSION_REVISION_25_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_24_CAPABILITIES,
+  'host-ui:archived-items-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_25_CAPABILITIES

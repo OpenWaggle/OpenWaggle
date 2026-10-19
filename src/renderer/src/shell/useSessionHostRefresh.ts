@@ -83,7 +83,9 @@ function invalidateSessionHostQueries(
     void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
   }
   if (refresh.archivedBranches) {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
+    // Archiving, restoring, and deleting anywhere (another window, the CLI, Hive cleanup)
+    // changes what Settings > Archived items lists.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedItems })
   }
 }
 
@@ -92,7 +94,7 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey })
   // A missed agent_start or settlement cannot be replayed: drop marks the Host reports idle.
   void reconcileQueuedRunStarts(queryClient)
-  void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.archivedItems })
   // A missed default change cannot be replayed either.
   void invalidateDefaultThinkingLevel(queryClient)
   void invalidateExtensionContributionsQueries(queryClient)

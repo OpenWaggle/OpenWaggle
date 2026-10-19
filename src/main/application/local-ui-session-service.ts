@@ -1,4 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  SESSION_ALREADY_DELETED_MESSAGE,
+  SESSION_NOT_ARCHIVED_MESSAGE,
+} from '@shared/types/archived-items'
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
@@ -55,6 +59,21 @@ function updateTreeUiState(
         : {}),
     })
     .pipe(Effect.as({ effect: 'tree-ui-state-updated' as const }))
+}
+
+/**
+ * Fails unless the session is archived. Settings > Archived items deletes only what is still in
+ * the archive: checked first, before any run is stopped, and again inside the removal fence.
+ */
+function requireStillArchived(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const states = yield* (yield* SessionRepository).readArchivedItemStates([
+      { kind: 'session', sessionId },
+    ])
+    const state = states.get(`session:${String(sessionId)}`)
+    if (state === undefined) return yield* Effect.fail(new Error(SESSION_ALREADY_DELETED_MESSAGE))
+    if (state === null) return yield* Effect.fail(new Error(SESSION_NOT_ARCHIVED_MESSAGE))
+  })
 }
 
 type LocalUiCommand = LocalUiPayload['request']['command']
@@ -152,13 +171,23 @@ function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEd
       .with('update-tree-ui-state', (update) =>
         updateTreeUiState(sessionRepository, sessionId, update),
       )
-      .with('delete', ({ removingProject }) =>
-        withSessionDesktopRemoval(
-          sessionId,
-          deleteSessionWithVisualizations(sessionId, removingProject ? { removingProject } : {}),
-          'delete',
-        ).pipe(Effect.as({ effect: 'session-deleted' as const })),
-      )
+      .with('delete', ({ removingProject, requireArchived }) => {
+        const stillArchived = requireArchived ? requireStillArchived(sessionId) : Effect.void
+        return stillArchived.pipe(
+          Effect.zipRight(
+            withSessionDesktopRemoval(
+              sessionId,
+              deleteSessionWithVisualizations(sessionId, {
+                ...(removingProject ? { removingProject } : {}),
+                ...(requireArchived ? { requireArchived } : {}),
+              }),
+              'delete',
+              stillArchived,
+            ),
+          ),
+          Effect.as({ effect: 'session-deleted' as const }),
+        )
+      })
       .exhaustive()
   })
 }

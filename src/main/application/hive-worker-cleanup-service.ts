@@ -26,6 +26,7 @@ import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broke
 import { withSessionCommandSerialization } from './session-command-serialization'
 import { publishControlResponse } from './session-control-event-projection'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
+import { refuseRestoreWhileRemovalFenced } from './session-restore-fence'
 
 const logger = createLogger('hive-worker-cleanup')
 const HIVE_RESTORE_IDEMPOTENCY_PREFIX = 'hive-restore:'
@@ -225,6 +226,7 @@ export function restoreHiveWorkerForCommand(input: {
 }) {
   return Effect.gen(function* () {
     const repository = yield* HiveWorkerCleanupRepository
+    yield* refuseRestoreWhileRemovalFenced(input.sessionId)
     const key = `${HIVE_RESTORE_IDEMPOTENCY_PREFIX}${input.idempotencyKey}`
     const response = yield* repository.restoreCleanupArchive({
       callerId: input.callerId,

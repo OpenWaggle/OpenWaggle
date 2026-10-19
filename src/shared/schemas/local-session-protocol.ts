@@ -128,6 +128,7 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
             operation: Schema.Literal('delete'),
             sessionId: sessionInputIdSchema,
             removingProject: Schema.optional(Schema.Boolean),
+            requireArchived: Schema.optional(Schema.Boolean),
           }),
           Schema.Struct({
             operation: Schema.Literal('renew-follow-up-edit-hold'),

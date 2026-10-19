@@ -7,7 +7,8 @@ export function extensionPackagesQueryKey(projectPath: string | null) {
 export const queryKeys = {
   wagglePresets: (projectPath: string | null) => ['wagglePresets', projectPath] as const,
   archivedSessions: ['archivedSessions'] as const,
-  archivedSessionBranches: ['archivedSessionBranches'] as const,
+  /** Settings > Archived items; each query appends its filter and sort. */
+  archivedItems: ['archivedItems'] as const,
   sessionHives: ['sessionHives'] as const,
   sessionHive: (id: SessionId) => ['sessionHives', id] as const,
   /** Nested under the Hive root so the shared Hive event subscription refreshes it too. */

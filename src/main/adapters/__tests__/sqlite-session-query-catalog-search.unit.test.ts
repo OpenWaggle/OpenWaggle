@@ -71,6 +71,32 @@ describe('SQLite Session catalog search', () => {
     })
   })
 
+  it('folds Unicode case for short and trigram queries alike', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'catalog-unicode.sqlite'))
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO sessions (id, pi_session_id, project_path, title, created_at, updated_at)
+          VALUES (${'uber'}, ${'pi-uber'}, ${'/work/Ωmega'}, ${'Über Ärzte'}, ${1}, ${9})
+        `
+      }),
+    )
+    for (const searchText of ['üb', 'ÜB', 'üB', 'ä', 'über', 'ÄRZTE', 'ω', 'ωmEGA']) {
+      const result = await executeQuery(runtime, {
+        operation: 'list',
+        searchText,
+        archived: false,
+        limit: 10,
+      })
+      expect(result.outcome, searchText).toMatchObject({
+        operation: 'list',
+        sessions: [{ sessionId: 'uber' }],
+      })
+    }
+  })
+
   it('uses covering cursor indexes for global and project catalogs', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'catalog-plan.sqlite'))
     runtimes.push(runtime)
