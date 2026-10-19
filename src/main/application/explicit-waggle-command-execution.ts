@@ -1,6 +1,11 @@
-import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
+import type {
+  AgentSendPayload,
+  AgentSendReport,
+  HydratedAgentSendPayload,
+} from '@shared/types/agent'
 import { RunId, type SessionId, type SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
+import * as Data from 'effect/Data'
 import * as Effect from 'effect/Effect'
 import { tryGetSessionHostEventRuntime } from '../session-host/session-host-events'
 import {
@@ -32,6 +37,34 @@ import {
   recordRunFinishedForUsageStatistics,
   recordRunStartedForUsageStatistics,
 } from './usage-statistics-recording'
+
+const FOLLOW_UP_RESERVED_WAGGLE_MESSAGE =
+  'A steered message is still being delivered to the running agent. Send the Waggle again once it appears in the conversation.'
+
+/**
+ * The Host refused to replace the Run for an expected, retryable reason, such as a queued message
+ * being steered into it (`follow_up_reserved`): report it as refused, with its reason, rather than
+ * as an outcome that could not be confirmed.
+ */
+class ExplicitWaggleRefusal extends Data.TaggedError('ExplicitWaggleRefusal')<{
+  readonly message: string
+}> {}
+
+export function reportRefusedExplicitWaggle<E, R>(
+  effect: Effect.Effect<AgentSendReport, E, R>,
+): Effect.Effect<AgentSendReport, E, R> {
+  return effect.pipe(
+    Effect.catchIf(
+      (error): error is E & ExplicitWaggleRefusal => error instanceof ExplicitWaggleRefusal,
+      (refusal) =>
+        Effect.succeed({
+          outcome: 'refused',
+          message: refusal.message,
+          code: 'follow_up_reserved',
+        } satisfies AgentSendReport),
+    ),
+  )
+}
 
 interface ExplicitWaggleRunContext {
   readonly sessionId: SessionId
@@ -82,6 +115,11 @@ export function prepareExplicitWaggleReplacement(input: {
     )
     if (!preparation.accepted) {
       lease.release()
+      if (preparation.code === 'follow_up_reserved') {
+        return yield* Effect.fail(
+          new ExplicitWaggleRefusal({ message: FOLLOW_UP_RESERVED_WAGGLE_MESSAGE }),
+        )
+      }
       return yield* Effect.fail(
         new Error(`Could not prepare explicit Waggle replacement: ${preparation.code}.`),
       )
