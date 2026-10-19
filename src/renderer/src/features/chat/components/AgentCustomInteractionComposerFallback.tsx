@@ -54,7 +54,7 @@ export function AgentCustomInteractionComposerFallback({
   }
 
   return (
-    <div className="mb-2 grid gap-2">
+    <div className="mb-2 grid min-w-0 grid-cols-1 gap-2">
       {custom.map((interaction) => (
         <AgentInteractionCard
           key={interaction.interactionId}
@@ -65,7 +65,9 @@ export function AgentCustomInteractionComposerFallback({
           submit={submit}
         />
       ))}
-      {displayError ? <p className="text-xs leading-5 text-error">{displayError}</p> : null}
+      {displayError ? (
+        <p className="text-xs leading-5 text-error wrap-anywhere">{displayError}</p>
+      ) : null}
     </div>
   )
 }
