@@ -23,6 +23,7 @@ import {
   releaseSessionAttachmentTransitionWhile,
   releaseSessionControlAttachments,
 } from './session-attachment-cleanup'
+import { releaseSessionCommandSerializationWhile } from './session-command-serialization'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 
 export interface PromoteSessionFollowUpInput {
@@ -52,6 +53,25 @@ function promotedSteeringInput(
     delivery: { kind: 'promoted-follow-up', followUpId },
     ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
   }
+}
+
+/**
+ * Durable delivery resolves only once Pi incorporates the steer at its next turn boundary, which
+ * can be minutes into a tool call. The pending promotion already reserves its Follow-up
+ * (`follow_up_reserved`, and settlement waits for it), and its attachments stay referenced by the
+ * queued item until it completes, so the Session's other commands need not wait: the promotion
+ * steps aside from both the command serialization and the attachment transition.
+ *
+ * Stepping aside from only the transition deadlocked: a Follow-up queued meanwhile took the
+ * transition and waited on the serialization, and the delivered promotion then waited on the
+ * transition forever, so neither completed and the Run never settled. The serialization is
+ * released outermost, so the transition is taken back first, in the dispatcher's lock order.
+ */
+function stepAsideWhileSteering<A, E, R>(sessionId: string, steering: Effect.Effect<A, E, R>) {
+  return releaseSessionCommandSerializationWhile({
+    sessionId,
+    effect: releaseSessionAttachmentTransitionWhile({ sessionId, effect: steering }),
+  })
 }
 
 function response(
@@ -91,13 +111,9 @@ function completeClaimedPromotion(input: {
     const steering =
       attachments._tag === 'Left'
         ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
-        : yield* releaseSessionAttachmentTransitionWhile({
-            // Durable delivery resolves only once Pi incorporates the steer at its next turn
-            // boundary, which can be minutes into a tool call. The pending promotion already
-            // reserves the queue (`follow_up_reserved`), and its attachments stay referenced by
-            // the queued item until it completes, so other Session changes need not wait.
-            sessionId: input.operation.request.command.sessionId,
-            effect: AgentSteeringService.pipe(
+        : yield* stepAsideWhileSteering(
+            input.operation.request.command.sessionId,
+            AgentSteeringService.pipe(
               Effect.flatMap((service) =>
                 service.steer(
                   promotedSteeringInput(
@@ -109,7 +125,7 @@ function completeClaimedPromotion(input: {
                 ),
               ),
             ),
-          }).pipe(
+          ).pipe(
             Effect.catchAll(() =>
               Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
             ),
