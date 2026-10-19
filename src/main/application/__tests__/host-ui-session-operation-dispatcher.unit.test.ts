@@ -36,6 +36,7 @@ const EXPECTED_SESSION_CHANNELS = [
   'sessions:query-archived-items',
   'sessions:list-archived-item-refs',
   'sessions:set-archived-items',
+  'sessions:delete-archived-sessions',
   'sessions:begin-project-removal',
   'sessions:set-thinking-level',
   'sessions:get-default-thinking-level',

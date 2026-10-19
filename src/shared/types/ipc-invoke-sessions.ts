@@ -6,6 +6,7 @@ import type {
   ArchivedItemsPage,
   ArchivedItemsQuery,
   ArchivedItemsRefsQuery,
+  ArchivedSessionsDeletionResult,
 } from './archived-items'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SupportedModelId } from './llm'
@@ -127,6 +128,11 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:set-archived-items': {
     args: [change: ArchivedItemsChange]
     return: ArchivedItemsChangeResult
+  }
+  /** Permanently deletes the given sessions that are still archived. */
+  'sessions:delete-archived-sessions': {
+    args: [sessionIds: SessionId[]]
+    return: ArchivedSessionsDeletionResult
   }
   'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
   'sessions:get-workspace': {

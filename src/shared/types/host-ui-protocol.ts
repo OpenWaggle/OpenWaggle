@@ -9,6 +9,7 @@ export const HOST_UI_REVISION_25_REQUIRED_CHANNELS = [
   'sessions:query-archived-items',
   'sessions:list-archived-item-refs',
   'sessions:set-archived-items',
+  'sessions:delete-archived-sessions',
 ] as const satisfies readonly IpcInvokeChannel[]
 /**
  * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0051),

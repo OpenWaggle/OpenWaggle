@@ -157,6 +157,7 @@ export const api: OpenWaggleApi = {
   queryArchivedItems: invoke('sessions:query-archived-items'),
   listArchivedItemRefs: invoke('sessions:list-archived-item-refs'),
   setArchivedItems: invoke('sessions:set-archived-items'),
+  deleteArchivedSessions: invoke('sessions:delete-archived-sessions'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),
   navigateSessionTree: invoke('sessions:navigate-tree'),

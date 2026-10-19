@@ -55,7 +55,9 @@ export interface ArchivedItemsQuery extends ArchivedItemsFilter {
   readonly cursor?: string
 }
 
+/** Select all: the first `limit` items in the order the list shows them. */
 export interface ArchivedItemsRefsQuery extends ArchivedItemsFilter {
+  readonly sort?: ArchivedItemsSort
   readonly limit: number
 }
 
@@ -105,9 +107,22 @@ export interface ArchivedItemRefsPage {
   readonly total: number
 }
 
+/** One item of a bulk change; Undo passes the Archive time the restore reported. */
+export interface ArchivedItemChangeTarget {
+  readonly ref: ArchivedItemRef
+  /** When archiving again, the Archive time to put back instead of now. */
+  readonly archivedAt?: number
+}
+
 export interface ArchivedItemsChange {
   readonly archived: boolean
-  readonly items: readonly ArchivedItemRef[]
+  readonly items: readonly ArchivedItemChangeTarget[]
+}
+
+export interface ArchivedItemChanged {
+  readonly ref: ArchivedItemRef
+  /** The item's Archive time before the change, or null when it was not archived. */
+  readonly archivedAt: number | null
 }
 
 export interface ArchivedItemChangeFailure {
@@ -116,8 +131,17 @@ export interface ArchivedItemChangeFailure {
 }
 
 export interface ArchivedItemsChangeResult {
-  readonly changed: readonly ArchivedItemRef[]
+  readonly changed: readonly ArchivedItemChanged[]
+  /** Already in the requested state, for example restored elsewhere: left untouched. */
+  readonly skipped: readonly ArchivedItemRef[]
   readonly failed: readonly ArchivedItemChangeFailure[]
+}
+
+export interface ArchivedSessionsDeletionResult {
+  readonly deleted: readonly SessionId[]
+  /** No longer archived (or gone): never deleted from Archived items. */
+  readonly skipped: readonly SessionId[]
+  readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
 }
 
 export function archivedItemKey(ref: ArchivedItemRef) {

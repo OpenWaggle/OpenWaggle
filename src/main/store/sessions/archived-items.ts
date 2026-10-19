@@ -151,18 +151,21 @@ function queryArchivedItemsPage(
 ) {
   const conditions = filterConditions(sql, query, now)
   const offset = decodeOffset(query.cursor)
+  const order = archivedItemsOrder(sql, query.sort, terms.length > 0)
   return sql<ArchivedItemsPageRow>`
     WITH ${matchedArchivedItemsCtes(sql, terms)},
     facets AS (${facetsSelect(sql, conditions)}),
     page AS (
       SELECT matched.kind, matched.session_id, matched.branch_id, matched.title,
-        matched.parent_title, matched.project_path, matched.archived_at
+        matched.parent_title, matched.project_path, matched.archived_at,
+        row_number() OVER (ORDER BY ${order}) AS ordinal
       FROM matched
       WHERE ${conditions.project} AND ${conditions.within} AND ${conditions.kind}
-      ORDER BY ${archivedItemsOrder(sql, query.sort, terms.length > 0)}
+      ORDER BY ${order}
       LIMIT ${query.limit + 1} OFFSET ${offset}
     )
     SELECT facets.facets_json, facets.total, page.* FROM facets LEFT JOIN page ON 1
+    ORDER BY page.ordinal
   `
 }
 
@@ -213,7 +216,7 @@ export function archivedItemRefsEffect(query: ArchivedItemsRefsQuery, now: numbe
       SELECT matched.kind, matched.session_id, matched.branch_id, COUNT(*) OVER () AS total
       FROM matched
       WHERE ${conditions.project} AND ${conditions.within} AND ${conditions.kind}
-      ORDER BY ${archivedItemsOrder(sql, 'recent', false)}
+      ORDER BY ${archivedItemsOrder(sql, query.sort, terms.length > 0)}
       LIMIT ${query.limit}
     `
     return { refs: rows.map(rowRef), total: rows[0]?.total ?? 0 } satisfies ArchivedItemRefsPage

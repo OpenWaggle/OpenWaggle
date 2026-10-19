@@ -23,14 +23,31 @@ interface ArchivedItemRowProps {
   readonly actions: ArchivedItemRowActions
 }
 
-function metaLine(item: ArchivedItem) {
-  return [
-    projectName(item.projectPath),
-    item.ref.kind === 'branch' ? `Branch of ${item.parentTitle ?? 'a session'}` : null,
-    `archived ${formatRelativeTime(item.archivedAt)}`,
-  ]
-    .filter((part) => part !== null)
-    .join(' · ')
+/**
+ * The project, the session a branch belongs to, and the Archive time. Only the project and parent
+ * title are highlighted: the search matched those, never the generated words around them.
+ */
+function MetaLine({
+  item,
+  searchedText,
+}: {
+  readonly item: ArchivedItem
+  readonly searchedText: string
+}) {
+  const project = projectName(item.projectPath)
+  const parent = item.ref.kind === 'branch' ? (item.parentTitle ?? 'a session') : null
+  return (
+    <p className="truncate text-xs text-text-muted">
+      <HighlightedText text={project} ranges={searchHighlightRanges(project, searchedText)} />
+      {parent === null ? null : (
+        <>
+          {' · Branch of '}
+          <HighlightedText text={parent} ranges={searchHighlightRanges(parent, searchedText)} />
+        </>
+      )}
+      {` · archived ${formatRelativeTime(item.archivedAt)}`}
+    </p>
+  )
 }
 
 /** One archived session or branch: select, restore, open, or (sessions only) delete. */
@@ -42,7 +59,6 @@ export function ArchivedItemRow({
   actions,
 }: ArchivedItemRowProps) {
   const isBranch = item.ref.kind === 'branch'
-  const meta = metaLine(item)
 
   return (
     <div
@@ -71,9 +87,7 @@ export function ArchivedItemRow({
             />
           </span>
         </p>
-        <p className="truncate text-xs text-text-muted">
-          <HighlightedText text={meta} ranges={searchHighlightRanges(meta, searchedText)} />
-        </p>
+        <MetaLine item={item} searchedText={searchedText} />
         {item.snippet ? (
           <p className="mt-1 line-clamp-2 border-l-2 border-border-light pl-2 text-xs text-text-tertiary">
             <HighlightedText text={item.snippet.text} ranges={item.snippet.highlights} />

@@ -18,6 +18,7 @@ import type { TerminalService } from '../ports/terminal-service'
 import type { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import type { SettingsService } from '../services/settings-service'
 import {
+  deleteArchivedSessions,
   listArchivedItemRefs,
   queryArchivedItems,
   setArchivedItems,
@@ -133,6 +134,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:query-archived-items', () => queryArchivedItems(args))
     .with('sessions:list-archived-item-refs', () => listArchivedItemRefs(args))
     .with('sessions:set-archived-items', () => setArchivedItems(args))
+    .with('sessions:delete-archived-sessions', () => deleteArchivedSessions(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
     .with('sessions:navigate-tree', () => navigateSessionTree(args))

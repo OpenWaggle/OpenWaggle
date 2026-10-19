@@ -16,6 +16,9 @@ export function registerSessionsHandlers(): void {
   typedHandle('sessions:set-archived-items', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:set-archived-items', args),
   )
+  typedHandle('sessions:delete-archived-sessions', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:delete-archived-sessions', args),
+  )
   typedHandle('sessions:get-tree', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:get-tree', args),
   )

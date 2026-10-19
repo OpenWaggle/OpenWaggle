@@ -21,6 +21,8 @@ export const emptySessionCatalogMethods = {
       },
     }),
   listArchivedItemRefs: () => Effect.succeed({ refs: [], total: 0 }),
+  readArchivedItemStates: () => Effect.succeed(new Map()),
+  setArchiveTimes: () => Effect.void,
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
@@ -35,6 +37,8 @@ export const emptySessionCatalogMethods = {
   | 'listArchivedBranchCatalogPage'
   | 'queryArchivedItems'
   | 'listArchivedItemRefs'
+  | 'readArchivedItemStates'
+  | 'setArchiveTimes'
   | 'listResourceProjectionPage'
   | 'getResourceProjectionNodes'
 >

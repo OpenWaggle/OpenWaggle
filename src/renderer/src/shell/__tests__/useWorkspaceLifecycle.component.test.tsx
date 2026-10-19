@@ -132,11 +132,7 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(3)
-    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: queryKeys.archivedSessionBranches,
-      exact: true,
-    })
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: queryKeys.archivedItems,
     })
@@ -199,8 +195,7 @@ describe('useWorkspaceLifecycle', () => {
       queryKey: ['extensionContributions'],
     })
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: queryKeys.archivedSessionBranches,
-      exact: true,
+      queryKey: queryKeys.archivedItems,
     })
     // A missed change of Pi's default thinking level cannot be replayed either.
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({

@@ -23,8 +23,14 @@ export const ARCHIVED_MATCH_SCORE = {
 } as const
 
 export interface ArchivedSearchTerm {
-  /** The lowercased term, matched as a substring of the title, parent title, and project path. */
+  /** The term as typed, trimmed. */
   readonly text: string
+  /**
+   * The spellings matched as substrings of the title, parent title, and project path. SQLite's
+   * LIKE folds only ASCII case, so a non-ASCII word is also tried lowercased, capitalized, and
+   * uppercased: `über` then finds "Über".
+   */
+  readonly variants: readonly string[]
   /** The term's transcript tokens, each matched as a word prefix. */
   readonly tokens: readonly string[]
 }
@@ -45,15 +51,34 @@ export function archivedSearchTerms(text: string | undefined): readonly Archived
     ...new Set(
       (text ?? '')
         .trim()
-        .toLowerCase()
         .split(/\s+/u)
         .filter((word) => word.length > 0),
     ),
   ]
   return words.slice(0, ARCHIVED_ITEMS_MAX_TERMS).map((word) => ({
     text: word,
+    variants: caseVariants(word),
     tokens: [...new Set(tokenizeSessionTranscriptTerms(word))],
   }))
+}
+
+const NON_ASCII = /[^\p{ASCII}]/u
+
+function caseVariants(word: string) {
+  if (!NON_ASCII.test(word)) return [word]
+  const lower = word.toLowerCase()
+  const capitalized = `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`
+  return [...new Set([word, lower, capitalized, word.toUpperCase()])]
+}
+
+function asciiFold(value: string) {
+  return value.replace(/[A-Z]/gu, (letter) => letter.toLowerCase())
+}
+
+/** The JavaScript twin of {@link metadataMatch}'s LIKE test, for one value. */
+export function likeContains(value: string | null, term: ArchivedSearchTerm) {
+  const folded = asciiFold(value ?? '')
+  return term.variants.some((variant) => folded.includes(asciiFold(variant)))
 }
 
 function likeEscape(value: string) {
@@ -64,15 +89,28 @@ export function prefixRange(token: string) {
   return { from: token, to: `${token}${PREFIX_RANGE_END}` }
 }
 
-function contains(sql: SqlClient.SqlClient, column: string, term: string) {
-  return sql`lower(COALESCE(${sql.literal(column)}, '')) LIKE ${`%${likeEscape(term)}%`} ESCAPE '\\'`
+/** LIKE folds ASCII case itself; `lower()` would not fold anything else either. */
+function likeAny(sql: SqlClient.SqlClient, column: string, patterns: readonly string[]) {
+  return sql.or(
+    patterns.map(
+      (pattern) => sql`COALESCE(${sql.literal(column)}, '') LIKE ${pattern} ESCAPE '\\'`,
+    ),
+  )
+}
+
+function contains(sql: SqlClient.SqlClient, column: string, term: ArchivedSearchTerm) {
+  return likeAny(
+    sql,
+    column,
+    term.variants.map((variant) => `%${likeEscape(variant)}%`),
+  )
 }
 
 function metadataMatch(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
   return sql.or([
-    contains(sql, 'archived_items.title', term.text),
-    contains(sql, 'archived_items.parent_title', term.text),
-    contains(sql, 'archived_items.project_path', term.text),
+    contains(sql, 'archived_items.title', term),
+    contains(sql, 'archived_items.parent_title', term),
+    contains(sql, 'archived_items.project_path', term),
   ])
 }
 
@@ -102,13 +140,22 @@ function transcriptMatch(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
 }
 
 function termScore(sql: SqlClient.SqlClient, term: ArchivedSearchTerm) {
-  const escaped = likeEscape(term.text)
+  const escaped = term.variants.map(likeEscape)
+  const title = 'archived_items.title'
   return sql`CASE
-    WHEN lower(archived_items.title) LIKE ${`${escaped}%`} ESCAPE '\\'
+    WHEN ${likeAny(
+      sql,
+      title,
+      escaped.map((variant) => `${variant}%`),
+    )}
       THEN ${ARCHIVED_MATCH_SCORE.titleStart}
-    WHEN lower(archived_items.title) LIKE ${`% ${escaped}%`} ESCAPE '\\'
+    WHEN ${likeAny(
+      sql,
+      title,
+      escaped.map((variant) => `% ${variant}%`),
+    )}
       THEN ${ARCHIVED_MATCH_SCORE.titleWordStart}
-    WHEN ${contains(sql, 'archived_items.title', term.text)} THEN ${ARCHIVED_MATCH_SCORE.title}
+    WHEN ${contains(sql, title, term)} THEN ${ARCHIVED_MATCH_SCORE.title}
     WHEN ${metadataMatch(sql, term)} THEN ${ARCHIVED_MATCH_SCORE.context}
     ELSE ${ARCHIVED_MATCH_SCORE.transcript}
   END`

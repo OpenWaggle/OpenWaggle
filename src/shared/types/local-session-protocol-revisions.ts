@@ -54,7 +54,8 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * Revision 25 adds Settings > Archived items: one searchable list of archived sessions and branches
  * with Archive facet counts (`sessions:query-archived-items`), its Select all
  * (`sessions:list-archived-item-refs`), and restoring many items, or archiving them again to undo
- * that, in one call (`sessions:set-archived-items`).
+ * that, in one call (`sessions:set-archived-items`), and permanently deleting only the selected
+ * sessions that are still archived (`sessions:delete-archived-sessions`).
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 

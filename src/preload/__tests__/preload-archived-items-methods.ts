@@ -5,4 +5,5 @@ export const PRELOAD_ARCHIVED_ITEMS_METHODS = [
   'queryArchivedItems',
   'listArchivedItemRefs',
   'setArchivedItems',
+  'deleteArchivedSessions',
 ] as const satisfies readonly (keyof OpenWaggleApi)[]

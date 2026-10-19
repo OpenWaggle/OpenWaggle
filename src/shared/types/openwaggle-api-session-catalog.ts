@@ -5,6 +5,7 @@ import type {
   ArchivedItemsPage,
   ArchivedItemsQuery,
   ArchivedItemsRefsQuery,
+  ArchivedSessionsDeletionResult,
 } from './archived-items'
 import type { SessionId } from './brand'
 import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from './session'
@@ -35,4 +36,5 @@ export interface OpenWaggleSessionCatalogApi {
   queryArchivedItems(query: ArchivedItemsQuery): Promise<ArchivedItemsPage>
   listArchivedItemRefs(query: ArchivedItemsRefsQuery): Promise<ArchivedItemRefsPage>
   setArchivedItems(change: ArchivedItemsChange): Promise<ArchivedItemsChangeResult>
+  deleteArchivedSessions(sessionIds: SessionId[]): Promise<ArchivedSessionsDeletionResult>
 }

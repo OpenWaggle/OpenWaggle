@@ -4,13 +4,12 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useWorkspacePanelStore } from '@/shell/workspace-panel-store'
-import { useArchivedDeleteSessionMutation } from '../archived-sessions'
-import { queryKeys } from '../query-keys'
+import { archivedItemsQueryOptions, useArchivedDeleteSessionsMutation } from '../archived-sessions'
 
-const deleteSession = vi.hoisted(() => vi.fn(async () => undefined))
+const deleteArchivedSessions = vi.hoisted(() => vi.fn())
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    deleteSession,
+    deleteArchivedSessions,
     unregisterBrowserPreviewOwner: vi.fn(async () => undefined),
     closeBrowserPreview: vi.fn(async () => undefined),
   },
@@ -18,62 +17,66 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 afterEach(() => {
   vi.restoreAllMocks()
-  deleteSession.mockReset()
+  deleteArchivedSessions.mockReset()
   useWorkspacePanelStore.setState({ groups: {} })
 })
 
-it('does not invalidate committed data or clean layout when metadata deletion fails', async () => {
-  const id = SessionId('blocked-delete')
-  const client = new QueryClient()
-  client.setQueryData(queryKeys.archivedSessions, [{ id }])
-  client.setQueryData(queryKeys.archivedSessionBranches, { pages: [], pageParams: [] })
-  client.setQueryData(queryKeys.sessionHive(id), { current: { id } })
-  useWorkspacePanelStore.getState().showTerminal(id)
-  const error = new Error('Active Workers must finish first')
-  deleteSession.mockRejectedValueOnce(error)
-  const { result, unmount } = renderHook(() => useArchivedDeleteSessionMutation(), {
+function renderDeletion(client: QueryClient) {
+  return renderHook(() => useArchivedDeleteSessionsMutation(), {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   })
-  await act(async () => {
-    await expect(result.current.mutateAsync(id)).rejects.toBe(error)
+}
+
+it('cleans up the layout of deleted sessions only, and refreshes archived data', async () => {
+  const deleted = SessionId('deleted')
+  const restoredElsewhere = SessionId('restored-elsewhere')
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const listKey = archivedItemsQueryOptions({}, 'recent').queryKey
+  client.setQueryData(listKey, { pages: [], pageParams: [] })
+  useWorkspacePanelStore.getState().showTerminal(deleted)
+  useWorkspacePanelStore.getState().showTerminal(restoredElsewhere)
+  deleteArchivedSessions.mockResolvedValue({
+    deleted: [deleted],
+    skipped: [restoredElsewhere],
+    failed: [],
   })
-  expect(client.getQueryState(queryKeys.archivedSessions)?.isInvalidated).toBe(false)
-  expect(client.getQueryState(queryKeys.archivedSessionBranches)?.isInvalidated).toBe(false)
-  expect(client.getQueryState(queryKeys.sessionHive(id))?.isInvalidated).toBe(false)
-  expect(useWorkspacePanelStore.getState().groups[id]).toBeDefined()
+  const { result, unmount } = renderDeletion(client)
+
+  let outcome: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined
+  await act(async () => {
+    outcome = await result.current.mutateAsync([deleted, restoredElsewhere])
+  })
+
+  expect(deleteArchivedSessions).toHaveBeenCalledWith([deleted, restoredElsewhere])
+  expect(outcome).toEqual({ deleted: [deleted], skipped: [restoredElsewhere], failed: [] })
+  expect(useWorkspacePanelStore.getState().groups[deleted]).toBeUndefined()
+  expect(useWorkspacePanelStore.getState().groups[restoredElsewhere]).toBeDefined()
+  expect(client.getQueryState(listKey)?.isInvalidated).toBe(true)
   unmount()
   client.clear()
 })
 
-it('invalidates archived and Hive data after committed deletion even when layout storage fails', async () => {
+it('counts a deleted session as deleted when its layout cleanup fails, and reports it', async () => {
   const id = SessionId('deleted-with-full-storage')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(queryKeys.archivedSessions, [{ id }])
-  client.setQueryData(queryKeys.archivedSessionBranches, { pages: [], pageParams: [] })
-  client.setQueryData(queryKeys.sessionHive(id), { current: { id } })
   useWorkspacePanelStore.getState().showTerminal(id)
-  const cleanupError = new DOMException('Workspace storage is full', 'QuotaExceededError')
   const storage = useWorkspacePanelStore.persist.getOptions().storage
   if (!storage) throw new Error('Expected persisted Workspace panel storage')
   vi.spyOn(storage, 'setItem').mockImplementation(() => {
-    throw cleanupError
+    throw new DOMException('Workspace storage is full', 'QuotaExceededError')
   })
-  const { result, unmount } = renderHook(() => useArchivedDeleteSessionMutation(), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    ),
-  })
+  deleteArchivedSessions.mockResolvedValue({ deleted: [id], skipped: [], failed: [] })
+  const { result, unmount } = renderDeletion(client)
 
+  let outcome: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined
   await act(async () => {
-    await expect(result.current.mutateAsync(id)).rejects.toBe(cleanupError)
+    outcome = await result.current.mutateAsync([id])
   })
 
-  expect(deleteSession).toHaveBeenCalledWith(id)
-  expect(client.getQueryState(queryKeys.archivedSessions)?.isInvalidated).toBe(true)
-  expect(client.getQueryState(queryKeys.archivedSessionBranches)?.isInvalidated).toBe(true)
-  expect(client.getQueryState(queryKeys.sessionHive(id))?.isInvalidated).toBe(true)
+  expect(outcome?.deleted).toEqual([id])
+  expect(outcome?.failed).toEqual([{ sessionId: id, message: 'Workspace storage is full' }])
   unmount()
   client.clear()
 })

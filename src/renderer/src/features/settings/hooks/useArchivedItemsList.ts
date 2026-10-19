@@ -1,4 +1,8 @@
-import type { ArchivedItem, ArchivedItemsFacets } from '@shared/types/archived-items'
+import {
+  type ArchivedItem,
+  type ArchivedItemsFacets,
+  archivedItemKey,
+} from '@shared/types/archived-items'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { archivedItemsQueryOptions } from '@/queries/archived-sessions'
@@ -16,12 +20,27 @@ const EMPTY_ITEMS: readonly ArchivedItem[] = []
 
 function useSettledText(text: string) {
   const [settled, setSettled] = useState(text)
+  // Clearing the search applies at once and forgets the old text, so typing again right after
+  // never shows the cleared search's results while the new text settles.
+  if (text.trim() === '' && settled !== text) setSettled(text)
   useEffect(() => {
     const timer = window.setTimeout(() => setSettled(text), SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [text])
-  // Clearing the search shows everything again at once, without waiting out the debounce.
   return text.trim() === '' ? text : settled
+}
+
+/** Pages read by offset can overlap when the archive changes between them; keep the first. */
+function uniqueItems(pages: readonly { readonly items: readonly ArchivedItem[] }[]) {
+  const seen = new Set<string>()
+  return pages.flatMap((page) =>
+    page.items.filter((item) => {
+      const key = archivedItemKey(item.ref)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }),
+  )
 }
 
 /**
@@ -54,7 +73,7 @@ export function useArchivedItemsList() {
     searchedText: settledText,
     filter,
     sort,
-    items: pages.length === 0 ? EMPTY_ITEMS : pages.flatMap((page) => page.items),
+    items: pages.length === 0 ? EMPTY_ITEMS : uniqueItems(pages),
     total: firstPage?.total ?? 0,
     facets,
     isPending: query.isPending,

@@ -53,13 +53,21 @@ export const archivedItemsQuerySchema = Schema.Struct({
 
 export const archivedItemsRefsQuerySchema = Schema.Struct({
   ...archivedItemsFilterFields,
+  sort: Schema.optional(Schema.Literal(...ARCHIVED_ITEMS_SORTS)),
   limit: Schema.Number.pipe(Schema.int(), Schema.between(1, ARCHIVED_ITEMS_SELECTION_LIMIT)),
 })
 
 export const archivedItemsChangeSchema = Schema.Struct({
   archived: Schema.Boolean,
-  items: Schema.Array(archivedItemRefSchema).pipe(
-    Schema.minItems(1),
-    Schema.maxItems(ARCHIVED_ITEMS_SELECTION_LIMIT),
-  ),
+  items: Schema.Array(
+    Schema.Struct({
+      ref: archivedItemRefSchema,
+      archivedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+    }),
+  ).pipe(Schema.minItems(1), Schema.maxItems(ARCHIVED_ITEMS_SELECTION_LIMIT)),
 })
+
+export const archivedSessionIdsSchema = Schema.Array(sessionIdSchema).pipe(
+  Schema.minItems(1),
+  Schema.maxItems(ARCHIVED_ITEMS_SELECTION_LIMIT),
+)

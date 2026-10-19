@@ -14,13 +14,46 @@ export function ArchivedSelectionBar({
   readonly onRestore: () => void
   readonly onDelete: () => void
 }) {
-  if (selection.count === 0) return null
   const sessionCount = selection.selected.filter((ref) => ref.kind === 'session').length
+  const announcement = selection.count === 0 ? '' : `${selection.count.toLocaleString()} selected`
 
   return (
+    <>
+      {/* Stays mounted so screen readers announce the count as it changes. */}
+      <output aria-live="polite" className="sr-only">
+        {announcement}
+      </output>
+      {selection.count === 0 ? null : (
+        <SelectionToolbar
+          selection={selection}
+          pending={pending}
+          sessionCount={sessionCount}
+          onRestore={onRestore}
+          onDelete={onDelete}
+        />
+      )}
+    </>
+  )
+}
+
+function SelectionToolbar({
+  selection,
+  pending,
+  sessionCount,
+  onRestore,
+  onDelete,
+}: {
+  readonly selection: ArchivedItemsSelection
+  readonly pending: boolean
+  readonly sessionCount: number
+  readonly onRestore: () => void
+  readonly onDelete: () => void
+}) {
+  return (
     <div className="sticky bottom-0 z-10 flex justify-center pt-2 pb-1">
-      <output
-        aria-live="polite"
+      <div
+        role="toolbar"
+        aria-label="Selected archived items"
         className="flex items-center gap-2 rounded-lg border border-border-light bg-bg-secondary py-1.5 pr-1.5 pl-3 text-xs text-text-secondary shadow-lg"
       >
         <span className="tabular-nums">{selection.count.toLocaleString()} selected</span>
@@ -53,7 +86,7 @@ export function ArchivedSelectionBar({
         <Button type="button" variant="ghost" size="xs" radius="md" onClick={selection.clear}>
           Clear
         </Button>
-      </output>
+      </div>
     </div>
   )
 }

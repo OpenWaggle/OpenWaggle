@@ -1919,7 +1919,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An **OpenWaggle publishable package** is distinct from the OpenWaggle desktop app artifact and from a **Development extension fixture**.
 - A **Pinned session** is one session; it appears in the **Pinned section** and not in its project group, so no session is listed twice.
 - A **Pinned session** keeps its pin when archived; the row leaves the **Pinned section** while archived and returns on unarchive.
-- **Archived items** offers Undo only for restore, because restore is reversible by archiving again; deleting from **Archived items** stays permanent and is always confirmed first, once per bulk action.
+- **Archived items** offers Undo only for restore, because restore is reversible by archiving again; Undo archives again exactly the items that restore brought back, with the **Archive time** each had. Deleting from **Archived items** stays permanent, is always confirmed first, once per bulk action, and never deletes a selected session that is no longer archived.
 - Opening an item from **Archived items** shows the session with the archived notice and its Restore action; opening alone never restores it, so it stays out of the sidebar until the user restores it.
 - The **Pinned section** is ordered by exactly one **Pinned sort**; only **Manual order** is user-authored, and the derived sorts never overwrite it.
 - A **Pinned shortcut** belongs to a **position** in the **Pinned section**, never to a particular **Pinned session**.

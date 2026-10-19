@@ -1,5 +1,6 @@
 import type { MessageRole } from '@shared/types/agent'
 import type {
+  ArchivedItemRef,
   ArchivedItemRefsPage,
   ArchivedItemsPage,
   ArchivedItemsQuery,
@@ -127,6 +128,17 @@ export interface SessionRepositoryShape {
   readonly listArchivedItemRefs: (
     query: ArchivedItemsRefsQuery,
   ) => Effect.Effect<ArchivedItemRefsPage, SessionProjectionRepositoryError>
+  /**
+   * Each item's Archive time keyed by `archivedItemKey`, or null when it is not archived; an item
+   * that does not exist has no entry.
+   */
+  readonly readArchivedItemStates: (
+    refs: readonly ArchivedItemRef[],
+  ) => Effect.Effect<ReadonlyMap<string, number | null>, SessionProjectionRepositoryError>
+  /** Puts back the Archive times an Undo carries, on items that are archived. */
+  readonly setArchiveTimes: (
+    entries: readonly { readonly ref: ArchivedItemRef; readonly archivedAt: number }[],
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>

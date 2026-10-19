@@ -1,7 +1,13 @@
 import { SessionBranchId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { unarchiveSession } from '../session-details'
-import { archiveSessionBranch, listArchivedItemRefs, queryArchivedItems } from '../sessions'
+import {
+  archiveSessionBranch,
+  listArchivedItemRefs,
+  queryArchivedItems,
+  readArchivedItemStates,
+  setArchiveTimes,
+} from '../sessions'
 import {
   archiveSeededSession,
   closeArchivedItemsStore,
@@ -211,5 +217,71 @@ describe('listArchivedItemRefs', () => {
       { kind: 'branch', sessionId: seeded.branchSession, branchId: seeded.branchId },
       { kind: 'session', sessionId: seeded.settings },
     ])
+  })
+
+  it('follows the list sort, so the first 1,000 are the ones shown first', async () => {
+    const seeded = await seedArchive()
+    const oldest = await listArchivedItemRefs({ sort: 'oldest', limit: 2 }, NOW)
+    expect(oldest.refs).toEqual([
+      { kind: 'session', sessionId: seeded.guards },
+      { kind: 'session', sessionId: seeded.oauth },
+    ])
+  })
+})
+
+describe('non-ASCII search', () => {
+  it('finds a title whatever the case of a non-ASCII letter typed', async () => {
+    const sessionId = await seedSession({
+      key: 'uber',
+      title: 'Über Plan für Ärzte',
+      projectPath: '/work/a',
+      transcript: [],
+    })
+    await archiveSeededSession(sessionId, NOW - HOUR)
+    for (const text of ['über', 'Über', 'ÜBER', 'ärzte']) {
+      const page = await queryArchivedItems({ text, limit: 10 }, NOW)
+      expect(
+        page.items.map((item) => item.title),
+        text,
+      ).toEqual(['Über Plan für Ärzte'])
+    }
+  })
+})
+
+describe('archived item states', () => {
+  it('reads Archive times, null for active items, and puts an Archive time back', async () => {
+    const seeded = await seedArchive()
+    const active = await seedSession({
+      key: 'active',
+      title: 'Active',
+      projectPath: '/work/a',
+      transcript: [],
+    })
+    const settingsRef = { kind: 'session', sessionId: seeded.settings } as const
+    const branchRef = {
+      kind: 'branch',
+      sessionId: seeded.branchSession,
+      branchId: seeded.branchId,
+    } as const
+    const states = await readArchivedItemStates([
+      settingsRef,
+      branchRef,
+      { kind: 'session', sessionId: active },
+    ])
+    expect(states.get(`session:${String(seeded.settings)}`)).toBe(NOW - 2 * HOUR)
+    expect(states.get(`branch:${String(seeded.branchSession)}:${String(seeded.branchId)}`)).toBe(
+      NOW - HOUR,
+    )
+    expect(states.get(`session:${String(active)}`)).toBeNull()
+
+    await setArchiveTimes([
+      { ref: settingsRef, archivedAt: 42 },
+      { ref: { kind: 'session', sessionId: active }, archivedAt: 42 },
+    ])
+    expect(await readSessionArchiveColumns(seeded.settings)).toEqual({
+      archived: 1,
+      archived_at: 42,
+    })
+    expect(await readSessionArchiveColumns(active)).toEqual({ archived: 0, archived_at: null })
   })
 })

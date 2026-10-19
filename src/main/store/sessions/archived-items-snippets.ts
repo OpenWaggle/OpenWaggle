@@ -1,7 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { ArchivedItemSnippet } from '@shared/types/archived-items'
 import * as Effect from 'effect/Effect'
-import { type ArchivedSearchTerm, prefixRange } from './archived-items-sql'
+import { type ArchivedSearchTerm, likeContains, prefixRange } from './archived-items-sql'
 
 const SNIPPET_OPEN = '\u0002'
 const SNIPPET_CLOSE = '\u0003'
@@ -16,18 +16,14 @@ interface SnippetSourceRow {
   readonly project_path: string | null
 }
 
-/** Whether the term matched what the row shows anyway: its title, parent title, or project. */
-function shownInRow(row: SnippetSourceRow, term: ArchivedSearchTerm) {
-  return [row.title, row.parent_title ?? '', row.project_path ?? ''].some((value) =>
-    value.toLowerCase().includes(term.text),
-  )
+interface MatchedTermRow {
+  readonly term: string
+  readonly search_rowid: number
 }
 
-/** Each token as a quoted prefix query: tokens are letters and digits, so nothing needs escaping. */
-function snippetFtsQuery(terms: readonly ArchivedSearchTerm[]) {
-  return [...new Set(terms.flatMap((term) => term.tokens))]
-    .map((token) => `"${token}"*`)
-    .join(' OR ')
+/** Whether the term matched what the row shows anyway: its title, parent title, or project. */
+function shownInRow(row: SnippetSourceRow, term: ArchivedSearchTerm) {
+  return [row.title, row.parent_title, row.project_path].some((value) => likeContains(value, term))
 }
 
 /** Strips FTS5's highlight markers, keeping where each highlighted run starts and ends. */
@@ -51,34 +47,46 @@ export function parseSnippet(raw: string): ArchivedItemSnippet {
 }
 
 /**
- * The transcript excerpt for one session: the first message holding the first token the row's
- * own text does not explain. That message is read straight from the term index's first-node
- * record, so one excerpt costs one indexed FTS5 lookup, never a scan of the transcript corpus.
+ * The indexed word a prefix token matched in one session, and the search row of the first message
+ * holding it, read from the term index's first-node record.
  */
-function sessionSnippet(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  token: string,
-  ftsQuery: string,
-) {
+function matchedTerm(sql: SqlClient.SqlClient, sessionId: string, token: string) {
   const range = prefixRange(token)
-  return sql<{ readonly snippet: string | null }>`
-    SELECT snippet(session_node_search, ${SNIPPET_COLUMN}, ${SNIPPET_OPEN}, ${SNIPPET_CLOSE},
-      '…', ${SNIPPET_TOKENS}) AS snippet
-    FROM session_node_search
-    WHERE session_node_search MATCH ${ftsQuery}
-      AND session_node_search.rowid = (
-        SELECT search_rows.search_rowid
-        FROM session_transcript_terms AS transcript_terms
-        JOIN session_node_search_rows AS search_rows
-          ON search_rows.node_id = transcript_terms.first_node_id
-        WHERE transcript_terms.session_id = ${sessionId}
-          AND transcript_terms.term >= ${range.from} AND transcript_terms.term < ${range.to}
-        ORDER BY transcript_terms.first_created_order
-        LIMIT 1
-      )
+  return sql<MatchedTermRow>`
+    SELECT transcript_terms.term, search_rows.search_rowid
+    FROM session_transcript_terms AS transcript_terms
+    JOIN session_node_search_rows AS search_rows
+      ON search_rows.node_id = transcript_terms.first_node_id
+    WHERE transcript_terms.session_id = ${sessionId}
+      AND transcript_terms.term >= ${range.from} AND transcript_terms.term < ${range.to}
+    ORDER BY transcript_terms.first_created_order
     LIMIT 1
-  `.pipe(Effect.map((rows) => rows[0]?.snippet ?? null))
+  `.pipe(Effect.map((rows) => rows[0] ?? null))
+}
+
+/**
+ * The transcript excerpt for one session, from the first message holding the first word its row
+ * does not explain. FTS5 is asked only for exact indexed words on one row: a prefix query (`f*`)
+ * would merge the doclist of every word with that prefix across the corpus, which takes seconds
+ * on a large transcript index and blocks the Host's connection.
+ */
+function sessionSnippet(sql: SqlClient.SqlClient, sessionId: string, tokens: readonly string[]) {
+  return Effect.gen(function* () {
+    const matches = yield* Effect.forEach(tokens, (token) => matchedTerm(sql, sessionId, token))
+    const found = matches.filter((match) => match !== null)
+    const [first] = found
+    if (!first) return null
+    const ftsQuery = [...new Set(found.map((match) => `"${match.term}"`))].join(' OR ')
+    const rows = yield* sql<{ readonly snippet: string | null }>`
+      SELECT snippet(session_node_search, ${SNIPPET_COLUMN}, ${SNIPPET_OPEN}, ${SNIPPET_CLOSE},
+        '…', ${SNIPPET_TOKENS}) AS snippet
+      FROM session_node_search
+      WHERE session_node_search MATCH ${ftsQuery}
+        AND session_node_search.rowid = ${first.search_rowid}
+      LIMIT 1
+    `
+    return rows[0]?.snippet ?? null
+  })
 }
 
 /**
@@ -90,14 +98,13 @@ export function loadArchivedItemSnippets(
   rows: readonly SnippetSourceRow[],
   terms: readonly ArchivedSearchTerm[],
 ) {
-  const ftsQuery = snippetFtsQuery(terms)
   const wanted = rows.flatMap((row) => {
-    if (row.kind !== 'session' || ftsQuery === '') return []
-    const token = terms.find((term) => !shownInRow(row, term))?.tokens[0]
-    return token ? [{ sessionId: row.session_id, token }] : []
+    if (row.kind !== 'session') return []
+    const tokens = terms.filter((term) => !shownInRow(row, term)).flatMap((term) => term.tokens)
+    return tokens.length > 0 ? [{ sessionId: row.session_id, tokens: [...new Set(tokens)] }] : []
   })
-  return Effect.forEach(wanted, ({ sessionId, token }) =>
-    sessionSnippet(sql, sessionId, token, ftsQuery).pipe(
+  return Effect.forEach(wanted, ({ sessionId, tokens }) =>
+    sessionSnippet(sql, sessionId, tokens).pipe(
       Effect.map((raw) => [sessionId, raw === null ? null : parseSnippet(raw)] as const),
     ),
   ).pipe(

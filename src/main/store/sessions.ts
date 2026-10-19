@@ -5,6 +5,7 @@ export {
   markSessionActiveRunInterrupted,
   recordSessionActiveRun,
 } from './sessions/active-runs'
+export { readArchivedItemStates, setArchiveTimes } from './sessions/archived-item-states'
 export { listArchivedItemRefs, queryArchivedItems } from './sessions/archived-items'
 export {
   archiveSessionBranch,

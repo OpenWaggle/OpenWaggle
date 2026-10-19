@@ -146,9 +146,9 @@ Every archived session, and every archived conversation branch of a session you 
 - **Search** finds words in a session's title, its project, the session a branch belongs to, and the conversation itself. Every word you type must appear somewhere; the end of a word is optional, so `refac` finds "refactor". A match inside the conversation shows the passage it came from.
 - **Project**, **Archived date** (last 24 hours, 7 days, 30 days, or older), and **Type** (sessions or branches) narrow the list. Each option shows how many items you would see if you chose it.
 - While you search, the best matches come first. Otherwise, items are grouped by when they were archived: Today, Yesterday, Earlier this week, and so on. **Sort** switches to newest or oldest first.
-- **Restore** brings an item back to the sidebar, and the confirmation offers **Undo**, which archives it again. Select several items, Shift-click to select a run, or select every match (up to 1,000) to restore them together.
+- **Restore** brings an item back to the sidebar, and the confirmation offers **Undo**, which archives it again with its original archive date. Select several items, Shift-click to select a run, or select every match (up to 1,000, taken in the order the list shows) to restore them together. Changing the search or a filter clears the selection.
 - **Open** shows an archived session without restoring it; it keeps its archived notice and **Restore** action, and stays out of the sidebar until you restore it. A branch opens the session it belongs to.
-- **Delete** permanently deletes archived sessions after you confirm, once for the whole selection. It cannot be undone. Branches can only be restored, never deleted.
+- **Delete** permanently deletes archived sessions after you confirm, once for the whole selection. It cannot be undone. A selected session that was restored elsewhere in the meantime, for example from another window, is kept and never deleted. Branches can only be restored, never deleted.
 
 Archived branches are hidden from normal sidebar navigation but remain marked in the full Session Tree.
 

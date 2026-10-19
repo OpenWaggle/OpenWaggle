@@ -125,6 +125,7 @@ describe('registerSessionsHandlers', () => {
       'sessions:query-archived-items',
       'sessions:list-archived-item-refs',
       'sessions:set-archived-items',
+      'sessions:delete-archived-sessions',
       'sessions:get-tree',
       'sessions:get-workspace',
       'sessions:navigate-tree',

@@ -8,6 +8,7 @@ import { Checkbox } from '@/shared/ui/Checkbox'
 import type { ArchivedItemsList } from '../../../hooks/useArchivedItemsList'
 import type { ArchivedItemsSelection } from '../../../hooks/useArchivedItemsSelection'
 import { type ArchivedDateGroup, archivedDateGroup } from '../../../lib/archived-items-view'
+import { ArchivedErrorAlert } from '../ArchivedErrorAlert'
 import { ArchivedItemRow, type ArchivedItemRowActions } from './ArchivedItemRow'
 
 interface ResultGroup {
@@ -47,7 +48,7 @@ function SelectAllHeader({
       disabled={selection.selectingAll || list.total === 0}
       onChange={() => {
         if (allSelected) selection.clear()
-        else void selection.selectAll(list.filter)
+        else void selection.selectAll(list.filter, list.sort)
       }}
       label={label}
       labelClassName="px-3 text-xs text-text-tertiary"
@@ -72,6 +73,9 @@ export function ArchivedResults({
   return (
     <div className="space-y-3" aria-busy={list.isPlaceholderData ? true : undefined}>
       <SelectAllHeader list={list} selection={selection} />
+      {selection.selectAllError ? (
+        <ArchivedErrorAlert message={selection.selectAllError} subtle />
+      ) : null}
       {groups.map((group) => (
         <section key={group.label} aria-label={group.label} className="space-y-1">
           <h3 className="px-1 text-xs font-medium text-text-tertiary">{group.label}</h3>

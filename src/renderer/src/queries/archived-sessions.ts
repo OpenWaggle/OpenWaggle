@@ -4,7 +4,7 @@ import type {
   ArchivedItemsPage,
   ArchivedItemsSort,
 } from '@shared/types/archived-items'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -16,7 +16,6 @@ import {
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
-import { refreshAfterCommittedSessionMutation } from './committed-session-refresh'
 import { queryKeys } from './query-keys'
 
 const ARCHIVED_ITEMS_PAGE_SIZE = 50
@@ -28,18 +27,9 @@ export function refreshArchivedSessions(queryClient: QueryClient) {
       queryKey: queryKeys.archivedSessions,
       exact: true,
     }),
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.archivedSessionBranches,
-      exact: true,
-    }),
     queryClient.invalidateQueries({ queryKey: queryKeys.archivedItems }),
     queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives }),
   ])
-}
-
-interface RestoreSessionBranchInput {
-  readonly sessionId: SessionId
-  readonly branchId: SessionBranchId
 }
 
 /**
@@ -98,65 +88,40 @@ export function useUnarchiveSessionMutation() {
   })
 }
 
-export function useRestoreSessionBranchMutation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ sessionId, branchId }: RestoreSessionBranchInput) =>
-      api.restoreSessionBranch(sessionId, branchId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.archivedSessionBranches,
-          exact: true,
-        }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.archivedItems }),
-      ])
-    },
-  })
-}
-
-export function useArchivedDeleteSessionMutation() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (sessionId: SessionId) => {
-      await api.deleteSession(sessionId)
-      await refreshAfterCommittedSessionMutation(
-        () => deleteWorkspaceOwner(String(sessionId)),
-        () => refreshArchivedSessions(queryClient),
-      )
-    },
-  })
-}
-
 export interface ArchivedSessionsDeletion {
   readonly deleted: readonly SessionId[]
-  readonly failed: readonly { readonly sessionId: SessionId; readonly error: unknown }[]
+  readonly skipped: readonly SessionId[]
+  readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
+}
+
+/** Storage failures arrive as DOMExceptions, which are not always `instanceof Error`. */
+function describe(error: unknown) {
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error ? error.message : null
+  return typeof message === 'string' && message.trim() ? message : 'Cleanup failed.'
 }
 
 /**
- * Permanently deletes many archived sessions, one after another, then refreshes once. A session
- * whose metadata the Host deleted still counts as deleted when its local cleanup fails after.
+ * Permanently deletes the selected sessions that are still archived. The Host skips any that left
+ * the archive since they were selected, so a stale selection can never delete an active session.
+ * A deleted session's local workspace layout is cleaned up after; a cleanup failure is reported
+ * but the session still counts as deleted.
  */
 export function useArchivedDeleteSessionsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (sessionIds: readonly SessionId[]): Promise<ArchivedSessionsDeletion> => {
-      const deleted: SessionId[] = []
-      const failed: { sessionId: SessionId; error: unknown }[] = []
-      for (const sessionId of sessionIds) {
-        try {
-          await api.deleteSession(sessionId)
-        } catch (error) {
-          failed.push({ sessionId, error })
-          continue
-        }
-        deleted.push(sessionId)
-        await deleteWorkspaceOwner(String(sessionId)).catch((error: unknown) => {
-          failed.push({ sessionId, error })
-        })
-      }
-      return { deleted, failed }
+      const result = await api.deleteArchivedSessions([...sessionIds])
+      const cleanups = await Promise.all(
+        result.deleted.map((sessionId) =>
+          deleteWorkspaceOwner(String(sessionId)).then(
+            () => null,
+            (error: unknown) => ({ sessionId, message: describe(error) }),
+          ),
+        ),
+      )
+      const failed = [...result.failed, ...cleanups.filter((cleanup) => cleanup !== null)]
+      return { deleted: result.deleted, skipped: result.skipped, failed }
     },
     onSettled: () => refreshArchivedSessions(queryClient),
   })

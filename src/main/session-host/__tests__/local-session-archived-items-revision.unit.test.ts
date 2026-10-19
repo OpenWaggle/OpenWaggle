@@ -18,11 +18,12 @@ function hostUiCommand(channel: string) {
 }
 
 describe('Local Session Archived items protocol revision', () => {
-  it('ships the three Settings > Archived items channels', () => {
+  it('ships the Settings > Archived items channels', () => {
     expect(HOST_UI_REVISION_25_REQUIRED_CHANNELS).toEqual([
       'sessions:query-archived-items',
       'sessions:list-archived-item-refs',
       'sessions:set-archived-items',
+      'sessions:delete-archived-sessions',
     ])
   })
 
