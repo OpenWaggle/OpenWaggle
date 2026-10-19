@@ -221,7 +221,7 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
       <WorktreeLaunchRow launch={row.launch} sessionId={row.sessionId} />
     ))
     .with('waggle-turn', (row) => <WaggleTurnRow row={row} context={context} />)
-    .with('branch-summary', (row) => <BranchSummaryCard id={row.id} summary={row.summary} />)
+    .with('branch-summary', (row) => <BranchSummaryCard summary={row.summary} />)
     .with('compaction-summary', (row) => (
       <CompactionTimelineRow
         accessible

@@ -67,7 +67,7 @@ You can also start from the conversation itself. Hover a message to see its acti
 | The agent's reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and a blank message box. |
 | The agent's reply that ends a turn | **Copy response** | Copies the reply's text. |
 
-Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. While the session is working, only **Copy** and **Copy response** are shown.
+Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. While the session is working or compacting, only **Copy message** and **Copy response** are shown.
 
 To copy history into a separate session from the keyboard, use `/fork` or `/clone` in the message box, or open the command palette and use:
 

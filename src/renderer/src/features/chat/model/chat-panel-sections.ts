@@ -61,7 +61,7 @@ export interface ChatTranscriptSectionState {
   onForkFromResponse: (messageId: string) => void
   /**
    * The Host holds the Session, from a send until its Run settles (which outlasts the transcript's
-   * own loading state), so no branch or copy is offered.
+   * own loading state) or while a compaction runs, so no branch or copy is offered.
    */
   readonly copiesBlocked: boolean
   onViewTurnDiff: (messageId: string, filePath?: string) => void

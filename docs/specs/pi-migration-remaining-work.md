@@ -313,9 +313,9 @@ Still remaining:
 
 ## 4. Transcript branching, fork, and clone actions
 
-### Same-session branch-out
+> Superseded by [ADR 0055](../adr/0055-edit-and-fork-points-are-user-messages-and-turn-replies.md): the transcript offers branch and copy actions only on user messages (Edit from here, Fork from here) and turn replies (Continue from here, Fork from this response); the Session tree reaches every other node, and the sidebar clones any Session. This section is kept for history.
 
-> Superseded by [ADR 0055](../adr/0055-edit-and-fork-points-are-user-messages-and-turn-replies.md): the transcript offers branch and copy actions only on user messages and turn replies; the Session tree reaches every other node. The requirement below is kept for history.
+### Same-session branch-out
 
 The chat transcript must show a Git branch-out affordance everywhere the user can validly branch out.
 

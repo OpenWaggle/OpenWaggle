@@ -16,7 +16,10 @@ export interface ChatRowRenderContext {
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
     readonly onForkFromResponse?: (messageId: string) => void
-    /** The Host holds the Session (a Run, until it settles): no branch or copy is offered. */
+    /**
+     * The Host holds the Session (a Run, until it settles, or a compaction): no branch or copy is
+     * offered.
+     */
     readonly copiesBlocked?: boolean
     readonly onViewTurnDiff?: (messageId: string) => void
     readonly onOpenTurnDiff?: (messageId: string, filePath?: string) => void
