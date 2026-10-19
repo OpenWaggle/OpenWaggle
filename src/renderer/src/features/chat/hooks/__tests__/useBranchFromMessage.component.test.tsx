@@ -46,7 +46,7 @@ function BranchButton({ params }: { readonly params: ReturnType<typeof workflowP
 }
 
 function clickBranch() {
-  fireEvent.click(screen.getByTitle('Branch from message'))
+  fireEvent.click(screen.getByTitle('Edit from here'))
 }
 
 function expectBranch(params: ReturnType<typeof workflowParams>) {

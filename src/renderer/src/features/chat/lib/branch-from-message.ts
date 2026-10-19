@@ -90,6 +90,15 @@ export function findUserMessageNode(input: CreateBranchDraftSelectionInput): Ses
   return node?.kind === 'user_message' ? node : null
 }
 
+/** The persisted assistant-message node of a turn's reply, or null before it is projected. */
+export function findAssistantMessageNode(
+  input: CreateBranchDraftSelectionInput,
+): SessionNode | null {
+  const message = input.messages.find((candidate) => candidate.id === input.messageId)
+  const node = findTranscriptNode(input.workspace, input.messageId, message)
+  return node?.kind === 'assistant_message' ? node : null
+}
+
 export function createBranchDraftSelectionFromNode(node: SessionNode): BranchDraftSelection {
   if (node.kind === 'user_message' && node.parentId) {
     const text = node.message ? getAgentMessageText(node.message).trim() : ''

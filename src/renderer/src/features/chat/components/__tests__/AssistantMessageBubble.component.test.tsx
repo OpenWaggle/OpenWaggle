@@ -88,7 +88,6 @@ interface RenderAssistantOptions {
   readonly turnFolded?: boolean
   readonly run?: { readonly isStreaming?: boolean }
   readonly actions?: {
-    readonly onBranchFromMessage?: (messageId: string) => void
     readonly onViewTurnDiff?: (messageId: string) => void
   }
 }
@@ -210,15 +209,10 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
 
-  it('hides message actions until the turn is expanded', () => {
+  it('hides View turn diff in a folded turn, whose changed-files card opens the diff', () => {
     const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Answer')])
-    renderAssistantMessage({
-      message,
-      turnFolded: true,
-      actions: { onBranchFromMessage: vi.fn(), onViewTurnDiff: vi.fn() },
-    })
+    renderAssistantMessage({ message, turnFolded: true, actions: { onViewTurnDiff: vi.fn() } })
 
-    expect(screen.queryByTitle('Branch from message')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'View turn diff' })).not.toBeInTheDocument()
   })
 

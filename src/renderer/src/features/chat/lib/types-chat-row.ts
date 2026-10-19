@@ -45,6 +45,11 @@ export interface MessageChatRow {
   waggleMeta?: WaggleMessageMetadata
   /** Terminal message of a folded turn: render only its final text part. */
   turnPresentation?: 'folded'
+  /**
+   * The settled turn's reply, which can be continued from, forked after, or copied
+   * (`markTurnReplies`); `latest` is the transcript's last one.
+   */
+  replyActions?: 'reply' | 'latest'
 }
 
 /** The quiet row standing in for one settled turn's work (ADR 0034). */

@@ -57,6 +57,13 @@ export interface ChatTranscriptSectionState {
   onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
+  /** Copies the conversation through a turn's reply into a new Session. */
+  onForkFromResponse: (messageId: string) => void
+  /**
+   * The Host holds the Session, from a send until its Run settles (which outlasts the transcript's
+   * own loading state) or while a compaction runs, so no branch or copy is offered.
+   */
+  readonly copiesBlocked: boolean
   onViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
   /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */

@@ -106,6 +106,7 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
       closeForkSelector: vi.fn(),
       cloneCurrentSessionToNewSession: vi.fn().mockResolvedValue(undefined),
       forkMessageToNewSession: vi.fn().mockResolvedValue(undefined),
+      forkResponseToNewSession: vi.fn().mockResolvedValue(undefined),
       openForkSelector: vi.fn(),
       selectForkTarget: vi.fn(),
     },

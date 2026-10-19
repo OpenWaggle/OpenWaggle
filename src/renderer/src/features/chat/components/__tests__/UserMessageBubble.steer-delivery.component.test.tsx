@@ -33,8 +33,8 @@ it('marks a steered preview that is waiting for compaction to finish', () => {
   expect(screen.getByText('Will send after compaction')).toBeInTheDocument()
   expect(screen.queryByText('Queued')).not.toBeInTheDocument()
   expect(bubble).toHaveClass('border-dashed', 'bg-transparent')
-  expect(screen.queryByTitle('Branch from message')).not.toBeInTheDocument()
-  expect(screen.queryByTitle('Fork to new session')).not.toBeInTheDocument()
+  expect(screen.queryByTitle('Edit from here')).not.toBeInTheDocument()
+  expect(screen.queryByTitle('Fork from here')).not.toBeInTheDocument()
 })
 
 it('shows a steer the agent has not read yet as queued', () => {
