@@ -117,7 +117,7 @@ function TranscriptRenderers({
   readonly payload: JsonObject
 }) {
   return (
-    <section aria-label="Transcript extension renderers" className="grid gap-3">
+    <section aria-label="Transcript extension renderers" className="grid min-w-0 grid-cols-1 gap-3">
       {contributions.map((contribution) => (
         <ExtensionAgentLoopChrome
           key={extensionContributionKey(contribution)}
