@@ -113,7 +113,13 @@ export type ChatRow =
         | 'automatic-complete'
         | 'legacy-complete'
     }
-  | { type: 'phase-indicator'; label: string; elapsedMs: number }
+  | {
+      type: 'phase-indicator'
+      label: string
+      elapsedMs: number
+      /** Pi extension status lines (`ctx.ui.setStatus`) for the Run, under the label. */
+      details?: readonly { readonly key: string; readonly text: string }[]
+    }
   | { type: 'retry-status'; attempt: number; maxAttempts: number; delayMs: number }
   | {
       type: 'error'

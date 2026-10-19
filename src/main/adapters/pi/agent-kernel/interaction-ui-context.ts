@@ -19,6 +19,7 @@ import {
   type AgentLoopInteractionRequestInput,
   requestAgentLoopInteraction,
 } from '../../../application/agent-loop-interaction-broker'
+import { emitExtensionStatus } from './extension-status-ui'
 import {
   OPENWAGGLE_AUTHORIZE_KEY,
   OPENWAGGLE_DECLARED_CONFIRM_KEY,
@@ -26,7 +27,14 @@ import {
   type OpenWaggleDeclaredConfirm,
 } from './openwaggle-authorize-channel'
 
-type DesktopInteractionUiOverrideKey = 'select' | 'confirm' | 'input' | 'notify' | 'editor'
+type DesktopInteractionUiOverrideKey =
+  | 'select'
+  | 'confirm'
+  | 'input'
+  | 'notify'
+  | 'editor'
+  | 'setStatus'
+  | 'setWorkingMessage'
 type DesktopInteractionUiOverrides = Pick<ExtensionUIContext, DesktopInteractionUiOverrideKey>
 type PiCustomInteractionFactory = Parameters<ExtensionUIContext['custom']>[0]
 type PiCustomInteractionOptions = Parameters<ExtensionUIContext['custom']>[1]
@@ -206,6 +214,10 @@ function createDesktopInteractionUiOverrides(
       })
       return textValue(response)
     },
+    // Pi's footer status and working message. Keyed per extension status key; no text clears it.
+    setStatus: (key, text) => emitExtensionStatus(context, { kind: 'status', key }, text),
+    setWorkingMessage: (message) =>
+      emitExtensionStatus(context, { kind: 'working-message' }, message),
   } satisfies DesktopInteractionUiOverrides
 }
 

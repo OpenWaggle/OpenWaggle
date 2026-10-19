@@ -11,6 +11,7 @@ import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { useRunExtensionStatus } from '@/features/chat/state/extension-status-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { useIsRunFinishing } from '@/features/chat/state/run-finishing-store'
 import { selectExpandedTurnKeys, useTurnFoldStore } from '@/features/chat/state/turn-fold-store'
@@ -168,6 +169,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
 
   // The agent is done while the Host settles its Run: the reply is not streaming any more.
   const isFinishing = useIsRunFinishing(activeSessionId)
+  const extensionStatus = useRunExtensionStatus(activeSessionId)
   const transcriptLoading = isTranscriptLoading({ isLoading, isFinishing, isSteering })
   useReplacedTranscriptRefresh({ activeSessionId, activeSession, activeWorkspace, isLoading })
   const transcriptMessages = resolveTranscriptMessages({
@@ -225,6 +227,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     compactionStatus,
     expandedTurnKeys,
     turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId,
+    extensionStatus,
   })
 
   function handleToggleTurnFold(turnKey: string) {

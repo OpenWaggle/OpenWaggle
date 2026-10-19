@@ -1,9 +1,13 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
-import { useRunFinishingStore } from '../../state/run-finishing-store'
+import { useExtensionStatusStore } from '../../state/extension-status-store'
+import {
+  FINISHING_STOP_OFFER_DELAY_MS,
+  useRunFinishingStore,
+} from '../../state/run-finishing-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
@@ -12,7 +16,7 @@ type AgentEventHandler = (payload: AgentEventPayload) => void
 const apiMock = vi.hoisted(() => {
   let agentEventHandler: AgentEventHandler | null = null
   let runCompletedHandler:
-    | ((payload: { sessionId: typeof SESSION_ID; continues?: true }) => void)
+    | ((payload: { sessionId: typeof SESSION_ID; runId?: string; continues?: true }) => void)
     | null = null
   return {
     getAgentEventHandler: () => agentEventHandler,
@@ -25,7 +29,13 @@ const apiMock = vi.hoisted(() => {
       return vi.fn()
     }),
     onRunCompleted: vi.fn(
-      (handler: (payload: { sessionId: typeof SESSION_ID; continues?: true }) => void) => {
+      (
+        handler: (payload: {
+          sessionId: typeof SESSION_ID
+          runId?: string
+          continues?: true
+        }) => void,
+      ) => {
         runCompletedHandler = handler
         return vi.fn()
       },
@@ -161,10 +171,15 @@ describe('useBackgroundRunMonitor finishing Runs', () => {
   beforeEach(() => {
     apiMock.listActiveRuns.mockReset().mockResolvedValue([])
     apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
-    useRunFinishingStore.setState({ ids: new Set() })
+    useRunFinishingStore.setState({ ids: new Set(), stoppableIds: new Set() })
+    useExtensionStatusStore.setState({ bySessionId: new Map() })
   })
 
-  function completeRun(payload: { readonly continues?: true }) {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function completeRun(payload: { readonly runId?: string; readonly continues?: true }) {
     const handler = apiMock.getRunCompletedHandler()
     if (!handler) throw new Error('Expected run-completed handler')
     handler({ sessionId: SESSION_ID, ...payload })
@@ -198,6 +213,48 @@ describe('useBackgroundRunMonitor finishing Runs', () => {
     expect(isFinishing()).toBe(true)
     completeRun({})
     expect(isFinishing()).toBe(false)
+    unmount()
+  })
+
+  /*
+   * gosafe's club-hooks extension runs a lint and type-check gate in agent_before_settle: the chat
+   * sat on "Finishing..." for minutes with no word of why and no way to stop it.
+   */
+  it('offers Stop and shows extension status while Pi still works after the agent ended', () => {
+    vi.useFakeTimers()
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+    const isStoppable = () => useRunFinishingStore.getState().stoppableIds.has(SESSION_ID)
+    const statusTexts = () =>
+      useExtensionStatusStore
+        .getState()
+        .bySessionId.get(SESSION_ID)
+        ?.statuses.map((line) => line.text)
+
+    emitAgentEvent({ type: 'agent_start', runId: 'run-1', timestamp: 1 })
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 2 })
+    emitAgentEvent({
+      type: 'extension_status',
+      runId: 'run-1',
+      slot: { kind: 'status', key: 'club-hooks' },
+      text: 'TypeScript hooks: lint, type-check, tests',
+      timestamp: 3,
+    })
+    expect(statusTexts()).toEqual(['TypeScript hooks: lint, type-check, tests'])
+    // Pi's post-loop work usually settles at once; Stop does not flash up for it.
+    expect(isStoppable()).toBe(false)
+
+    act(() => {
+      vi.advanceTimersByTime(FINISHING_STOP_OFFER_DELAY_MS)
+    })
+    expect(isStoppable()).toBe(true)
+
+    // Pi settled the agent's work: only the Host's own settlement is left, nothing to stop.
+    emitAgentEvent({ type: 'agent_settled', runId: 'run-1', aborted: true, timestamp: 4 })
+    expect(isStoppable()).toBe(false)
+    expect(useRunFinishingStore.getState().ids.has(SESSION_ID)).toBe(true)
+
+    completeRun({ runId: 'run-1' })
+    expect(statusTexts()).toBeUndefined()
     unmount()
   })
 })
