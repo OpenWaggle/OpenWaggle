@@ -280,7 +280,8 @@ export function UserMessageBubble({
             <Button
               variant="unstyled"
               type="button"
-              title="Branch from message"
+              title="Edit from here"
+              aria-label="Edit from here"
               onClick={() => onBranchFromMessage(message.id)}
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
             >
@@ -292,7 +293,8 @@ export function UserMessageBubble({
             <Button
               variant="unstyled"
               type="button"
-              title="Fork to new session"
+              title="Fork from here"
+              aria-label="Fork from here"
               onClick={() => onForkFromMessage(message.id)}
               className="flex cursor-pointer items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
             >

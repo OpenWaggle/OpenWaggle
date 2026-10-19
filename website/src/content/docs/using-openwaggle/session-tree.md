@@ -57,7 +57,19 @@ Selecting the latest point of a saved branch returns you to that branch and clea
 
 Selecting an earlier point prepares a draft branch. It does not immediately add a new saved branch. Selecting a user message can also put its text in the message box for you to retry or edit. The new branch is saved when you send, or earlier if you explicitly choose a branch-summary action that creates it.
 
-To copy history into a separate session, open the command palette and use:
+You can also start from the conversation itself. Hover a message to see its actions. A reply's actions sit at the end of its turn, under any changed files; the latest reply always shows them:
+
+| On | Action | What it does |
+|----|--------|--------------|
+| Your message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
+| Your message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
+| The agent's reply that ends a turn | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
+| The agent's reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and a blank message box. |
+| The agent's reply that ends a turn | **Copy response** | Copies the reply's text. |
+
+Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. These actions are not shown while the session is working.
+
+To copy history into a separate session from the keyboard, use `/fork` or `/clone` in the message box, or open the command palette and use:
 
 - **Fork to new session** to choose a previous user message and start a new session with that message ready to edit and resend.
 - **Clone current session** to copy the selected conversation path into a new session with a blank message box.

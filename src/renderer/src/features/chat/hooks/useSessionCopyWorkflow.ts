@@ -8,13 +8,13 @@ import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
-import { findUserMessageNode } from '../lib/branch-from-message'
+import { findAssistantMessageNode, findUserMessageNode } from '../lib/branch-from-message'
 import { setComposerTextValue } from '../lib/composer-text'
 import {
   currentConversationWorkspace,
   resolveCurrentConversationNode,
 } from '../lib/current-conversation-node'
-import { isSessionModelActionable } from '../lib/session-answered-by'
+import { runSessionCopyOnce } from '../lib/session-copy-in-flight'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -68,27 +68,32 @@ async function forkNodeToNewSessionAction(
   params: SessionCopyWorkflowParams,
   nodeId: SessionNodeId,
 ) {
-  if (!params.activeSessionId) return
-  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
+  const sessionId = params.activeSessionId
+  const model = params.model
+  if (!sessionId) return
+  // A copy runs no model: the Host copies the transcript as it is. The model only has to be named.
+  if (!model) {
     params.showToast('Select a model before forking.')
     return
   }
 
-  try {
-    const result = await api.forkSessionToNew(params.activeSessionId, params.model, nodeId)
-    if (result.cancelled) {
-      params.showToast('Session fork cancelled.')
-      return
+  await runSessionCopyOnce(sessionId, async () => {
+    try {
+      const result = await api.forkSessionToNew(sessionId, model, nodeId)
+      if (result.cancelled) {
+        params.showToast('Session fork cancelled.')
+        return
+      }
+      if (!result.session) {
+        params.showToast('Session fork did not return a session.')
+        return
+      }
+      useChatStore.getState().upsertSession(result.session)
+      await activateCopiedSession(params, result.session.id, result.editorText ?? '')
+    } catch (error) {
+      params.showToast(sessionOperationFailureMessage('Failed to fork session', error))
     }
-    if (!result.session) {
-      params.showToast('Session fork did not return a session.')
-      return
-    }
-    useChatStore.getState().upsertSession(result.session)
-    await activateCopiedSession(params, result.session.id, result.editorText ?? '')
-  } catch (error) {
-    params.showToast(sessionOperationFailureMessage('Failed to fork session', error))
-  }
+  })
 }
 
 async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflowParams) {
@@ -97,13 +102,22 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     return
   }
 
-  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
+  const model = params.model
+  if (!model) {
     params.showToast('Select a model before cloning.')
     return
   }
 
+  const sessionId = params.activeSessionId
+  await runSessionCopyOnce(sessionId, () => cloneSessionAt(params, sessionId, model))
+}
+
+async function cloneSessionAt(
+  params: SessionCopyWorkflowParams,
+  sessionId: SessionId,
+  model: SupportedModelId,
+) {
   try {
-    const sessionId = params.activeSessionId
     const targetNodeId =
       params.draftBranchSourceNodeId ??
       (await resolveCurrentConversationNode(sessionId, params.activeWorkspace))
@@ -113,24 +127,62 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
       params.showToast('No session history to clone.')
       return
     }
-    const result = await api.cloneSessionToNew(
-      params.activeSessionId,
-      params.model,
-      SessionNodeId(String(targetNodeId)),
-    )
-    if (result.cancelled) {
-      params.showToast('Session clone cancelled.')
-      return
-    }
-    if (!result.session) {
-      params.showToast('Session clone did not return a session.')
-      return
-    }
-    useChatStore.getState().upsertSession(result.session)
-    await activateCopiedSession(params, result.session.id, '')
+    await copyThroughNode(params, sessionId, model, SessionNodeId(String(targetNodeId)))
   } catch (error) {
     params.showToast(sessionOperationFailureMessage('Failed to clone session', error))
   }
+}
+
+/** A new Session holding the conversation up to and including `nodeId`, with an empty draft. */
+async function copyThroughNode(
+  params: SessionCopyWorkflowParams,
+  sessionId: SessionId,
+  model: SupportedModelId,
+  nodeId: SessionNodeId,
+) {
+  const result = await api.cloneSessionToNew(sessionId, model, nodeId)
+  if (result.cancelled) {
+    params.showToast('Session clone cancelled.')
+    return
+  }
+  if (!result.session) {
+    params.showToast('Session clone did not return a session.')
+    return
+  }
+  useChatStore.getState().upsertSession(result.session)
+  await activateCopiedSession(params, result.session.id, '')
+}
+
+/**
+ * Fork from a turn's reply: a new Session with the conversation through that reply. It is a copy
+ * at the reply's node, as a clone is at the head.
+ */
+async function forkResponseToNewSessionAction(
+  params: SessionCopyWorkflowParams,
+  messageId: string,
+) {
+  const sessionId = params.activeSessionId
+  const model = params.model
+  if (!sessionId) return
+  if (!model) {
+    params.showToast('Select a model before forking.')
+    return
+  }
+  await runSessionCopyOnce(sessionId, async () => {
+    try {
+      const node = await findReplyNode(params, sessionId, messageId)
+      if (useChatStore.getState().activeSessionId !== sessionId) return
+      if (!node) {
+        params.showToast(
+          'Fork source is not available yet. Wait for the transcript to finish loading and try again.',
+        )
+        return
+      }
+      await copyThroughNode(params, sessionId, model, node.id)
+    } catch (error) {
+      params.showToast(sessionOperationFailureMessage('Failed to fork session', error))
+    }
+  })
 }
 
 /**
@@ -148,6 +200,20 @@ async function findForkSourceNode(
   if (node) return node
   const current = await currentConversationWorkspace(sessionId, loaded, { keepEarlierNode: false })
   return findUserMessageNode({ messages: params.messages, workspace: current, messageId })
+}
+
+/** The persisted node of a turn's reply, read from the Host when the loaded workspace lacks it. */
+async function findReplyNode(
+  params: SessionCopyWorkflowParams,
+  sessionId: SessionId,
+  messageId: string,
+) {
+  const loaded =
+    params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
+  const node = findAssistantMessageNode({ messages: params.messages, workspace: loaded, messageId })
+  if (node) return node
+  const current = await currentConversationWorkspace(sessionId, loaded, { keepEarlierNode: false })
+  return findAssistantMessageNode({ messages: params.messages, workspace: current, messageId })
 }
 
 /** Fork targets from the current workspace, which includes messages sent since the last load. */
@@ -180,10 +246,6 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
     async forkMessageToNewSession(messageId: string) {
       const sessionId = params.activeSessionId
       if (!sessionId) return
-      if (!isSessionModelActionable(sessionId, params.model)) {
-        params.showToast('Select a model before forking.')
-        return
-      }
       try {
         const node = await findForkSourceNode(params, sessionId, messageId)
         // The source may have been re-read from the Host; do not fork a Session the user has left.
@@ -214,6 +276,9 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
         setCurrentTargets({ sessionId, targets })
         setForkSelectorOpen(true)
       })
+    },
+    forkResponseToNewSession(messageId: string) {
+      return forkResponseToNewSessionAction(params, messageId)
     },
     selectForkTarget(target: SessionForkTarget) {
       setForkSelectorOpen(false)

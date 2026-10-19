@@ -18,6 +18,7 @@ import { FailedTurnNotice } from './FailedTurnNotice'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
 import { TurnFoldRow } from './TurnFoldRow'
+import { TurnReplyActions } from './TurnReplyActions'
 import { WorktreeLaunchRow } from './WorktreeLaunchRow'
 
 interface ChatRowRendererProps {
@@ -56,6 +57,24 @@ function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
   }
 }
 
+/** A settled turn's reply actions, at the end of the turn; none while the Session runs. */
+function ReplyActionsFooter({
+  row,
+  context,
+}: {
+  readonly row: MessageChatRow
+  readonly context: ChatRowRenderContext
+}) {
+  if (!row.replyActions || row.isRunActive) return null
+  return (
+    <TurnReplyActions
+      message={row.message}
+      actions={context.actions}
+      latest={row.replyActions === 'latest'}
+    />
+  )
+}
+
 function MessageRow({
   row,
   context,
@@ -65,7 +84,7 @@ function MessageRow({
 }) {
   const turn = context.turnsByAnchorNodeId.get(row.message.id)
   return (
-    <div className="flex flex-col gap-6">
+    <div className="group/turn-reply flex flex-col gap-6">
       {row.showTurnDivider && row.turnDividerProps && (
         <TurnDivider
           turnNumber={row.turnDividerProps.turnNumber}
@@ -83,7 +102,10 @@ function MessageRow({
           isRunActive: row.isRunActive,
           assistantModel: row.assistantModel,
         }}
-        presentation={{ turnFolded: row.turnPresentation === 'folded' }}
+        presentation={{
+          turnFolded: row.turnPresentation === 'folded',
+          replyActions: row.replyActions !== undefined,
+        }}
         actions={context.actions}
       />
       {turn && context.actions.onOpenTurnDiff ? (
@@ -95,6 +117,7 @@ function MessageRow({
           onOpenTurnDiff={context.actions.onOpenTurnDiff}
         />
       ) : null}
+      <ReplyActionsFooter row={row} context={context} />
     </div>
   )
 }
@@ -112,8 +135,9 @@ function WaggleTurnRow({
     ? row.messages.find((messageRow) => messageRow.turnPresentation === 'folded')?.message.id
     : undefined
   const turn = terminalMessageId ? context.turnsByAnchorNodeId.get(terminalMessageId) : undefined
+  const reply = row.messages.find((messageRow) => messageRow.replyActions !== undefined)
   return (
-    <section className="flex flex-col gap-3" data-waggle-turn={row.id}>
+    <section className="group/turn-reply flex flex-col gap-3" data-waggle-turn={row.id}>
       <TurnDivider
         turnNumber={row.turnDividerProps.turnNumber}
         agentLabel={row.turnDividerProps.agentLabel}
@@ -146,6 +170,7 @@ function WaggleTurnRow({
             presentation={{
               hideAgentLabel: true,
               turnFolded: messageRow.turnPresentation === 'folded',
+              replyActions: messageRow.replyActions !== undefined,
             }}
             actions={context.actions}
           />
@@ -160,6 +185,7 @@ function WaggleTurnRow({
             onOpenTurnDiff={context.actions.onOpenTurnDiff}
           />
         ) : null}
+        {reply ? <ReplyActionsFooter row={reply} context={context} /> : null}
       </div>
     </section>
   )
@@ -193,13 +219,7 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
       <WorktreeLaunchRow launch={row.launch} sessionId={row.sessionId} />
     ))
     .with('waggle-turn', (row) => <WaggleTurnRow row={row} context={context} />)
-    .with('branch-summary', (row) => (
-      <BranchSummaryCard
-        id={row.id}
-        summary={row.summary}
-        onBranchFromMessage={context.actions.onBranchFromMessage}
-      />
-    ))
+    .with('branch-summary', (row) => <BranchSummaryCard id={row.id} summary={row.summary} />)
     .with('compaction-summary', (row) => (
       <CompactionTimelineRow
         accessible

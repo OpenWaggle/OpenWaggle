@@ -5,7 +5,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { SupportedModelId } from '@shared/types/llm'
 import type { NestedToolCalls } from '@shared/types/tools'
 import type { WaggleAgentColor } from '@shared/types/waggle'
-import { GitBranch, GitCompare } from 'lucide-react'
+import { GitCompare } from 'lucide-react'
 import React from 'react'
 import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
@@ -42,28 +42,6 @@ function StandaloneToolResult({
   )
 }
 
-function BranchFromMessageButton({
-  messageId,
-  onBranchFromMessage,
-  className,
-}: {
-  readonly messageId: string
-  readonly onBranchFromMessage: (messageId: string) => void
-  readonly className: string
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      title="Branch from message"
-      onClick={() => onBranchFromMessage(messageId)}
-      className={className}
-    >
-      <GitBranch className="size-3.5" />
-    </Button>
-  )
-}
-
 function ViewTurnDiffButton({
   messageId,
   onViewTurnDiff,
@@ -85,32 +63,31 @@ function ViewTurnDiffButton({
   )
 }
 
+interface MessageActions {
+  readonly onViewTurnDiff?: (messageId: string) => void
+}
+
+/**
+ * The header's View turn diff, for a message that anchors a turn's diff but is not its reply. A
+ * reply's actions sit at the end of its turn (`TurnReplyActions`), and a folded turn shows its diff
+ * in the changed-files card.
+ */
 function MessageActionButtons({
   messageId,
-  onBranchFromMessage,
-  onViewTurnDiff,
+  actions,
   className,
-  hidden,
+  turnFolded,
 }: {
   readonly messageId: string
-  readonly onBranchFromMessage?: (messageId: string) => void
-  readonly onViewTurnDiff?: (messageId: string) => void
+  readonly actions: MessageActions
   readonly className: string
-  readonly hidden?: boolean
+  readonly turnFolded?: boolean
 }) {
-  if (hidden || (!onBranchFromMessage && !onViewTurnDiff)) return null
+  const onViewTurnDiff = turnFolded ? undefined : actions.onViewTurnDiff
+  if (!onViewTurnDiff) return null
   return (
     <div className={className}>
-      {onViewTurnDiff ? (
-        <ViewTurnDiffButton messageId={messageId} onViewTurnDiff={onViewTurnDiff} />
-      ) : null}
-      {onBranchFromMessage ? (
-        <BranchFromMessageButton
-          messageId={messageId}
-          onBranchFromMessage={onBranchFromMessage}
-          className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
-        />
-      ) : null}
+      <ViewTurnDiffButton messageId={messageId} onViewTurnDiff={onViewTurnDiff} />
     </div>
   )
 }
@@ -163,10 +140,7 @@ interface AssistantMessageBubbleProps {
     /** Terminal message of a folded turn: render only its final text part. */
     readonly turnFolded?: boolean
   }
-  actions?: {
-    readonly onBranchFromMessage?: (messageId: string) => void
-    readonly onViewTurnDiff?: (messageId: string) => void
-  }
+  actions?: MessageActions
 }
 
 export function AssistantMessageBubble({
@@ -182,8 +156,6 @@ export function AssistantMessageBubble({
   const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
   const turnFolded = presentation?.turnFolded === true
-  const onBranchFromMessage = actions?.onBranchFromMessage
-  const onViewTurnDiff = actions?.onViewTurnDiff
   // ADR 0034: the turn fold owns collapsing. While active or in an expanded
   // turn every part renders; a folded terminal message renders only its final text.
   const renderAllParts = !turnFolded || !!isStreaming || !!isRunActive
@@ -197,10 +169,9 @@ export function AssistantMessageBubble({
       {hideAgentLabel ? (
         <MessageActionButtons
           messageId={message.id}
-          onBranchFromMessage={onBranchFromMessage}
-          onViewTurnDiff={onViewTurnDiff}
+          actions={actions ?? {}}
           className="absolute right-0 top-0 flex items-center gap-1"
-          hidden={turnFolded}
+          turnFolded={turnFolded}
         />
       ) : null}
       <div className="flex flex-col gap-2">
@@ -209,10 +180,9 @@ export function AssistantMessageBubble({
             <AgentLabel assistantModel={assistantModel} waggle={waggle} />
             <MessageActionButtons
               messageId={message.id}
-              onBranchFromMessage={onBranchFromMessage}
-              onViewTurnDiff={onViewTurnDiff}
+              actions={actions ?? {}}
               className="ml-auto flex items-center gap-1"
-              hidden={turnFolded}
+              turnFolded={turnFolded}
             />
           </div>
         ) : null}
@@ -246,7 +216,6 @@ export function AssistantMessageBubble({
                       isStreaming={!!isStreaming}
                       extensionRegistry={runtime.extensions.registry}
                       extensionProjectPaths={runtime.extensions.projectPaths}
-                      onBranchFromMessage={onBranchFromMessage}
                     />
                   ))
                   .with('thinking', (value) =>

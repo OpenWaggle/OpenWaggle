@@ -15,6 +15,7 @@ export interface ChatRowRenderContext {
     readonly onDismissInterruptedRun?: (runId: string, branchId: SessionBranchId) => void
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
+    readonly onForkFromResponse?: (messageId: string) => void
     readonly onViewTurnDiff?: (messageId: string) => void
     readonly onOpenTurnDiff?: (messageId: string, filePath?: string) => void
     readonly turnAnchorMessageIds?: ReadonlySet<string>

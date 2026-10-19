@@ -26,6 +26,8 @@ interface MessageBubbleProps {
     readonly hideAgentLabel?: boolean
     /** Terminal message of a folded turn: render only its final text part. */
     readonly turnFolded?: boolean
+    /** The settled turn's reply, whose actions sit at the end of its turn. */
+    readonly replyActions?: boolean
   }
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
@@ -43,15 +45,26 @@ export function MessageBubble({
   presentation,
   actions,
 }: MessageBubbleProps) {
+  // Edit and fork points are a user message and a settled turn's reply (ADR 0055); a reply's sit at
+  // the end of its turn (`TurnReplyActions`). A running Session takes none of them, since the Host
+  // refuses a copy or a branch while it runs.
+  const idle = run?.isRunActive !== true
   if (message.role === 'user') {
     return (
       <UserMessageBubble
         message={message}
-        onBranchFromMessage={actions?.onBranchFromMessage}
-        onForkFromMessage={actions?.onForkFromMessage}
+        onBranchFromMessage={idle ? actions?.onBranchFromMessage : undefined}
+        onForkFromMessage={idle ? actions?.onForkFromMessage : undefined}
       />
     )
   }
+  // A reply's turn diff opens from the changed-files card at the end of its turn.
+  const headerTurnDiff =
+    !presentation?.replyActions &&
+    actions?.onViewTurnDiff &&
+    actions.turnAnchorMessageIds?.has(message.id)
+      ? { onViewTurnDiff: actions.onViewTurnDiff }
+      : {}
 
   return (
     <AssistantMessageBubble
@@ -60,14 +73,7 @@ export function MessageBubble({
       run={run}
       waggle={waggle}
       presentation={presentation}
-      actions={{
-        ...(actions?.onBranchFromMessage
-          ? { onBranchFromMessage: actions.onBranchFromMessage }
-          : {}),
-        ...(actions?.onViewTurnDiff && actions.turnAnchorMessageIds?.has(message.id)
-          ? { onViewTurnDiff: actions.onViewTurnDiff }
-          : {}),
-      }}
+      actions={headerTurnDiff}
     />
   )
 }

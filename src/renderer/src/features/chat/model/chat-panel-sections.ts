@@ -57,6 +57,8 @@ export interface ChatTranscriptSectionState {
   onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
+  /** Copies the conversation through a turn's reply into a new Session; absent hides it. */
+  onForkFromResponse?: (messageId: string) => void
   onViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
   /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */

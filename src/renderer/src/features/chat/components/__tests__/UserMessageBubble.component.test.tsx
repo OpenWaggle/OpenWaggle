@@ -192,7 +192,7 @@ describe('UserMessageBubble', () => {
     const onBranchFromMessage = vi.fn()
 
     render(<UserMessageBubble message={message} onBranchFromMessage={onBranchFromMessage} />)
-    fireEvent.click(screen.getByTitle('Branch from message'))
+    fireEvent.click(screen.getByTitle('Edit from here'))
 
     expect(onBranchFromMessage).toHaveBeenCalledWith('u-branch')
   })
@@ -202,7 +202,7 @@ describe('UserMessageBubble', () => {
     const onForkFromMessage = vi.fn()
 
     render(<UserMessageBubble message={message} onForkFromMessage={onForkFromMessage} />)
-    fireEvent.click(screen.getByTitle('Fork to new session'))
+    fireEvent.click(screen.getByTitle('Fork from here'))
 
     expect(onForkFromMessage).toHaveBeenCalledWith('u-fork')
   })

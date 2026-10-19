@@ -212,6 +212,8 @@ export function useChatPanelSections(): ChatPanelSections {
     handleBranchFromMessage,
     handleForkFromMessage: (messageId: string) =>
       void sessionCopy.forkMessageToNewSession(messageId),
+    handleForkFromResponse: (messageId: string) =>
+      void sessionCopy.forkResponseToNewSession(messageId),
     handleViewTurnDiff: reveal.handleViewTurnDiff,
     turnAnchorMessageIds: reveal.turnAnchorMessageIds,
     turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,

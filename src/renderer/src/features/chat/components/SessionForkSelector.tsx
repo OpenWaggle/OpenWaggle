@@ -62,10 +62,7 @@ export function SessionForkSelector({
                   'hover:bg-bg-hover focus:bg-bg-hover focus:outline-none',
                 )}
               >
-                <span className="block text-xs font-medium text-text-secondary">
-                  {String(target.entryId)}
-                </span>
-                <span className="mt-1 line-clamp-3 block text-xs leading-5 text-text-tertiary">
+                <span className="line-clamp-3 block text-xs leading-5 text-text-secondary">
                   {previewText(target.text)}
                 </span>
               </Button>

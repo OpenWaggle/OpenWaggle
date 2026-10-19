@@ -36,7 +36,6 @@ interface ToolCallRouterProps {
   isStreaming: boolean
   extensionRegistry?: ExtensionContributionRegistryView | null
   extensionProjectPaths?: readonly string[]
-  onBranchFromMessage?: (messageId: string) => void
 }
 
 function stringifyToolResultContent(content: unknown) {
@@ -71,13 +70,11 @@ function ToolCallCard({
   result,
   isStreaming,
   nestedCallsShown,
-  onBranchFromMessage,
 }: {
   readonly part: ToolCallRouterProps['part']
   readonly result: ToolCallResultPayload | undefined
   readonly isStreaming: boolean
   readonly nestedCallsShown: boolean
-  readonly onBranchFromMessage?: (messageId: string) => void
 }) {
   if (part.name === CODEMODE_TOOL_NAME) {
     return (
@@ -98,7 +95,6 @@ function ToolCallCard({
       state={part.state}
       result={result}
       isStreaming={isStreaming}
-      onBranchFromMessage={onBranchFromMessage}
     />
   )
 }
@@ -110,7 +106,6 @@ export function ToolCallRouter({
   isStreaming,
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
-  onBranchFromMessage,
 }: ToolCallRouterProps) {
   const finalResult = toolResults.get(part.id)
   if (
@@ -135,7 +130,6 @@ export function ToolCallRouter({
       result={visibleResult}
       isStreaming={isStreaming}
       nestedCallsShown={nestedCalls.calls.length > 0}
-      onBranchFromMessage={onBranchFromMessage}
     />
   )
   const toolCallBlock = (

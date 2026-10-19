@@ -25,6 +25,16 @@ describe('sessionOperationFailureMessage', () => {
     ).toBe(sentence)
   })
 
+  it('says a Session held by its Run is busy, without the internal writer name', () => {
+    const error = new Error(
+      `${REMOTE}Session cefe5371-3676-4ded-922c-f231125b7d7f already has an active classic Pi writer.`,
+    )
+
+    expect(sessionOperationFailureMessage('Failed to fork session', error)).toBe(
+      'Failed to fork session: this Session is busy. Wait for its Run to finish, then try again.',
+    )
+  })
+
   it('keeps any other reason as it is', () => {
     expect(
       sessionOperationFailureMessage(

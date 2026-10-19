@@ -72,6 +72,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0052-session-origin-is-recognized-never-inferred.md`
 - `docs/adr/0053-the-coordination-surface-is-named-hive-everywhere.md`
 - `docs/adr/0054-transcript-rows-name-the-worker.md`
+- `docs/adr/0055-edit-and-fork-points-are-user-messages-and-turn-replies.md`
 
 ## Testing
 
