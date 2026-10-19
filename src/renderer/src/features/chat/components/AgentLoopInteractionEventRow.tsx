@@ -228,7 +228,7 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
               {eventTimeLabel(item.request.timestamp)}
             </span>
           </div>
-          <p className="mt-1 text-xs leading-5 text-text-secondary [overflow-wrap:anywhere]">
+          <p className="mt-1 text-xs leading-5 text-text-secondary wrap-anywhere">
             {displayMessage}
           </p>
         </div>
@@ -276,7 +276,7 @@ function StandardInteractionRow({
           </div>
           {message ? <InteractionMessage message={message} /> : null}
           {displayResolutionError ? (
-            <p className="mt-2 text-xs leading-5 text-error [overflow-wrap:anywhere]">
+            <p className="mt-2 text-xs leading-5 text-error wrap-anywhere">
               {displayResolutionError}
             </p>
           ) : null}

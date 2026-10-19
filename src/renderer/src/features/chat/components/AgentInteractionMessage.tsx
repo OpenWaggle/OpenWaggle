@@ -20,9 +20,7 @@ export function InteractionMessage({ message }: { readonly message: string }) {
 
   if (!isMultiLine) {
     return (
-      <p className="mt-2 text-xs leading-5 text-text-secondary [overflow-wrap:anywhere]">
-        {displayMessage}
-      </p>
+      <p className="mt-2 text-xs leading-5 text-text-secondary wrap-anywhere">{displayMessage}</p>
     )
   }
 

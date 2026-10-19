@@ -108,7 +108,7 @@ function AgentQuestionRibbon({
       </div>
 
       {displayError ? (
-        <p className="mt-2 text-xs leading-5 text-error" role="alert">
+        <p className="mt-2 text-xs leading-5 text-error wrap-anywhere" role="alert">
           {displayError}
         </p>
       ) : null}
