@@ -1,5 +1,5 @@
+import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/archived-items'
 import type { SessionId } from '@shared/types/brand'
-import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'

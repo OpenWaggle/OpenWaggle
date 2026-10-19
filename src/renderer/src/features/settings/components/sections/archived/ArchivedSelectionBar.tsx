@@ -55,7 +55,10 @@ function SelectionToolbar({
         aria-label="Selected archived items"
         className="m-0 flex min-w-0 items-center gap-2 rounded-lg border border-border-light bg-bg-secondary py-1.5 pr-1.5 pl-3 text-xs text-text-secondary shadow-lg"
       >
-        <span className="tabular-nums">{selection.count.toLocaleString()} selected</span>
+        <span className="tabular-nums">
+          {selection.count.toLocaleString()} selected
+          {selection.atLimit ? ' (the most one action can take)' : null}
+        </span>
         <Button
           type="button"
           variant="primary"

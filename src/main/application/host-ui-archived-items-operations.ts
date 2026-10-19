@@ -13,9 +13,10 @@ import {
   type ArchivedItemsChangeResult,
   type ArchivedSessionsDeletionResult,
   archivedItemKey,
+  SESSION_ALREADY_DELETED_MESSAGE,
+  SESSION_NOT_ARCHIVED_MESSAGE,
 } from '@shared/types/archived-items'
 import type { SessionId } from '@shared/types/brand'
-import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Either from 'effect/Either'
@@ -158,9 +159,10 @@ function deleteIfStillArchived(sessionId: SessionId) {
     Effect.map((outcome) => {
       if (Either.isRight(outcome)) return { kind: 'deleted' } as const
       const message = formatErrorMessage(outcome.left)
-      return message.includes(SESSION_NOT_ARCHIVED_MESSAGE)
-        ? ({ kind: 'kept' } as const)
-        : ({ kind: 'failed', message } as const)
+      // The Local UI delete runs in this process, so its error arrives with the message intact.
+      if (message.includes(SESSION_NOT_ARCHIVED_MESSAGE)) return { kind: 'kept' } as const
+      if (message.includes(SESSION_ALREADY_DELETED_MESSAGE)) return { kind: 'missing' } as const
+      return { kind: 'failed', message } as const
     }),
   )
 }
@@ -194,6 +196,7 @@ export function deleteArchivedSessions(args: readonly unknown[]) {
         const outcome = yield* deleteIfStillArchived(sessionId)
         if (outcome.kind === 'deleted') deleted.push(sessionId)
         if (outcome.kind === 'kept') skipped.push(sessionId)
+        if (outcome.kind === 'missing') missing.push(sessionId)
         if (outcome.kind === 'failed') failed.push({ sessionId, message: outcome.message })
       }
       if (failed.length === 0 || failed.length === pending.length) break

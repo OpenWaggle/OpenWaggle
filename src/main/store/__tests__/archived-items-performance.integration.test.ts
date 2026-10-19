@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryArchivedItems } from '../sessions'
 import {
   closeArchivedItemsStore,
@@ -29,6 +29,11 @@ const VOCABULARY = 2_000
 const QUERY_BUDGET_MS = 1_000
 const ATTEMPTS = 3
 
+/** Loading the app runtime cold can take most of a minute on a loaded runner: do it once, apart. */
+const COLD_IMPORT_TIMEOUT_MS = 180_000
+beforeAll(async () => {
+  await import('../../runtime')
+}, COLD_IMPORT_TIMEOUT_MS)
 beforeEach(() => openArchivedItemsStore(state))
 afterEach(() => closeArchivedItemsStore(state))
 

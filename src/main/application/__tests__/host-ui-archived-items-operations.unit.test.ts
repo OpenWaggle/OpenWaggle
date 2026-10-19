@@ -1,6 +1,9 @@
-import { type ArchivedItemRef, archivedItemKey } from '@shared/types/archived-items'
+import {
+  type ArchivedItemRef,
+  archivedItemKey,
+  SESSION_NOT_ARCHIVED_MESSAGE,
+} from '@shared/types/archived-items'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
-import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -1,6 +1,7 @@
+import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/archived-items'
 import { SessionBranchId } from '@shared/types/brand'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { unarchiveSession } from '../session-details'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { prepareSessionDeletion, unarchiveSession } from '../session-details'
 import {
   archiveSessionBranch,
   listArchivedItemRefs,
@@ -33,6 +34,11 @@ const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const NOW = 1_800_000_000_000
 
+/** Loading the app runtime cold can take most of a minute on a loaded runner: do it once, apart. */
+const COLD_IMPORT_TIMEOUT_MS = 180_000
+beforeAll(async () => {
+  await import('../../runtime')
+}, COLD_IMPORT_TIMEOUT_MS)
 beforeEach(() => openArchivedItemsStore(state))
 afterEach(() => closeArchivedItemsStore(state))
 
@@ -283,5 +289,22 @@ describe('archived item states', () => {
       archived_at: 42,
     })
     expect(await readSessionArchiveColumns(active)).toEqual({ archived: 0, archived_at: null })
+  })
+})
+
+describe('deleting from Archived items', () => {
+  it('refuses to journal the deletion of a session that is no longer archived', async () => {
+    const sessionId = await seedSession({
+      key: 'restored',
+      title: 'Restored',
+      projectPath: '/work/a',
+      transcript: [],
+    })
+    await archiveSeededSession(sessionId, NOW)
+    await unarchiveSession(sessionId)
+
+    await expect(
+      prepareSessionDeletion(sessionId, null, { requireArchived: true }),
+    ).rejects.toThrow(SESSION_NOT_ARCHIVED_MESSAGE)
   })
 })

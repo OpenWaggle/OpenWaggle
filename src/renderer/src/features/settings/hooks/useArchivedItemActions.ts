@@ -55,18 +55,22 @@ function deleteConfirmation(sessionCount: number, skippedBranches: number) {
   }
 }
 
-/** What the user should hear after a delete: why some sessions remain, or nothing. */
+/** What the user should hear after a delete: every reason some sessions remain, or nothing. */
 function deletionProblem(result: ArchivedSessionsDeletion) {
   const [firstFailure] = result.failed
-  if (firstFailure) {
-    return `Could not delete ${sessionsLabel(result.failed.length)}: ${firstFailure.message}`
-  }
-  if (result.skipped.length > 0) {
-    return `Kept ${sessionsLabel(result.skipped.length)} that left the archive before deleting.`
-  }
   const [firstCleanup] = result.cleanupFailed
-  if (!firstCleanup) return null
-  return `Deleted, but could not clean up the local layout of ${sessionsLabel(result.cleanupFailed.length)}: ${firstCleanup.message}`
+  const parts = [
+    firstFailure
+      ? `Could not delete ${sessionsLabel(result.failed.length)}: ${firstFailure.message}`
+      : null,
+    result.skipped.length > 0
+      ? `Kept ${sessionsLabel(result.skipped.length)} that left the archive before deleting.`
+      : null,
+    firstCleanup
+      ? `Deleted, but could not clean up the local layout of ${sessionsLabel(result.cleanupFailed.length)}: ${firstCleanup.message}`
+      : null,
+  ].filter((part) => part !== null)
+  return parts.length === 0 ? null : parts.join(' ')
 }
 
 /**

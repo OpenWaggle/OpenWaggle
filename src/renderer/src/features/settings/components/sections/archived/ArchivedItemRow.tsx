@@ -75,7 +75,6 @@ export function ArchivedItemRow({
         checked={selected}
         readOnly
         disabled={!selected && selectionFull}
-        title={!selected && selectionFull ? 'The selection is full (1,000 items)' : undefined}
         aria-label={`Select ${item.title}`}
         className="mt-0.5"
         onClick={(event: MouseEvent<HTMLInputElement>) => actions.toggle(item, event.shiftKey)}

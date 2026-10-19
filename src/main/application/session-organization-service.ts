@@ -17,6 +17,7 @@ import type { SessionWorkspaceResourceRepository } from '../ports/session-worksp
 import type { TerminalService } from '../ports/terminal-service'
 import { withSessionActionRelease } from './action-workspace-release'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
+import { refuseRestoreWhileRemovalFenced } from './session-restore-fence'
 import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
@@ -113,7 +114,11 @@ export function organizeSession(input: {
               : Effect.void,
           ),
         )
-      : organizeSessionWithoutArchive(input)
+      : input.request.command.operation === 'unarchive'
+        ? refuseRestoreWhileRemovalFenced(SessionId(input.request.command.sessionId)).pipe(
+            Effect.zipRight(organizeSessionWithoutArchive(input)),
+          )
+        : organizeSessionWithoutArchive(input)
   })
 }
 

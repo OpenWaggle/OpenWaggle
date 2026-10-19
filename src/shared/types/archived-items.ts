@@ -146,6 +146,16 @@ export interface ArchivedSessionsDeletionResult {
   readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
 }
 
+/**
+ * The failure a `requireArchived` delete reports for a session that is no longer archived. It is
+ * checked before the session's runs stop, inside the removal fence, and where the deletion is
+ * journaled, so a session restored elsewhere is kept.
+ */
+export const SESSION_NOT_ARCHIVED_MESSAGE = 'The session is no longer archived, so it was kept.'
+
+/** The failure a `requireArchived` delete reports for a session that no longer exists. */
+export const SESSION_ALREADY_DELETED_MESSAGE = 'The session was already deleted.'
+
 export function archivedItemKey(ref: ArchivedItemRef) {
   return ref.kind === 'session'
     ? `session:${String(ref.sessionId)}`

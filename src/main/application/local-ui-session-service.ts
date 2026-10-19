@@ -1,11 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  SESSION_ALREADY_DELETED_MESSAGE,
+  SESSION_NOT_ARCHIVED_MESSAGE,
+} from '@shared/types/archived-items'
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
-import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { FOLLOW_UP_EDIT_HOLD_LEASE_MS } from '../domain/session-control/follow-up-edit-lease'
@@ -68,9 +71,8 @@ function requireStillArchived(sessionId: SessionId) {
       { kind: 'session', sessionId },
     ])
     const state = states.get(`session:${String(sessionId)}`)
-    if (state === undefined || state === null) {
-      return yield* Effect.fail(new Error(SESSION_NOT_ARCHIVED_MESSAGE))
-    }
+    if (state === undefined) return yield* Effect.fail(new Error(SESSION_ALREADY_DELETED_MESSAGE))
+    if (state === null) return yield* Effect.fail(new Error(SESSION_NOT_ARCHIVED_MESSAGE))
   })
 }
 
@@ -175,10 +177,10 @@ function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEd
           Effect.zipRight(
             withSessionDesktopRemoval(
               sessionId,
-              deleteSessionWithVisualizations(
-                sessionId,
-                removingProject ? { removingProject } : {},
-              ),
+              deleteSessionWithVisualizations(sessionId, {
+                ...(removingProject ? { removingProject } : {}),
+                ...(requireArchived ? { requireArchived } : {}),
+              }),
               'delete',
               stillArchived,
             ),
