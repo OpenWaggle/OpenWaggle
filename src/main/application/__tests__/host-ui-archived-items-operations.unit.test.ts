@@ -7,6 +7,7 @@ import { SessionBranchId, SessionId } from '@shared/types/brand'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import { emptySessionCatalogMethods } from './session-repository-test-support'
 
@@ -301,6 +302,36 @@ describe('Archived items Host UI operations', () => {
     await expect(run(listArchivedItemRefs([{ sort: 'oldest', limit: 10 }]))).resolves.toEqual({
       refs: [],
       total: 0,
+    })
+  })
+
+  it('reads the reason a wrapped store failure gives, and keeps a session the journal refused', async () => {
+    const queen = SessionId('queen-with-workers')
+    states.set(archivedItemKey({ kind: 'session', sessionId: queen }), 5)
+    dispatchLocalSessionCommandMock.mockImplementation((input) =>
+      Effect.fail(
+        new SessionProjectionRepositoryError({
+          operation: 'delete',
+          cause: new Error(
+            input.payload.request.command.sessionId === 'queen-with-workers'
+              ? 'Session deletion was refused because worker w1 still depends on it.'
+              : SESSION_NOT_ARCHIVED_MESSAGE,
+          ),
+        }),
+      ),
+    )
+    const result = await run(deleteArchivedSessions([[sessionRef.sessionId, queen]]))
+
+    expect(result).toEqual({
+      deleted: [],
+      skipped: [sessionRef.sessionId],
+      missing: [],
+      failed: [
+        {
+          sessionId: queen,
+          message: 'Session deletion was refused because worker w1 still depends on it.',
+        },
+      ],
     })
   })
 })

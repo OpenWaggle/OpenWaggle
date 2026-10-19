@@ -17,11 +17,11 @@ import {
   SESSION_NOT_ARCHIVED_MESSAGE,
 } from '@shared/types/archived-items'
 import type { SessionId } from '@shared/types/brand'
-import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Either from 'effect/Either'
 import { SessionRepository } from '../ports/session-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { describeError, errorCauseChain, userFacingErrorDetail } from '../utils/describe-error'
 import {
   deleteSessionWithOptions,
   mutateLocalUiSession,
@@ -108,7 +108,7 @@ export function setArchivedItems(args: readonly unknown[]) {
       }
       const outcome = yield* Effect.either(changeArchivedItem(item.ref, change.archived))
       if (Either.isLeft(outcome)) {
-        failed.push({ ref: item.ref, message: formatErrorMessage(outcome.left) })
+        failed.push({ ref: item.ref, message: failureReason(outcome.left) })
         continue
       }
       changed.push({ ref: item.ref, archivedAt: state ?? null })
@@ -142,6 +142,23 @@ function putBackArchiveTimes(
   })
 }
 
+/**
+ * Every message along an error's cause chain. Store failures arrive wrapped in tagged repository
+ * errors whose own message is empty, with the reason on a cause.
+ */
+function causeMessages(error: unknown) {
+  return errorCauseChain(error).flatMap((link) => {
+    const message = link instanceof Error ? link.message.trim() : ''
+    return message ? [message] : []
+  })
+}
+
+/** The innermost reason an error gives, safe to show the user. */
+function failureReason(error: unknown) {
+  const reason = causeMessages(error).at(-1) ?? describeError(error)
+  return userFacingErrorDetail(reason)
+}
+
 /** The first target for each item: a repeated ref would otherwise be changed twice. */
 function uniqueTargets(targets: readonly ArchivedItemChangeTarget[]) {
   const seen = new Set<string>()
@@ -158,11 +175,14 @@ function deleteIfStillArchived(sessionId: SessionId) {
   return Effect.either(deleteSessionWithOptions(sessionId, { requireArchived: true })).pipe(
     Effect.map((outcome) => {
       if (Either.isRight(outcome)) return { kind: 'deleted' } as const
-      const message = formatErrorMessage(outcome.left)
-      // The Local UI delete runs in this process, so its error arrives with the message intact.
-      if (message.includes(SESSION_NOT_ARCHIVED_MESSAGE)) return { kind: 'kept' } as const
-      if (message.includes(SESSION_ALREADY_DELETED_MESSAGE)) return { kind: 'missing' } as const
-      return { kind: 'failed', message } as const
+      const messages = causeMessages(outcome.left)
+      if (messages.some((message) => message.includes(SESSION_NOT_ARCHIVED_MESSAGE))) {
+        return { kind: 'kept' } as const
+      }
+      if (messages.some((message) => message.includes(SESSION_ALREADY_DELETED_MESSAGE))) {
+        return { kind: 'missing' } as const
+      }
+      return { kind: 'failed', message: failureReason(outcome.left) } as const
     }),
   )
 }
