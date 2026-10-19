@@ -10,7 +10,7 @@ import {
   getSummaryRow,
   tryNestToolResultMessage,
 } from '../lib/chat-message-row-model'
-import { appendStatusRows } from '../lib/chat-status-row-model'
+import { appendStatusRows, type ExtensionStatusRowInput } from '../lib/chat-status-row-model'
 import {
   createCompactionRowAppender,
   createCompactionStatusRows,
@@ -45,6 +45,8 @@ interface BuildChatRowsParams {
   turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   /** Turn keys the user expanded in this session (fold state is in-memory). */
   expandedTurnKeys?: ReadonlySet<string>
+  /** What the Run's Pi extensions say they are doing, shown on its status row. */
+  extensionStatus?: ExtensionStatusRowInput
 }
 
 /** A first send that nothing (no launch step, no run, no reply) has answered yet. */

@@ -84,6 +84,8 @@ export function applyAgentTransportEvent<Messages extends readonly UIMessage[]>(
       'agent_interaction_request',
       'agent_interaction_resolved',
       'custom',
+      'extension_status',
+      'agent_settled',
       unchanged,
     )
     .exhaustive()

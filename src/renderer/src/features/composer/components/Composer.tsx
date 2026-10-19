@@ -16,6 +16,7 @@ import { ComposerEditorArea } from './ComposerEditorArea'
 import { ComposerHeader } from './ComposerHeader'
 import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
+import type { ComposerRunFinishing } from './ComposerSendControls'
 import { QueuedMessageEditNotices } from './QueuedMessageEditBar'
 
 interface ComposerProps {
@@ -25,8 +26,11 @@ interface ComposerProps {
   onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined> | boolean | undefined
   onCancel: () => void
   isLoading: boolean
-  /** The agent ended the Run and the Host is settling it: no Stop, and a message is queued. */
-  isFinishing?: boolean
+  /**
+   * The agent ended the Run and it is finishing: a message is queued. Stop shows only while the
+   * agent still works on (`stoppable`), not while the Host merely saves the Run (`settling`).
+   */
+  finishing?: ComposerRunFinishing
   mode?: {
     readonly disabled?: boolean
     readonly placeholder?: string
@@ -76,8 +80,8 @@ function withQueuedEditMode(
   }
 }
 
-function runAnnouncement(isLoading: boolean, isFinishing: boolean) {
-  if (isFinishing) return 'Agent is finishing'
+function runAnnouncement(isLoading: boolean, finishing: ComposerRunFinishing | undefined) {
+  if (finishing) return 'Agent is finishing'
   return isLoading ? 'Agent is working' : ''
 }
 
@@ -88,7 +92,7 @@ export function Composer({
   onEnqueue,
   onCancel,
   isLoading,
-  isFinishing = false,
+  finishing,
   mode,
   onToast,
 }: ComposerProps) {
@@ -155,7 +159,7 @@ export function Composer({
   return (
     <div className="shrink-0">
       <output aria-live="polite" className="sr-only">
-        {runAnnouncement(isLoading, isFinishing)}
+        {runAnnouncement(isLoading, finishing)}
       </output>
       <ComposerHiddenFileInput
         fileInputRef={fileInputRef}
@@ -190,7 +194,7 @@ export function Composer({
             onSend: submit,
             onCancel,
             isLoading,
-            isFinishing,
+            finishing,
             canSend: editHere ? queuedEdit.canSave : submission.canSend,
             sendTitle,
             savesEdit: editHere !== null,

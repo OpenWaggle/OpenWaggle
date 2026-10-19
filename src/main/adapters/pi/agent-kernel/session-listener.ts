@@ -265,7 +265,15 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
   matchBy(event, 'type')
     .with('agent_start', () => emitAgentStart(state))
     .with('agent_end', (value) => emitAgentEnd(state, value))
-    .with('agent_settled', () => undefined)
+    .with('agent_settled', (value) =>
+      emitEvent(state.input.onEvent, {
+        type: 'agent_settled',
+        runId: state.runId,
+        aborted: value.aborted,
+        timestamp: Date.now(),
+        model: state.input.model,
+      }),
+    )
     .with('entry_appended', () => undefined)
     .with('session_info_changed', () => undefined)
     .with('thinking_level_changed', () => undefined)
