@@ -92,4 +92,30 @@ describe('AgentInteractionCard layout', () => {
     }
     expect(screen.getByText(message)).toHaveClass('wrap-anywhere')
   })
+
+  it('keeps a select with a long choice inside the card', () => {
+    // A native select's min-content width is its widest option, so an implicit grid track would
+    // grow to it and push the card past the column.
+    const choice = `/very/long/choice/${'segment'.repeat(40)}`
+    render(
+      <AgentInteractionCard
+        busy={false}
+        extensionProjectPaths={[]}
+        extensionRegistry={null}
+        interaction={{
+          interactionId: 'select-1',
+          sessionId: SessionId('session-1'),
+          runId: 'run-1',
+          kind: 'select',
+          source: 'pi-ui',
+          createdAt: 1,
+          title: 'Pick a package',
+          choices: [choice, 'short'],
+        }}
+        submit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+
+    expect(screen.getByRole('combobox').parentElement).toHaveClass('grid', 'grid-cols-1', 'min-w-0')
+  })
 })
