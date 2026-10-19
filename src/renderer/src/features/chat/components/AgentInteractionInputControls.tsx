@@ -18,7 +18,7 @@ export function AgentInteractionInputControls({
   const displayPlaceholder = useChatDisplayText(interaction.placeholder ?? '')
   const [value, setValue] = useState('')
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2">
       <TextInput
         aria-label={displayTitle}
         disabled={busy}

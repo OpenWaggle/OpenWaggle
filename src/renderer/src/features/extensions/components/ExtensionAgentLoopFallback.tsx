@@ -24,7 +24,7 @@ function renderToolFallback({
   readonly toolResult?: ExtensionToolResultView
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3">
       <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <Wrench className="size-4 text-accent" />
         <span>{toolCall.name}</span>
@@ -53,7 +53,7 @@ function renderToolFallback({
 
 function renderCustomMessageFallback(message: ExtensionCustomMessageView) {
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2">
       <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <MessagesSquare className="size-4 text-accent" />
         <span>{message.name}</span>
@@ -136,7 +136,7 @@ function renderInteractionFallback({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3">
       <div>
         <h4 className="text-sm font-semibold text-text-primary">{interaction.title}</h4>
         {interaction.description ? (

@@ -49,7 +49,10 @@ describe('InteractionEventRow', () => {
   })
 })
 
-function notifyRequest(level: 'info' | 'warning' | 'error'): AgentTransportInteractionRequestEvent {
+function notifyRequest(
+  level: 'info' | 'warning' | 'error',
+  message = `Notice at ${level} level`,
+): AgentTransportInteractionRequestEvent {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
@@ -60,7 +63,7 @@ function notifyRequest(level: 'info' | 'warning' | 'error'): AgentTransportInter
       kind: 'notify',
       source: 'pi-ui',
       createdAt: 1,
-      message: `Notice at ${level} level`,
+      message,
       level,
     },
   }
@@ -88,5 +91,86 @@ describe('InteractionEventRow notification durability', () => {
     )
 
     expect(container).toBeEmptyDOMElement()
+  })
+})
+
+const UNBROKEN_TOKEN = `/very/long/path/${'segment'.repeat(40)}`
+
+function confirmRequest(message: string): AgentTransportInteractionRequestEvent {
+  return {
+    type: 'agent_interaction_request',
+    timestamp: 1,
+    interaction: {
+      interactionId: 'confirm-1',
+      sessionId: SessionId('session-1'),
+      runId: 'run-1',
+      kind: 'confirm',
+      source: 'pi-ui',
+      createdAt: 1,
+      purpose: 'user-input',
+      title: 'Run this command?',
+      message,
+    },
+  }
+}
+
+function rowSection(container: HTMLElement) {
+  const section = container.querySelector('section')
+  if (!(section instanceof HTMLElement)) {
+    throw new Error('Expected the interaction row section')
+  }
+  return section
+}
+
+describe('InteractionEventRow layout', () => {
+  // jsdom does no layout, so these pin the classes that keep the card inside the transcript column.
+  // An implicit grid track grows to its widest min-content child (a truncated line or an unbroken
+  // token), so the row needs an explicit minmax(0, 1fr) track and wrap-anywhere text.
+  it('keeps a confirmation request inside the transcript column', () => {
+    const { container } = render(
+      <InteractionEventRow
+        extensions={extensions}
+        item={{
+          request: confirmRequest(UNBROKEN_TOKEN),
+          resolution: {
+            type: 'agent_interaction_resolved',
+            timestamp: 2,
+            runId: 'run-1',
+            interactionId: 'confirm-1',
+            kind: 'confirm',
+            status: 'errored',
+            error: { message: `Failed: ${UNBROKEN_TOKEN}/error` },
+          },
+        }}
+      />,
+    )
+
+    const section = rowSection(container)
+    expect(section).toHaveClass('grid', 'grid-cols-1', 'min-w-0')
+    expect(screen.getByText(UNBROKEN_TOKEN)).toHaveClass('wrap-anywhere')
+    expect(screen.getByText(`Failed: ${UNBROKEN_TOKEN}/error`)).toHaveClass('wrap-anywhere')
+  })
+
+  it('keeps a multi-line request inside the transcript column', () => {
+    const { container } = render(
+      <InteractionEventRow
+        extensions={extensions}
+        item={{ request: confirmRequest(`npm install ${UNBROKEN_TOKEN}\n{"rule":"ask"}`) }}
+      />,
+    )
+
+    expect(rowSection(container)).toHaveClass('grid', 'grid-cols-1', 'min-w-0')
+    expect(screen.getByText(`npm install ${UNBROKEN_TOKEN}`)).toHaveClass('truncate')
+  })
+
+  it('wraps an unbroken token in a durable notification', () => {
+    render(
+      <InteractionEventRow
+        extensions={extensions}
+        item={{ request: notifyRequest('error', UNBROKEN_TOKEN) }}
+      />,
+    )
+
+    expect(screen.getByText(UNBROKEN_TOKEN)).toHaveClass('wrap-anywhere')
   })
 })

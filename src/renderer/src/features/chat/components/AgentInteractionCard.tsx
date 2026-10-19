@@ -37,7 +37,7 @@ function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInt
       <div className="min-w-0">
         {/* The raw discriminant said nothing to a reader and is an internal token, so the card
             uses the same user-facing title the rest of the UI uses. */}
-        <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+        <h3 className="text-sm font-semibold text-text-primary wrap-anywhere">{title}</h3>
       </div>
     </div>
   )
@@ -117,9 +117,9 @@ function InteractionSummary({ interaction }: { readonly interaction: AgentLoopIn
 
   return (
     <div>
-      <div className="text-sm font-medium text-text-primary">{displayTitle}</div>
+      <div className="text-sm font-medium text-text-primary wrap-anywhere">{displayTitle}</div>
       {displayMessage ? (
-        <p className="mt-1 text-xs leading-5 text-text-tertiary">{displayMessage}</p>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary wrap-anywhere">{displayMessage}</p>
       ) : null}
     </div>
   )
@@ -139,7 +139,7 @@ export function AgentInteractionCard({
   readonly submit: SubmitInteractionResponse
 }) {
   return (
-    <section className="grid gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
+    <section className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
       <InteractionHeader interaction={interaction} />
       <InteractionExtensionSurfaces
         busy={busy}
