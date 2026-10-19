@@ -176,7 +176,9 @@ function completeClaimedPromotion(input: {
         : {}),
     })
     const completedResponse = response(input.operation, false, recorded)
-    return steering.accepted
+    // What the journal recorded decides, not the live steer: a row another writer already
+    // completed (host-loss recovery) keeps the Follow-up and its attachments queued.
+    return recorded.effect === 'promoted-follow-up'
       ? yield* preserveOutcomeAfterAttachmentCleanup({
           effect: Effect.succeed(completedResponse),
           cleanup: releasePromotedAttachments({

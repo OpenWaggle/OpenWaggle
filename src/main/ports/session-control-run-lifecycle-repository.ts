@@ -21,6 +21,8 @@ export type SessionControlRunActivationResult =
         | 'run_changed'
         | 'parent_concurrency_limit_reached'
         | 'host_run_ceiling_reached'
+        /** A promotion of a queued Follow-up into the Run is waiting for delivery. */
+        | 'follow_up_reserved'
     }
 
 export type SessionControlRunSettlementResult =

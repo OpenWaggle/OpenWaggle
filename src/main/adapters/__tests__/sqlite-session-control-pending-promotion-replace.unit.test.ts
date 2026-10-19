@@ -1,11 +1,15 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { RunId, SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { submitSessionMessage } from '../../application/session-control-service'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
+import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-control-operation-journal'
 import { makeSessionControlRunLifecycleTestLayer } from './sqlite-session-control-run-lifecycle-test-layer'
 
@@ -99,5 +103,74 @@ describe('SQLite Session Control replacement during a pending promotion', () => 
     })
     expect(result.admitted.status).toBe('claimed')
     expect(decideReplace).toHaveBeenCalledOnce()
+  })
+
+  it('refuses an explicit Waggle replacing the Run while a promotion waits for delivery', async () => {
+    // Explicit Waggle replaces the active Run through the lifecycle, not a Session Control claim.
+    // The promotion into the replaced Run would then find another Run and leave its steered
+    // Follow-up queued for a second delivery.
+    const layer = makeSessionControlRunLifecycleTestLayer(path.join(temporaryRoot, 'waggle.sqlite'))
+    const intent = {
+      text: 'Use Waggle.',
+      attachmentIds: [],
+      callerId: 'gui:local-user',
+      acceptedAt: 2000,
+      idempotencyKey: 'waggle-once',
+    }
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* submitSessionMessage({
+          callerId: 'local-user',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-start',
+            idempotencyKey: 'idempotency-start',
+            command: {
+              operation: 'message',
+              sessionId: 'session-target',
+              input: { text: 'Start working.', attachmentIds: [] },
+            },
+          },
+        })
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        yield* lifecycle.activate({
+          sessionId: SessionId('session-target'),
+          runId: RunId('run-next'),
+        })
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_operations (
+            caller_id, operation, target_scope, idempotency_key, request_json,
+            status, outcome_json, created_at, updated_at
+          ) VALUES (
+            ${'local-user'}, ${'promote'}, ${'session-target'}, ${'pending-promotion'},
+            ${JSON.stringify(promote.command)}, ${'pending'}, ${null}, ${1}, ${1}
+          )
+        `
+        if (!lifecycle.replaceWithExternal) {
+          return yield* Effect.die('external replacement lifecycle unavailable')
+        }
+        const replacement = {
+          sessionId: SessionId('session-target'),
+          previousRunId: RunId('run-next'),
+          runId: RunId('waggle-run'),
+          intent,
+        }
+        const refused = yield* lifecycle.replaceWithExternal(replacement)
+        const kept = yield* sql<{ readonly active_run_id: string | null }>`
+          SELECT active_run_id FROM session_control_states WHERE session_id = ${'session-target'}
+        `
+        yield* sql`
+          UPDATE session_operations SET status = ${'completed'}, outcome_json = ${'{}'}
+          WHERE idempotency_key = ${'pending-promotion'}
+        `
+        const admitted = yield* lifecycle.replaceWithExternal(replacement)
+        return { refused, keptRunId: kept[0]?.active_run_id, admitted }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.refused).toEqual({ accepted: false, code: 'follow_up_reserved' })
+    expect(result.keptRunId).toBe('run-next')
+    expect(result.admitted).toMatchObject({ accepted: true })
   })
 })
