@@ -51,10 +51,9 @@ function SelectionToolbar({
 }) {
   return (
     <div className="sticky bottom-0 z-10 flex justify-center pt-2 pb-1">
-      <div
-        role="toolbar"
+      <fieldset
         aria-label="Selected archived items"
-        className="flex items-center gap-2 rounded-lg border border-border-light bg-bg-secondary py-1.5 pr-1.5 pl-3 text-xs text-text-secondary shadow-lg"
+        className="m-0 flex min-w-0 items-center gap-2 rounded-lg border border-border-light bg-bg-secondary py-1.5 pr-1.5 pl-3 text-xs text-text-secondary shadow-lg"
       >
         <span className="tabular-nums">{selection.count.toLocaleString()} selected</span>
         <Button
@@ -86,7 +85,7 @@ function SelectionToolbar({
         <Button type="button" variant="ghost" size="xs" radius="md" onClick={selection.clear}>
           Clear
         </Button>
-      </div>
+      </fieldset>
     </div>
   )
 }

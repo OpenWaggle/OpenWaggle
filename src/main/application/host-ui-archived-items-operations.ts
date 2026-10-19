@@ -8,18 +8,21 @@ import {
 import {
   type ArchivedItemChanged,
   type ArchivedItemChangeFailure,
+  type ArchivedItemChangeTarget,
   type ArchivedItemRef,
   type ArchivedItemsChangeResult,
   type ArchivedSessionsDeletionResult,
   archivedItemKey,
 } from '@shared/types/archived-items'
 import type { SessionId } from '@shared/types/brand'
+import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Either from 'effect/Either'
 import { SessionRepository } from '../ports/session-repository'
+import { publishSessionHostEvent } from '../session-host/session-host-events'
 import {
-  deleteSession,
+  deleteSessionWithOptions,
   mutateLocalUiSession,
   organizeSession,
 } from './host-ui-session-lifecycle-operations'
@@ -90,12 +93,13 @@ export function setArchivedItems(args: readonly unknown[]) {
       args[0],
       'Archived items change',
     )
+    const items = uniqueTargets(change.items)
     const repository = yield* SessionRepository
-    const states = yield* repository.readArchivedItemStates(change.items.map((item) => item.ref))
+    const states = yield* repository.readArchivedItemStates(items.map((item) => item.ref))
     const changed: ArchivedItemChanged[] = []
     const skipped: ArchivedItemRef[] = []
     const failed: ArchivedItemChangeFailure[] = []
-    for (const item of change.items) {
+    for (const item of items) {
       const state = states.get(archivedItemKey(item.ref))
       if (!startsFrom(state, change.archived)) {
         skipped.push(item.ref)
@@ -108,52 +112,93 @@ export function setArchivedItems(args: readonly unknown[]) {
       }
       changed.push({ ref: item.ref, archivedAt: state ?? null })
     }
-    const archiveTimes = change.archived
-      ? change.items.flatMap((item) =>
-          item.archivedAt !== undefined &&
-          changed.some((entry) => archivedItemKey(entry.ref) === archivedItemKey(item.ref))
-            ? [{ ref: item.ref, archivedAt: item.archivedAt }]
-            : [],
-        )
-      : []
-    if (archiveTimes.length > 0) yield* repository.setArchiveTimes(archiveTimes)
+    if (change.archived) yield* putBackArchiveTimes(items, changed)
     return { changed, skipped, failed } satisfies ArchivedItemsChangeResult
   })
 }
 
 /**
- * `[sessionIds]`: permanently deletes archived sessions, after the user confirmed. A session that
- * is no longer archived (restored elsewhere since it was selected) is skipped, never deleted. A
- * Hive root or fork source is refused while its Workers or forks exist, so failures are retried
- * once more per pass while a pass still deletes something: a "delete all" then removes Workers
+ * Undo's archive commands stamp now; put back the Archive time each item had before the restore.
+ * The archive commands already announced the items, so announce again for other windows to read
+ * the times put back rather than the moment of the Undo.
+ */
+function putBackArchiveTimes(
+  items: readonly ArchivedItemChangeTarget[],
+  changed: readonly ArchivedItemChanged[],
+) {
+  return Effect.gen(function* () {
+    const changedKeys = new Set(changed.map((entry) => archivedItemKey(entry.ref)))
+    const archiveTimes = items.flatMap((item) =>
+      item.archivedAt !== undefined && changedKeys.has(archivedItemKey(item.ref))
+        ? [{ ref: item.ref, archivedAt: item.archivedAt }]
+        : [],
+    )
+    if (archiveTimes.length === 0) return
+    yield* (yield* SessionRepository).setArchiveTimes(archiveTimes)
+    for (const sessionId of new Set(archiveTimes.map((entry) => entry.ref.sessionId))) {
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+    }
+  })
+}
+
+/** The first target for each item: a repeated ref would otherwise be changed twice. */
+function uniqueTargets(targets: readonly ArchivedItemChangeTarget[]) {
+  const seen = new Set<string>()
+  return targets.filter((target) => {
+    const key = archivedItemKey(target.ref)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** One attempt per pass: deleted, kept because it left the archive, or failed for another reason. */
+function deleteIfStillArchived(sessionId: SessionId) {
+  return Effect.either(deleteSessionWithOptions(sessionId, { requireArchived: true })).pipe(
+    Effect.map((outcome) => {
+      if (Either.isRight(outcome)) return { kind: 'deleted' } as const
+      const message = formatErrorMessage(outcome.left)
+      return message.includes(SESSION_NOT_ARCHIVED_MESSAGE)
+        ? ({ kind: 'kept' } as const)
+        : ({ kind: 'failed', message } as const)
+    }),
+  )
+}
+
+/**
+ * `[sessionIds]`: permanently deletes archived sessions, after the user confirmed. Each delete
+ * requires the session to still be archived, checked inside the Host's removal fence, so one
+ * restored elsewhere at any point in the batch is kept, never deleted. A session already gone is
+ * reported as missing. A Hive root or fork source is refused while its Workers or forks exist, so
+ * failures are retried while a pass still deletes something: a "delete all" removes Workers
  * before their Queen whatever order they were selected in.
  */
 export function deleteArchivedSessions(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    const sessionIds = yield* decodeArgument(archivedSessionIdsSchema, args[0], 'Archived sessions')
-    const repository = yield* SessionRepository
-    const states = yield* repository.readArchivedItemStates(
+    const decoded = yield* decodeArgument(archivedSessionIdsSchema, args[0], 'Archived sessions')
+    const sessionIds = [...new Set(decoded)]
+    const states = yield* (yield* SessionRepository).readArchivedItemStates(
       sessionIds.map((sessionId) => ({ kind: 'session', sessionId }) as const),
     )
-    const skipped = sessionIds.filter(
-      (sessionId) =>
-        !startsFrom(states.get(archivedItemKey({ kind: 'session', sessionId })), false),
-    )
-    const skippedIds = new Set(skipped)
-    let pending = sessionIds.filter((sessionId) => !skippedIds.has(sessionId))
+    const stateOf = (sessionId: SessionId) =>
+      states.get(archivedItemKey({ kind: 'session', sessionId }))
+    const missing = sessionIds.filter((sessionId) => stateOf(sessionId) === undefined)
+    const skipped = sessionIds.filter((sessionId) => stateOf(sessionId) === null)
+    let pending = sessionIds.filter((sessionId) => typeof stateOf(sessionId) === 'number')
     const deleted: SessionId[] = []
     let failed: { sessionId: SessionId; message: string }[] = []
     while (pending.length > 0) {
       failed = []
       for (const sessionId of pending) {
-        const outcome = yield* Effect.either(deleteSession([sessionId]))
-        if (Either.isRight(outcome)) deleted.push(sessionId)
-        else failed.push({ sessionId, message: formatErrorMessage(outcome.left) })
+        const outcome = yield* deleteIfStillArchived(sessionId)
+        if (outcome.kind === 'deleted') deleted.push(sessionId)
+        if (outcome.kind === 'kept') skipped.push(sessionId)
+        if (outcome.kind === 'failed') failed.push({ sessionId, message: outcome.message })
       }
-      if (failed.length === pending.length) break
+      if (failed.length === 0 || failed.length === pending.length) break
       pending = failed.map((failure) => failure.sessionId)
     }
-    return { deleted, skipped, failed } satisfies ArchivedSessionsDeletionResult
+    return { deleted, skipped, missing, failed } satisfies ArchivedSessionsDeletionResult
   })
 }

@@ -32,10 +32,13 @@ interface ScopedSelection {
   readonly items: Selection
   /** The row the last click started from, for Shift-click ranges. */
   readonly anchorKey: string | null
+  readonly selectAllError: string | null
 }
 
 function scoped(current: ScopedSelection, scope: string): ScopedSelection {
-  return current.scope === scope ? current : { scope, items: EMPTY_SELECTION, anchorKey: null }
+  return current.scope === scope
+    ? current
+    : { scope, items: EMPTY_SELECTION, anchorKey: null, selectAllError: null }
 }
 
 function describeError(error: unknown) {
@@ -59,20 +62,24 @@ export function useArchivedItemsSelection(items: readonly ArchivedItem[], scope:
     scope,
     items: EMPTY_SELECTION,
     anchorKey: null,
+    selectAllError: null,
   })
   const [selectingAll, setSelectingAll] = useState(false)
-  const [selectAllError, setSelectAllError] = useState<string | null>(null)
   // Adjusting state while rendering (React's documented pattern) discards the old selection the
   // moment the filter changes, so it cannot come back when the filter returns.
   if (state.scope !== scope) setState(scoped(state, scope))
   const current = scoped(state, scope)
   const selection = current.items
 
+  /**
+   * Changes the selection made under this render's filter. An async caller (Select all, a bulk
+   * restore's clean-up) that settles after the filter changed finds another scope and does
+   * nothing, so it never wipes or overwrites the selection made under the new filter.
+   */
   const update = (change: (current: ScopedSelection) => Partial<ScopedSelection>) =>
-    setState((previous) => {
-      const base = scoped(previous, scope)
-      return { ...base, ...change(base) }
-    })
+    setState((previous) =>
+      previous.scope === scope ? { ...previous, ...change(previous) } : previous,
+    )
 
   const toggle = (item: ArchivedItem, range: boolean) => {
     const key = archivedItemKey(item.ref)
@@ -97,7 +104,7 @@ export function useArchivedItemsSelection(items: readonly ArchivedItem[], scope:
 
   const selectAll = async (filter: ArchivedItemsFilter, sort: ArchivedItemsSort) => {
     setSelectingAll(true)
-    setSelectAllError(null)
+    update(() => ({ selectAllError: null }))
     try {
       const page = await api.listArchivedItemRefs({
         ...filter,
@@ -106,7 +113,7 @@ export function useArchivedItemsSelection(items: readonly ArchivedItem[], scope:
       })
       update(() => ({ items: withRefs(EMPTY_SELECTION, page.refs, true) }))
     } catch (error) {
-      setSelectAllError(describeError(error))
+      update(() => ({ selectAllError: describeError(error) }))
     } finally {
       setSelectingAll(false)
     }
@@ -116,7 +123,9 @@ export function useArchivedItemsSelection(items: readonly ArchivedItem[], scope:
     selected: [...selection.values()],
     count: selection.size,
     selectingAll,
-    selectAllError,
+    selectAllError: current.selectAllError,
+    /** At {@link ARCHIVED_ITEMS_SELECTION_LIMIT}: unselected rows cannot be added. */
+    atLimit: selection.size >= ARCHIVED_ITEMS_SELECTION_LIMIT,
     isSelected: (ref: ArchivedItemRef) => selection.has(archivedItemKey(ref)),
     toggle,
     selectAll,

@@ -292,7 +292,15 @@ export interface SessionWorkspaceSelection {
 export interface SessionDeleteOptions {
   /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
   readonly removingProject?: boolean
+  /**
+   * Only while the session is still archived (Settings > Archived items): checked before its runs
+   * are stopped and again inside the removal fence, so a session restored elsewhere is kept.
+   */
+  readonly requireArchived?: boolean
 }
+
+/** The failure a `requireArchived` delete reports for a session that is no longer archived. */
+export const SESSION_NOT_ARCHIVED_MESSAGE = 'The session is no longer archived, so it was kept.'
 
 export interface SessionNavigateTreeOptions {
   readonly summarize?: boolean

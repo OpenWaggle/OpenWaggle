@@ -19,6 +19,8 @@ interface ArchivedItemRowProps {
   readonly item: ArchivedItem
   readonly searchedText: string
   readonly selected: boolean
+  /** The selection is full: this row can be deselected but not added. */
+  readonly selectionFull: boolean
   readonly pending: boolean
   readonly actions: ArchivedItemRowActions
 }
@@ -55,6 +57,7 @@ export function ArchivedItemRow({
   item,
   searchedText,
   selected,
+  selectionFull,
   pending,
   actions,
 }: ArchivedItemRowProps) {
@@ -71,6 +74,8 @@ export function ArchivedItemRow({
       <Checkbox
         checked={selected}
         readOnly
+        disabled={!selected && selectionFull}
+        title={!selected && selectionFull ? 'The selection is full (1,000 items)' : undefined}
         aria-label={`Select ${item.title}`}
         className="mt-0.5"
         onClick={(event: MouseEvent<HTMLInputElement>) => actions.toggle(item, event.shiftKey)}

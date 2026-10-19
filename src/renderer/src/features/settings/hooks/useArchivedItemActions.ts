@@ -61,8 +61,12 @@ function deletionProblem(result: ArchivedSessionsDeletion) {
   if (firstFailure) {
     return `Could not delete ${sessionsLabel(result.failed.length)}: ${firstFailure.message}`
   }
-  if (result.skipped.length === 0) return null
-  return `Kept ${sessionsLabel(result.skipped.length)} that left the archive before deleting.`
+  if (result.skipped.length > 0) {
+    return `Kept ${sessionsLabel(result.skipped.length)} that left the archive before deleting.`
+  }
+  const [firstCleanup] = result.cleanupFailed
+  if (!firstCleanup) return null
+  return `Deleted, but could not clean up the local layout of ${sessionsLabel(result.cleanupFailed.length)}: ${firstCleanup.message}`
 }
 
 /**
@@ -146,7 +150,10 @@ export function useArchivedItemActions(onRemoved: (refs: readonly ArchivedItemRe
         useComposerStore.getState().clearScopedDraftsForSession(String(sessionId))
       }
       onRemoved(
-        [...result.deleted, ...result.skipped].map((sessionId) => ({ kind: 'session', sessionId })),
+        [...result.deleted, ...result.skipped, ...result.missing].map((sessionId) => ({
+          kind: 'session',
+          sessionId,
+        })),
       )
       setActionError(deletionProblem(result))
     } catch (error) {

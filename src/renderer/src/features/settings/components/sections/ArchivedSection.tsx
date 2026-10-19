@@ -40,7 +40,7 @@ function NoMatches({ list }: { readonly list: ArchivedItemsList }) {
 
 /** The toolbar, the results (or why there are none), and the selection bar. */
 function ArchivedBrowser({ list }: { readonly list: ArchivedItemsList }) {
-  const selection = useArchivedItemsSelection(list.items, JSON.stringify(list.filter))
+  const selection = useArchivedItemsSelection(list.items, JSON.stringify([list.filter, list.sort]))
   const actions = useArchivedItemActions(selection.forget)
   const queryError = describeQueryError(list.error)
   const showLoading = list.isPending && !queryError

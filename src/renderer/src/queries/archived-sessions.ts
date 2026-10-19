@@ -90,8 +90,13 @@ export function useUnarchiveSessionMutation() {
 
 export interface ArchivedSessionsDeletion {
   readonly deleted: readonly SessionId[]
+  /** No longer archived when its turn came, so kept. */
   readonly skipped: readonly SessionId[]
+  /** Already deleted elsewhere. */
+  readonly missing: readonly SessionId[]
   readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
+  /** Deleted, but this window could not clean up its local layout. */
+  readonly cleanupFailed: readonly { readonly sessionId: SessionId; readonly message: string }[]
 }
 
 /** Storage failures arrive as DOMExceptions, which are not always `instanceof Error`. */
@@ -120,8 +125,10 @@ export function useArchivedDeleteSessionsMutation() {
           ),
         ),
       )
-      const failed = [...result.failed, ...cleanups.filter((cleanup) => cleanup !== null)]
-      return { deleted: result.deleted, skipped: result.skipped, failed }
+      return {
+        ...result,
+        cleanupFailed: cleanups.filter((cleanup) => cleanup !== null),
+      }
     },
     onSettled: () => refreshArchivedSessions(queryClient),
   })

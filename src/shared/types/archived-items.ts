@@ -139,8 +139,10 @@ export interface ArchivedItemsChangeResult {
 
 export interface ArchivedSessionsDeletionResult {
   readonly deleted: readonly SessionId[]
-  /** No longer archived (or gone): never deleted from Archived items. */
+  /** No longer archived, so kept: Archived items never deletes an active session. */
   readonly skipped: readonly SessionId[]
+  /** Already gone, for example deleted in another window. */
+  readonly missing: readonly SessionId[]
   readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
 }
 

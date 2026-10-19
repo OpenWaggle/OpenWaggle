@@ -1,5 +1,6 @@
 import { type ArchivedItemRef, archivedItemKey } from '@shared/types/archived-items'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
+import { SESSION_NOT_ARCHIVED_MESSAGE } from '@shared/types/session'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -164,6 +165,14 @@ describe('Archived items Host UI operations', () => {
     expect(setArchiveTimes).toHaveBeenCalledWith([{ ref: sessionRef, archivedAt: 100 }])
   })
 
+  it('changes a repeated item once', async () => {
+    const result = await run(
+      setArchivedItems([{ archived: false, items: [{ ref: branchRef }, { ref: branchRef }] }]),
+    )
+    expect(result.changed).toEqual([{ ref: branchRef, archivedAt: 200 }])
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps going after one item fails and reports which one', async () => {
     dispatchLocalSessionCommandMock
       .mockImplementationOnce(() => Effect.fail(new Error('Session is busy')))
@@ -198,10 +207,34 @@ describe('Archived items Host UI operations', () => {
     states.set(archivedItemKey({ kind: 'session', sessionId: restored }), null)
     const result = await run(deleteArchivedSessions([[sessionRef.sessionId, restored]]))
 
-    expect(result).toEqual({ deleted: [sessionRef.sessionId], skipped: [restored], failed: [] })
+    expect(result).toEqual({
+      deleted: [sessionRef.sessionId],
+      skipped: [restored],
+      missing: [],
+      failed: [],
+    })
     expect(dispatched()).toEqual([
-      { contract: 'local-ui-v1', command: { operation: 'delete', sessionId: 'session-1' } },
+      {
+        contract: 'local-ui-v1',
+        command: { operation: 'delete', sessionId: 'session-1', requireArchived: true },
+      },
     ])
+  })
+
+  it('keeps a session the Host finds restored when its turn comes, and reports a missing one', async () => {
+    const gone = SessionId('deleted-elsewhere')
+    dispatchLocalSessionCommandMock.mockImplementation(() =>
+      Effect.fail(new Error(`Session Host refused: ${SESSION_NOT_ARCHIVED_MESSAGE}`)),
+    )
+    const result = await run(deleteArchivedSessions([[sessionRef.sessionId, gone, gone]]))
+
+    expect(result).toEqual({
+      deleted: [],
+      skipped: [sessionRef.sessionId],
+      missing: [gone],
+      failed: [],
+    })
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledTimes(1)
   })
 
   it('retries a refused delete after the sessions that blocked it are gone', async () => {
@@ -223,7 +256,7 @@ describe('Archived items Host UI operations', () => {
 
     const result = await run(deleteArchivedSessions([[queen, worker]]))
 
-    expect(result).toEqual({ deleted: [worker, queen], skipped: [], failed: [] })
+    expect(result).toEqual({ deleted: [worker, queen], skipped: [], missing: [], failed: [] })
   })
 
   it('reports a delete that keeps failing, without looping', async () => {
@@ -235,6 +268,7 @@ describe('Archived items Host UI operations', () => {
     expect(result).toEqual({
       deleted: [],
       skipped: [],
+      missing: [],
       failed: [{ sessionId: sessionRef.sessionId, message: 'Session is running' }],
     })
     expect(dispatchLocalSessionCommandMock).toHaveBeenCalledTimes(1)

@@ -85,6 +85,7 @@ export function ArchivedResults({
               item={item}
               searchedText={list.searchedText}
               selected={selection.isSelected(item.ref)}
+              selectionFull={selection.atLimit}
               pending={pending}
               actions={actions}
             />

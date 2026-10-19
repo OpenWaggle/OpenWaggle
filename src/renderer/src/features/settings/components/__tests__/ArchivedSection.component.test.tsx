@@ -69,6 +69,7 @@ describe('ArchivedSection', () => {
     api.deleteArchivedSessions.mockImplementation(async (sessionIds: string[]) => ({
       deleted: sessionIds,
       skipped: [],
+      missing: [],
       failed: [],
     }))
     navigate.mockClear()
@@ -172,7 +173,7 @@ describe('ArchivedSection', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alternative approach' }), {
       shiftKey: true,
     })
-    expect(screen.getByRole('toolbar', SELECTION)).toHaveTextContent('3 selected')
+    expect(screen.getByRole('group', SELECTION)).toHaveTextContent('3 selected')
 
     fireEvent.click(screen.getByRole('button', { name: /^Restore 3$/u }))
     await waitFor(() =>
@@ -181,7 +182,7 @@ describe('ArchivedSection', () => {
         items: [{ ref: sessionItem.ref }, { ref: transcriptItem.ref }, { ref: branchItem.ref }],
       }),
     )
-    await waitFor(() => expect(screen.queryByRole('toolbar', SELECTION)).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('group', SELECTION)).toBeNull())
     expect(useUIStore.getState().toastData?.message).toBe('Restored 3 items')
   })
 
@@ -195,7 +196,7 @@ describe('ArchivedSection', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all 3' }))
 
-    expect(await screen.findByRole('toolbar', SELECTION)).toHaveTextContent('3 selected')
+    expect(await screen.findByRole('group', SELECTION)).toHaveTextContent('3 selected')
     expect(api.listArchivedItemRefs).toHaveBeenCalledWith({ sort: 'recent', limit: 1_000 })
   })
 
@@ -272,7 +273,7 @@ describe('ArchivedSection', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all 3' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Session Host is unavailable')
-    expect(screen.queryByRole('toolbar', SELECTION)).toBeNull()
+    expect(screen.queryByRole('group', SELECTION)).toBeNull()
   })
 
   it('discards the selection when the filter changes, even after changing it back', async () => {
@@ -281,19 +282,20 @@ describe('ArchivedSection', () => {
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'Select Migrate settings to Effect Schema' }),
     )
-    expect(screen.getByRole('toolbar', SELECTION)).toBeInTheDocument()
+    expect(screen.getByRole('group', SELECTION)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'Branches 1' }))
     fireEvent.click(screen.getByRole('radio', { name: /^All/u }))
 
     await screen.findByText('Migrate settings to Effect Schema')
-    expect(screen.queryByRole('toolbar', SELECTION)).toBeNull()
+    expect(screen.queryByRole('group', SELECTION)).toBeNull()
   })
 
   it('keeps sessions that left the archive before a delete, and says so', async () => {
     api.deleteArchivedSessions.mockResolvedValue({
       deleted: [],
       skipped: [SessionId('session-settings')],
+      missing: [],
       failed: [],
     })
     renderWithQueryClient(<ArchivedSection />)
@@ -305,6 +307,27 @@ describe('ArchivedSection', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Kept 1 session that left the archive before deleting.',
+    )
+  })
+
+  it('drops a Select all that settles after the filter changed', async () => {
+    let resolveRefs: (value: unknown) => void = () => undefined
+    api.listArchivedItemRefs.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefs = resolve
+      }),
+    )
+    renderWithQueryClient(<ArchivedSection />)
+    await screen.findByText('Migrate settings to Effect Schema')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all 3' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Branches 1' }))
+    await screen.findByRole('radio', { name: 'Branches 1', checked: true })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Alternative approach' }))
+    resolveRefs({ refs: [sessionItem.ref, transcriptItem.ref, branchItem.ref], total: 3 })
+
+    await waitFor(() =>
+      expect(screen.getByRole('group', SELECTION)).toHaveTextContent('1 selected'),
     )
   })
 })
