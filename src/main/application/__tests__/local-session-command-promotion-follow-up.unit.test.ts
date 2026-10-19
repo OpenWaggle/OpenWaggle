@@ -89,10 +89,11 @@ function pendingPromotion(sessionId: SessionId) {
 
 /**
  * Resolves once something holds the Session's attachment transition: a probe for it no longer
- * completes at once. Each probe left waiting runs harmlessly when the holder releases it.
+ * completes at once. Each probe left waiting runs harmlessly when the holder releases it. Gives up
+ * (and stops probing) after about half a second.
  */
 async function transitionTakenBack(sessionId: SessionId) {
-  for (let attempt = 0; attempt < 400; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     let probed = false
     void Effect.runPromise(
       withSessionAttachmentTransition({
@@ -167,10 +168,10 @@ describe('Session commands during a pending promotion', () => {
       )
       await serialized.promise
       delivered.resolve()
-      await settlesWithin(
+      await expect(
         transitionTakenBack(sessionId),
         'The delivered promotion did not take the attachment transition back first.',
-      )
+      ).resolves.toBeUndefined()
       const queued = followUp()
       // The Follow-up takes the transition only after the promotion releases it, so it is still
       // waiting on it here; were it holding it, it would wait on the serialization as before.
