@@ -287,7 +287,7 @@ export function ChatComposerExtensionDialogs({
   return (
     <>
       <ComposerExtensionActions launchers={launchers} />
-      {error ? <p className="mb-2 text-xs text-error">{error}</p> : null}
+      {error ? <p className="mb-2 text-xs text-error wrap-anywhere">{error}</p> : null}
       {activeSurface?.kind === 'dialog' ? (
         <ExtensionDialogSurfaceContent
           actions={{

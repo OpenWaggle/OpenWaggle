@@ -228,7 +228,9 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
               {eventTimeLabel(item.request.timestamp)}
             </span>
           </div>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">{displayMessage}</p>
+          <p className="mt-1 text-xs leading-5 text-text-secondary wrap-anywhere">
+            {displayMessage}
+          </p>
         </div>
       </div>
     </section>
@@ -252,7 +254,7 @@ function StandardInteractionRow({
     interaction.kind === 'confirm' && interaction.purpose === 'authorization' ? ShieldCheck : Bell
 
   return (
-    <section className="grid gap-3 rounded-xl border border-border bg-bg-secondary/70 p-3">
+    <section className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-border bg-bg-secondary/70 p-3">
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 size-4 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
@@ -274,7 +276,9 @@ function StandardInteractionRow({
           </div>
           {message ? <InteractionMessage message={message} /> : null}
           {displayResolutionError ? (
-            <p className="mt-2 text-xs leading-5 text-error">{displayResolutionError}</p>
+            <p className="mt-2 text-xs leading-5 text-error wrap-anywhere">
+              {displayResolutionError}
+            </p>
           ) : null}
         </div>
       </div>

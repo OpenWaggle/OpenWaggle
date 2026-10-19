@@ -19,7 +19,7 @@ export function AgentInteractionEditorControls({
   const displayPrefill = useChatDisplayText(originalPrefill)
   const [value, setValue] = useState(displayPrefill)
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2">
       <Textarea
         aria-label={displayTitle}
         disabled={busy}

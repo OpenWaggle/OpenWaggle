@@ -235,7 +235,7 @@ export function AgentAuthorizationRibbon({
       {interaction.message ? <RibbonDetails message={interaction.message} /> : null}
 
       {displayError ? (
-        <p className="mt-2 text-xs leading-5 text-error" role="alert">
+        <p className="mt-2 text-xs leading-5 text-error wrap-anywhere" role="alert">
           {displayError}
         </p>
       ) : null}

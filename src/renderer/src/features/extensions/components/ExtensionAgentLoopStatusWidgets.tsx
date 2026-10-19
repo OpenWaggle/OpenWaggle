@@ -65,7 +65,7 @@ export function ExtensionAgentLoopStatusWidgets({
   }
 
   return (
-    <section aria-label="Extension status widgets" className="grid gap-2">
+    <section aria-label="Extension status widgets" className="grid min-w-0 grid-cols-1 gap-2">
       {widgets.map((auxiliary) => (
         <ExtensionAgentLoopStatusWidget
           auxiliary={auxiliary}

@@ -194,7 +194,9 @@ function NotificationCard({
           <p className="text-xs font-medium tracking-widest text-text-muted uppercase">
             {notificationLabel(notification.level)}
           </p>
-          <p className="min-w-0 text-xs leading-5 text-text-secondary">{displayMessage}</p>
+          <p className="min-w-0 text-xs leading-5 text-text-secondary wrap-anywhere">
+            {displayMessage}
+          </p>
         </div>
       </div>
     </div>
