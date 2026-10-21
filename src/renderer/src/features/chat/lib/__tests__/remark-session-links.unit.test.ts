@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { remarkSessionLinks } from '../remark-session-links'
 
-function paragraph(value: string) {
+interface MarkdownNode {
+  type: string
+  value?: string
+  url?: string
+  children?: MarkdownNode[]
+}
+
+function paragraph(value: string): MarkdownNode {
   return { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', value }] }] }
 }
 
 function linkedParagraph(value: string) {
   const tree = paragraph(value)
   remarkSessionLinks()(tree)
-  return tree.children[0]?.children
+  return tree.children?.[0]?.children
 }
 
 describe('remarkSessionLinks', () => {
@@ -32,6 +39,23 @@ describe('remarkSessionLinks', () => {
     ])
   })
 
+  it('links the canonical form of a link written in capitals or with a trailing slash', () => {
+    expect(linkedParagraph('OPENWAGGLE://SESSIONS/abc and openwaggle://sessions/def/.')).toEqual([
+      {
+        type: 'link',
+        url: 'openwaggle://sessions/abc',
+        children: [{ type: 'text', value: 'OPENWAGGLE://SESSIONS/abc' }],
+      },
+      { type: 'text', value: ' and ' },
+      {
+        type: 'link',
+        url: 'openwaggle://sessions/def',
+        children: [{ type: 'text', value: 'openwaggle://sessions/def/' }],
+      },
+      { type: 'text', value: '.' },
+    ])
+  })
+
   it.each([
     'openwaggle://app/index.html',
     'openwaggle://sessions/session-1/items',
@@ -43,7 +67,7 @@ describe('remarkSessionLinks', () => {
   })
 
   it('leaves text that is already a link label alone', () => {
-    const tree = {
+    const tree: MarkdownNode = {
       type: 'root',
       children: [
         {
@@ -54,7 +78,7 @@ describe('remarkSessionLinks', () => {
       ],
     }
     remarkSessionLinks()(tree)
-    expect(tree.children[0]?.children).toEqual([
+    expect(tree.children?.[0]?.children).toEqual([
       { type: 'text', value: 'openwaggle://sessions/session-1' },
     ])
   })

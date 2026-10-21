@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { describe, expect, it, vi } from 'vitest'
+import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import {
   type CoreCommandActions,
   createCoreCommandItems,
@@ -55,7 +56,10 @@ describe('global command core items', () => {
     ).find((item) => item.id === 'copy-session-link')
 
     expect(copy?.label).toBe('Copy session link')
-    expect(copy?.trailing).toBeTruthy()
+    expect(copy?.trailing).toBe(
+      formatShortcutBinding(DEFAULT_SETTINGS.shortcutBindings['session.copyLink']),
+    )
+    expect(copy?.trailing).not.toBe('')
     copy?.action()
     expect(commandActions.copySessionLink).toHaveBeenCalledWith('session-1')
     expect(

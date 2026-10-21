@@ -78,7 +78,23 @@ describe('installSessionLinkProtocol', () => {
     }
   })
 
-  it('registers nothing at runtime on Linux, whose desktop entry declares the scheme', () => {
+  it('keeps running when Windows refuses the registration', () => {
+    const { host, setAsDefaultProtocolClient } = fakeHost()
+    setAsDefaultProtocolClient.mockReturnValue(false)
+
+    expect(() =>
+      installSessionLinkProtocol({
+        host,
+        automation: false,
+        openLink: vi.fn(),
+        platform: 'win32',
+        channel: 'stable',
+      }),
+    ).not.toThrow()
+    expect(setAsDefaultProtocolClient).toHaveBeenCalledWith('openwaggle')
+  })
+
+  it('registers nothing at runtime on Linux, whose installed desktop entry declares the scheme', () => {
     const { host, listeners, setAsDefaultProtocolClient } = fakeHost()
     installSessionLinkProtocol({
       host,

@@ -161,9 +161,11 @@ describe('app instance claim', () => {
     claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
 
     launchAgain({ openSessionLink: 'openwaggle://sessions/session-2' })
+    expect(revealWindow).toHaveBeenCalledTimes(1)
     launchAgain({ openSessionLink: 'openwaggle://app/index.html' })
 
-    expect(revealWindow).toHaveBeenCalledTimes(2)
+    // A link that is not a Session link is refused without raising a window.
+    expect(revealWindow).toHaveBeenCalledTimes(1)
     expect(takeOpenSessionLinkRequest()).toBe('session-2')
     expect(takeOpenSessionLinkRequest()).toBeNull()
     expect(takeOpenProjectRequest()).toBeNull()

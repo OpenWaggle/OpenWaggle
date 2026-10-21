@@ -1,4 +1,5 @@
 !include "StrFunc.nsh"
+!include "FileFunc.nsh"
 ; StrFunc requires each helper to be declared before use, and a declared-but-unreferenced
 ; helper emits `warning 6010: install function ... not referenced`. electron-builder runs
 ; makensis with warnings-as-errors and compiles the uninstaller in a separate pass (marked
@@ -57,9 +58,15 @@ openwaggle_cli_path_write:
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 
   ; The app registers the openwaggle: Session link scheme for the current user at runtime
-  ; (ADR 0056). Remove that registration only when it launches this install's executable, so
-  ; another install that registered the scheme keeps it. An update reinstalls into the same
-  ; directory and the relaunched app registers the scheme again.
+  ; (ADR 0056). Remove that registration only on a real uninstall, and only when it launches this
+  ; install's executable, so another install that registered the scheme keeps it. An update runs
+  ; this uninstaller too, and `openwaggle update` installs without relaunching the app, so an
+  ; update must leave the registration in place.
+  ; electron-builder passes --updated to the old uninstaller whenever an install replaces it.
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "--updated" $R1
+  IfErrors 0 openwaggle_url_scheme_done
   ReadRegStr $0 HKCU "Software\Classes\openwaggle\shell\open\command" ""
   StrCpy $1 '"$INSTDIR\OpenWaggle.exe"'
   StrLen $2 $1

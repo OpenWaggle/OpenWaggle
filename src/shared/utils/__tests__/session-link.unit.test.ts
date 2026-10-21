@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  channelClaimsSessionLinks,
   hasSessionLinkScheme,
   parseSessionLink,
   sessionIdFromReference,
+  sessionIdsFromReferences,
   sessionLink,
 } from '../session-link'
 
@@ -15,8 +17,15 @@ describe('sessionLink', () => {
   })
 
   it('round-trips through the parser', () => {
-    expect(parseSessionLink(sessionLink(SESSION_ID))).toBe(SESSION_ID)
+    expect(parseSessionLink(sessionLink(SESSION_ID) ?? '')).toBe(SESSION_ID)
   })
+
+  it.each(['', 'a.b', 'a/b', '-leading', 'a b', 'x'.repeat(513)])(
+    'has no link for an identity a link cannot carry: %j',
+    (sessionId) => {
+      expect(sessionLink(sessionId)).toBeNull()
+    },
+  )
 })
 
 describe('parseSessionLink', () => {
@@ -74,9 +83,30 @@ describe('sessionIdFromReference', () => {
     expect(sessionIdFromReference(LINK)).toBe(SESSION_ID)
   })
 
-  it('refuses an openwaggle URL that is not a Session link', () => {
+  it('refuses an openwaggle URL that is not a Session link, naming the field', () => {
     expect(() => sessionIdFromReference('openwaggle://app/index.html')).toThrow(
-      /not a Session link.*openwaggle:\/\/sessions\/<session-id>/,
+      /^The value is not a Session link.*openwaggle:\/\/sessions\/<session-id>/,
     )
+    expect(() => sessionIdFromReference('openwaggle://app/', '--target')).toThrow(
+      /^--target is not a Session link/,
+    )
+  })
+})
+
+describe('sessionIdsFromReferences', () => {
+  it('resolves every entry and drops repeats that only match once resolved', () => {
+    expect(sessionIdsFromReferences([LINK, SESSION_ID, 'other', `${LINK}/`])).toEqual([
+      SESSION_ID,
+      'other',
+    ])
+  })
+})
+
+describe('channelClaimsSessionLinks', () => {
+  it('is true for release channels only', () => {
+    expect(channelClaimsSessionLinks('dev')).toBe(false)
+    for (const channel of ['stable', 'alpha', 'beta', 'rc'] as const) {
+      expect(channelClaimsSessionLinks(channel)).toBe(true)
+    }
   })
 })

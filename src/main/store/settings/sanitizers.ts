@@ -32,6 +32,7 @@ import {
 } from '@shared/types/syntax'
 import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
 import { includes } from '@shared/utils/validation'
+import { dropAddedDefaultsTakenByTheUser } from './shortcut-binding-defaults'
 
 export function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -321,6 +322,7 @@ export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
     const binding = sanitizeShortcutBinding(raw[command])
     if (binding) result[command] = binding
   }
+  dropAddedDefaultsTakenByTheUser(raw, result)
   const assigned = SHORTCUT_COMMANDS.flatMap((command) => {
     const binding = result[command]
     return binding === null ? [] : [{ binding, command }]

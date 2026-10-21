@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { BuildChannel } from '../src/shared/types/build-identity'
-import { SESSION_LINK_SCHEME } from '../src/shared/utils/session-link'
+import { channelClaimsSessionLinks, SESSION_LINK_SCHEME } from '../src/shared/utils/session-link'
 
 /**
  * Build-time Build identity resolver (see docs/adr/0032). One rule, consumed by
@@ -138,7 +138,7 @@ export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: str
  * links meant for the installed app (ADR 0056).
  */
 export function resolveUrlSchemeProtocols(channel: BuildChannel) {
-  if (channel === 'dev') return []
+  if (!channelClaimsSessionLinks(channel)) return []
   return [{ name: 'OpenWaggle Session link', schemes: [SESSION_LINK_SCHEME] }]
 }
 

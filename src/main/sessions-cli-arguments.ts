@@ -17,7 +17,7 @@ export function required(value: string | undefined, label: string) {
 
 /** A Session identity, given as a bare ID or as a Session link (ADR 0056). */
 export function requiredSessionId(value: string | undefined, label = 'Session ID') {
-  return sessionIdFromReference(required(value, label))
+  return sessionIdFromReference(required(value, label), label)
 }
 
 export function positiveInteger(value: string | undefined, label: string) {

@@ -58,6 +58,12 @@ describe('Sessions CLI Session links', () => {
     expect(JSON.stringify(byLink)).not.toContain('openwaggle://')
   })
 
+  it('keeps one wait target for a Session named by its link and its identity', () => {
+    expect(sessionsPayload(['wait', LINK, SESSION_ID, '--timeout-ms', '0'])).toEqual(
+      sessionsPayload(['wait', SESSION_ID, '--timeout-ms', '0']),
+    )
+  })
+
   it('filters Delegations by a parent or Worker given as a link', () => {
     const byLink = command(['list', '--parent', LINK, '--worker', SECOND_LINK])
     const byId = command(['list', '--parent', SESSION_ID, '--worker', SECOND_ID])
@@ -76,7 +82,7 @@ describe('Sessions CLI Session links', () => {
   it('refuses an openwaggle URL that is not a Session link', () => {
     const parsed = command(['read', 'openwaggle://app/index.html'])
     expect(() => buildSessionsCliPayload(parsed.name, parsed.arguments)).toThrow(
-      'The value is not a Session link. A Session link looks like openwaggle://sessions/<session-id>.',
+      'Session ID is not a Session link. A Session link looks like openwaggle://sessions/<session-id>.',
     )
   })
 })

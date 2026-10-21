@@ -93,7 +93,7 @@ describe('Session links in the Sessions tool', () => {
     })
 
     expect(result).toMatchObject({ isError: true })
-    expect(text).toContain('not a Session link')
+    expect(text).toContain('sessionId is not a Session link')
     expect(gateway).not.toHaveBeenCalled()
   })
 
@@ -121,6 +121,13 @@ describe('resolveSessionsToolSessionLinks', () => {
         timeoutMs: 0,
       }),
     ).toEqual({ action: 'wait', sessionIds: [SESSION_ID, 'other'], timeoutMs: 0 })
+    expect(
+      resolveSessionsToolSessionLinks({
+        action: 'wait',
+        sessionIds: [LINK, SESSION_ID],
+        timeoutMs: 0,
+      }),
+    ).toEqual({ action: 'wait', sessionIds: [SESSION_ID], timeoutMs: 0 })
     expect(
       resolveSessionsToolSessionLinks({
         action: 'delegations_list',

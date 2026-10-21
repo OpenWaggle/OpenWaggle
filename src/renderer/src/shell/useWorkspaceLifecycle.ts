@@ -12,13 +12,14 @@ import {
   useSessionHiveInvalidation,
   useSessionResourceInvalidation,
 } from '@/features/session-summary'
+import { copySessionLink } from '@/features/sessions/commands'
 import {
   useProject,
   useSessionProjectPath,
   useSessionStatusMonitor,
   useSessions,
+  useViewedSessionId,
 } from '@/features/sessions/hooks'
-import { copySessionLink } from '@/features/sessions/lib'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
@@ -163,6 +164,7 @@ export function useWorkspaceLifecycle(): void {
   const shortcutRules = usePreferencesStore((s) => s.settings.shortcutRules)
   const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
+  const viewedSessionId = useViewedSessionId()
   function startDraftSessionRoute() {
     closeCommandSurface()
     startDraftSession(projectPath)
@@ -246,7 +248,7 @@ export function useWorkspaceLifecycle(): void {
       'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
       'request.focus': focusPendingRequest,
       'session.copyLink': () => {
-        if (activeSessionId) copySessionLink(String(activeSessionId))
+        if (viewedSessionId) copySessionLink(viewedSessionId)
       },
     },
     onRunProjectAction: (action) => void runProjectAction(action),

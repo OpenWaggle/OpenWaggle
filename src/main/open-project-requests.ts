@@ -59,18 +59,24 @@ export function takeOpenProjectRequest() {
   return pendingProjectPaths.shift() ?? null
 }
 
-/** Accept a project path or Session link forwarded by a second launch. */
+/**
+ * Accept a project path or Session link forwarded by a second launch, and say whether that
+ * launch should bring a window forward. A later launch reveals the app as the Dock icon does,
+ * except for a link that is not a Session link, which is refused without raising a window
+ * (ADR 0056).
+ */
 function acceptSecondInstanceData(additionalData: unknown) {
-  if (additionalData === undefined || additionalData === null) return
+  if (additionalData === undefined || additionalData === null) return true
   const decoded = safeDecodeUnknown(secondInstanceDataSchema, additionalData)
   if (!decoded.success) {
     logger.warn('Ignoring unrecognized second-instance data')
-    return
+    return true
+  }
+  if (decoded.data.openSessionLink !== undefined) {
+    return requestOpenSessionLink(decoded.data.openSessionLink)
   }
   if (decoded.data.openProjectPath !== undefined) requestOpenProject(decoded.data.openProjectPath)
-  if (decoded.data.openSessionLink !== undefined) {
-    requestOpenSessionLink(decoded.data.openSessionLink)
-  }
+  return true
 }
 
 function secondInstanceData(input: {
@@ -117,8 +123,7 @@ export function claimAppInstance(input: {
     input.host.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
       // `openwaggle update` probes whether the app is running; it must not raise a window.
       if (isDesktopInstanceProbe(additionalData)) return
-      input.revealWindow()
-      acceptSecondInstanceData(additionalData)
+      if (acceptSecondInstanceData(additionalData)) input.revealWindow()
     })
   }
   if (input.openProjectPath) requestOpenProject(input.openProjectPath)

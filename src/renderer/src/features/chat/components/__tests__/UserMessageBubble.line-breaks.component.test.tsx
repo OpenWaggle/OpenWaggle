@@ -51,6 +51,22 @@ describe('UserMessageBubble line breaks', () => {
     expect(container.querySelectorAll('.prose-user p br')).toHaveLength(2)
   })
 
+  it('links a pasted Session link and nothing else under the openwaggle scheme', () => {
+    const message = createUserMessage('u1', [
+      {
+        type: 'text',
+        content: 'Check openwaggle://sessions/session-1\nand [this](openwaggle://app/index.html)',
+      },
+    ])
+    render(<UserMessageBubble message={message} />)
+
+    expect(screen.getByRole('link', { name: 'openwaggle://sessions/session-1' })).toHaveAttribute(
+      'href',
+      'openwaggle://sessions/session-1',
+    )
+    expect(screen.queryByRole('link', { name: 'this' })).toBeNull()
+  })
+
   it('still renders Markdown the user writes', () => {
     const message = createUserMessage('u1', [
       {

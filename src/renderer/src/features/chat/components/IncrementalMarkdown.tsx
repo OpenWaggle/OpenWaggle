@@ -6,13 +6,15 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useIncrementalMarkdown } from '@/features/chat/hooks/useIncrementalMarkdown'
+import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
 import { NonFetchingMarkdownImage, SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import { type RehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
-import { remarkSessionLinks } from '@/shared/lib/remark-session-links'
 import { fencedCodeLanguage } from '@/shared/lib/syntax/markdown-components'
 import { CodeBlock } from './CodeBlock'
 
 const REMARK_PLUGINS = [remarkGfm, remarkSessionLinks]
+/** A streaming block may hold half a Session link; it is linked once the block completes. */
+const STREAMING_REMARK_PLUGINS = [remarkGfm]
 
 interface IncrementalMarkdownProps {
   text: string
@@ -87,7 +89,7 @@ export function IncrementalMarkdown({
       <>
         <PrefixView prefixHast={prefixHast} />
         <ReactMarkdown
-          remarkPlugins={REMARK_PLUGINS}
+          remarkPlugins={STREAMING_REMARK_PLUGINS}
           rehypePlugins={tailRehypePlugins ?? rehypePlugins}
           urlTransform={safeMarkdownUrlTransform}
           components={streamingTailMarkdownComponents}
@@ -100,7 +102,7 @@ export function IncrementalMarkdown({
 
   return (
     <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
+      remarkPlugins={isStreaming ? STREAMING_REMARK_PLUGINS : REMARK_PLUGINS}
       rehypePlugins={rehypePlugins}
       urlTransform={safeMarkdownUrlTransform}
       components={isStreaming ? streamingTailMarkdownComponents : markdownComponents}

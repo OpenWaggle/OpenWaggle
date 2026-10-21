@@ -34,6 +34,25 @@ describe('settings shortcut rules', () => {
     expect(settings.shortcutBindings['diff.toggle']).toEqual({ key: 'G', mod: true })
   })
 
+  it('keeps legacy bindings when a newly added default uses one of their chords', () => {
+    // A record saved before `session.copyLink` existed, with its default chord on another command.
+    const { 'session.copyLink': _added, ...saved } = DEFAULT_SHORTCUT_BINDINGS
+    const legacy = { ...saved, 'sidebar.toggle': { key: 'L', mod: true, alt: true } }
+
+    const { settings } = buildSettingsSnapshot({ shortcutBindings: legacy })
+
+    expect(settings.shortcutBindings['sidebar.toggle']).toEqual({ key: 'L', mod: true, alt: true })
+    expect(settings.shortcutBindings['diff.toggle']).toEqual(
+      DEFAULT_SHORTCUT_BINDINGS['diff.toggle'],
+    )
+    // The user's own binding is the newest rule for the chord, so it wins over the new default.
+    const sameChord = settings.shortcutRules.filter(
+      (rule) =>
+        rule.shortcut.key === 'L' && rule.shortcut.mod === true && rule.shortcut.alt === true,
+    )
+    expect(sameChord.at(-1)?.command).toBe('sidebar.toggle')
+  })
+
   it('merges defaults ahead of a minimal custom array and keeps the custom rule newest', () => {
     const customRule = {
       command: 'diff.toggle',

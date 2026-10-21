@@ -5,6 +5,7 @@ import {
   type SessionControlMutationCommand,
 } from '@shared/types/session-control'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
+import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import {
   nonNegativeInteger,
@@ -173,8 +174,9 @@ function authorizationCommand(arguments_: ParsedArguments): SessionControlMutati
 }
 
 function reportTarget(arguments_: ParsedArguments) {
-  const explicitTargets = (arguments_.options.get('target') ?? []).map((value) =>
-    requiredSessionId(value, '--target'),
+  const explicitTargets = sessionIdsFromReferences(
+    arguments_.options.get('target') ?? [],
+    '--target',
   )
   const worker = option(arguments_, 'worker')
   const selected = [

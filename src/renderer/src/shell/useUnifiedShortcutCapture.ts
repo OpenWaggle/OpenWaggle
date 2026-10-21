@@ -38,6 +38,14 @@ interface UnifiedShortcutCaptureOptions {
   readonly terminalOpen: boolean
 }
 
+/**
+ * AltGr types characters: Chromium reports it as Ctrl+Alt, so AltGr+L, which types `ł` on a
+ * Polish keyboard, would otherwise match a Ctrl+Alt+L shortcut and never reach the field.
+ */
+function isAltGraphCharacter(event: KeyboardEvent) {
+  return event.getModifierState('AltGraph') && [...event.key].length === 1
+}
+
 function consumeShortcutEvent(event: KeyboardEvent) {
   event.preventDefault()
   event.stopPropagation()
@@ -147,7 +155,7 @@ export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions
       handlersRef.current[match.rule.command]()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isShortcutEditorTarget(event)) return
+      if (isShortcutEditorTarget(event) || isAltGraphCharacter(event)) return
       const modifierFreeEvent = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
       if (
         modifierFreeEvent &&

@@ -88,7 +88,8 @@ export function GlobalCommandPalette({
   panelDisabledReason,
   panelProjectPath,
 }: GlobalCommandPaletteProps = {}) {
-  const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
+  const { actions, close, projectPath, sessionId, sessions, settings, viewedSessionId } =
+    useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
   const actionProjectPath = useSessionProjectPath()
   const projectActions = useProjectActions(actionProjectPath).data ?? []
@@ -135,7 +136,7 @@ export function GlobalCommandPalette({
     },
   )
   const items = [
-    ...createCoreCommandItems(projectPath, settings, actions, sessionId),
+    ...createCoreCommandItems(projectPath, settings, actions, viewedSessionId),
     ...panelItems,
     ...projectActionItems,
     ...createRecentProjectItems(settings, sessions, actions),

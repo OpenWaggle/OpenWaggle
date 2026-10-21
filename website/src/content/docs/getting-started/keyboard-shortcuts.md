@@ -25,9 +25,11 @@ These are the default bindings. Open **Settings > Shortcuts** to see or change c
 | Toggle Browser | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
 | Focus a pending request | `Cmd+Shift+A` | `Ctrl+Shift+A` |
-| Copy the open session's link | `Cmd+Option+L` | `Ctrl+Alt+L` |
+| Copy session link | `Cmd+Option+L` | `Ctrl+Alt+L` |
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
 | Cancel diff comment or review | `Escape` | `Escape` |
+
+**Copy session link** copies the link of the session you have open and also works while you type in a terminal. Some Linux desktops lock the screen on `Ctrl+Alt+L`; choose another key in **Settings > Shortcuts** if yours does.
 
 Focusing a pending request does not approve it. Read the action and choose a response; use `Escape` to return to your message.
 

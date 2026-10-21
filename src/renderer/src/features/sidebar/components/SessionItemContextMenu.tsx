@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useSessionTitleRegeneration } from '@/features/session-title'
-import { copySessionLink } from '@/features/sessions/lib'
+import { copySessionLink } from '@/features/sessions/commands'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'

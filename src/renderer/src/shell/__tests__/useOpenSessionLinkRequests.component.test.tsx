@@ -82,6 +82,8 @@ describe('Session link requests', () => {
     renderHook(useOpenSessionLinkRequests)
 
     await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: 'session-archived' }]))
+    expect(mocks.setActiveSession).toHaveBeenCalledWith('session-archived')
+    expect(mocks.showToast).not.toHaveBeenCalled()
   })
 
   it('reports an unknown Session and stays on the current page', async () => {

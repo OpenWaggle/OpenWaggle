@@ -8,6 +8,7 @@ import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_TRANSCRIPT_LIMIT,
 } from '@shared/types/session-query'
+import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import {
@@ -99,7 +100,7 @@ function searchPayload(
 
 function waitTargets(arguments_: ParsedArguments) {
   if (arguments_.positionals.length === 0) throw new Error('Session ID is required.')
-  const sessionIds = arguments_.positionals.map((value) => requiredSessionId(value))
+  const sessionIds = sessionIdsFromReferences(arguments_.positionals, 'Session ID')
   const condition = option(arguments_, 'condition') ?? 'idle'
   if (condition === 'state-revision-after') {
     const revision = nonNegativeInteger(

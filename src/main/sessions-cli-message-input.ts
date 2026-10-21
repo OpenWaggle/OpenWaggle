@@ -189,7 +189,7 @@ function assertRequestMatchesCommand(input: {
   const resolvedPositionalTarget =
     command === 'launch'
       ? resolveCliProjectPath(positionalTarget, input.workingDirectory)
-      : sessionIdFromReference(positionalTarget)
+      : sessionIdFromReference(positionalTarget, 'Session ID')
   if (binding.target !== resolvedPositionalTarget) {
     throw new Error(`--request-json target must be the same as the positional ${command} target.`)
   }

@@ -7,7 +7,13 @@ import { useUIStore } from '@/shell/ui-store'
  * CLI, or a note. The menu or palette that triggered it has closed, so a toast confirms the copy.
  */
 export function copySessionLink(sessionId: string) {
+  const { showToast } = useUIStore.getState()
   const link = sessionLink(sessionId)
+  if (link === null) {
+    // Generated identities always have a link; this guards an imported or hand-made one.
+    showToast('This session has no link.', 'error')
+    return
+  }
   api.copyToClipboard(link)
-  useUIStore.getState().showToast(`Session link copied: ${link}`, 'success')
+  showToast(`Session link copied: ${link}`, 'success')
 }

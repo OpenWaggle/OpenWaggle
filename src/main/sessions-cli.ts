@@ -1,4 +1,5 @@
 import { isSessionlessHostEvent } from '@shared/types/session-host-event'
+import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -36,7 +37,7 @@ async function runWatchCommand(
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   clientInput: ClientInput,
 ) {
-  const sessionIds = new Set(arguments_.positionals.map((value) => requiredSessionId(value)))
+  const sessionIds = new Set(sessionIdsFromReferences(arguments_.positionals, 'Session ID'))
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()
   process.once('SIGINT', interrupt)
