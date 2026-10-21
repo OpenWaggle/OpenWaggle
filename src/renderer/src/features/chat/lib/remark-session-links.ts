@@ -47,8 +47,23 @@ function linkedInlineCode(node: MarkdownNode): MarkdownNode {
   return url === null ? node : { type: 'link', url, children: [node] }
 }
 
+/**
+ * A link or definition written with a Session link in capitals gets its canonical form, which the
+ * sanitizer's case-sensitive scheme check accepts. Its label stays as written.
+ */
+function canonicalizeLinkUrl(node: MarkdownNode) {
+  if (typeof node.url !== 'string') return
+  const sessionId = parseSessionLink(node.url)
+  const url = sessionId === null ? null : sessionLink(sessionId)
+  if (url !== null) node.url = url
+}
+
 function linkSessionLinks(node: MarkdownNode) {
-  if (!node.children || LINKED_PARENTS.has(node.type)) return
+  if (LINKED_PARENTS.has(node.type)) {
+    canonicalizeLinkUrl(node)
+    return
+  }
+  if (!node.children) return
   node.children = node.children.flatMap((child) => {
     if (child.type === 'text' && typeof child.value === 'string') return splitText(child.value)
     if (child.type === 'inlineCode') return [linkedInlineCode(child)]

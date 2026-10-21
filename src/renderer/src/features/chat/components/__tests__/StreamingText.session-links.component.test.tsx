@@ -40,6 +40,21 @@ describe('StreamingText Session links', () => {
     expect(screen.getByText('app')).toBeInTheDocument()
   })
 
+  it('links an explicit link or autolink whose scheme is written in capitals', () => {
+    render(
+      <StreamingText text={'[worker](OpenWaggle://sessions/abc) <OPENWAGGLE://sessions/def>'} />,
+    )
+
+    expect(screen.getByRole('link', { name: 'worker' })).toHaveAttribute(
+      'href',
+      'openwaggle://sessions/abc',
+    )
+    expect(screen.getByRole('link', { name: 'OPENWAGGLE://sessions/def' })).toHaveAttribute(
+      'href',
+      'openwaggle://sessions/def',
+    )
+  })
+
   it('links a Session link written as plain text, but not a longer URL or code around it', () => {
     render(
       <StreamingText

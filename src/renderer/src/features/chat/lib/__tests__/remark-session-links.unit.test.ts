@@ -114,6 +114,34 @@ describe('remarkSessionLinks', () => {
     expect(linkedParagraph(value)).toEqual([{ type: 'text', value }])
   })
 
+  it('gives an explicit link or definition written in capitals its canonical Session link', () => {
+    const tree: MarkdownNode = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'link',
+              url: 'OpenWaggle://sessions/abc',
+              children: [{ type: 'text', value: 'x' }],
+            },
+          ],
+        },
+        { type: 'definition', url: 'OPENWAGGLE://SESSIONS/def/' },
+        { type: 'definition', url: 'https://example.com/A' },
+      ],
+    }
+    remarkSessionLinks()(tree)
+    expect(tree.children?.[0]?.children?.[0]).toEqual({
+      type: 'link',
+      url: 'openwaggle://sessions/abc',
+      children: [{ type: 'text', value: 'x' }],
+    })
+    expect(tree.children?.[1]?.url).toBe('openwaggle://sessions/def')
+    expect(tree.children?.[2]?.url).toBe('https://example.com/A')
+  })
+
   it('leaves text that is already a link label alone', () => {
     const tree: MarkdownNode = {
       type: 'root',
