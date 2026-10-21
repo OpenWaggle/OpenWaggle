@@ -1,3 +1,4 @@
+import { worktreePreparationHeadline } from '@shared/domain/worktree-preparation-messages'
 import * as Effect from 'effect/Effect'
 import { describeWorkspaceGenerationMismatch } from '../../domain/workspace-generation'
 import { createLogger } from '../../logger'
@@ -25,7 +26,7 @@ export async function readPreparedWorkspaceEnvironment(
           ...check,
         })
         const { verdict, problem, recovery, details } = describeWorkspaceGenerationMismatch(check)
-        const message = `This worktree ${verdict} its saved preparation: ${problem}. ${recovery}`
+        const message = `${worktreePreparationHeadline(verdict)}: ${problem}. ${recovery}`
         throw new Error(details ? `${message} ${details}` : message)
       }
     }

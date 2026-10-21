@@ -1,3 +1,4 @@
+import { classifyErrorMessage } from '@shared/domain/error-classifier'
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -144,6 +145,11 @@ it('keeps the recovery advice inside the 600 characters a run error shows', asyn
   const failure = await readActionWorkspaceEnvironment(fixture.service, long).catch(
     (error: unknown) => (error instanceof Error ? error.message : String(error)),
   )
+  // The chat card shows it as its own headline, whatever the path contains.
+  expect(classifyErrorMessage(`Error: ${String(failure)}`)).toMatchObject({
+    code: 'worktree-preparation-mismatch',
+    retryable: false,
+  })
   const RUN_ERROR_LIMIT = 600
   const advice = 'choose Recreate worktree or Use current checkout.'
   expect(`Error: ${String(failure)}`.indexOf(advice) + advice.length).toBeLessThanOrEqual(

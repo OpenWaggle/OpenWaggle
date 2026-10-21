@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import type { WorktreePreparationVerdict } from '@shared/domain/worktree-preparation-messages'
 
 /** A folder as seen by `lstat` (bigint), recorded so a later check can tell it is the same one. */
 export interface WorkspaceDirectoryIdentity {
@@ -110,7 +111,7 @@ const DELETE_AND_RECREATE = `commit or copy out any changes you want to keep, th
  * included, also goes to the Host log.
  */
 export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMismatch): {
-  readonly verdict: 'no longer matches' | 'cannot be checked against'
+  readonly verdict: WorktreePreparationVerdict
   readonly problem: string
   readonly recovery: string
   readonly details?: string

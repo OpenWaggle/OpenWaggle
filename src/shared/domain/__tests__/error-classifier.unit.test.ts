@@ -65,6 +65,25 @@ describe('classifyErrorMessage', () => {
     })
   })
 
+  describe('worktree-preparation-mismatch', () => {
+    it.each([
+      [
+        'a project path that names billing',
+        'This worktree no longer matches its saved preparation: /Users/me/billing-service/.openwaggle/worktrees/billing-service/1a2b-a500f is a different folder from the one that was prepared. If the original folder still exists somewhere else, put it back. Prepared: inode 2, created 2026-10-20 08:52:31 UTC; found: inode 4, created 2026-10-21 06:17:40 UTC.',
+      ],
+      [
+        'a worktree that was never recorded, under a rate-limit folder',
+        'This worktree cannot be checked against its saved preparation: the preparation has no record of the folder /work/rate-limit 429/wt. To continue, delete that folder.',
+      ],
+    ])('shows the whole message for %s and does not offer Retry', (_case, message) => {
+      const info = classifyErrorMessage(`Error: ${message}`)
+
+      expect(info.code).toBe('worktree-preparation-mismatch')
+      expect(info.userMessage).toBe(message)
+      expect(info.retryable).toBe(false)
+    })
+  })
+
   describe('pi-session-file-deleted', () => {
     it('shows the whole message for a Session whose Pi file was deleted, even with a path that looks like another error', () => {
       const message =
