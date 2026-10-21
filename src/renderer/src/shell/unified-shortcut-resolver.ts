@@ -1,6 +1,12 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import type { ExtensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
-import type { ShortcutBinding, ShortcutRule, ShortcutRules } from '@shared/types/shortcuts'
+import {
+  DEFAULT_SHORTCUT_RULES,
+  type ShortcutBinding,
+  type ShortcutRule,
+  type ShortcutRules,
+  shortcutRuleIdentity,
+} from '@shared/types/shortcuts'
 import { EXTENSION_PANEL_SHORTCUT_WHEN } from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
@@ -41,10 +47,28 @@ export function workspaceShortcutContext(event: KeyboardEvent): ProjectActionSho
   }
 }
 
+const DEFAULT_RULE_IDENTITIES = new Set(DEFAULT_SHORTCUT_RULES.map(shortcutRuleIdentity))
+
+function matchExtensionPanel(
+  event: ShortcutEvent,
+  extensionPanels: readonly ExtensionPanelShortcut[],
+  applePlatform: boolean,
+  contextForMatch: () => ProjectActionShortcutContext,
+): UnifiedShortcutMatch | null {
+  for (const panel of extensionPanels) {
+    if (!projectActionShortcutMatches(event, panel.shortcut, applePlatform)) continue
+    if (projectActionWhenMatches(EXTENSION_PANEL_SHORTCUT_WHEN, contextForMatch())) {
+      return { kind: 'extension-panel', surfaceId: panel.surfaceId }
+    }
+  }
+  return null
+}
+
 /**
  * Project rules form the final project-scoped overlay after global built-in rules. Extension panel
  * shortcuts are conflict-free with built-in rules when saved, so they are only consulted when no
- * other rule claims the key.
+ * other rule claims the key, except against a default rule: a default added in a later release
+ * (such as `session.copyLink`) must not take a chord the user already gave a panel.
  */
 export function resolveUnifiedShortcut(
   event: ShortcutEvent,
@@ -72,15 +96,13 @@ export function resolveUnifiedShortcut(
     const rule = builtInRules[index]
     if (rule === undefined) continue
     if (!projectActionShortcutMatches(event, rule.shortcut, applePlatform)) continue
-    if (projectActionWhenMatches(rule.when, contextForMatch())) return { kind: 'builtin', rule }
+    if (!projectActionWhenMatches(rule.when, contextForMatch())) continue
+    const panel = DEFAULT_RULE_IDENTITIES.has(shortcutRuleIdentity(rule))
+      ? matchExtensionPanel(event, extensionPanels, applePlatform, contextForMatch)
+      : null
+    return panel ?? { kind: 'builtin', rule }
   }
-  for (const panel of extensionPanels) {
-    if (!projectActionShortcutMatches(event, panel.shortcut, applePlatform)) continue
-    if (projectActionWhenMatches(EXTENSION_PANEL_SHORTCUT_WHEN, contextForMatch())) {
-      return { kind: 'extension-panel', surfaceId: panel.surfaceId }
-    }
-  }
-  return null
+  return matchExtensionPanel(event, extensionPanels, applePlatform, contextForMatch)
 }
 
 export function hasModifierFreeUnifiedShortcut(

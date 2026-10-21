@@ -10,11 +10,13 @@ interface MarkdownNode {
 
 /**
  * A Session link written as plain text. GFM only links `http(s)`, `www.`, and email literals, so
- * a pasted `openwaggle://sessions/<id>` would otherwise stay text. The match may end in one slash
- * but must not continue as a longer URL (`…/items`, `?query`), which is not a Session link.
+ * a pasted `openwaggle://sessions/<id>` would otherwise stay text. The link may end in one slash
+ * and must end where prose does: at whitespace, the end, a closing bracket or quote, or
+ * punctuation such as `?` or `.` that ends a sentence. A longer URL (`…/items`, `…?prompt=`,
+ * `….html`) is not a Session link and stays text.
  */
 const SESSION_LINK_TEXT =
-  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?![\w/?#:@-])/gi
+  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?=$|[\s)\],;!'">*~]|[.:?](?:$|[\s)\]'"]))/gi
 
 /** Nodes whose text is already a link or a link label. Code is a separate node type. */
 const LINKED_PARENTS = new Set(['link', 'linkReference', 'definition'])

@@ -36,6 +36,8 @@ Usage:
   openwaggle delegations cancel <parent-id> <delegation-id> <reason>
 
 Catalog: --project <path> | --all, --parent <session>, --worker <session>, --limit <n>, --cursor <cursor>
+Sessions: a worker, parent, or --parent/--worker Session id may also be a Session link
+  (openwaggle://sessions/<session-id>)
 Common: --json, --profile <name> [--credential-stdin|--profile-credential-file <path>]
 Mutation replay: --idempotency-key <key>
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input

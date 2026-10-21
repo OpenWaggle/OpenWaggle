@@ -103,7 +103,8 @@ describe('useUnifiedShortcutCapture with AltGr', () => {
     expect(commandHandlers['session.copyLink']).not.toHaveBeenCalled()
     expect(typed.defaultPrevented).toBe(false)
 
-    const shortcut = chord('l', false)
+    // Layouts that report AltGr for Ctrl+Alt still get the shortcut when no character results.
+    const shortcut = chord('l', true)
     act(() => {
       window.dispatchEvent(shortcut)
     })

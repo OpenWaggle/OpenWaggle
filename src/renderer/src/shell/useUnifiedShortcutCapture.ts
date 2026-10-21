@@ -7,6 +7,7 @@ import {
   type ShortcutRules,
   shortcutBindingKey,
 } from '@shared/types/shortcuts'
+import { typesAltGraphCharacter } from '@shared/utils/altgraph-character'
 import { EXTENSION_PANEL_SHORTCUT_WHEN } from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
@@ -38,12 +39,16 @@ interface UnifiedShortcutCaptureOptions {
   readonly terminalOpen: boolean
 }
 
-/**
- * AltGr types characters: Chromium reports it as Ctrl+Alt, so AltGr+L, which types `ł` on a
- * Polish keyboard, would otherwise match a Ctrl+Alt+L shortcut and never reach the field.
- */
 function isAltGraphCharacter(event: KeyboardEvent) {
-  return event.getModifierState('AltGraph') && [...event.key].length === 1
+  return typesAltGraphCharacter({
+    key: event.key,
+    code: event.code,
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    meta: event.metaKey,
+    altGraph: event.getModifierState('AltGraph'),
+    applePlatform: usesAppleShortcuts(),
+  })
 }
 
 function consumeShortcutEvent(event: KeyboardEvent) {

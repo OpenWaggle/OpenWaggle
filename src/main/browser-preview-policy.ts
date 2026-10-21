@@ -4,6 +4,7 @@ import type {
   BrowserPreviewShortcutBindings,
   BrowserPreviewShortcutEvent,
 } from '@shared/types/browser-preview'
+import { typesAltGraphCharacter } from '@shared/utils/altgraph-character'
 import { projectActionShortcutMatches } from '@shared/utils/project-action-shortcuts'
 import type { Input } from 'electron'
 import {
@@ -75,6 +76,17 @@ export function browserPreviewShortcutBindingsMatchInput(
   bindings: BrowserPreviewShortcutBindings,
   isMac: boolean,
 ) {
+  // A character typed with AltGr in the page is text, not an app shortcut.
+  const typedWithAltGraph = typesAltGraphCharacter({
+    key: input.key,
+    code: input.code,
+    ctrl: input.control,
+    alt: input.alt,
+    meta: input.meta,
+    altGraph: null,
+    applePlatform: isMac,
+  })
+  if (typedWithAltGraph) return false
   return bindings.some((binding) =>
     projectActionShortcutMatches(
       {

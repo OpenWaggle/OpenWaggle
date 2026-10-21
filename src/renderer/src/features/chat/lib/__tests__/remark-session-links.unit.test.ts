@@ -57,6 +57,20 @@ describe('remarkSessionLinks', () => {
   })
 
   it.each([
+    ['Did you check openwaggle://sessions/abc?', '?'],
+    ['See openwaggle://sessions/abc: it decided.', ': it decided.'],
+    ['(openwaggle://sessions/abc)', ')'],
+    ['"openwaggle://sessions/abc"', '"'],
+  ])('links a Session link that ends a sentence: %j', (value, after) => {
+    const nodes = linkedParagraph(value)
+    expect(nodes?.find((node) => node.type === 'link')?.url).toBe('openwaggle://sessions/abc')
+    expect(nodes?.at(-1)).toEqual({ type: 'text', value: after })
+  })
+
+  it.each([
+    'openwaggle://sessions/abc.def',
+    'openwaggle://sessions/abc%2Fdef',
+    'openwaggle://sessions/abc:8080',
     'openwaggle://app/index.html',
     'openwaggle://sessions/session-1/items',
     'openwaggle://sessions/session-1?prompt=run',
