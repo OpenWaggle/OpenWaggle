@@ -40,11 +40,11 @@ describe('StreamingText Session links', () => {
     expect(screen.getByText('app')).toBeInTheDocument()
   })
 
-  it('links a Session link written as plain text, but not code or a longer URL', () => {
+  it('links a Session link written as plain text, but not a longer URL or code around it', () => {
     render(
       <StreamingText
         text={
-          'See openwaggle://sessions/session-1. Not `openwaggle://sessions/session-2` or openwaggle://sessions/session-3/items.'
+          'See openwaggle://sessions/session-1. Not openwaggle://sessions/session-3/items or `cd openwaggle://sessions/session-2`.'
         }
       />,
     )
@@ -54,7 +54,6 @@ describe('StreamingText Session links', () => {
       'openwaggle://sessions/session-1',
     )
     expect(screen.getAllByRole('link')).toHaveLength(1)
-    expect(screen.getByText('openwaggle://sessions/session-2')).toBeInTheDocument()
   })
 
   it('links a Session link in a completed block while the rest still streams', () => {
@@ -74,5 +73,13 @@ describe('StreamingText Session links', () => {
     // The streaming block holds half an identity, so it is not a link yet.
     expect(screen.getAllByRole('link')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'app' })).toBeNull()
+  })
+
+  it('links a Session link an agent wrote as inline code', () => {
+    render(<StreamingText text={'Read `openwaggle://sessions/session-1` first.'} />)
+
+    const link = screen.getByRole('link', { name: 'openwaggle://sessions/session-1' })
+    expect(link).toHaveAttribute('href', 'openwaggle://sessions/session-1')
+    expect(link.querySelector('code')).not.toBeNull()
   })
 })

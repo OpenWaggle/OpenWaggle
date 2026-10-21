@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { ExtensionPanelShortcutBindings } from '@shared/types/shortcuts'
+import type { ExtensionPanelShortcutBindings, ShortcutCommand } from '@shared/types/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
@@ -131,6 +131,20 @@ function previewShortcutHandlers(
   }
 }
 
+/**
+ * A built-in shortcut that has nothing to act on leaves its chord to the focused field: Close
+ * right panel without a panel, and Copy session link without a shown Session.
+ */
+function handlesBuiltInShortcut(
+  command: ShortcutCommand,
+  ownerKey: string,
+  viewedSessionId: string | null,
+) {
+  if (command === 'rightPanel.close') return rightPanelCloseIsActive(ownerKey)
+  if (command === 'session.copyLink') return viewedSessionId !== null
+  return true
+}
+
 export function useWorkspaceLifecycle(): void {
   useSessionResourceInvalidation()
   useSessionHiveInvalidation()
@@ -254,7 +268,7 @@ export function useWorkspaceLifecycle(): void {
     onRunProjectAction: (action) => void runProjectAction(action),
     onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),
     shouldHandleBuiltIn: (command) =>
-      command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
+      handlesBuiltInShortcut(command, terminalOwner.ownerKey, viewedSessionId),
     terminalOpen: terminalCommands.panelOpen,
   })
 }

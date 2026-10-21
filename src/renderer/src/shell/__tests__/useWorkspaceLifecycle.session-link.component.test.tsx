@@ -28,13 +28,24 @@ describe('useWorkspaceLifecycle Session link shortcut', () => {
     expect(lifecycleMocks.copySessionLink).toHaveBeenCalledWith('session-shown')
   })
 
-  it('does nothing on a page that shows no Session', () => {
+  it('leaves the chord to the focused field on a page that shows no Session', () => {
     lifecycleMocks.viewedSessionId = null
     renderHook(() => useWorkspaceLifecycle())
+    const press = new KeyboardEvent('keydown', {
+      key: 'l',
+      code: 'KeyL',
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
 
-    act(() => runWorkspaceHotkey('Mod+Alt+L'))
+    act(() => {
+      window.dispatchEvent(press)
+    })
 
     expect(lifecycleMocks.copySessionLink).not.toHaveBeenCalled()
+    expect(press.defaultPrevented).toBe(false)
   })
 
   it('still copies while a terminal has focus', () => {

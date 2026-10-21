@@ -56,7 +56,37 @@ describe('remarkSessionLinks', () => {
     ])
   })
 
+  it('links inline code that is exactly a Session link, and leaves other code alone', () => {
+    const tree: MarkdownNode = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'inlineCode', value: 'openwaggle://sessions/abc' },
+            { type: 'text', value: ' and ' },
+            { type: 'inlineCode', value: 'see openwaggle://sessions/def' },
+          ],
+        },
+      ],
+    }
+    remarkSessionLinks()(tree)
+    expect(tree.children?.[0]?.children).toEqual([
+      {
+        type: 'link',
+        url: 'openwaggle://sessions/abc',
+        children: [{ type: 'inlineCode', value: 'openwaggle://sessions/abc' }],
+      },
+      { type: 'text', value: ' and ' },
+      { type: 'inlineCode', value: 'see openwaggle://sessions/def' },
+    ])
+  })
+
   it.each([
+    ['Did you check openwaggle://sessions/abc?!', '?!'],
+    ['It said “openwaggle://sessions/abc”', '”'],
+    ['openwaggle://sessions/abc… then', '… then'],
+    ['openwaggle://sessions/abc—the schema one', '—the schema one'],
     ['Did you check openwaggle://sessions/abc?', '?'],
     ['See openwaggle://sessions/abc: it decided.', ': it decided.'],
     ['(openwaggle://sessions/abc)', ')'],

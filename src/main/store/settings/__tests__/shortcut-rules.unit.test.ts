@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { DEFAULT_SHORTCUT_BINDINGS, DEFAULT_SHORTCUT_RULES } from '@shared/types/shortcuts'
 import { describe, expect, it } from 'vitest'
+import { validatePersistedSettings } from '../persisted-validation'
 import { buildNextSettingsSnapshot, buildSettingsSnapshot } from '../snapshot'
 
 describe('settings shortcut rules', () => {
@@ -51,6 +52,35 @@ describe('settings shortcut rules', () => {
         rule.shortcut.key === 'L' && rule.shortcut.mod === true && rule.shortcut.alt === true,
     )
     expect(sameChord.at(-1)?.command).toBe('sidebar.toggle')
+  })
+
+  it('still reads saved settings whose bindings already use a newly added default chord', () => {
+    const { 'session.copyLink': _added, ...saved } = DEFAULT_SHORTCUT_BINDINGS
+    const shortcutBindings = { ...saved, 'sidebar.toggle': { key: 'L', mod: true, alt: true } }
+
+    expect(() => validatePersistedSettings({ shortcutBindings })).not.toThrow()
+    // A record that conflicts with itself is still corrupt.
+    expect(() =>
+      validatePersistedSettings({
+        shortcutBindings: {
+          ...DEFAULT_SHORTCUT_BINDINGS,
+          'sidebar.toggle': { key: 'J', mod: true },
+        },
+      }),
+    ).toThrow('Shortcut')
+  })
+
+  it('reads the bindings view of saved rules that share a chord, as rules may', () => {
+    const shortcutRules = [
+      ...DEFAULT_SHORTCUT_RULES,
+      { command: 'sidebar.toggle', shortcut: { key: 'L', mod: true, alt: true } },
+    ]
+    const shortcutBindings = {
+      ...DEFAULT_SHORTCUT_BINDINGS,
+      'sidebar.toggle': { key: 'L', mod: true, alt: true },
+    }
+
+    expect(() => validatePersistedSettings({ shortcutRules, shortcutBindings })).not.toThrow()
   })
 
   it('merges defaults ahead of a minimal custom array and keeps the custom rule newest', () => {

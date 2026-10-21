@@ -11,12 +11,12 @@ interface MarkdownNode {
 /**
  * A Session link written as plain text. GFM only links `http(s)`, `www.`, and email literals, so
  * a pasted `openwaggle://sessions/<id>` would otherwise stay text. The link may end in one slash
- * and must end where prose does: at whitespace, the end, a closing bracket or quote, or
- * punctuation such as `?` or `.` that ends a sentence. A longer URL (`…/items`, `…?prompt=`,
- * `….html`) is not a Session link and stays text.
+ * and must end where prose does: at whitespace, the end, a closing bracket, quote, or dash, or
+ * punctuation such as `?`, `?!`, `.` or `…` that ends a sentence. A longer URL (`…/items`,
+ * `…?prompt=`, `….html`) is not a Session link and stays text.
  */
 const SESSION_LINK_TEXT =
-  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?=$|[\s)\],;!'">*~]|[.:?](?:$|[\s)\]'"]))/gi
+  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?=$|[\s)\],;'">*~’”—]|[.:?!…]+(?:$|[\s)\]'"’”—]))/giu
 
 /** Nodes whose text is already a link or a link label. Code is a separate node type. */
 const LINKED_PARENTS = new Set(['link', 'linkReference', 'definition'])
@@ -39,10 +39,18 @@ function splitText(value: string): MarkdownNode[] {
   return nodes
 }
 
+/** Agents often write a link as inline code; code that is exactly a Session link links too. */
+function linkedInlineCode(node: MarkdownNode): MarkdownNode {
+  const sessionId = typeof node.value === 'string' ? parseSessionLink(node.value) : null
+  const url = sessionId === null ? null : sessionLink(sessionId)
+  return url === null ? node : { type: 'link', url, children: [node] }
+}
+
 function linkSessionLinks(node: MarkdownNode) {
   if (!node.children || LINKED_PARENTS.has(node.type)) return
   node.children = node.children.flatMap((child) => {
     if (child.type === 'text' && typeof child.value === 'string') return splitText(child.value)
+    if (child.type === 'inlineCode') return [linkedInlineCode(child)]
     linkSessionLinks(child)
     return [child]
   })

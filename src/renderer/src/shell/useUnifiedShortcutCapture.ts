@@ -46,6 +46,7 @@ function isAltGraphCharacter(event: KeyboardEvent) {
     ctrl: event.ctrlKey,
     alt: event.altKey,
     meta: event.metaKey,
+    shift: event.shiftKey,
     altGraph: event.getModifierState('AltGraph'),
     applePlatform: usesAppleShortcuts(),
   })
