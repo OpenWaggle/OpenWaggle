@@ -240,14 +240,14 @@ it('names the reason when removal itself fails', async () => {
   )
   mocks.remove.mockRejectedValue(
     new Error(
-      "Error invoking remote method 'git:worktrees:remove': Error: Could not check /worktree against its saved preparation: EACCES",
+      "Error invoking remote method 'git:worktrees:remove': Error: This worktree cannot be checked against its saved preparation: /worktree could not be read (EACCES). Check its permissions, then try again.",
     ),
   )
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
   await waitFor(() =>
     expect(useUIStore.getState().toastMessage).toBe(
-      'Could not remove the worktree: Could not check /worktree against its saved preparation: EACCES',
+      'Could not remove the worktree: This worktree cannot be checked against its saved preparation: /worktree could not be read (EACCES). Check its permissions, then try again.',
     ),
   )
 })

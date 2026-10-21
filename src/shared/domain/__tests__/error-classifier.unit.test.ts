@@ -72,6 +72,10 @@ describe('classifyErrorMessage', () => {
         'This worktree no longer matches its saved preparation: /Users/me/billing-service/.openwaggle/worktrees/billing-service/1a2b-a500f is a different folder from the one that was prepared. If the original folder still exists somewhere else, put it back. Prepared: inode 2, created 2026-10-20 08:52:31 UTC; found: inode 4, created 2026-10-21 06:17:40 UTC.',
       ],
       [
+        'a worktree that cannot be read, under a billing folder',
+        'This worktree cannot be checked against its saved preparation: /Users/me/.openwaggle/worktrees/billing-service/0e1c-a500f could not be read (EACCES: permission denied). Check its permissions, then try again.',
+      ],
+      [
         'a worktree that was never recorded, under a rate-limit folder',
         'This worktree cannot be checked against its saved preparation: the preparation has no record of the folder /work/rate-limit 429/wt. To continue, delete that folder.',
       ],

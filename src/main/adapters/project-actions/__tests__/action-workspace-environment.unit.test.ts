@@ -104,7 +104,7 @@ it.each([
       reason: 'not-a-folder',
       recorded,
     },
-    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is not a plain folder. Remove what is at that path, or the looping link on the way to it; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is not a plain folder. Remove what is at that path, or the file or looping link on the way to it; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
   ],
   [
     { status: 'awaiting-birth', workspacePath: worktree.workspacePath },

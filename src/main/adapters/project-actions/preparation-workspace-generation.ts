@@ -1,4 +1,5 @@
 import { lstat, realpath } from 'node:fs/promises'
+import { worktreePreparationHeadline } from '@shared/domain/worktree-preparation-messages'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import {
   isSameDurableDirectoryIdentity,
@@ -75,14 +76,17 @@ export async function completePreparationBirth(
 
 const logger = createLogger('workspace-preparation')
 
-/** Whether anything is at the path. A looping link on the way there counts as something. */
+/**
+ * Whether anything is at the path. A looping link or a file on the way there counts as
+ * something: Recreate worktree cannot create a folder under either until it is removed.
+ */
 async function pathExists(workspacePath: string) {
   try {
     await lstat(workspacePath)
     return true
   } catch (error) {
-    if (isNodeError(error, 'ELOOP')) return true
-    if (isEnoent(error) || isNodeError(error, 'ENOTDIR')) return false
+    if (isNodeError(error, 'ELOOP') || isNodeError(error, 'ENOTDIR')) return true
+    if (isEnoent(error)) return false
     throw error
   }
 }
@@ -124,8 +128,10 @@ export async function inspectPreparationGeneration(
       workspacePath,
       error: reason,
     })
-    throw new Error(`Could not check ${workspacePath} against its saved preparation: ${reason}`, {
-      cause: error,
-    })
+    // The shared headline keeps the chat card from reading the path as another kind of error.
+    throw new Error(
+      `${worktreePreparationHeadline('cannot be checked against')}: ${workspacePath} could not be read (${reason}). Check its permissions, then try again.`,
+      { cause: error },
+    )
   }
 }

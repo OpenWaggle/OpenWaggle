@@ -67,7 +67,7 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
       await engine.capture(workspace)
       await fs.chmod(parent, 0o000)
       await expect(engine.inspectWorkspaceGeneration(workspace)).rejects.toThrow(
-        `Could not check ${workspacePath} against its saved preparation: EACCES`,
+        `This worktree cannot be checked against its saved preparation: ${workspacePath} could not be read (EACCES`,
       )
       expect(warn).toHaveBeenCalledWith(
         'Could not check the worktree against its saved preparation',
@@ -124,7 +124,7 @@ it.skipIf(process.platform === 'win32')(
   },
 )
 
-it('leaves a worktree whose parent became a file out of the Settings list', async () => {
+it('reports a worktree whose parent became a file as not a folder, and leaves it out of the list', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-notdir-'))
   try {
     const workspacePath = path.join(root, 'parent', 'worktree')
@@ -135,6 +135,11 @@ it('leaves a worktree whose parent became a file out of the Settings list', asyn
     await engine.capture(workspace)
     await fs.rm(path.join(root, 'parent'), { recursive: true })
     await fs.writeFile(path.join(root, 'parent'), 'a file where a folder was')
+    // Runs report it as not a folder: Recreate worktree cannot create a folder under a file.
+    expect(await engine.inspectWorkspaceGeneration(workspace)).toMatchObject({
+      status: 'unreadable',
+      reason: 'not-a-folder',
+    })
     expect(await listWith(engine, root, workspace)).toMatchObject({
       _tag: 'Right',
       right: { workspaces: [] },
