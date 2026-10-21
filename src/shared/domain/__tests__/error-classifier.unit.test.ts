@@ -73,7 +73,7 @@ describe('classifyErrorMessage', () => {
       ],
       [
         'a worktree that cannot be read, under a billing folder',
-        'This worktree cannot be checked against its saved preparation: /Users/me/.openwaggle/worktrees/billing-service/0e1c-a500f could not be read (EACCES: permission denied). Fix its permissions, then send your message again.',
+        'This worktree cannot be checked against its saved preparation: /Users/me/.openwaggle/worktrees/billing-service/0e1c-a500f could not be read (EACCES: permission denied). Check that you can open this folder and the folders above it, then try again.',
       ],
       [
         'a worktree that was never recorded, under a rate-limit folder',

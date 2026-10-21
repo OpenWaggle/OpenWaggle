@@ -130,7 +130,7 @@ export async function inspectPreparationGeneration(
     })
     // The shared headline keeps the chat card from reading the path as another kind of error.
     throw new Error(
-      `${worktreePreparationHeadline('cannot be checked against')}: ${workspacePath} could not be read (${reason}). Fix its permissions, then send your message again.`,
+      `${worktreePreparationHeadline('cannot be checked against')}: ${workspacePath} could not be read (${reason}). Check that you can open this folder and the folders above it, then try again.`,
       { cause: error },
     )
   }
