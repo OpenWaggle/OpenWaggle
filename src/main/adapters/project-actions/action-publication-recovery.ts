@@ -1,5 +1,5 @@
 import type { PendingActionPublication } from '../../domain/project-action-catalog'
-import { readActionWorkspaceIdentity } from './action-manifest-file'
+import { isSameDurableDirectoryIdentity, readActionWorkspaceIdentity } from './action-manifest-file'
 import { actionPublicationCurrent, writeActionManifest } from './action-publication-files'
 import type { ActionStatePersistence, StoredActionState } from './local-action-state'
 
@@ -11,13 +11,7 @@ async function publicationWorkspaceCurrent(
   const expected = pending.workspaceIdentity
   if (!expected) return false
   const current = await readActionWorkspaceIdentity(pending.workspacePath)
-  if (
-    !current ||
-    current.device !== expected.device ||
-    current.inode !== expected.inode ||
-    current.birthtime !== expected.birthtime
-  )
-    return false
+  if (!isSameDurableDirectoryIdentity(current, expected)) return false
   const resource = await persistence.readWorkspace(projectPath, pending.workspacePath)
   return (resource?.id ?? null) === expected.resourceId && (!resource || resource.ready)
 }

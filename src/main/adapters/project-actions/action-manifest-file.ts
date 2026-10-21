@@ -28,6 +28,29 @@ export async function readActionWorkspaceIdentity(workspace: string) {
   }
 }
 
+interface DurableDirectoryIdentity {
+  readonly inode: string
+  readonly birthtime: string
+}
+
+/**
+ * Compares a live directory identity with one persisted across Host restarts.
+ * `st_dev` is assigned at mount time (APFS on macOS renumbers volumes on reboot), so a
+ * recorded device number cannot prove a different generation. The path is already fixed by
+ * the caller; inode plus nanosecond birthtime distinguish a replacement at that path.
+ */
+export function isSameDurableDirectoryIdentity(
+  current: DurableDirectoryIdentity | null | undefined,
+  recorded: DurableDirectoryIdentity,
+) {
+  return (
+    current !== null &&
+    current !== undefined &&
+    current.inode === recorded.inode &&
+    current.birthtime === recorded.birthtime
+  )
+}
+
 export function actionContentRevision(content: string | null): string {
   return createHash('sha256')
     .update(content === null ? 'missing' : `present:${content}`)

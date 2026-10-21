@@ -1411,8 +1411,15 @@ validates the arguments; the old call-time re-validation in `provider-tool-param
 is gone). `providerToolParameters` also repairs MCP sampling tools, which Pi does not validate.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
-not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
-when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
+not merely a project and worktree path. Pin the worktree directory's inode and birth time (the
+record also keeps `device`, for diagnosis only) when the checkout exists; a pre-birth snapshot
+gets its identity after materialization. Never compare a persisted `st_dev`: macOS renumbers APFS
+volumes at mount, and on 2026-10-20/21 it went 16777230 -> 16777233 -> 16777230 over two reboots,
+so every pre-reboot worktree failed with "no longer matches its saved preparation" until its
+record was hand-patched. `isSameDurableDirectoryIdentity` is the one comparison for persisted
+identities (preparation generation, publication journals); in-process comparisons may still
+include `device`. The mismatch error names the branch (`replaced`, `unreadable`, `unrecorded`),
+the path and both identities, and is logged under `workspace-preparation`. If the
 recorded generation is missing or differs at removal, do not execute its pinned cleanup command
 in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
 Retained-preparation listing must include generation mismatches even when cleanup status is idle

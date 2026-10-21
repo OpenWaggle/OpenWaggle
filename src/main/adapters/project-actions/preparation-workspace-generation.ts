@@ -1,7 +1,8 @@
 import { realpath } from 'node:fs/promises'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
+import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
-import { readActionWorkspaceIdentity } from './action-manifest-file'
+import { isSameDurableDirectoryIdentity, readActionWorkspaceIdentity } from './action-manifest-file'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { EMPTY_PREPARATION_EXECUTION } from './workspace-preparation-model'
 
@@ -67,16 +68,16 @@ export async function completePreparationBirth(
   )
 }
 
-export async function isCurrentPreparationGeneration(
+export async function inspectPreparationGeneration(
   workspace: ActionRunWorkspace,
   state: StoredWorkspacePreparation | null,
-) {
+): Promise<WorkspaceGenerationCheck> {
+  const { workspacePath } = workspace
   const recorded = state?.workspaceIdentity
-  if (!recorded) return false
-  const current = await readPreparationWorkspaceIdentity(workspace.workspacePath)
-  return (
-    current?.device === recorded.device &&
-    current.inode === recorded.inode &&
-    current.birthtime === recorded.birthtime
-  )
+  if (!recorded) return { status: 'unrecorded', workspacePath }
+  const observed = await readPreparationWorkspaceIdentity(workspacePath)
+  if (!observed) return { status: 'unreadable', workspacePath, recorded }
+  return isSameDurableDirectoryIdentity(observed, recorded)
+    ? { status: 'current' }
+    : { status: 'replaced', workspacePath, recorded, observed }
 }

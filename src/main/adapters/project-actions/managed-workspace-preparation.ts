@@ -14,7 +14,7 @@ import { recoverPreparationAfterHostLoss } from './preparation-recovery'
 import { commitReviewedSnapshot } from './preparation-review-commit'
 import {
   completePreparationBirth,
-  isCurrentPreparationGeneration,
+  inspectPreparationGeneration,
   isPendingPreparationBirth,
   preparationGenerationFields,
   resetPreparationForBirth,
@@ -58,8 +58,8 @@ export class ManagedWorkspacePreparation {
     const state = await this.state(workspace.workspaceId)
     return state ? this.project(workspace, state) : null
   }
-  async isCurrentWorkspaceGeneration(workspace: ActionRunWorkspace) {
-    return isCurrentPreparationGeneration(workspace, await this.state(workspace.workspaceId))
+  async inspectWorkspaceGeneration(workspace: ActionRunWorkspace) {
+    return inspectPreparationGeneration(workspace, await this.state(workspace.workspaceId))
   }
   capture(workspace: ActionRunWorkspace, profileId?: string) {
     return this.serial(workspace.workspaceId, async () => {

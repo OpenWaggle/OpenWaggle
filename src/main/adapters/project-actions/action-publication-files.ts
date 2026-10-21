@@ -6,6 +6,7 @@ import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import type { ActionPublicationIdentity } from '../../domain/project-action-catalog'
 import {
   actionContentRevision,
+  isSameDurableDirectoryIdentity,
   readActionConfigSource,
   readActionWorkspaceIdentity,
   serializeActionManifest,
@@ -38,12 +39,7 @@ export async function actionPublicationCurrent(
   const current = await readActionWorkspaceIdentity(
     actionPublicationPath(workspace, publication.id),
   )
-  return (
-    current !== null &&
-    current.device === publication.device &&
-    current.inode === publication.inode &&
-    current.birthtime === publication.birthtime
-  )
+  return isSameDurableDirectoryIdentity(current, publication)
 }
 
 async function writeExclusive(path: string, content: string) {

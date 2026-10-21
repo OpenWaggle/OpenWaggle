@@ -1,6 +1,7 @@
 import type { PreparationPhase, WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { Context, type Effect } from 'effect'
 import type { PreparedEnvironment } from '../domain/prepared-environment'
+import type { WorkspaceGenerationCheck } from '../domain/workspace-generation'
 import type { ActionRunWorkspace } from './action-run-service'
 
 export interface WorkspacePreparationServiceShape {
@@ -21,6 +22,10 @@ export interface WorkspacePreparationServiceShape {
   readonly isCurrentWorkspaceGeneration: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<boolean, Error>
+  /** Like isCurrentWorkspaceGeneration, with the recorded and observed identities for diagnosis. */
+  readonly inspectWorkspaceGeneration: (
+    workspace: ActionRunWorkspace,
+  ) => Effect.Effect<WorkspaceGenerationCheck, Error>
   readonly select: (
     workspace: ActionRunWorkspace,
     profileId: string,
