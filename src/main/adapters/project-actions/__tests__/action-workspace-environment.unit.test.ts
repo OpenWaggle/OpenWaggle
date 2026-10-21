@@ -48,7 +48,7 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
 it('rejects an old checkout generation before supplying its prepared environment', async () => {
   const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), replaced)
   await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(
-    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). If you moved or renamed the original folder, move it back. Otherwise commit or copy out any changes you want to keep, then delete that folder; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, commit or copy out any changes you want to keep, then delete that folder; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
   )
   // The log keeps every raw field, device included, so the failing branch is diagnosable.
   expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {

@@ -6,6 +6,7 @@ import {
 } from '../workspace-generation'
 
 const recorded = { device: '16777230', inode: '408642463', birthtime: '1792486351612449418' }
+const noBirth = { ...recorded, birthtime: '0' }
 
 describe('isSameDurableDirectoryIdentity', () => {
   it('ignores the device number, which macOS changes across reboots', () => {
@@ -25,23 +26,8 @@ describe('isSameDurableDirectoryIdentity', () => {
   })
 
   it('compares the device number only where the filesystem records no birth time', () => {
-    const noBirth = { ...recorded, birthtime: '0' }
     expect(isSameDurableDirectoryIdentity(noBirth, noBirth)).toBe(true)
     expect(isSameDurableDirectoryIdentity({ ...noBirth, device: '16777233' }, noBirth)).toBe(false)
-  })
-})
-
-describe('describeWorkspaceGenerationMismatch', () => {
-  it('shows birth times as dates and leaves the device number to the log', () => {
-    const { problem } = describeWorkspaceGenerationMismatch({
-      status: 'replaced',
-      workspacePath: '/w',
-      recorded,
-      observed: { device: '16777233', inode: '500', birthtime: '0' },
-    })
-    expect(problem).toBe(
-      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, unknown creation time)',
-    )
   })
 })
 
@@ -53,7 +39,6 @@ describe('durableDirectoryIdentityKey', () => {
   })
 
   it('changes whenever the comparator would report a different folder', () => {
-    const noBirth = { ...recorded, birthtime: '0' }
     expect(durableDirectoryIdentityKey({ ...recorded, inode: '1' })).not.toBe(
       durableDirectoryIdentityKey(recorded),
     )
@@ -63,16 +48,36 @@ describe('durableDirectoryIdentityKey', () => {
   })
 })
 
-describe('describeWorkspaceGenerationMismatch copy', () => {
-  it('shows a stored birth time that is not a nanosecond count as it is', () => {
-    const { problem } = describeWorkspaceGenerationMismatch({
+describe('describeWorkspaceGenerationMismatch', () => {
+  function replacedProblem(prepared: typeof recorded, found: typeof recorded) {
+    return describeWorkspaceGenerationMismatch({
       status: 'replaced',
       workspacePath: '/w',
-      recorded: { ...recorded, birthtime: 'garbled' },
-      observed: recorded,
-    })
-    expect(problem).toContain('prepared: inode 408642463, birth time garbled;')
+      recorded: prepared,
+      observed: found,
+    }).problem
+  }
+
+  it('shows birth times as dates and leaves the device number to the log', () => {
+    expect(replacedProblem(recorded, { device: '16777233', inode: '500', birthtime: '0' })).toBe(
+      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, unknown creation time, device 16777233)',
+    )
   })
+
+  it('shows the device number when it is what told the folders apart', () => {
+    expect(replacedProblem(noBirth, { ...noBirth, device: '16777233' })).toBe(
+      '/w is a different folder from the one that was prepared (prepared: inode 408642463, unknown creation time, device 16777230; found: inode 408642463, unknown creation time, device 16777233)',
+    )
+  })
+
+  it.each(['garbled', '99999999999999999999999'])(
+    'shows a stored birth time that is not a usable date (%s) as it is',
+    (birthtime) => {
+      expect(replacedProblem({ ...recorded, birthtime }, recorded)).toContain(
+        `prepared: inode 408642463, birth time ${birthtime};`,
+      )
+    },
+  )
 
   it.each([
     ['replaced', 'no longer matches'],

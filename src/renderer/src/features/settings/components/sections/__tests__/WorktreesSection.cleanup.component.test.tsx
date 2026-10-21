@@ -75,6 +75,46 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
   )
 })
 
+it('shows why the Host could not match the checkout', async () => {
+  const preparation = fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    cleanup: { status: 'succeeded', output: '' },
+  })
+  mocks.manage.mockImplementation(async ({ operation }) =>
+    operation.type === 'retained-preparation'
+      ? {
+          type: 'retained-preparation',
+          workspaces: [
+            {
+              path: '/worktree',
+              preparation,
+              generationMismatch: true,
+              generationMismatchMessage:
+                'This checkout cannot be checked against the one that captured its cleanup: the preparation has no record of the folder /worktree. Cleanup cannot run here; choose Delete anyway to remove this checkout.',
+            },
+          ],
+        }
+      : { type: 'preparation', preparation },
+  )
+  mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
+
+  renderWithQueryClient(<WorktreesSection />)
+  expect(
+    await screen.findByText(/the preparation has no record of the folder \/worktree/),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Retry cleanup' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('Delete anyway…'))
+  fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
+  await waitFor(() =>
+    expect(mocks.remove).toHaveBeenCalledWith('/project', {
+      path: '/worktree',
+      skipCleanup: true,
+    }),
+  )
+})
+
 it('offers explicit force removal after cleanup succeeds but the worktree remains', async () => {
   const preparation = fromPartial<WorkspacePreparation>({
     workspaceId: 'workspace',

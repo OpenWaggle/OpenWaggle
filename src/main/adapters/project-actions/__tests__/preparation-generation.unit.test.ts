@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { listRetainedPreparation } from '../../../application/retained-workspace-preparation'
 import { prepareWorkspaceRemoval } from '../../../application/workspace-cleanup'
 import { ActionRunService, type ActionRunWorkspace } from '../../../ports/action-run-service'
@@ -19,6 +19,11 @@ import {
   type PreparationDependencies,
 } from '../managed-workspace-preparation'
 import type { StoredWorkspacePreparation } from '../preparation-persistence'
+
+const warn = vi.hoisted(() => vi.fn())
+vi.mock('../../../logger', () => ({
+  createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
+}))
 
 const catalog: ActionCatalog = {
   revision: 'one',
@@ -248,6 +253,14 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
       await fs.chmod(parent, 0o000)
       await expect(engine.inspectWorkspaceGeneration(workspace)).rejects.toThrow(
         `Could not check ${workspacePath} against its saved preparation: EACCES`,
+      )
+      expect(warn).toHaveBeenCalledWith(
+        'Could not check the worktree against its saved preparation',
+        {
+          workspaceId: workspace.workspaceId,
+          workspacePath,
+          error: expect.stringContaining('EACCES'),
+        },
       )
     } finally {
       await fs.chmod(parent, 0o755).catch(() => {})

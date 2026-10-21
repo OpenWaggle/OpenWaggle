@@ -40,6 +40,16 @@ For a new session whose worktree creation failed, open **More details** on the *
 
 These actions change where the session runs; database restoration does not recover deleted working files. See [Missing-worktree recovery](/docs/developer-workflow/git-integration#recovering-a-missing-worktree).
 
+## A worktree no longer matches its saved preparation
+
+A worktree whose project has setup or cleanup actions records which folder it was prepared in. If a different folder is at that path now, new messages in the session fail with "This worktree no longer matches its saved preparation". The message names the path and the folder that was prepared. Restarting the computer does not cause this error.
+
+1. If the original folder still exists somewhere else, put it back at that path in place of the folder there now. Then send your message again.
+2. Otherwise, commit or copy out any changes you want to keep from the folder at that path, and delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
+3. Reopen the session and choose **Recreate worktree** or **Use current checkout**, as for a missing worktree.
+
+"This worktree cannot be checked against its saved preparation" means the preparation never recorded this folder. Follow steps 2 and 3. In **Settings > Worktrees**, a worktree like this explains why its cleanup cannot run and offers **Delete anyway**.
+
 ## Work continues after closing the app
 
 Closing or restarting the desktop window does not cancel active agent work. OpenWaggle's background session service keeps it running. Reopen the app and select the session to check its progress.

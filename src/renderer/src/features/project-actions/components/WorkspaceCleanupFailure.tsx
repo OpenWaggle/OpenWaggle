@@ -6,9 +6,16 @@ import { useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
 import { useActionPanelStore } from '../state/action-panel-store'
 
-function cleanupAlertMessage(preparation: WorkspacePreparation, generationMismatch: boolean) {
+function cleanupAlertMessage(
+  preparation: WorkspacePreparation,
+  generationMismatch: boolean,
+  generationMismatchMessage: string | undefined,
+) {
   if (generationMismatch)
-    return 'This checkout no longer matches the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
+    return (
+      generationMismatchMessage ??
+      'This checkout no longer matches the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
+    )
   if (preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped')
     return 'Cleanup completed, but the worktree remains. Review changes or locks, then retry removal or explicitly force it.'
   return (
@@ -20,6 +27,7 @@ export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
   readonly generationMismatch?: boolean
+  readonly generationMismatchMessage?: string
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void
@@ -80,7 +88,11 @@ export function WorkspaceCleanupFailure(props: {
         </p>
       ) : null}
       <p role="alert" className="text-xs text-error-text">
-        {cleanupAlertMessage(preparation, props.generationMismatch === true)}
+        {cleanupAlertMessage(
+          preparation,
+          props.generationMismatch === true,
+          props.generationMismatchMessage,
+        )}
       </p>
       {preparation.cleanup.output ? (
         <details>

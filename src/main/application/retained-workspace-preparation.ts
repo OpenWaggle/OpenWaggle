@@ -1,8 +1,16 @@
 import { stat } from 'node:fs/promises'
 import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
+import { describeWorkspaceGenerationMismatch } from '../domain/workspace-generation'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
+
+function retainedMismatchMessage({
+  verdict,
+  problem,
+}: ReturnType<typeof describeWorkspaceGenerationMismatch>) {
+  return `This checkout ${verdict} the one that captured its cleanup: ${problem}. Cleanup cannot run here; choose Delete anyway to remove this checkout.`
+}
 
 /** Only the authorized project's recorded workspaces may contribute private cleanup state. */
 export function listRetainedPreparation(projectPath: string) {
@@ -33,8 +41,8 @@ export function listRetainedPreparation(projectPath: string) {
           }
           const state = yield* preparation.read(scope)
           if (!state) return null
-          const generationMismatch =
-            (yield* preparation.inspectWorkspaceGeneration(scope)).status !== 'current'
+          const generation = yield* preparation.inspectWorkspaceGeneration(scope)
+          const generationMismatch = generation.status !== 'current'
           if (
             !generationMismatch &&
             state.cleanup.status !== 'failed' &&
@@ -46,7 +54,14 @@ export function listRetainedPreparation(projectPath: string) {
           return {
             path: workspace.workingPath,
             preparation: state,
-            ...(generationMismatch ? { generationMismatch: true } : {}),
+            ...(generation.status === 'current'
+              ? {}
+              : {
+                  generationMismatch: true,
+                  generationMismatchMessage: retainedMismatchMessage(
+                    describeWorkspaceGenerationMismatch(generation),
+                  ),
+                }),
           }
         }),
     )

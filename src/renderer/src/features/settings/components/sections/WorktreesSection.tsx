@@ -26,6 +26,7 @@ const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], stri
 type PreparedWorktree = GitWorktreeInfo & {
   readonly preparation?: WorkspacePreparation
   readonly generationMismatch?: boolean
+  readonly generationMismatchMessage?: string
 }
 
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
@@ -64,6 +65,7 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
             ...worktree,
             preparation: recovery?.preparation,
             generationMismatch: recovery?.generationMismatch,
+            generationMismatchMessage: recovery?.generationMismatchMessage,
           }
         }),
       )
@@ -173,6 +175,7 @@ export function WorktreesSection() {
                       projectPath={projectPath}
                       initial={worktree.preparation}
                       generationMismatch={worktree.generationMismatch}
+                      generationMismatchMessage={worktree.generationMismatchMessage}
                       busy={removingPath === worktree.path}
                       onRetry={() => void handleRemove(worktree.path)}
                       onDeleteAnyway={() => void handleRemove(worktree.path, true)}

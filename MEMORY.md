@@ -1419,7 +1419,9 @@ recorded: macOS renumbers APFS volumes at mount, and on 2026-10-20/21 it went 16
 matches its saved preparation" until its record was hand-patched. Project Actions and Workspace
 preparation compare persisted identities only through `isSameDurableDirectoryIdentity`
 (`src/main/domain/workspace-generation.ts`), which uses `device` only when the filesystem records
-no birth time; checks made and verified within one operation may still include it. Profile
+no birth time. In-process checks may still compare it, such as the language-detection cache
+(`workspace-language-detection.ts`) and the open-versus-resolve check in
+`filesystem-inline-visualization-service.ts`. Profile
 credential receipts still persist `${dev}:${ino}` (issue #330). `inspectWorkspaceGeneration`
 returns `current`, `replaced`, `unreadable`, `awaiting-birth` or `unrecorded`; the Host log under
 `workspace-preparation` records that status with the raw identities, and the error names the path

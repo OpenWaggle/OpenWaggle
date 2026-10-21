@@ -38,8 +38,10 @@ export type ActionManagementResult =
       readonly workspaces: readonly {
         readonly path: string
         readonly preparation: WorkspacePreparation
-        /** The checkout at this path no longer matches the recorded preparation generation. */
+        /** The checkout at this path cannot be matched to the recorded preparation generation. */
         readonly generationMismatch?: boolean
+        /** Why, for the Settings row; absent from Hosts that predate it. */
+        readonly generationMismatchMessage?: string
       }[]
     }
   | { readonly type: 'catalog'; readonly catalog: ActionCatalog }

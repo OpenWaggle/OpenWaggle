@@ -105,10 +105,10 @@ describe('native action management authority', () => {
     )
     test.inspectWorkspaceGeneration.mockReturnValue(
       Effect.succeed({
-        status: 'unreadable',
+        status: 'replaced',
         workspacePath: root,
-        reason: 'missing',
-        recorded: { device: '1', inode: '2', birthtime: '3' },
+        recorded: { device: '1', inode: '2', birthtime: '0' },
+        observed: { device: '1', inode: '4', birthtime: '0' },
       }),
     )
 
@@ -116,7 +116,12 @@ describe('native action management authority', () => {
       test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
     ).resolves.toMatchObject({
       workspaces: [
-        { path: root, generationMismatch: true, preparation: { cleanup: { status: 'succeeded' } } },
+        {
+          path: root,
+          generationMismatch: true,
+          generationMismatchMessage: `This checkout no longer matches the one that captured its cleanup: ${root} is a different folder from the one that was prepared (prepared: inode 2, unknown creation time, device 1; found: inode 4, unknown creation time, device 1). Cleanup cannot run here; choose Delete anyway to remove this checkout.`,
+          preparation: { cleanup: { status: 'succeeded' } },
+        },
       ],
     })
   })

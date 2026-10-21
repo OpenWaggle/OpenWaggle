@@ -45,7 +45,7 @@ export type WorkspaceGenerationCheck =
   | {
       readonly status: 'unreadable'
       readonly workspacePath: string
-      /** `missing`: nothing at the path. `not-a-folder`: a file, a symlink or a moved path. */
+      /** `missing`: nothing at the path. `not-a-folder`: a file, a broken or looping link, or a link to a file. */
       readonly reason: 'missing' | 'not-a-folder'
       readonly recorded: WorkspaceDirectoryIdentity
     }
@@ -65,13 +65,19 @@ const NANOSECONDS_PER_MILLISECOND = 1_000_000n
 
 function describeBirthtime(birthtime: string) {
   if (birthtime === UNKNOWN_BIRTHTIME) return 'unknown creation time'
-  // Stored as a string; a value that is not a nanosecond count is shown as it is.
+  // Stored as a string; a value that is not a nanosecond count in the Date range is shown as is.
   if (!/^\d+$/.test(birthtime)) return `birth time ${birthtime}`
-  return `created ${new Date(Number(BigInt(birthtime) / NANOSECONDS_PER_MILLISECOND)).toISOString()}`
+  const created = new Date(Number(BigInt(birthtime) / NANOSECONDS_PER_MILLISECOND))
+  if (Number.isNaN(created.getTime())) return `birth time ${birthtime}`
+  return `created ${created.toISOString()}`
 }
 
 function describeIdentity(identity: WorkspaceDirectoryIdentity) {
-  return `inode ${identity.inode}, ${describeBirthtime(identity.birthtime)}`
+  const described = `inode ${identity.inode}, ${describeBirthtime(identity.birthtime)}`
+  // Without a birth time the device number decides the comparison, so the user must see it.
+  return identity.birthtime === UNKNOWN_BIRTHTIME
+    ? `${described}, device ${identity.device}`
+    : described
 }
 
 /**
@@ -96,7 +102,7 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
     .with('replaced', ({ workspacePath, recorded, observed }) => ({
       verdict: 'no longer matches' as const,
       problem: `${workspacePath} is a different folder from the one that was prepared (prepared: ${describeIdentity(recorded)}; found: ${describeIdentity(observed)})`,
-      recovery: `If you moved or renamed the original folder, move it back. Otherwise ${DELETE_AND_RECREATE}.`,
+      recovery: `If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, ${DELETE_AND_RECREATE}.`,
     }))
     .with('unreadable', ({ workspacePath, reason }) =>
       reason === 'missing'
