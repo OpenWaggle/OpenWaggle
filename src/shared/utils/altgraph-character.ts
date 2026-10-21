@@ -19,7 +19,8 @@ const ASCII = /^[\u0020-\u007e]$/
  * (the renderer's Keyboard API layout map), so AZERTY's `a` on KeyQ is the key's own letter.
  * Without it, an ASCII letter or digit is never AltGr output, and a symbol counts only when the
  * AltGr flag is known or the symbol is outside ASCII (`€`), since `@` or `&` may be a base key.
- * A non-Latin letter (`и`) and a Shift+digit symbol, whose layout varies, never count.
+ * A non-Latin letter (`и`) and a Shift symbol on a digit or punctuation key, which Shift alone
+ * produces, never count.
  */
 export function typesAltGraphCharacter(input: {
   readonly key: string
@@ -35,7 +36,8 @@ export function typesAltGraphCharacter(input: {
   if (input.applePlatform || [...input.key].length !== 1) return false
   const altGraph = input.altGraph ?? (input.ctrl && input.alt && !input.meta)
   if (!altGraph || NON_LATIN_LETTER.test(input.key)) return false
-  if (input.shift && /^Digit[0-9]$/.test(input.code)) return false
+  // Shift alone changes what a digit or punctuation key types (`1` → `!`, `/` → `?`).
+  if (input.shift && !/^Key[A-Z]$/.test(input.code)) return false
   if (input.layoutKey) return input.key.toLowerCase() !== input.layoutKey.toLowerCase()
   if (ASCII_LETTER_OR_DIGIT.test(input.key)) return false
   return input.altGraph === true || !ASCII.test(input.key)

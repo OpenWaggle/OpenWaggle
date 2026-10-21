@@ -46,6 +46,8 @@ describe('typesAltGraphCharacter', () => {
     expect(types('и', 'KeyB', null)).toBe(false)
     expect(types('α', 'KeyA', true)).toBe(false)
     expect(types('!', 'Digit1', null, { shift: true })).toBe(false)
+    expect(types('?', 'Slash', true, { shift: true, layoutKey: '/' })).toBe(false)
+    expect(types('_', 'Minus', true, { shift: true })).toBe(false)
     expect(types('ArrowUp', 'ArrowUp', true)).toBe(false)
   })
 
