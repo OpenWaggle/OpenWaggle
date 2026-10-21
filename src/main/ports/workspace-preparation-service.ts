@@ -19,10 +19,7 @@ export interface WorkspacePreparationServiceShape {
   readonly read: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<WorkspacePreparation | null, Error>
-  readonly isCurrentWorkspaceGeneration: (
-    workspace: ActionRunWorkspace,
-  ) => Effect.Effect<boolean, Error>
-  /** Like isCurrentWorkspaceGeneration, with the recorded and observed identities for diagnosis. */
+  /** Whether the worktree is still the folder its preparation was captured in, and if not, why. */
   readonly inspectWorkspaceGeneration: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<WorkspaceGenerationCheck, Error>

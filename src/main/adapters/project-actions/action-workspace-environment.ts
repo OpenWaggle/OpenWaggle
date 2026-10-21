@@ -1,8 +1,8 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import * as Effect from 'effect/Effect'
-import type {
-  WorkspaceDirectoryIdentity,
-  WorkspaceGenerationCheck,
+import * as Either from 'effect/Either'
+import {
+  describeWorkspaceGenerationMismatch,
+  type WorkspaceGenerationCheck,
 } from '../../domain/workspace-generation'
 import { createLogger } from '../../logger'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
@@ -15,32 +15,25 @@ type PreparationEnvironmentReader = Pick<
   'read' | 'inspectWorkspaceGeneration' | 'environment'
 >
 
-type GenerationMismatch = Exclude<WorkspaceGenerationCheck, { readonly status: 'current' }>
-
-const MISMATCH_PREFIX = 'This worktree no longer matches its saved preparation'
-
-function describeIdentity(identity: WorkspaceDirectoryIdentity) {
-  return `inode ${identity.inode}, created ${identity.birthtime}, device ${identity.device}`
-}
-
-export function workspaceGenerationMismatchMessage(check: GenerationMismatch) {
-  return matchBy(check, 'status')
-    .with(
-      'replaced',
-      ({ workspacePath, recorded, observed }) =>
-        `${MISMATCH_PREFIX}: ${workspacePath} is a different folder from the one that was prepared (recorded ${describeIdentity(recorded)}; found ${describeIdentity(observed)}). Restore the original folder at that path, or hand this Session to another Workspace.`,
-    )
-    .with(
-      'unreadable',
-      ({ workspacePath, recorded }) =>
-        `${MISMATCH_PREFIX}: ${workspacePath} is missing or is not a plain folder (recorded ${describeIdentity(recorded)}). Restore the worktree folder, or hand this Session to another Workspace.`,
-    )
-    .with(
-      'unrecorded',
-      ({ workspacePath }) =>
-        `${MISMATCH_PREFIX}: no folder identity was recorded for ${workspacePath}. Hand this Session to another Workspace to continue.`,
-    )
-    .exhaustive()
+async function inspectGeneration(
+  preparation: PreparationEnvironmentReader,
+  workspace: ActionRunWorkspace,
+): Promise<WorkspaceGenerationCheck> {
+  const result = await Effect.runPromise(
+    Effect.either(preparation.inspectWorkspaceGeneration(workspace)),
+  )
+  if (Either.isRight(result)) return result.right
+  // Missing folders are a check result; this is a permission or I/O failure reading one.
+  const error = result.left
+  logger.warn('Could not check the worktree against its saved preparation', {
+    workspaceId: workspace.workspaceId,
+    workspacePath: workspace.workspacePath,
+    error: error.message,
+  })
+  throw new Error(
+    `Could not check ${workspace.workspacePath} against its saved preparation: ${error.message}`,
+    { cause: error },
+  )
 }
 
 export async function readPreparedWorkspaceEnvironment(
@@ -50,13 +43,16 @@ export async function readPreparedWorkspaceEnvironment(
   if (workspace.workspacePath !== workspace.projectPath) {
     const state = await Effect.runPromise(preparation.read(workspace))
     if (state) {
-      const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
+      const check = await inspectGeneration(preparation, workspace)
       if (check.status !== 'current') {
         logger.warn('Worktree does not match its saved preparation', {
           workspaceId: workspace.workspaceId,
           ...check,
         })
-        throw new Error(workspaceGenerationMismatchMessage(check))
+        const { problem, recovery } = describeWorkspaceGenerationMismatch(check)
+        throw new Error(
+          `This worktree no longer matches its saved preparation: ${problem}. ${recovery}`,
+        )
       }
     }
   }

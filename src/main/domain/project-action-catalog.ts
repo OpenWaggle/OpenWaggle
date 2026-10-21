@@ -20,6 +20,7 @@ import {
 } from './preparation-review-context'
 import { withSaverEnablement } from './preparation-saver-enablement'
 import { assertUniqueActionName } from './project-action-names'
+import type { WorkspaceDirectoryIdentity } from './workspace-generation'
 
 export { preparationExecutionKey } from './preparation-review-context'
 
@@ -29,11 +30,8 @@ export interface LocalActionDocument {
   readonly migration: { readonly version: 1; readonly legacySource: string | null }
 }
 
-export interface ActionPublicationIdentity {
+export interface ActionPublicationIdentity extends WorkspaceDirectoryIdentity {
   readonly id: string
-  readonly device: string
-  readonly inode: string
-  readonly birthtime: string
 }
 
 export interface PendingActionPublication {
@@ -41,12 +39,7 @@ export interface PendingActionPublication {
   /** Pins the directory retaining the displaced inode and the exclusive-install source. */
   readonly publication?: ActionPublicationIdentity
   /** Older journals without identity remain drafts; they cannot safely resume publication. */
-  readonly workspaceIdentity?: {
-    readonly device: string
-    readonly inode: string
-    readonly birthtime: string
-    readonly resourceId: string | null
-  }
+  readonly workspaceIdentity?: WorkspaceDirectoryIdentity & { readonly resourceId: string | null }
   readonly previousSharedRevision: string
   readonly nextShared: ActionManifest
   readonly nextLocal: LocalActionDocument

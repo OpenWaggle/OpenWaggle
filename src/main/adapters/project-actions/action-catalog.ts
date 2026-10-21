@@ -97,7 +97,8 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     stored = await recoverActionPublication(persistence, scope.projectPath, stored)
     const shared = await readActionManifest(scope.workspacePath)
     const revision = actionContentRevision(
-      `${scope.workspacePath}:${JSON.stringify(workspaceIdentity)}:${stored.revision}:${shared.revision}`,
+      // The device number changes across reboots, so it stays out of a token a draft may hold.
+      `${scope.workspacePath}:${workspaceIdentity.inode}:${workspaceIdentity.birthtime}:${stored.revision}:${shared.revision}`,
     )
     return { stored, shared, revision, workspaceIdentity }
   }

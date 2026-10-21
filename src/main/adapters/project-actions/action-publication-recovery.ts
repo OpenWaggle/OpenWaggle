@@ -1,5 +1,6 @@
 import type { PendingActionPublication } from '../../domain/project-action-catalog'
-import { isSameDurableDirectoryIdentity, readActionWorkspaceIdentity } from './action-manifest-file'
+import { isSameDurableDirectoryIdentity } from '../../domain/workspace-generation'
+import { readActionWorkspaceIdentity } from './action-manifest-file'
 import { actionPublicationCurrent, writeActionManifest } from './action-publication-files'
 import type { ActionStatePersistence, StoredActionState } from './local-action-state'
 

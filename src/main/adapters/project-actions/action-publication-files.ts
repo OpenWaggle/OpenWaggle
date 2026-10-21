@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import type { ActionManifest } from '@shared/types/action-definitions'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import type { ActionPublicationIdentity } from '../../domain/project-action-catalog'
+import { isSameDurableDirectoryIdentity } from '../../domain/workspace-generation'
 import {
   actionContentRevision,
-  isSameDurableDirectoryIdentity,
   readActionConfigSource,
   readActionWorkspaceIdentity,
   serializeActionManifest,

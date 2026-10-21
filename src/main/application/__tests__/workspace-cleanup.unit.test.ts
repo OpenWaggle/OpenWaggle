@@ -2,6 +2,7 @@ import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
+import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
 import { ActionRunService } from '../../ports/action-run-service'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { prepareWorkspaceRemoval } from '../workspace-cleanup'
@@ -10,6 +11,12 @@ const workspace = {
   workspaceId: 'workspace',
   projectPath: '/repo',
   workspacePath: '/repo/worktree',
+}
+const replaced: WorkspaceGenerationCheck = {
+  status: 'replaced',
+  workspacePath: '/repo/worktree',
+  recorded: { device: '16777233', inode: '408642463', birthtime: '1792486351612449418' },
+  observed: { device: '16777230', inode: '500', birthtime: '1792563460000000000' },
 }
 function fixture(status: WorkspacePreparation['cleanup']['status'], currentGeneration = true) {
   const state = fromPartial<WorkspacePreparation>({
@@ -38,7 +45,10 @@ function fixture(status: WorkspacePreparation['cleanup']['status'], currentGener
           WorkspacePreparationService,
           fromPartial({
             read: () => Effect.succeed(state),
-            isCurrentWorkspaceGeneration: () => Effect.succeed(currentGeneration),
+            inspectWorkspaceGeneration: () =>
+              Effect.succeed<WorkspaceGenerationCheck>(
+                currentGeneration ? { status: 'current' } : replaced,
+              ),
             run,
             skip,
           }),
@@ -85,7 +95,9 @@ describe('workspace cleanup removal boundary', () => {
     expect(await test.perform({ retryFailed: true })).toMatchObject({
       ok: false,
       code: 'cleanup-failed',
-      message: expect.stringContaining('no longer matches'),
+      message: expect.stringContaining(
+        'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). Its pinned cleanup cannot run here.',
+      ),
     })
     expect(test.run).not.toHaveBeenCalled()
     expect(test.skip).not.toHaveBeenCalled()

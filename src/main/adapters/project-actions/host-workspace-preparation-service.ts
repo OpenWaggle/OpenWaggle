@@ -62,10 +62,6 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
       stopSetup: (workspace, attemptId) => attempt(() => engine.stopSetup(workspace, attemptId)),
       capture: (workspace, profileId) => attempt(() => engine.capture(workspace, profileId)),
       read: (workspace) => attempt(() => engine.read(workspace)),
-      isCurrentWorkspaceGeneration: (workspace) =>
-        attempt(
-          async () => (await engine.inspectWorkspaceGeneration(workspace)).status === 'current',
-        ),
       inspectWorkspaceGeneration: (workspace) =>
         attempt(() => engine.inspectWorkspaceGeneration(workspace)),
       select: (workspace, profileId, revision) =>

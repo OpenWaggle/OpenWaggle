@@ -1,7 +1,11 @@
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { describeWorkspaceGenerationMismatch } from '../domain/workspace-generation'
+import { createLogger } from '../logger'
 import { ActionRunService, type ActionRunWorkspace } from '../ports/action-run-service'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
+
+const logger = createLogger('workspace-preparation')
 
 /** Caller owns the Workspace mutation fence and a durable, unbound removal reservation. */
 export function prepareWorkspaceRemoval(
@@ -18,13 +22,18 @@ export function prepareWorkspaceRemoval(
       yield* preparation.skip(workspace, 'cleanup', state.revision)
       return null
     }
-    if (!(yield* preparation.isCurrentWorkspaceGeneration(workspace))) {
+    const generation = yield* preparation.inspectWorkspaceGeneration(workspace)
+    if (generation.status !== 'current') {
+      logger.warn('Worktree cleanup refused: it does not match its saved preparation', {
+        workspaceId: workspace.workspaceId,
+        ...generation,
+      })
+      const { problem } = describeWorkspaceGenerationMismatch(generation)
       return {
         ok: false,
         code: 'cleanup-failed',
         preparation: state,
-        message:
-          'This worktree no longer matches the checkout that captured its preparation. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
+        message: `This worktree no longer matches the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`,
       } satisfies GitWorktreeMutationResult
     }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'

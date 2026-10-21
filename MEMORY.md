@@ -1416,10 +1416,13 @@ record also keeps `device`, for diagnosis only) when the checkout exists; a pre-
 gets its identity after materialization. Never compare a persisted `st_dev`: macOS renumbers APFS
 volumes at mount, and on 2026-10-20/21 it went 16777230 -> 16777233 -> 16777230 over two reboots,
 so every pre-reboot worktree failed with "no longer matches its saved preparation" until its
-record was hand-patched. `isSameDurableDirectoryIdentity` is the one comparison for persisted
-identities (preparation generation, publication journals); in-process comparisons may still
-include `device`. The mismatch error names the branch (`replaced`, `unreadable`, `unrecorded`),
-the path and both identities, and is logged under `workspace-preparation`. If the
+record was hand-patched. Project Actions and Workspace preparation compare persisted identities
+only through `isSameDurableDirectoryIdentity` (`src/main/domain/workspace-generation.ts`), which
+uses `device` only when the filesystem records no birth time; checks made and verified within one
+operation may still include it. Profile credential receipts still persist `${dev}:${ino}`
+(issue #330). `inspectWorkspaceGeneration` returns `current`, `replaced`, `unreadable`,
+`awaiting-birth` or `unrecorded`; the Host log under `workspace-preparation` records that status
+with the raw identities, and the error names the path and both identities. If the
 recorded generation is missing or differs at removal, do not execute its pinned cleanup command
 in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
 Retained-preparation listing must include generation mismatches even when cleanup status is idle

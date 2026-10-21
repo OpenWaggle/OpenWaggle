@@ -6,6 +6,7 @@ import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
 import { ActionCatalogService } from '../../ports/action-catalog-service'
 import { ActionRunService } from '../../ports/action-run-service'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
@@ -45,7 +46,9 @@ describe('native action management authority', () => {
         }),
       ),
     )
-    const isCurrentWorkspaceGeneration = vi.fn(() => Effect.succeed(true))
+    const inspectWorkspaceGeneration = vi.fn(() =>
+      Effect.succeed<WorkspaceGenerationCheck>({ status: 'current' }),
+    )
     const listManagedWorktreeRemovalCandidates = () =>
       Effect.succeed([
         { id: 'retained', projectPath: root, workingPath: root },
@@ -65,11 +68,11 @@ describe('native action management authority', () => {
           Effect.provideService(ActionRunService, fromPartial({ start })),
           Effect.provideService(
             WorkspacePreparationService,
-            fromPartial({ read: preparationRead, isCurrentWorkspaceGeneration }),
+            fromPartial({ read: preparationRead, inspectWorkspaceGeneration }),
           ),
         ),
       )
-    return { run, start, read, getBound, preparationRead, isCurrentWorkspaceGeneration }
+    return { run, start, read, getBound, preparationRead, inspectWorkspaceGeneration }
   }
 
   it('restores cleanup failures without a Session while isolating other projects', async () => {
@@ -100,7 +103,13 @@ describe('native action management authority', () => {
         }),
       ),
     )
-    test.isCurrentWorkspaceGeneration.mockReturnValue(Effect.succeed(false))
+    test.inspectWorkspaceGeneration.mockReturnValue(
+      Effect.succeed({
+        status: 'unreadable',
+        workspacePath: root,
+        recorded: { device: '1', inode: '2', birthtime: '3' },
+      }),
+    )
 
     await expect(
       test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),

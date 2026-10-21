@@ -1,8 +1,11 @@
 import { realpath } from 'node:fs/promises'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
-import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
+import {
+  isSameDurableDirectoryIdentity,
+  type WorkspaceGenerationCheck,
+} from '../../domain/workspace-generation'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
-import { isSameDurableDirectoryIdentity, readActionWorkspaceIdentity } from './action-manifest-file'
+import { readActionWorkspaceIdentity } from './action-manifest-file'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { EMPTY_PREPARATION_EXECUTION } from './workspace-preparation-model'
 
@@ -74,7 +77,10 @@ export async function inspectPreparationGeneration(
 ): Promise<WorkspaceGenerationCheck> {
   const { workspacePath } = workspace
   const recorded = state?.workspaceIdentity
-  if (!recorded) return { status: 'unrecorded', workspacePath }
+  if (!recorded)
+    return state?.awaitingWorktreeBirth
+      ? { status: 'awaiting-birth', workspacePath }
+      : { status: 'unrecorded', workspacePath }
   const observed = await readPreparationWorkspaceIdentity(workspacePath)
   if (!observed) return { status: 'unreadable', workspacePath, recorded }
   return isSameDurableDirectoryIdentity(observed, recorded)

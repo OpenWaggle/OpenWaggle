@@ -5,7 +5,14 @@ import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { expect, it } from 'vitest'
-import type { ActionRunWorkspace } from '../../../ports/action-run-service'
+import { listRetainedPreparation } from '../../../application/retained-workspace-preparation'
+import { prepareWorkspaceRemoval } from '../../../application/workspace-cleanup'
+import { ActionRunService, type ActionRunWorkspace } from '../../../ports/action-run-service'
+import { SessionWorkspaceResourceRepository } from '../../../ports/session-workspace-resource-repository'
+import {
+  WorkspacePreparationService,
+  type WorkspacePreparationServiceShape,
+} from '../../../ports/workspace-preparation-service'
 import { readActionWorkspaceEnvironment } from '../action-workspace-environment'
 import {
   ManagedWorkspacePreparation,
@@ -130,20 +137,87 @@ it('pins a durable checkout generation and rejects a replacement at the same pat
     await fs.rename(originalPath, path.join(root, 'removed-worktree'))
     await fs.mkdir(originalPath)
     const restarted = new ManagedWorkspacePreparation(deps)
-    expect((await restarted.inspectWorkspaceGeneration(workspace)).status === 'current').toBe(false)
+    expect(await restarted.inspectWorkspaceGeneration(workspace)).toMatchObject({
+      status: 'replaced',
+      workspacePath: originalPath,
+    })
 
     const recorded = storage.get(workspace.workspaceId)
     if (!recorded) throw new Error('missing preparation')
     const { workspaceIdentity: _identity, ...legacy } = recorded
     storage.set(workspace.workspaceId, legacy)
-    expect((await restarted.inspectWorkspaceGeneration(workspace)).status === 'current').toBe(false)
+    expect(await restarted.inspectWorkspaceGeneration(workspace)).toEqual({
+      status: 'unrecorded',
+      workspacePath: originalPath,
+    })
 
     const pending = await restarted.prepareBirth({ ...workspace, workspacePath: root })
     expect((await restarted.prepareBirth({ ...workspace, workspacePath: root })).revision).toBe(
       pending.revision,
     )
+    expect(await restarted.inspectWorkspaceGeneration(workspace)).toEqual({
+      status: 'awaiting-birth',
+      workspacePath: originalPath,
+    })
     await restarted.capture(workspace)
-    expect((await restarted.inspectWorkspaceGeneration(workspace)).status === 'current').toBe(true)
+    expect(await restarted.inspectWorkspaceGeneration(workspace)).toEqual({ status: 'current' })
+  } finally {
+    await fs.rm(root, { recursive: true, force: true })
+  }
+})
+
+it('removes and lists a prepared worktree normally after a reboot renumbers the volume', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-removal-'))
+  try {
+    const workspacePath = path.join(root, 'worktree')
+    await fs.mkdir(workspacePath)
+    const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+    const { storage, deps } = memoryDeps()
+    await new ManagedWorkspacePreparation(deps).capture(workspace)
+    const recorded = storage.get(workspace.workspaceId)
+    if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
+    storage.set(workspace.workspaceId, {
+      ...recorded,
+      workspaceIdentity: { ...recorded.workspaceIdentity, device: '999999999' },
+    })
+    const engine = new ManagedWorkspacePreparation(deps)
+    const service: Pick<
+      WorkspacePreparationServiceShape,
+      'read' | 'inspectWorkspaceGeneration' | 'run'
+    > = {
+      read: (scope) => Effect.promise(() => engine.read(scope)),
+      inspectWorkspaceGeneration: (scope) =>
+        Effect.promise(() => engine.inspectWorkspaceGeneration(scope)),
+      run: (scope, phase) => Effect.promise(() => engine.run(scope, phase)),
+    }
+    const preparation = fromPartial<WorkspacePreparationServiceShape>(service)
+    const listed = await Effect.runPromise(
+      listRetainedPreparation(root).pipe(
+        Effect.provideService(WorkspacePreparationService, preparation),
+        Effect.provideService(
+          SessionWorkspaceResourceRepository,
+          fromPartial({
+            listManagedWorktreeRemovalCandidates: () =>
+              Effect.succeed([
+                { id: workspace.workspaceId, projectPath: root, workingPath: workspacePath },
+              ]),
+          }),
+        ),
+      ),
+    )
+    expect(listed.workspaces).toEqual([])
+    const removal = await Effect.runPromise(
+      prepareWorkspaceRemoval(workspace, { retryFailed: false }).pipe(
+        Effect.provideService(WorkspacePreparationService, preparation),
+        Effect.provideService(
+          ActionRunService,
+          fromPartial({ stopWorkspaceRuns: () => Effect.void }),
+        ),
+      ),
+    )
+    // No definitions in the snapshot, so cleanup is skipped rather than refused as a replacement.
+    expect(removal).toBeNull()
+    expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
   } finally {
     await fs.rm(root, { recursive: true, force: true })
   }

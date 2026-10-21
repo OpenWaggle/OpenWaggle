@@ -33,7 +33,8 @@ export function listRetainedPreparation(projectPath: string) {
           }
           const state = yield* preparation.read(scope)
           if (!state) return null
-          const generationMismatch = !(yield* preparation.isCurrentWorkspaceGeneration(scope))
+          const generationMismatch =
+            (yield* preparation.inspectWorkspaceGeneration(scope)).status !== 'current'
           if (
             !generationMismatch &&
             state.cleanup.status !== 'failed' &&

@@ -1,11 +1,17 @@
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import type { WorkspaceGenerationCheck } from '../../../domain/workspace-generation'
 import type { ActionRunWorkspace } from '../../../ports/action-run-service'
 import type { WorkspacePreparationServiceShape } from '../../../ports/workspace-preparation-service'
 import { readActionWorkspaceEnvironment } from '../action-workspace-environment'
+
+const warn = vi.hoisted(() => vi.fn())
+vi.mock('../../../logger', () => ({
+  createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
+}))
+beforeEach(() => warn.mockClear())
 
 const worktree: ActionRunWorkspace = {
   workspaceId: 'worktree-1',
@@ -21,9 +27,11 @@ const replaced: WorkspaceGenerationCheck = {
   observed: { device: '16777230', inode: '500', birthtime: '1792563460000000000' },
 }
 
-function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerationCheck) {
+function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerationCheck | Error) {
   const read = vi.fn(() => Effect.succeed(state))
-  const inspectWorkspaceGeneration = vi.fn(() => Effect.succeed(check))
+  const inspectWorkspaceGeneration = vi.fn(() =>
+    check instanceof Error ? Effect.fail(check) : Effect.succeed(check),
+  )
   const environment = vi.fn(() => Effect.succeed({ TOOLCHAIN_PATH: '/old-checkout/bin' }))
   return {
     service: fromPartial<WorkspacePreparationServiceShape>({
@@ -40,8 +48,13 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
 it('rejects an old checkout generation before supplying its prepared environment', async () => {
   const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), replaced)
   await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(
-    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (recorded inode 408642463, created 1792486351612449418, device 16777233; found inode 500, created 1792563460000000000, device 16777230). Restore the original folder at that path, or hand this Session to another Workspace.`,
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). If you moved or renamed the original folder, move it back. Otherwise move that folder out of the way; this Session then offers Recreate worktree or Use current checkout.`,
   )
+  // The log keeps every raw field, device included, so the failing branch is diagnosable.
+  expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {
+    workspaceId: worktree.workspaceId,
+    ...replaced,
+  })
   expect(fixture.read).toHaveBeenCalledWith(worktree)
   expect(fixture.inspectWorkspaceGeneration).toHaveBeenCalledWith(worktree)
   expect(fixture.environment).not.toHaveBeenCalled()
@@ -81,17 +94,44 @@ it('keeps project-root actions available without a worktree generation', async (
 it.each([
   [
     { status: 'unreadable', workspacePath: worktree.workspacePath, recorded },
-    `${worktree.workspacePath} is missing or is not a plain folder (recorded inode 408642463, created 1792486351612449418, device 16777233). Restore the worktree folder`,
+    `${worktree.workspacePath} is missing or is not a plain folder. If you moved or renamed it, move it back.`,
+  ],
+  [
+    { status: 'awaiting-birth', workspacePath: worktree.workspacePath },
+    `the preparation was reset for a new worktree and has not recorded ${worktree.workspacePath} yet. To start over, move that folder out of the way`,
   ],
   [
     { status: 'unrecorded', workspacePath: worktree.workspacePath },
-    `no folder identity was recorded for ${worktree.workspacePath}. Hand this Session to another Workspace`,
+    `the preparation has no record of the folder ${worktree.workspacePath}. To start over, move that folder out of the way`,
   ],
 ] satisfies [WorkspaceGenerationCheck, string][])(
   'names the failing check (%o) in the error',
   async (check, detail) => {
     const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), check)
     await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(detail)
+    expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {
+      workspaceId: worktree.workspaceId,
+      ...check,
+    })
     expect(fixture.environment).not.toHaveBeenCalled()
   },
 )
+
+it('names the worktree and logs when its identity cannot be read at all', async () => {
+  const denied = new Error('EPERM: operation not permitted, lstat')
+  const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), denied)
+  const failure = await readActionWorkspaceEnvironment(fixture.service, worktree).catch(
+    (error: unknown) => error,
+  )
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure).toMatchObject({
+    message: `Could not check ${worktree.workspacePath} against its saved preparation: EPERM: operation not permitted, lstat`,
+    cause: denied,
+  })
+  expect(warn).toHaveBeenCalledWith('Could not check the worktree against its saved preparation', {
+    workspaceId: worktree.workspaceId,
+    workspacePath: worktree.workspacePath,
+    error: denied.message,
+  })
+  expect(fixture.environment).not.toHaveBeenCalled()
+})
