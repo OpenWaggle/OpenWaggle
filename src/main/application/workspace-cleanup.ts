@@ -28,12 +28,12 @@ export function prepareWorkspaceRemoval(
         workspaceId: workspace.workspaceId,
         ...generation,
       })
-      const { problem } = describeWorkspaceGenerationMismatch(generation)
+      const { verdict, problem } = describeWorkspaceGenerationMismatch(generation)
       return {
         ok: false,
         code: 'cleanup-failed',
         preparation: state,
-        message: `This worktree no longer matches the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`,
+        message: `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`,
       } satisfies GitWorktreeMutationResult
     }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'

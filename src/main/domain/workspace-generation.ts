@@ -30,6 +30,13 @@ export function isSameDurableDirectoryIdentity(
   return recorded.birthtime !== UNKNOWN_BIRTHTIME || current.device === recorded.device
 }
 
+/** A string that changes exactly when `isSameDurableDirectoryIdentity` would report a change. */
+export function durableDirectoryIdentityKey(identity: WorkspaceDirectoryIdentity) {
+  return identity.birthtime === UNKNOWN_BIRTHTIME
+    ? `${identity.device}:${identity.inode}:${UNKNOWN_BIRTHTIME}`
+    : `${identity.inode}:${identity.birthtime}`
+}
+
 /** Why a worktree does or does not still match the folder its preparation was captured in. */
 export type WorkspaceGenerationCheck =
   | { readonly status: 'current' }
@@ -38,6 +45,8 @@ export type WorkspaceGenerationCheck =
   | {
       readonly status: 'unreadable'
       readonly workspacePath: string
+      /** `missing`: nothing at the path. `not-a-folder`: a file, a symlink or a moved path. */
+      readonly reason: 'missing' | 'not-a-folder'
       readonly recorded: WorkspaceDirectoryIdentity
     }
   | {
@@ -52,9 +61,12 @@ export type WorkspaceGenerationMismatch = Exclude<
   { readonly status: 'current' }
 >
 
+const NANOSECONDS_PER_MILLISECOND = 1_000_000n
+
 function describeBirthtime(birthtime: string) {
   if (birthtime === UNKNOWN_BIRTHTIME) return 'unknown creation time'
-  const NANOSECONDS_PER_MILLISECOND = 1_000_000n
+  // Stored as a string; a value that is not a nanosecond count is shown as it is.
+  if (!/^\d+$/.test(birthtime)) return `birth time ${birthtime}`
   return `created ${new Date(Number(BigInt(birthtime) / NANOSECONDS_PER_MILLISECOND)).toISOString()}`
 }
 
@@ -62,35 +74,52 @@ function describeIdentity(identity: WorkspaceDirectoryIdentity) {
   return `inode ${identity.inode}, ${describeBirthtime(identity.birthtime)}`
 }
 
-/** Removing the folder is what lets the Session offer Recreate worktree or Use current checkout. */
-const MOVE_ASIDE =
-  'move that folder out of the way; this Session then offers Recreate worktree or Use current checkout'
+/**
+ * Deleting, not moving, the folder: a moved copy of a git worktree still points at the git data
+ * that Recreate worktree reuses. A missing worktree is what makes the Session offer recovery.
+ */
+const RECREATE = 'when you reopen this Session, choose Recreate worktree or Use current checkout'
+const DELETE_AND_RECREATE = `commit or copy out any changes you want to keep, then delete that folder; ${RECREATE}`
 
 /**
- * What went wrong, and how to recover when a run needs the folder. Callers with a different
- * remedy, such as worktree removal, use `problem` alone. The raw identities, device included, go
- * to the Host log rather than the message.
+ * How a worktree fails its preparation check, in the words of the caller's sentence
+ * ("This worktree <verdict> …: <problem>. <recovery>"). Callers with a different remedy, such
+ * as worktree removal, leave out `recovery`. The raw identities, device included, go to the
+ * Host log rather than the message.
  */
 export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMismatch): {
+  readonly verdict: 'no longer matches' | 'cannot be checked against'
   readonly problem: string
   readonly recovery: string
 } {
   return matchBy(check, 'status')
     .with('replaced', ({ workspacePath, recorded, observed }) => ({
+      verdict: 'no longer matches' as const,
       problem: `${workspacePath} is a different folder from the one that was prepared (prepared: ${describeIdentity(recorded)}; found: ${describeIdentity(observed)})`,
-      recovery: `If you moved or renamed the original folder, move it back. Otherwise ${MOVE_ASIDE}.`,
+      recovery: `If you moved or renamed the original folder, move it back. Otherwise ${DELETE_AND_RECREATE}.`,
     }))
-    .with('unreadable', ({ workspacePath }) => ({
-      problem: `${workspacePath} is missing or is not a plain folder`,
-      recovery: `If you moved or renamed it, move it back. Otherwise ${MOVE_ASIDE}.`,
-    }))
+    .with('unreadable', ({ workspacePath, reason }) =>
+      reason === 'missing'
+        ? {
+            verdict: 'no longer matches' as const,
+            problem: `${workspacePath} is missing`,
+            recovery: `If you moved or renamed it, move it back. Otherwise, ${RECREATE}.`,
+          }
+        : {
+            verdict: 'no longer matches' as const,
+            problem: `${workspacePath} is not a plain folder`,
+            recovery: `Remove what is at that path; ${RECREATE}.`,
+          },
+    )
     .with('awaiting-birth', ({ workspacePath }) => ({
+      verdict: 'cannot be checked against' as const,
       problem: `the preparation was reset for a new worktree and has not recorded ${workspacePath} yet`,
-      recovery: `To start over, ${MOVE_ASIDE}.`,
+      recovery: `To continue, ${DELETE_AND_RECREATE}.`,
     }))
     .with('unrecorded', ({ workspacePath }) => ({
+      verdict: 'cannot be checked against' as const,
       problem: `the preparation has no record of the folder ${workspacePath}`,
-      recovery: `To start over, ${MOVE_ASIDE}.`,
+      recovery: `To continue, ${DELETE_AND_RECREATE}.`,
     }))
     .exhaustive()
 }

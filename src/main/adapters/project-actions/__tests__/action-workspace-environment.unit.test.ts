@@ -48,7 +48,7 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
 it('rejects an old checkout generation before supplying its prepared environment', async () => {
   const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), replaced)
   await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(
-    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). If you moved or renamed the original folder, move it back. Otherwise move that folder out of the way; this Session then offers Recreate worktree or Use current checkout.`,
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). If you moved or renamed the original folder, move it back. Otherwise commit or copy out any changes you want to keep, then delete that folder; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
   )
   // The log keeps every raw field, device included, so the failing branch is diagnosable.
   expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {
@@ -93,16 +93,25 @@ it('keeps project-root actions available without a worktree generation', async (
 
 it.each([
   [
-    { status: 'unreadable', workspacePath: worktree.workspacePath, recorded },
-    `${worktree.workspacePath} is missing or is not a plain folder. If you moved or renamed it, move it back.`,
+    { status: 'unreadable', workspacePath: worktree.workspacePath, reason: 'missing', recorded },
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is missing. If you moved or renamed it, move it back. Otherwise, when you reopen this Session, choose Recreate worktree or Use current checkout.`,
+  ],
+  [
+    {
+      status: 'unreadable',
+      workspacePath: worktree.workspacePath,
+      reason: 'not-a-folder',
+      recorded,
+    },
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is not a plain folder. Remove what is at that path; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
   ],
   [
     { status: 'awaiting-birth', workspacePath: worktree.workspacePath },
-    `the preparation was reset for a new worktree and has not recorded ${worktree.workspacePath} yet. To start over, move that folder out of the way`,
+    `This worktree cannot be checked against its saved preparation: the preparation was reset for a new worktree and has not recorded ${worktree.workspacePath} yet. To continue, commit or copy out any changes you want to keep, then delete that folder;`,
   ],
   [
     { status: 'unrecorded', workspacePath: worktree.workspacePath },
-    `the preparation has no record of the folder ${worktree.workspacePath}. To start over, move that folder out of the way`,
+    `This worktree cannot be checked against its saved preparation: the preparation has no record of the folder ${worktree.workspacePath}. To continue, commit or copy out`,
   ],
 ] satisfies [WorkspaceGenerationCheck, string][])(
   'names the failing check (%o) in the error',
@@ -116,22 +125,3 @@ it.each([
     expect(fixture.environment).not.toHaveBeenCalled()
   },
 )
-
-it('names the worktree and logs when its identity cannot be read at all', async () => {
-  const denied = new Error('EPERM: operation not permitted, lstat')
-  const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), denied)
-  const failure = await readActionWorkspaceEnvironment(fixture.service, worktree).catch(
-    (error: unknown) => error,
-  )
-  expect(failure).toBeInstanceOf(Error)
-  expect(failure).toMatchObject({
-    message: `Could not check ${worktree.workspacePath} against its saved preparation: EPERM: operation not permitted, lstat`,
-    cause: denied,
-  })
-  expect(warn).toHaveBeenCalledWith('Could not check the worktree against its saved preparation', {
-    workspaceId: worktree.workspaceId,
-    workspacePath: worktree.workspacePath,
-    error: denied.message,
-  })
-  expect(fixture.environment).not.toHaveBeenCalled()
-})

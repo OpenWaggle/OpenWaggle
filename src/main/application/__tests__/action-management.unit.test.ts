@@ -107,6 +107,7 @@ describe('native action management authority', () => {
       Effect.succeed({
         status: 'unreadable',
         workspacePath: root,
+        reason: 'missing',
         recorded: { device: '1', inode: '2', birthtime: '3' },
       }),
     )

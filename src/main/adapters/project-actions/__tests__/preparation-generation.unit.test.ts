@@ -67,8 +67,10 @@ it('keeps a prepared worktree runnable across reboots that renumber the volume b
     const recorded = storage.get(workspace.workspaceId)
     if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
     // Observed on 2026-10-20/21: st_dev went 16777230 -> 16777233 -> 16777230 over two reboots,
-    // with the same inode and birthtime each time. Each Host start reads the record afresh.
-    for (const device of ['16777230', '16777233', '16777230']) {
+    // with the same inode and birthtime each time. Each Host start reads the record afresh, and
+    // the last start finds the device the folder was captured with again.
+    const captured = recorded.workspaceIdentity.device
+    for (const device of ['16777230', '16777233', captured]) {
       storage.set(workspace.workspaceId, {
         ...recorded,
         workspaceIdentity: { ...recorded.workspaceIdentity, device },
@@ -107,6 +109,14 @@ it('reports the recorded and observed identity when the folder was replaced', as
     expect(await engine.inspectWorkspaceGeneration(workspace)).toEqual({
       status: 'unreadable',
       workspacePath,
+      reason: 'missing',
+      recorded,
+    })
+    await fs.writeFile(workspacePath, 'not a folder')
+    expect(await engine.inspectWorkspaceGeneration(workspace)).toEqual({
+      status: 'unreadable',
+      workspacePath,
+      reason: 'not-a-folder',
       recorded,
     })
   } finally {
@@ -222,3 +232,26 @@ it('removes and lists a prepared worktree normally after a reboot renumbers the 
     await fs.rm(root, { recursive: true, force: true })
   }
 })
+
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+  'names the worktree when its folder cannot be read at all',
+  async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-denied-'))
+    const parent = path.join(root, 'locked')
+    try {
+      const workspacePath = path.join(parent, 'worktree')
+      await fs.mkdir(workspacePath, { recursive: true })
+      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+      const { deps } = memoryDeps()
+      const engine = new ManagedWorkspacePreparation(deps)
+      await engine.capture(workspace)
+      await fs.chmod(parent, 0o000)
+      await expect(engine.inspectWorkspaceGeneration(workspace)).rejects.toThrow(
+        `Could not check ${workspacePath} against its saved preparation: EACCES`,
+      )
+    } finally {
+      await fs.chmod(parent, 0o755).catch(() => {})
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  },
+)

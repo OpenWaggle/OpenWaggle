@@ -175,7 +175,12 @@ describe('preparation around worktree birth', () => {
             preparation: fromPartial<WorkspacePreparationServiceShape>({
               read: () => Effect.succeed(fromPartial<WorkspacePreparation>({ revision: 1 })),
               inspectWorkspaceGeneration: () =>
-                Effect.succeed({ status: 'unrecorded' as const, workspacePath: '/stale' }),
+                Effect.succeed({
+                  status: 'replaced' as const,
+                  workspacePath: '/stale',
+                  recorded: { device: '1', inode: '2', birthtime: '3' },
+                  observed: { device: '1', inode: '4', birthtime: '5' },
+                }),
               environment,
             }),
           },

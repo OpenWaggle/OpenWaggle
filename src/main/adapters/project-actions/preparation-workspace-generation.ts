@@ -1,9 +1,11 @@
-import { realpath } from 'node:fs/promises'
+import { lstat, realpath } from 'node:fs/promises'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import {
   isSameDurableDirectoryIdentity,
+  type WorkspaceDirectoryIdentity,
   type WorkspaceGenerationCheck,
 } from '../../domain/workspace-generation'
+import { createLogger } from '../../logger'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { readActionWorkspaceIdentity } from './action-manifest-file'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
@@ -71,6 +73,36 @@ export async function completePreparationBirth(
   )
 }
 
+const logger = createLogger('workspace-preparation')
+
+async function pathExists(workspacePath: string) {
+  try {
+    await lstat(workspacePath)
+    return true
+  } catch (error) {
+    if (isEnoent(error) || isNodeError(error, 'ENOTDIR')) return false
+    throw error
+  }
+}
+
+async function observeGeneration(
+  workspacePath: string,
+  recorded: WorkspaceDirectoryIdentity,
+): Promise<WorkspaceGenerationCheck> {
+  const observed = await readPreparationWorkspaceIdentity(workspacePath)
+  if (!observed) {
+    const reason = (await pathExists(workspacePath)) ? 'not-a-folder' : 'missing'
+    return { status: 'unreadable', workspacePath, reason, recorded }
+  }
+  return isSameDurableDirectoryIdentity(observed, recorded)
+    ? { status: 'current' }
+    : { status: 'replaced', workspacePath, recorded, observed }
+}
+
+/**
+ * Runs, worktree removal and the retained-preparation list all check here. A missing or replaced
+ * folder is a result; a permission or I/O error reading it is thrown with the worktree path.
+ */
 export async function inspectPreparationGeneration(
   workspace: ActionRunWorkspace,
   state: StoredWorkspacePreparation | null,
@@ -81,9 +113,17 @@ export async function inspectPreparationGeneration(
     return state?.awaitingWorktreeBirth
       ? { status: 'awaiting-birth', workspacePath }
       : { status: 'unrecorded', workspacePath }
-  const observed = await readPreparationWorkspaceIdentity(workspacePath)
-  if (!observed) return { status: 'unreadable', workspacePath, recorded }
-  return isSameDurableDirectoryIdentity(observed, recorded)
-    ? { status: 'current' }
-    : { status: 'replaced', workspacePath, recorded, observed }
+  try {
+    return await observeGeneration(workspacePath, recorded)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    logger.warn('Could not check the worktree against its saved preparation', {
+      workspaceId: workspace.workspaceId,
+      workspacePath,
+      error: reason,
+    })
+    throw new Error(`Could not check ${workspacePath} against its saved preparation: ${reason}`, {
+      cause: error,
+    })
+  }
 }
