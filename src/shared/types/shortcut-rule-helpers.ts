@@ -1,4 +1,8 @@
-import { SHORTCUT_DEFINITIONS, shortcutWhenForScope } from './shortcut-catalog'
+import {
+  SHORTCUT_DEFINITIONS,
+  shortcutScopesOverlap,
+  shortcutWhenForScope,
+} from './shortcut-catalog'
 import {
   SHORTCUT_COMMANDS,
   SHORTCUT_RULE_LIMITS,
@@ -99,11 +103,25 @@ export function shortcutRulesFromBindings(bindings: ShortcutBindings): ShortcutR
 }
 
 /** T3-compatible runtime merge: any persisted rule overrides all defaults for its command. */
+/**
+ * Saved rules with the defaults of every command they do not mention ahead of them. A default
+ * whose chord a saved rule of another command already uses is left out: the command was added
+ * after the user chose that chord, so it starts unassigned instead of showing a chord that runs
+ * the user's command.
+ */
 export function shortcutRulesWithDefaults(customRules: ShortcutRules): ShortcutRules {
   if (customRules.length === 0) return DEFAULT_SHORTCUT_RULES
   const overriddenCommands = new Set(customRules.map((rule) => rule.command))
+  const takenByAnotherCommand = (rule: ShortcutRule) =>
+    customRules.some(
+      (custom) =>
+        shortcutBindingKey(custom.shortcut) === shortcutBindingKey(rule.shortcut) &&
+        shortcutScopesOverlap(custom.command, rule.command),
+    )
   return [
-    ...DEFAULT_SHORTCUT_RULES.filter((rule) => !overriddenCommands.has(rule.command)),
+    ...DEFAULT_SHORTCUT_RULES.filter(
+      (rule) => !overriddenCommands.has(rule.command) && !takenByAnotherCommand(rule),
+    ),
     ...customRules,
   ].slice(-SHORTCUT_RULE_LIMITS.RULES)
 }

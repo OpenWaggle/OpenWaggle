@@ -51,7 +51,9 @@ describe('settings shortcut rules', () => {
       (rule) =>
         rule.shortcut.key === 'L' && rule.shortcut.mod === true && rule.shortcut.alt === true,
     )
-    expect(sameChord.at(-1)?.command).toBe('sidebar.toggle')
+    expect(sameChord.map((rule) => rule.command)).toEqual(['sidebar.toggle'])
+    // The new command starts unassigned rather than showing a chord that runs another command.
+    expect(settings.shortcutBindings['session.copyLink']).toBeNull()
   })
 
   it('still reads saved settings whose bindings already use a newly added default chord', () => {
@@ -68,6 +70,18 @@ describe('settings shortcut rules', () => {
         },
       }),
     ).toThrow('Shortcut')
+  })
+
+  it('leaves a new default out of saved rules that already use its chord', () => {
+    const customRule = {
+      command: 'sidebar.toggle',
+      shortcut: { key: 'L', mod: true, alt: true },
+    } as const
+    const { settings } = buildSettingsSnapshot({ shortcutRules: [customRule] })
+
+    expect(settings.shortcutRules.some((rule) => rule.command === 'session.copyLink')).toBe(false)
+    expect(settings.shortcutBindings['session.copyLink']).toBeNull()
+    expect(settings.shortcutRules.at(-1)).toEqual(customRule)
   })
 
   it('reads the bindings view of saved rules that share a chord, as rules may', () => {

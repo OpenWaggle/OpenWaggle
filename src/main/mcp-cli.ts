@@ -58,6 +58,7 @@ Usage:
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
+A --session or --origin-session id may also be a Session link (openwaggle://sessions/<id>).
 Unexpected positional and -- passthrough input fail before the server starts.
 
 Servers are read from ~/.pi/agent/mcp.json and ~/.openwaggle/mcp.json, and with -l

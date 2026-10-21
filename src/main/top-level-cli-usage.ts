@@ -6,6 +6,7 @@ export function topLevelCliUsage(version: string) {
 Usage:
   openwaggle                    Open the desktop app, or focus it if it is already open
   openwaggle <path>             Open the desktop app on a project (a file opens its folder)
+  openwaggle <session-link>     Open the desktop app on a Session (openwaggle://sessions/<id>)
   openwaggle <command> [args]   Run a command without opening the desktop app
 
 Commands:
