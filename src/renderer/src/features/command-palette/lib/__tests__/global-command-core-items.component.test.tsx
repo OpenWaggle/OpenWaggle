@@ -10,6 +10,7 @@ import {
 function actions(): CoreCommandActions {
   return {
     compactSession: vi.fn().mockResolvedValue(undefined),
+    copySessionLink: vi.fn(),
     finish: (action) => action(),
     navigateTo: vi.fn(),
     newSession: vi.fn(),
@@ -42,6 +43,26 @@ describe('global command core items', () => {
     expect(compact?.label).toBe('Compact session')
     compact?.action()
     expect(commandActions.compactSession).toHaveBeenCalledOnce()
+  })
+
+  it('offers the open Session link with its shortcut, and nothing without a Session', () => {
+    const commandActions = actions()
+    const copy = createCoreCommandItems(
+      '/repo',
+      DEFAULT_SETTINGS,
+      commandActions,
+      'session-1',
+    ).find((item) => item.id === 'copy-session-link')
+
+    expect(copy?.label).toBe('Copy session link')
+    expect(copy?.trailing).toBeTruthy()
+    copy?.action()
+    expect(commandActions.copySessionLink).toHaveBeenCalledWith('session-1')
+    expect(
+      createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, null).some(
+        (item) => item.id === 'copy-session-link',
+      ),
+    ).toBe(false)
   })
 
   it('offers Session Summary as a view command', () => {

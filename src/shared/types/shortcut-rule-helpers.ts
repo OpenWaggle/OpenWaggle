@@ -63,6 +63,7 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
     'rightPanel.files': null,
     'rightPanel.resources': null,
     'rightPanel.hive': null,
+    'session.copyLink': null,
   }
   for (const rule of rules) bindings[rule.command] = rule.shortcut
   return bindings

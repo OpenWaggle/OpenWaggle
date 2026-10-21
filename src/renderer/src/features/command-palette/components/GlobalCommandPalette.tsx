@@ -135,7 +135,7 @@ export function GlobalCommandPalette({
     },
   )
   const items = [
-    ...createCoreCommandItems(projectPath, settings, actions),
+    ...createCoreCommandItems(projectPath, settings, actions, sessionId),
     ...panelItems,
     ...projectActionItems,
     ...createRecentProjectItems(settings, sessions, actions),

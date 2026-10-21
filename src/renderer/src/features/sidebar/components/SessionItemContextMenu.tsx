@@ -6,6 +6,7 @@ import {
   Copy,
   Edit3,
   Eye,
+  Link,
   Pin,
   PinOff,
   RotateCcw,
@@ -13,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useSessionTitleRegeneration } from '@/features/session-title'
+import { copySessionLink } from '@/features/sessions/lib'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
@@ -145,6 +147,11 @@ export function SessionItemContextMenu({
         icon={Copy}
         label="Clone to new session"
         onClick={() => closeAfter(() => actions.clone(sessionId))}
+      />
+      <SessionMenuButton
+        icon={Link}
+        label="Copy session link"
+        onClick={() => closeAfter(() => copySessionLink(String(sessionId)))}
       />
       {archived && restore ? (
         <SessionMenuButton icon={RotateCcw} label="Unarchive session" onClick={restore} />

@@ -8,10 +8,11 @@ import remarkGfm from 'remark-gfm'
 import { useIncrementalMarkdown } from '@/features/chat/hooks/useIncrementalMarkdown'
 import { NonFetchingMarkdownImage, SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import { type RehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { remarkSessionLinks } from '@/shared/lib/remark-session-links'
 import { fencedCodeLanguage } from '@/shared/lib/syntax/markdown-components'
 import { CodeBlock } from './CodeBlock'
 
-const REMARK_PLUGINS = [remarkGfm]
+const REMARK_PLUGINS = [remarkGfm, remarkSessionLinks]
 
 interface IncrementalMarkdownProps {
   text: string

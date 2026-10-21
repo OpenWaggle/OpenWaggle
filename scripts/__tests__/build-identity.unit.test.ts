@@ -9,6 +9,7 @@ import {
   resolveDevSlug,
   resolveIconBasePath,
   resolveMacIconPath,
+  resolveUrlSchemeProtocols,
 } from '../build-identity'
 import electronBuilderConfig from '../../electron-builder'
 
@@ -129,6 +130,18 @@ describe('packaged executable naming', () => {
     // install.sh, and packaged-app smoke expect lowercase "openwaggle".
     expect(electronBuilderConfig.executableName).toBe('OpenWaggle')
     expect(electronBuilderConfig.linux.executableName).toBe('openwaggle')
+  })
+})
+
+describe('Session link scheme', () => {
+  it('is declared by release channels and never by dev builds', () => {
+    expect(resolveUrlSchemeProtocols('dev')).toEqual([])
+    for (const channel of ['stable', 'alpha', 'beta', 'rc'] as const) {
+      expect(resolveUrlSchemeProtocols(channel)).toEqual([
+        { name: 'OpenWaggle Session link', schemes: ['openwaggle'] },
+      ])
+    }
+    expect(electronBuilderConfig.protocols).toEqual(resolveUrlSchemeProtocols(resolveBuildChannel()))
   })
 })
 

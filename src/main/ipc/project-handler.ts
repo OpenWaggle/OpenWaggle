@@ -13,6 +13,7 @@ import {
 } from '../application/project-preferences-operation'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
 import { takeOpenProjectRequest } from '../open-project-requests'
+import { takeOpenSessionLinkRequest } from '../session-link-requests'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
@@ -43,6 +44,7 @@ export function registerProjectHandlers(): void {
   )
 
   typedHandle('project:take-open-request', () => Effect.sync(takeOpenProjectRequest))
+  typedHandle('app:take-open-session-link-request', () => Effect.sync(takeOpenSessionLinkRequest))
 
   hostHandle('project-config:get-preferences', (_event, projectPath: string) =>
     getProjectPreferencesOperation(projectPath),

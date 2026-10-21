@@ -87,6 +87,8 @@ Usage:
     [--after-state-revision <n>] [--report-id <id>] [--correlation-id <id>]
     --timeout-ms <ms> [--after-host <id> --after-sequence <n>]
 
+Session identities: any Session id operand or --target, --parent, or --worker id also accepts a
+  Session link (openwaggle://sessions/<session-id>), as the desktop app copies it
 Message input: exactly one of --text <text>, --stdin, --input-file <path>, --request-json <path|->
 Output: human-readable by default; --json for one response; --jsonl for streams
 Authentication: --profile <name> [--credential-stdin|--profile-credential-file <path>]

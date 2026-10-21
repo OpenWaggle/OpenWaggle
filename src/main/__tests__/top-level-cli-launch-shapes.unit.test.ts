@@ -45,6 +45,21 @@ describe('real launch shapes', () => {
     expect(launch(argv, false)).toEqual({ kind: 'gui' })
   })
 
+  it.each([
+    // setAsDefaultProtocolClient registers `"OpenWaggle.exe" "%1"`.
+    ['a Windows protocol launch', ['C:\\OpenWaggle\\OpenWaggle.exe', 'openwaggle://sessions/s-1']],
+    // The AppImage desktop entry runs `AppRun --no-sandbox %U`.
+    [
+      'a Linux desktop-entry launch',
+      ['/opt/OpenWaggle/openwaggle', '--no-sandbox', 'openwaggle://sessions/s-1'],
+    ],
+  ])('opens the Session a link names for %s', (_label, argv) => {
+    expect(launch(argv, true)).toEqual({
+      kind: 'open-session-link',
+      link: 'openwaggle://sessions/s-1',
+    })
+  })
+
   it('routes CLI commands through the Windows shim separator', () => {
     expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', '--help'], true)).toEqual({
       kind: 'help',

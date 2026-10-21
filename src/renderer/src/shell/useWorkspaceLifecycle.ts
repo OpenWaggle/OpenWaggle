@@ -18,6 +18,7 @@ import {
   useSessionStatusMonitor,
   useSessions,
 } from '@/features/sessions/hooks'
+import { copySessionLink } from '@/features/sessions/lib'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
@@ -244,6 +245,9 @@ export function useWorkspaceLifecycle(): void {
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
       'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
       'request.focus': focusPendingRequest,
+      'session.copyLink': () => {
+        if (activeSessionId) copySessionLink(String(activeSessionId))
+      },
     },
     onRunProjectAction: (action) => void runProjectAction(action),
     onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),

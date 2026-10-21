@@ -7,11 +7,17 @@ import type {
 } from '@shared/types/session-lifecycle'
 import type { SessionDiscoveryMode } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { sessionIdFromReference } from '@shared/utils/session-link'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 
 export function required(value: string | undefined, label: string) {
   if (!value) throw new Error(`${label} is required.`)
   return value
+}
+
+/** A Session identity, given as a bare ID or as a Session link (ADR 0056). */
+export function requiredSessionId(value: string | undefined, label = 'Session ID') {
+  return sessionIdFromReference(required(value, label))
 }
 
 export function positiveInteger(value: string | undefined, label: string) {

@@ -42,7 +42,9 @@ import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
 } from './session-host/gui-session-host-lifecycle'
-import { startTopLevelCli } from './top-level-cli-entry'
+import { installSessionLinkProtocol } from './session-link-protocol'
+import { requestOpenSessionLink } from './session-link-requests'
+import { startTopLevelCli, type TopLevelCliLaunch } from './top-level-cli-entry'
 
 const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
@@ -304,12 +306,12 @@ function registerAppLifecycle() {
   })
 }
 
-function startApp(openProjectPath?: string) {
+function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) {
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
   prepareDesktopUi(app)
 
   const singleInstance = env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1'
-  const instance = { host: app, openProjectPath, singleInstance, revealWindow: revealMainWindow }
+  const instance = { host: app, ...launch, singleInstance, revealWindow: revealMainWindow }
   if (claimAppInstance(instance) === 'secondary') {
     logger.warn('Another OpenWaggle instance is already running; quitting this instance')
     if (env.OPENWAGGLE_AUTOMATION === '1') quitAutomationSecondInstance()
@@ -317,10 +319,17 @@ function startApp(openProjectPath?: string) {
     return
   }
 
+  installSessionLinkProtocol({
+    host: app,
+    automation: isAutomationMode(),
+    openLink: (url) => {
+      if (requestOpenSessionLink(url)) revealMainWindow()
+    },
+  })
   registerAppLifecycle()
 }
 
 const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isPackaged })
 
 const launch = startTopLevelCli(cliArguments)
-if (launch.kind === 'gui') startApp(launch.openProjectPath)
+if (launch.kind === 'gui') startApp(launch)

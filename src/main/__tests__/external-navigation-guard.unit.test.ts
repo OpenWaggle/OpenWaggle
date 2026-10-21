@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   env: { ELECTRON_RENDERER_URL: 'http://localhost:5173' },
   download: vi.fn(() => false),
   openExternal: vi.fn(async () => undefined),
+  openSessionLink: vi.fn(() => true),
 }))
 vi.mock('../env', () => ({ env: mocks.env }))
 vi.mock('../desktop-ui', () => ({ openExternal: mocks.openExternal }))
+vi.mock('../session-link-requests', () => ({ requestOpenSessionLink: mocks.openSessionLink }))
 vi.mock('../session-resource-protocol', () => ({
   isSessionResourceDownloadNavigation: mocks.download,
 }))
@@ -38,12 +40,20 @@ function navigate(url: string) {
 describe('merged renderer navigation boundary', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it.each(['http://localhost:51730/', 'openwaggle://app.attacker.invalid/'])(
-    'blocks lookalike renderer origin %s',
+  it('blocks a lookalike renderer origin and opens it outside the app', () => {
+    const url = 'http://localhost:51730/'
+    const preventDefault = navigate(url)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(mocks.openExternal).toHaveBeenCalledWith(url)
+  })
+
+  it.each(['openwaggle://app.attacker.invalid/', 'openwaggle://sessions/session-1'])(
+    'keeps %s inside the app instead of handing it to the operating system',
     (url) => {
       const preventDefault = navigate(url)
       expect(preventDefault).toHaveBeenCalled()
-      expect(mocks.openExternal).toHaveBeenCalledWith(url)
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+      expect(mocks.openSessionLink).toHaveBeenCalledWith(url)
     },
   )
 

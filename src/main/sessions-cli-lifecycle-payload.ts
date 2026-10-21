@@ -8,6 +8,7 @@ import {
   launchWorkspace,
   positiveInteger,
   required,
+  requiredSessionId,
   runAuthorization,
   spawnWorkspace,
   specialization,
@@ -89,7 +90,7 @@ export function spawnLifecyclePayload(arguments_: ParsedArguments): LocalSession
       ...lifecycleRequest(arguments_),
       command: {
         operation: 'spawn',
-        parentSessionId: required(arguments_.positionals[0], 'Parent Session ID'),
+        parentSessionId: requiredSessionId(arguments_.positionals[0], 'Parent Session ID'),
         expectedParentRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
         ...(workspace ? { workspace } : {}),
         ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
@@ -121,7 +122,7 @@ export function forkLifecyclePayload(arguments_: ParsedArguments): LocalSessionC
       ...lifecycleRequest(arguments_),
       command: {
         operation: 'fork',
-        sourceSessionId: required(arguments_.positionals[0], 'Source Session ID'),
+        sourceSessionId: requiredSessionId(arguments_.positionals[0], 'Source Session ID'),
         ...(option(arguments_, 'target-node')
           ? { targetNodeId: option(arguments_, 'target-node') }
           : {}),

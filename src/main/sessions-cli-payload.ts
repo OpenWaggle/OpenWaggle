@@ -15,6 +15,7 @@ import {
   nonNegativeInteger,
   positiveInteger,
   required,
+  requiredSessionId,
   watchCursor,
 } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
@@ -98,27 +99,28 @@ function searchPayload(
 
 function waitTargets(arguments_: ParsedArguments) {
   if (arguments_.positionals.length === 0) throw new Error('Session ID is required.')
+  const sessionIds = arguments_.positionals.map((value) => requiredSessionId(value))
   const condition = option(arguments_, 'condition') ?? 'idle'
   if (condition === 'state-revision-after') {
     const revision = nonNegativeInteger(
       required(option(arguments_, 'after-state-revision'), '--after-state-revision'),
       '--after-state-revision',
     )
-    return arguments_.positionals.map((sessionId) => ({
+    return sessionIds.map((sessionId) => ({
       sessionId,
       condition: 'state-revision-after' as const,
       afterStateRevision: revision,
     }))
   }
   if (condition === 'queue-empty') {
-    return arguments_.positionals.map((sessionId) => ({
+    return sessionIds.map((sessionId) => ({
       sessionId,
       condition: 'queue-empty' as const,
     }))
   }
   if (condition === 'report-delivered') {
     const reportId = required(option(arguments_, 'report-id'), '--report-id')
-    return arguments_.positionals.map((sessionId) => ({
+    return sessionIds.map((sessionId) => ({
       sessionId,
       condition: 'report-delivered' as const,
       reportId,
@@ -126,14 +128,14 @@ function waitTargets(arguments_: ParsedArguments) {
   }
   if (condition === 'correlated-reply') {
     const correlationId = required(option(arguments_, 'correlation-id'), '--correlation-id')
-    return arguments_.positionals.map((sessionId) => ({
+    return sessionIds.map((sessionId) => ({
       sessionId,
       condition: 'correlated-reply' as const,
       correlationId,
     }))
   }
   if (condition !== 'idle') throw new Error(`Unsupported wait condition: ${condition}.`)
-  return arguments_.positionals.map((sessionId) => ({ sessionId, condition: 'idle' as const }))
+  return sessionIds.map((sessionId) => ({ sessionId, condition: 'idle' as const }))
 }
 
 function waitPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
@@ -155,7 +157,7 @@ function waitPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
 
 function detailsPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
   if (command === 'items') return itemsPayload(arguments_)
-  const sessionId = required(arguments_.positionals[0], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'turns') {
     return {
       contract: 'session-query-v2',
@@ -194,7 +196,7 @@ function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPaylo
       requestId: randomUUID(),
       query: {
         operation: 'queue-list',
-        sessionId: required(arguments_.positionals[1], 'Session ID'),
+        sessionId: requiredSessionId(arguments_.positionals[1]),
         ...(hasFlag(arguments_, 'include-bodies') ? { includeBodies: true } : {}),
       },
     },
@@ -203,7 +205,7 @@ function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPaylo
 
 function requestsPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
   const action = required(arguments_.positionals[0], 'Requests action')
-  const sessionId = required(arguments_.positionals[1], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[1])
   if (action === 'list') {
     return {
       contract: 'session-query-v2',

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   GitFork,
   LayoutList,
+  Link,
   MessageSquarePlus,
   PackageOpen,
   PanelLeft,
@@ -23,6 +24,7 @@ const RECENT_SESSION_LIMIT = 12
 
 export interface CoreCommandActions {
   readonly compactSession: () => Promise<void>
+  readonly copySessionLink: (sessionId: string) => void
   readonly finish: (action: () => void) => void
   readonly newSession: (path: string | null) => void
   readonly openBuiltInPanel: (panel: 'diff' | 'session-tree') => void
@@ -91,6 +93,26 @@ function createProjectItems(
       icon: <FolderOpen className="size-3.5" />,
       section: 'Project',
       action: () => void actions.selectProject('open'),
+    },
+  ]
+}
+
+/** Only a Session that exists has a link; a new-session draft has none yet (ADR 0056). */
+function createSessionLinkItems(
+  sessionId: string | null,
+  settings: Settings,
+  actions: CoreCommandActions,
+): CommandPaletteItem[] {
+  if (sessionId === null) return []
+  return [
+    {
+      id: 'copy-session-link',
+      label: 'Copy session link',
+      description: 'Reference this session from another session, the CLI, or a note',
+      icon: <Link className="size-3.5" />,
+      section: 'Session',
+      trailing: formatShortcutBinding(settings.shortcutBindings['session.copyLink']),
+      action: () => actions.finish(() => actions.copySessionLink(sessionId)),
     },
   ]
 }
@@ -190,10 +212,12 @@ export function createCoreCommandItems(
   projectPath: string | null,
   settings: Settings,
   actions: CoreCommandActions,
+  sessionId: string | null = null,
 ) {
   return [
     ...createProjectItems(projectPath, settings, actions),
     ...createSessionItems(actions),
+    ...createSessionLinkItems(sessionId, settings, actions),
     ...createViewAndOpenItems(settings, actions),
   ]
 }

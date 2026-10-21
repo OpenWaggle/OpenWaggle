@@ -3,6 +3,7 @@ import { useChat } from '@/features/chat/hooks'
 import { isSessionModelActionable } from '@/features/chat/lib'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
+import { copySessionLink } from '@/features/sessions/lib'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useTerminalCommands } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
@@ -152,6 +153,7 @@ export function useGlobalCommandActions() {
 
   const actions: CoreCommandActions = {
     compactSession,
+    copySessionLink,
     finish,
     navigateTo,
     newSession,

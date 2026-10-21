@@ -3,6 +3,7 @@ import { lstat, open } from 'node:fs/promises'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { sessionIdFromReference } from '@shared/utils/session-link'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 
@@ -188,7 +189,7 @@ function assertRequestMatchesCommand(input: {
   const resolvedPositionalTarget =
     command === 'launch'
       ? resolveCliProjectPath(positionalTarget, input.workingDirectory)
-      : positionalTarget
+      : sessionIdFromReference(positionalTarget)
   if (binding.target !== resolvedPositionalTarget) {
     throw new Error(`--request-json target must be the same as the positional ${command} target.`)
   }

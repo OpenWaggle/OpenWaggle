@@ -15,6 +15,7 @@ import {
 } from './sessions-tool-flat-schema'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
+import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
 
 const logger = createLogger('sessions-tool')
 
@@ -213,13 +214,14 @@ async function authorizeExport(
 }
 
 async function executeSessionsTool(
-  params: SessionsToolParameters,
+  rawParams: SessionsToolParameters,
   input: SessionsToolExtensionInput,
   ctx: ExtensionContext,
   signal?: AbortSignal,
 ) {
   if (signal?.aborted) throw new Error('aborted')
-  assertSessionsToolActionArguments(params)
+  assertSessionsToolActionArguments(rawParams)
+  const params = resolveSessionsToolSessionLinks(rawParams)
   if (isAgentDefinitionAction(params)) {
     return queryAgentDefinitionsForTool(
       params,
@@ -268,6 +270,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
         'Use spawn for a new Worker Session; it never creates an in-memory subagent.',
         'Use launch for an independent root Session that starts immediately, or create for an idle independent root. Neither joins the current Hive.',
         'A root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows, without sharing a Hive, when its current Run was started by the desktop user or by an agent with the same reach. Workers and project-scoped callers stay in their own scope and get target_scope_denied. Use list or search with catalogScope project and that repository projectPath, or catalogScope all, then read, report, or follow_up by sessionId. To start work there, pass its projectPath to launch or create with workspace local or new-worktree; omitted or current uses the checkout of that project.',
+        'Wherever a sessionId, sessionIds, parentSessionId, workerSessionId, or report target takes a Session identity, a Session link the user pasted (openwaggle://sessions/<session-id>) works as it is.',
         'Use start for an idle Session, follow_up for durable work after its current Run, steer to append to one exact active Run, replace to interrupt and restart, and promote to move one queued Follow-up into an exact active Run.',
         "thinking sets a Session's thinking level and authorization applies to one Run. create, launch, and spawn accept thinking as the new Session's starting level; launch and spawn accept authorization for its first Run. message and start accept both only when the Session is idle and the call starts a Run; thinking then stays the Session's level. Both are refused while a Run is active (a message that would be queued, follow_up, steer, replace), so a Follow-up never carries them. authorization: yolo needs a caller grant that permits that effective access and never changes the Session's mode.",
         'Use requests_list to inspect parked interactions. request_respond cannot approve Authorization; approval_respond requires an explicit delegated approval grant.',

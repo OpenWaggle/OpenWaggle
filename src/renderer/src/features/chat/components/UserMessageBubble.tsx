@@ -12,6 +12,7 @@ import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-
 import { cn } from '@/shared/lib/cn'
 import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { remarkSessionLinks } from '@/shared/lib/remark-session-links'
 import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
@@ -24,7 +25,7 @@ import { SteerDeliveryStatus } from './SteerDeliveryStatus'
  * is meant as a line break. `remark-breaks` keeps those lines instead of folding them into one
  * paragraph, while Markdown (lists, headings, fences, tables) still renders.
  */
-const USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkSessionLinks]
 
 /**
  * Recursively walks ReactNode children, replacing string nodes with

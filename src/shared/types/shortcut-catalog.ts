@@ -211,6 +211,13 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     group: 'Workspace',
     scope: 'application',
   },
+  {
+    command: 'session.copyLink',
+    label: 'Copy session link',
+    description: 'Copy a link to the open session for another session, the CLI, or a note',
+    group: 'Navigation',
+    scope: 'global',
+  },
 ]
 
 export function shortcutWhenForScope(scope: ShortcutDefinition['scope']) {

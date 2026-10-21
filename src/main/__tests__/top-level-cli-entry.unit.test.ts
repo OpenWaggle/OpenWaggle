@@ -102,6 +102,10 @@ describe('top-level CLI entry', () => {
       kind: 'gui',
       openProjectPath: path.resolve('/work/app'),
     })
+    expect(startTopLevelCli(['openwaggle://sessions/session-1'], environment)).toEqual({
+      kind: 'gui',
+      openSessionLink: 'openwaggle://sessions/session-1',
+    })
     expect(mocks.exit).not.toHaveBeenCalled()
   })
 

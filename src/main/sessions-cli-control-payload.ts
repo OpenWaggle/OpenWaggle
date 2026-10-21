@@ -11,6 +11,7 @@ import {
   positiveInteger,
   refuseRunSettingsOnActiveRunCommand,
   required,
+  requiredSessionId,
   runAuthorization,
   thinkingLevel,
 } from './sessions-cli-arguments'
@@ -44,7 +45,7 @@ function organizationCommand(
     command !== 'handoff'
   )
     return undefined
-  const sessionId = required(arguments_.positionals[0], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'handoff') {
     const mode = required(option(arguments_, 'workspace'), '--workspace')
     if (mode === 'local') return { operation: command, sessionId, workspace: { mode } }
@@ -86,7 +87,7 @@ function controlCommand(
 ): SessionControlMutationCommand {
   const organization = organizationCommand(command, arguments_)
   if (organization) return organization
-  const sessionId = required(arguments_.positionals[0], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'report') return reportCommand(sessionId, arguments_)
   if (command === 'interrupt-descendants') return { operation: command, sessionId }
   if (command === 'interrupt') {
@@ -155,7 +156,7 @@ function messagingCommand(
 
 function authorizationCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
   const action = required(arguments_.positionals[0], 'Authorization action')
-  const sessionId = required(arguments_.positionals[1], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[1])
   if (action === 'clear') {
     return { operation: 'authorization-set', sessionId, authorizationMode: null }
   }
@@ -172,7 +173,9 @@ function authorizationCommand(arguments_: ParsedArguments): SessionControlMutati
 }
 
 function reportTarget(arguments_: ParsedArguments) {
-  const explicitTargets = arguments_.options.get('target') ?? []
+  const explicitTargets = (arguments_.options.get('target') ?? []).map((value) =>
+    requiredSessionId(value, '--target'),
+  )
   const worker = option(arguments_, 'worker')
   const selected = [
     ...(hasFlag(arguments_, 'upstream') ? ['upstream'] : []),
@@ -214,7 +217,7 @@ function reportCommand(
 
 function queueCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
   const action = required(arguments_.positionals[0], 'Queue action')
-  const sessionId = required(arguments_.positionals[1], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[1])
   if (action === 'withdraw') {
     return {
       operation: 'queue-withdraw',

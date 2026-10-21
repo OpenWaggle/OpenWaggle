@@ -3,6 +3,7 @@ import {
   resolveBuildIdentity,
   resolveIconBasePath,
   resolveMacIconPath,
+  resolveUrlSchemeProtocols,
 } from './scripts/build-identity'
 import {
   forceIncludePiPackageAsset,
@@ -47,6 +48,8 @@ const config = {
   directories: {
     buildResources: buildResourcesDir,
   },
+  // Session links (`openwaggle://sessions/<id>`, ADR 0056). Release channels only.
+  protocols: resolveUrlSchemeProtocols(identity.channel),
   publish: {
     provider: 'github',
     owner: 'OpenWaggle',

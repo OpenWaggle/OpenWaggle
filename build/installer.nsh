@@ -55,4 +55,16 @@ openwaggle_cli_path_trim_end:
 openwaggle_cli_path_write:
   WriteRegExpandStr HKCU "Environment" "Path" "$1"
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+
+  ; The app registers the openwaggle: Session link scheme for the current user at runtime
+  ; (ADR 0056). Remove that registration only when it launches this install's executable, so
+  ; another install that registered the scheme keeps it. An update reinstalls into the same
+  ; directory and the relaunched app registers the scheme again.
+  ReadRegStr $0 HKCU "Software\Classes\openwaggle\shell\open\command" ""
+  StrCpy $1 '"$INSTDIR\OpenWaggle.exe"'
+  StrLen $2 $1
+  StrCpy $3 $0 $2
+  StrCmp $3 $1 0 openwaggle_url_scheme_done
+  DeleteRegKey HKCU "Software\Classes\openwaggle"
+openwaggle_url_scheme_done:
 !macroend
