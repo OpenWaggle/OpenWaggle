@@ -60,7 +60,7 @@ describe('describeWorkspaceGenerationMismatch', () => {
 
   it('shows birth times as dates and leaves the device number to the log', () => {
     expect(replacedProblem(recorded, { device: '16777233', inode: '500', birthtime: '0' })).toBe(
-      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, unknown creation time, device 16777233)',
+      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, unknown creation time, device 16777233)',
     )
   })
 

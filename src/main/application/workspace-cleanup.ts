@@ -1,6 +1,6 @@
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import { describeWorkspaceGenerationMismatch } from '../domain/workspace-generation'
+import { describeCleanupBlockedByGeneration } from '../domain/workspace-generation'
 import { createLogger } from '../logger'
 import { ActionRunService, type ActionRunWorkspace } from '../ports/action-run-service'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
@@ -28,12 +28,11 @@ export function prepareWorkspaceRemoval(
         workspaceId: workspace.workspaceId,
         ...generation,
       })
-      const { verdict, problem } = describeWorkspaceGenerationMismatch(generation)
       return {
         ok: false,
         code: 'cleanup-failed',
         preparation: state,
-        message: `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`,
+        message: describeCleanupBlockedByGeneration(generation),
       } satisfies GitWorktreeMutationResult
     }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'

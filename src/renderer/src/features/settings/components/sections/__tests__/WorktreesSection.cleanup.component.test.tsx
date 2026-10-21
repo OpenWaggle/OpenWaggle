@@ -63,7 +63,7 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
   mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
 
   renderWithQueryClient(<WorktreesSection />)
-  expect(await screen.findByText(/This checkout no longer matches/)).toBeInTheDocument()
+  expect(await screen.findByText(/This checkout cannot be matched/)).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Retry cleanup' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByText('Delete anyway…'))
   fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
@@ -92,7 +92,7 @@ it('shows why the Host could not match the checkout', async () => {
               preparation,
               generationMismatch: true,
               generationMismatchMessage:
-                'This checkout cannot be checked against the one that captured its cleanup: the preparation has no record of the folder /worktree. Cleanup cannot run here; choose Delete anyway to remove this checkout.',
+                'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /worktree. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
             },
           ],
         }
@@ -171,4 +171,33 @@ it('keeps Git worktrees available when cleanup metadata fails to load', async ()
   expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent('Invalid actions.json')
   expect(screen.queryByText('No worktrees for this repository.')).not.toBeInTheDocument()
+})
+
+it('leaves a refused cleanup reason to the row instead of a brief toast', async () => {
+  const { useUIStore } = await import('@/shell/ui-store')
+  const preparation = fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
+  })
+  mocks.manage.mockImplementation(async ({ operation }) =>
+    operation.type === 'retained-preparation'
+      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+      : { type: 'preparation', preparation },
+  )
+  mocks.remove.mockResolvedValue({
+    ok: false,
+    code: 'cleanup-failed',
+    preparation,
+    message: 'Workspace cleanup is failed. cleanup exited with code 1. The worktree was retained.',
+  })
+  renderWithQueryClient(<WorktreesSection />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await waitFor(() =>
+    expect(useUIStore.getState().toastMessage).toBe(
+      'Cleanup did not run for this worktree. The reason is shown under it.',
+    ),
+  )
+  expect(screen.getByRole('alert')).toHaveTextContent('cleanup exited with code 1.')
 })

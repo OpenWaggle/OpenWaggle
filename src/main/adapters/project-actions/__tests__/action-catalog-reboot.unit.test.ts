@@ -1,3 +1,5 @@
+import { lstat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { expect, it, vi } from 'vitest'
 import { action, catalog, installActionCatalogFixture, scope } from './action-catalog.test-harness'
 
@@ -18,18 +20,24 @@ vi.mock('../action-manifest-file', async (importOriginal) => {
 
 installActionCatalogFixture()
 
-it('keeps a draft revision valid when only the volume device number changes', async () => {
-  reportedDevice.value = '16777230'
-  const before = await catalog.read(scope())
-  reportedDevice.value = '16777233'
-  const after = await catalog.read(scope())
-  expect(after.revision).toBe(before.revision)
-  await expect(
-    catalog.edit(scope(), before.revision, {
-      type: 'save-action',
-      definition: action,
-      storage: 'local',
-    }),
-  ).resolves.toMatchObject({ actions: [{ source: 'local', definition: action }] })
-  reportedDevice.value = null
-})
+/** Without birth times the device number is compared by design, so this case does not apply. */
+const recordsBirthTime = (await lstat(tmpdir(), { bigint: true })).birthtimeNs !== 0n
+
+it.skipIf(!recordsBirthTime)(
+  'keeps a draft revision valid when only the volume device number changes',
+  async () => {
+    reportedDevice.value = '16777230'
+    const before = await catalog.read(scope())
+    reportedDevice.value = '16777233'
+    const after = await catalog.read(scope())
+    expect(after.revision).toBe(before.revision)
+    await expect(
+      catalog.edit(scope(), before.revision, {
+        type: 'save-action',
+        definition: action,
+        storage: 'local',
+      }),
+    ).resolves.toMatchObject({ actions: [{ source: 'local', definition: action }] })
+    reportedDevice.value = null
+  },
+)

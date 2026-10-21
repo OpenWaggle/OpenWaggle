@@ -119,7 +119,7 @@ describe('native action management authority', () => {
         {
           path: root,
           generationMismatch: true,
-          generationMismatchMessage: `This checkout no longer matches the one that captured its cleanup: ${root} is a different folder from the one that was prepared (prepared: inode 2, unknown creation time, device 1; found: inode 4, unknown creation time, device 1). Cleanup cannot run here; choose Delete anyway to remove this checkout.`,
+          generationMismatchMessage: `This worktree no longer matches the checkout that captured its preparation: ${root} is a different folder from the one that was prepared (prepared: inode 2, unknown creation time, device 1; found: inode 4, unknown creation time, device 1). Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`,
           preparation: { cleanup: { status: 'succeeded' } },
         },
       ],

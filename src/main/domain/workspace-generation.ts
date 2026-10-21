@@ -62,6 +62,8 @@ export type WorkspaceGenerationMismatch = Exclude<
 >
 
 const NANOSECONDS_PER_MILLISECOND = 1_000_000n
+/** `YYYY-MM-DDTHH:MM:SS` of an ISO timestamp. */
+const ISO_WHOLE_SECONDS_LENGTH = 19
 
 function describeBirthtime(birthtime: string) {
   if (birthtime === UNKNOWN_BIRTHTIME) return 'unknown creation time'
@@ -69,7 +71,8 @@ function describeBirthtime(birthtime: string) {
   if (!/^\d+$/.test(birthtime)) return `birth time ${birthtime}`
   const created = new Date(Number(BigInt(birthtime) / NANOSECONDS_PER_MILLISECOND))
   if (Number.isNaN(created.getTime())) return `birth time ${birthtime}`
-  return `created ${created.toISOString()}`
+  // Whole seconds, labelled UTC, so the time is not read as local.
+  return `created ${created.toISOString().slice(0, ISO_WHOLE_SECONDS_LENGTH).replace('T', ' ')} UTC`
 }
 
 function describeIdentity(identity: WorkspaceDirectoryIdentity) {
@@ -128,4 +131,10 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
       recovery: `To continue, ${DELETE_AND_RECREATE}.`,
     }))
     .exhaustive()
+}
+
+/** Why worktree removal will not run a worktree's pinned cleanup; Settings shows the same text. */
+export function describeCleanupBlockedByGeneration(check: WorkspaceGenerationMismatch) {
+  const { verdict, problem } = describeWorkspaceGenerationMismatch(check)
+  return `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`
 }

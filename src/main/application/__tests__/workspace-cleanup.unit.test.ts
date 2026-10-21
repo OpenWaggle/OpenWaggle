@@ -102,7 +102,7 @@ describe('workspace cleanup removal boundary', () => {
       ok: false,
       code: 'cleanup-failed',
       message: expect.stringContaining(
-        'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20T08:52:31.612Z; found: inode 500, created 2026-10-21T06:17:40.000Z). Its pinned cleanup cannot run here.',
+        'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC). Its pinned cleanup cannot run here.',
       ),
     })
     expect(warn).toHaveBeenCalledWith(

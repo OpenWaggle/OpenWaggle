@@ -29,6 +29,13 @@ type PreparedWorktree = GitWorktreeInfo & {
   readonly generationMismatchMessage?: string
 }
 
+/** A refused cleanup puts its full reason under the row after refresh; a toast is too brief. */
+function removalFailureToast(result: { readonly code: string; readonly message: string }) {
+  return result.code === 'cleanup-failed'
+    ? 'Cleanup did not run for this worktree. The reason is shown under it.'
+    : result.message
+}
+
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [worktrees, setWorktrees] = useState<readonly PreparedWorktree[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -109,7 +116,7 @@ export function WorktreesSection() {
          * row stayed put with no explanation, which reads as a broken button.
          */
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
-        showToast(result.message, 'error')
+        showToast(removalFailureToast(result), 'error')
       }
       await refresh()
     } catch (error) {

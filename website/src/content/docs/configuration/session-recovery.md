@@ -42,13 +42,17 @@ These actions change where the session runs; database restoration does not recov
 
 ## A worktree no longer matches its saved preparation
 
-A worktree whose project has setup or cleanup actions records which folder it was prepared in. If a different folder is at that path now, new messages in the session fail with "This worktree no longer matches its saved preparation". The message names the path and the folder that was prepared. Restarting the computer does not cause this error.
+A worktree whose project has setup or cleanup actions records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path, and the inode and creation time of the prepared folder and of the folder found there.
+
+OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you restarted a Mac, although nothing had changed. If you see it right after a restart, update OpenWaggle and try again before you delete anything.
 
 1. If the original folder still exists somewhere else, put it back at that path in place of the folder there now. Then send your message again.
 2. Otherwise, commit or copy out any changes you want to keep from the folder at that path, and delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
 3. Reopen the session and choose **Recreate worktree** or **Use current checkout**, as for a missing worktree.
 
-"This worktree cannot be checked against its saved preparation" means the preparation never recorded this folder. Follow steps 2 and 3. In **Settings > Worktrees**, a worktree like this explains why its cleanup cannot run and offers **Delete anyway**.
+"This worktree cannot be checked against its saved preparation" means the preparation never recorded this folder. Follow steps 2 and 3.
+
+In **Settings > Worktrees**, a worktree in either state explains why its cleanup cannot run and offers **Delete anyway**.
 
 ## Work continues after closing the app
 

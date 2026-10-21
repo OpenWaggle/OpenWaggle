@@ -40,7 +40,7 @@ export type ActionManagementResult =
         readonly preparation: WorkspacePreparation
         /** The checkout at this path cannot be matched to the recorded preparation generation. */
         readonly generationMismatch?: boolean
-        /** Why, for the Settings row; absent from Hosts that predate it. */
+        /** Why, in the words worktree removal uses; the renderer has a generic fallback. */
         readonly generationMismatchMessage?: string
       }[]
     }

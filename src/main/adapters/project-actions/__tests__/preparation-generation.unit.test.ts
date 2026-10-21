@@ -25,6 +25,9 @@ vi.mock('../../../logger', () => ({
   createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
 }))
 
+/** The device-number tests need birth times; without them the device is compared by design. */
+const recordsBirthTime = (await fs.lstat(os.tmpdir(), { bigint: true })).birthtimeNs !== 0n
+
 const catalog: ActionCatalog = {
   revision: 'one',
   actions: [],
@@ -61,35 +64,38 @@ function restartedService(deps: PreparationDependencies) {
   }
 }
 
-it('keeps a prepared worktree runnable across reboots that renumber the volume back and forth', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-reboot-'))
-  try {
-    const workspacePath = path.join(root, 'worktree')
-    await fs.mkdir(workspacePath)
-    const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
-    const { storage, deps } = memoryDeps()
-    await new ManagedWorkspacePreparation(deps).capture(workspace)
-    const recorded = storage.get(workspace.workspaceId)
-    if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
-    // Observed on 2026-10-20/21: st_dev went 16777230 -> 16777233 -> 16777230 over two reboots,
-    // with the same inode and birthtime each time. Each Host start reads the record afresh, and
-    // the last start finds the device the folder was captured with again.
-    const captured = recorded.workspaceIdentity.device
-    for (const device of ['16777230', '16777233', captured]) {
-      storage.set(workspace.workspaceId, {
-        ...recorded,
-        workspaceIdentity: { ...recorded.workspaceIdentity, device },
-      })
-      const { engine, service } = restartedService(deps)
-      expect(await engine.inspectWorkspaceGeneration(workspace)).toEqual({ status: 'current' })
-      await expect(readActionWorkspaceEnvironment(service, workspace)).resolves.toMatchObject({
-        OPENWAGGLE_WORKTREE_PATH: workspacePath,
-      })
+it.skipIf(!recordsBirthTime)(
+  'keeps a prepared worktree runnable across reboots that renumber the volume back and forth',
+  async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-reboot-'))
+    try {
+      const workspacePath = path.join(root, 'worktree')
+      await fs.mkdir(workspacePath)
+      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+      const { storage, deps } = memoryDeps()
+      await new ManagedWorkspacePreparation(deps).capture(workspace)
+      const recorded = storage.get(workspace.workspaceId)
+      if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
+      // Observed on 2026-10-20/21: st_dev went 16777230 -> 16777233 -> 16777230 over two reboots,
+      // with the same inode and birthtime each time. Each Host start reads the record afresh, and
+      // the last start finds the device the folder was captured with again.
+      const captured = recorded.workspaceIdentity.device
+      for (const device of ['16777230', '16777233', captured]) {
+        storage.set(workspace.workspaceId, {
+          ...recorded,
+          workspaceIdentity: { ...recorded.workspaceIdentity, device },
+        })
+        const { engine, service } = restartedService(deps)
+        expect(await engine.inspectWorkspaceGeneration(workspace)).toEqual({ status: 'current' })
+        await expect(readActionWorkspaceEnvironment(service, workspace)).resolves.toMatchObject({
+          OPENWAGGLE_WORKTREE_PATH: workspacePath,
+        })
+      }
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
     }
-  } finally {
-    await fs.rm(root, { recursive: true, force: true })
-  }
-})
+  },
+)
 
 it('reports the recorded and observed identity when the folder was replaced', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-replaced-'))
@@ -181,62 +187,65 @@ it('pins a durable checkout generation and rejects a replacement at the same pat
   }
 })
 
-it('removes and lists a prepared worktree normally after a reboot renumbers the volume', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-removal-'))
-  try {
-    const workspacePath = path.join(root, 'worktree')
-    await fs.mkdir(workspacePath)
-    const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
-    const { storage, deps } = memoryDeps()
-    await new ManagedWorkspacePreparation(deps).capture(workspace)
-    const recorded = storage.get(workspace.workspaceId)
-    if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
-    storage.set(workspace.workspaceId, {
-      ...recorded,
-      workspaceIdentity: { ...recorded.workspaceIdentity, device: '999999999' },
-    })
-    const engine = new ManagedWorkspacePreparation(deps)
-    const service: Pick<
-      WorkspacePreparationServiceShape,
-      'read' | 'inspectWorkspaceGeneration' | 'run'
-    > = {
-      read: (scope) => Effect.promise(() => engine.read(scope)),
-      inspectWorkspaceGeneration: (scope) =>
-        Effect.promise(() => engine.inspectWorkspaceGeneration(scope)),
-      run: (scope, phase) => Effect.promise(() => engine.run(scope, phase)),
+it.skipIf(!recordsBirthTime)(
+  'removes and lists a prepared worktree normally after a reboot renumbers the volume',
+  async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-removal-'))
+    try {
+      const workspacePath = path.join(root, 'worktree')
+      await fs.mkdir(workspacePath)
+      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+      const { storage, deps } = memoryDeps()
+      await new ManagedWorkspacePreparation(deps).capture(workspace)
+      const recorded = storage.get(workspace.workspaceId)
+      if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
+      storage.set(workspace.workspaceId, {
+        ...recorded,
+        workspaceIdentity: { ...recorded.workspaceIdentity, device: '999999999' },
+      })
+      const engine = new ManagedWorkspacePreparation(deps)
+      const service: Pick<
+        WorkspacePreparationServiceShape,
+        'read' | 'inspectWorkspaceGeneration' | 'run'
+      > = {
+        read: (scope) => Effect.promise(() => engine.read(scope)),
+        inspectWorkspaceGeneration: (scope) =>
+          Effect.promise(() => engine.inspectWorkspaceGeneration(scope)),
+        run: (scope, phase) => Effect.promise(() => engine.run(scope, phase)),
+      }
+      const preparation = fromPartial<WorkspacePreparationServiceShape>(service)
+      const listed = await Effect.runPromise(
+        listRetainedPreparation(root).pipe(
+          Effect.provideService(WorkspacePreparationService, preparation),
+          Effect.provideService(
+            SessionWorkspaceResourceRepository,
+            fromPartial({
+              listManagedWorktreeRemovalCandidates: () =>
+                Effect.succeed([
+                  { id: workspace.workspaceId, projectPath: root, workingPath: workspacePath },
+                ]),
+            }),
+          ),
+        ),
+      )
+      expect(listed.workspaces).toEqual([])
+      const removal = await Effect.runPromise(
+        prepareWorkspaceRemoval(workspace, { retryFailed: false }).pipe(
+          Effect.provideService(WorkspacePreparationService, preparation),
+          Effect.provideService(
+            ActionRunService,
+            fromPartial({ stopWorkspaceRuns: () => Effect.void }),
+          ),
+        ),
+      )
+      // No definitions in the snapshot, so cleanup is skipped rather than refused as a replacement.
+      expect(removal).toBeNull()
+      expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
     }
-    const preparation = fromPartial<WorkspacePreparationServiceShape>(service)
-    const listed = await Effect.runPromise(
-      listRetainedPreparation(root).pipe(
-        Effect.provideService(WorkspacePreparationService, preparation),
-        Effect.provideService(
-          SessionWorkspaceResourceRepository,
-          fromPartial({
-            listManagedWorktreeRemovalCandidates: () =>
-              Effect.succeed([
-                { id: workspace.workspaceId, projectPath: root, workingPath: workspacePath },
-              ]),
-          }),
-        ),
-      ),
-    )
-    expect(listed.workspaces).toEqual([])
-    const removal = await Effect.runPromise(
-      prepareWorkspaceRemoval(workspace, { retryFailed: false }).pipe(
-        Effect.provideService(WorkspacePreparationService, preparation),
-        Effect.provideService(
-          ActionRunService,
-          fromPartial({ stopWorkspaceRuns: () => Effect.void }),
-        ),
-      ),
-    )
-    // No definitions in the snapshot, so cleanup is skipped rather than refused as a replacement.
-    expect(removal).toBeNull()
-    expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
-  } finally {
-    await fs.rm(root, { recursive: true, force: true })
-  }
-})
+  },
+)
 
 it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
   'names the worktree when its folder cannot be read at all',
