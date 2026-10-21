@@ -1,7 +1,8 @@
 /**
- * What a run or a worktree removal says when a worktree fails its saved-preparation check. The
- * error classifier recognises these headlines and shows the message from {@link
- * WORKTREE_PREPARATION_PROBLEM} on, so a path that looks like another error is not misread.
+ * What a run says when its worktree fails its saved-preparation check, or when the check cannot
+ * read the worktree. The error classifier recognises these headlines and shows the message from
+ * {@link WORKTREE_PREPARATION_PROBLEM} on, so a path that looks like another error is not
+ * misread. Worktree removal words its refusal differently and is not classified.
  */
 export const WORKTREE_PREPARATION_PROBLEM = 'This worktree '
 
