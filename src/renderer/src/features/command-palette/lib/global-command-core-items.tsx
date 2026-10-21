@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
 import type { Settings } from '@shared/types/settings'
+import { shortcutBindingKey } from '@shared/types/shortcuts'
 import {
   Archive,
   Command,
@@ -97,6 +98,20 @@ function createProjectItems(
   ]
 }
 
+/**
+ * The Copy session link chord, unless an extension panel the user bound to the same chord takes
+ * it: a default yields to such a panel (`unified-shortcut-resolver`), so showing it would mislead.
+ */
+function copySessionLinkHint(settings: Settings) {
+  const binding = settings.shortcutBindings['session.copyLink']
+  const takenByPanel =
+    binding !== null &&
+    Object.values(settings.extensionPanelShortcutBindings).some(
+      (panel) => shortcutBindingKey(panel) === shortcutBindingKey(binding),
+    )
+  return formatShortcutBinding(takenByPanel ? null : binding)
+}
+
 /** Only a Session that exists has a link; a new-session draft has none yet (ADR 0056). */
 function createSessionLinkItems(
   sessionId: string | null,
@@ -111,7 +126,7 @@ function createSessionLinkItems(
       description: 'Reference this session from another session, the CLI, or a note',
       icon: <Link className="size-3.5" />,
       section: 'Session',
-      trailing: formatShortcutBinding(settings.shortcutBindings['session.copyLink']),
+      trailing: copySessionLinkHint(settings),
       action: () => actions.finish(() => actions.copySessionLink(sessionId)),
     },
   ]

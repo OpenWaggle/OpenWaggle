@@ -1,6 +1,10 @@
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import type { BuildChannel } from '@shared/types/build-identity'
-import { channelClaimsSessionLinks, SESSION_LINK_SCHEME } from '@shared/utils/session-link'
+import {
+  channelClaimsSessionLinks,
+  parseSessionLink,
+  SESSION_LINK_SCHEME,
+} from '@shared/utils/session-link'
 import { createLogger } from './logger'
 
 const logger = createLogger('session-link-protocol')
@@ -62,4 +66,35 @@ export function installSessionLinkProtocol(input: {
       scheme: SESSION_LINK_SCHEME,
     })
   }
+}
+
+/**
+ * macOS counts the detached Session Host and every `openwaggle` command as running instances of
+ * the app, so LaunchServices can deliver a Session link to one of them instead of starting the
+ * desktop app. Such a process hands the link to the desktop app by starting its executable with
+ * the link, which opens the Session or forwards it to the running app through the
+ * single-instance lock. Anything that is not a Session link is dropped.
+ */
+export function forwardSessionLinksToDesktopApp(input: {
+  readonly host: Pick<SessionLinkProtocolHost, 'isPackaged' | 'on'>
+  readonly automation: boolean
+  readonly launchDesktopApp: (link: string) => void
+  readonly platform?: NodeJS.Platform
+  readonly channel?: BuildChannel
+}) {
+  if ((input.platform ?? process.platform) !== 'darwin') return
+  const claimsLinks = claimsSessionLinksFromOperatingSystem({
+    isPackaged: input.host.isPackaged,
+    channel: input.channel ?? BUILD_CHANNEL,
+    automation: input.automation,
+  })
+  if (!claimsLinks) return
+  input.host.on('open-url', (event, url) => {
+    event.preventDefault()
+    if (parseSessionLink(url) === null) {
+      logger.warn('Ignoring a link that is not a Session link', { length: url.length })
+      return
+    }
+    input.launchDesktopApp(url.trim())
+  })
 }

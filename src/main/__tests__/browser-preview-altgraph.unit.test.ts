@@ -35,6 +35,9 @@ describe('browser preview shortcuts and AltGr', () => {
     expect(claims('l', 'KeyL', 'win32')).toBe(true)
     // A Russian layout gives "и" for KeyB without any AltGr.
     expect(claims('и', 'KeyB', 'win32')).toBe(true)
+    // Dvorak types "b" on KeyN and "l" on KeyP; AZERTY types "l" on KeyL as QWERTY does.
+    expect(claims('b', 'KeyN', 'win32')).toBe(true)
+    expect(claims('l', 'KeyP', 'win32')).toBe(true)
   })
 
   it('claims the shortcut on Linux, which reports AltGr without Ctrl and Alt', () => {

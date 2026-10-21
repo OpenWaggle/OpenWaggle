@@ -69,6 +69,20 @@ describe('global command core items', () => {
     ).toBe(false)
   })
 
+  it('shows no Copy session link chord that an extension panel binding takes', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      extensionPanelShortcutBindings: {
+        'extension:acme:notes': { key: 'L', mod: true, alt: true },
+      },
+    }
+    const copy = createCoreCommandItems('/repo', settings, actions(), 'session-1').find(
+      (item) => item.id === 'copy-session-link',
+    )
+
+    expect(copy?.trailing).toBe(formatShortcutBinding(null))
+  })
+
   it('offers Session Summary as a view command', () => {
     const commandActions = actions()
     const toggle = createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions).find(

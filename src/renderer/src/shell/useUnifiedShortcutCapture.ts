@@ -15,6 +15,7 @@ import {
 } from '@shared/utils/project-action-shortcuts'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { keyboardLayoutKey, trackKeyboardLayout } from '@/shared/lib/keyboard-layout'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import {
   type ExtensionPanelShortcut,
@@ -40,6 +41,8 @@ interface UnifiedShortcutCaptureOptions {
 }
 
 function isAltGraphCharacter(event: KeyboardEvent) {
+  // The first key press starts reading the layout; until it arrives the layout-free rule applies.
+  trackKeyboardLayout()
   return typesAltGraphCharacter({
     key: event.key,
     code: event.code,
@@ -49,6 +52,7 @@ function isAltGraphCharacter(event: KeyboardEvent) {
     shift: event.shiftKey,
     altGraph: event.getModifierState('AltGraph'),
     applePlatform: usesAppleShortcuts(),
+    layoutKey: keyboardLayoutKey(event.code),
   })
 }
 

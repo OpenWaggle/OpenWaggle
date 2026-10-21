@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   claimsSessionLinksFromOperatingSystem,
+  forwardSessionLinksToDesktopApp,
   installSessionLinkProtocol,
   type SessionLinkProtocolHost,
 } from '../session-link-protocol'
@@ -105,5 +106,40 @@ describe('installSessionLinkProtocol', () => {
     })
     expect(setAsDefaultProtocolClient).not.toHaveBeenCalled()
     expect(listeners).toEqual([])
+  })
+})
+
+describe('forwardSessionLinksToDesktopApp', () => {
+  it('hands a Session link macOS delivered to a background process to the desktop app', () => {
+    const { host, listeners } = fakeHost()
+    const launchDesktopApp = vi.fn()
+    forwardSessionLinksToDesktopApp({
+      host,
+      automation: false,
+      launchDesktopApp,
+      platform: 'darwin',
+      channel: 'stable',
+    })
+
+    const preventDefault = vi.fn()
+    for (const listener of listeners) {
+      listener({ preventDefault }, 'openwaggle://sessions/s-1')
+      listener({ preventDefault }, 'openwaggle://app/index.html')
+    }
+
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+    expect(launchDesktopApp).toHaveBeenCalledExactlyOnceWith('openwaggle://sessions/s-1')
+  })
+
+  it('listens only in a macOS release build that claims links', () => {
+    for (const input of [
+      { host: fakeHost().host, platform: 'win32', channel: 'stable' },
+      { host: fakeHost().host, platform: 'darwin', channel: 'dev' },
+      { host: fakeHost(false).host, platform: 'darwin', channel: 'stable' },
+    ] as const) {
+      const on = vi.spyOn(input.host, 'on')
+      forwardSessionLinksToDesktopApp({ ...input, automation: false, launchDesktopApp: vi.fn() })
+      expect(on).not.toHaveBeenCalled()
+    }
   })
 })

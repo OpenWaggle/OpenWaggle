@@ -42,6 +42,7 @@ import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
 } from './session-host/gui-session-host-lifecycle'
+import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { installSessionLinkProtocol } from './session-link-protocol'
 import { requestOpenSessionLink } from './session-link-requests'
 import { startTopLevelCli, type TopLevelCliLaunch } from './top-level-cli-entry'
@@ -333,3 +334,4 @@ const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isP
 
 const launch = startTopLevelCli(cliArguments)
 if (launch.kind === 'gui') startApp(launch)
+else forwardSessionLinksFromBackgroundProcess(app)
