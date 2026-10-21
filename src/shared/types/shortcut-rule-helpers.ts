@@ -102,12 +102,18 @@ export function shortcutRulesFromBindings(bindings: ShortcutBindings): ShortcutR
   return migrated
 }
 
-/** T3-compatible runtime merge: any persisted rule overrides all defaults for its command. */
+/** Whether a saved rule holds its chord wherever the default would: always, or in its context. */
+function coversContext(custom: ShortcutRule, rule: ShortcutRule) {
+  const customWhen = custom.when?.trim() ?? ''
+  return customWhen.length === 0 || customWhen === (rule.when?.trim() ?? '')
+}
+
 /**
- * Saved rules with the defaults of every command they do not mention ahead of them. A default
- * whose chord a saved rule of another command already uses is left out: the command was added
- * after the user chose that chord, so it starts unassigned instead of showing a chord that runs
- * the user's command.
+ * T3-compatible runtime merge: any persisted rule overrides all defaults for its command, and the
+ * defaults of every command the saved rules do not mention come ahead of them. A default whose
+ * chord a saved rule of another command already holds in the same context is left out: the
+ * command was added after the user chose that chord, so it starts unassigned instead of showing
+ * a chord that runs the user's command.
  */
 export function shortcutRulesWithDefaults(customRules: ShortcutRules): ShortcutRules {
   if (customRules.length === 0) return DEFAULT_SHORTCUT_RULES
@@ -116,7 +122,8 @@ export function shortcutRulesWithDefaults(customRules: ShortcutRules): ShortcutR
     customRules.some(
       (custom) =>
         shortcutBindingKey(custom.shortcut) === shortcutBindingKey(rule.shortcut) &&
-        shortcutScopesOverlap(custom.command, rule.command),
+        shortcutScopesOverlap(custom.command, rule.command) &&
+        coversContext(custom, rule),
     )
   return [
     ...DEFAULT_SHORTCUT_RULES.filter(

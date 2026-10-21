@@ -7,7 +7,10 @@ import {
   type ShortcutRules,
   shortcutRuleIdentity,
 } from '@shared/types/shortcuts'
-import { EXTENSION_PANEL_SHORTCUT_WHEN } from '@shared/utils/extension-panel-shortcuts'
+import {
+  EXTENSION_PANEL_SHORTCUT_WHEN,
+  shortcutConditionsMayOverlap,
+} from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
   type ProjectActionShortcutContext,
@@ -48,6 +51,18 @@ export function workspaceShortcutContext(event: KeyboardEvent): ProjectActionSho
 }
 
 const DEFAULT_RULE_IDENTITIES = new Set(DEFAULT_SHORTCUT_RULES.map(shortcutRuleIdentity))
+
+/**
+ * A default rule a saved panel binding can share a chord with only because the default came
+ * later: saving checks a panel against every rule whose context can overlap the panel's, so a
+ * default in a separate context (such as the preview's own keys) was allowed on purpose.
+ */
+function isLaterDefaultOverlappingPanels(rule: ShortcutRule) {
+  return (
+    DEFAULT_RULE_IDENTITIES.has(shortcutRuleIdentity(rule)) &&
+    shortcutConditionsMayOverlap(rule.when, EXTENSION_PANEL_SHORTCUT_WHEN)
+  )
+}
 
 function matchExtensionPanel(
   event: ShortcutEvent,
@@ -97,7 +112,7 @@ export function resolveUnifiedShortcut(
     if (rule === undefined) continue
     if (!projectActionShortcutMatches(event, rule.shortcut, applePlatform)) continue
     if (!projectActionWhenMatches(rule.when, contextForMatch())) continue
-    const panel = DEFAULT_RULE_IDENTITIES.has(shortcutRuleIdentity(rule))
+    const panel = isLaterDefaultOverlappingPanels(rule)
       ? matchExtensionPanel(event, extensionPanels, applePlatform, contextForMatch)
       : null
     return panel ?? { kind: 'builtin', rule }

@@ -5,7 +5,7 @@ import {
   type SessionControlMutationCommand,
 } from '@shared/types/session-control'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
-import { sessionIdsFromReferences } from '@shared/utils/session-link'
+import { sessionIdFromReference, sessionIdsFromReferences } from '@shared/utils/session-link'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import {
   nonNegativeInteger,
@@ -191,7 +191,11 @@ function reportTarget(arguments_: ParsedArguments) {
   if (selected[0] === 'upstream') return { type: 'upstream' as const }
   if (selected[0] === 'queen') return { type: 'queen' as const }
   if (selected[0] === 'worker') {
-    return { type: 'worker-reference' as const, reference: required(worker, '--worker') }
+    // A Worker reference may be a Session id, so a link resolves the same way (ADR 0056).
+    return {
+      type: 'worker-reference' as const,
+      reference: sessionIdFromReference(required(worker, '--worker'), '--worker'),
+    }
   }
   return explicitTargets.length === 1
     ? { type: 'session' as const, sessionId: explicitTargets[0] ?? '' }

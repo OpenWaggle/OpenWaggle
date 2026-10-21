@@ -126,4 +126,23 @@ describe('unified shortcut resolution', () => {
       resolveUnifiedShortcut(event, DEFAULT_SHORTCUT_RULES, [], false, () => CONTEXT),
     ).toMatchObject({ kind: 'builtin', rule: { command: 'session.copyLink' } })
   })
+
+  it('keeps a preview default over a panel that was saved on the same chord on purpose', () => {
+    const surfaceId = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
+    const panels = [{ surfaceId, shortcut: { key: 'R', mod: true } }]
+
+    expect(
+      resolveUnifiedShortcut(
+        EVENT,
+        DEFAULT_SHORTCUT_RULES,
+        [],
+        false,
+        () => ({ ...CONTEXT, previewFocus: true, previewOpen: true }),
+        panels,
+      ),
+    ).toMatchObject({ kind: 'builtin', rule: { command: 'preview.refresh' } })
+    expect(
+      resolveUnifiedShortcut(EVENT, DEFAULT_SHORTCUT_RULES, [], false, () => CONTEXT, panels),
+    ).toEqual({ kind: 'extension-panel', surfaceId })
+  })
 })

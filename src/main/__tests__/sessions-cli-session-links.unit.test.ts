@@ -48,6 +48,7 @@ describe('Sessions CLI Session links', () => {
     [['fork', '{id}']],
     [['wait', '{id}', '{second}', '--timeout-ms', '0']],
     [['report', 'session-caller', '--target', '{id}', '--text', 'Context.']],
+    [['report', 'session-caller', '--worker', '{id}', '--text', 'Context.']],
     [['report', 'session-caller', '--target', '{id}', '--target', '{second}', '--text', 'Hi.']],
   ])('builds the same command for a link as for the identity: %j', (template) => {
     const fill = (id: string, second: string) =>

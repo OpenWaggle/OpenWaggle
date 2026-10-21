@@ -155,6 +155,16 @@ describe('resolveSessionsToolSessionLinks', () => {
     ).toMatchObject({ target: { type: 'sessions', sessionIds: [SESSION_ID] } })
   })
 
+  it('resolves a Worker reference given as a Session link and keeps names as they are', () => {
+    expect(
+      resolveSessionsToolSessionLinks({
+        action: 'report',
+        text: 'Context.',
+        target: { type: 'worker_reference', reference: LINK },
+      }),
+    ).toMatchObject({ target: { type: 'worker_reference', reference: SESSION_ID } })
+  })
+
   it('leaves parameters without Session links unchanged', () => {
     const params = {
       action: 'report',

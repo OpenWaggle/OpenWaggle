@@ -84,6 +84,19 @@ describe('settings shortcut rules', () => {
     expect(settings.shortcutRules.at(-1)).toEqual(customRule)
   })
 
+  it('keeps a default whose chord a saved rule only holds in another context', () => {
+    const terminalRule = {
+      command: 'terminal.new',
+      shortcut: { key: 'L', mod: true, alt: true },
+      when: 'terminalFocus',
+    } as const
+    const { settings } = buildSettingsSnapshot({ shortcutRules: [terminalRule] })
+
+    expect(settings.shortcutRules).toContainEqual(
+      DEFAULT_SHORTCUT_RULES.find((rule) => rule.command === 'session.copyLink'),
+    )
+  })
+
   it('reads the bindings view of saved rules that share a chord, as rules may', () => {
     const shortcutRules = [
       ...DEFAULT_SHORTCUT_RULES,

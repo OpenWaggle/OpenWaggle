@@ -13,6 +13,10 @@ function resolveTarget(target: SessionsToolTarget): SessionsToolTarget {
       sessionIds: sessionIdsFromReferences(target.sessionIds, 'target.sessionIds'),
     }
   }
+  if (target.type === 'worker_reference') {
+    // A Worker reference may be a Session id, so a link resolves the same way; names are unchanged.
+    return { ...target, reference: sessionIdFromReference(target.reference, 'target.reference') }
+  }
   return target
 }
 
