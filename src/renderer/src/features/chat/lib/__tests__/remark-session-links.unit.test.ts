@@ -83,6 +83,10 @@ describe('remarkSessionLinks', () => {
   })
 
   it.each([
+    ['请看 openwaggle://sessions/abc，然后', '，然后'],
+    ['openwaggle://sessions/abc。', '。'],
+    ['（openwaggle://sessions/abc）', '）'],
+    ['openwaggle://sessions/abc–x', '–x'],
     ['Did you check openwaggle://sessions/abc?!', '?!'],
     ['It said “openwaggle://sessions/abc”', '”'],
     ['openwaggle://sessions/abc… then', '… then'],

@@ -44,10 +44,20 @@ interface UnifiedShortcutCaptureOptions {
   readonly terminalOpen: boolean
 }
 
-function isAltGraphCharacter(event: KeyboardEvent) {
+/** A field, editor, or terminal that receives typed characters. */
+const TYPING_TARGET = 'input, textarea, select, [contenteditable="true"], [data-terminal-pane]'
+
+/**
+ * A character typed with AltGr into a field or terminal belongs to it, not to a Ctrl+Alt
+ * shortcut. Elsewhere nothing would be typed, so the shortcut still runs.
+ */
+function typesAltGraphText(event: KeyboardEvent) {
   // The first key press starts reading the layout; until it arrives the layout-free rule applies.
   trackKeyboardLayout()
   noteKeyboardLayoutKeyPress(event)
+  if (!(event.target instanceof Element) || event.target.closest(TYPING_TARGET) === null) {
+    return false
+  }
   return typesAltGraphCharacter({
     key: event.key,
     code: event.code,
@@ -170,7 +180,7 @@ export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions
       handlersRef.current[match.rule.command]()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isShortcutEditorTarget(event) || isAltGraphCharacter(event)) return
+      if (isShortcutEditorTarget(event) || typesAltGraphText(event)) return
       const modifierFreeEvent = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
       if (
         modifierFreeEvent &&

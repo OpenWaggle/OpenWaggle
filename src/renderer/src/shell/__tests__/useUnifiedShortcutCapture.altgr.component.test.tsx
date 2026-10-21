@@ -68,7 +68,7 @@ describe('useUnifiedShortcutCapture with AltGr', () => {
     ipcMocks.listeners.clear()
   })
 
-  it('leaves a character typed with AltGr to the focused field', () => {
+  function render() {
     const commandHandlers = handlers()
     renderHook(() =>
       useUnifiedShortcutCapture({
@@ -79,36 +79,55 @@ describe('useUnifiedShortcutCapture with AltGr', () => {
         terminalOpen: false,
       }),
     )
-    const chord = (key: string, altGraph: boolean) => {
-      const event = new KeyboardEvent('keydown', {
-        key,
-        code: 'KeyL',
-        ctrlKey: true,
-        altKey: true,
-        bubbles: true,
-        cancelable: true,
-      })
-      // Chromium reports AltGr as Ctrl+Alt with the AltGraph modifier state.
-      Object.defineProperty(event, 'getModifierState', {
-        value: (modifier: string) => altGraph && modifier === 'AltGraph',
-      })
-      return event
-    }
+    return commandHandlers
+  }
+
+  function chord(key: string, altGraph: boolean) {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      code: 'KeyL',
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    // Chromium reports AltGr as Ctrl+Alt with the AltGraph modifier state.
+    Object.defineProperty(event, 'getModifierState', {
+      value: (modifier: string) => altGraph && modifier === 'AltGraph',
+    })
+    return event
+  }
+
+  function pressIn(target: Element, event: KeyboardEvent) {
+    act(() => {
+      target.dispatchEvent(event)
+    })
+    return event
+  }
+
+  it('leaves a character typed with AltGr to the field or terminal it is typed into', () => {
+    const commandHandlers = render()
+    const field = document.body.appendChild(document.createElement('textarea'))
+    const pane = document.body.appendChild(document.createElement('div'))
+    pane.dataset.terminalPane = 'term-1'
+    const terminalInput = pane.appendChild(document.createElement('textarea'))
 
     // AltGr+L types "ł" on a Polish keyboard.
-    const typed = chord('ł', true)
-    act(() => {
-      window.dispatchEvent(typed)
-    })
+    expect(pressIn(field, chord('ł', true)).defaultPrevented).toBe(false)
+    expect(pressIn(terminalInput, chord('ł', true)).defaultPrevented).toBe(false)
     expect(commandHandlers['session.copyLink']).not.toHaveBeenCalled()
-    expect(typed.defaultPrevented).toBe(false)
 
     // Layouts that report AltGr for Ctrl+Alt still get the shortcut when no character results.
-    const shortcut = chord('l', true)
-    act(() => {
-      window.dispatchEvent(shortcut)
-    })
+    expect(pressIn(field, chord('l', true)).defaultPrevented).toBe(true)
     expect(commandHandlers['session.copyLink']).toHaveBeenCalledOnce()
-    expect(shortcut.defaultPrevented).toBe(true)
+    field.remove()
+    pane.remove()
+  })
+
+  it('still runs the shortcut where nothing would be typed', () => {
+    const commandHandlers = render()
+
+    expect(pressIn(document.body, chord('ł', true)).defaultPrevented).toBe(true)
+    expect(commandHandlers['session.copyLink']).toHaveBeenCalledOnce()
   })
 })

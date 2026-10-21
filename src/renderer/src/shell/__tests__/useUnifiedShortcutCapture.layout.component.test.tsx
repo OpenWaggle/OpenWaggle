@@ -98,9 +98,11 @@ describe('useUnifiedShortcutCapture with a keyboard layout map', () => {
       value: (modifier: string) => modifier === 'AltGraph',
     })
 
+    const field = document.body.appendChild(document.createElement('textarea'))
     act(() => {
-      window.dispatchEvent(press)
+      field.dispatchEvent(press)
     })
+    field.remove()
 
     expect(commandHandlers['sidebar.toggle']).toHaveBeenCalledOnce()
   })

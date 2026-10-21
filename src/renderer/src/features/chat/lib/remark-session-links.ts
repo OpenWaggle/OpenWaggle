@@ -11,12 +11,13 @@ interface MarkdownNode {
 /**
  * A Session link written as plain text. GFM only links `http(s)`, `www.`, and email literals, so
  * a pasted `openwaggle://sessions/<id>` would otherwise stay text. The link may end in one slash
- * and must end where prose does: at whitespace, the end, a closing bracket, quote, or dash, or
- * punctuation such as `?`, `?!`, `.` or `…` that ends a sentence. A longer URL (`…/items`,
- * `…?prompt=`, `….html`) is not a Session link and stays text.
+ * and must end where prose does: at whitespace, the end, any character outside ASCII (CJK `，`,
+ * curly quotes, dashes), a closing bracket or quote, or punctuation such as `?`, `?!` or `.`
+ * that ends a sentence. A longer URL (`…/items`, `…?prompt=`, `….html`) is not a Session link
+ * and stays text.
  */
 const SESSION_LINK_TEXT =
-  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?=$|[\s)\],;'">*~’”—]|[.:?!…]+(?:$|[\s)\]'"’”—]))/giu
+  /(?<![\w.+-])openwaggle:\/\/sessions\/[A-Za-z0-9][A-Za-z0-9_-]*\/?(?=$|[^\x21-\x7e]|[)\],;'">*~]|[.:?!]+(?:$|[^\x21-\x7e]|[)\]'"]))/gi
 
 /** Nodes whose text is already a link or a link label. Code is a separate node type. */
 const LINKED_PARENTS = new Set(['link', 'linkReference', 'definition'])

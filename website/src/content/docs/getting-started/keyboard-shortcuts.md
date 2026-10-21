@@ -29,7 +29,9 @@ These are the default bindings. Open **Settings > Shortcuts** to see or change c
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
 | Cancel diff comment or review | `Escape` | `Escape` |
 
-**Copy session link** copies the link of the session you have open and also works while you type in a terminal. Some Linux desktops lock the screen on `Ctrl+Alt+L`, and on some keyboards, such as Polish or Czech on Windows, it types a letter instead. Choose another key in **Settings > Shortcuts** if yours does either.
+**Copy session link** copies the link of the session you have open and also works while you type in a terminal. Some Linux desktops lock the screen on `Ctrl+Alt+L`; choose another key in **Settings > Shortcuts** if yours does.
+
+On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctrl+Alt+L` for `ł` on Polish or `Ctrl+Alt+B` for `{` on Czech and Hungarian keyboards on Windows, the character goes to the field or terminal you are typing in, and the shortcut runs everywhere else.
 
 Focusing a pending request does not approve it. Read the action and choose a response; use `Escape` to return to your message.
 
