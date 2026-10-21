@@ -19,6 +19,40 @@ vi.mock('../../../logger', () => ({
   createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
 }))
 
+function listWith(
+  engine: ManagedWorkspacePreparation,
+  root: string,
+  workspace: ActionRunWorkspace,
+) {
+  return Effect.runPromise(
+    Effect.either(
+      listRetainedPreparation(root).pipe(
+        Effect.provideService(
+          WorkspacePreparationService,
+          fromPartial<WorkspacePreparationServiceShape>({
+            read: (scope: ActionRunWorkspace) => Effect.promise(() => engine.read(scope)),
+            inspectWorkspaceGeneration: (scope: ActionRunWorkspace) =>
+              Effect.promise(() => engine.inspectWorkspaceGeneration(scope)),
+          }),
+        ),
+        Effect.provideService(
+          SessionWorkspaceResourceRepository,
+          fromPartial({
+            listManagedWorktreeRemovalCandidates: () =>
+              Effect.succeed([
+                {
+                  id: workspace.workspaceId,
+                  projectPath: root,
+                  workingPath: workspace.workspacePath,
+                },
+              ]),
+          }),
+        ),
+      ),
+    ),
+  )
+}
+
 it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
   'names the worktree when its folder cannot be read at all',
   async () => {
@@ -43,6 +77,17 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
           error: expect.stringContaining('EACCES'),
         },
       )
+      // The Settings list names the worktree and the reason too, and logs it.
+      const listed = await listWith(engine, root, workspace)
+      expect(listed).toMatchObject({
+        _tag: 'Left',
+        left: { message: expect.stringContaining(`Could not inspect ${workspacePath}: EACCES`) },
+      })
+      expect(warn).toHaveBeenCalledWith('Could not inspect a retained worktree', {
+        workspaceId: workspace.workspaceId,
+        workspacePath,
+        error: expect.stringContaining('EACCES'),
+      })
     } finally {
       await fs.chmod(parent, 0o755).catch(() => {})
       await fs.rm(root, { recursive: true, force: true })
@@ -70,37 +115,9 @@ it.skipIf(process.platform === 'win32')(
         reason: 'not-a-folder',
         recorded,
       })
-      // Settings lists it with the reason instead of failing the whole list on ELOOP.
-      const listed = await Effect.runPromise(
-        listRetainedPreparation(root).pipe(
-          Effect.provideService(
-            WorkspacePreparationService,
-            fromPartial<WorkspacePreparationServiceShape>({
-              read: (scope: ActionRunWorkspace) => Effect.promise(() => engine.read(scope)),
-              inspectWorkspaceGeneration: (scope: ActionRunWorkspace) =>
-                Effect.promise(() => engine.inspectWorkspaceGeneration(scope)),
-            }),
-          ),
-          Effect.provideService(
-            SessionWorkspaceResourceRepository,
-            fromPartial({
-              listManagedWorktreeRemovalCandidates: () =>
-                Effect.succeed([
-                  { id: workspace.workspaceId, projectPath: root, workingPath: workspacePath },
-                ]),
-            }),
-          ),
-        ),
-      )
-      expect(listed.workspaces).toMatchObject([
-        {
-          path: workspacePath,
-          generationMismatch: true,
-          generationMismatchMessage: expect.stringContaining(
-            `${workspacePath} is not a plain folder`,
-          ),
-        },
-      ])
+      // Git cannot remove a looping link, so Settings leaves it out instead of failing the list.
+      const listed = await listWith(engine, root, workspace)
+      expect(listed).toMatchObject({ _tag: 'Right', right: { workspaces: [] } })
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

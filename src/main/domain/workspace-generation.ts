@@ -86,6 +86,15 @@ function describeIdentity(identity: WorkspaceDirectoryIdentity) {
     : described
 }
 
+/** Whole seconds can hide the difference; then show the nanosecond birth times that decided it. */
+function describePair(recorded: WorkspaceDirectoryIdentity, observed: WorkspaceDirectoryIdentity) {
+  const prepared = describeIdentity(recorded)
+  const found = describeIdentity(observed)
+  return prepared === found
+    ? `prepared: ${prepared}, birth time ${recorded.birthtime} ns; found: birth time ${observed.birthtime} ns`
+    : `prepared: ${prepared}; found: ${found}`
+}
+
 /**
  * Deleting, not moving, the folder: a moved copy of a git worktree still points at the git data
  * that Recreate worktree reuses. A missing worktree is what makes the Session offer recovery.
@@ -107,7 +116,7 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
   return matchBy(check, 'status')
     .with('replaced', ({ workspacePath, recorded, observed }) => ({
       verdict: 'no longer matches' as const,
-      problem: `${workspacePath} is a different folder from the one that was prepared (prepared: ${describeIdentity(recorded)}; found: ${describeIdentity(observed)})`,
+      problem: `${workspacePath} is a different folder from the one that was prepared (${describePair(recorded, observed)})`,
       recovery: `If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, ${DELETE_AND_RECREATE}.`,
     }))
     .with('unreadable', ({ workspacePath, reason }) =>

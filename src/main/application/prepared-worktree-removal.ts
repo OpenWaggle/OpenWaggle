@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { GitWorktreeMutationResult, GitWorktreeRemovePayload } from '@shared/types/git'
-import { isEnoent, isNodeError } from '@shared/utils/node-error'
+import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import { ActionRunService } from '../ports/action-run-service'
@@ -16,8 +16,6 @@ async function checkoutMissing(directory: string) {
     return false
   } catch (error) {
     if (isEnoent(error)) return true
-    // Something is there but cannot be followed; the preparation check reports it as not a folder.
-    if (isNodeError(error, 'ELOOP')) return false
     throw error
   }
 }

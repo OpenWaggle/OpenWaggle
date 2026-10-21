@@ -52,7 +52,7 @@ OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you rest
 
 "This worktree cannot be checked against its saved preparation" means the preparation never recorded this folder. Follow steps 2 and 3.
 
-In **Settings > Worktrees**, a worktree in either state explains why its cleanup cannot run and offers **Delete anyway**.
+For a worktree that no session uses any more, **Settings > Worktrees** explains why its cleanup cannot run and offers **Delete anyway**. For a session's own worktree, follow the steps above.
 
 ## Work continues after closing the app
 

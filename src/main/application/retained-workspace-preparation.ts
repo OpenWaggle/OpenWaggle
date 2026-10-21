@@ -2,8 +2,11 @@ import { stat } from 'node:fs/promises'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { describeCleanupBlockedByGeneration } from '../domain/workspace-generation'
+import { createLogger } from '../logger'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
+
+const logger = createLogger('workspace-preparation')
 
 /** Only the authorized project's recorded workspaces may contribute private cleanup state. */
 export function listRetainedPreparation(projectPath: string) {
@@ -20,13 +23,20 @@ export function listRetainedPreparation(projectPath: string) {
               try {
                 return (await stat(workspace.workingPath)).isDirectory()
               } catch (error) {
-                if (isEnoent(error)) return false
-                // A looping link at the path: list it so Settings explains it and offers Delete anyway.
-                if (isNodeError(error, 'ELOOP')) return true
+                // Not a folder Git could remove, so there is no cleanup recovery to offer.
+                if (isEnoent(error) || isNodeError(error, 'ELOOP')) return false
                 throw error
               }
             },
-            catch: (cause) => new Error('Could not inspect retained worktree.', { cause }),
+            catch: (cause) => {
+              const reason = cause instanceof Error ? cause.message : String(cause)
+              logger.warn('Could not inspect a retained worktree', {
+                workspaceId: workspace.id,
+                workspacePath: workspace.workingPath,
+                error: reason,
+              })
+              return new Error(`Could not inspect ${workspace.workingPath}: ${reason}`, { cause })
+            },
           })
           if (!exists) return null
           const scope = {

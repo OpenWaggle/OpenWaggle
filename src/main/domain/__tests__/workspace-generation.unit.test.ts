@@ -64,6 +64,12 @@ describe('describeWorkspaceGenerationMismatch', () => {
     )
   })
 
+  it('shows the nanosecond birth times when whole seconds read the same', () => {
+    expect(replacedProblem(recorded, { ...recorded, birthtime: '1792486351612449419' })).toBe(
+      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC, birth time 1792486351612449418 ns; found: birth time 1792486351612449419 ns)',
+    )
+  })
+
   it('shows the device number when it is what told the folders apart', () => {
     expect(replacedProblem(noBirth, { ...noBirth, device: '16777233' })).toBe(
       '/w is a different folder from the one that was prepared (prepared: inode 408642463, unknown creation time, device 16777230; found: inode 408642463, unknown creation time, device 16777233)',
