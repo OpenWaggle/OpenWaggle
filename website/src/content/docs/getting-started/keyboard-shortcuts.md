@@ -31,7 +31,7 @@ These are the default bindings. Open **Settings > Shortcuts** to see or change c
 
 **Copy session link** copies the link of the session you have open and also works while you type in a terminal. Some Linux desktops lock the screen on `Ctrl+Alt+L`; choose another key in **Settings > Shortcuts** if yours does.
 
-On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctrl+Alt+L` for `ł` on Polish or `Ctrl+Alt+B` for `{` on Czech and Hungarian keyboards on Windows, the character goes to the field or terminal you are typing in, and the shortcut runs everywhere else.
+On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctrl+Alt+L` for `ł` on Polish or `Ctrl+Alt+B` for `{` on Czech and Hungarian keyboards on Windows, the character goes to the field or terminal you are typing in, and the shortcut runs everywhere else. In the Browser preview on Windows, a letter such as `ł` always goes to the page, while a symbol such as `{` can still run a matching `Ctrl+Alt` shortcut.
 
 Focusing a pending request does not approve it. Read the action and choose a response; use `Escape` to return to your message.
 
