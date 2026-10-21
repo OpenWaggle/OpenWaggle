@@ -1,5 +1,5 @@
 import { stat } from 'node:fs/promises'
-import { isEnoent } from '@shared/utils/node-error'
+import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { describeCleanupBlockedByGeneration } from '../domain/workspace-generation'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
@@ -21,6 +21,8 @@ export function listRetainedPreparation(projectPath: string) {
                 return (await stat(workspace.workingPath)).isDirectory()
               } catch (error) {
                 if (isEnoent(error)) return false
+                // A looping link at the path: list it so Settings explains it and offers Delete anyway.
+                if (isNodeError(error, 'ELOOP')) return true
                 throw error
               }
             },

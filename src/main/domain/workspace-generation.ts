@@ -45,7 +45,10 @@ export type WorkspaceGenerationCheck =
   | {
       readonly status: 'unreadable'
       readonly workspacePath: string
-      /** `missing`: nothing at the path. `not-a-folder`: a file, a broken or looping link, or a link to a file. */
+      /**
+       * `missing`: nothing at the path. `not-a-folder`: a file, a broken or looping link, a link to a
+       * file, or a looping link in a parent folder.
+       */
       readonly reason: 'missing' | 'not-a-folder'
       readonly recorded: WorkspaceDirectoryIdentity
     }
@@ -117,7 +120,7 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
         : {
             verdict: 'no longer matches' as const,
             problem: `${workspacePath} is not a plain folder`,
-            recovery: `Remove what is at that path; ${RECREATE}.`,
+            recovery: `Remove what is at that path, or the looping link on the way to it; ${RECREATE}.`,
           },
     )
     .with('awaiting-birth', ({ workspacePath }) => ({

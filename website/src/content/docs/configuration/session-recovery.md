@@ -42,9 +42,9 @@ These actions change where the session runs; database restoration does not recov
 
 ## A worktree no longer matches its saved preparation
 
-Each managed worktree records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path, and the inode and creation time of the prepared folder and of the folder found there.
+Each managed worktree records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path and, when a different folder is there, the inode and creation time of both folders.
 
-OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you restarted a Mac, although nothing had changed. If you see it right after a restart, update OpenWaggle and try again before you delete anything. If no newer version is available yet, don't delete or move the folder: the worktree has not changed.
+OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you restarted a Mac, although nothing had changed. If you see it right after a restart, update to a version newer than 1.0.0-beta.21 and try again before you delete anything. If you haven't moved or replaced the folder and no newer version is available yet, leave it in place: the worktree has not changed.
 
 1. If the original folder still exists somewhere else, put it back at that path in place of the folder there now. Then send your message again.
 2. Otherwise, commit or copy out any changes you want to keep from the folder at that path, and delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.

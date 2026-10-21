@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { WorkspaceCleanupFailure } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
@@ -27,10 +28,6 @@ type PreparedWorktree = GitWorktreeInfo & {
   readonly preparation?: WorkspacePreparation
   readonly generationMismatch?: boolean
   readonly generationMismatchMessage?: string
-}
-
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /**
@@ -72,7 +69,7 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
       if (listed.status === 'rejected') throw listed.reason
       const retained = preparationResult.status === 'fulfilled' ? preparationResult.value : null
       if (preparationResult.status === 'rejected')
-        setError(`Could not load cleanup recovery: ${String(preparationResult.reason)}`)
+        setError(`Could not load cleanup recovery: ${ipcErrorMessage(preparationResult.reason)}`)
       if (retained && retained.type !== 'retained-preparation')
         throw new Error('Unexpected preparation response.')
       const preparations = new Map(
@@ -134,7 +131,7 @@ export function WorktreesSection() {
       } else await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
-      showToast(`Could not remove the worktree: ${errorText(error)}`, 'error')
+      showToast(`Could not remove the worktree: ${ipcErrorMessage(error)}`, 'error')
       await refresh()
     } finally {
       setRemovingPath(null)

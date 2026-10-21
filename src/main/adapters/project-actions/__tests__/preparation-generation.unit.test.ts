@@ -1,13 +1,12 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { expect, it, vi } from 'vitest'
 import { listRetainedPreparation } from '../../../application/retained-workspace-preparation'
 import { prepareWorkspaceRemoval } from '../../../application/workspace-cleanup'
-import { ActionRunService, type ActionRunWorkspace } from '../../../ports/action-run-service'
+import { ActionRunService } from '../../../ports/action-run-service'
 import { SessionWorkspaceResourceRepository } from '../../../ports/session-workspace-resource-repository'
 import {
   WorkspacePreparationService,
@@ -19,6 +18,7 @@ import {
   type PreparationDependencies,
 } from '../managed-workspace-preparation'
 import type { StoredWorkspacePreparation } from '../preparation-persistence'
+import { catalog, memoryDeps, restartedService } from './preparation-generation.test-harness'
 
 const warn = vi.hoisted(() => vi.fn())
 vi.mock('../../../logger', () => ({
@@ -27,42 +27,6 @@ vi.mock('../../../logger', () => ({
 
 /** The device-number tests need birth times; without them the device is compared by design. */
 const recordsBirthTime = (await fs.lstat(os.tmpdir(), { bigint: true })).birthtimeNs !== 0n
-
-const catalog: ActionCatalog = {
-  revision: 'one',
-  actions: [],
-  profiles: [{ source: 'local', definition: { id: 'default', name: 'Default' } }],
-  preparation: [],
-}
-
-function memoryDeps() {
-  const storage = new Map<string, StoredWorkspacePreparation>()
-  const deps = fromPartial<PreparationDependencies>({
-    catalog: async () => catalog,
-    persistence: {
-      read: async (id: string) => storage.get(id) ?? null,
-      list: async () => [...storage.values()],
-      write: async (state: StoredWorkspacePreparation) => {
-        storage.set(state.workspaceId, structuredClone(state))
-      },
-    },
-  })
-  return { storage, deps }
-}
-
-/** The Host-side service shape the agent run uses, over a fresh engine as after a Host start. */
-function restartedService(deps: PreparationDependencies) {
-  const engine = new ManagedWorkspacePreparation(deps)
-  return {
-    engine,
-    service: {
-      read: (workspace: ActionRunWorkspace) => Effect.promise(() => engine.read(workspace)),
-      inspectWorkspaceGeneration: (workspace: ActionRunWorkspace) =>
-        Effect.promise(() => engine.inspectWorkspaceGeneration(workspace)),
-      environment: (workspaceId: string) => Effect.promise(() => engine.environment(workspaceId)),
-    },
-  }
-}
 
 it.skipIf(!recordsBirthTime)(
   'keeps a prepared worktree runnable across reboots that renumber the volume back and forth',
@@ -242,59 +206,6 @@ it.skipIf(!recordsBirthTime)(
       // cleanup records skipped.
       expect(removal).toBeNull()
       expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
-    } finally {
-      await fs.rm(root, { recursive: true, force: true })
-    }
-  },
-)
-
-it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
-  'names the worktree when its folder cannot be read at all',
-  async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-denied-'))
-    const parent = path.join(root, 'locked')
-    try {
-      const workspacePath = path.join(parent, 'worktree')
-      await fs.mkdir(workspacePath, { recursive: true })
-      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
-      const { deps } = memoryDeps()
-      const engine = new ManagedWorkspacePreparation(deps)
-      await engine.capture(workspace)
-      await fs.chmod(parent, 0o000)
-      await expect(engine.inspectWorkspaceGeneration(workspace)).rejects.toThrow(
-        `Could not check ${workspacePath} against its saved preparation: EACCES`,
-      )
-      expect(warn).toHaveBeenCalledWith(
-        'Could not check the worktree against its saved preparation',
-        {
-          workspaceId: workspace.workspaceId,
-          workspacePath,
-          error: expect.stringContaining('EACCES'),
-        },
-      )
-    } finally {
-      await fs.chmod(parent, 0o755).catch(() => {})
-      await fs.rm(root, { recursive: true, force: true })
-    }
-  },
-)
-
-it.skipIf(process.platform === 'win32')(
-  'reports a worktree behind a looping link as not a folder',
-  async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-loop-'))
-    try {
-      const workspacePath = path.join(root, 'loop', 'worktree')
-      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
-      const { storage, deps } = memoryDeps()
-      await fs.mkdir(workspacePath, { recursive: true })
-      await new ManagedWorkspacePreparation(deps).capture(workspace)
-      const recorded = storage.get(workspace.workspaceId)?.workspaceIdentity
-      await fs.rm(path.join(root, 'loop'), { recursive: true })
-      await fs.symlink(path.join(root, 'loop'), path.join(root, 'loop'))
-      expect(
-        await new ManagedWorkspacePreparation(deps).inspectWorkspaceGeneration(workspace),
-      ).toEqual({ status: 'unreadable', workspacePath, reason: 'not-a-folder', recorded })
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
