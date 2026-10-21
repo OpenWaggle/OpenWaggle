@@ -42,7 +42,7 @@ These actions change where the session runs; database restoration does not recov
 
 ## A worktree no longer matches its saved preparation
 
-A worktree whose project has setup or cleanup actions records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path, and the inode and creation time of the prepared folder and of the folder found there.
+Each managed worktree records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path, and the inode and creation time of the prepared folder and of the folder found there.
 
 OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you restarted a Mac, although nothing had changed. If you see it right after a restart, update OpenWaggle and try again before you delete anything.
 

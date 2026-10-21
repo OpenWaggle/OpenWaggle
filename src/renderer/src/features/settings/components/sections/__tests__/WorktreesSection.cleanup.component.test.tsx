@@ -173,7 +173,7 @@ it('keeps Git worktrees available when cleanup metadata fails to load', async ()
   expect(screen.queryByText('No worktrees for this repository.')).not.toBeInTheDocument()
 })
 
-it('leaves a refused cleanup reason to the row instead of a brief toast', async () => {
+it('leaves a failed or refused cleanup reason to the row instead of a brief toast', async () => {
   const { useUIStore } = await import('@/shell/ui-store')
   const preparation = fromPartial<WorkspacePreparation>({
     workspaceId: 'workspace',
@@ -196,8 +196,31 @@ it('leaves a refused cleanup reason to the row instead of a brief toast', async 
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
   await waitFor(() =>
     expect(useUIStore.getState().toastMessage).toBe(
-      'Cleanup did not run for this worktree. The reason is shown under it.',
+      'The worktree was kept. The reason is shown under it.',
     ),
   )
   expect(screen.getByRole('alert')).toHaveTextContent('cleanup exited with code 1.')
+})
+
+it('puts the full reason in the toast when the list cannot show it', async () => {
+  const { useUIStore } = await import('@/shell/ui-store')
+  const preparation = fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
+  })
+  let retainedCalls = 0
+  mocks.manage.mockImplementation(async ({ operation }) => {
+    if (operation.type !== 'retained-preparation') return { type: 'preparation', preparation }
+    retainedCalls += 1
+    if (retainedCalls > 1) throw new Error('Host unavailable')
+    return { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+  })
+  const message =
+    'Workspace cleanup is failed. cleanup exited with code 1. The worktree was retained.'
+  mocks.remove.mockResolvedValue({ ok: false, code: 'cleanup-failed', preparation, message })
+  renderWithQueryClient(<WorktreesSection />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await waitFor(() => expect(useUIStore.getState().toastMessage).toBe(message))
 })

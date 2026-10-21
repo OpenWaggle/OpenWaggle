@@ -238,7 +238,8 @@ it.skipIf(!recordsBirthTime)(
           ),
         ),
       )
-      // No definitions in the snapshot, so cleanup is skipped rather than refused as a replacement.
+      // The generation matches despite the new device, so removal proceeds; with no definitions,
+      // cleanup records skipped.
       expect(removal).toBeNull()
       expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
     } finally {

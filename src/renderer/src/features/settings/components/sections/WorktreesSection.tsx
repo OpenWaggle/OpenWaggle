@@ -29,10 +29,18 @@ type PreparedWorktree = GitWorktreeInfo & {
   readonly generationMismatchMessage?: string
 }
 
-/** A refused cleanup puts its full reason under the row after refresh; a toast is too brief. */
-function removalFailureToast(result: { readonly code: string; readonly message: string }) {
-  return result.code === 'cleanup-failed'
-    ? 'Cleanup did not run for this worktree. The reason is shown under it.'
+/**
+ * A cleanup failure or refusal is shown in full under the row once the list refreshes, which a
+ * brief toast cannot do. When the refreshed row has no recovery to show it, the toast says why.
+ */
+function removalFailureToast(
+  result: { readonly code: string; readonly message: string },
+  refreshed: readonly PreparedWorktree[],
+  worktreePath: string,
+) {
+  const reasonShown = refreshed.some((row) => row.path === worktreePath && row.preparation)
+  return result.code === 'cleanup-failed' && reasonShown
+    ? 'The worktree was kept. The reason is shown under it.'
     : result.message
 }
 
@@ -41,10 +49,11 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  /** Resolves to the rows it rendered, so a caller can tell what the user now sees. */
+  const refresh = useCallback(async (): Promise<readonly PreparedWorktree[]> => {
     if (!repositoryPath) {
       setWorktrees([])
-      return
+      return []
     }
     setIsLoading(true)
     setError(null)
@@ -65,21 +74,22 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
       const preparations = new Map(
         retained?.workspaces.map((workspace) => [workspace.path, workspace]) ?? [],
       )
-      setWorktrees(
-        listed.value.worktrees.map((worktree) => {
-          const recovery = preparations.get(worktree.path)
-          return {
-            ...worktree,
-            preparation: recovery?.preparation,
-            generationMismatch: recovery?.generationMismatch,
-            generationMismatchMessage: recovery?.generationMismatchMessage,
-          }
-        }),
-      )
+      const rows = listed.value.worktrees.map((worktree) => {
+        const recovery = preparations.get(worktree.path)
+        return {
+          ...worktree,
+          preparation: recovery?.preparation,
+          generationMismatch: recovery?.generationMismatch,
+          generationMismatchMessage: recovery?.generationMismatchMessage,
+        }
+      })
+      setWorktrees(rows)
+      return rows
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
       setError(`Could not list worktrees: ${String(error)}`)
       setWorktrees([])
+      return []
     } finally {
       setIsLoading(false)
     }
@@ -116,9 +126,8 @@ export function WorktreesSection() {
          * row stayed put with no explanation, which reads as a broken button.
          */
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
-        showToast(removalFailureToast(result), 'error')
-      }
-      await refresh()
+        showToast(removalFailureToast(result, await refresh(), worktreePath), 'error')
+      } else await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
       showToast('Could not remove the worktree.', 'error')
