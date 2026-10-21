@@ -2,7 +2,10 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { extensionSidePanelSurfaces } from '@/features/extensions'
+import {
+  extensionSidePanelSurfaces,
+  openableExtensionSidePanelSurfaceIds,
+} from '@/features/extensions'
 import {
   createProjectActionCommandItems,
   useProjectActions,
@@ -136,7 +139,10 @@ export function GlobalCommandPalette({
     },
   )
   const items = [
-    ...createCoreCommandItems(projectPath, settings, actions, viewedSessionId),
+    ...createCoreCommandItems(projectPath, settings, actions, {
+      sessionId: viewedSessionId,
+      openablePanelIds: openableExtensionSidePanelSurfaceIds(panelContributions),
+    }),
     ...panelItems,
     ...projectActionItems,
     ...createRecentProjectItems(settings, sessions, actions),

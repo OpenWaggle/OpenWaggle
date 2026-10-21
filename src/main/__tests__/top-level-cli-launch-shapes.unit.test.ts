@@ -46,6 +46,11 @@ describe('real launch shapes', () => {
   })
 
   it.each([
+    // A background process hands a macOS link on with `open -n -a <bundle> --args -- <link>`.
+    [
+      'a macOS forwarded launch',
+      ['/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle', '--', 'openwaggle://sessions/s-1'],
+    ],
     // setAsDefaultProtocolClient registers `"OpenWaggle.exe" "%1"`.
     ['a Windows protocol launch', ['C:\\OpenWaggle\\OpenWaggle.exe', 'openwaggle://sessions/s-1']],
     // The desktop entry scripts/install.sh writes runs `Exec=<AppImage> %U`.

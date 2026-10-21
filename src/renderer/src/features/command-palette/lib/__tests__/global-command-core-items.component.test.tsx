@@ -48,12 +48,10 @@ describe('global command core items', () => {
 
   it('offers the open Session link with its shortcut, and nothing without a Session', () => {
     const commandActions = actions()
-    const copy = createCoreCommandItems(
-      '/repo',
-      DEFAULT_SETTINGS,
-      commandActions,
-      'session-1',
-    ).find((item) => item.id === 'copy-session-link')
+    const copy = createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, {
+      sessionId: 'session-1',
+      openablePanelIds: new Set(),
+    }).find((item) => item.id === 'copy-session-link')
 
     expect(copy?.label).toBe('Copy session link')
     expect(copy?.trailing).toBe(
@@ -63,24 +61,31 @@ describe('global command core items', () => {
     copy?.action()
     expect(commandActions.copySessionLink).toHaveBeenCalledWith('session-1')
     expect(
-      createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, null).some(
-        (item) => item.id === 'copy-session-link',
-      ),
+      createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, {
+        sessionId: null,
+        openablePanelIds: new Set(),
+      }).some((item) => item.id === 'copy-session-link'),
     ).toBe(false)
   })
 
-  it('shows no Copy session link chord that an extension panel binding takes', () => {
+  it('shows Copy session link as unassigned only while an openable panel takes its chord', () => {
     const settings = {
       ...DEFAULT_SETTINGS,
       extensionPanelShortcutBindings: {
         'extension:acme:notes': { key: 'L', mod: true, alt: true },
       },
     }
-    const copy = createCoreCommandItems('/repo', settings, actions(), 'session-1').find(
-      (item) => item.id === 'copy-session-link',
-    )
+    const hint = (openablePanelIds: ReadonlySet<string>) =>
+      createCoreCommandItems('/repo', settings, actions(), {
+        sessionId: 'session-1',
+        openablePanelIds,
+      }).find((item) => item.id === 'copy-session-link')?.trailing
 
-    expect(copy?.trailing).toBe(formatShortcutBinding(null))
+    expect(hint(new Set(['extension:acme:notes']))).toBe(formatShortcutBinding(null))
+    // The panel cannot open in this project, so the chord still copies the link.
+    expect(hint(new Set())).toBe(
+      formatShortcutBinding(DEFAULT_SETTINGS.shortcutBindings['session.copyLink']),
+    )
   })
 
   it('offers Session Summary as a view command', () => {
