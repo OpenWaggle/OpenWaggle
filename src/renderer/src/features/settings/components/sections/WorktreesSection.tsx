@@ -29,6 +29,10 @@ type PreparedWorktree = GitWorktreeInfo & {
   readonly generationMismatchMessage?: string
 }
 
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /**
  * A cleanup failure or refusal is shown in full under the row once the list refreshes, which a
  * brief toast cannot do. When the refreshed row has no recovery to show it, the toast says why.
@@ -130,7 +134,7 @@ export function WorktreesSection() {
       } else await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
-      showToast('Could not remove the worktree.', 'error')
+      showToast(`Could not remove the worktree: ${errorText(error)}`, 'error')
       await refresh()
     } finally {
       setRemovingPath(null)

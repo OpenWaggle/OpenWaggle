@@ -224,3 +224,28 @@ it('puts the full reason in the toast when the list cannot show it', async () =>
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
   await waitFor(() => expect(useUIStore.getState().toastMessage).toBe(message))
 })
+
+it('names the reason when removal itself fails', async () => {
+  const { useUIStore } = await import('@/shell/ui-store')
+  const preparation = fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
+  })
+  mocks.manage.mockImplementation(async ({ operation }) =>
+    operation.type === 'retained-preparation'
+      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+      : { type: 'preparation', preparation },
+  )
+  mocks.remove.mockRejectedValue(
+    new Error('Could not check /worktree against its saved preparation: EACCES'),
+  )
+  renderWithQueryClient(<WorktreesSection />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await waitFor(() =>
+    expect(useUIStore.getState().toastMessage).toBe(
+      'Could not remove the worktree: Could not check /worktree against its saved preparation: EACCES',
+    ),
+  )
+})

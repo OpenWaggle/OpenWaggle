@@ -75,11 +75,13 @@ export async function completePreparationBirth(
 
 const logger = createLogger('workspace-preparation')
 
+/** Whether anything is at the path. A looping link on the way there counts as something. */
 async function pathExists(workspacePath: string) {
   try {
     await lstat(workspacePath)
     return true
   } catch (error) {
+    if (isNodeError(error, 'ELOOP')) return true
     if (isEnoent(error) || isNodeError(error, 'ENOTDIR')) return false
     throw error
   }

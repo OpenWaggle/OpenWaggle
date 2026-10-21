@@ -278,3 +278,25 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     }
   },
 )
+
+it.skipIf(process.platform === 'win32')(
+  'reports a worktree behind a looping link as not a folder',
+  async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-loop-'))
+    try {
+      const workspacePath = path.join(root, 'loop', 'worktree')
+      const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+      const { storage, deps } = memoryDeps()
+      await fs.mkdir(workspacePath, { recursive: true })
+      await new ManagedWorkspacePreparation(deps).capture(workspace)
+      const recorded = storage.get(workspace.workspaceId)?.workspaceIdentity
+      await fs.rm(path.join(root, 'loop'), { recursive: true })
+      await fs.symlink(path.join(root, 'loop'), path.join(root, 'loop'))
+      expect(
+        await new ManagedWorkspacePreparation(deps).inspectWorkspaceGeneration(workspace),
+      ).toEqual({ status: 'unreadable', workspacePath, reason: 'not-a-folder', recorded })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  },
+)

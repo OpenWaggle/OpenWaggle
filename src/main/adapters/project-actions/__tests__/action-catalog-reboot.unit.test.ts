@@ -1,6 +1,6 @@
 import { lstat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { action, catalog, installActionCatalogFixture, scope } from './action-catalog.test-harness'
 
 /** The device number the next identity read reports, as after a reboot renumbers the volume. */
@@ -19,6 +19,9 @@ vi.mock('../action-manifest-file', async (importOriginal) => {
 })
 
 installActionCatalogFixture()
+afterEach(() => {
+  reportedDevice.value = null
+})
 
 /** Without birth times the device number is compared by design, so this case does not apply. */
 const recordsBirthTime = (await lstat(tmpdir(), { bigint: true })).birthtimeNs !== 0n
@@ -38,6 +41,5 @@ it.skipIf(!recordsBirthTime)(
         storage: 'local',
       }),
     ).resolves.toMatchObject({ actions: [{ source: 'local', definition: action }] })
-    reportedDevice.value = null
   },
 )
