@@ -48,10 +48,10 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
 it('rejects an old checkout generation before supplying its prepared environment', async () => {
   const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), replaced)
   await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(
-    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC). If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, commit or copy out any changes you want to keep, then delete that folder; when you reopen this Session, choose Recreate worktree or Use current checkout.`,
+    `This worktree no longer matches its saved preparation: ${worktree.workspacePath} is a different folder from the one that was prepared. If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, commit or copy out any changes you want to keep, then delete that folder; when you reopen this Session, choose Recreate worktree or Use current checkout. Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC.`,
   )
   // The log keeps every raw field, device included, so the failing branch is diagnosable.
-  expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {
+  expect(warn).toHaveBeenCalledWith('Worktree failed its saved-preparation check', {
     workspaceId: worktree.workspaceId,
     ...replaced,
   })
@@ -118,10 +118,35 @@ it.each([
   async (check, detail) => {
     const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), check)
     await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).rejects.toThrow(detail)
-    expect(warn).toHaveBeenCalledWith('Worktree does not match its saved preparation', {
+    expect(warn).toHaveBeenCalledWith('Worktree failed its saved-preparation check', {
       workspaceId: worktree.workspaceId,
       ...check,
     })
     expect(fixture.environment).not.toHaveBeenCalled()
   },
 )
+
+it('keeps the recovery advice inside the 600 characters a run error shows', async () => {
+  const longRoot = `/Volumes/Work Drive/${'x'.repeat(64)}`
+  const long: ActionRunWorkspace = {
+    workspaceId: 'worktree-1',
+    projectPath: longRoot,
+    workspacePath: `${longRoot}/.openwaggle/worktrees/${'y'.repeat(64)}/11111111-2222-3333-4444-555555555555`,
+  }
+  // The longest identity text: no birth time, so both devices are shown.
+  const longest: WorkspaceGenerationCheck = {
+    status: 'replaced',
+    workspacePath: long.workspacePath,
+    recorded: { device: '1', inode: '408642463', birthtime: '0' },
+    observed: { device: '2', inode: '408642463', birthtime: '0' },
+  }
+  const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), longest)
+  const failure = await readActionWorkspaceEnvironment(fixture.service, long).catch(
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  )
+  const RUN_ERROR_LIMIT = 600
+  const advice = 'choose Recreate worktree or Use current checkout.'
+  expect(`Error: ${String(failure)}`.indexOf(advice) + advice.length).toBeLessThanOrEqual(
+    RUN_ERROR_LIMIT,
+  )
+})

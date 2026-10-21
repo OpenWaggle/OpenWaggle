@@ -24,7 +24,8 @@ export function listRetainedPreparation(projectPath: string) {
                 return (await stat(workspace.workingPath)).isDirectory()
               } catch (error) {
                 // Not a folder Git could remove, so there is no cleanup recovery to offer.
-                if (isEnoent(error) || isNodeError(error, 'ELOOP')) return false
+                if (isEnoent(error) || isNodeError(error, 'ENOTDIR') || isNodeError(error, 'ELOOP'))
+                  return false
                 throw error
               }
             },

@@ -123,3 +123,23 @@ it.skipIf(process.platform === 'win32')(
     }
   },
 )
+
+it('leaves a worktree whose parent became a file out of the Settings list', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-preparation-notdir-'))
+  try {
+    const workspacePath = path.join(root, 'parent', 'worktree')
+    const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
+    const { deps } = memoryDeps()
+    await fs.mkdir(workspacePath, { recursive: true })
+    const engine = new ManagedWorkspacePreparation(deps)
+    await engine.capture(workspace)
+    await fs.rm(path.join(root, 'parent'), { recursive: true })
+    await fs.writeFile(path.join(root, 'parent'), 'a file where a folder was')
+    expect(await listWith(engine, root, workspace)).toMatchObject({
+      _tag: 'Right',
+      right: { workspaces: [] },
+    })
+  } finally {
+    await fs.rm(root, { recursive: true, force: true })
+  }
+})

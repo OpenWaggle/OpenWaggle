@@ -24,7 +24,7 @@ export function prepareWorkspaceRemoval(
     }
     const generation = yield* preparation.inspectWorkspaceGeneration(workspace)
     if (generation.status !== 'current') {
-      logger.warn('Worktree cleanup refused: it does not match its saved preparation', {
+      logger.warn('Worktree cleanup refused: it failed its saved-preparation check', {
         workspaceId: workspace.workspaceId,
         ...generation,
       })

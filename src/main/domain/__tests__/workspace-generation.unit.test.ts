@@ -49,38 +49,38 @@ describe('durableDirectoryIdentityKey', () => {
 })
 
 describe('describeWorkspaceGenerationMismatch', () => {
-  function replacedProblem(prepared: typeof recorded, found: typeof recorded) {
+  function replacedDetails(prepared: typeof recorded, found: typeof recorded) {
     return describeWorkspaceGenerationMismatch({
       status: 'replaced',
       workspacePath: '/w',
       recorded: prepared,
       observed: found,
-    }).problem
+    }).details
   }
 
   it('shows birth times as dates and leaves the device number to the log', () => {
-    expect(replacedProblem(recorded, { device: '16777233', inode: '500', birthtime: '0' })).toBe(
-      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, unknown creation time, device 16777233)',
+    expect(replacedDetails(recorded, { device: '16777233', inode: '500', birthtime: '0' })).toBe(
+      'Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, unknown creation time, device 16777233.',
     )
   })
 
   it('shows the nanosecond birth times when whole seconds read the same', () => {
-    expect(replacedProblem(recorded, { ...recorded, birthtime: '1792486351612449419' })).toBe(
-      '/w is a different folder from the one that was prepared (prepared: inode 408642463, created 2026-10-20 08:52:31 UTC, birth time 1792486351612449418 ns; found: birth time 1792486351612449419 ns)',
+    expect(replacedDetails(recorded, { ...recorded, birthtime: '1792486351612449419' })).toBe(
+      'Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC, birth time 1792486351612449418 ns; found: inode 408642463, birth time 1792486351612449419 ns.',
     )
   })
 
   it('shows the device number when it is what told the folders apart', () => {
-    expect(replacedProblem(noBirth, { ...noBirth, device: '16777233' })).toBe(
-      '/w is a different folder from the one that was prepared (prepared: inode 408642463, unknown creation time, device 16777230; found: inode 408642463, unknown creation time, device 16777233)',
+    expect(replacedDetails(noBirth, { ...noBirth, device: '16777233' })).toBe(
+      'Prepared: inode 408642463, unknown creation time, device 16777230; found: inode 408642463, unknown creation time, device 16777233.',
     )
   })
 
   it.each(['garbled', '99999999999999999999999'])(
     'shows a stored birth time that is not a usable date (%s) as it is',
     (birthtime) => {
-      expect(replacedProblem({ ...recorded, birthtime }, recorded)).toContain(
-        `prepared: inode 408642463, birth time ${birthtime};`,
+      expect(replacedDetails({ ...recorded, birthtime }, recorded)).toContain(
+        `Prepared: inode 408642463, birth time ${birthtime};`,
       )
     },
   )

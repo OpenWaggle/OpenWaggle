@@ -20,12 +20,13 @@ export async function readPreparedWorkspaceEnvironment(
     if (state) {
       const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
       if (check.status !== 'current') {
-        logger.warn('Worktree does not match its saved preparation', {
+        logger.warn('Worktree failed its saved-preparation check', {
           workspaceId: workspace.workspaceId,
           ...check,
         })
-        const { verdict, problem, recovery } = describeWorkspaceGenerationMismatch(check)
-        throw new Error(`This worktree ${verdict} its saved preparation: ${problem}. ${recovery}`)
+        const { verdict, problem, recovery, details } = describeWorkspaceGenerationMismatch(check)
+        const message = `This worktree ${verdict} its saved preparation: ${problem}. ${recovery}`
+        throw new Error(details ? `${message} ${details}` : message)
       }
     }
   }

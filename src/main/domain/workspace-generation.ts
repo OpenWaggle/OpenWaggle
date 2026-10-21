@@ -91,8 +91,8 @@ function describePair(recorded: WorkspaceDirectoryIdentity, observed: WorkspaceD
   const prepared = describeIdentity(recorded)
   const found = describeIdentity(observed)
   return prepared === found
-    ? `prepared: ${prepared}, birth time ${recorded.birthtime} ns; found: birth time ${observed.birthtime} ns`
-    : `prepared: ${prepared}; found: ${found}`
+    ? `Prepared: ${prepared}, birth time ${recorded.birthtime} ns; found: inode ${observed.inode}, birth time ${observed.birthtime} ns.`
+    : `Prepared: ${prepared}; found: ${found}.`
 }
 
 /**
@@ -104,20 +104,23 @@ const DELETE_AND_RECREATE = `commit or copy out any changes you want to keep, th
 
 /**
  * How a worktree fails its preparation check, in the words of the caller's sentence
- * ("This worktree <verdict> …: <problem>. <recovery>"). Callers with a different remedy, such
- * as worktree removal, leave out `recovery`. The raw identities, device included, go to the
- * Host log rather than the message.
+ * ("This worktree <verdict> …: <problem>. <recovery> <details>"). Callers with a different
+ * remedy, such as worktree removal, replace `recovery`. `details` (the identities) comes last:
+ * run errors are cut at 600 characters, and the advice must survive that. The raw check, device
+ * included, also goes to the Host log.
  */
 export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMismatch): {
   readonly verdict: 'no longer matches' | 'cannot be checked against'
   readonly problem: string
   readonly recovery: string
+  readonly details?: string
 } {
   return matchBy(check, 'status')
     .with('replaced', ({ workspacePath, recorded, observed }) => ({
       verdict: 'no longer matches' as const,
-      problem: `${workspacePath} is a different folder from the one that was prepared (${describePair(recorded, observed)})`,
+      problem: `${workspacePath} is a different folder from the one that was prepared`,
       recovery: `If the original folder still exists somewhere else, put it back at that path in place of this one. Otherwise, ${DELETE_AND_RECREATE}.`,
+      details: describePair(recorded, observed),
     }))
     .with('unreadable', ({ workspacePath, reason }) =>
       reason === 'missing'
@@ -147,6 +150,7 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
 
 /** Why worktree removal will not run a worktree's pinned cleanup; Settings shows the same text. */
 export function describeCleanupBlockedByGeneration(check: WorkspaceGenerationMismatch) {
-  const { verdict, problem } = describeWorkspaceGenerationMismatch(check)
-  return `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`
+  const { verdict, problem, details } = describeWorkspaceGenerationMismatch(check)
+  const message = `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`
+  return details ? `${message} ${details}` : message
 }
