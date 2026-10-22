@@ -20,6 +20,7 @@ export type AgentErrorCode =
   | 'context-overflow'
   | 'runtime-package-manager-unavailable'
   | 'pi-session-file-deleted'
+  | 'worktree-preparation-mismatch'
   | 'unknown'
 
 export interface AgentErrorInfo {

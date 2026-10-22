@@ -149,11 +149,14 @@ export function ChatErrorDisplay({
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
-  const formatDisplayText = useChatDisplayTextFormatter()
+  const formatPaths = useChatDisplayTextFormatter()
 
   if (dismissedError === error.message) return null
 
   const info = resolveErrorInfo(error, sessionId)
+  // This message tells the user which folder to fix; shortening its path would hide that.
+  const formatDisplayText =
+    info.code === 'worktree-preparation-mismatch' ? (text: string) => text : formatPaths
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
   const details = formatErrorDetails(error, info)
   const displayUserMessage = formatDisplayText(info.userMessage)

@@ -9,6 +9,7 @@ import {
   type PendingActionPublication,
   resolveActionCatalog,
 } from '../../domain/project-action-catalog'
+import { durableDirectoryIdentityKey } from '../../domain/workspace-generation'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import {
   actionContentRevision,
@@ -97,7 +98,8 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     stored = await recoverActionPublication(persistence, scope.projectPath, stored)
     const shared = await readActionManifest(scope.workspacePath)
     const revision = actionContentRevision(
-      `${scope.workspacePath}:${JSON.stringify(workspaceIdentity)}:${stored.revision}:${shared.revision}`,
+      // The device number changes across reboots, so the token follows the durable identity.
+      `${scope.workspacePath}:${durableDirectoryIdentityKey(workspaceIdentity)}:${stored.revision}:${shared.revision}`,
     )
     return { stored, shared, revision, workspaceIdentity }
   }

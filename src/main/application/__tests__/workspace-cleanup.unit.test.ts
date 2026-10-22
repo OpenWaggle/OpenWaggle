@@ -2,16 +2,32 @@ import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
+import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
 import { ActionRunService } from '../../ports/action-run-service'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { prepareWorkspaceRemoval } from '../workspace-cleanup'
+
+const warn = vi.hoisted(() => vi.fn())
+vi.mock('../../logger', () => ({
+  createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
+}))
 
 const workspace = {
   workspaceId: 'workspace',
   projectPath: '/repo',
   workspacePath: '/repo/worktree',
 }
-function fixture(status: WorkspacePreparation['cleanup']['status'], currentGeneration = true) {
+const recorded = { device: '16777233', inode: '408642463', birthtime: '1792486351612449418' }
+const replaced: WorkspaceGenerationCheck = {
+  status: 'replaced',
+  workspacePath: '/repo/worktree',
+  recorded,
+  observed: { device: '16777230', inode: '500', birthtime: '1792563460000000000' },
+}
+function fixture(
+  status: WorkspacePreparation['cleanup']['status'],
+  generation: WorkspaceGenerationCheck = { status: 'current' },
+) {
   const state = fromPartial<WorkspacePreparation>({
     workspaceId: workspace.workspaceId,
     revision: 4,
@@ -38,7 +54,7 @@ function fixture(status: WorkspacePreparation['cleanup']['status'], currentGener
           WorkspacePreparationService,
           fromPartial({
             read: () => Effect.succeed(state),
-            isCurrentWorkspaceGeneration: () => Effect.succeed(currentGeneration),
+            inspectWorkspaceGeneration: () => Effect.succeed(generation),
             run,
             skip,
           }),
@@ -81,19 +97,25 @@ describe('workspace cleanup removal boundary', () => {
     expect(await test.perform({ retryFailed: true })).toBeNull()
   })
   it('never runs retained cleanup in a replacement checkout at the same path', async () => {
-    const test = fixture('failed', false)
+    const test = fixture('failed', replaced)
     expect(await test.perform({ retryFailed: true })).toMatchObject({
       ok: false,
       code: 'cleanup-failed',
-      message: expect.stringContaining('no longer matches'),
+      message: expect.stringContaining(
+        'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup. Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC.',
+      ),
     })
+    expect(warn).toHaveBeenCalledWith(
+      'Worktree cleanup refused: it failed its saved-preparation check',
+      { workspaceId: workspace.workspaceId, ...replaced },
+    )
     expect(test.run).not.toHaveBeenCalled()
     expect(test.skip).not.toHaveBeenCalled()
     expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
     expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
   })
   it('still offers explicit Delete anyway when old cleanup had succeeded', async () => {
-    const test = fixture('succeeded', false)
+    const test = fixture('succeeded', replaced)
     expect(await test.perform({ retryFailed: true })).toMatchObject({
       ok: false,
       code: 'cleanup-failed',
@@ -103,4 +125,29 @@ describe('workspace cleanup removal boundary', () => {
     expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
     expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
   })
+  it.each([
+    [
+      { status: 'unrecorded', workspacePath: '/repo/worktree' },
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /repo/worktree. Its pinned cleanup cannot run here.',
+    ],
+    [
+      { status: 'awaiting-birth', workspacePath: '/repo/worktree' },
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation was reset for a new worktree and has not recorded /repo/worktree yet.',
+    ],
+    [
+      { status: 'unreadable', workspacePath: '/repo/worktree', reason: 'not-a-folder', recorded },
+      'This worktree no longer matches the checkout that captured its preparation: /repo/worktree is not a plain folder. Its pinned cleanup cannot run here.',
+    ],
+  ] satisfies [WorkspaceGenerationCheck, string][])(
+    'refuses cleanup and names the %o check',
+    async (generation, message) => {
+      const test = fixture('idle', generation)
+      expect(await test.perform({ retryFailed: true })).toMatchObject({
+        ok: false,
+        code: 'cleanup-failed',
+        message: expect.stringContaining(message),
+      })
+      expect(test.run).not.toHaveBeenCalled()
+    },
+  )
 })

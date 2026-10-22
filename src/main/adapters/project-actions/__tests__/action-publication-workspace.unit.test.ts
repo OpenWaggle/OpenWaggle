@@ -70,6 +70,31 @@ describe('publication workspace identity', () => {
     )
   })
 
+  it('resumes a journal after a reboot renumbers the volume device', async () => {
+    const workspacePath = await interruptPublication()
+    const stored = rows.get(projectPath)
+    const pending = stored?.state.pending
+    if (!stored || !pending?.publication || !pending.workspaceIdentity)
+      throw new Error('missing publication journal')
+    // macOS renumbers APFS volumes at mount, so st_dev journaled before a reboot differs.
+    rows.set(projectPath, {
+      ...stored,
+      state: {
+        ...stored.state,
+        pending: {
+          ...pending,
+          publication: { ...pending.publication, device: '999999999' },
+          workspaceIdentity: { ...pending.workspaceIdentity, device: '999999999' },
+        },
+      },
+    })
+    await createActionCatalog(persistence).read(scope())
+    expect(rows.get(projectPath)?.state.pending).toBeNull()
+    expect(await readFile(join(workspacePath, '.openwaggle/actions.json'), 'utf8')).toContain(
+      'pnpm test',
+    )
+  })
+
   it('keeps a missing workspace absent and exposes its drafts through the project catalog', async () => {
     const workspacePath = await interruptPublication()
     await rm(workspacePath, { recursive: true })

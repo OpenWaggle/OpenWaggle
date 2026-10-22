@@ -40,6 +40,20 @@ For a new session whose worktree creation failed, open **More details** on the *
 
 These actions change where the session runs; database restoration does not recover deleted working files. See [Missing-worktree recovery](/docs/developer-workflow/git-integration#recovering-a-missing-worktree).
 
+## A worktree no longer matches its saved preparation
+
+Each managed worktree records which folder it was prepared in. If a different folder is at that path now, new messages and project actions in the session fail with "This worktree no longer matches its saved preparation". The message gives the path and, when a different folder is there, the inode and creation time of both folders.
+
+OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you restarted a Mac, although nothing had changed. If you see it right after a restart, update to a version newer than 1.0.0-beta.21 and try again before you delete anything. If you haven't moved or replaced the folder and no newer version is available yet, leave it in place: the worktree has not changed.
+
+1. If the original folder still exists somewhere else, put it back at that path in place of the folder there now. Then send your message again.
+2. Otherwise, commit or copy out any changes you want to keep from the folder at that path, and delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
+3. Reopen the session and choose **Recreate worktree** or **Use current checkout**, as for a missing worktree.
+
+"This worktree cannot be checked against its saved preparation" has two causes. If the message says the folder could not be read, fix the permissions of that folder or the folders above it and send your message again; don't delete it. Otherwise the preparation never recorded this folder: follow steps 2 and 3.
+
+For a worktree that no session uses any more, **Settings > Worktrees** explains why its cleanup cannot run and offers **Delete anyway**. For a session's own worktree, follow the steps above.
+
 ## Work continues after closing the app
 
 Closing or restarting the desktop window does not cancel active agent work. OpenWaggle's background session service keeps it running. Reopen the app and select the session to check its progress.

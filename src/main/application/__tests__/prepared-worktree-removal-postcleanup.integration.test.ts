@@ -96,7 +96,7 @@ it('retains a worktree when Cleanup creates an untracked file after Git prefligh
             WorkspacePreparationService,
             fromPartial<WorkspacePreparationService['Type']>({
               read: () => Effect.succeed(state),
-              isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+              inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
               run: () =>
                 Effect.promise(async () => {
                   await writeFile(marker, 'created during cleanup\n')
@@ -196,7 +196,7 @@ it('force removes an idle-preparation worktree without executing Cleanup', async
             WorkspacePreparationService,
             fromPartial<WorkspacePreparationService['Type']>({
               read: () => Effect.succeed(state),
-              isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+              inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
               run,
               skip,
             }),
