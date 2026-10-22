@@ -334,6 +334,33 @@ install_cli_shim_atomically() {
 }
 # END TESTABLE CLI TARGET GUARD
 
+# BEGIN TESTABLE LINUX DESKTOP ENTRY
+# The desktop entry also claims Session links (openwaggle://sessions/<id>, ADR 0056): the
+# AppImage's own entry, where electron-builder declares the scheme, is never integrated. Making
+# OpenWaggle the default handler is best effort; a desktop without xdg-utils still gets the entry.
+write_linux_desktop_entry() {
+  local desktop_dir="$1"
+  local appimage_path="$2"
+  mkdir -p "${desktop_dir}"
+  cat > "${desktop_dir}/openwaggle.desktop" <<DESKTOP
+[Desktop Entry]
+Name=OpenWaggle
+Comment=Desktop coding agent with multi-model support
+Exec=${appimage_path} %U
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+MimeType=x-scheme-handler/openwaggle;
+DESKTOP
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "${desktop_dir}" >/dev/null 2>&1 || true
+  fi
+  if command -v xdg-mime >/dev/null 2>&1; then
+    xdg-mime default openwaggle.desktop x-scheme-handler/openwaggle >/dev/null 2>&1 || true
+  fi
+}
+# END TESTABLE LINUX DESKTOP ENTRY
+
 # BEGIN TESTABLE LAUNCH POLICY
 # Prints why the installer must not open the app, or nothing when it may.
 launch_skip_reason() {
@@ -686,17 +713,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   install_cli_shim_atomically "${SHIM_TEMP_PATH}" "${INSTALL_PATH}" "linux" "${DESKTOP_PATH}" || \
     error "Could not replace ${INSTALL_PATH} safely; no unrecognized target was overwritten"
 
-  # Create .desktop entry
-  mkdir -p "${DESKTOP_DIR}"
-  cat > "${DESKTOP_PATH}" <<DESKTOP
-[Desktop Entry]
-Name=OpenWaggle
-Comment=Desktop coding agent with multi-model support
-Exec=${APPIMAGE_PATH} %U
-Terminal=false
-Type=Application
-Categories=Development;IDE;
-DESKTOP
+  write_linux_desktop_entry "${DESKTOP_DIR}" "${APPIMAGE_PATH}"
 
   info "Installed app to ${APPIMAGE_PATH}"
   info "Installed CLI to ${INSTALL_PATH}"

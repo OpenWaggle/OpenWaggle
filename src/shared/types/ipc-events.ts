@@ -115,6 +115,10 @@ export interface IpcEventChannelMap {
   'app:open-project-requested': {
     payload: null
   }
+  /** A Session link was opened; take it with `app:take-open-session-link-request` (ADR 0056). */
+  'app:open-session-link-requested': {
+    payload: null
+  }
   'auth:oauth-status': {
     payload: OAuthFlowStatus
   }

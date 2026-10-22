@@ -278,6 +278,10 @@ _Avoid_: wait, tailing session files
 The short, stable recognition label a person uses to find a Session again, set near its start and changed afterwards only by an explicit user rename or **Title regeneration**.
 _Avoid_: topic summary, live summary, first prompt, session name (Pi's term for the same field)
 
+**Session link**:
+A shareable link that names one Session by its stable identity, so a person can open that Session in OpenWaggle and another Session's agent can address it.
+_Avoid_: session ID copy, thread link, chat deep link, session URL
+
 **Provisional title**:
 The trimmed first message, or a Worker's trimmed Delegation objective, shown as a **Session title** until a generated one replaces it, and kept when generation is unavailable or fails.
 _Avoid_: title seed, fallback title, default title (that is "New session")
@@ -1846,6 +1850,8 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Session-list and **Session discovery** cursors remain deterministic when sessions share the same update time or search rank.
 - Matching Codex, the **Hive CLI** defaults list, search, and interactive selection to **Session catalog scope** `working-path`; `--project` includes every Workspace in the resolved repository project, and `--all` selects the complete authorized catalog.
 - An explicit stable Session identity addresses that Session directly regardless of the caller's default **Session catalog scope**, while normal authorization and discoverability checks still apply.
+- A **Session link** addresses its Session wherever a stable Session identity does, with the same authorization and discoverability checks.
+- Opening a **Session link** only shows its Session: an archived Session opens with its archived notice and stays archived, an unknown one is reported as not found, and opening never starts a Run or changes the Session (ADR 0056).
 - The internal **Hive tool** requires an explicit **Session catalog scope** for discovery beyond the current session's Working path, preventing model-generated searches from broadening silently while still permitting authorized all-session retrieval.
 - The **Local Session transport** uses an authenticated Unix-domain socket or Windows named pipe with request-response commands, subscriptions, version negotiation, canonical snapshots, and bounded **Session event cursors**.
 - The Electron main process projects **Session Host** events to renderer IPC so CLI and agent actions update every open window live.

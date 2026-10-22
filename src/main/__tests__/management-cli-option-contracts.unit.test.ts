@@ -29,6 +29,25 @@ describe('management CLI option contracts', () => {
     ).toMatchObject({ scope: { projectPaths: ['/repo/project'] } })
   })
 
+  it('scopes an Access profile to Sessions and Hives named by Session links', () => {
+    expect(
+      parseProfileScope(
+        argumentsFor([
+          '--session',
+          'openwaggle://sessions/session-1',
+          '--session',
+          'session-1',
+          '--hive',
+          'openwaggle://sessions/queen-1',
+        ]),
+        '/repo/project',
+      ),
+    ).toEqual({ sessionIds: ['session-1'], hiveRootSessionIds: ['queen-1'] })
+    expect(() =>
+      parseProfileScope(argumentsFor(['--session', 'openwaggle://app/']), '/repo/project'),
+    ).toThrow('--session is not a Session link')
+  })
+
   it('strictly decodes management envelopes before resolving their project paths', () => {
     const envelope = (value: unknown) =>
       parseManagementEnvelope(

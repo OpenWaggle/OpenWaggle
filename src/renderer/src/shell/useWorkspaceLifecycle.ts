@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { ExtensionPanelShortcutBindings } from '@shared/types/shortcuts'
+import type { ExtensionPanelShortcutBindings, ShortcutRules } from '@shared/types/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
@@ -12,11 +12,13 @@ import {
   useSessionHiveInvalidation,
   useSessionResourceInvalidation,
 } from '@/features/session-summary'
+import { copySessionLink } from '@/features/sessions/commands'
 import {
   useProject,
   useSessionProjectPath,
   useSessionStatusMonitor,
   useSessions,
+  useViewedSessionId,
 } from '@/features/sessions/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -102,6 +104,22 @@ function useAvailableExtensionPanelShortcuts(projectPath: string | null, session
   )
 }
 
+/**
+ * Without a shown Session there is no link to copy, so its rule is left out: the chord then
+ * reaches the focused field, including a page in the browser preview, which only claims the
+ * chords these rules register. A stable list keeps the preview bindings from being re-sent.
+ */
+function useActiveShortcutRules(shortcutRules: ShortcutRules, viewedSessionId: string | null) {
+  const hasViewedSession = viewedSessionId !== null
+  return useMemo(
+    () =>
+      hasViewedSession
+        ? shortcutRules
+        : shortcutRules.filter((rule) => rule.command !== 'session.copyLink'),
+    [hasViewedSession, shortcutRules],
+  )
+}
+
 function previewShortcutHandlers(
   ownerKey: string,
   showToast: (message: string, type: 'error') => void,
@@ -162,6 +180,8 @@ export function useWorkspaceLifecycle(): void {
   const shortcutRules = usePreferencesStore((s) => s.settings.shortcutRules)
   const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
+  const viewedSessionId = useViewedSessionId()
+  const activeShortcutRules = useActiveShortcutRules(shortcutRules, viewedSessionId)
   function startDraftSessionRoute() {
     closeCommandSurface()
     startDraftSession(projectPath)
@@ -221,7 +241,7 @@ export function useWorkspaceLifecycle(): void {
   )
   useUnifiedShortcutCapture({
     actions: projectActions,
-    builtInRules: shortcutRules,
+    builtInRules: activeShortcutRules,
     extensionPanels,
     handlers: {
       'commandPalette.toggle': () =>
@@ -244,6 +264,9 @@ export function useWorkspaceLifecycle(): void {
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
       'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
       'request.focus': focusPendingRequest,
+      'session.copyLink': () => {
+        if (viewedSessionId) copySessionLink(viewedSessionId)
+      },
     },
     onRunProjectAction: (action) => void runProjectAction(action),
     onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),

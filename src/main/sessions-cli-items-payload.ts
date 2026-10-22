@@ -5,10 +5,10 @@ import {
   SESSION_QUERY_DISCOVERY_LIMIT,
 } from '@shared/types/session-query'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
-import { nonNegativeInteger, positiveInteger, required } from './sessions-cli-arguments'
+import { nonNegativeInteger, positiveInteger, requiredSessionId } from './sessions-cli-arguments'
 
 export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
-  const sessionId = required(arguments_.positionals[0], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   const branchScope = option(arguments_, 'scope') ?? 'active-branch'
   if (branchScope !== 'active-branch' && branchScope !== 'tree') {
     throw new Error('--scope must be active-branch or tree.')

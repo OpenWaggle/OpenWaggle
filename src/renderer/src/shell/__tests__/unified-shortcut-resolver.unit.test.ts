@@ -1,6 +1,6 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
-import type { ShortcutRule } from '@shared/types/shortcuts'
+import { DEFAULT_SHORTCUT_RULES, type ShortcutRule } from '@shared/types/shortcuts'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveUnifiedShortcut } from '../unified-shortcut-resolver'
 
@@ -101,5 +101,48 @@ describe('unified shortcut resolution', () => {
         panels,
       ),
     ).toBeNull()
+  })
+
+  it('lets a panel the user bound keep its chord when a later default reuses it', () => {
+    const surfaceId = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
+    const panels = [{ surfaceId, shortcut: { key: 'L', mod: true, alt: true } }]
+    const event = { ...EVENT, key: 'l', code: 'KeyL', altKey: true }
+
+    expect(
+      resolveUnifiedShortcut(event, DEFAULT_SHORTCUT_RULES, [], false, () => CONTEXT, panels),
+    ).toEqual({ kind: 'extension-panel', surfaceId })
+    // A rule the user saved still wins over the panel.
+    expect(
+      resolveUnifiedShortcut(
+        event,
+        [{ command: 'sidebar.toggle', shortcut: { key: 'L', mod: true, alt: true } }],
+        [],
+        false,
+        () => CONTEXT,
+        panels,
+      ),
+    ).toMatchObject({ kind: 'builtin' })
+    expect(
+      resolveUnifiedShortcut(event, DEFAULT_SHORTCUT_RULES, [], false, () => CONTEXT),
+    ).toMatchObject({ kind: 'builtin', rule: { command: 'session.copyLink' } })
+  })
+
+  it('keeps a preview default over a panel that was saved on the same chord on purpose', () => {
+    const surfaceId = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
+    const panels = [{ surfaceId, shortcut: { key: 'R', mod: true } }]
+
+    expect(
+      resolveUnifiedShortcut(
+        EVENT,
+        DEFAULT_SHORTCUT_RULES,
+        [],
+        false,
+        () => ({ ...CONTEXT, previewFocus: true, previewOpen: true }),
+        panels,
+      ),
+    ).toMatchObject({ kind: 'builtin', rule: { command: 'preview.refresh' } })
+    expect(
+      resolveUnifiedShortcut(EVENT, DEFAULT_SHORTCUT_RULES, [], false, () => CONTEXT, panels),
+    ).toEqual({ kind: 'extension-panel', surfaceId })
   })
 })

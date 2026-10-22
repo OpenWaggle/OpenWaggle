@@ -32,6 +32,8 @@ export const DEFAULT_SHORTCUT_BINDINGS = {
   'rightPanel.files': null,
   'rightPanel.resources': null,
   'rightPanel.hive': null,
+  // Codex's Copy chat deep link chord. It works in a focused terminal too, as Codex binds it.
+  'session.copyLink': { key: 'L', mod: true, alt: true },
 } satisfies ShortcutBindings
 
 /** T3's relevant defaults in the same precedence order, followed by OpenWaggle-only commands. */
@@ -74,4 +76,5 @@ export const DEFAULT_SHORTCUT_RULES: ShortcutRules = [
     when: '!terminalFocus',
   },
   { command: 'request.focus', shortcut: { key: 'A', mod: true, shift: true } },
+  { command: 'session.copyLink', shortcut: { key: 'L', mod: true, alt: true } },
 ]

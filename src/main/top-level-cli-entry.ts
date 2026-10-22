@@ -20,7 +20,11 @@ const SUCCESS_EXIT = SESSION_CLI_EXIT.SUCCESS
 
 export type TopLevelCliLaunch =
   | { readonly kind: 'handled' }
-  | { readonly kind: 'gui'; readonly openProjectPath?: string }
+  | {
+      readonly kind: 'gui'
+      readonly openProjectPath?: string
+      readonly openSessionLink?: string
+    }
 
 function pathKind(absolutePath: string): CliPathKind {
   try {
@@ -151,7 +155,7 @@ export function startTopLevelCli(
   platform: NodeJS.Platform = process.platform,
 ): TopLevelCliLaunch {
   const route = routeTopLevelCli(argv, environment)
-  if (route.kind !== 'gui' && route.kind !== 'open-project') {
+  if (route.kind !== 'gui' && route.kind !== 'open-project' && route.kind !== 'open-session-link') {
     hideFromDock(platform)
     ignoreOutputStreamErrors()
   }
@@ -164,6 +168,10 @@ export function startTopLevelCli(
         kind: 'gui',
         openProjectPath: route.projectPath,
       }),
+    )
+    .with(
+      'open-session-link',
+      (route): TopLevelCliLaunch => ({ kind: 'gui', openSessionLink: route.link }),
     )
     .with('help', () => {
       writeAndExit(() => writeCliStdout(`${topLevelCliUsage(app.getVersion())}\n`), SUCCESS_EXIT)

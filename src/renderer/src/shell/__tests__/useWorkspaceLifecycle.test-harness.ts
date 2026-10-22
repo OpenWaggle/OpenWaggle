@@ -26,6 +26,9 @@ interface WorkspaceLifecycleMocks {
   readonly runProjectActionProject: Mock
   workingPath: string
   activeSessionId: string
+  /** The Session the route shows; null on a draft or Settings. */
+  viewedSessionId: string | null
+  readonly copySessionLink: Mock
   extensionRegistry: ExtensionContributionRegistryView | null
   readonly loadChatSessions: Mock
   readonly startDraftSession: Mock
@@ -69,6 +72,8 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
     runProjectActionProject: vi.fn(),
     workingPath: '/repo/.worktrees/session-1',
     activeSessionId: 'session-1',
+    viewedSessionId: 'session-1',
+    copySessionLink: vi.fn(),
     extensionRegistry: null,
     loadChatSessions: vi.fn().mockResolvedValue(undefined),
     startDraftSession: vi.fn(),
@@ -179,6 +184,7 @@ vi.mock('@/features/git/hooks', () => ({
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
   useSessionProjectPath: () => lifecycleMocks.sessionProjectPath,
+  useViewedSessionId: () => lifecycleMocks.viewedSessionId,
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
     refreshCatalogSessions: lifecycleMocks.refreshCatalogSessions,
@@ -197,6 +203,10 @@ vi.mock('@/features/project-actions', () => ({
     lifecycleMocks.runProjectActionProject(projectPath)
     return vi.fn()
   },
+}))
+
+vi.mock('@/features/sessions/commands', () => ({
+  copySessionLink: lifecycleMocks.copySessionLink,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -271,6 +281,8 @@ export function resetWorkspaceLifecycleMocks() {
   lifecycleMocks.runProjectActionProject.mockClear()
   lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
   lifecycleMocks.activeSessionId = 'session-1'
+  lifecycleMocks.viewedSessionId = 'session-1'
+  lifecycleMocks.copySessionLink.mockClear()
   lifecycleMocks.extensionRegistry = null
   useSyntaxThemeCatalogStore.setState({ load: lifecycleMocks.loadSyntaxResources })
 }

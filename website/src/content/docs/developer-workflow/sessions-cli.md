@@ -26,7 +26,7 @@ openwaggle sessions status <session-id>
 openwaggle sessions follow-up <session-id> --text "Summarize the remaining work. Do not edit files."
 ```
 
-Replace `<session-id>` with an ID returned by `list`. The first three commands inspect state. The last sends a new task: it starts when the session is idle or waits behind its active run. Inspect the target before sending messages, since they can cause the agent to use tools.
+Replace `<session-id>` with an ID returned by `list`, or with a session link copied from the desktop app (`openwaggle://sessions/<session-id>`). Every session ID operand accepts either form, and so do `--target` and `--worker` on `report`, the `delegations` filters `--parent` and `--worker`, and the `access` scopes `--session` and `--hive`. The first three commands inspect state. The last sends a new task: it starts when the session is idle or waits behind its active run. Inspect the target before sending messages, since they can cause the agent to use tools.
 
 Use [Create and communicate](#create-and-communicate) to start a new session. For independent Workers and shared-workspace risks, read [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
 

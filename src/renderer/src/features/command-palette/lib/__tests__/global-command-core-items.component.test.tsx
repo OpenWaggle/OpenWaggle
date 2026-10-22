@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { describe, expect, it, vi } from 'vitest'
+import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import {
   type CoreCommandActions,
   createCoreCommandItems,
@@ -10,6 +11,7 @@ import {
 function actions(): CoreCommandActions {
   return {
     compactSession: vi.fn().mockResolvedValue(undefined),
+    copySessionLink: vi.fn(),
     finish: (action) => action(),
     navigateTo: vi.fn(),
     newSession: vi.fn(),
@@ -42,6 +44,48 @@ describe('global command core items', () => {
     expect(compact?.label).toBe('Compact session')
     compact?.action()
     expect(commandActions.compactSession).toHaveBeenCalledOnce()
+  })
+
+  it('offers the open Session link with its shortcut, and nothing without a Session', () => {
+    const commandActions = actions()
+    const copy = createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, {
+      sessionId: 'session-1',
+      openablePanelIds: new Set(),
+    }).find((item) => item.id === 'copy-session-link')
+
+    expect(copy?.label).toBe('Copy session link')
+    expect(copy?.trailing).toBe(
+      formatShortcutBinding(DEFAULT_SETTINGS.shortcutBindings['session.copyLink']),
+    )
+    expect(copy?.trailing).not.toBe('')
+    copy?.action()
+    expect(commandActions.copySessionLink).toHaveBeenCalledWith('session-1')
+    expect(
+      createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions, {
+        sessionId: null,
+        openablePanelIds: new Set(),
+      }).some((item) => item.id === 'copy-session-link'),
+    ).toBe(false)
+  })
+
+  it('shows Copy session link as unassigned only while an openable panel takes its chord', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      extensionPanelShortcutBindings: {
+        'extension:acme:notes': { key: 'L', mod: true, alt: true },
+      },
+    }
+    const hint = (openablePanelIds: ReadonlySet<string>) =>
+      createCoreCommandItems('/repo', settings, actions(), {
+        sessionId: 'session-1',
+        openablePanelIds,
+      }).find((item) => item.id === 'copy-session-link')?.trailing
+
+    expect(hint(new Set(['extension:acme:notes']))).toBe(formatShortcutBinding(null))
+    // The panel cannot open in this project, so the chord still copies the link.
+    expect(hint(new Set())).toBe(
+      formatShortcutBinding(DEFAULT_SETTINGS.shortcutBindings['session.copyLink']),
+    )
   })
 
   it('offers Session Summary as a view command', () => {

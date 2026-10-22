@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
 import type { Settings } from '@shared/types/settings'
+import { shortcutBindingKey } from '@shared/types/shortcuts'
 import {
   Archive,
   Command,
@@ -8,6 +9,7 @@ import {
   FolderOpen,
   GitFork,
   LayoutList,
+  Link,
   MessageSquarePlus,
   PackageOpen,
   PanelLeft,
@@ -23,6 +25,7 @@ const RECENT_SESSION_LIMIT = 12
 
 export interface CoreCommandActions {
   readonly compactSession: () => Promise<void>
+  readonly copySessionLink: (sessionId: string) => void
   readonly finish: (action: () => void) => void
   readonly newSession: (path: string | null) => void
   readonly openBuiltInPanel: (panel: 'diff' | 'session-tree') => void
@@ -91,6 +94,52 @@ function createProjectItems(
       icon: <FolderOpen className="size-3.5" />,
       section: 'Project',
       action: () => void actions.selectProject('open'),
+    },
+  ]
+}
+
+/** The shown Session, and the extension panels that can open here and so own their chords. */
+export interface SessionLinkCommandContext {
+  readonly sessionId: string | null
+  readonly openablePanelIds: ReadonlySet<string>
+}
+
+const NO_SESSION_LINK: SessionLinkCommandContext = { sessionId: null, openablePanelIds: new Set() }
+
+/**
+ * The Copy session link chord, unless an extension panel that can open here is bound to the same
+ * chord: a default yields to such a panel (`unified-shortcut-resolver`), so showing it would
+ * mislead. A panel that cannot open here leaves the chord to the default.
+ */
+function copySessionLinkHint(settings: Settings, openablePanelIds: ReadonlySet<string>) {
+  const binding = settings.shortcutBindings['session.copyLink']
+  const takenByPanel =
+    binding !== null &&
+    Object.entries(settings.extensionPanelShortcutBindings).some(
+      ([surfaceId, panel]) =>
+        openablePanelIds.has(surfaceId) &&
+        shortcutBindingKey(panel) === shortcutBindingKey(binding),
+    )
+  return formatShortcutBinding(takenByPanel ? null : binding)
+}
+
+/** Only a Session that exists has a link; a new-session draft has none yet (ADR 0056). */
+function createSessionLinkItems(
+  context: SessionLinkCommandContext,
+  settings: Settings,
+  actions: CoreCommandActions,
+): CommandPaletteItem[] {
+  const { sessionId } = context
+  if (sessionId === null) return []
+  return [
+    {
+      id: 'copy-session-link',
+      label: 'Copy session link',
+      description: 'Reference this session from another session, the CLI, or a note',
+      icon: <Link className="size-3.5" />,
+      section: 'Session',
+      trailing: copySessionLinkHint(settings, context.openablePanelIds),
+      action: () => actions.finish(() => actions.copySessionLink(sessionId)),
     },
   ]
 }
@@ -190,10 +239,12 @@ export function createCoreCommandItems(
   projectPath: string | null,
   settings: Settings,
   actions: CoreCommandActions,
+  sessionLink: SessionLinkCommandContext = NO_SESSION_LINK,
 ) {
   return [
     ...createProjectItems(projectPath, settings, actions),
     ...createSessionItems(actions),
+    ...createSessionLinkItems(sessionLink, settings, actions),
     ...createViewAndOpenItems(settings, actions),
   ]
 }

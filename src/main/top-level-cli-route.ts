@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { routeSessionLinkLaunch, type SessionLinkLaunchRoute } from './top-level-cli-session-link'
 
 /** Command groups owned by an existing `*-cli-entry.ts` module. */
 const TOP_LEVEL_CLI_GROUPS = [
@@ -80,6 +81,7 @@ export interface TopLevelCliEnvironment {
 export type TopLevelCliRoute =
   | { readonly kind: 'gui' }
   | { readonly kind: 'open-project'; readonly projectPath: string }
+  | SessionLinkLaunchRoute
   | { readonly kind: 'delegate'; readonly argv: readonly string[] }
   | { readonly kind: 'help' }
   | { readonly kind: 'version' }
@@ -323,5 +325,5 @@ export function routeTopLevelCli(
       : { kind: 'usage-error', message: `${first} does not accept arguments.` }
   }
   if (first.startsWith('-')) return routeOption(first, argv, environment)
-  return routeWord(first, argv, environment)
+  return routeSessionLinkLaunch(argv) ?? routeWord(first, argv, environment)
 }

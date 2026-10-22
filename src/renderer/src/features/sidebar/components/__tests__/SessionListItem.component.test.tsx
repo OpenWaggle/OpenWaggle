@@ -3,14 +3,17 @@ import type { SessionSummary } from '@shared/types/session'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
+import { useUIStore } from '@/shell/ui-store'
 import { SessionListItem, type SessionRowHighlight } from '../SessionListItem'
 
-const { showConfirmMock } = vi.hoisted(() => ({
+const { copyToClipboardMock, showConfirmMock } = vi.hoisted(() => ({
+  copyToClipboardMock: vi.fn(),
   showConfirmMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    copyToClipboard: copyToClipboardMock,
     showConfirm: showConfirmMock,
   },
 }))
@@ -69,6 +72,7 @@ function renderSessionItem(options?: { readonly highlight?: SessionRowHighlight 
 function expectFullSessionActionMenu() {
   expect(screen.getByText('Mark as unread')).toBeInTheDocument()
   expect(screen.getByText('Clone to new session')).toBeInTheDocument()
+  expect(screen.getByText('Copy session link')).toBeInTheDocument()
   expect(screen.getByText('Archive session')).toBeInTheDocument()
   expect(screen.getByText('Delete session')).toBeInTheDocument()
 }
@@ -171,5 +175,19 @@ describe('SessionListItem', () => {
     fireEvent.click(screen.getByText('Archive session'))
 
     expect(callbacks.onArchive).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('copies the Session link, closes the menu, and confirms the copy', () => {
+    renderSessionItem()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Target session' }))
+    fireEvent.click(screen.getByText('Copy session link'))
+
+    expect(copyToClipboardMock).toHaveBeenCalledWith('openwaggle://sessions/session-1')
+    expect(screen.queryByText('Copy session link')).not.toBeInTheDocument()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Session link copied: openwaggle://sessions/session-1',
+      variant: 'success',
+    })
   })
 })

@@ -22,6 +22,7 @@ import {
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
 } from './keys'
 
 type ShortcutBindingsPatch = Readonly<Partial<Record<ShortcutCommand, ShortcutBinding | null>>>
@@ -67,7 +68,21 @@ function migratePersistedSettingsForValidation(storedSettings: Readonly<Record<s
   return migrated
 }
 
-function validateLegacyShortcutBindings(patch: ShortcutBindingsPatch) {
+/** Commands a saved bindings record predates; their defaults are filled in before decoding. */
+function commandsAddedSince(storedBindings: unknown) {
+  if (!isObjectRecord(storedBindings)) return new Set<ShortcutCommand>()
+  return new Set(SHORTCUT_COMMANDS.filter((command) => !Object.hasOwn(storedBindings, command)))
+}
+
+/**
+ * A command added in a later release takes its default chord. When the user had already given
+ * that chord to another command, the saved binding stays and the new command is left unassigned
+ * (`dropAddedDefaultsTakenByTheUser`), so this is not a corrupt record.
+ */
+function validateLegacyShortcutBindings(
+  patch: ShortcutBindingsPatch,
+  addedCommands: ReadonlySet<ShortcutCommand>,
+) {
   const candidate: Record<ShortcutCommand, ShortcutBinding | null> = {
     ...DEFAULT_SHORTCUT_BINDINGS,
   }
@@ -87,6 +102,7 @@ function validateLegacyShortcutBindings(patch: ShortcutBindingsPatch) {
 
     const key = shortcutBindingKey(binding)
     const owner = owners.get(key)?.find((existing) => shortcutScopesOverlap(command, existing))
+    if (owner !== undefined && (addedCommands.has(command) || addedCommands.has(owner))) continue
     if (owner !== undefined) return `Shortcut ${key} is already assigned to ${owner}.`
     owners.set(key, [...(owners.get(key) ?? []), command])
   }
@@ -124,8 +140,16 @@ export function validatePersistedSettings(storedSettings: Readonly<Record<string
     })
   }
 
-  if (decoded.data.shortcutBindings !== undefined) {
-    const issue = validateLegacyShortcutBindings(decoded.data.shortcutBindings)
+  // With saved rules, the bindings record is only their lossy one-binding view: rules may share a
+  // chord (the newest wins), so the record can too. Only a record without rules is the source.
+  if (
+    decoded.data.shortcutBindings !== undefined &&
+    !Object.hasOwn(storedSettings, SETTINGS_KEY_SHORTCUT_RULES)
+  ) {
+    const issue = validateLegacyShortcutBindings(
+      decoded.data.shortcutBindings,
+      commandsAddedSince(storedSettings[SETTINGS_KEY_SHORTCUT_BINDINGS]),
+    )
     if (issue !== null) {
       throw new SettingsStoreReadError({ operation: 'decode', message: issue })
     }

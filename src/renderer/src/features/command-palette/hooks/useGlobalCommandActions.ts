@@ -2,7 +2,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { useChat } from '@/features/chat/hooks'
 import { isSessionModelActionable } from '@/features/chat/lib'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
-import { useProject, useSessions } from '@/features/sessions/hooks'
+import { copySessionLink } from '@/features/sessions/commands'
+import { useProject, useSessions, useViewedSessionId } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useTerminalCommands } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
@@ -43,6 +44,7 @@ export function useGlobalCommandActions() {
   const settings = usePreferencesStore((state) => state.settings)
   const sessionModel = activeSession?.executionModel
   const sessionId = activeSessionId ? String(activeSessionId) : null
+  const viewedSessionId = useViewedSessionId()
 
   function finish(action: () => void) {
     close()
@@ -152,6 +154,7 @@ export function useGlobalCommandActions() {
 
   const actions: CoreCommandActions = {
     compactSession,
+    copySessionLink,
     finish,
     navigateTo,
     newSession,
@@ -172,5 +175,5 @@ export function useGlobalCommandActions() {
     toggleSidePanelMaximized,
     closeActiveTerminal,
   }
-  return { actions, close, projectPath, sessionId, sessions, settings }
+  return { actions, close, projectPath, sessionId, sessions, settings, viewedSessionId }
 }

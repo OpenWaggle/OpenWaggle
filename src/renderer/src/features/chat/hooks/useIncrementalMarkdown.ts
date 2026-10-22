@@ -5,12 +5,14 @@ import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
+import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
 import { safeMarkdownSanitizeSchema } from '@/shared/lib/markdown-safety'
 
 /** Unified processor that parses markdown → HAST and sanitizes. */
 const prefixProcessor = unified()
   .use(remarkParse)
   .use(remarkGfm)
+  .use(remarkSessionLinks)
   .use(remarkRehype)
   .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 

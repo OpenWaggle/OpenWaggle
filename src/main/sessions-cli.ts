@@ -1,4 +1,5 @@
 import { isSessionlessHostEvent } from '@shared/types/session-host-event'
+import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -12,7 +13,7 @@ import {
   executeLocalSessionCommand,
   watchLocalSessionEvents,
 } from './session-host/local-session-client'
-import { required, watchCursor } from './sessions-cli-arguments'
+import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { streamSessionExport } from './sessions-cli-export'
 import { watchSessionExportOperations } from './sessions-cli-export-operation'
 import { isSessionExportOperationCliCommand } from './sessions-cli-export-operation-payload'
@@ -36,7 +37,7 @@ async function runWatchCommand(
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   clientInput: ClientInput,
 ) {
-  const sessionIds = new Set(arguments_.positionals)
+  const sessionIds = new Set(sessionIdsFromReferences(arguments_.positionals, 'Session ID'))
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()
   process.once('SIGINT', interrupt)
@@ -95,7 +96,7 @@ async function runSessionCommand(
     return sessionCliExitCodeForError(resultError)
   }
   if (command === 'read' && hasFlag(arguments_, 'full')) {
-    const sessionId = required(arguments_.positionals[0], 'Session ID')
+    const sessionId = requiredSessionId(arguments_.positionals[0])
     await streamFullTranscript({
       sessionId,
       session: result,
@@ -107,7 +108,7 @@ async function runSessionCommand(
   }
   if (command === 'export' && !isSessionExportOperationCliCommand(arguments_.positionals[0])) {
     await streamSessionExport({
-      sessionId: required(arguments_.positionals[0], 'Session ID'),
+      sessionId: requiredSessionId(arguments_.positionals[0]),
       firstResult: result,
       clientInput,
       arguments: arguments_,

@@ -19,6 +19,23 @@ describe('MCP CLI arguments', () => {
     expect(() => validateMcpCliOptions('serve', arguments_)).not.toThrow()
   })
 
+  it('scopes a hosted server to Sessions named by Session links', () => {
+    expect(
+      requireServeScope(
+        parseMcpCliArguments([
+          '--stdio',
+          '--session',
+          'openwaggle://sessions/session-1',
+          '--session',
+          'session-1',
+        ]),
+      ),
+    ).toEqual({ workspaces: [], sessions: ['session-1'] })
+    expect(() =>
+      requireServeScope(parseMcpCliArguments(['--stdio', '--session', 'openwaggle://app/'])),
+    ).toThrow('--session is not a Session link')
+  })
+
   it('defaults hosted callers to Ask and requires an explicit reviewed YOLO ceiling', () => {
     expect(serveAuthorizationCeiling(parseMcpCliArguments(['--stdio']))).toBe('ask-for-approval')
     expect(

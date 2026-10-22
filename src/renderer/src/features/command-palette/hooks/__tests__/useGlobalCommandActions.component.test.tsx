@@ -26,6 +26,7 @@ vi.mock('@/features/chat/hooks', () => ({
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: '/repo', selectFolder: vi.fn(), setProjectPath: vi.fn() }),
   useSessions: () => ({ refreshSessionWorkspace: mocks.refreshSessionWorkspace }),
+  useViewedSessionId: () => null,
 }))
 vi.mock('@/features/settings/state', () => ({
   usePreferencesStore: (

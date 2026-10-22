@@ -4,6 +4,7 @@ import type {
   BrowserPreviewShortcutBindings,
   BrowserPreviewShortcutEvent,
 } from '@shared/types/browser-preview'
+import { typesAltGraphCharacter } from '@shared/utils/altgraph-character'
 import { projectActionShortcutMatches } from '@shared/utils/project-action-shortcuts'
 import type { Input } from 'electron'
 import {
@@ -74,7 +75,21 @@ export function browserPreviewShortcutBindingsMatchInput(
   input: Input,
   bindings: BrowserPreviewShortcutBindings,
   isMac: boolean,
+  platform: NodeJS.Platform = process.platform,
 ) {
+  // A character typed with AltGr in the page is text, not an app shortcut. Electron's input has
+  // no AltGr flag; only Windows reports AltGr as Ctrl+Alt.
+  const typedWithAltGraph = typesAltGraphCharacter({
+    key: input.key,
+    code: input.code,
+    ctrl: input.control,
+    alt: input.alt,
+    meta: input.meta,
+    shift: input.shift,
+    altGraph: platform === 'win32' ? null : false,
+    applePlatform: isMac,
+  })
+  if (typedWithAltGraph) return false
   return bindings.some((binding) =>
     projectActionShortcutMatches(
       {

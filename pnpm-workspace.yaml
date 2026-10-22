@@ -64,20 +64,6 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/middleware-websocket@3.972.42"
   - "@aws-sdk/nested-clients@3.997.34"
   - "@aws-sdk/token-providers@3.1092.0"
-  # TEMPORARY, for the Pi 1.2.0 upgrade. Pi publishes its runtime packages as a
-  # matched set; 1.2.0 (published 2026-10-12, the last package at 23:03:25Z) is
-  # younger than the seven-day minimum release age. Remove these exact entries
-  # once every 1.2.0 package is older than seven days (2026-10-19T23:04Z);
-  # trustPolicy still applies to them.
-  # check:pi-runtime fails from the time below until the entries are removed.
-  # pi-runtime-release-age-exclusions-expire: 2026-10-19T23:04:00Z
-  - "@earendil-works/pi-agent-core@1.2.0"
-  - "@earendil-works/pi-ai@1.2.0"
-  - "@earendil-works/pi-codemode@1.2.0"
-  - "@earendil-works/pi-coding-agent@1.2.0"
-  - "@earendil-works/pi-mcp@1.2.0"
-  - "@earendil-works/pi-telemetry@1.2.0"
-  - "@earendil-works/pi-tui@1.2.0"
   # electron-builder 26.17.0 (2026-09-26) is the newest stable v26 release. 26.16.1+ fixes
   # CSC_LINK-based macOS signing (set-key-partition-list received the .p12 password instead of
   # the keychain password; electron-builder #10066/#10172), which v1 macOS signing needs, and

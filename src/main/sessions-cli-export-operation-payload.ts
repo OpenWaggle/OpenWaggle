@@ -14,6 +14,7 @@ import {
   nonNegativeInteger,
   positiveInteger,
   required,
+  requiredSessionId,
   watchCursor,
 } from './sessions-cli-arguments'
 
@@ -60,7 +61,7 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       ...controlRequest(arguments_),
       command: {
         operation: 'export-create',
-        sessionId: required(arguments_.positionals[1], 'Session ID'),
+        sessionId: requiredSessionId(arguments_.positionals[1]),
         format: exportFormat(option(arguments_, 'format')),
         destinationPath: path.resolve(
           required(arguments_.positionals[EXPORT_TARGET_POSITION], 'Destination path'),
@@ -88,7 +89,7 @@ function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       ...controlRequest(arguments_),
       command: {
         operation: 'export-cancel',
-        sessionId: required(arguments_.positionals[1], 'Session ID'),
+        sessionId: requiredSessionId(arguments_.positionals[1]),
         exportOperationId: required(
           arguments_.positionals[EXPORT_TARGET_POSITION],
           'Export operation ID',
@@ -100,7 +101,7 @@ function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
 
 function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
   const subcommand = required(arguments_.positionals[0], 'Export operation command')
-  const sessionId = required(arguments_.positionals[1], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[1])
   const base = {
     contract: 'session-query-v2' as const,
     request: {

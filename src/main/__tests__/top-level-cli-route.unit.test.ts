@@ -258,6 +258,35 @@ describe('top-level CLI routing', () => {
   })
 })
 
+describe('Session link launches', () => {
+  it.each([
+    ['openwaggle://sessions/session-1', 'openwaggle://sessions/session-1'],
+    ['openwaggle://sessions/session-1/', 'openwaggle://sessions/session-1/'],
+    ['  openwaggle://sessions/session-1', 'openwaggle://sessions/session-1'],
+  ])('opens the desktop app for %j', (argument, link) => {
+    expect(route([argument])).toEqual({ kind: 'open-session-link', link })
+    expect(packagedRoute([argument])).toEqual({ kind: 'open-session-link', link })
+  })
+
+  it.each([
+    'openwaggle://app/index.html',
+    'openwaggle://sessions/session-1?prompt=run',
+    'OPENWAGGLE://sessions/',
+  ])('refuses %j before the desktop app starts', (link) => {
+    expect(route([link])).toEqual({
+      kind: 'usage-error',
+      message: 'not a Session link. A Session link looks like openwaggle://sessions/<session-id>.',
+    })
+  })
+
+  it('refuses arguments after a Session link', () => {
+    expect(route(['openwaggle://sessions/session-1', 'extra'])).toEqual({
+      kind: 'usage-error',
+      message: "unexpected argument 'extra' after a Session link.",
+    })
+  })
+})
+
 describe('command suggestions', () => {
   it('computes optimal string alignment distance', () => {
     expect(editDistance('sessions', 'sessions')).toBe(0)

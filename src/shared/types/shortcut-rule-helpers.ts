@@ -1,4 +1,8 @@
-import { SHORTCUT_DEFINITIONS, shortcutWhenForScope } from './shortcut-catalog'
+import {
+  SHORTCUT_DEFINITIONS,
+  shortcutScopesOverlap,
+  shortcutWhenForScope,
+} from './shortcut-catalog'
 import {
   SHORTCUT_COMMANDS,
   SHORTCUT_RULE_LIMITS,
@@ -63,6 +67,7 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
     'rightPanel.files': null,
     'rightPanel.resources': null,
     'rightPanel.hive': null,
+    'session.copyLink': null,
   }
   for (const rule of rules) bindings[rule.command] = rule.shortcut
   return bindings
@@ -97,12 +102,33 @@ export function shortcutRulesFromBindings(bindings: ShortcutBindings): ShortcutR
   return migrated
 }
 
-/** T3-compatible runtime merge: any persisted rule overrides all defaults for its command. */
+/** Whether a saved rule holds its chord wherever the default would: always, or in its context. */
+function coversContext(custom: ShortcutRule, rule: ShortcutRule) {
+  const customWhen = custom.when?.trim() ?? ''
+  return customWhen.length === 0 || customWhen === (rule.when?.trim() ?? '')
+}
+
+/**
+ * T3-compatible runtime merge: any persisted rule overrides all defaults for its command, and the
+ * defaults of every command the saved rules do not mention come ahead of them. A default whose
+ * chord a saved rule of another command already holds in the same context is left out: the
+ * command was added after the user chose that chord, so it starts unassigned instead of showing
+ * a chord that runs the user's command.
+ */
 export function shortcutRulesWithDefaults(customRules: ShortcutRules): ShortcutRules {
   if (customRules.length === 0) return DEFAULT_SHORTCUT_RULES
   const overriddenCommands = new Set(customRules.map((rule) => rule.command))
+  const takenByAnotherCommand = (rule: ShortcutRule) =>
+    customRules.some(
+      (custom) =>
+        shortcutBindingKey(custom.shortcut) === shortcutBindingKey(rule.shortcut) &&
+        shortcutScopesOverlap(custom.command, rule.command) &&
+        coversContext(custom, rule),
+    )
   return [
-    ...DEFAULT_SHORTCUT_RULES.filter((rule) => !overriddenCommands.has(rule.command)),
+    ...DEFAULT_SHORTCUT_RULES.filter(
+      (rule) => !overriddenCommands.has(rule.command) && !takenByAnotherCommand(rule),
+    ),
     ...customRules,
   ].slice(-SHORTCUT_RULE_LIMITS.RULES)
 }
