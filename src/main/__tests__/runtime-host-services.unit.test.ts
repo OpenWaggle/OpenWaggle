@@ -23,6 +23,9 @@ vi.mock('../application/session-export-recovery', () => ({
 vi.mock('../adapters/session-scratch-sweep-background', () => ({
   runSessionScratchSweepBackground: recorded('scratch sweep'),
 }))
+vi.mock('../session-host/scheduled-task-scheduler', () => ({
+  runScheduledTaskSchedulerBackground: recorded('scheduled tasks'),
+}))
 vi.mock('../application/follow-up-edit-hold-expiry', () => ({
   runFollowUpEditHoldExpiryBackground: recorded('follow-up edit hold expiry'),
 }))
@@ -89,6 +92,8 @@ describe('Host background services', () => {
     // Migrates pre-ADR-0051 MCP files before Settings, the CLI, or a Run reads them.
     expect(started.indexOf('mcp files')).toBeGreaterThanOrEqual(0)
     expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
+    // Fires due Scheduled tasks and holds the Host open while one is enabled (ADR 0057).
+    expect(started.indexOf('scheduled tasks')).toBeGreaterThan(started.indexOf('tool gateway'))
     // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0051).
     expect(started).toContain('pi session discovery')
     // Old MCP sign-ins read the keychain, which can stall for minutes: not part of Host start.

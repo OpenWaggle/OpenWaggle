@@ -1,4 +1,6 @@
 /** Status report types and their human-readable rendering. */
+import type { ScheduledTaskStatusSummary } from '@shared/types/scheduled-task'
+import { cliWallClockTime } from './cli-wall-clock-time'
 import { sanitizeTerminalText } from './terminal-text'
 
 /** A field printed on one line; a line break in a title must not fake another status line. */
@@ -41,6 +43,11 @@ export type StatusReport =
         readonly protocolRevision: number
       }
       readonly activeRuns: readonly StatusActiveRun[]
+      /**
+       * Enabled Scheduled tasks and when each fires next, so a Host running with no window is
+       * never invisible (ADR 0057); `null` when they could not be listed.
+       */
+      readonly scheduledTasks?: readonly ScheduledTaskStatusSummary[] | null
     }
 
 export type HostProbe =
@@ -87,6 +94,19 @@ function waitingNote(pendingQuestions: number | null) {
   return `, waiting for ${pendingQuestions === 1 ? 'an answer' : `${pendingQuestions} answers`}`
 }
 
+function scheduledTaskLines(tasks: readonly ScheduledTaskStatusSummary[] | null | undefined) {
+  if (tasks === undefined) return []
+  if (tasks === null) return ['Scheduled tasks: unknown']
+  if (tasks.length === 0) return ['Scheduled tasks: none enabled']
+  return [
+    `Scheduled tasks: ${String(tasks.length)} enabled (they keep the Session Host running)`,
+    ...tasks.map(
+      (task) =>
+        `  ${task.id}  ${singleLine(task.name)}  (${task.kind === 'heartbeat' ? 'Heartbeat' : 'Launch schedule'}, next ${task.nextRunAt === null ? 'none' : cliWallClockTime(task.nextRunAt)})`,
+    ),
+  ]
+}
+
 export function formatStatusReport(report: StatusReport, now: number) {
   const lines = [`OpenWaggle ${report.version}`]
   if (report.host.state === 'not-running') {
@@ -102,6 +122,7 @@ export function formatStatusReport(report: StatusReport, now: number) {
   }
   lines.push('Session Host: running')
   const activeRuns = 'activeRuns' in report ? report.activeRuns : []
+  lines.push(...scheduledTaskLines('scheduledTasks' in report ? report.scheduledTasks : undefined))
   if (activeRuns.length === 0) {
     lines.push('Active runs: none')
     return lines.join('\n')

@@ -23,6 +23,7 @@ import { delegationsConflictsParameter } from './sessions-tool-delegation-extra-
 import { sessionsToolExportOperationParameters } from './sessions-tool-export-operation-parameters'
 import { sessionsToolReadParameters } from './sessions-tool-query-parameters'
 import { sessionsToolQueueParameters } from './sessions-tool-queue-parameters'
+import { sessionsToolScheduleParameters } from './sessions-tool-schedule-parameters'
 
 const AGENT_DEFINITION_RESULT_LIMIT = 100
 
@@ -266,6 +267,7 @@ export const sessionsToolParameters = Type.Union([
   ...sessionsToolReadParameters,
   ...sessionsToolQueueParameters,
   ...sessionsToolExportOperationParameters,
+  ...sessionsToolScheduleParameters,
   Type.Object({
     action: Type.Literal('wait'),
     sessionIds: Type.Array(Type.String(), {

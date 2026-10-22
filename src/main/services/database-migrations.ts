@@ -8,6 +8,7 @@ import {
 import { PI_ECOSYSTEM_MIGRATIONS } from './pi-ecosystem-migrations'
 import { PINNED_SESSIONS_MIGRATION } from './pinned-sessions-migration'
 import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
+import { SCHEDULED_TASK_MIGRATION } from './scheduled-task-migration'
 import { SESSION_ARCHIVE_TIME_MIGRATION } from './session-archive-time-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION } from './session-host-foreign-key-index-migration'
@@ -296,4 +297,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION,
   ...PI_ECOSYSTEM_MIGRATIONS,
   SESSION_ARCHIVE_TIME_MIGRATION,
+  SCHEDULED_TASK_MIGRATION,
 ]

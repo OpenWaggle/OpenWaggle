@@ -5,6 +5,7 @@ import {
   useSetupActionTerminalReconciliation,
 } from '@/features/chat/hooks'
 import { ActionPanelLayout } from '@/features/project-actions'
+import { useScheduledTasksMonitor } from '@/features/scheduled-tasks'
 import { Sidebar } from '@/features/sidebar/components'
 import { useTerminalActivityMonitor } from '@/features/terminal'
 import { Header } from '@/shell/Header'
@@ -52,12 +53,13 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useTerminalActivityMonitor()
   useSetupActionTerminalReconciliation()
   useAutoUpdater()
+  useScheduledTasksMonitor()
   const loadDesktopNativeAdmission = useDesktopNativeAdmissionStore((state) => state.load)
   useEffect(loadDesktopNativeAdmission, [loadDesktopNativeAdmission])
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
   const settingsOpen = useRouterState({
-    select: (state) => /^\/(?:settings|usage)(?:\/|$)/.test(state.location.pathname),
+    select: (state) => /^\/(?:settings|usage|scheduled)(?:\/|$)/.test(state.location.pathname),
   })
   const chatRoute = useRouterState({
     select: (state) => isRightPanelChatPath(state.location.pathname),

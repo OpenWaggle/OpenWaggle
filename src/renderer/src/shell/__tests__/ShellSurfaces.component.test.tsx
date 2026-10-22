@@ -72,18 +72,13 @@ vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: shellMocks.projectPath }),
 }))
 
+vi.mock('@/features/scheduled-tasks', () => ({ useScheduledTasksMonitor: vi.fn() }))
 vi.mock('@/features/sidebar/components/Sidebar', () => ({
   Sidebar: () => <aside>Sidebar</aside>,
 }))
 
 vi.mock('@/features/terminal/components', () => ({
-  TerminalPanel: ({
-    ownerKey,
-    onClose,
-  }: {
-    readonly ownerKey: string
-    readonly onClose: () => void
-  }) => (
+  TerminalPanel: ({ ownerKey, onClose }: { ownerKey: string; onClose: () => void }) => (
     <section aria-label={`Terminal panel ${ownerKey}`}>
       Terminal panel
       <Button variant="unstyled" type="button" onClick={onClose}>

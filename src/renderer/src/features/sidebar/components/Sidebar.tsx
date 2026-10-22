@@ -111,9 +111,7 @@ export function Sidebar() {
               projectCount={controller.sessionGroups.projects.length}
               sortMenuOpen={controller.sortMenuOpen}
               sortMode={controller.sortMode}
-              onOpenProject={() => {
-                void controller.handleOpenProject()
-              }}
+              onOpenProject={() => void controller.handleOpenProject()}
               onSetSortMenuOpen={controller.setSortMenuOpen}
               onSetSortMode={controller.setSortMode}
             />
@@ -133,6 +131,7 @@ export function Sidebar() {
         </div>
         <SidebarSettingsButton
           onOpenSettings={controller.handleOpenSettings}
+          onOpenScheduledTasks={controller.handleOpenScheduledTasks}
           onOpenUsageCost={controller.handleOpenUsageCost}
         />
       </nav>

@@ -1,9 +1,7 @@
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
-import type {
-  LocalSessionClientFrame,
-  LocalSessionServerFrame,
-} from '@shared/types/local-session-protocol'
+import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
+import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {

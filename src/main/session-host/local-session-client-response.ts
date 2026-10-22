@@ -5,6 +5,7 @@ import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalHostResponse } from '@shared/schemas/local-host'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeLocalUpdateResponse } from '@shared/schemas/local-update'
+import { decodeScheduledTasksResponse } from '@shared/schemas/scheduled-task'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
@@ -198,6 +199,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
       }
       return { contract: 'local-compaction-cancel-v1' as const, response: payload.response }
     })
+    .with('scheduled-tasks-v1', () => ({
+      contract: 'scheduled-tasks-v1' as const,
+      response: decodeScheduledTasksResponse(payload.response),
+    }))
     .otherwise(() => {
       throw new Error('Local Session Host returned an invalid command contract.')
     })

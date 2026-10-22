@@ -35,6 +35,7 @@ type AuthorizedLocalSessionCommandPayload = Exclude<
       | 'local-compaction-cancel-v1'
       | 'session-waggle-v1'
       | 'session-waggle-cancel-v1'
+      | 'scheduled-tasks-v1'
       | 'host-ui-v1'
       | 'desktop-service-v1'
       | 'local-update-v1'
@@ -246,6 +247,8 @@ function classifyLocalSessionPayload(payload: LocalSessionCommandPayload) {
       'local-compaction-cancel-v1',
       'session-waggle-v1',
       'session-waggle-cancel-v1',
+      // Scheduled tasks authorize themselves (`scheduled-task-commands.ts`); never as a probe.
+      'scheduled-tasks-v1',
       () => ({ kind: 'gui-only' as const }),
     )
     .otherwise((payload) => ({ kind: 'external' as const, payload }))

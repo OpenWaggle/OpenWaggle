@@ -103,8 +103,14 @@ export function validateImplicitCliHelp(surface: string, arguments_: ParsedArgum
   )
 }
 
+/** A command line that cannot be run as typed; the CLI reports it as a usage error. */
+export class CommandCliUsageError extends Error {
+  override readonly name = 'CommandCliUsageError'
+}
+
 export function isCommandCliUsageError(error: unknown) {
   if (!(error instanceof Error)) return false
+  if (error instanceof CommandCliUsageError) return true
   return [
     'Unknown option',
     'Unsupported option',

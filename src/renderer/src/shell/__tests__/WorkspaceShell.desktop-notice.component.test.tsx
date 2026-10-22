@@ -26,6 +26,7 @@ vi.mock('@/features/chat/hooks', () => ({
   useSetupActionTerminalReconciliation: vi.fn(),
 }))
 vi.mock('@/features/project-actions', () => ({ ActionPanelLayout: passThrough }))
+vi.mock('@/features/scheduled-tasks', () => ({ useScheduledTasksMonitor: vi.fn() }))
 vi.mock('@/features/sidebar/components', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
 vi.mock('@/features/terminal', () => ({ useTerminalActivityMonitor: vi.fn() }))
 vi.mock('@/shared/lib/ipc', () => ({

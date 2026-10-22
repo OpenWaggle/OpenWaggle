@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as UsageRouteImport } from './routes/usage'
@@ -26,6 +27,11 @@ const ChatRoute = ChatRouteImport.update({
 const AgentsRoute = AgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduledRoute = ScheduledRouteImport.update({
+  id: '/scheduled',
+  path: '/scheduled',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -68,6 +74,7 @@ const ExtensionsExtensionIdSplatRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/agents': typeof AgentsRoute
+  '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
@@ -77,6 +84,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
+  '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/agents': typeof AgentsRoute
+  '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
@@ -102,6 +111,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agents'
+    | '/scheduled'
     | '/settings'
     | '/skills'
     | '/usage'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/agents'
+    | '/scheduled'
     | '/settings'
     | '/skills'
     | '/usage'
@@ -122,6 +133,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_chat'
     | '/agents'
+    | '/scheduled'
     | '/settings'
     | '/skills'
     | '/usage'
@@ -134,6 +146,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   AgentsRoute: typeof AgentsRoute
+  ScheduledRoute: typeof ScheduledRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
   UsageRoute: typeof UsageRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduled': {
+      id: '/scheduled'
+      path: '/scheduled'
+      fullPath: '/scheduled'
+      preLoaderRoute: typeof ScheduledRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -234,6 +254,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   AgentsRoute: AgentsRoute,
+  ScheduledRoute: ScheduledRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
   UsageRoute: UsageRoute,

@@ -12,6 +12,7 @@ export type SessionProvenanceKind =
   | 'git-branch'
   | 'worktree'
   | 'cloned-from'
+  | 'scheduled-task'
   | 'conversation-branches'
   | 'terminal'
 
@@ -32,6 +33,8 @@ export interface SessionProvenanceInput {
    * surfaces showing one PTY never double count it.
    */
   readonly terminalCount: number
+  /** The Launch schedule that started this Session, when one did. */
+  readonly scheduledTaskName?: string | null
 }
 
 /** Non-archived conversation branches, which is what a count on a row means. */
@@ -49,7 +52,7 @@ function clonedFromSessionDescription(session: SessionSummary) {
  * Build the provenance indicators for one session row, in render order.
  *
  * Order is fixed rather than data-dependent so a row's second line does not reshuffle as
- * state arrives: branch, worktree, origin, conversation branches, terminals.
+ * state arrives: branch, worktree, origin, Scheduled task, conversation branches, terminals.
  */
 export function buildSessionProvenance(
   input: SessionProvenanceInput,
@@ -73,6 +76,14 @@ export function buildSessionProvenance(
     // A fork starts before the chosen message (`before`); a clone keeps it (`at`).
     const verb = session.derivation?.position === 'before' ? 'Forked' : 'Cloned'
     indicators.push({ kind: 'cloned-from', description: `${verb} from ${clonedFrom}` })
+  }
+
+  const scheduledTaskName = input.scheduledTaskName?.trim() ?? ''
+  if (scheduledTaskName !== '') {
+    indicators.push({
+      kind: 'scheduled-task',
+      description: `Started by Scheduled task ${scheduledTaskName}`,
+    })
   }
 
   const branchCount = visibleBranchCount(session)

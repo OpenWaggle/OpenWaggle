@@ -32,6 +32,7 @@ import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authoriza
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleScheduledTasksApi } from './openwaggle-api-scheduled-tasks'
 import type { OpenWaggleSessionCatalogApi } from './openwaggle-api-session-catalog'
 import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
@@ -91,6 +92,7 @@ export interface OpenWaggleApi
     OpenWaggleFeedbackApi,
     OpenWaggleGitApi,
     OpenWaggleProjectConfigApi,
+    OpenWaggleScheduledTasksApi,
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,

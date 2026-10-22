@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { editDistance } from '../top-level-cli-edit-distance'
 import {
   type CliPathKind,
-  editDistance,
   routeTopLevelCli,
   suggestTopLevelCommand,
   type TopLevelCliEnvironment,

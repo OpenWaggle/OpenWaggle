@@ -34,6 +34,7 @@ import {
   LOCAL_SESSION_NATIVE_ACTIONS_REVISION,
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
   LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
+  LOCAL_SESSION_SCHEDULED_TASKS_REVISION,
   LOCAL_SESSION_SESSION_SETTINGS_REVISION,
   LOCAL_SESSION_SOURCE_CONTROL_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
@@ -136,32 +137,31 @@ export function isFollowUpEditCommand(payload: LocalSessionCommandPayload) {
   )
 }
 
-export function requiredLocalSessionCommandRevision(payload: LocalSessionCommandPayload) {
+const CONTRACT_REVISIONS: Partial<Record<LocalSessionCommandPayload['contract'], number>> = {
+  'local-update-v1': LOCAL_SESSION_UPDATE_REVISION,
+  'local-host-v1': LOCAL_SESSION_HOST_CONTROL_REVISION,
+  'desktop-service-v1': LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  'local-compaction-v1': LOCAL_SESSION_COMPACTION_REVISION,
+  'local-compaction-cancel-v1': LOCAL_SESSION_COMPACTION_REVISION,
+  'session-waggle-v1': LOCAL_SESSION_WAGGLE_REVISION,
+  'session-waggle-cancel-v1': LOCAL_SESSION_WAGGLE_REVISION,
+  'scheduled-tasks-v1': LOCAL_SESSION_SCHEDULED_TASKS_REVISION,
+}
+
+function requiredSessionControlRevision(payload: LocalSessionCommandPayload) {
   if (isFollowUpEditCommand(payload)) return LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION
-  if (
-    payload.contract === 'session-control-v2' &&
-    payload.request.command.operation === 'queue-adopt'
-  ) {
-    return LOCAL_SESSION_SESSION_SETTINGS_REVISION
-  }
-  if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
-  if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
-  if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
-  if (
-    payload.contract === 'session-control-v2' &&
-    (payload.request.command.operation === 'steer' ||
-      payload.request.command.operation === 'promote')
-  ) {
+  if (payload.contract !== 'session-control-v2') return undefined
+  const { operation } = payload.request.command
+  if (operation === 'queue-adopt') return LOCAL_SESSION_SESSION_SETTINGS_REVISION
+  if (operation === 'steer' || operation === 'promote') {
     return LOCAL_SESSION_STEERING_RECEIPT_REVISION
   }
+  return undefined
+}
+
+export function requiredLocalSessionCommandRevision(payload: LocalSessionCommandPayload) {
+  const sessionControlRevision = requiredSessionControlRevision(payload)
+  if (sessionControlRevision !== undefined) return sessionControlRevision
   if (payload.contract === 'host-ui-v1') return requiredHostUiRevision(payload.request)
-  if (
-    payload.contract === 'local-compaction-v1' ||
-    payload.contract === 'local-compaction-cancel-v1'
-  ) {
-    return LOCAL_SESSION_COMPACTION_REVISION
-  }
-  if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
-    return LOCAL_SESSION_WAGGLE_REVISION
-  }
+  return CONTRACT_REVISIONS[payload.contract]
 }

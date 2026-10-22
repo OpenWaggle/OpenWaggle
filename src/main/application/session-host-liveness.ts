@@ -8,18 +8,23 @@ export const SESSION_HOST_LIVENESS_KINDS = [
   'wait',
   'subscription',
   'operation',
+  'scheduled-task',
 ] as const
 
 export type SessionHostLivenessKind = (typeof SESSION_HOST_LIVENESS_KINDS)[number]
+
+const IDLE_NEUTRAL_KINDS = ['semantic-preparation', 'scheduled-task'] as const
+const DRAIN_NEUTRAL_KINDS = ['client', 'subscription', 'scheduled-task'] as const
 
 /**
  * Background maintenance that polls on its own schedule. It holds the Host open while it works but
  * is not activity: the idle grace keeps counting from the last real work, or a poll every few
  * seconds would keep an idle Host alive forever.
  */
-const IDLE_CLOCK_NEUTRAL_KINDS: ReadonlySet<SessionHostLivenessKind> = new Set([
-  'semantic-preparation',
-])
+const IDLE_CLOCK_NEUTRAL_KINDS = new Set<SessionHostLivenessKind>(IDLE_NEUTRAL_KINDS)
+
+/** Holds that keep an idle Host running but never hold up a drain (ADR 0057). */
+const NON_BLOCKING_DRAIN_KINDS = new Set<SessionHostLivenessKind>(DRAIN_NEUTRAL_KINDS)
 export type SessionHostDrainReason = 'recovery' | 'upgrade' | 'stop'
 const SHUTDOWN_RETRY_DELAY_MS = 250
 /** How long Runs interrupted at a drain deadline get to settle before the Host stops anyway. */
@@ -169,7 +174,7 @@ export class SessionHostLiveness {
 
   private hasBlockingDrainOwners() {
     return [...this.owners.entries()].some(
-      ([kind, count]) => kind !== 'client' && kind !== 'subscription' && count > 0,
+      ([kind, count]) => !NON_BLOCKING_DRAIN_KINDS.has(kind) && count > 0,
     )
   }
 

@@ -5,7 +5,8 @@ export function activeViewFromPathname(pathname: string): SidebarView {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/agents') ||
     pathname.startsWith('/skills') ||
-    pathname.startsWith('/usage')
+    pathname.startsWith('/usage') ||
+    pathname.startsWith('/scheduled')
   )
     return 'settings'
   return 'chat'

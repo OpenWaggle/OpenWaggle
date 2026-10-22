@@ -7,6 +7,7 @@ import type { IpcIntegrationInvokeChannelMap } from './ipc-invoke-integrations'
 import type { IpcMcpInvokeChannelMap } from './ipc-invoke-mcp'
 import type { IpcPinnedSessionInvokeChannelMap } from './ipc-invoke-pins'
 import type { IpcProjectActionInvokeChannelMap } from './ipc-invoke-project-actions'
+import type { IpcScheduledTasksInvokeChannelMap } from './ipc-invoke-scheduled-tasks'
 
 export type IpcInvokeChannelMap = IpcCoreInvokeChannelMap &
   IpcBrowserPreviewInvokeChannelMap &
@@ -16,4 +17,5 @@ export type IpcInvokeChannelMap = IpcCoreInvokeChannelMap &
   IpcPinnedSessionInvokeChannelMap &
   IpcProjectActionInvokeChannelMap &
   IpcAuthorizationGrantInvokeChannelMap &
-  IpcInlineVisualizationInvokeChannelMap
+  IpcInlineVisualizationInvokeChannelMap &
+  IpcScheduledTasksInvokeChannelMap

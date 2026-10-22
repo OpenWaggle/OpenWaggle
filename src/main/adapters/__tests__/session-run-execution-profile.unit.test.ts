@@ -85,6 +85,43 @@ describe('Session run execution profile', () => {
     })
   })
 
+  it('names the Scheduled task that started a Run, and its kind only when the task still says', () => {
+    const task = {
+      id: 'task-1',
+      name: 'Morning triage',
+      trigger: 'catch-up',
+      nominalAt: Date.UTC(2026, 9, 22, 7),
+      firedAt: Date.UTC(2026, 9, 22, 7, 3),
+      missedCount: 2,
+      previousFiredAt: null,
+      previousSessionId: null,
+    }
+    const launched = resolveSessionRunExecution(
+      row({ scheduled_task_json: JSON.stringify({ ...task, kind: 'launch' }) }),
+      'run-1',
+    )
+    expect(identityJson(launched.runIdentityContext)).toMatchObject({
+      scheduledTask: {
+        id: 'task-1',
+        name: 'Morning triage',
+        kind: 'launch-schedule',
+        trigger: 'catch-up',
+        missedFirings: 2,
+        currentTime: '2026-10-22T07:03:00.000Z',
+      },
+    })
+    // The task was deleted since: its run history keeps the name but no longer knows the kind.
+    const orphaned = resolveSessionRunExecution(
+      row({ scheduled_task_json: JSON.stringify({ ...task, kind: null }) }),
+      'run-1',
+    )
+    const identity = identityJson(orphaned.runIdentityContext)
+    expect(identity).toMatchObject({ scheduledTask: { name: 'Morning triage' } })
+    expect(identity).not.toHaveProperty('scheduledTask.kind')
+    const typed = resolveSessionRunExecution(row(), 'run-1')
+    expect(identityJson(typed.runIdentityContext)).not.toHaveProperty('scheduledTask')
+  })
+
   it('keeps the Session identity identical across Runs and Session state changes', () => {
     const first = resolveSessionRunExecution(row(), 'run-1')
     const second = resolveSessionRunExecution(

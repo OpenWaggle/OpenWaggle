@@ -2,6 +2,7 @@ import { registerAgentDefinitionsHandlers } from './agent-definitions-handler'
 import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
+import { registerBackgroundStartHandlers } from './background-start-handler'
 import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
 import { registerDocsHandlers } from './docs-handler'
@@ -17,6 +18,7 @@ import { registerProfileAccessHandlers } from './profile-access-handler'
 import { registerProjectActionHandlers } from './project-actions-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
+import { registerScheduledTasksHandlers } from './scheduled-tasks-handler'
 import { registerSessionControlHandlers } from './session-control-handler'
 import { registerSessionDetailsHandlers } from './session-details-handler'
 import { registerSessionResourceHandlers } from './session-resource-handler'
@@ -61,6 +63,8 @@ export function registerAllIpcHandlers(): void {
   registerProjectHandlers()
   registerProvidersHandlers()
   registerUsageCostHandlers()
+  registerScheduledTasksHandlers()
+  registerBackgroundStartHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()

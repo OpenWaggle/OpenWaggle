@@ -3,6 +3,7 @@ import { GitSessionWorkspaceHandoffServiceLive } from './adapters/git-session-wo
 import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteFollowUpEditHoldRepositoryLive } from './adapters/sqlite-follow-up-edit-hold-repository'
 import { SqliteLocalSessionProfileRepositoryLive } from './adapters/sqlite-local-session-profile-repository'
+import { SqliteScheduledTaskRepositoryLive } from './adapters/sqlite-scheduled-task-repository'
 import { SqliteSessionAuthorizationTargetRepositoryLive } from './adapters/sqlite-session-authorization-target-repository'
 import { SqliteSessionControlOperationJournalLive } from './adapters/sqlite-session-control-operation-journal'
 import { SqliteSessionControlRepositoryLive } from './adapters/sqlite-session-control-repository'
@@ -43,4 +44,5 @@ export const SessionControlPersistenceLive = Layer.mergeAll(
   SqliteSessionExportLiveAuthorityLive,
   SqliteSessionWorkspaceResourceRepositoryLive,
   SqliteSessionSettingsRepositoryLive,
+  SqliteScheduledTaskRepositoryLive,
 ).pipe(Layer.provide(AppDatabaseLive))

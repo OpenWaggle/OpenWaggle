@@ -1,14 +1,29 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useScheduledTaskIndexStore } from '@/features/scheduled-tasks/state'
 import { SidebarSettingsButton } from '../SidebarNavigation'
 
+function renderFooter(handlers: {
+  readonly onOpenSettings?: () => void
+  readonly onOpenScheduledTasks?: () => void
+  readonly onOpenUsageCost?: () => void
+}) {
+  render(
+    <SidebarSettingsButton
+      onOpenSettings={handlers.onOpenSettings ?? vi.fn()}
+      onOpenScheduledTasks={handlers.onOpenScheduledTasks ?? vi.fn()}
+      onOpenUsageCost={handlers.onOpenUsageCost ?? vi.fn()}
+    />,
+  )
+}
+
 describe('SidebarSettingsButton', () => {
+  afterEach(() => useScheduledTaskIndexStore.getState().index([]))
+
   it('keeps the Settings label beside a compact Usage & Cost icon button', () => {
     const onOpenSettings = vi.fn()
     const onOpenUsageCost = vi.fn()
-    render(
-      <SidebarSettingsButton onOpenSettings={onOpenSettings} onOpenUsageCost={onOpenUsageCost} />,
-    )
+    renderFooter({ onOpenSettings, onOpenUsageCost })
 
     const settings = screen.getByRole('button', { name: 'Settings' })
     const usage = screen.getByRole('button', { name: 'Usage & Cost' })
@@ -24,5 +39,16 @@ describe('SidebarSettingsButton', () => {
 
     fireEvent.click(settings)
     expect(onOpenSettings).toHaveBeenCalledOnce()
+  })
+
+  it('opens Scheduled tasks and marks a task needing attention with a dot', () => {
+    const onOpenScheduledTasks = vi.fn()
+    useScheduledTaskIndexStore.setState({ attentionCount: 1 })
+    renderFooter({ onOpenScheduledTasks })
+
+    const scheduled = screen.getByRole('button', { name: 'Scheduled tasks (needs attention)' })
+    expect(scheduled).toHaveClass('size-7.5')
+    fireEvent.click(scheduled)
+    expect(onOpenScheduledTasks).toHaveBeenCalledOnce()
   })
 })

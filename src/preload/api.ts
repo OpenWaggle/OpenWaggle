@@ -1,6 +1,7 @@
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import { browserPreviewApi } from './browser-preview-api'
 import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
+import { scheduledTasksApi } from './scheduled-tasks-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -190,6 +191,7 @@ export const api: OpenWaggleApi = {
 
   // Browser preview
   ...browserPreviewApi,
+  ...scheduledTasksApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),
