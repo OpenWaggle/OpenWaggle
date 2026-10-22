@@ -1,10 +1,15 @@
+import { worktreePreparationHeadline } from '@shared/domain/worktree-preparation-messages'
 import * as Effect from 'effect/Effect'
+import { describeWorkspaceGenerationMismatch } from '../../domain/workspace-generation'
+import { createLogger } from '../../logger'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
 
+const logger = createLogger('workspace-preparation')
+
 type PreparationEnvironmentReader = Pick<
   WorkspacePreparationServiceShape,
-  'read' | 'isCurrentWorkspaceGeneration' | 'environment'
+  'read' | 'inspectWorkspaceGeneration' | 'environment'
 >
 
 export async function readPreparedWorkspaceEnvironment(
@@ -13,10 +18,17 @@ export async function readPreparedWorkspaceEnvironment(
 ) {
   if (workspace.workspacePath !== workspace.projectPath) {
     const state = await Effect.runPromise(preparation.read(workspace))
-    if (state && !(await Effect.runPromise(preparation.isCurrentWorkspaceGeneration(workspace)))) {
-      throw new Error(
-        'This worktree no longer matches its saved preparation. Recreate the worktree or reset preparation before continuing.',
-      )
+    if (state) {
+      const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
+      if (check.status !== 'current') {
+        logger.warn('Worktree failed its saved-preparation check', {
+          workspaceId: workspace.workspaceId,
+          ...check,
+        })
+        const { verdict, problem, recovery, details } = describeWorkspaceGenerationMismatch(check)
+        const message = `${worktreePreparationHeadline(verdict)}: ${problem}. ${recovery}`
+        throw new Error(details ? `${message} ${details}` : message)
+      }
     }
   }
   return Effect.runPromise(preparation.environment(workspace.workspaceId))

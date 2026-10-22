@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { WorkspaceCleanupFailure } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
@@ -26,6 +27,22 @@ const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], stri
 type PreparedWorktree = GitWorktreeInfo & {
   readonly preparation?: WorkspacePreparation
   readonly generationMismatch?: boolean
+  readonly generationMismatchMessage?: string
+}
+
+/**
+ * A cleanup failure or refusal is shown in full under the row once the list refreshes, which a
+ * brief toast cannot do. When the refreshed row has no recovery to show it, the toast says why.
+ */
+function removalFailureToast(
+  result: { readonly code: string; readonly message: string },
+  refreshed: readonly PreparedWorktree[],
+  worktreePath: string,
+) {
+  const reasonShown = refreshed.some((row) => row.path === worktreePath && row.preparation)
+  return result.code === 'cleanup-failed' && reasonShown
+    ? 'The worktree was kept. The reason is shown under it.'
+    : result.message
 }
 
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
@@ -33,10 +50,11 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  /** Resolves to the rows it rendered, so a caller can tell what the user now sees. */
+  const refresh = useCallback(async (): Promise<readonly PreparedWorktree[]> => {
     if (!repositoryPath) {
       setWorktrees([])
-      return
+      return []
     }
     setIsLoading(true)
     setError(null)
@@ -51,26 +69,28 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
       if (listed.status === 'rejected') throw listed.reason
       const retained = preparationResult.status === 'fulfilled' ? preparationResult.value : null
       if (preparationResult.status === 'rejected')
-        setError(`Could not load cleanup recovery: ${String(preparationResult.reason)}`)
+        setError(`Could not load cleanup recovery: ${ipcErrorMessage(preparationResult.reason)}`)
       if (retained && retained.type !== 'retained-preparation')
         throw new Error('Unexpected preparation response.')
       const preparations = new Map(
         retained?.workspaces.map((workspace) => [workspace.path, workspace]) ?? [],
       )
-      setWorktrees(
-        listed.value.worktrees.map((worktree) => {
-          const recovery = preparations.get(worktree.path)
-          return {
-            ...worktree,
-            preparation: recovery?.preparation,
-            generationMismatch: recovery?.generationMismatch,
-          }
-        }),
-      )
+      const rows = listed.value.worktrees.map((worktree) => {
+        const recovery = preparations.get(worktree.path)
+        return {
+          ...worktree,
+          preparation: recovery?.preparation,
+          generationMismatch: recovery?.generationMismatch,
+          generationMismatchMessage: recovery?.generationMismatchMessage,
+        }
+      })
+      setWorktrees(rows)
+      return rows
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
       setError(`Could not list worktrees: ${String(error)}`)
       setWorktrees([])
+      return []
     } finally {
       setIsLoading(false)
     }
@@ -107,12 +127,11 @@ export function WorktreesSection() {
          * row stayed put with no explanation, which reads as a broken button.
          */
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
-        showToast(result.message, 'error')
-      }
-      await refresh()
+        showToast(removalFailureToast(result, await refresh(), worktreePath), 'error')
+      } else await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
-      showToast('Could not remove the worktree.', 'error')
+      showToast(`Could not remove the worktree: ${ipcErrorMessage(error)}`, 'error')
       await refresh()
     } finally {
       setRemovingPath(null)
@@ -173,6 +192,7 @@ export function WorktreesSection() {
                       projectPath={projectPath}
                       initial={worktree.preparation}
                       generationMismatch={worktree.generationMismatch}
+                      generationMismatchMessage={worktree.generationMismatchMessage}
                       busy={removingPath === worktree.path}
                       onRetry={() => void handleRemove(worktree.path)}
                       onDeleteAnyway={() => void handleRemove(worktree.path, true)}

@@ -131,7 +131,7 @@ describe('preparation around worktree birth', () => {
           preparation: fromPartial<WorkspacePreparationServiceShape>({
             requireSetup,
             read: () => Effect.succeed(fromPartial<WorkspacePreparation>({ revision: 1 })),
-            isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+            inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
             environment: () => Effect.succeed({ PREPARED: 'retained' }),
           }),
         },
@@ -174,7 +174,13 @@ describe('preparation around worktree birth', () => {
             },
             preparation: fromPartial<WorkspacePreparationServiceShape>({
               read: () => Effect.succeed(fromPartial<WorkspacePreparation>({ revision: 1 })),
-              isCurrentWorkspaceGeneration: () => Effect.succeed(false),
+              inspectWorkspaceGeneration: () =>
+                Effect.succeed({
+                  status: 'replaced' as const,
+                  workspacePath: '/stale',
+                  recorded: { device: '1', inode: '2', birthtime: '3' },
+                  observed: { device: '1', inode: '4', birthtime: '5' },
+                }),
               environment,
             }),
           },
@@ -233,7 +239,7 @@ describe('Setup launch step', () => {
             capture: () => Effect.succeed(fromPartial({})),
             read: () => Effect.succeed(preparation),
             requireSetup: () => Effect.sync(() => void order.push('setup')),
-            isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+            inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
             environment: () => Effect.succeed({}),
           }),
         },

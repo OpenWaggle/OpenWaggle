@@ -1,6 +1,10 @@
 import type { AgentErrorCode, AgentErrorInfo } from '../types/errors'
 import { extractInnerErrorMessage } from './error-message-extraction'
 import { PI_SESSION_FILE_PROBLEM } from './pi-session-file-messages'
+import {
+  isWorktreePreparationMessage,
+  WORKTREE_PREPARATION_PROBLEM,
+} from './worktree-preparation-messages'
 
 interface ErrorCodeMeta {
   readonly userMessage: string
@@ -86,6 +90,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     userMessage: "This Session's Pi session file cannot be used",
     retryable: false,
     messageFrom: PI_SESSION_FILE_PROBLEM,
+  },
+  'worktree-preparation-mismatch': {
+    userMessage: 'This worktree no longer matches its saved preparation',
+    retryable: false,
+    messageFrom: WORKTREE_PREPARATION_PROBLEM,
   },
   unknown: {
     userMessage: 'Something went wrong',
@@ -209,7 +218,11 @@ function isProviderUnavailableError(lower: string) {
 
 const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [
   {
-    // First: the message names the file, whose path could read as any other error.
+    // First: these messages name a path, which could read as any other error.
+    code: 'worktree-preparation-mismatch',
+    matches: isWorktreePreparationMessage,
+  },
+  {
     code: 'pi-session-file-deleted',
     matches: (lower) => lower.includes(PI_SESSION_FILE_PROBLEM.toLowerCase()),
   },

@@ -4,14 +4,11 @@ import { storedWorkspacePreparationSchema } from '@shared/schemas/workspace-prep
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import * as Effect from 'effect/Effect'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
+import type { WorkspaceDirectoryIdentity } from '../../domain/workspace-generation'
 
 export interface StoredWorkspacePreparation extends Omit<WorkspacePreparation, 'updateAvailable'> {
   readonly environment: PreparedEnvironment
-  readonly workspaceIdentity?: {
-    readonly device: string
-    readonly inode: string
-    readonly birthtime: string
-  }
+  readonly workspaceIdentity?: WorkspaceDirectoryIdentity
   readonly awaitingWorktreeBirth?: boolean
 }
 export interface PreparationPersistence {

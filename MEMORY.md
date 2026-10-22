@@ -1412,9 +1412,23 @@ validates the arguments; the old call-time re-validation in `provider-tool-param
 is gone). `providerToolParameters` also repairs MCP sampling tools, which Pi does not validate.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
-not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
-when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
-recorded generation is missing or differs at removal, do not execute its pinned cleanup command
+not merely a project and worktree path. Pin the worktree directory's inode and birth time (the
+record also keeps `device`, for diagnosis only) when the checkout exists; a pre-birth snapshot
+gets its identity after materialization. Never compare a persisted `st_dev` where a birth time is
+recorded: macOS renumbers APFS volumes at mount, and on 2026-10-20/21 it went 16777230 ->
+16777233 -> 16777230 over two reboots, so every pre-reboot worktree failed with "no longer
+matches its saved preparation" until its record was hand-patched. Project Actions and Workspace
+preparation compare persisted identities only through `isSameDurableDirectoryIdentity`
+(`src/main/domain/workspace-generation.ts`), which uses `device` only when the filesystem records
+no birth time. In-process checks may still compare it, such as the language-detection cache
+(`workspace-language-detection.ts`) and the open-versus-resolve check in
+`filesystem-inline-visualization-service.ts`. Profile
+credential receipts still persist `${dev}:${ino}` (issue #330). `inspectWorkspaceGeneration`
+returns `current`, `replaced`, `unreadable`, `awaiting-birth` or `unrecorded`; the Host log under
+`workspace-preparation` records that status with the raw identities, and the error names the path
+and both identities. Recovery copy says to delete, not move, a mismatched worktree: a moved copy
+still points at the git data Recreate worktree reuses. If the recorded generation is missing or
+differs at removal, do not execute its pinned cleanup command
 in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
 Retained-preparation listing must include generation mismatches even when cleanup status is idle
 or succeeded. Settings must keep Delete anyway visible for those rows and explain why Retry cannot
