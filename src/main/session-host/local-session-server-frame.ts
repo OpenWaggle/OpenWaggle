@@ -3,11 +3,14 @@ import type { LocalSessionProfileManagementResponse } from '@shared/types/local-
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
+import { createLogger } from '../logger'
 import { encodeLocalSessionFrameSegments } from './local-session-framing'
 import {
   type LocalSessionOutboundByteBudget,
   LocalSessionOutboundCapacityError,
 } from './local-session-outbound-budget'
+
+const logger = createLogger('session-host/outbound')
 
 /** The message Effect gives a tagged error that was created without one. */
 const EFFECT_DEFAULT_ERROR_MESSAGE = 'An error has occurred'
@@ -129,7 +132,15 @@ export async function writeLocalSessionSocketFrame(input: {
   readonly signal: AbortSignal
 }): Promise<void> {
   const lease = await input.budget.encode(input.value, input.signal).catch((error: unknown) => {
-    if (error instanceof LocalSessionOutboundCapacityError) input.socket.destroy()
+    if (error instanceof LocalSessionOutboundCapacityError) {
+      // The frames other clients have not read held the budget for the whole capacity wait.
+      logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
+        pendingBytes: input.budget.pendingBytes,
+        peakBytes: input.budget.peakBytes,
+        maxBytes: input.budget.maxBytes,
+      })
+      input.socket.destroy()
+    }
     throw error
   })
   const release = lease.release

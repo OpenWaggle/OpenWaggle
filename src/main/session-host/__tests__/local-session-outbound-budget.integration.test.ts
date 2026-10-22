@@ -87,9 +87,10 @@ describe('Local Session outbound byte budget', () => {
     )
   }
 
-  it('bounds concurrent large writes and disconnects a client when stalled readers hold capacity', async () => {
-    const endpoint = path.join(temporaryRoot, 'outbound-budget.sock')
-    let encodedLargeResponses = 0
+  let encodedLargeResponses = 0
+
+  async function listen(endpoint: string, outboundCapacityWaitMs: number) {
+    encodedLargeResponses = 0
     handle = await listenLocalSessionServer(endpoint, {
       hostInstanceId: 'host-current',
       eventHub: new SessionHostEventHub({ hostInstanceId: 'host-current' }),
@@ -98,6 +99,7 @@ describe('Local Session outbound byte budget', () => {
         requestShutdown: vi.fn(),
       }),
       maxPendingOutboundBytesGlobal: OUTBOUND_BUDGET_BYTES,
+      outboundCapacityWaitMs,
       authenticate: async () => ({ callerId: 'local-user' }),
       dispatch: async ({ payload }) => {
         const responseBytes = requestedResponseBytes(payload)
@@ -109,27 +111,76 @@ describe('Local Session outbound byte budget', () => {
         }
       },
     })
+    return handle
+  }
 
+  /** Connects every client first: a handshake needs outbound capacity too. */
+  async function holdCapacityWithUnreadResponses(endpoint: string, nextClientVersion: string) {
     const stalled = await connect(endpoint, 'stalled-reader')
     const delayedReader = await connect(endpoint, 'delayed-reader')
-    const rejected = await connect(endpoint, 'rejected-under-pressure')
+    const next = await connect(endpoint, nextClientVersion)
     stalled.socket.pause()
     delayedReader.socket.pause()
     requestLargeResponse(stalled.socket, 'stalled')
     requestLargeResponse(delayedReader.socket, 'delayed')
-
     await vi.waitFor(() => {
       const pendingBytes = handle?.outboundByteUsage().pendingBytes ?? 0
       expect(pendingBytes).toBeGreaterThan(RETAINED_LARGE_RESPONSE_BYTES * 2)
       expect(pendingBytes).toBeLessThan(RETAINED_LARGE_RESPONSE_BYTES * 2 + 1024)
     })
+    return { stalled, delayedReader, next }
+  }
+
+  it('makes the next client wait while a slow reader holds capacity, not drop its connection', async () => {
+    const endpoint = path.join(temporaryRoot, 'outbound-budget-wait.sock')
+    await listen(endpoint, 30_000)
+    const {
+      stalled,
+      delayedReader,
+      next: waiting,
+    } = await holdCapacityWithUnreadResponses(endpoint, 'waits-for-capacity')
+    let waitingClosed = false
+    waiting.socket.once('close', () => {
+      waitingClosed = true
+    })
+
+    requestLargeResponse(waiting.socket, 'waiting')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(encodedLargeResponses).toBe(2)
+    expect(waitingClosed).toBe(false)
+
+    // The slow reader catches up; the room its answer held lets the waiting answer through.
+    delayedReader.socket.resume()
+    await expect(delayedReader.reader.next()).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
+    await expect(waiting.reader.next()).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
+    expect(waitingClosed).toBe(false)
+    const usage = handle?.outboundByteUsage()
+    expect(usage?.peakBytes).toBeLessThanOrEqual(usage?.maxBytes ?? 0)
+
+    stalled.socket.destroy()
+    await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
+  })
+
+  it('bounds concurrent large writes and disconnects a client when stalled readers hold capacity', async () => {
+    const endpoint = path.join(temporaryRoot, 'outbound-budget.sock')
+    const server = await listen(endpoint, 50)
+
+    const {
+      stalled,
+      delayedReader,
+      next: rejected,
+    } = await holdCapacityWithUnreadResponses(endpoint, 'rejected-under-pressure')
 
     const rejectedClosed = new Promise<void>((resolve) => rejected.socket.once('close', resolve))
     requestLargeResponse(rejected.socket, 'rejected')
     await rejectedClosed
     expect(encodedLargeResponses).toBe(2)
 
-    const retained = handle.outboundByteUsage()
+    const retained = server.outboundByteUsage()
     expect(retained.pendingBytes).toBeLessThanOrEqual(retained.maxBytes)
     expect(retained.peakBytes).toBeLessThanOrEqual(retained.maxBytes)
 

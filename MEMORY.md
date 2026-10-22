@@ -305,6 +305,12 @@ Heartbeats and Launch schedules are Host-only SQLite records (`scheduled_tasks`,
 - `missedOccurrences` counts at most 1000 firings (about 3.5 days of a 5-minute Heartbeat), but must still return the true latest occurrence, which the catch-up run names; it finds it by an expanding look-back window from the end.
 - Reading a timestamp CLI usage error by its message words mislabels it (`Missing …` became `not_found`); argument errors throw `CommandCliUsageError`, which `isCommandCliUsageError` recognizes by type.
 
+### A full outbound budget used to close whichever Host connection sent next (October 2026)
+
+- "Local Session Host connection closed." from a live Host (same PID, no crash or stall logged) was the Host's global outbound byte budget (256 MB, every encode reserving 72 MB) running out while large answers waited unread, typically the desktop main process parsing a 10–20 MB Session detail. The next sender on *any* connection then failed with `LocalSessionOutboundCapacityError` and its socket was destroyed silently: GUI Host UI reads, the desktop poll and the renderer event stream all dropped together, and the GUI's one replay hit the same full budget. Reproduced against a real Host by opening nine connections that request a 13 MB detail and never read; a following `sessions:pins:list` failed in 2 ms.
+- The budget now waits up to `outboundCapacityWaitMs` (10 s) for room before dropping the connection, and the drop is logged with `pendingBytes`/`peakBytes` under `session-host/outbound`. A handshake answer needs room as well, so tests that fill the budget connect every client first.
+- Renderer IPC errors lose their `.code`, so these reach Sentry as `Error: unknown` (unhandled rejection in the GUI process). Never leave a `void api.*()` without a catch.
+
 ### Generated Session titles (ADR 0043, October 2026)
 
 - A Session title is a stable recognition label and also a Worker report reference. `sessions.title_source` (`default | provisional | generated | manual`) decides who may replace it: initial generation writes only over `default`/`provisional`, a refinement only over the `generated` title it owes, and an explicit Regenerate over any source, each with a compare-and-set on the exact title it read; renames and explicit titles are `manual`, forks inherit as `manual`. Titles that predate migration 63 are `manual`, so generation never touches them.
