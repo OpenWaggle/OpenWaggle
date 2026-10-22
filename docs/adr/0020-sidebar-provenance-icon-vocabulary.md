@@ -15,6 +15,7 @@ The provenance vocabulary is fixed as:
 | Terminal process running | `Terminal` | not yet recorded per session, see below |
 | Queen Session | `ChessQueen` | root Session with durable Spawn lineage |
 | Worker Session | `Pickaxe` | `SessionSummary.parentSessionId` |
+| Started by a Launch schedule | `CalendarClock` | the Launch schedule's `ScheduledTask.recentSessionIds` (ADR 0057) |
 | Commits ahead, commits behind | `↑n`, `↓n` | `GitStatusSummary.ahead`, `.behind` |
 
 ## Context
@@ -44,7 +45,7 @@ This bit immediately. The first vocabulary used `GitFork` for a cloned session a
 
 Provenance icons are muted and never coloured, so a row's colour continues to mean one thing, what the session needs. Every provenance icon carries a `title` and an `aria-label` naming the concept and its value, so assistive technology reads the second line even though most of these concepts render no text.
 
-Adding a provenance concept later is constrained. The new glyph must not resemble any of the seven above at 10px. That is the intended cost, and the set is small enough that you can check the constraint by looking at it.
+Adding a provenance concept later is constrained. The new glyph must not resemble any of the others above at 10px. `CalendarClock` was added this way for Sessions a Launch schedule started; its clock face shares no silhouette with the node, tree, corner, terminal or chess shapes. That is the intended cost, and the set is small enough that you can check the constraint by looking at it.
 
 ### `Globe` is reserved for a future remote environment mode
 

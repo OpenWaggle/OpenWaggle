@@ -115,13 +115,17 @@ it is expected to be promoted within about a week.
 - RC builds reach Beta and Alpha update channels automatically.
 - The in-app update restart asks for confirmation while an agent run is active.
 - The release docs and release skill match the v1 release policy.
+- Scheduled tasks (Heartbeats and Launch schedules, ADR 0057 and ADR 0058) shipped in a Beta build:
+  their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions,
+  Scheduled tasks page, and Background start become covered surfaces at `1.0.0`.
 - No release blocker is open.
 
 `1.0.0` Stable additionally requires a curated `CHANGELOG.md` entry and release notes for the
 whole v1 train; these can be written during the RC window.
 
 Everything else, including open feature, reliability-polish, dependency-pinning, and coverage
-issues, is post-v1. A **release blocker** is any known bug that loses user data, prevents launch,
+issues, is post-v1. For Scheduled tasks that includes webhook triggers, cloud runs, project-shared
+tasks, importing Codex automations, scheduled Waggles, keep-awake, and a tray icon. A **release blocker** is any known bug that loses user data, prevents launch,
 or blocks updating, at any stage. An open release blocker prevents entering RC; during RC it cuts a
 new `1.0.0-rc.N` and restarts the validation window. A bug whose persisted data is intact and only
 presents incorrectly is not a release blocker.
