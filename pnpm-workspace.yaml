@@ -4,13 +4,13 @@ packages:
 
 catalogs:
   pi-runtime:
-    "@earendil-works/pi-agent-core": 1.2.0
-    "@earendil-works/pi-ai": 1.2.0
-    "@earendil-works/pi-codemode": 1.2.0
-    "@earendil-works/pi-coding-agent": 1.2.0
-    "@earendil-works/pi-mcp": 1.2.0
-    "@earendil-works/pi-telemetry": 1.2.0
-    "@earendil-works/pi-tui": 1.2.0
+    "@earendil-works/pi-agent-core": 1.4.0
+    "@earendil-works/pi-ai": 1.4.0
+    "@earendil-works/pi-codemode": 1.4.0
+    "@earendil-works/pi-coding-agent": 1.4.0
+    "@earendil-works/pi-mcp": 1.4.0
+    "@earendil-works/pi-telemetry": 1.4.0
+    "@earendil-works/pi-tui": 1.4.0
 
 # Supply-chain hardening: delay installs until a release has had time to be
 # vetted, and never accept weakening trust signals (provenance/signatures).
@@ -49,6 +49,17 @@ trustPolicyExclude:
   - "openwaggle-unused-sentinel-do-not-remove"
 
 minimumReleaseAgeExclude:
+  # Pi 1.4.0 (2026-10-21) fixes Claude rejecting an error tool result that carries images (#10794,
+  # which left a Session failing every request) and a truncated tool call breaking later requests
+  # (#11227). The matched release passes the seven-day window when pi-tui does.
+  # pi-runtime-release-age-exclusions-expire: 2026-10-28T22:50:00Z
+  - "@earendil-works/pi-agent-core@1.4.0"
+  - "@earendil-works/pi-ai@1.4.0"
+  - "@earendil-works/pi-codemode@1.4.0"
+  - "@earendil-works/pi-coding-agent@1.4.0"
+  - "@earendil-works/pi-mcp@1.4.0"
+  - "@earendil-works/pi-telemetry@1.4.0"
+  - "@earendil-works/pi-tui@1.4.0"
   - "@diegogbrisa/*"
   - hono@4.13.7
   - "@aws-sdk/client-bedrock-runtime@3.1092.0"
@@ -184,7 +195,7 @@ allowBuilds:
   unrs-resolver: false
 
 patchedDependencies:
-  '@earendil-works/pi-ai@1.2.0': patches/@earendil-works__pi-ai@1.2.0.patch
-  '@earendil-works/pi-coding-agent@1.2.0': patches/@earendil-works__pi-coding-agent@1.2.0.patch
+  '@earendil-works/pi-ai@1.4.0': patches/@earendil-works__pi-ai@1.4.0.patch
+  '@earendil-works/pi-coding-agent@1.4.0': patches/@earendil-works__pi-coding-agent@1.4.0.patch
   dmg-builder@26.17.0: patches/dmg-builder@26.17.0.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch

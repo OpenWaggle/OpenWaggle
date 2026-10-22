@@ -8,7 +8,6 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { env } from '../../env'
-import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
 import { isPathInside } from '../../utils/paths'
 import { preparedSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
 import type { OpenWagglePiAppSettings } from './openwaggle-pi-settings-app-overlay'
@@ -18,7 +17,6 @@ import {
   openWagglePiBuiltInExtensions,
 } from './pi-built-in-extensions'
 import { withoutInstalledPiWaggle } from './pi-waggle-package-dedupe'
-import { createProviderAttributionExtension } from './provider-attribution-extension'
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
@@ -167,21 +165,11 @@ function systemPromptAppendices(options: PiRuntimeServicesOptions) {
   return appendices
 }
 
-/**
- * OpenWaggle's provider attribution loads into every Pi runtime, automation included: OpenWaggle's
- * Pi settings always report install telemetry as on, so without it a request would carry Pi's own
- * attribution labels.
- */
-function providerAttributionExtensionFactory() {
-  return createProviderAttributionExtension(isUsageStatisticsEnabled)
-}
-
 function configuredExtensionFactories(
   options: PiRuntimeServicesOptions,
   disableExtensions: boolean,
 ): InlineExtension[] {
   return [
-    providerAttributionExtensionFactory(),
     ...openWagglePiBuiltInExtensions(),
     ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
       ? (options.extensionFactories ?? [])
@@ -242,7 +230,6 @@ function configuredResourcePaths(
 export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
   return {
     ...(disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}),
-    extensionFactories: [providerAttributionExtensionFactory()],
     extensionsOverride: withoutInstalledPiWaggle,
   }
 }

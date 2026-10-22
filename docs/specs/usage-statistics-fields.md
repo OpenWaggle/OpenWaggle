@@ -60,7 +60,7 @@ Prompts, model output, code, diffs, file paths, project, repository or branch na
 
 ## Provider attribution
 
-When statistics are on, OpenWaggle labels its own OpenRouter requests `HTTP-Referer: https://openwaggle.ai` and `X-OpenRouter-Title: OpenWaggle`, so OpenRouter's public app rankings credit OpenWaggle. OpenWaggle sets these headers on its own requests and never writes its switch into Pi's global `~/.pi/agent/settings.json`. Pi's other product labels, NVIDIA's `X-BILLING-INVOKE-ORIGIN` and the Cloudflare User-Agent, also name OpenWaggle, and `X-OpenRouter-Categories` is removed. When statistics are off, none of Pi's attribution headers are sent. The session headers Pi sends to opencode's provider are functional, not attribution, stay unchanged, and are listed in the privacy notice.
+When statistics are on, OpenWaggle labels its own OpenRouter requests `HTTP-Referer: https://openwaggle.ai` and `X-OpenRouter-Title: OpenWaggle`, so OpenRouter's public app rankings credit OpenWaggle. OpenWaggle sets these headers on its own requests and never writes its switch into Pi's global `~/.pi/agent/settings.json`. Pi's other product labels, NVIDIA's `X-BILLING-INVOKE-ORIGIN` and opencode's `x-opencode-client`, also name OpenWaggle, and `X-OpenRouter-Categories` is removed. When statistics are off, none of Pi's attribution headers are sent. Provider requests name Pi in their `User-Agent` (Pi version, operating system, runtime, architecture) either way. The `x-opencode-session` header Pi sends to opencode's provider is functional, not attribution, stays unchanged, and is listed in the privacy notice.
 
 ## Deliberately not collected
 

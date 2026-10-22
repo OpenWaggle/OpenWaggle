@@ -1,16 +1,16 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index d0a5b0f1bcd77e4afff2c92b068a6e3150dcdd86..e5b314c4b73e3f596fd7896f3a8791be2aff467b 100644
+index 841da8964d2b403c45a18d4d1735c1fabc441a9a..c7d85b76062469a73c1de8f23e78569a1adae33f 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
-@@ -4,7 +4,7 @@ import { calculateCost } from "../models.js";
- import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+@@ -5,7 +5,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord } from "../utils/headers.js";
--import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.js";
-+import { finishStreamingToolCalls, parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments, } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
+-import { parseJsonWithRepair, parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments, } from "../utils/json-parse.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 @@ -585,7 +585,7 @@ export const stream = (model, context, options) => {
                          const block = blocks[index];
                          if (block && block.type === "toolCall") {
@@ -40,7 +40,7 @@ index d0a5b0f1bcd77e4afff2c92b068a6e3150dcdd86..e5b314c4b73e3f596fd7896f3a8791be
                  delete block.partialJson;
              }
 diff --git a/dist/api/azure-openai-responses.js b/dist/api/azure-openai-responses.js
-index 4615b1e502429ca4fb911dd8318658265b429c8d..895d00aedbf3193db0c02f8d8ecd737b964ab411 100644
+index c88f27ee93a6f267f6abf9f69b13d0ad2303c8b2..faa0efa09c31101ad04bcd25c7bc10906bc8c85d 100644
 --- a/dist/api/azure-openai-responses.js
 +++ b/dist/api/azure-openai-responses.js
 @@ -3,6 +3,7 @@ import { clampThinkingLevel } from "../models.js";
@@ -48,7 +48,7 @@ index 4615b1e502429ca4fb911dd8318658265b429c8d..895d00aedbf3193db0c02f8d8ecd737b
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord } from "../utils/headers.js";
 +import { parseStreamingJson } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
  import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 @@ -87,6 +88,10 @@ export const stream = (model, context, options) => {
@@ -63,19 +63,19 @@ index 4615b1e502429ca4fb911dd8318658265b429c8d..895d00aedbf3193db0c02f8d8ecd737b
                  delete block.partialJson;
                  delete block.customInput;
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index ca40f1b4a4e99f441503cf364822073a7a6c478a..238da0c62434bee270df4858379a200b31a30f48 100644
+index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..bf9c42219416a11a38502aa57b2462a9dedbceeb 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
-@@ -7,7 +7,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
- import { normalizeProviderError } from "../utils/error-body.js";
+@@ -8,7 +8,7 @@ import { normalizeProviderError } from "../utils/error-body.js";
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { providerHeadersToRecord } from "../utils/headers.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getClientVersion } from "../utils/identity.js";
+-import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-@@ -461,7 +461,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+@@ -473,7 +473,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -84,7 +84,7 @@ index ca40f1b4a4e99f441503cf364822073a7a6c478a..238da0c62434bee270df4858379a200b
          stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
      }
      else if (delta?.reasoningContent) {
-@@ -528,6 +528,10 @@ function flushRedactedContent(block) {
+@@ -540,6 +540,10 @@ function flushRedactedContent(block) {
   */
  function finalizeStreamingBlock(block) {
      delete block.index;
@@ -96,18 +96,18 @@ index ca40f1b4a4e99f441503cf364822073a7a6c478a..238da0c62434bee270df4858379a200b
      delete block.partialJson;
      flushRedactedContent(block);
 diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
-index eb52675006e4f048aeefde05acceb474e918473e..cfadec071d963f50d00982bb93af5543ddeeef08 100644
+index 193e8e42a40402a33d208e1f9c18e7cff893ce47..a2b5253659ea4ae144b7e33519c23a4d9f83c88d 100644
 --- a/dist/api/mistral-conversations.js
 +++ b/dist/api/mistral-conversations.js
-@@ -3,7 +3,7 @@ import { combineAbortSignals } from "../utils/abort-signals.js";
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
+@@ -4,7 +4,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { shortHash } from "../utils/hash.js";
  import { headersToRecord } from "../utils/headers.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
+-import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
  import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+ import { getCurrentTools, resolveTranscript } from "../utils/transcript.js";
 @@ -50,6 +50,10 @@ export const stream = (model, context, options) => {
          }
          catch (error) {
@@ -129,18 +129,18 @@ index eb52675006e4f048aeefde05acceb474e918473e..cfadec071d963f50d00982bb93af5543
                  type: "toolcall_delta",
                  contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-codex-responses.js b/dist/api/openai-codex-responses.js
-index 42aac9d5f61edf7254c975d47abb42eca59bdad8..2696cce3b43410d976e26502e0abd7656b8b82cf 100644
+index 45bcd08b85b478f0f96006881d489820f1264d2c..e7cd47cf44f268296237cefc6ecadbac5b861bfa 100644
 --- a/dist/api/openai-codex-responses.js
 +++ b/dist/api/openai-codex-responses.js
-@@ -5,6 +5,7 @@ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic, for
- import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
+@@ -6,6 +6,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord } from "../utils/headers.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
 +import { parseStreamingJson } from "../utils/json-parse.js";
  import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
  import { getSystemMessageText } from "../utils/text.js";
-@@ -340,6 +341,10 @@ export const stream = (model, context, options) => {
+ import { getDeclaredTools, getInitialSystemMessage, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
+@@ -342,6 +343,10 @@ export const stream = (model, context, options) => {
          }
          catch (error) {
              for (const block of output.content) {
@@ -152,19 +152,19 @@ index 42aac9d5f61edf7254c975d47abb42eca59bdad8..2696cce3b43410d976e26502e0abd765
                  delete block.partialJson;
                  delete block.customInput;
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index a60f39352b776d71497e55b33b3334bacfbeb2f5..f0554145ae1091345f682b1b814494cc389bff07 100644
+index 793ed0a6060e5d2e61b09e2d93514610527873df..db54467170b98d0602c262d61dbc7c26cab844ce 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
-@@ -4,7 +4,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
+@@ -5,7 +5,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { shortHash } from "../utils/hash.js";
  import { headersToRecord } from "../utils/headers.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
+-import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
-@@ -438,7 +438,7 @@ export const stream = (model, context, options) => {
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+@@ -453,7 +453,7 @@ export const stream = (model, context, options) => {
                              if (toolCall.function?.arguments) {
                                  delta = toolCall.function.arguments;
                                  block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
@@ -173,7 +173,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f0554145ae1091345f682b1b814494cc
                              }
                              else if (toolCall.custom?.input) {
                                  const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
-@@ -494,6 +494,10 @@ export const stream = (model, context, options) => {
+@@ -496,6 +496,10 @@ export const stream = (model, context, options) => {
                      applyStreamedReasoningDetails(block);
                  }
                  delete block.index;
@@ -185,18 +185,18 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f0554145ae1091345f682b1b814494cc
                  delete block.partialArgs;
                  delete block.customInput;
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..13033798a304903e092ff0eb0dedcf0f62820cde 100644
+index b7b27ca98c8f4069a806a01913632a2d9200379c..78502aae06b970bb799eb8734d5c25c7360e9aa0 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
 @@ -1,6 +1,6 @@
  import { calculateCost } from "../models.js";
  import { shortHash } from "../utils/hash.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
-+import { finishStreamingToolCalls, parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+-import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments, } from "../utils/json-parse.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
  import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
  import { resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
-@@ -177,7 +177,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+@@ -235,7 +235,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                  if (block.type === "thinking") {
                      if (block.thinkingSignature) {
                          const reasoningItem = JSON.parse(block.thinkingSignature);
@@ -207,7 +207,7 @@ index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..13033798a304903e092ff0eb0dedcf0f
                      }
                  }
                  else if (block.type === "text") {
-@@ -548,7 +550,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -613,7 +615,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
              if (!slot || slot.block.partialJson === undefined)
                  continue;
              slot.block.partialJson += event.delta;
@@ -216,7 +216,7 @@ index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..13033798a304903e092ff0eb0dedcf0f
              pushToolCallDelta(slot, event.delta);
          }
          else if (event.type === "response.function_call_arguments.done") {
-@@ -671,6 +673,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -736,6 +738,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
              }
          }
      }
@@ -253,7 +253,7 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..704ac20ba0429b4408caaf7de149f2c5
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa787d58782 100644
+index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..1e22d433c4338d0b516f8329a22e46871b896218 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
 @@ -3,16 +3,19 @@ import { clampThinkingLevel } from "../models.js";
@@ -261,15 +261,15 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord } from "../utils/headers.js";
 +import { parseStreamingJson } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
 -import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
-+import { getCurrentSystemPrompt, getDeclaredTools, normalizeContext, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
++import { getCurrentSystemPrompt, getDeclaredTools, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
  import { createGrammarToolInputProperties } from "./constrained-sampling.js";
  import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
  import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
- import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
+ import { convertResponsesMessages, convertResponsesTools, getResponsesToolSupport, processResponsesStream, } from "./openai-responses-shared.js";
  import { buildBaseOptions, resolveSamplingParams } from "./simple-options.js";
  const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 +const COMPACTION_ENDPOINT_UNAVAILABLE_STATUSES = [404, 405, 501];
@@ -277,7 +277,7 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
-@@ -20,6 +23,10 @@ const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
+@@ -23,6 +26,10 @@ const CONFIGURATION_UPDATE_REQUEST_EFFORT = "medium";
   * OpenAI API keys start with `sk-`; a different credential sent directly to OpenAI
   * is a Sign in with ChatGPT access token.
   */
@@ -288,7 +288,7 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
  function isChatGPTSignIn(model, apiKey) {
      return (model.provider === "openai" &&
          model.baseUrl === "https://api.openai.com/v1" &&
-@@ -43,6 +50,24 @@ function getClientApiKey(provider, apiKey, headers) {
+@@ -46,6 +53,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);
  }
@@ -313,7 +313,7 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
  function detectSessionAffinityFormat(model) {
      return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
  }
-@@ -61,6 +86,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -64,6 +89,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -321,7 +321,7 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
-@@ -158,6 +184,10 @@ export const stream = (model, context, options) => {
+@@ -174,6 +200,10 @@ export const stream = (model, context, options) => {
          catch (error) {
              for (const block of output.content) {
                  delete block.index;
@@ -332,11 +332,11 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
                  // Streaming scratch buffers are only used during parsing; never persist them.
                  delete block.partialJson;
                  delete block.customInput;
-@@ -187,7 +217,52 @@ export const streamSimple = (model, context, options) => {
+@@ -210,7 +240,52 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
--function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
+-function createClient(model, context, apiKey, optionsHeaders, identity, fetch, sessionId) {
 +export async function compactResponses(model, context, options) {
 +    if (model.compat?.supportsCompaction !== true) {
 +        throw new Error(`Responses compaction is not supported by ${model.provider}/${model.id}`);
@@ -346,7 +346,7 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
 +    const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
 +    const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
 +    const compat = getCompat(model);
-+    const client = createClient(model, transcript, apiKey, options?.headers, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
++    const client = createClient(model, transcript, apiKey, options?.headers, options?.identity, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
 +    const input = convertResponsesMessages(model, transcript, OPENAI_TOOL_CALL_PROVIDERS, {
 +        includeSystemPrompt: false,
 +        toolOptions: {
@@ -382,11 +382,11 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
 +    await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
 +    return data;
 +}
-+function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId, baseUrlOverride) {
++function createClient(model, context, apiKey, optionsHeaders, identity, fetch, sessionId, baseUrlOverride) {
      const compat = getCompat(model);
-     const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
+     const headers = { ...getIdentityHeaders(model, identity), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -213,9 +288,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -236,9 +311,19 @@ function createClient(model, context, apiKey, optionsHeaders, identity, fetch, s
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -399,8 +399,6 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
 +            headers.originator = "pi";
 +        if (!hasHeader(headers, "OpenAI-Beta"))
 +            headers["OpenAI-Beta"] = "responses=experimental";
-+        if (!hasHeader(headers, "User-Agent"))
-+            headers["User-Agent"] = getPiUserAgent();
 +    }
      return new OpenAI({
          apiKey,
@@ -410,19 +408,19 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..e5afb6cee59cecbafa69b99504f8eaa7
          fetch,
          defaultHeaders: headers,
 diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
-index 7da1c45de8a106a68411cf79bec75f553534a1c7..4604e013ce96806596377efe25c46e12d8674ad0 100644
+index d58f22e64ee924dcc69b504580457590d343bfef..8fa132ac1cd36990b0be42a57552b3ddb121e324 100644
 --- a/dist/api/pi-messages.js
 +++ b/dist/api/pi-messages.js
-@@ -11,7 +11,7 @@
- import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+@@ -12,7 +12,7 @@ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } fr
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
+ import { getIdentityHeaders } from "../utils/identity.js";
 -import { parseStreamingJson } from "../utils/json-parse.js";
 +import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  export class PiMessagesResponseError extends Error {
      code;
-@@ -91,7 +91,17 @@ function createEventConverter(model) {
+@@ -92,7 +92,17 @@ function createEventConverter(model) {
          timestamp: Date.now(),
      };
      const toolJson = new Map();
@@ -440,7 +438,7 @@ index 7da1c45de8a106a68411cf79bec75f553534a1c7..4604e013ce96806596377efe25c46e12
          switch (event.type) {
              case "done":
                  Object.assign(partial, {
-@@ -156,7 +166,7 @@ function createEventConverter(model) {
+@@ -157,7 +167,7 @@ function createEventConverter(model) {
                  const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
                  toolJson.set(event.contentIndex, json);
                  partial.content[event.contentIndex].arguments =
@@ -450,10 +448,10 @@ index 7da1c45de8a106a68411cf79bec75f553534a1c7..4604e013ce96806596377efe25c46e12
              }
              case "toolcall_end":
 diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts
-index fe53452e2b5b430fcab00bc1deb6e3a1a00f34fa..c85794972adc8b8e0d2af48d2150de901aad166e 100644
+index 681c7d626372d485351672fc7e4c11e3ed2351ee..b963fcd41972068665c7e70747020147008b6be5 100644
 --- a/dist/providers/compat-schema.d.ts
 +++ b/dist/providers/compat-schema.d.ts
-@@ -324,6 +324,10 @@ export interface OpenAICompletionsCompat extends Static<typeof OpenAICompletions
+@@ -492,6 +492,10 @@ export interface OpenAICompletionsCompat extends Static<typeof OpenAICompletions
  }
  /** Compatibility settings for OpenAI Responses APIs. */
  export interface OpenAIResponsesCompat extends Static<typeof OpenAIResponsesCompatSchema> {
@@ -465,17 +463,15 @@ index fe53452e2b5b430fcab00bc1deb6e3a1a00f34fa..c85794972adc8b8e0d2af48d2150de90
  /** Compatibility settings for Anthropic Messages-compatible APIs. */
  export interface AnthropicMessagesCompat extends Static<typeof AnthropicMessagesCompatSchema> {
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
-index 9a584e73fefc749226d29f78000564b41cf214bb..754e89a678b6c809b0fa1a1d7ef84034545c420c 100644
+index 9a584e73fefc749226d29f78000564b41cf214bb..b85455b7cc5869d3f4207ed7a8d5cb9193bb7d5a 100644
 --- a/dist/providers/openai-codex.models.js
 +++ b/dist/providers/openai-codex.models.js
-@@ -2,7 +2,27 @@
+@@ -2,7 +2,25 @@
  // Do not edit manually - run 'npm run generate-models' to update
  import values from "./data/openai-codex.json" with { type: "json" };
  import { flattenChatModelCatalog, flattenClassifierModelCatalog, flattenImageModelCatalog } from "../model-catalog.js";
 -export const OPENAI_CODEX_MODELS = flattenChatModelCatalog("openai-codex", values);
 +const COMPACTION_CAPABLE_MODEL_IDS = new Set([
-+    "gpt-5.3-codex-spark",
-+    "gpt-5.5",
 +    "gpt-5.6-luna",
 +    "gpt-5.6-sol",
 +    "gpt-5.6-terra",
@@ -517,10 +513,10 @@ index d1a99cf32531f99472ad88352fb4c329132a335b..34cc4ca5343eed7078d6cb27854d95a1
  //# sourceMappingURL=openai.models.js.map
 \ No newline at end of file
 diff --git a/dist/utils/json-parse.d.ts b/dist/utils/json-parse.d.ts
-index 6d7935322c2e60d425188d9c4c94809208073fe3..aae95e3e186e7f75a19c28e77e5e0b2115b9006c 100644
+index ec52a744f1001a3ebb8169f7d8df1524ba1de5a9..7323ce54492d7f0ed54911b0652b423d9cda05e3 100644
 --- a/dist/utils/json-parse.d.ts
 +++ b/dist/utils/json-parse.d.ts
-@@ -13,4 +13,19 @@ export declare function parseJsonWithRepair<T>(json: string): T;
+@@ -23,4 +23,19 @@ export declare function parseToolCallArguments(json: string | undefined): Pick<T
   * @returns Parsed object or empty object if parsing fails
   */
  export declare function parseStreamingJson<T = Record<string, unknown>>(partialJson: string | undefined): T;
@@ -542,10 +538,10 @@ index 6d7935322c2e60d425188d9c4c94809208073fe3..aae95e3e186e7f75a19c28e77e5e0b21
  //# sourceMappingURL=json-parse.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/json-parse.js b/dist/utils/json-parse.js
-index 82e105cb676a2f4be16167023243aa73dd8cb2e4..b69b65805e7034b2e7f62095c8dc91d4d9ec400a 100644
+index c282e3076956f09a062f9fe7cc2b5a9b8a5ff5a9..5c0fda5ad68f1c464eb9979ec3978ac674d87b5c 100644
 --- a/dist/utils/json-parse.js
 +++ b/dist/utils/json-parse.js
-@@ -110,4 +110,61 @@ export function parseStreamingJson(partialJson) {
+@@ -135,4 +135,61 @@ export function parseStreamingJson(partialJson) {
          }
      }
  }
@@ -705,10 +701,10 @@ index f59c2eca472e81072afe7eddf87c5823cffe50eb..35d05a8678dfffc4a2c0b8df366070cd
  //# sourceMappingURL=retry.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index a0e9b83609417e117662a40797153c1b1e71dc01..eb8202907b0d9d20ba97f6d8e29c41371893a8c1 100644
+index 1ae291c296dc5d35a7b827e1098977e0d0db32cf..b66e472141a97895d5c4263192a86350345cdd17 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
-@@ -189,8 +189,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
+@@ -202,8 +202,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
  export function isRetryableAssistantError(message) {
      if (message.stopReason !== "error" || !message.errorMessage)
          return false;

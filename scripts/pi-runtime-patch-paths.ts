@@ -29,6 +29,9 @@ export const EXPECTED_PATCH_PATHS = {
   'pi-coding-agent': [
     'dist/core/agent-session.d.ts',
     'dist/core/agent-session.js',
+    // Pi 1.4.0 derives provider attribution from the client identity of each request.
+    'dist/core/client-identity.d.ts',
+    'dist/core/client-identity.js',
     'dist/core/compaction/compaction.d.ts',
     'dist/core/compaction/compaction.js',
     'dist/core/messages.d.ts',
