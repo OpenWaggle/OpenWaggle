@@ -266,6 +266,11 @@ export interface IpcCoreInvokeChannelMap
     args: []
     return: string | null
   }
+  /** Consume the Session identity of the oldest opened Session link, if any (ADR 0056). */
+  'app:take-open-session-link-request': {
+    args: []
+    return: string | null
+  }
   'project-config:get-preferences': {
     args: [projectPath: string]
     return: ProjectPreferencesPayload | null

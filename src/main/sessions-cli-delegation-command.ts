@@ -1,6 +1,6 @@
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
 import {
   delegationClaims,
   delegationEvidence,
@@ -191,7 +191,7 @@ function revisionCommand(
 
 export function delegationCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
   const action = required(arguments_.positionals[0], 'Delegation action')
-  const sessionId = required(arguments_.positionals[SESSION_POSITION], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[SESSION_POSITION])
   const delegationId = required(arguments_.positionals[DELEGATION_POSITION], 'Delegation ID')
   if (action === 'submit') {
     return {

@@ -25,6 +25,7 @@ vi.mock('../typed-ipc', () => ({
 }))
 
 import { requestOpenProject } from '../../open-project-requests'
+import { requestOpenSessionLink } from '../../session-link-requests'
 import { registerProjectHandlers } from '../project-handler'
 
 function getRegisteredHandler(name: string) {
@@ -72,6 +73,16 @@ describe('registerProjectHandlers', () => {
     requestOpenProject(projectPath)
 
     await expect(take?.({})).resolves.toBe(await fs.realpath(projectPath))
+    await expect(take?.({})).resolves.toBeNull()
+  })
+
+  it('hands the renderer an opened Session link exactly once', async () => {
+    registerProjectHandlers()
+    const take = getRegisteredHandler('app:take-open-session-link-request')
+
+    requestOpenSessionLink('openwaggle://sessions/session-1')
+
+    await expect(take?.({})).resolves.toBe('session-1')
     await expect(take?.({})).resolves.toBeNull()
   })
 

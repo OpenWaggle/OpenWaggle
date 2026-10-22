@@ -13,7 +13,7 @@ import {
 } from '@shared/types/session-query'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
 
 const DELEGATION_MUTATION_COMMANDS = new Set([
@@ -30,6 +30,16 @@ const DELEGATION_MUTATION_COMMANDS = new Set([
   'reopen',
   'cancel',
 ])
+
+/** `--parent` and `--worker` take a Session identity or a Session link (ADR 0056). */
+function sessionFilters(arguments_: ParsedArguments) {
+  const parent = option(arguments_, 'parent')
+  const worker = option(arguments_, 'worker')
+  return {
+    ...(parent ? { parentSessionId: requiredSessionId(parent, '--parent') } : {}),
+    ...(worker ? { workerSessionId: requiredSessionId(worker, '--worker') } : {}),
+  }
+}
 
 function selectedStates(arguments_: ParsedArguments): readonly DelegationState[] | undefined {
   const values = arguments_.options.get('state')
@@ -67,8 +77,7 @@ function listPayload(
           : projectPath
             ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
             : { workingPath: workingDirectory }),
-        ...(option(arguments_, 'parent') ? { parentSessionId: option(arguments_, 'parent') } : {}),
-        ...(option(arguments_, 'worker') ? { workerSessionId: option(arguments_, 'worker') } : {}),
+        ...sessionFilters(arguments_),
         ...(states ? { states } : {}),
       },
     },
@@ -142,8 +151,7 @@ function conflictsPayload(
           : projectPath
             ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
             : { workingPath: workingDirectory }),
-        ...(option(arguments_, 'parent') ? { parentSessionId: option(arguments_, 'parent') } : {}),
-        ...(option(arguments_, 'worker') ? { workerSessionId: option(arguments_, 'worker') } : {}),
+        ...sessionFilters(arguments_),
         ...(option(arguments_, 'delegation')
           ? { delegationId: option(arguments_, 'delegation') }
           : {}),

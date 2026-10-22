@@ -101,6 +101,8 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   takeOpenProjectRequest: invoke('project:take-open-request'),
   onOpenProjectRequested: on('app:open-project-requested'),
+  takeOpenSessionLinkRequest: invoke('app:take-open-session-link-request'),
+  onOpenSessionLinkRequested: on('app:open-session-link-requested'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
   manageProjectActions: invoke('project-actions:manage'),

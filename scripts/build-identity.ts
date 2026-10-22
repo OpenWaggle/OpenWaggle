@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { BuildChannel } from '../src/shared/types/build-identity'
+import { channelClaimsSessionLinks, SESSION_LINK_SCHEME } from '../src/shared/utils/session-link'
 
 /**
  * Build-time Build identity resolver (see docs/adr/0032). One rule, consumed by
@@ -128,6 +129,17 @@ export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: st
 export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: string): string {
   const file = channel === 'stable' ? 'icon.icns' : `icon-${channel}.icns`
   return path.posix.join(buildResourcesDir, file)
+}
+
+/**
+ * URL schemes the packaged app declares to the operating system: the Info.plist on macOS and the
+ * desktop entry's `x-scheme-handler` on Linux (Windows registers at runtime). Only release
+ * channels claim Session links; a dev build keeps its own Session data, so it must never take
+ * links meant for the installed app (ADR 0056).
+ */
+export function resolveUrlSchemeProtocols(channel: BuildChannel) {
+  if (!channelClaimsSessionLinks(channel)) return []
+  return [{ name: 'OpenWaggle Session link', schemes: [SESSION_LINK_SCHEME] }]
 }
 
 export { MAC_DEV_DOCK_ICON_FILE as MAC_DEV_DOCK_ICON } from '../src/shared/build-identity-runtime'

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { sessionIdFromReference } from '@shared/utils/session-link'
 import { app } from 'electron'
 import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
@@ -57,6 +58,7 @@ Usage:
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
+A --session or --origin-session id may also be a Session link (openwaggle://sessions/<id>).
 Unexpected positional and -- passthrough input fail before the server starts.
 
 Servers are read from ~/.pi/agent/mcp.json and ~/.openwaggle/mcp.json, and with -l
@@ -126,12 +128,15 @@ function parseServeTransport(arguments_: ParsedArguments) {
   return { stdio, http, httpPort: http === undefined ? undefined : Number(http) }
 }
 
-function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) {
+export function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) {
   const profile = option(arguments_, 'profile')?.trim() || (stdio ? 'local-stdio' : 'local-http')
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(profile)) {
     throw new Error('Server profile must use 1-80 letters, numbers, dots, underscores, or dashes.')
   }
-  const originSessionId = option(arguments_, 'origin-session')?.trim()
+  const originReference = option(arguments_, 'origin-session')?.trim()
+  const originSessionId = originReference
+    ? sessionIdFromReference(originReference, '--origin-session')
+    : undefined
   if (originSessionId && !/^[A-Za-z0-9._:-]{1,200}$/.test(originSessionId)) {
     throw new Error(
       'Origin session must use 1-200 letters, numbers, dots, underscores, colons, or dashes.',

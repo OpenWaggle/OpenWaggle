@@ -1,4 +1,5 @@
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import { parseSessionLink } from '@shared/utils/session-link'
 import type { HiveSession } from '@/queries/session-hive-contract'
 import { parseToolArgs } from './tool-args'
 import { getToolResultText } from './tool-call-block'
@@ -13,6 +14,12 @@ function objectField(value: JsonValue | undefined): JsonObject | null {
 
 function stringField(value: JsonValue | undefined) {
   return typeof value === 'string' && value ? value : null
+}
+
+/** A Session id argument, which the tool also accepts as a Session link (ADR 0056). */
+function sessionIdField(value: JsonValue | undefined) {
+  const id = stringField(value)
+  return id === null ? null : (parseSessionLink(id) ?? id)
 }
 
 /** `{ response: { outcome: { sessionId } } }`, as Session Control answers a spawn or launch. */
@@ -35,10 +42,10 @@ export function sessionsToolTargetId(
   if (action !== null && CREATING_ACTIONS.has(action)) return createdSessionId(resultContent)
   if (action === 'report') {
     const target = objectField(args.target)
-    return target?.type === 'session' ? stringField(target.sessionId) : null
+    return target?.type === 'session' ? sessionIdField(target.sessionId) : null
   }
-  if (action === 'fork') return stringField(args.sessionId) ?? callerSessionId
-  return stringField(args.sessionId)
+  if (action === 'fork') return sessionIdField(args.sessionId) ?? callerSessionId
+  return sessionIdField(args.sessionId)
 }
 
 export function findHiveSession(id: string | null, sessions: readonly HiveSession[]) {

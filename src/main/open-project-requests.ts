@@ -3,12 +3,19 @@ import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { isDesktopInstanceProbe } from './desktop-instance-probe'
 import { createLogger } from './logger'
+import { requestOpenSessionLink } from './session-link-requests'
 import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('open-project-requests')
 
-/** Sent with the single-instance lock so a running app can open the requested project. */
-const secondInstanceDataSchema = Schema.Struct({ openProjectPath: Schema.String })
+/**
+ * Sent with the single-instance lock so a running app can open the requested project or the
+ * Session a link names. A launch carries at most one of them.
+ */
+const secondInstanceDataSchema = Schema.Struct({
+  openProjectPath: Schema.optional(Schema.String),
+  openSessionLink: Schema.optional(Schema.String),
+})
 
 /** Launches waiting for the renderer, oldest first; a few is plenty for quick repeats. */
 const pendingProjectPaths: string[] = []
@@ -52,15 +59,33 @@ export function takeOpenProjectRequest() {
   return pendingProjectPaths.shift() ?? null
 }
 
-/** Accept a project path forwarded by a second `openwaggle <path>` launch. */
+/**
+ * Accept a project path or Session link forwarded by a second launch, and say whether that
+ * launch should bring a window forward. A later launch reveals the app as the Dock icon does,
+ * except for a link that is not a Session link, which is refused without raising a window
+ * (ADR 0056).
+ */
 function acceptSecondInstanceData(additionalData: unknown) {
-  if (additionalData === undefined || additionalData === null) return
+  if (additionalData === undefined || additionalData === null) return true
   const decoded = safeDecodeUnknown(secondInstanceDataSchema, additionalData)
   if (!decoded.success) {
     logger.warn('Ignoring unrecognized second-instance data')
-    return
+    return true
   }
-  requestOpenProject(decoded.data.openProjectPath)
+  if (decoded.data.openSessionLink !== undefined) {
+    return requestOpenSessionLink(decoded.data.openSessionLink)
+  }
+  if (decoded.data.openProjectPath !== undefined) requestOpenProject(decoded.data.openProjectPath)
+  return true
+}
+
+function secondInstanceData(input: {
+  readonly openProjectPath: string | undefined
+  readonly openSessionLink: string | undefined
+}): Record<string, string> | undefined {
+  if (input.openProjectPath) return { openProjectPath: input.openProjectPath }
+  if (input.openSessionLink) return { openSessionLink: input.openSessionLink }
+  return undefined
 }
 
 export interface AppInstanceHost {
@@ -78,25 +103,30 @@ export interface AppInstanceHost {
 
 /**
  * Become the running app, or hand this launch to the one already running. A second launch
- * passes its project through the lock's data, so `openwaggle <path>` reaches the open app.
+ * passes its project or Session link through the lock's data, so `openwaggle <path>` and a
+ * Session link opened on Windows or Linux reach the open app.
  */
 export function claimAppInstance(input: {
   readonly host: AppInstanceHost
-  readonly openProjectPath: string | undefined
+  readonly openProjectPath?: string | undefined
+  readonly openSessionLink?: string | undefined
   readonly singleInstance: boolean
   /** Bring a window to the front for a later launch, creating one if none is open. */
   readonly revealWindow: () => void
 }): 'primary' | 'secondary' {
   if (input.singleInstance) {
-    const data = input.openProjectPath ? { openProjectPath: input.openProjectPath } : undefined
+    const data = secondInstanceData({
+      openProjectPath: input.openProjectPath,
+      openSessionLink: input.openSessionLink,
+    })
     if (!input.host.requestSingleInstanceLock(data)) return 'secondary'
     input.host.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
       // `openwaggle update` probes whether the app is running; it must not raise a window.
       if (isDesktopInstanceProbe(additionalData)) return
-      input.revealWindow()
-      acceptSecondInstanceData(additionalData)
+      if (acceptSecondInstanceData(additionalData)) input.revealWindow()
     })
   }
   if (input.openProjectPath) requestOpenProject(input.openProjectPath)
+  if (input.openSessionLink) requestOpenSessionLink(input.openSessionLink)
   return 'primary'
 }

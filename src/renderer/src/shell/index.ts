@@ -9,5 +9,6 @@ export {
   useUIStore,
 } from './ui-store'
 export { useOpenProjectRequests } from './useOpenProjectRequests'
+export { useOpenSessionLinkRequests } from './useOpenSessionLinkRequests'
 export { useSessionFloatingPreviewStatus } from './useSessionFloatingPreviewStatus'
 export { WorkspaceShell } from './WorkspaceShell'

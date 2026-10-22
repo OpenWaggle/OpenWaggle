@@ -1,7 +1,7 @@
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
 import { watchLocalSessionEvents } from './session-host/local-session-client'
-import { required, watchCursor } from './sessions-cli-arguments'
+import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { writeSessionsCliStreamRecord } from './sessions-cli-output'
 
 const EXPORT_OPERATION_ID_POSITION = 2
@@ -10,7 +10,7 @@ export async function watchSessionExportOperations(
   arguments_: ParsedArguments,
   clientInput: LocalSessionCliClientInput,
 ) {
-  const sessionId = required(arguments_.positionals[1], 'Session ID')
+  const sessionId = requiredSessionId(arguments_.positionals[1])
   const exportOperationId = arguments_.positionals[EXPORT_OPERATION_ID_POSITION]
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()

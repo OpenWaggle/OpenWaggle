@@ -10,6 +10,7 @@ vi.mock('../utils/broadcast', () => ({ broadcastToWindows: mocks.broadcast }))
 const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } = await import(
   '../open-project-requests'
 )
+const { takeOpenSessionLinkRequest } = await import('../session-link-requests')
 type AppInstanceHost = Parameters<typeof claimAppInstance>[0]['host']
 type SecondInstanceListener = Parameters<AppInstanceHost['on']>[1]
 
@@ -40,6 +41,9 @@ function fakeHost(lockGranted: boolean) {
 beforeEach(() => {
   while (takeOpenProjectRequest() !== null) {
     // Drain requests left by an earlier test.
+  }
+  while (takeOpenSessionLinkRequest() !== null) {
+    // Drain Session links left by an earlier test.
   }
   mocks.broadcast.mockClear()
 })
@@ -121,6 +125,49 @@ describe('app instance claim', () => {
     launchAgain({ openProjectPath: 'relative' })
     launchAgain(undefined)
     expect(revealWindow).toHaveBeenCalledTimes(4)
+    expect(takeOpenProjectRequest()).toBeNull()
+  })
+
+  it('opens a Session link in the first instance and hands it to a running app', () => {
+    const link = 'openwaggle://sessions/session-1'
+    const primary = fakeHost(true)
+    claimAppInstance({
+      host: primary.host,
+      openProjectPath: undefined,
+      openSessionLink: link,
+      singleInstance: true,
+      revealWindow: vi.fn(),
+    })
+    expect(primary.lockData).toEqual([{ openSessionLink: link }])
+    expect(takeOpenSessionLinkRequest()).toBe('session-1')
+
+    const secondary = fakeHost(false)
+    expect(
+      claimAppInstance({
+        host: secondary.host,
+        openProjectPath: undefined,
+        openSessionLink: link,
+        singleInstance: true,
+        revealWindow: vi.fn(),
+      }),
+    ).toBe('secondary')
+    expect(secondary.lockData).toEqual([{ openSessionLink: link }])
+    expect(takeOpenSessionLinkRequest()).toBeNull()
+  })
+
+  it('accepts a Session link forwarded by a later launch', () => {
+    const { host, launchAgain } = fakeHost(true)
+    const revealWindow = vi.fn()
+    claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
+
+    launchAgain({ openSessionLink: 'openwaggle://sessions/session-2' })
+    expect(revealWindow).toHaveBeenCalledTimes(1)
+    launchAgain({ openSessionLink: 'openwaggle://app/index.html' })
+
+    // A link that is not a Session link is refused without raising a window.
+    expect(revealWindow).toHaveBeenCalledTimes(1)
+    expect(takeOpenSessionLinkRequest()).toBe('session-2')
+    expect(takeOpenSessionLinkRequest()).toBeNull()
     expect(takeOpenProjectRequest()).toBeNull()
   })
 

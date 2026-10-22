@@ -32,6 +32,9 @@ export interface OpenWaggleProjectConfigApi {
   /** Consume the project an `openwaggle <path>` launch asked to open, if any. */
   takeOpenProjectRequest(): Promise<string | null>
   onOpenProjectRequested(callback: () => void): () => void
+  /** Consume the Session identity of the oldest opened Session link, if any (ADR 0056). */
+  takeOpenSessionLinkRequest(): Promise<string | null>
+  onOpenSessionLinkRequested(callback: () => void): () => void
   getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
   /** Resolves to the canonical (realpath) project path the write was stored under. */
   setProjectPreferences(

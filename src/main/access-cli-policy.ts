@@ -6,6 +6,7 @@ import type {
   LocalSessionProfileScope,
 } from '@shared/types/local-session-profile'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
+import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { resolveCliProjectPaths } from './cli-project-path'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { hasFlag, option } from './mcp-cli-arguments'
@@ -19,6 +20,16 @@ export function parseProfileCapabilities(
   )
   if (invalid.length > 0) throw new Error(`Unknown capability: ${invalid.join(', ')}.`)
   return SESSION_CAPABILITIES.filter((capability) => requested.includes(capability))
+}
+
+/** `--session` and `--hive` take Session identities or Session links (ADR 0056). */
+function sessionScopes(arguments_: ParsedArguments) {
+  const sessions = arguments_.options.get('session')
+  const hives = arguments_.options.get('hive')
+  return {
+    ...(sessions ? { sessionIds: sessionIdsFromReferences(sessions, '--session') } : {}),
+    ...(hives ? { hiveRootSessionIds: sessionIdsFromReferences(hives, '--hive') } : {}),
+  }
 }
 
 export function parseProfileScope(
@@ -48,10 +59,7 @@ export function parseProfileScope(
           ),
         }
       : {}),
-    ...(arguments_.options.get('session') ? { sessionIds: arguments_.options.get('session') } : {}),
-    ...(arguments_.options.get('hive')
-      ? { hiveRootSessionIds: arguments_.options.get('hive') }
-      : {}),
+    ...sessionScopes(arguments_),
   }
   if (
     !selected.all &&

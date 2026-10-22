@@ -6,7 +6,7 @@ import {
   SESSION_QUERY_TRANSCRIPT_LIMIT,
 } from '@shared/types/session-query'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required } from './sessions-cli-arguments'
+import { positiveInteger, requiredSessionId } from './sessions-cli-arguments'
 
 export function buildSessionsCliExportPayload(
   arguments_: ParsedArguments,
@@ -24,7 +24,7 @@ export function buildSessionsCliExportPayload(
       requestId: randomUUID(),
       query: {
         operation: 'export',
-        sessionId: required(arguments_.positionals[0], 'Session ID'),
+        sessionId: requiredSessionId(arguments_.positionals[0]),
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_TRANSCRIPT_LIMIT,

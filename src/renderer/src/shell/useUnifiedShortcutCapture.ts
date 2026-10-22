@@ -7,6 +7,7 @@ import {
   type ShortcutRules,
   shortcutBindingKey,
 } from '@shared/types/shortcuts'
+import { typesAltGraphCharacter } from '@shared/utils/altgraph-character'
 import { EXTENSION_PANEL_SHORTCUT_WHEN } from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
@@ -14,6 +15,11 @@ import {
 } from '@shared/utils/project-action-shortcuts'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
+import {
+  keyboardLayoutKey,
+  noteKeyboardLayoutKeyPress,
+  trackKeyboardLayout,
+} from '@/shared/lib/keyboard-layout'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import {
   type ExtensionPanelShortcut,
@@ -36,6 +42,33 @@ interface UnifiedShortcutCaptureOptions {
   readonly onToggleExtensionPanel?: (surfaceId: ExtensionRightPanelSurfaceId) => void
   readonly shouldHandleBuiltIn?: (command: ShortcutCommand) => boolean
   readonly terminalOpen: boolean
+}
+
+/** A field, editor, or terminal that receives typed characters. */
+const TYPING_TARGET = 'input, textarea, select, [contenteditable="true"], [data-terminal-pane]'
+
+/**
+ * A character typed with AltGr into a field or terminal belongs to it, not to a Ctrl+Alt
+ * shortcut. Elsewhere nothing would be typed, so the shortcut still runs.
+ */
+function typesAltGraphText(event: KeyboardEvent) {
+  // The first key press starts reading the layout; until it arrives the layout-free rule applies.
+  trackKeyboardLayout()
+  noteKeyboardLayoutKeyPress(event)
+  if (!(event.target instanceof Element) || event.target.closest(TYPING_TARGET) === null) {
+    return false
+  }
+  return typesAltGraphCharacter({
+    key: event.key,
+    code: event.code,
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    meta: event.metaKey,
+    shift: event.shiftKey,
+    altGraph: event.getModifierState('AltGraph'),
+    applePlatform: usesAppleShortcuts(),
+    layoutKey: keyboardLayoutKey(event.code),
+  })
 }
 
 function consumeShortcutEvent(event: KeyboardEvent) {
@@ -147,7 +180,7 @@ export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions
       handlersRef.current[match.rule.command]()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isShortcutEditorTarget(event)) return
+      if (isShortcutEditorTarget(event) || typesAltGraphText(event)) return
       const modifierFreeEvent = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
       if (
         modifierFreeEvent &&

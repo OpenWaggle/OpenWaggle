@@ -43,6 +43,21 @@ describe('sessionsToolTargetId', () => {
     expect(sessionsToolTargetId({ action: 'spawn' }, 'not json', null)).toBeNull()
   })
 
+  it('reads a target the agent named by its Session link', () => {
+    const link = 'openwaggle://sessions/w1'
+    expect(sessionsToolTargetId({ action: 'read', sessionId: link }, undefined, null)).toBe('w1')
+    expect(sessionsToolTargetId({ action: 'fork', sessionId: link }, undefined, 'caller')).toBe(
+      'w1',
+    )
+    expect(
+      sessionsToolTargetId(
+        { action: 'report', target: { type: 'session', sessionId: link } },
+        undefined,
+        null,
+      ),
+    ).toBe('w1')
+  })
+
   it('reads the target of other actions from their arguments', () => {
     expect(sessionsToolTargetId({ action: 'message', sessionId: 'w1' }, undefined, null)).toBe('w1')
     expect(

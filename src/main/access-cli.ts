@@ -44,6 +44,7 @@ Usage:
   openwaggle access profiles revoke <name>
 
 Scope: --all | --project <path>... | --session <id>... | --hive <root-id>...
+  (a Session id may also be a Session link: openwaggle://sessions/<session-id>)
 Export files: --export-root <path>... (explicit read/write roots; never implied by Session scope)
 Attachments: --attachment-root <path>... (explicit file-read roots)
 Policy: --authorization ask-for-approval|yolo [--management-envelope-json <json>]
