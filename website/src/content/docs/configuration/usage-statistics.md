@@ -213,11 +213,11 @@ Pi, the agent engine OpenWaggle runs on, labels requests to a few model provider
 |----------|---------------|----------------|
 | OpenRouter | `HTTP-Referer: https://openwaggle.ai` and `X-OpenRouter-Title: OpenWaggle` | None |
 | NVIDIA NIM | `X-BILLING-INVOKE-ORIGIN: OpenWaggle` | None |
-| Cloudflare Workers AI and AI Gateway | `User-Agent: OpenWaggle` | The provider SDK's own `User-Agent` |
+| opencode | `x-opencode-client: OpenWaggle` | None |
 
-The OpenRouter labels let OpenRouter's public app rankings credit OpenWaggle. OpenWaggle removes the `X-OpenRouter-Categories` header that Pi would otherwise add, and leaves headers you configured yourself alone. Setting `PI_TELEMETRY` to anything other than `1`, `true`, or `yes` turns statistics off, and Pi then adds none of these labels. MCP sampling requests that OpenWaggle sends to OpenRouter on behalf of an MCP server carry no attribution labels.
+The OpenRouter labels let OpenRouter's public app rankings credit OpenWaggle. OpenWaggle removes the `X-OpenRouter-Categories` header that Pi would otherwise add, and leaves headers you configured yourself alone. Provider requests also name Pi in their `User-Agent`, such as `pi/1.4.0 (darwin; node/v24.0.0; arm64)`, with the Pi version, operating system, runtime, and processor architecture, whether statistics are on or off. Amazon Bedrock requests add only `pi/1.4.0` to the AWS SDK's own `User-Agent`, GitHub Copilot requests send Copilot's own `User-Agent`, Claude subscription requests send Anthropic's command-line client `User-Agent` (`claude-cli`) instead, and ChatGPT subscription requests also send `originator: pi`. Setting `PI_TELEMETRY` to anything other than `1`, `true`, or `yes` turns statistics off, and Pi then adds none of these labels. Session titles, MCP sampling requests on behalf of an MCP server, Native compaction requests, and model calls from codemode scripts carry no attribution labels. Conversation summaries made for compaction carry the same labels as the conversation's own requests.
 
-The opencode providers always receive the Pi session ID in `x-opencode-session`, plus `x-opencode-client: pi`. opencode uses them to tell sessions apart. The statistics switch does not change them.
+The opencode providers always receive the Pi session ID in `x-opencode-session`. opencode uses it to tell sessions apart. The statistics switch does not change it.
 
 ## Update checks
 
