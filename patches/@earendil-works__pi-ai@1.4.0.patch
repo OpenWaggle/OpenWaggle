@@ -253,7 +253,7 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..704ac20ba0429b4408caaf7de149f2c5
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..1e22d433c4338d0b516f8329a22e46871b896218 100644
+index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3dbe066eb5 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
 @@ -3,16 +3,19 @@ import { clampThinkingLevel } from "../models.js";
@@ -277,17 +277,17 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..1e22d433c4338d0b516f8329a22e4687
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
-@@ -23,6 +26,10 @@ const CONFIGURATION_UPDATE_REQUEST_EFFORT = "medium";
-  * OpenAI API keys start with `sk-`; a different credential sent directly to OpenAI
-  * is a Sign in with ChatGPT access token.
-  */
+@@ -29,6 +32,10 @@ function isChatGPTSignIn(model, apiKey) {
+         apiKey !== undefined &&
+         !apiKey.startsWith("sk-"));
+ }
 +/** Whether a request is a Sign in with ChatGPT login rather than an OpenAI API key. */
 +export function isChatGPTSignInRequest(model, apiKey) {
 +    return isChatGPTSignIn(model, apiKey);
 +}
- function isChatGPTSignIn(model, apiKey) {
-     return (model.provider === "openai" &&
-         model.baseUrl === "https://api.openai.com/v1" &&
+ function hasHeader(headers, name) {
+     if (!headers)
+         return false;
 @@ -46,6 +53,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);

@@ -41,7 +41,7 @@ Each run receives an immutable MCP turn snapshot. Settings changes made while id
 ```json
 {
   "preferences": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.6-sol",
     "thinkingLevel": "medium"
   },
   "pi": {

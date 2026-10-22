@@ -1,8 +1,8 @@
-import { pathToFileURL } from 'node:url'
 import { setClientIdentityTransform } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '../../../env'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
+import { piRequestIdentity } from './pi-client-identity.test-utils'
 import { createTempProject, fs, path } from './pi-provider-catalog.test-utils'
 
 const temporaryDirectories: string[] = []
@@ -28,24 +28,10 @@ afterEach(async () => {
   )
 })
 
-// Pi does not export the function it builds each request's identity with (sdk.js,
-// `buildRequestOptions`), so the test reads it from Pi's own module.
-const PI_CLIENT_IDENTITY_MODULE = path.resolve(
-  'node_modules/@earendil-works/pi-coding-agent/dist/core/client-identity.js',
-)
-
 /** The identity of a Pi request from a fresh project runtime. */
 async function runtimeRequestIdentity() {
   const services = await createPiRuntimeServices(await temporaryProject())
-  const piModule: unknown = await import(pathToFileURL(PI_CLIENT_IDENTITY_MODULE).href)
-  const getClientIdentity: unknown =
-    typeof piModule === 'object' && piModule !== null
-      ? Reflect.get(piModule, 'getClientIdentity')
-      : undefined
-  if (typeof getClientIdentity !== 'function') throw new Error('Pi client identity moved')
-  const identity: unknown = Reflect.apply(getClientIdentity, undefined, [services.settingsManager])
-  if (typeof identity !== 'object' || identity === null) throw new Error('No Pi client identity')
-  return identity
+  return piRequestIdentity(services.settingsManager)
 }
 
 describe('provider attribution registration', () => {

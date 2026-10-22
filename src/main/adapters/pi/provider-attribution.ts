@@ -16,24 +16,29 @@ export const OPENWAGGLE_PROVIDER_ATTRIBUTION = {
   url: 'https://openwaggle.ai',
 } as const satisfies ClientAttribution
 
-/** The identity OpenWaggle sends instead of Pi's, given the current statistics switch. */
+/**
+ * The identity OpenWaggle sends instead of Pi's. Its attribution reads the statistics switch each
+ * time a request is sent, so a request Pi repeats with an identity it kept, such as a cache
+ * warming request, follows the switch too.
+ */
 export function openWaggleClientIdentity(
   piIdentity: ClientIdentity,
-  statisticsEnabled: boolean,
+  isStatisticsEnabled: () => boolean,
 ): ClientIdentity {
   return {
     ...piIdentity,
-    attribution: statisticsEnabled ? OPENWAGGLE_PROVIDER_ATTRIBUTION : null,
+    get attribution() {
+      return isStatisticsEnabled() ? OPENWAGGLE_PROVIDER_ATTRIBUTION : null
+    },
   }
 }
 
 /**
  * Installs OpenWaggle's attribution for every Pi request in this process, automation included.
- * Pi reads the identity per request, so a change of the statistics switch applies at once.
  * Called at each Pi runtime construction chokepoint; repeats replace the same transform.
  */
 export function installOpenWaggleProviderAttribution() {
   setClientIdentityTransform((piIdentity) =>
-    openWaggleClientIdentity(piIdentity, isUsageStatisticsEnabled()),
+    openWaggleClientIdentity(piIdentity, isUsageStatisticsEnabled),
   )
 }

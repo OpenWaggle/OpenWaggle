@@ -1,7 +1,6 @@
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import {
   type ClientIdentity,
+  getIdentityHeaders,
   type Model,
   normalizeContext,
   type TranscriptContext,
@@ -16,28 +15,13 @@ vi.mock('../../../usage-statistics/usage-statistics-enablement', () => ({
   isUsageStatisticsEnabled: () => statistics.enabled,
 }))
 
-const { installOpenWaggleProviderAttribution } = await import('../provider-attribution')
-
-// Pi does not export the function it builds each request's identity with, so the tests read it
-// from Pi's own module, as Pi's request options do (sdk.js, `buildRequestOptions`).
-const PI_CLIENT_IDENTITY_MODULE = path.resolve(
-  'node_modules/@earendil-works/pi-coding-agent/dist/core/client-identity.js',
+const { installOpenWaggleProviderAttribution, openWaggleClientIdentity } = await import(
+  '../provider-attribution'
 )
+const { piRequestIdentity } = await import('./pi-client-identity.test-utils')
 
-async function piRequestIdentity(): Promise<ClientIdentity> {
-  const piModule: unknown = await import(pathToFileURL(PI_CLIENT_IDENTITY_MODULE).href)
-  const getClientIdentity: unknown =
-    typeof piModule === 'object' && piModule !== null
-      ? Reflect.get(piModule, 'getClientIdentity')
-      : undefined
-  if (typeof getClientIdentity !== 'function') throw new Error('Pi client identity moved')
-  // Pi's own install telemetry is on, so without OpenWaggle a request would carry Pi's labels.
-  const identity: unknown = Reflect.apply(getClientIdentity, undefined, [
-    SettingsManager.inMemory({ enableInstallTelemetry: true }),
-  ])
-  if (typeof identity !== 'object' || identity === null) throw new Error('No Pi client identity')
-  return identity
-}
+/** Pi's install telemetry setting, as the user may have stored it for standalone Pi. */
+const PI_INSTALL_TELEMETRY = [true, false] as const
 
 const TARGETS = {
   openrouter: { provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' },
@@ -80,13 +64,16 @@ const CONTEXT: TranscriptContext = normalizeContext({
 })
 
 /** The headers of the real provider request Pi sends with its request identity. */
-async function requestHeaders(requestModel: Model<'openai-completions'>) {
+async function requestHeaders(
+  requestModel: Model<'openai-completions'>,
+  enableInstallTelemetry = true,
+) {
   let captured: Headers | undefined
   const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
     captured = new Headers(init?.headers)
     return new Response('{"error":{"message":"stop"}}', { status: 400 })
   })
-  const identity = await piRequestIdentity()
+  const identity = await piRequestIdentity(SettingsManager.inMemory({ enableInstallTelemetry }))
   await streamCompletions(requestModel, CONTEXT, {
     apiKey: 'sk-test',
     identity,
@@ -118,27 +105,32 @@ describe('OpenWaggle provider attribution', () => {
     vi.unstubAllEnvs()
   })
 
-  it('labels requests OpenWaggle while Usage statistics are on', async () => {
-    expect(attribution(await requestHeaders(model(TARGETS.openrouter)))).toEqual({
-      'http-referer': 'https://openwaggle.ai',
-      'x-openrouter-title': 'OpenWaggle',
-    })
-    expect(attribution(await requestHeaders(model(TARGETS.nvidia)))).toEqual({
-      'x-billing-invoke-origin': 'OpenWaggle',
-    })
-    expect(attribution(await requestHeaders(model(TARGETS.opencode)))).toEqual({
-      'x-opencode-client': 'OpenWaggle',
-    })
-    expect(attribution(await requestHeaders(model(TARGETS.cloudflare)))).toEqual({})
-  })
+  it.each(PI_INSTALL_TELEMETRY)(
+    "labels requests OpenWaggle while Usage statistics are on (Pi's install telemetry %s)",
+    async (piTelemetry) => {
+      const headers = (target: (typeof TARGETS)[keyof typeof TARGETS]) =>
+        requestHeaders(model(target), piTelemetry).then(attribution)
 
-  it("sends none of Pi's attribution while Usage statistics are off", async () => {
-    statistics.enabled = false
+      expect(await headers(TARGETS.openrouter)).toEqual({
+        'http-referer': 'https://openwaggle.ai',
+        'x-openrouter-title': 'OpenWaggle',
+      })
+      expect(await headers(TARGETS.nvidia)).toEqual({ 'x-billing-invoke-origin': 'OpenWaggle' })
+      expect(await headers(TARGETS.opencode)).toEqual({ 'x-opencode-client': 'OpenWaggle' })
+      expect(await headers(TARGETS.cloudflare)).toEqual({})
+    },
+  )
 
-    for (const target of Object.values(TARGETS)) {
-      expect(attribution(await requestHeaders(model(target)))).toEqual({})
-    }
-  })
+  it.each(PI_INSTALL_TELEMETRY)(
+    "sends none of Pi's attribution while Usage statistics are off (Pi's install telemetry %s)",
+    async (piTelemetry) => {
+      statistics.enabled = false
+
+      for (const target of Object.values(TARGETS)) {
+        expect(attribution(await requestHeaders(model(target), piTelemetry))).toEqual({})
+      }
+    },
+  )
 
   it('follows the statistics switch on every request', async () => {
     const openrouter = model(TARGETS.openrouter)
@@ -151,10 +143,29 @@ describe('OpenWaggle provider attribution', () => {
   })
 
   it("keeps Pi's User-Agent whether statistics are on or off", async () => {
-    const userAgent = /^pi\/\d+\.\d+\.\d+ /
-    expect((await requestHeaders(model(TARGETS.cloudflare))).get('user-agent')).toMatch(userAgent)
+    const piIdentity: ClientIdentity = {
+      userAgent: 'detailed',
+      version: '9.8.7',
+      attribution: { name: 'pi', url: 'https://pi.dev' },
+    }
+    const target = TARGETS.cloudflare
+
+    for (const enabled of [true, false]) {
+      const identity = openWaggleClientIdentity(piIdentity, () => enabled)
+      expect(identity).toMatchObject({ userAgent: 'detailed', version: '9.8.7' })
+      expect(getIdentityHeaders(target, identity)['User-Agent']).toMatch(/^pi\/9\.8\.7 /)
+    }
+  })
+
+  it('reads the switch when a kept identity is sent again', async () => {
+    const identity = await piRequestIdentity(
+      SettingsManager.inMemory({ enableInstallTelemetry: true }),
+    )
+    const target = TARGETS.openrouter
+
+    expect(getIdentityHeaders(target, identity)).toHaveProperty('X-OpenRouter-Title', 'OpenWaggle')
     statistics.enabled = false
-    expect((await requestHeaders(model(TARGETS.cloudflare))).get('user-agent')).toMatch(userAgent)
+    expect(getIdentityHeaders(target, identity)).not.toHaveProperty('X-OpenRouter-Title')
   })
 
   it('leaves headers a user or provider configured alone', async () => {
