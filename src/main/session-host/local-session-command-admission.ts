@@ -1,5 +1,5 @@
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
-import type { LocalSessionClientFrame } from '@shared/types/local-session-protocol'
+import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
 import type { AuthenticatedLocalSessionCaller } from './local-session-server'
 
 export interface ActiveLocalSessionCommand {

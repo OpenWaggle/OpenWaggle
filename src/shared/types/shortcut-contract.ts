@@ -22,6 +22,7 @@ export const SHORTCUT_COMMANDS = [
   'request.focus',
   'rightPanel.allPanels',
   'rightPanel.projectActions',
+  'rightPanel.scheduledTasks',
   'rightPanel.files',
   'rightPanel.resources',
   'rightPanel.hive',

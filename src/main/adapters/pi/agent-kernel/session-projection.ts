@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { parseJsonUnknown } from '@shared/schema'
+import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { contextOmittedEntryIds } from './context-edit-omissions'
@@ -49,6 +50,16 @@ function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: strin
   const parsed = parseJsonUnknown(rawMetadataJson)
   const metadata = isRecord(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, durableTextSha256: digest })
+}
+
+/** The Scheduled task whose run sent a user message, as the Host recorded it with the message. */
+function mergeMetadataJsonWithScheduledTask(
+  rawMetadataJson: string,
+  scheduledTask: MessageScheduledTaskOrigin | null,
+) {
+  if (!scheduledTask) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), scheduledTask })
 }
 
 /** The Session's model selection when a response was made, which a virtual model routed. */
@@ -155,14 +166,17 @@ function projectPiEntry(input: {
     contentJson: projection.contentJson,
     metadataJson: mergeMetadataJsonWithRun(
       mergeMetadataJsonWithSelectedModel(
-        mergeMetadataJsonWithDurableText(
-          mergeMetadataJsonWithContextOmission(
-            waggleMetadata
-              ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-              : projection.metadataJson,
-            input.omittedFromContext,
+        mergeMetadataJsonWithScheduledTask(
+          mergeMetadataJsonWithDurableText(
+            mergeMetadataJsonWithContextOmission(
+              waggleMetadata
+                ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+                : projection.metadataJson,
+              input.omittedFromContext,
+            ),
+            displayProjection?.durableTextSha256 ?? null,
           ),
-          displayProjection?.durableTextSha256 ?? null,
+          displayProjection?.scheduledTask ?? null,
         ),
         isAssistantEntry(input.entry) ? input.selectedModel : null,
       ),

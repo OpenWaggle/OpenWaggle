@@ -120,6 +120,7 @@ export type LocalSessionCommandPayload =
   | LocalHostCommandPayload
   | LocalSessionCompactionCommandPayload
   | LocalSessionWaggleCommandPayload
+  | LocalScheduledTasksCommandPayload
 
 export type LocalSessionCommandResult =
   | { readonly contract: 'desktop-service-v1'; readonly response: DesktopServiceResponse }
@@ -177,24 +178,7 @@ export type LocalSessionCommandResult =
   | LocalHostCommandResult
   | LocalSessionCompactionCommandResult
   | LocalSessionWaggleCommandResult
-
-export type LocalSessionClientFrame =
-  | {
-      readonly kind: 'command'
-      readonly requestId: string
-      readonly payload: unknown
-    }
-  | {
-      readonly kind: 'subscribe'
-      readonly requestId: string
-      readonly after?: SessionHostEventCursor
-      readonly sessionIds?: readonly string[]
-    }
-  | {
-      readonly kind: 'unsubscribe'
-      readonly requestId: string
-      readonly subscriptionId: string
-    }
+  | LocalScheduledTasksCommandResult
 
 export type LocalSessionServerFrame =
   | {
@@ -298,6 +282,10 @@ import type {
   LocalSessionWaggleCommandResult,
 } from './local-session-waggle'
 import type { LocalUpdateCommandPayload, LocalUpdateCommandResult } from './local-update'
+import type {
+  LocalScheduledTasksCommandPayload,
+  LocalScheduledTasksCommandResult,
+} from './scheduled-task'
 import type { SessionDeleteOptions, SessionNavigateTreeOptions } from './session'
 import type {
   SessionControlMutationRequest,

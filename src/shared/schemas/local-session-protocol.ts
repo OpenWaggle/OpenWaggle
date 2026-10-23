@@ -2,6 +2,7 @@ import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 
+import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
 import {
   isLocalSessionProfileCredential,
   LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
@@ -11,7 +12,6 @@ import {
   LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT,
-  type LocalSessionClientFrame,
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
   SESSION_WAGGLE_CONTRACT_VERSION,
@@ -24,6 +24,7 @@ import { localSessionNegotiationResultSchema } from './local-session-negotiation
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
 import { localUpdateRequestSchema } from './local-update'
+import { scheduledTasksRequestSchema } from './scheduled-task'
 import { sessionControlMutationRequestSchema } from './session-control'
 import {
   sessionInputIdSchema,
@@ -264,6 +265,10 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
         requestId: sessionInputIdSchema,
         sessionId: sessionInputIdSchema,
       }),
+    }),
+    Schema.Struct({
+      contract: Schema.Literal('scheduled-tasks-v1'),
+      request: scheduledTasksRequestSchema,
     }),
   )
 

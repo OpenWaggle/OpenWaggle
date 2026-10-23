@@ -61,6 +61,13 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['exports_read', ['sessions:export', 'sessions:read']],
   ['exports_wait', ['sessions:export', 'sessions:read']],
   ['wait', ['sessions:read']],
+  ['schedule_list', ['schedules:read']],
+  ['schedule_read', ['schedules:read']],
+  ['schedule_runs', ['schedules:read']],
+  ['schedule_create', ['schedules:manage']],
+  ['schedule_update', ['schedules:manage']],
+  ['schedule_delete', ['schedules:manage']],
+  ['schedule_run_now', ['schedules:manage']],
 ])
 
 function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {

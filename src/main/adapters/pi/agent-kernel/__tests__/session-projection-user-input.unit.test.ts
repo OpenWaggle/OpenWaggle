@@ -64,3 +64,70 @@ it('projects original attachment display parts instead of Pi prompt artifacts', 
   expect(snapshot.nodes[1]?.contentJson).not.toContain('[Attachment:')
   expect(snapshot.nodes[1]?.contentJson).not.toContain('[Image input:')
 })
+
+it('projects the Scheduled task a prompt came from into its user node metadata', () => {
+  const timestamp = '2026-05-19T10:00:00.000Z'
+  const scheduledTask = { taskId: 'task-1', name: 'Morning triage', kind: 'heartbeat' }
+  const entries = [
+    {
+      id: 'display',
+      parentId: null,
+      timestamp,
+      type: 'custom',
+      customType: 'openwaggle-user-input',
+      data: { version: 1, parts: [{ type: 'text', text: 'Check CI' }], scheduledTask },
+    },
+    {
+      id: 'prompt',
+      parentId: 'display',
+      timestamp,
+      type: 'message',
+      message: { role: 'user', content: [{ type: 'text', text: 'Check CI' }], timestamp: 1 },
+    },
+    {
+      id: 'typed',
+      parentId: 'prompt',
+      timestamp,
+      type: 'message',
+      message: { role: 'user', content: [{ type: 'text', text: 'Thanks' }], timestamp: 2 },
+    },
+  ] satisfies SessionEntry[]
+
+  const snapshot = projectPiSessionSnapshot({
+    sessionManager: { getEntries: () => entries, getLeafId: () => 'typed' },
+  })
+
+  expect(JSON.parse(snapshot.nodes[1]?.metadataJson ?? '{}')).toEqual({ scheduledTask })
+  expect(JSON.parse(snapshot.nodes[2]?.metadataJson ?? '{}')).not.toHaveProperty('scheduledTask')
+})
+
+it('ignores a malformed Scheduled task record instead of trusting it', () => {
+  const timestamp = '2026-05-19T10:00:00.000Z'
+  const entries = [
+    {
+      id: 'display',
+      parentId: null,
+      timestamp,
+      type: 'custom',
+      customType: 'openwaggle-user-input',
+      data: {
+        version: 1,
+        parts: [{ type: 'text', text: 'Check CI' }],
+        scheduledTask: { name: 'No id', kind: 'cron' },
+      },
+    },
+    {
+      id: 'prompt',
+      parentId: 'display',
+      timestamp,
+      type: 'message',
+      message: { role: 'user', content: [{ type: 'text', text: 'Check CI' }], timestamp: 1 },
+    },
+  ] satisfies SessionEntry[]
+
+  const snapshot = projectPiSessionSnapshot({
+    sessionManager: { getEntries: () => entries, getLeafId: () => 'prompt' },
+  })
+
+  expect(snapshot.nodes[1]?.metadataJson ?? '{}').not.toContain('scheduledTask')
+})

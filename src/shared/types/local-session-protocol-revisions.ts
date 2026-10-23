@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 25 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 26 as const
+export const LOCAL_SESSION_SCHEDULED_TASKS_REVISION = 26 as const
 export const LOCAL_SESSION_ARCHIVED_ITEMS_REVISION = 25 as const
 export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 23 as const
 export const LOCAL_SESSION_MCP_CONFIGURATION_REVISION = 24 as const
@@ -57,6 +58,9 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * that, in one call (`sessions:set-archived-items`), and permanently deleting only the selected
  * sessions that are still archived (`sessions:delete-archived-sessions`); the Local UI `delete`
  * command gains `requireArchived` for it, checked inside the removal fence.
+ * Revision 26 adds Scheduled tasks (ADR 0057, ADR 0058): the `scheduled-tasks-v1` contract that
+ * lists, reads, creates, updates, deletes, and runs Heartbeats and Launch schedules, and the
+ * `schedules:read` and `schedules:manage` Session capabilities a CLI client profile can be granted.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -187,4 +191,9 @@ export const LOCAL_SESSION_REVISION_25_CAPABILITIES = [
   'host-ui:archived-items-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_25_CAPABILITIES
+export const LOCAL_SESSION_REVISION_26_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_25_CAPABILITIES,
+  'scheduled-tasks:v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_26_CAPABILITIES

@@ -31,6 +31,10 @@ import {
   buildSessionsToolQueuePayload,
   isSessionsToolQueueAction,
 } from './sessions-tool-queue-payload'
+import {
+  buildSessionsToolSchedulePayload,
+  isSessionsToolScheduleAction,
+} from './sessions-tool-schedule-payload'
 import { buildSessionsToolWaitPayload } from './sessions-tool-wait-payload'
 
 const DEFAULT_LIST_LIMIT = 50
@@ -41,6 +45,8 @@ export interface SessionsToolSource {
   readonly runId: string
   readonly workingDirectory?: string
   readonly projectPath?: string
+  /** The Pi tool call, which keys a retried Scheduled task create. */
+  readonly toolCallId?: string
 }
 
 function catalogFilter(
@@ -262,5 +268,6 @@ export function buildSessionsToolPayload(
     return buildSessionsToolCollaborationPayload(input, source)
   }
   if (isSessionsToolControlAction(input)) return buildSessionsToolControlPayload(input)
+  if (isSessionsToolScheduleAction(input)) return buildSessionsToolSchedulePayload(input, source)
   throw new Error(`Unsupported Sessions tool action: ${input.action}`)
 }

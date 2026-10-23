@@ -1363,7 +1363,7 @@ The single container beside the chat that shows one **Right panel surface** at a
 _Avoid_: right sidebar, inspector, side panel (an extension contributes a side panel; the container is the Right panel)
 
 **Right panel surface**:
-One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, Resources, or Hive, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
+One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Scheduled, Browser, Files, Session Tree, Resources, or Hive, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
 _Avoid_: tab, view, tool
 
 **Right panel toggle**:
@@ -2630,3 +2630,68 @@ _Avoid_: cost source, price state, fallback cost
 - A session has exactly one **Session origin**. OpenWaggle recognizes its own sessions from OpenWaggle's own session entries; it never infers origin from paths, names, or timing.
 - Every token amount has exactly one **Cost tier**. **Estimated** numbers are labelled as estimates and never presented as **Recorded**.
 - Every path in the view is a **Display path** (`~/…` or a leaf name). Sessions are grouped by **Owning project**, so a project's worktrees and subdirectories roll up into one row instead of appearing as opaque-ID folders.
+
+### Scheduled tasks
+
+**Scheduled task**:
+A saved prompt, schedule, and target, owned by one project, that OpenWaggle delivers without a person sending it each time.
+_Avoid_: automation (taken by **Workspace automation enablement** and hidden QA automation), cron job, routine
+
+**Heartbeat**:
+A **Scheduled task** that delivers its prompt into one existing Session each time it fires, as an ordinary **Message submission**.
+_Avoid_: follow-up monitor, scheduled follow-up (a **Follow-up message** is queued input; a Heartbeat to an idle Session starts a Run directly)
+
+**Launch schedule**:
+A **Scheduled task** that launches a new root Session each time it fires.
+_Avoid_: cron automation, recurring Session
+
+**Background start**:
+The opt-in setting that starts the **Session Host**, with no window, when the user logs in, so enabled **Scheduled tasks** keep firing after a reboot or logout.
+_Avoid_: start at login (shows a window), launch agent, background service, daemon
+
+**Task schedule**:
+When a **Scheduled task** fires: an interval, a daily time on chosen weekdays, or a recurrence rule, read in the time zone stored with the task, with an optional end date or run count.
+_Avoid_: cron expression, trigger, timer
+
+**Scheduled panel**:
+The **Right panel** surface that lists the **Scheduled tasks** of the project the user is in, the **Heartbeats** into the open Session first, and shows one task's settings, actions, editor and history of **Scheduled task runs** in place of the list.
+_Avoid_: automations panel, scheduler sidebar
+
+**Scheduled tasks settings**:
+The Settings tab that lists every **Scheduled task** in every project beside one task's detail, with the same detail, actions and editor as the **Scheduled panel**, and holds **Background start**.
+_Avoid_: scheduled tasks page, automations page, inbox, scheduler dashboard
+
+**Scheduled summary section**:
+The Session Summary section that lists the **Heartbeats** that run in the open Session, or the **Launch schedule** that started it, each opening its task and offering Run now, Pause, Edit and Delete from its menu, as Codex's thread summary does.
+_Avoid_: heartbeat strip, heartbeat banner, automation card
+
+**Scheduled task run**:
+One firing of a **Scheduled task**, which produces a Run (Heartbeat) or a Session (Launch schedule) or is recorded as skipped or failed.
+_Avoid_: Run (that is the agent execution it may produce), trigger, execution
+
+- A **Scheduled task** is exactly one **Heartbeat** or one **Launch schedule**.
+- A **Heartbeat** targets exactly one Session; a **Launch schedule** targets one project and creates a new root Session per **Scheduled task run**, never a Worker.
+- The **Session Host** schedules every **Scheduled task**, and does not idle-exit while at least one is enabled; nothing fires while the Host is not running or the machine is asleep.
+- Firings missed while the **Session Host** was down or the machine was asleep produce at most one catch-up **Scheduled task run**, never one per missed firing.
+- A **Heartbeat** fires only into an idle Session: no active Run, nothing in its **Follow-up queue**, and no parked request. It never steers or queues; it waits, and a firing still waiting at the next fire time is recorded as skipped.
+- A **Scheduled task** has at most one **Scheduled task run** in progress. A **Launch schedule** whose previous Session still has an active Run, or that meets the Host's active-run ceiling, records a skipped run instead of waiting in a hidden queue.
+- Archiving a **Heartbeat**'s target Session pauses the **Heartbeat**; deleting the Session deletes it.
+- A **Scheduled task** records the caller that created it, and every **Scheduled task run** revalidates that authority as automatic Follow-up delivery does; **CLI client profile revocation** disables the profile's **Scheduled tasks** and marks them as needing attention rather than deleting them.
+- A **Scheduled task run** uses its target's **Effective authorization mode** and carries no **Run authorization override**; an **Authorization request** it raises parks for the user like any other.
+- A **Scheduled task run**'s input carries **Message provenance** naming the **Scheduled task** as its origin, and is never presented as the user's own message.
+- A **Scheduled task** is private to the user who created it and is stored only by the **Session Host**; no file creates one, and a project cannot share one.
+- Managing **Scheduled tasks** requires `schedules:manage` and reading them requires `schedules:read`; a derived spawn grant never carries either.
+- Creating a **Heartbeat** also requires `sessions:message` on its target Session, and creating a **Launch schedule** requires `sessions:create` and `sessions:start` in its project, so a **Scheduled task** never does more than its creator could do by hand.
+- An agent creates a **Scheduled task** through the **Hive tool** only when the user asks directly or a project or skill instruction authorizes it; work already in progress is finished in the current Run, not scheduled.
+- An MCP client cannot create, read or change a **Scheduled task** in v1: an `openwaggle mcp serve` process holds only transient authority that ends with the process, so no later **Scheduled task run** could revalidate it. MCP-driven agents ask the user, or use the **Hive CLI** under a **CLI client profile**.
+- A **Scheduled task** is opened where the user is: in the **Scheduled panel** when a chat in its project is open, otherwise in **Scheduled tasks settings**; its editor replaces the detail in that same place and is never a modal.
+- A **Launch schedule**'s Sessions are ordinary sidebar Sessions marked with a scheduled provenance icon; there is no separate inbox, and no **Scheduled task run** is required to end its reply in a particular format.
+- A **Heartbeat** notifies only on failure or attention by default and a **Launch schedule** on every run; a **Scheduled task** disabled or skipped for an authority reason always produces an **Agent notification**.
+- A **Launch schedule** may archive its finished Sessions automatically, only when nothing needs attention and the user never touched them, and only when that option is on.
+- A **Task schedule** keeps its stored time zone when the machine's zone changes; intervals count elapsed time, and daily and recurrence-rule times follow the wall clock across daylight-saving changes.
+- A **Heartbeat** fires at most every 5 minutes and a **Launch schedule** at most every 15; hourly-or-slower schedules fire within a few minutes of their nominal time, which the history records beside the actual time.
+- A **Scheduled task** whose **Task schedule** reaches its end date or run count disables itself.
+- A **Launch schedule** stores its project, Workspace placement (`new-worktree` by default, or `local`), model, thinking level, and optionally an **Agent definition** name resolved afresh at each **Scheduled task run**; an unavailable model or invalid definition fails the run visibly rather than falling back.
+- A **Launch schedule** runs a standard turn, never a Waggle, and titles each Session from the task name and date.
+- A **Heartbeat** whose target Session the `pi` CLI wrote to last treats it as busy; a **Scheduled task run** never makes a **Pi continuation choice**.
+- A **Scheduled task run** uses the same Session Control operations a person would (**Message submission** or **Session launch**); scheduling decides only when they happen.

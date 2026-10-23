@@ -1,4 +1,9 @@
-import type { AgentSendPayload, HydratedAttachment, Message } from '@shared/types/agent'
+import type {
+  AgentSendPayload,
+  HydratedAttachment,
+  Message,
+  MessageScheduledTaskOrigin,
+} from '@shared/types/agent'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
@@ -26,6 +31,8 @@ export interface AgentRunInput {
   readonly agentInstructions?: string
   readonly sessionIdentityContext?: string
   readonly runIdentityContext?: string
+  /** The Scheduled task whose run sent this Run's request, recorded with its prompt message. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]

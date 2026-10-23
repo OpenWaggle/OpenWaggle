@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import {
+  SCHEDULED_TASKS_CONTRACT_VERSION,
+  type ScheduledTaskStatusSummary,
+} from '@shared/types/scheduled-task'
 import { SESSION_QUERY_CONTRACT_VERSION, type SessionQuery } from '@shared/types/session-query'
 import { app } from 'electron'
 import { writeCliStdout } from './cli-stdout'
@@ -67,6 +71,8 @@ export interface StatusCliDependencies {
   }>
   readonly snapshotActiveRuns: (input: ClientInput) => Promise<readonly BackgroundRunSnapshot[]>
   readonly query: (input: ClientInput, query: SessionQuery) => Promise<LocalSessionCommandResult>
+  /** The caller's enabled Scheduled tasks; omitted dependencies leave them out of the report. */
+  readonly listScheduledTasks?: (input: ClientInput) => Promise<LocalSessionCommandResult>
   readonly writeStdout: (text: string) => Promise<void>
 }
 
@@ -107,7 +113,38 @@ export const defaultStatusCliDependencies: StatusCliDependencies = {
         },
       },
     }),
+  listScheduledTasks: async (input) =>
+    executeLocalSessionCommand({
+      ...input,
+      paths: await refreshLocalSessionHostEndpoint(input.paths),
+      payload: {
+        contract: 'scheduled-tasks-v1',
+        request: {
+          contractVersion: SCHEDULED_TASKS_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          command: { operation: 'list' },
+        },
+      },
+    }),
   writeStdout: writeCliStdout,
+}
+
+async function enabledScheduledTasks(
+  input: ClientInput,
+  dependencies: StatusCliDependencies,
+): Promise<readonly ScheduledTaskStatusSummary[] | null | undefined> {
+  if (!dependencies.listScheduledTasks) return undefined
+  try {
+    const result = await dependencies.listScheduledTasks(input)
+    if (result.contract !== 'scheduled-tasks-v1') return null
+    const outcome = result.response.outcome
+    if (outcome.effect !== 'listed') return null
+    return outcome.tasks
+      .filter((task) => task.enabled)
+      .map((task) => ({ id: task.id, name: task.name, kind: task.kind, nextRunAt: task.nextRunAt }))
+  } catch {
+    return null
+  }
 }
 
 function queryOutcome(result: LocalSessionCommandResult) {
@@ -194,9 +231,12 @@ export async function readStatusReport(
   if (host.state === 'not-running') return { version, host }
   if (host.state === 'upgrade-pending') return { version, host }
   const snapshots = await dependencies.snapshotActiveRuns(input)
-  const activeRuns = await mapWithConcurrency(snapshots, STATUS_LOOKUP_CONCURRENCY, (run) =>
-    describeActiveRun(input, run, dependencies),
-  )
+  const [activeRuns, scheduledTasks] = await Promise.all([
+    mapWithConcurrency(snapshots, STATUS_LOOKUP_CONCURRENCY, (run) =>
+      describeActiveRun(input, run, dependencies),
+    ),
+    enabledScheduledTasks(input, dependencies),
+  ])
   return {
     version,
     host: {
@@ -205,6 +245,7 @@ export async function readStatusReport(
       protocolRevision: host.revision,
     },
     activeRuns: [...activeRuns].sort((left, right) => left.startedAt - right.startedAt),
+    ...(scheduledTasks !== undefined ? { scheduledTasks } : {}),
   }
 }
 

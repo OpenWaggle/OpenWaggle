@@ -30,6 +30,7 @@ import {
   prepareLocalGuiAttachments,
 } from './local-ui-session-service'
 import { dispatchLocalUpdateCommand } from './local-update-command'
+import { executeScheduledTasksRequest } from './scheduled-task-commands'
 import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
@@ -168,6 +169,13 @@ function dispatchNonHostUiLocalSessionCommandImplementation(
     }
     if (commandPayload.contract === 'local-ui-v1') {
       return yield* executeLocalUiSessionCommand({ caller, payload: commandPayload })
+    }
+    if (commandPayload.contract === 'scheduled-tasks-v1') {
+      const response = yield* executeScheduledTasksRequest({
+        caller,
+        request: commandPayload.request,
+      })
+      return { contract: 'scheduled-tasks-v1', response } as const
     }
     if (commandPayload.contract === 'session-query-v2') {
       return yield* dispatchObservedLocalSessionQuery({

@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigateBackToApp } from '@/features/chat/hooks'
 import { ProjectActionsSettings } from '@/features/project-actions'
+import { ScheduledTasksSettings } from '@/features/scheduled-tasks'
 import { SkillsPanel } from '@/features/skills/components'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -58,7 +59,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
         <div
           className={cn(
             'min-w-0 flex-1',
-            activeTab === 'skills' || activeTab === 'agents'
+            activeTab === 'skills' || activeTab === 'agents' || activeTab === 'scheduled'
               ? 'overflow-hidden'
               : 'overflow-y-auto px-4 py-5 @min-[640px]/settings:px-10 @min-[640px]/settings:py-8',
           )}
@@ -81,6 +82,7 @@ function SettingsTabContent({ tab }: { readonly tab: SettingsTab }) {
     .with('extensions', () => <ExtensionsSection />)
     .with('skills', () => <SkillsPanel />)
     .with('agents', () => <AgentsSettingsSection />)
+    .with('scheduled', () => <ScheduledTasksSettings />)
     .with('permissions', () => <PermissionsSection />)
     .with('mcp', () => <McpSection />)
     .with('worktrees', () => <WorktreesSection />)

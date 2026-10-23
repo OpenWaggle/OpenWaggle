@@ -14,6 +14,7 @@ import type { ExtensionProjectOverridesRepository } from '../ports/extension-pro
 import type { InlineVisualizationService } from '../ports/inline-visualization-service'
 import type { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import type { ProviderService } from '../ports/provider-service'
+import type { ScheduledTaskRepository } from '../ports/scheduled-task-repository'
 import type { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import type { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import type { SessionControlIdentityService } from '../ports/session-control-identity-service'
@@ -55,7 +56,7 @@ import {
 
 export { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 
-type SessionToolDependencies =
+export type SessionToolDependencies =
   | SqlClient.SqlClient
   | AgentKernelService
   | AgentRunInterruptionService
@@ -99,6 +100,7 @@ type SessionToolDependencies =
   | SessionExportResourceResolver
   | SessionWaitService
   | ProviderService
+  | ScheduledTaskRepository
   | SettingsService
 
 export const installAppSessionToolGateway = Effect.gen(function* () {

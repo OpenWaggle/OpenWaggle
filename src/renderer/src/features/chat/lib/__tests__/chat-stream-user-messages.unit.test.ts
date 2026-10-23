@@ -145,6 +145,27 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
     })
   })
 
+  it('labels a message a Scheduled task run delivered with the task it came from', () => {
+    const scheduledTask = { taskId: 'task-1', name: 'Morning triage', kind: 'heartbeat' as const }
+    const messages = applyAgentTransportEvent(answered, {
+      type: 'message_start',
+      messageId: 'live-scheduled',
+      role: 'user',
+      userMessage: {
+        parts: [{ type: 'text', text: 'Check CI' }],
+        sessionNodeCreatedOrder: 2,
+        scheduledTask,
+      },
+      timestamp: 1_000,
+    })
+
+    expect(messages.at(-1)?.metadata).toEqual({
+      sessionNodeCreatedOrder: 2,
+      scheduledTask,
+      liveIncorporated: true,
+    })
+  })
+
   it('ignores a user message start without content', () => {
     const messages = applyAgentTransportEvent(answered, {
       type: 'message_start',

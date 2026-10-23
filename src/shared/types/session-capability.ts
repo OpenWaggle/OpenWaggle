@@ -18,6 +18,8 @@ export const SESSION_CAPABILITIES = [
   'delegations:contribute',
   'delegations:review',
   'access:profiles',
+  'schedules:read',
+  'schedules:manage',
 ] as const
 
 export type SessionCapability = (typeof SESSION_CAPABILITIES)[number]

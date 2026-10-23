@@ -64,6 +64,7 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
     'request.focus': null,
     'rightPanel.allPanels': null,
     'rightPanel.projectActions': null,
+    'rightPanel.scheduledTasks': null,
     'rightPanel.files': null,
     'rightPanel.resources': null,
     'rightPanel.hive': null,

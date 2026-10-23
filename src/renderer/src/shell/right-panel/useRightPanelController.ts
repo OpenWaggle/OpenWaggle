@@ -187,9 +187,9 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
         clearRoutePanel()
         showWorkspaceBrowser(ownerKey)
       })
-      .with('project-actions', () => {
+      .with('project-actions', 'scheduled-tasks', (kind) => {
         clearRoutePanel()
-        useWorkspacePanelStore.getState().showIndexSurface(ownerKey, 'project-actions')
+        useWorkspacePanelStore.getState().showIndexSurface(ownerKey, kind)
       })
       .with('all-panels', () => {
         clearRoutePanel()

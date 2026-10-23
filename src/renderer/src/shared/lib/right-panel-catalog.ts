@@ -1,5 +1,6 @@
 import type { ShortcutCommand } from '@shared/types/shortcuts'
 import {
+  CalendarClock,
   ChessQueen,
   FolderTree,
   GitCompare,
@@ -46,6 +47,14 @@ export const BUILT_IN_RIGHT_PANEL_SURFACES = [
     description: 'Run, stop and inspect project actions',
     icon: Play,
     command: 'rightPanel.projectActions',
+    group: 'Workspace',
+  },
+  {
+    id: 'scheduled-tasks',
+    title: 'Scheduled',
+    description: "This project's Heartbeats and Launch schedules",
+    icon: CalendarClock,
+    command: 'rightPanel.scheduledTasks',
     group: 'Workspace',
   },
   {

@@ -39,6 +39,15 @@ export function sessionCliResultErrorKind(
       ? errorKindForOutcomeCode(result.response.outcome.error.code)
       : undefined
   }
+  if (result.contract === 'scheduled-tasks-v1') {
+    const outcome = result.response.outcome
+    if (outcome.effect !== 'rejected') return undefined
+    if (outcome.code === 'task_not_found' || outcome.code === 'target_not_found') return 'not_found'
+    if (outcome.code === 'capability_denied' || outcome.code === 'target_scope_denied') {
+      return 'authorization'
+    }
+    return outcome.code.startsWith('invalid_') ? 'usage' : 'conflict'
+  }
   if (
     (result.contract === 'session-control-v2' || result.contract === 'session-lifecycle-v2') &&
     result.response.outcome.effect === 'rejected'

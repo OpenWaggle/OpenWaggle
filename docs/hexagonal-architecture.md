@@ -13,6 +13,7 @@ Pure business logic. Zero infrastructure imports. Zero vendor imports. Zero side
 **Current modules:**
 - `shared/domain/error-classifier.ts` — Error classification rules
 - `shared/domain/skill-references.ts` — Skill reference parsing
+- `shared/domain/scheduled-tasks/` — Scheduled task schedules: interval and RRULE evaluation, next and missed occurrences, jitter, and the editor's next-run preview. Shared so the Host and the renderer compute the same times.
 
 **Rules:**
 - MUST NOT import from Pi SDK, `electron`, `node:fs`, `node:child_process`, `@effect/sql`

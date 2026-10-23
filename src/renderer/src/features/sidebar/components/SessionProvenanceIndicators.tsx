@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
-import { CornerDownRight, GitBranch, ListTree, Split, Terminal } from 'lucide-react'
+import { CalendarClock, CornerDownRight, GitBranch, ListTree, Split, Terminal } from 'lucide-react'
+import { useScheduledTaskLaunchedBy } from '@/features/scheduled-tasks'
 import { useRunningTerminalCount } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
 import { useSessionGitBranch } from '../hooks/useSessionGitIndicators'
@@ -23,6 +24,7 @@ const PROVENANCE_ICON: Record<
   'git-branch': GitBranch,
   worktree: Split,
   'cloned-from': CornerDownRight,
+  'scheduled-task': CalendarClock,
   'conversation-branches': ListTree,
   terminal: Terminal,
 }
@@ -68,7 +70,13 @@ function ProvenanceIndicator({ indicator }: { readonly indicator: SessionProvena
 export function SessionProvenanceIndicators({ session }: { readonly session: SessionSummary }) {
   const gitBranch = useSessionGitBranch(session)
   const terminalCount = useRunningTerminalCount(String(session.id))
-  const indicators = buildSessionProvenance({ session, gitBranch, terminalCount })
+  const scheduledTaskName = useScheduledTaskLaunchedBy(String(session.id))
+  const indicators = buildSessionProvenance({
+    session,
+    gitBranch,
+    terminalCount,
+    scheduledTaskName,
+  })
 
   if (indicators.length === 0) return null
 

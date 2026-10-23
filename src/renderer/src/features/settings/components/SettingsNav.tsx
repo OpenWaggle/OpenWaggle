@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
   Cable,
+  CalendarClock,
   GitBranch,
   Globe2,
   Keyboard,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Waypoints,
 } from 'lucide-react'
+import { useScheduledTasksNeedAttention } from '@/features/scheduled-tasks'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
@@ -36,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'extensions', label: 'Extensions', icon: PackageOpen },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'agents', label: 'Agents', icon: Pickaxe },
+  { id: 'scheduled', label: 'Scheduled tasks', icon: CalendarClock },
   { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
   { id: 'mcp', label: 'MCP', icon: Network },
   { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
@@ -49,6 +52,7 @@ interface SettingsNavProps {
 
 export function SettingsNav({ activeTab }: SettingsNavProps) {
   const navigate = useNavigate()
+  const scheduledTasksNeedAttention = useScheduledTasksNeedAttention()
 
   function navigateToTab(tab: SettingsTab) {
     if (tab === 'general') {
@@ -95,7 +99,14 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
               )}
             >
               <item.icon className="size-4 shrink-0" />
-              <span>{item.label}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+              {item.id === 'scheduled' && scheduledTasksNeedAttention ? (
+                <span
+                  role="img"
+                  aria-label="Needs attention"
+                  className="size-1.5 shrink-0 rounded-full bg-warning"
+                />
+              ) : null}
             </Button>
           )
         })}

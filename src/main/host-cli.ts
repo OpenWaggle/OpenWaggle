@@ -3,6 +3,7 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
 import { env } from './env'
+import { runHostStart } from './host-start-cli'
 import {
   cancelUpdateOnInterrupt,
   defaultCliHostUpdateStopDependencies,
@@ -33,6 +34,7 @@ on demand and exits on its own a few minutes after its last work ends.
 
 Usage:
   openwaggle host status [--json]
+  openwaggle host start [--json]   Start the Host with no window (used by Background start)
   openwaggle host stop [--wait [--timeout-ms <ms>]] [--json]
   openwaggle host stop --update [--json]
 
@@ -314,6 +316,7 @@ export async function runHostCli(
     return SESSION_CLI_EXIT.SUCCESS
   }
   if (command === 'stop') return runHostStop(rest, dependencies)
+  if (command === 'start') return runHostStart(rest, dependencies)
   return sessionCliExitCodeForError(
     writeSessionsCliError(
       new Error(`Unsupported OpenWaggle host command: ${command}. Expected status or stop.`),

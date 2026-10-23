@@ -1,5 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlRunExecutionInput } from '../ports/session-control-run-executor'
 import {
   resolveSessionRunExecution,
@@ -30,7 +31,28 @@ export function loadRunExecutionProfile(
         workspace_resources.working_path,
         derived_child_management_grants.capabilities_json,
         delegation_contracts.id AS delegation_id,
-        delegation_contracts.state AS delegation_state
+        delegation_contracts.state AS delegation_state,
+        (
+          SELECT json_object(
+            'id', scheduled_task_runs.task_id,
+            'name', scheduled_task_runs.task_name,
+            'kind', scheduled_tasks.kind,
+            'trigger', scheduled_task_runs.trigger,
+            'nominalAt', scheduled_task_runs.nominal_at,
+            'firedAt', scheduled_task_runs.fired_at,
+            'missedCount', scheduled_task_runs.missed_count,
+            'previousSessionId', scheduled_task_runs.previous_session_id,
+            'previousFiredAt', scheduled_task_runs.previous_fired_at
+          )
+          FROM session_runs
+          JOIN scheduled_task_runs
+            ON scheduled_task_runs.idempotency_key = json_extract(session_runs.intent_json, '$.idempotencyKey')
+            AND scheduled_task_runs.caller_id = json_extract(session_runs.intent_json, '$.callerId')
+          LEFT JOIN scheduled_tasks ON scheduled_tasks.id = scheduled_task_runs.task_id
+          WHERE session_runs.id = ${durableSessionRunId(input.runId)}
+            AND session_runs.session_id = sessions.id
+          LIMIT 1
+        ) AS scheduled_task_json
       FROM sessions
       JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
       JOIN session_workspace_bindings ON session_workspace_bindings.session_id = sessions.id

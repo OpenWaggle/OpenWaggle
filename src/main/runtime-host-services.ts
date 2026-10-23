@@ -17,6 +17,7 @@ import {
 } from './application/pi-session-discovery'
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { installSessionTitleWorker } from './application/session-title-scheduler'
+import { runScheduledTaskSchedulerBackground } from './session-host/scheduled-task-scheduler'
 import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
 import { runTranscriptTermRepairBackground } from './store/session-details/snapshot-transcript-term-projection'
 import { runUsageStatisticsReporterBackground } from './usage-statistics/usage-statistics-reporter-background'
@@ -53,6 +54,8 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     yield* runTranscriptTermRepairBackground
     yield* runUsageStatisticsReporterBackground
     yield* installSessionTitleWorker
+    // After the tool gateway and title worker: a Launch schedule's Session gets its title.
+    yield* runScheduledTaskSchedulerBackground
     yield* activateTrustedMainExtensionsForActiveProjectSafely()
   })
 }

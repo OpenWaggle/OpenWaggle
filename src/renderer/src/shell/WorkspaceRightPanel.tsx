@@ -1,5 +1,9 @@
 import { type ReactNode, useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
+import {
+  type ScheduledTasksPanelTitle,
+  useScheduledTasksPanelTitle,
+} from '@/features/scheduled-tasks'
 import { useProject } from '@/features/sessions/hooks'
 import {
   createSidePanelTerminal,
@@ -11,6 +15,7 @@ import { api } from '@/shared/lib/ipc'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
+import { useScheduledTasksPanelScope } from './right-panel/WorkspaceScheduledTasksSurface'
 import { useUIStore } from './ui-store'
 import { useBrowserPreviewOwnerRegistration } from './useBrowserPreviewOwnerRegistration'
 import { WorkspacePanelContent } from './WorkspacePanelContent'
@@ -53,6 +58,7 @@ function activeBrowserForSurface(
  */
 export function WorkspaceRightPanel({ children, hidden = false }: WorkspaceRightPanelProps) {
   const panel = useWorkspaceRightPanelModel()
+  const scheduledTitle = useScheduledTasksPanelTitle(useScheduledTasksPanelScope())
 
   return (
     <RightSidebarLayout
@@ -67,7 +73,7 @@ export function WorkspaceRightPanel({ children, hidden = false }: WorkspaceRight
                 activeSurface: panel.activeSurface,
                 browserTabs: panel.browserTabs,
                 canCreateTerminal: panel.owner.defaultCwd !== null,
-                ...surfaceTitle(panel.activeSurface, panel.showProjectActions),
+                ...surfaceTitle(panel.activeSurface, panel.showProjectActions, scheduledTitle),
               }}
               actions={{
                 closeBrowsers: panel.closeBrowsers,
@@ -103,8 +109,13 @@ function showsSurfaceHeader(surface: WorkspacePanelSurface) {
   return surface !== null && surface.kind !== 'all-panels'
 }
 
-function surfaceTitle(surface: WorkspacePanelSurface, showProjectActions: () => void) {
+function surfaceTitle(
+  surface: WorkspacePanelSurface,
+  showProjectActions: () => void,
+  scheduledTitle: ScheduledTasksPanelTitle,
+) {
   if (surface?.kind === 'project-actions') return { title: { label: 'Project Actions' } }
+  if (surface?.kind === 'scheduled-tasks') return { title: scheduledTitle }
   if (surface?.kind === 'terminal') return { title: { label: 'Terminal' } }
   if (surface?.kind === 'action') {
     return {
@@ -240,6 +251,11 @@ function useCoordinatedWorkspaceSurface(
     : null
 }
 
+/** Surfaces that need no Terminal tab or Browser tab to be shown. */
+const ALWAYS_AVAILABLE_SURFACES: ReadonlySet<NonNullable<WorkspacePanelSurface>['kind']> = new Set<
+  NonNullable<WorkspacePanelSurface>['kind']
+>(['action', 'project-actions', 'scheduled-tasks', 'all-panels'])
+
 function resolveActiveSurface(
   requested: WorkspacePanelSurface,
   available: {
@@ -247,13 +263,7 @@ function resolveActiveSurface(
     readonly hasTerminal: boolean
   },
 ): WorkspacePanelSurface {
-  if (
-    requested?.kind === 'action' ||
-    requested?.kind === 'project-actions' ||
-    requested?.kind === 'all-panels'
-  ) {
-    return requested
-  }
+  if (requested !== null && ALWAYS_AVAILABLE_SURFACES.has(requested.kind)) return requested
   if (requested?.kind === 'terminal' && available.hasTerminal) return requested
   if (
     requested?.kind === 'browser' &&

@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { SquareArrowOutUpRight } from 'lucide-react'
+import { sessionsToolScheduledTask } from '@/features/chat/lib/sessions-tool-schedule'
 import {
   findHiveSession,
   sessionsToolTarget,
@@ -13,6 +14,7 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { useToolRowSessionId } from '../hooks/ToolRowSessionContext'
 import { useSessionsToolHive } from '../hooks/useSessionsToolHive'
+import { ScheduledTaskToolCallBlock } from './ScheduledTaskToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface SessionsToolCallBlockProps {
@@ -25,14 +27,27 @@ interface SessionsToolCallBlockProps {
 }
 
 /**
- * A sessions-tool row names the Session it acts on as the Hive panel does (its current title and
- * Agent definition). A spawn row also carries the Worker's live state and opens it. A spawn made
- * inside a script has no recorded result, so its row keeps the requested name without them.
+ * A sessions-tool row names what it acts on: a Scheduled task by its current name, with controls
+ * when the call created or changed it, or a Session as the Hive panel does.
  */
 export function SessionsToolCallBlock(props: SessionsToolCallBlockProps) {
+  const parsedArgs = parseToolArgs(props.args)
+  const scheduled = sessionsToolScheduledTask(parsedArgs, props.result?.content)
+  if (scheduled) return <ScheduledTaskToolCallBlock {...props} scheduled={scheduled} />
+  return <SessionTargetToolCallBlock {...props} parsedArgs={parsedArgs} />
+}
+
+/**
+ * A row names the Session it acts on as the Hive panel does (its current title and Agent
+ * definition). A spawn row also carries the Worker's live state and opens it. A spawn made
+ * inside a script has no recorded result, so its row keeps the requested name without them.
+ */
+function SessionTargetToolCallBlock({
+  parsedArgs,
+  ...props
+}: SessionsToolCallBlockProps & { readonly parsedArgs: ReturnType<typeof parseToolArgs> }) {
   const hive = useSessionsToolHive()
   const callerSessionId = useToolRowSessionId()
-  const parsedArgs = parseToolArgs(props.args)
   const targetId = sessionsToolTargetId(
     parsedArgs,
     props.result?.content,

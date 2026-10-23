@@ -66,7 +66,9 @@ describe('session archive time migration', () => {
     }
   })
 
-  it('is the newest migration this binary supports', () => {
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SESSION_ARCHIVE_TIME_MIGRATION.id)
+  it('is a migration this binary supports', () => {
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      SESSION_ARCHIVE_TIME_MIGRATION.id,
+    )
   })
 })

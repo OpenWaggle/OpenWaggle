@@ -1,7 +1,5 @@
-import type {
-  LocalSessionClientFrame,
-  LocalSessionServerFrame,
-} from '@shared/types/local-session-protocol'
+import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
+import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'

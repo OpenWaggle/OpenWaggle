@@ -58,6 +58,7 @@ const [
   sourceControlCapability,
   mcpConfigurationCapability,
   archivedItemsCapability,
+  scheduledTasksCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -97,6 +98,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(sourceControlCapability),
   Schema.Literal(mcpConfigurationCapability),
   Schema.Literal(archivedItemsCapability),
+  Schema.Literal(scheduledTasksCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

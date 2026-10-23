@@ -11,6 +11,7 @@ import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from './openwaggle-mcp
 import {
   filterMcpSessionQueryResult,
   prepareMcpSessionTargetScope,
+  SCHEDULED_TASKS_UNAVAILABLE,
 } from './openwaggle-mcp-session-scope-v2'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
@@ -83,6 +84,7 @@ function requiredCapabilities(payload: LocalSessionCommandPayload) {
       'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
     )
   }
+  if (payload.contract === 'scheduled-tasks-v1') throw new Error(SCHEDULED_TASKS_UNAVAILABLE)
   return payload.contract === 'session-control-v2'
     ? requiredSessionControlCapabilities(payload.request.command)
     : payload.contract === 'session-lifecycle-v2'

@@ -15,6 +15,7 @@ Commands:
   host         Check on or stop the background Session Host
   sessions     Find, start, message, steer, wait for, and export Sessions
   delegations  List, review, and resolve Worker Delegations
+  schedules    Create and manage Scheduled tasks (Heartbeats and Launch schedules)
   agents       List, validate, and manage Agent definitions
   access       Manage named access profiles for agents and scripts
   mcp          Manage MCP servers, or serve OpenWaggle over MCP
