@@ -100,6 +100,8 @@ function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoad
       setFailedRetries((count) => count + 1)
       return
     }
+    // A later failure from another path starts a new count, so it never reports this one.
+    setFailedRetries(0)
     const focused = document.activeElement
     if (focused === null || focused === document.body || focused === retryRef.current) {
       headingRef.current?.focus()

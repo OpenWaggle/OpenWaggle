@@ -1,7 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
@@ -99,6 +99,29 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Failed to load providers: Pi catalog unavailable',
     )
+  })
+
+  it('starts the failed-retry count again after a retry succeeds', async () => {
+    apiMock.getProviderModels.mockRejectedValueOnce(new Error('Pi catalog unavailable'))
+    apiMock.getProviderModels.mockResolvedValueOnce(PROVIDER_MODELS)
+    apiMock.getAuthAccountInfo.mockResolvedValue({
+      provider: 'openai-codex',
+      connected: false,
+      label: '',
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    expect(await screen.findByText('Retry 1 failed.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+
+    act(() => {
+      useProviderStore.setState({ loadError: 'Pi catalog unavailable again' })
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Pi catalog unavailable again')
+    expect(screen.queryByText(/Retry \d+ failed\./)).not.toBeInTheDocument()
   })
 
   it('leaves focus where the user moved it while a retry succeeded', async () => {
