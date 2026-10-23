@@ -23,6 +23,7 @@ describe('package smoke Pi release pins', () => {
       'react',
       'react-dom',
       'tsx',
+      'typebox',
       'typescript',
       'vite',
     ].map((name) => ({ name, version: '1.0.0' }))

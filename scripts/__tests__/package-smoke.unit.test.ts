@@ -56,6 +56,7 @@ describe('package smoke tarball assertions', () => {
         { name: 'react', version: '19.0.0' },
         { name: 'react-dom', version: '19.0.0' },
         { name: 'tsx', version: '4.0.0' },
+        { name: 'typebox', version: '1.3.32' },
         { name: 'typescript', version: '6.0.0' },
         { name: 'vite', version: '7.0.0' },
       ],
@@ -65,6 +66,8 @@ describe('package smoke tarball assertions', () => {
       '@openwaggle/extension-sdk': 'file:/tmp/extension-sdk.tgz',
       // pi-waggle's Pi peers are pinned too, so a Pi release mid-publish cannot break the smoke.
       '@earendil-works/pi-ai': '1.0.0',
+      // Pi supplies typebox to extensions, so pi-waggle takes it as a peer like the Pi SDKs.
+      typebox: '1.3.32',
       react: '19.0.0',
     })
     expect(manifest.devDependencies).toMatchObject({

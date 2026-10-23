@@ -154,3 +154,34 @@ export function smokePnpmWorkspaceConfig(
   ]
   return ['packages: []', '', 'overrides:', ...overrideLines, ''].join('\n')
 }
+
+/**
+ * The packages Pi supplies to every extension (Pi's `docs/packages.md`, "Declare dependencies").
+ * A Pi package must declare them as `"*"` peers: a physical copy under `dependencies` bypasses
+ * Pi's extension module mapping, and Pi warns about it on every start.
+ */
+export const PI_HOST_PROVIDED_PACKAGES = [
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-tui',
+  'typebox',
+] as const
+
+export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
+  if (!isObject(manifest) || !isObject(manifest.pi)) return
+  const dependencies = isObject(manifest.dependencies) ? manifest.dependencies : {}
+  const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
+  const problems: string[] = []
+  for (const name of PI_HOST_PROVIDED_PACKAGES) {
+    if (name in dependencies) problems.push(`${name} is in dependencies`)
+    if (name in peerDependencies && peerDependencies[name] !== '*') {
+      problems.push(`${name} peer range is ${String(peerDependencies[name])}, not "*"`)
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `${packageName} must declare Pi's host-provided packages as "*" peer dependencies: ${problems.join('; ')}.`,
+    )
+  }
+}
