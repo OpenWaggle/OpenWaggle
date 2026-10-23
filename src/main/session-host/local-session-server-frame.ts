@@ -8,6 +8,7 @@ import { encodeLocalSessionFrameSegments } from './local-session-framing'
 import {
   type LocalSessionOutboundByteBudget,
   LocalSessionOutboundCapacityError,
+  type LocalSessionOutboundOwner,
 } from './local-session-outbound-budget'
 
 const logger = createLogger('session-host/outbound')
@@ -125,24 +126,51 @@ function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   })
 }
 
+function budgetUsage(budget: LocalSessionOutboundByteBudget) {
+  return {
+    pendingBytes: budget.pendingBytes,
+    peakBytes: budget.peakBytes,
+    maxBytes: budget.maxBytes,
+  }
+}
+
+const outboundOwners = new WeakMap<Socket, LocalSessionOutboundOwner>()
+
+/** One owner per socket, so the budget closes a connection once however many frames it holds. */
+function outboundOwner(socket: Socket, budget: LocalSessionOutboundByteBudget) {
+  const known = outboundOwners.get(socket)
+  if (known) return known
+  const owner: LocalSessionOutboundOwner = {
+    evict: (unreadForMs) => {
+      logger.warn('Closing a Local Session connection that stopped reading its frames.', {
+        unreadForMs,
+        ...budgetUsage(budget),
+      })
+      socket.destroy()
+    },
+  }
+  outboundOwners.set(socket, owner)
+  return owner
+}
+
 export async function writeLocalSessionSocketFrame(input: {
   readonly socket: Socket
   readonly value: unknown
   readonly budget: LocalSessionOutboundByteBudget
   readonly signal: AbortSignal
 }): Promise<void> {
-  const lease = await input.budget.encode(input.value, input.signal).catch((error: unknown) => {
-    if (error instanceof LocalSessionOutboundCapacityError) {
-      // The frames other clients have not read held the budget for the whole capacity wait.
-      logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
-        pendingBytes: input.budget.pendingBytes,
-        peakBytes: input.budget.peakBytes,
-        maxBytes: input.budget.maxBytes,
-      })
-      input.socket.destroy()
-    }
-    throw error
-  })
+  const lease = await input.budget
+    .encode(input.value, input.signal, outboundOwner(input.socket, input.budget))
+    .catch((error: unknown) => {
+      if (error instanceof LocalSessionOutboundCapacityError) {
+        // Frames written moments ago held the budget for the whole wait; none was left unread.
+        logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
+          ...budgetUsage(input.budget),
+        })
+        input.socket.destroy()
+      }
+      throw error
+    })
   const release = lease.release
   input.socket.once('close', release)
   try {

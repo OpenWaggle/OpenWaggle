@@ -1,8 +1,10 @@
 import type { Socket } from 'node:net'
+import { createLogger } from '../logger'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { writeLocalSessionSocketFrame } from './local-session-server-frame'
 
 const DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION = 16
+const logger = createLogger('session-host/outbound')
 export type LocalSessionSocketFrameWriter = typeof writeLocalSessionSocketFrame
 
 export class LocalSessionOutboundWriter {
@@ -25,6 +27,11 @@ export class LocalSessionOutboundWriter {
 
   send(value: unknown): Promise<void> {
     if (this.pendingSends >= this.maxPendingFrames) {
+      if (!this.socket.destroyed) {
+        logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
+          pendingFrames: this.pendingSends,
+        })
+      }
       this.socket.destroy()
       return Promise.reject(new Error('Local Session client is not consuming outbound frames.'))
     }

@@ -85,7 +85,7 @@ export interface LocalSessionServerDependencies {
   readonly subscriptionBudget?: LocalSessionSubscriptionBudget
   readonly maxPendingInboundBytesGlobal?: number
   readonly maxPendingOutboundBytesGlobal?: number
-  /** How long a frame waits for outbound capacity before its connection is dropped. */
+  /** How long a frame waits for outbound capacity before stalled readers are closed. */
   readonly outboundCapacityWaitMs?: number
   readonly maxPendingOutboundFramesPerConnection?: number
   readonly profileAdmissionDrainTimeoutMs?: number

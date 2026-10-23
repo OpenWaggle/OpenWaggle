@@ -10,12 +10,19 @@ const { createSessionSnapshotRefresh } = await import('../useAgentChat.session-s
 
 const SESSION = SessionId('session-shown')
 
+function connectionClosed() {
+  return new Error(
+    "Error invoking remote method 'sessions:get-detail': LocalSessionHostConnectionClosedError: Local Session Host connection closed.",
+  )
+}
+
 function refreshFor(shown: SessionDetail | null) {
   const upsertSession = vi.fn()
   const refresh = createSessionSnapshotRefresh({
     currentSessionIdRef: { current: SESSION },
     sessionRef: { current: shown },
     upsertSession,
+    retryDelayMs: 0,
   })
   return { refresh, upsertSession }
 }
@@ -36,15 +43,23 @@ describe('createSessionSnapshotRefresh', () => {
     expect(upsertSession).toHaveBeenCalledWith(next)
   })
 
-  it('keeps the transcript shown when the Host connection closed mid-read', async () => {
-    getSessionDetail.mockRejectedValue(
-      new Error(
-        "Error invoking remote method 'sessions:get-detail': LocalSessionHostConnectionClosedError: Local Session Host connection closed.",
-      ),
-    )
+  it('reads again when the Host connection closed mid-read', async () => {
+    const next = fromPartial<SessionDetail>({ id: SESSION, updatedAt: 2 })
+    getSessionDetail.mockRejectedValueOnce(connectionClosed()).mockResolvedValueOnce(next)
+    const { refresh, upsertSession } = refreshFor(fromPartial({ id: SESSION, updatedAt: 1 }))
+
+    await refresh(SESSION)
+
+    expect(getSessionDetail).toHaveBeenCalledTimes(2)
+    expect(upsertSession).toHaveBeenCalledWith(next)
+  })
+
+  it('keeps the transcript shown when the read fails twice', async () => {
+    getSessionDetail.mockRejectedValue(connectionClosed())
     const { refresh, upsertSession } = refreshFor(fromPartial({ id: SESSION, updatedAt: 1 }))
 
     await expect(refresh(SESSION)).resolves.toBeUndefined()
+    expect(getSessionDetail).toHaveBeenCalledTimes(2)
     expect(upsertSession).not.toHaveBeenCalled()
   })
 

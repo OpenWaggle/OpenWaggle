@@ -165,20 +165,29 @@ describe('Local Session outbound byte budget', () => {
     await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
   })
 
-  it('bounds concurrent large writes and disconnects a client when stalled readers hold capacity', async () => {
+  it('closes the reader that stopped reading, not the client that asked for room', async () => {
     const endpoint = path.join(temporaryRoot, 'outbound-budget.sock')
     const server = await listen(endpoint, 50)
-
     const {
       stalled,
       delayedReader,
-      next: rejected,
-    } = await holdCapacityWithUnreadResponses(endpoint, 'rejected-under-pressure')
+      next: waiting,
+    } = await holdCapacityWithUnreadResponses(endpoint, 'served-after-eviction')
+    const stalledClosed = new Promise<void>((resolve) => stalled.socket.once('close', resolve))
+    let waitingClosed = false
+    waiting.socket.once('close', () => {
+      waitingClosed = true
+    })
 
-    const rejectedClosed = new Promise<void>((resolve) => rejected.socket.once('close', resolve))
-    requestLargeResponse(rejected.socket, 'rejected')
-    await rejectedClosed
-    expect(encodedLargeResponses).toBe(2)
+    requestLargeResponse(waiting.socket, 'waiting')
+    await expect(waiting.reader.next()).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
+    expect(waitingClosed).toBe(false)
+    expect(encodedLargeResponses).toBe(3)
+    // A paused socket reports its close once it reads what was buffered before it.
+    stalled.socket.resume()
+    await stalledClosed
 
     const retained = server.outboundByteUsage()
     expect(retained.pendingBytes).toBeLessThanOrEqual(retained.maxBytes)
@@ -188,13 +197,6 @@ describe('Local Session outbound byte budget', () => {
     await expect(delayedReader.reader.next()).resolves.toSatisfy(
       (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
     )
-    await vi.waitFor(() => {
-      const pendingBytes = handle?.outboundByteUsage().pendingBytes ?? 0
-      expect(pendingBytes).toBeGreaterThan(RETAINED_LARGE_RESPONSE_BYTES)
-      expect(pendingBytes).toBeLessThan(RETAINED_LARGE_RESPONSE_BYTES + 1024)
-    })
-
-    stalled.socket.destroy()
     await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
   })
 })
