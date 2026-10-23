@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { Socket } from 'node:net'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
+import { encodeLocalSessionFrame } from '../local-session-framing'
 import { LocalSessionOutboundByteBudget } from '../local-session-outbound-budget'
 import {
   LocalSessionClientDisconnectedError,
@@ -114,6 +115,24 @@ describe('writeLocalSessionSocketFrame when the client disconnects mid-frame', (
     })
 
     expect(socket.writtenSegments).toHaveLength(2)
+  })
+
+  it('writes a large frame in slices of at most 1 MiB with the same bytes on the wire', async () => {
+    const socket = new FrameWriteSocket()
+    const value = { text: 'x'.repeat(3 * 1024 * 1024) }
+
+    await writeLocalSessionSocketFrame({
+      socket: fromPartial<Socket>(socket),
+      value,
+      budget: new LocalSessionOutboundByteBudget(),
+      signal: new AbortController().signal,
+    })
+
+    expect(socket.writtenSegments.length).toBeGreaterThan(3)
+    for (const segment of socket.writtenSegments) {
+      expect(segment.byteLength).toBeLessThanOrEqual(1024 * 1024)
+    }
+    expect(Buffer.concat(socket.writtenSegments)).toEqual(encodeLocalSessionFrame(value))
   })
 
   it('keeps a write error that is not a client disconnect as it is', async () => {

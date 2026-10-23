@@ -21,6 +21,7 @@ import {
   offerRunCompletion,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
+import { createSessionSnapshotRefresh } from './useAgentChat.session-snapshot'
 import type {
   AgentChatStatus,
   AgentRunActions,
@@ -119,14 +120,11 @@ function settlePendingRun(
 export function createAgentRunControls(params: AgentRunControlParams) {
   const { refs, sessionId } = params
 
-  async function refreshSessionSnapshot(targetSessionId: SessionId) {
-    const nextSession = await api.getSessionDetail(targetSessionId)
-    const shown = refs.sessionRef.current
-    if (!nextSession || refs.currentSessionIdRef.current !== targetSessionId) return
-    // A slow reply landing after a newer refetch hid the Runs that one held.
-    if (shown?.id === nextSession.id && nextSession.updatedAt < shown.updatedAt) return
-    params.upsertSession(nextSession)
-  }
+  const refreshSessionSnapshot = createSessionSnapshotRefresh({
+    currentSessionIdRef: refs.currentSessionIdRef,
+    sessionRef: refs.sessionRef,
+    upsertSession: (session) => params.upsertSession(session),
+  })
 
   function flushDeferredSessionSnapshot() {
     const targetSessionId = refs.deferredRefreshSessionIdRef.current
