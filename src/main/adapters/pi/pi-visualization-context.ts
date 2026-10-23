@@ -232,5 +232,3 @@ export function bindVisualizationContextFilter(session: AgentSession) {
   }
   Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
 }
-
-export { PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE }

@@ -17,7 +17,8 @@ export function SyncPlugin(): null {
         const text = $getRoot().getTextContent()
         const store = useComposerStore.getState()
         store.setInput(text)
-        const preset = $nodesOfType(WaggleMentionNode)[0]?.getPreset() ?? null
+        const mention: WaggleMentionNode | undefined = $nodesOfType(WaggleMentionNode)[0]
+        const preset = mention?.getPreset() ?? null
         if (store.selectedWagglePreset?.id !== preset?.id) {
           store.setSelectedWagglePreset(preset)
         }

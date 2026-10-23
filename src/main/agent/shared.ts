@@ -1,23 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import type { Message, MessagePart, PreparedAttachment } from '@shared/types/agent'
-import { MessageId } from '@shared/types/brand'
-import type { SupportedModelId } from '@shared/types/llm'
-
-export function makeMessage(
-  role: 'user' | 'assistant' | 'system',
-  parts: MessagePart[],
-  model?: SupportedModelId,
-  metadata?: Message['metadata'],
-): Message {
-  return {
-    id: MessageId(randomUUID()),
-    role,
-    parts,
-    model,
-    metadata,
-    createdAt: Date.now(),
-  }
-}
+import type { MessagePart, PreparedAttachment } from '@shared/types/agent'
 
 export interface PersistedUserMessagePartsPayload {
   readonly text: string

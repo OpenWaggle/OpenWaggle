@@ -1,9 +1,11 @@
 import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { describe, expect, it } from 'vitest'
-import { buildAtomicVisualizationPrompt } from '../pi-runtime-input'
+import {
+  buildAtomicVisualizationPrompt,
+  PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
+} from '../pi-runtime-input'
 import {
   filterConsumedVisualizationContext,
-  PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
   type PiContextMessage,
 } from '../pi-visualization-context'
 
