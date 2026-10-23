@@ -93,6 +93,7 @@ describe('Local Session outbound byte budget', () => {
     endpoint: string,
     outboundCapacityWaitMs: number,
     maxPendingOutboundBytesGlobal = OUTBOUND_BUDGET_BYTES,
+    outboundMaxWaitMs?: number,
   ) {
     encodedLargeResponses = 0
     handle = await listenLocalSessionServer(endpoint, {
@@ -104,6 +105,7 @@ describe('Local Session outbound byte budget', () => {
       }),
       maxPendingOutboundBytesGlobal,
       outboundCapacityWaitMs,
+      ...(outboundMaxWaitMs === undefined ? {} : { outboundMaxWaitMs }),
       authenticate: async () => ({ callerId: 'local-user' }),
       dispatch: async ({ payload }) => {
         const responseBytes = requestedResponseBytes(payload)
@@ -265,8 +267,8 @@ describe('Local Session outbound byte budget', () => {
 
   it('keeps a reader that reads a large answer slowly but steadily', async () => {
     const endpoint = path.join(temporaryRoot, 'slow-reader.sock')
-    // One unread large answer fills it.
-    await listen(endpoint, 1_000, RETAINED_LARGE_RESPONSE_BYTES + 64 * 1024 * 1024)
+    // One unread large answer fills it. The waiting answer may wait as long as the slow read takes.
+    await listen(endpoint, 1_000, RETAINED_LARGE_RESPONSE_BYTES + 64 * 1024 * 1024, 60_000)
     const slow = await connect(endpoint, 'slow-steady-reader')
     const waiting = await connect(endpoint, 'waits-for-the-slow-reader')
     let slowClosed = false

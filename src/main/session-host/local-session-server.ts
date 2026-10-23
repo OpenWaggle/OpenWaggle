@@ -87,6 +87,8 @@ export interface LocalSessionServerDependencies {
   readonly maxPendingOutboundBytesGlobal?: number
   /** How long a frame waits for outbound capacity before stalled readers are closed. */
   readonly outboundCapacityWaitMs?: number
+  /** Tests only: the wall-clock limit on one frame's wait for outbound capacity. */
+  readonly outboundMaxWaitMs?: number
   readonly maxPendingOutboundFramesPerConnection?: number
   readonly profileAdmissionDrainTimeoutMs?: number
   readonly profileInvalidationCloseTimeoutMs?: number
@@ -152,6 +154,13 @@ function close(server: Server) {
   })
 }
 
+function outboundBudgetFor(dependencies: LocalSessionServerDependencies) {
+  return new LocalSessionOutboundByteBudget(dependencies.maxPendingOutboundBytesGlobal, {
+    capacityWaitMs: dependencies.outboundCapacityWaitMs,
+    maxWaitMs: dependencies.outboundMaxWaitMs,
+  })
+}
+
 export async function listenLocalSessionServer(
   endpoint: string,
   dependencies: LocalSessionServerDependencies,
@@ -159,10 +168,7 @@ export async function listenLocalSessionServer(
   await prepareLocalSessionEndpoint(endpoint)
   const connections = new Set<LocalSessionConnection>()
   const inboundBudget = new LocalSessionInboundByteBudget(dependencies.maxPendingInboundBytesGlobal)
-  const outboundBudget = new LocalSessionOutboundByteBudget(
-    dependencies.maxPendingOutboundBytesGlobal,
-    { capacityWaitMs: dependencies.outboundCapacityWaitMs },
-  )
+  const outboundBudget = outboundBudgetFor(dependencies)
   const authenticationBudget = new LocalSessionAuthenticationBudget({
     ...(dependencies.maxConcurrentAuthentications !== undefined
       ? { maxConcurrent: dependencies.maxConcurrentAuthentications }

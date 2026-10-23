@@ -200,13 +200,14 @@ export class LocalSessionOutboundByteBudget {
       if (signal.aborted) throw encodingAborted()
       const wallRemainingMs = giveUpAt - this.wallNow()
       if (wallRemainingMs <= 0) {
-        // The limit can pass while the frame queues for the turn: close a stopped reader first.
+        // The limit can pass while the frame queues for the turn: close stopped readers first, as
+        // many as it takes, all within one release wait.
         if (lastEvictionTried) throw new LocalSessionOutboundCapacityError()
         lastEvictionTried = true
         await afterPendingIo()
         const releaseBy = this.wallNow() + this.evictionReleaseWaitMs
-        if (!this.hasRoom() && !(await this.evictStoppedReader(signal, releaseBy))) {
-          throw new LocalSessionOutboundCapacityError()
+        while (!this.hasRoom() && (await this.evictStoppedReader(signal, releaseBy))) {
+          if (signal.aborted) throw encodingAborted()
         }
         continue
       }
