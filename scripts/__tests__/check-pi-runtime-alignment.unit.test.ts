@@ -164,4 +164,14 @@ describe('Pi runtime alignment', () => {
       expect.stringContaining(expected),
     )
   })
+
+  it('pins the pi-extension-host catalog at the typebox Pi supplies to extensions', () => {
+    const input = alignedInput()
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: { typebox: '1.3.32' } }),
+    ).toContainEqual("catalogs.pi-extension-host must pin typebox at pi-coding-agent's 1.3.32.")
+    expect(collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: {} })).toContainEqual(
+      'pi-coding-agent no longer depends on typebox; update catalogs.pi-extension-host.',
+    )
+  })
 })

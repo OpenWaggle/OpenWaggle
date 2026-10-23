@@ -31,6 +31,8 @@ export interface PiRuntimeAlignmentInput {
   readonly now: Date
   readonly patchContents: Readonly<Record<string, string>>
   readonly patchFiles: readonly string[]
+  /** The installed pi-coding-agent's runtime dependencies: what Pi supplies to extensions. */
+  readonly piCodingAgentDependencies: Readonly<Record<string, string>>
   readonly piWaggleDevDependencies: Readonly<Record<string, string>>
   readonly rootDependencies: Readonly<Record<string, string>>
   readonly workspace: string
@@ -100,6 +102,37 @@ const PI_WASM_PACKAGES = [
   { name: 'quickjs-wasi', owner: 'Pi codemode' },
   { name: '@silvia-odwyer/photon-node', owner: 'Pi coding agent' },
 ] as const
+
+/**
+ * Packages Pi supplies to extensions that are not part of its own release. The
+ * `pi-extension-host` catalog pins each at the version Pi depends on, so the app and pi-waggle
+ * build and test against the copy Pi gives them at runtime.
+ */
+const PI_EXTENSION_HOST_CATALOG = 'pi-extension-host'
+const PI_EXTENSION_HOST_PACKAGES = ['typebox'] as const
+
+function extensionHostCatalogVersion(workspace: string, packageName: string) {
+  const section = workspace.match(new RegExp(`^  ${PI_EXTENSION_HOST_CATALOG}:\\n((?: {4}.*\\n)*)`, 'm'))
+  const match = section?.[1]?.match(
+    new RegExp(`^ {4}["']?${escapeRegex(packageName)}["']?: ([^\\s#]+)$`, 'm'),
+  )
+  return match?.[1]
+}
+
+function extensionHostPackageProblems(input: PiRuntimeAlignmentInput) {
+  const problems: string[] = []
+  for (const name of PI_EXTENSION_HOST_PACKAGES) {
+    const piVersion = input.piCodingAgentDependencies[name]
+    if (!piVersion) {
+      problems.push(`pi-coding-agent no longer depends on ${name}; update catalogs.${PI_EXTENSION_HOST_CATALOG}.`)
+      continue
+    }
+    if (extensionHostCatalogVersion(input.workspace, name) !== piVersion) {
+      problems.push(`catalogs.${PI_EXTENSION_HOST_CATALOG} must pin ${name} at pi-coding-agent's ${piVersion}.`)
+    }
+  }
+  return problems
+}
 
 function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
@@ -198,6 +231,7 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
 
   problems.push(...directPinProblems(input))
   problems.push(...piWasmPackageProblems(input))
+  problems.push(...extensionHostPackageProblems(input))
 
   const expectedAgeEntries = new Set(
     PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
@@ -219,12 +253,13 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
 
 async function main() {
   const root = process.cwd()
-  const [workspace, lockfile, patchFiles, rootPackageText, piWagglePackageText] = await Promise.all([
+  const [workspace, lockfile, patchFiles, rootPackageText, piWagglePackageText, piCodingAgentText] = await Promise.all([
     readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
     readFile(path.join(root, 'pnpm-lock.yaml'), 'utf8'),
     readdir(path.join(root, 'patches')),
     readFile(path.join(root, 'package.json'), 'utf8'),
     readFile(path.join(root, 'packages/pi-waggle/package.json'), 'utf8'),
+    readFile(path.join(root, 'node_modules/@earendil-works/pi-coding-agent/package.json'), 'utf8'),
   ])
   const patchContents: Record<string, string> = {}
   await Promise.all(
@@ -237,6 +272,7 @@ async function main() {
     now: new Date(),
     patchContents,
     patchFiles,
+    piCodingAgentDependencies: manifestDependencies(piCodingAgentText, 'dependencies'),
     piWaggleDevDependencies: manifestDependencies(piWagglePackageText, 'devDependencies'),
     rootDependencies: manifestDependencies(rootPackageText, 'dependencies'),
     workspace,

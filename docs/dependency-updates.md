@@ -33,7 +33,8 @@ because two packages must agree on it, as with `better-sqlite3` and the TanStack
 
 The Pi runtime is one matched release in the `pi-runtime` catalog. `pnpm check:pi-runtime`
 checks the matched set, the patches, and the root pins of `quickjs-wasi` and Photon to the
-versions Pi depends on.
+versions Pi depends on. It also checks that the `pi-extension-host` catalog holds the `typebox`
+version `pi-coding-agent` depends on, which is the copy Pi gives extensions.
 
 pnpm's `minimumReleaseAge` of seven days refuses releases newer than that. `trustPolicy:
 no-downgrade` refuses a release that lost the provenance or signatures earlier releases had, and
@@ -58,7 +59,7 @@ Update everything else in batches, about once a month, and never during an RC fr
 all `@xterm/*`, and keep each batch small enough to review. A dependency nobody needs to update
 can stay where it is.
 
-During an RC freeze, a `chore(deps):` change to app code during RC blocks
+During an RC freeze, a `chore(deps):` change to app code blocks
 Stable promotion, unless it is the fix for a release blocker. See
 [Release and versioning](release-and-versioning.md#rc-freeze-and-promotion-guard).
 
