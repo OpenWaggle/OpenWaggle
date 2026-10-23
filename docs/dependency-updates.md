@@ -73,6 +73,6 @@ the lockfile changes.
 
 `electron`, `node-pty`, `better-sqlite3` and `sharp` are native modules. An update to one needs
 `pnpm prepare:native:node`, `pnpm prepare:native:electron`, and a packaged build with
-`pnpm build` and `pnpm packaged-app:smoke`, because native ABI problems only show up there.
+`pnpm build:unpack` and `pnpm packaged-app:smoke`, because native ABI problems only show up there.
 
 Run `pnpm install --frozen-lockfile`, `pnpm check` and `pnpm test` before opening the pull request.

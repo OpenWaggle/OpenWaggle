@@ -11,7 +11,7 @@ package in the real Pi TUI, which no automated check does.
 | Package tests | `pnpm test:unit` | `packages/waggle-core` policy and `packages/pi-waggle` behaviour against a fake Pi `ExtensionAPI`. Policy covers config, presets, turn sequencing and the stop policy. The Pi side covers command parsing, mode state, preset storage, inherited models, model switching, turn markers and renderers. |
 | Desktop adapter | `pnpm test:unit` and `pnpm test:integration` | OpenWaggle runs Waggle through `@openwaggle/pi-waggle/loop` and projects mode state, turn identity and retries into the Session read model. See `waggle-run-service.unit`, `session-waggle-mode-state.integration`, `waggle-turn-identity-projection.integration` and `pi-waggle-turn-retry.integration`. |
 | Tarball consumers | `pnpm package:smoke`, part of `pnpm check` | The packed tarballs install with npm, pnpm, Yarn and Bun. Every export resolves in ESM and CommonJS, and a CommonJS Waggle turn settles. Pi's own resource loader loads the installed package as a package source, with no errors or warnings, and the declared entry, `dist/extension.js`, registers `/waggle`, `/standard` and the turn renderer. Pi's host packages, the Pi SDKs and `typebox`, must be `"*"` peer dependencies. |
-| Desktop bundle | `pnpm pi-main-bundle:smoke`, part of `pnpm check` | The Electron main build bundles `@openwaggle/pi-waggle` from its sources. In a real Pi session under Node and under Electron, the smoke loads `src/extension.ts`, the module the declared entry is built from, and checks that `/waggle`, `/standard` and the turn renderer register and that mode state round-trips. It also binds the desktop Waggle loop and stops it. |
+| Desktop bundle | `pnpm pi-main-bundle:smoke`, part of `pnpm check` | The Electron main build bundles `@openwaggle/pi-waggle` from its sources. In a real Pi session under Node and under Electron, the smoke loads `src/extension.ts`, the module the declared entry is built from, and checks that `/waggle`, `/standard` and the turn renderer register. In a separate session, as production runs it, the smoke binds the desktop Waggle loop from `/loop`, checks that mode state round-trips, and stops the loop. |
 | Dead code | `pnpm check:waggle-dead-code`, part of `pnpm check` | No production-unused code in the Waggle packages, the app files that import them or are named for Waggle, and the desktop agent policy modules. Code that only tests use counts as unused. |
 | Public exports | `pnpm api:snapshot:check` | Public exports match the committed snapshots. |
 
@@ -43,8 +43,8 @@ has OpenWaggle's patches applied. Install it with Pi's installer, or with
    `$QA/agent/models.json` at any OpenAI-compatible endpoint, such as a local Ollama server. See
    [Pi models](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md).
 
-3. Start Pi with `cd "$QA/project" && PI_CODING_AGENT_DIR="$QA/agent" pi --no-session` in a
-   second terminal, and check each step:
+3. In the same shell, start Pi with
+   `cd "$QA/project" && PI_CODING_AGENT_DIR="$QA/agent" pi --no-session` and check each step:
 
    - [ ] The start screen lists `extension.js` under Extensions with no extension warning.
    - [ ] Typing `/wag` completes to `/waggle` with its description.
