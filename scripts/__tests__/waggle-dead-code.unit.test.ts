@@ -98,6 +98,24 @@ describe('waggleDeadCodeFindings', () => {
     ])
   })
 
+  it('reports an unused Waggle export in an app file outside the scope, but not OpenWaggle ones', () => {
+    const findings = waggleDeadCodeFindings(
+      report({
+        unused_exports: [
+          { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'activeWaggleRuns' },
+          { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'openWaggleHome' },
+          { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'OpenWaggleApi' },
+          { path: 'scripts/release.ts', export_name: 'waggleRelease' },
+        ],
+      }),
+      scope,
+    )
+
+    expect(findings).toEqual([
+      { kind: 'unused_exports', path: 'src/main/ipc/active-agent-runs.ts', name: 'activeWaggleRuns' },
+    ])
+  })
+
   it('fails instead of passing when fallow changes its report', () => {
     expect(() => waggleDeadCodeFindings([], scope)).toThrow('fallow did not return a JSON report object.')
     expect(() => waggleDeadCodeFindings(report({ schema_version: 11 }), scope)).toThrow(

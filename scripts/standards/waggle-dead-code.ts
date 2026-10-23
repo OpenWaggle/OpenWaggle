@@ -4,12 +4,15 @@ import { isRecord } from './records'
  * The Waggle scope of the production-only dead-code check (`scripts/check-waggle-dead-code.ts`):
  * the two Waggle packages, every app file that imports one of them, the desktop agent policy
  * modules under `src/main/agent/`, and app files named for Waggle (`waggle-run/`, `waggle/`,
- * `waggle-*`, `*-waggle-*`, `Waggle*`, never `openwaggle-*`). Tests are never in scope.
+ * `waggle-*`, `*-waggle-*`, `Waggle*`, never `openwaggle-*`). Tests are never in scope. An unused
+ * export or member named for Waggle counts in any app file, such as a re-export in a module whose
+ * name does not say Waggle.
  */
 const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
 const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
 const WAGGLE_NAMED_PATH = /(?:^|\/)waggle(?:-run)?\/|(?:^|\/|-)[Ww]aggle(?:[-.]|[A-Z])[^/]*$/
 const WAGGLE_PACKAGE_IMPORT = /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
+const WAGGLE_SYMBOL_NAME = /(?<![Oo]pen)[Ww]aggle/
 const TEST_PATH = /(?:^|\/)__tests__\/|\.test\.[cm]?tsx?$|(?:^|\/)test-(?:utils|support)(?:\/|\.)/
 
 /**
@@ -67,8 +70,14 @@ export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<strin
     const issues = report[kind]
     if (!Array.isArray(issues)) throw new Error(`fallow report has no ${kind} list.`)
     for (const issue of issues) {
-      if (!isRecord(issue) || typeof issue.path !== 'string' || !scope.has(issue.path)) continue
+      if (!isRecord(issue) || typeof issue.path !== 'string') continue
       const name = findingName(issue)
+      const waggleSymbol =
+        name !== undefined &&
+        WAGGLE_SYMBOL_NAME.test(name) &&
+        issue.path.startsWith('src/') &&
+        !TEST_PATH.test(issue.path)
+      if (!scope.has(issue.path) && !waggleSymbol) continue
       findings.push({ kind, path: issue.path, ...(name ? { name } : {}) })
     }
   }
