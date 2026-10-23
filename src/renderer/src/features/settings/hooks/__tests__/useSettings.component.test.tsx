@@ -207,20 +207,35 @@ describe('useProviderCatalogRetry', () => {
   it('reloads the provider catalog for the loaded settings, then its sign-in accounts', async () => {
     const { result } = renderHook(() => useProviderCatalogRetry())
 
-    await act(() => result.current())
+    await act(async () => {
+      await result.current()
+    })
 
     expect(loadSettingsMock).not.toHaveBeenCalled()
     expect(loadProviderModelsMock).toHaveBeenCalledWith({ projectPath: null })
     expect(loadAllAuthAccountsMock).toHaveBeenCalledWith(['openai-codex', 'github-copilot'])
   })
 
-  it('keeps the selection the reloaded catalog repaired', async () => {
-    const repaired = { projectPath: null, selectedModel: 'openai-codex/gpt-5.4' }
-    loadProviderModelsMock.mockResolvedValue(repaired)
+  it('merges only the selection the reloaded catalog repaired into current settings', async () => {
+    loadProviderModelsMock.mockResolvedValue({
+      projectPath: null,
+      selectedModel: 'openai-codex/gpt-5.4',
+      enabledModels: ['stale'],
+    })
     const { result } = renderHook(() => useProviderCatalogRetry())
 
-    await act(() => result.current())
+    await act(async () => {
+      await result.current()
+    })
 
-    expect(setPreferencesStateMock).toHaveBeenCalledWith({ settings: repaired })
+    const update: unknown = setPreferencesStateMock.mock.calls.at(-1)?.[0]
+    if (typeof update !== 'function') throw new Error('expected a settings updater')
+    expect(update({ settings: { projectPath: '/edited', enabledModels: ['kept'] } })).toEqual({
+      settings: {
+        projectPath: '/edited',
+        enabledModels: ['kept'],
+        selectedModel: 'openai-codex/gpt-5.4',
+      },
+    })
   })
 })

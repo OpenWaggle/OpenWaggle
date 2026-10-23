@@ -15,13 +15,15 @@ interface ProviderCatalogLoaders {
 /**
  * Loads the Pi provider catalog for the loaded settings, keeps the selection it repaired, then
  * loads the accounts of its sign-in providers. Startup and the provider catalog retry share it.
+ * Only the repaired selection is merged back, since settings may have changed while it loaded.
  */
 async function hydrateProviderCatalog(loaders: ProviderCatalogLoaders) {
   const updatedSettings = await loaders.loadProviderModels(usePreferencesStore.getState().settings)
   if (!loaders.isActive()) return
 
   if (updatedSettings) {
-    usePreferencesStore.setState({ settings: updatedSettings })
+    const { selectedModel } = updatedSettings
+    usePreferencesStore.setState((state) => ({ settings: { ...state.settings, selectedModel } }))
   }
 
   const oauthProviders = useProviderStore
@@ -89,14 +91,17 @@ export function useSettingsSetup(): () => void {
 
 /**
  * Retries a provider catalog that failed to load while settings loaded, through the same steps as
- * startup: the catalog for the current settings, then the sign-in accounts it lists.
+ * startup: the catalog for the current settings, then the sign-in accounts it lists. Resolves to
+ * whether the catalog loaded.
  */
-export function useProviderCatalogRetry(): () => Promise<void> {
+export function useProviderCatalogRetry(): () => Promise<boolean> {
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
 
-  return () =>
-    hydrateProviderCatalog({ loadProviderModels, loadAllAuthAccounts, isActive: () => true })
+  return async () => {
+    await hydrateProviderCatalog({ loadProviderModels, loadAllAuthAccounts, isActive: () => true })
+    return useProviderStore.getState().loadError === null
+  }
 }
 
 /**
@@ -112,7 +117,6 @@ export function usePreferences() {
   const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
-  const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
   return {
     settings,
@@ -123,7 +127,6 @@ export function usePreferences() {
     setEnabledModels,
     setProjectPath,
     pushRecentProject,
-    retryLoad,
   }
 }
 

@@ -54,4 +54,44 @@ describe('ModelSelector without a provider catalog', () => {
     expect(screen.getByText('No models configured.')).toBeInTheDocument()
     expect(screen.queryByText("Couldn't load providers.")).not.toBeInTheDocument()
   })
+
+  it('focuses the empty popup and closes it with Escape, returning focus to the picker', () => {
+    useProviderStore.setState({ loadError: 'Pi catalog unavailable', catalogHydrated: true })
+
+    render(
+      <ModelSelector
+        value={SETTINGS.selectedModel}
+        onChange={vi.fn()}
+        settings={SETTINGS}
+        providerModels={[]}
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: /select model/i })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.click(trigger)
+
+    const popup = screen.getByRole('dialog', { name: 'Models' })
+    expect(popup).toHaveFocus()
+    fireEvent.keyDown(popup, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Models' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('closes the popup with Escape from the picker button too', () => {
+    render(
+      <ModelSelector
+        value={SETTINGS.selectedModel}
+        onChange={vi.fn()}
+        settings={SETTINGS}
+        providerModels={[]}
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: /select model/i })
+    fireEvent.click(trigger)
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Models' })).not.toBeInTheDocument()
+  })
 })

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, KeyRound, type LucideIcon, ShieldCheck } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import { useRef, useState } from 'react'
 import { useProviderCatalogRetry, useProviders } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -70,26 +70,47 @@ function AuthProviderGroup({
   )
 }
 
+interface ProviderCatalogLoadErrorProps {
+  readonly loadError: string | null
+  /** Takes focus when a retry succeeds and the banner, with its focused button, goes away. */
+  readonly headingRef: RefObject<HTMLHeadingElement | null>
+}
+
 /**
  * A provider catalog that failed to load, with a retry that reloads it and its sign-in accounts.
- * Retrying clears the error, so the section shows its loading state until the catalog settles.
+ * The banner stays while the retry runs, so a failed retry leaves focus on Retry; a successful one
+ * moves focus to the section heading.
  */
-function ProviderCatalogLoadError({ message }: { readonly message: string }) {
+function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoadErrorProps) {
   const retryProviderCatalog = useProviderCatalogRetry()
+  const [retryingAfter, setRetryingAfter] = useState<string | null>(null)
+  const message = loadError ?? retryingAfter
+  if (message === null) return null
+  const retrying = retryingAfter !== null
+
+  async function retry() {
+    if (retrying || loadError === null) return
+    setRetryingAfter(loadError)
+    const loaded = await retryProviderCatalog()
+    setRetryingAfter(null)
+    if (loaded) headingRef.current?.focus()
+  }
 
   return (
     <div
       role="alert"
+      aria-busy={retrying}
       className="flex items-start justify-between gap-3 rounded-lg border border-error/25 bg-error/6 px-3 py-2"
     >
       <p className="min-w-0 text-sm text-error-text">Failed to load providers: {message}</p>
       <Button
         variant="secondary"
         aria-label="Retry loading providers"
-        onClick={() => void retryProviderCatalog()}
+        aria-disabled={retrying || undefined}
+        onClick={() => void retry()}
         className="shrink-0"
       >
-        Retry
+        {retrying ? 'Retrying…' : 'Retry'}
       </Button>
     </div>
   )
@@ -102,17 +123,24 @@ export function ConnectionsSection() {
   const apiKeyProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsApiKey)
   const oauthProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsOAuth)
   const loadingText = 'Loading providers…'
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold text-text-primary">Connections</h2>
+        <h2
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-xl font-semibold text-text-primary focus-visible:outline-none"
+        >
+          Connections
+        </h2>
         <p className="text-xs text-text-tertiary">
           Manage provider authentication and source control hosts.
         </p>
       </div>
 
-      {loadError && <ProviderCatalogLoadError message={loadError} />}
+      <ProviderCatalogLoadError loadError={loadError} headingRef={headingRef} />
 
       {isLoading && providerModels.length === 0 && (
         <p className="text-xs text-text-muted">Loading providers…</p>

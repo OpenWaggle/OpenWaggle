@@ -77,25 +77,57 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Failed to load providers: Pi catalog unavailable',
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    const retry = screen.getByRole('button', { name: 'Retry loading providers' })
+    retry.focus()
+    fireEvent.click(retry)
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'Connections' })).toHaveFocus()
     expect(apiMock.getProviderModels).toHaveBeenCalledWith(DEFAULT_SETTINGS.projectPath)
     await waitFor(() => expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai-codex'))
     fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
     expect(await screen.findByText('user@example.com')).toBeInTheDocument()
   })
 
-  it('keeps the failure and its retry when the retry fails too', async () => {
+  it('keeps the banner, busy, while the retry runs', async () => {
+    let rejectCatalog = (_error: Error) => {}
+    apiMock.getProviderModels.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectCatalog = reject
+      }),
+    )
+
+    render(<ConnectionsSection />)
+    const retry = screen.getByRole('button', { name: 'Retry loading providers' })
+    fireEvent.click(retry)
+
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Pi catalog unavailable')
+    expect(retry).toHaveTextContent('Retrying…')
+    expect(retry).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(retry)
+    expect(apiMock.getProviderModels).toHaveBeenCalledTimes(1)
+
+    rejectCatalog(new Error('Pi catalog still unavailable'))
+    expect(await screen.findByText(/Pi catalog still unavailable/)).toBeInTheDocument()
+  })
+
+  it('keeps the failure, its retry, and focus on Retry when the retry fails too', async () => {
     apiMock.getProviderModels.mockRejectedValue(new Error('Pi catalog still unavailable'))
 
     render(<ConnectionsSection />)
-    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    const retry = screen.getByRole('button', { name: 'Retry loading providers' })
+    retry.focus()
+    fireEvent.click(retry)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Failed to load providers: Pi catalog still unavailable',
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to load providers: Pi catalog still unavailable',
+      ),
     )
-    expect(screen.getByRole('button', { name: 'Retry loading providers' })).toBeEnabled()
+    await waitFor(() => expect(retry).toHaveTextContent('Retry'))
+    expect(retry).toHaveFocus()
+    expect(retry).not.toHaveAttribute('aria-disabled')
     expect(apiMock.getAuthAccountInfo).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { type RefObject, useEffect } from 'react'
 import { useProviderStore } from '../../state/provider-store'
 import { ModelSelectorList } from './ModelSelectorList'
 import type { FlatModel } from './types'
@@ -50,8 +50,14 @@ export function ModelSelectorDropdown({
   onKeyDown,
   onSelectModel,
 }: ModelSelectorDropdownProps) {
+  const isEmpty = models.length === 0
+  // The empty dialog has no option to tab to, so it takes focus to be read and closed with Escape.
+  useEffect(() => {
+    if (isEmpty) dropdownRef.current?.focus()
+  }, [isEmpty, dropdownRef])
+
   // A listbox may only own options, so with none the popup is a dialog holding the notice.
-  if (models.length === 0) {
+  if (isEmpty) {
     return (
       <div
         ref={dropdownRef}

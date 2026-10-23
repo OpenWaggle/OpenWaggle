@@ -218,12 +218,6 @@ export function createPreferencesActions(
     ...createPiSessionContinuationPreferencesActions(set, get),
     ...createAppearancePreferencesActions(set, get),
     loadSettings: () => loadSettings(set, get),
-    retryLoad: async () => {
-      set({ loadError: null, isLoaded: false })
-      await get().loadSettings()
-      if (get().loadError !== null) return
-      await refreshProviderModels(set, get)
-    },
     setSelectedModel: async (model) => {
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
