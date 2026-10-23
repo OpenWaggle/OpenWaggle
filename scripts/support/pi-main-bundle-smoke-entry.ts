@@ -63,7 +63,11 @@ function resultText(result: { readonly content: readonly { readonly type: string
 const loadPi = () => import('@earendil-works/pi-coding-agent')
 type PiSdk = Awaited<ReturnType<typeof loadPi>>
 
-/** The package's declared Pi extension entry (`pi.extensions`), which also re-exports the loop. */
+/**
+ * The module pi-waggle's declared Pi extension entry (`pi.extensions`, `dist/extension.js`) is built
+ * from. The desktop build aliases the package to its sources, so this is `src/extension.ts`; the
+ * package consumer smoke checks the built entry. It also re-exports the loop.
+ */
 const loadPiWaggleExtension = () => import('@openwaggle/pi-waggle/extension')
 const loadPiWaggleModeState = () => import('@openwaggle/pi-waggle/mode-state')
 const loadPiWaggleProtocol = () => import('@openwaggle/pi-waggle/protocol')
@@ -73,7 +77,7 @@ interface BundledWaggle {
   readonly extension: Awaited<ReturnType<typeof loadPiWaggleExtension>>
   readonly modeState: Awaited<ReturnType<typeof loadPiWaggleModeState>>
   readonly protocol: Awaited<ReturnType<typeof loadPiWaggleProtocol>>
-  readonly config: Awaited<ReturnType<typeof loadWaggleCore>>['BUILT_IN_WAGGLE_PRESETS'][number]['config']
+  readonly preset: Awaited<ReturnType<typeof loadWaggleCore>>['BUILT_IN_WAGGLE_PRESETS'][number]
 }
 
 async function loadBundledWaggle(): Promise<BundledWaggle> {
@@ -85,13 +89,13 @@ async function loadBundledWaggle(): Promise<BundledWaggle> {
   ])
   const preset = core.BUILT_IN_WAGGLE_PRESETS[0]
   if (!preset) fail('waggle-core has no built-in Waggle preset')
-  return { extension, modeState, protocol, config: preset.config }
+  return { extension, modeState, protocol, preset }
 }
 
-/** The desktop Waggle run's loop factory, as `waggle-run.ts` builds it, with no turns driven. */
-function desktopWaggleLoopFactory(waggle: BundledWaggle) {
+/** The desktop Waggle run's loop, as `waggle-run.ts` builds it, with no turns driven. */
+function desktopWaggleLoop(waggle: BundledWaggle) {
   return waggle.extension.createPiWaggleExtension({
-    config: waggle.config,
+    config: waggle.preset.config,
     createTurnMetadata: ({ turnNumber, agentIndex }) => ({ turnNumber, agentIndex }),
     onTurnComplete: () => ({ continue: false }),
     buildTurnMessage: ({ meta }) => ({
@@ -99,7 +103,27 @@ function desktopWaggleLoopFactory(waggle: BundledWaggle) {
       content: `turn ${meta.turnNumber}`,
       display: false,
     }),
-  }).factory
+  })
+}
+
+type DesktopWaggleLoop = ReturnType<typeof desktopWaggleLoop>
+
+/**
+ * A bound loop with no turns is still running, and failing it ends `done` with that error, as the
+ * desktop run's turn-start failure path does.
+ */
+async function checkDesktopWaggleLoop(loop: DesktopWaggleLoop) {
+  const pending = Symbol('pending')
+  const early = await Promise.race([loop.done.then(() => 'settled', () => 'rejected'), Promise.resolve(pending)])
+  if (early !== pending) fail(`the desktop Waggle loop ${String(early)} before any turn ran`)
+  const stop = new Error('pi main bundle smoke stopped the loop')
+  loop.fail(stop)
+  const outcome = await loop.done.then(
+    () => fail('the desktop Waggle loop completed instead of failing'),
+    (error: unknown) => error,
+  )
+  if (outcome !== stop) fail(`the desktop Waggle loop failed with ${String(outcome)}`)
+  return 'desktop loop bound and stoppable'
 }
 
 /**
@@ -116,10 +140,10 @@ function checkBundledWaggle(session: Awaited<ReturnType<PiSdk['createAgentSessio
   }
   waggle.modeState.appendPiWaggleModeState(
     session.sessionManager,
-    waggle.modeState.enabledPiWaggleModeState({ config: waggle.config, presetId: 'code-review' }),
+    waggle.modeState.enabledPiWaggleModeState({ config: waggle.preset.config, presetId: waggle.preset.id }),
   )
   const state = waggle.modeState.latestPiWaggleModeStateFromBranch(session.sessionManager)
-  if (!state?.enabled || state.presetId !== 'code-review') {
+  if (!state?.enabled || state.presetId !== waggle.preset.id) {
     fail(`Waggle mode state did not read back: ${JSON.stringify(state)}`)
   }
   return `commands /waggle and /standard, turn renderer, mode state ${state.presetId}`
@@ -200,6 +224,7 @@ async function waitForTool(names: () => readonly string[], name: string) {
 }
 
 async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
+  const waggleLoop = desktopWaggleLoop(waggle)
   const serverPath = path.join(workDirectory, 'mcp-smoke-server.cjs')
   await writeFile(serverPath, MCP_SERVER_SOURCE, 'utf8')
   const imagePath = path.join(workDirectory, 'smoke.png')
@@ -235,7 +260,7 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
       },
       { name: 'codemode', factory: pi.createCodemodeExtension({ models: false }) },
       { name: 'pi-waggle', factory: waggle.extension.default },
-      { name: 'pi-waggle-loop', factory: desktopWaggleLoopFactory(waggle) },
+      { name: 'pi-waggle-loop', factory: waggleLoop.factory },
     ],
   })
   await resourceLoader.reload()
@@ -252,7 +277,7 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
   })
   try {
     await session.bindExtensions({})
-    const waggleCheck = checkBundledWaggle(session, waggle)
+    const waggleCheck = `${checkBundledWaggle(session, waggle)}, ${await checkDesktopWaggleLoop(waggleLoop)}`
     await waitForTool(() => session.getAllTools().map((tool) => tool.name), SMOKE_TOOL_NAME)
     session.setActiveToolsByName([...session.getActiveToolNames(), 'codemode', SMOKE_TOOL_NAME])
     const tool = (name: string) => {

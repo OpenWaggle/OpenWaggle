@@ -156,15 +156,21 @@ export function smokePnpmWorkspaceConfig(
 }
 
 /**
- * The packages Pi supplies to every extension (Pi's `docs/packages.md`, "Declare dependencies").
- * A Pi package must declare them as `"*"` peers: a physical copy under `dependencies` bypasses
- * Pi's extension module mapping, and Pi warns about it on every start.
+ * The packages Pi supplies to every extension, the same set as `HOST_PROVIDED_EXTENSION_PACKAGES`
+ * in pi-coding-agent's `dist/core/resource-loader.js` (Pi's `docs/packages.md`, "Declare
+ * dependencies"). A Pi package must declare them as `"*"` peers: a physical copy under
+ * `dependencies` bypasses Pi's extension module mapping, and Pi warns about it on every start.
  */
-export const PI_HOST_PROVIDED_PACKAGES = [
+const PI_HOST_PROVIDED_PACKAGES = [
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
   '@earendil-works/pi-coding-agent',
   '@earendil-works/pi-tui',
+  '@mariozechner/pi-agent-core',
+  '@mariozechner/pi-ai',
+  '@mariozechner/pi-coding-agent',
+  '@mariozechner/pi-tui',
+  '@sinclair/typebox',
   'typebox',
 ] as const
 
