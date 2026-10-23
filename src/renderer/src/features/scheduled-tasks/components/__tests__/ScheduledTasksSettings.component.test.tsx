@@ -49,7 +49,11 @@ describe('Settings › Scheduled tasks', () => {
     mocks.execute.mockImplementation(async (command) => {
       if (command.operation === 'list') return { effect: 'listed', tasks: [LAUNCH, HEARTBEAT] }
       if (command.operation === 'read') {
-        return { effect: 'read', task: command.taskId === LAUNCH.id ? LAUNCH : HEARTBEAT }
+        return {
+          effect: 'read',
+          task: command.taskId === LAUNCH.id ? LAUNCH : HEARTBEAT,
+          runs: [],
+        }
       }
       if (command.operation === 'runs') return { effect: 'runs-listed', runs: [] }
       if (command.operation === 'create') return { effect: 'created', task: LAUNCH }

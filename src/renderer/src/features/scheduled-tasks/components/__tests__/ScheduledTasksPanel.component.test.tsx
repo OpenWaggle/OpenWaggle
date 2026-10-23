@@ -41,7 +41,8 @@ describe('Scheduled panel', () => {
     mocks.execute.mockReset()
     mocks.execute.mockImplementation(async (command) => {
       if (command.operation === 'list') return { effect: 'listed', tasks: TASKS }
-      if (command.operation === 'read') return { effect: 'read', task: TASKS[0] ?? heartbeatTask() }
+      if (command.operation === 'read')
+        return { effect: 'read', task: TASKS[0] ?? heartbeatTask(), runs: [] }
       if (command.operation === 'runs') return { effect: 'runs-listed', runs: [] }
       return { effect: 'rejected', code: 'task_not_found', message: 'No such task.' }
     })

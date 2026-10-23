@@ -24,7 +24,7 @@ const RUNS = [
     trigger: 'catch-up',
     missedCount: 3,
     status: 'skipped',
-    reason: 'target-busy',
+    reason: 'session-busy',
   }),
 ]
 
@@ -40,7 +40,7 @@ describe('Scheduled task detail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.execute.mockImplementation(async (command) => {
-      if (command.operation === 'read') return { effect: 'read', task: TASK }
+      if (command.operation === 'read') return { effect: 'read', task: TASK, runs: RUNS }
       if (command.operation === 'runs') return { effect: 'runs-listed', runs: RUNS }
       if (command.operation === 'run-now') return { effect: 'run-requested', task: TASK }
       if (command.operation === 'update') {
