@@ -132,7 +132,7 @@ const AppLayer = Layer.mergeAll(
   ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
-  // …and the session control, resource, extension, desktop, and usage statistics layers
+  // …and the other layers composed in src/main/runtime.ts
 )
 ```
 
