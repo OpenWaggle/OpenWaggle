@@ -78,12 +78,15 @@ interface ProviderCatalogLoadErrorProps {
 
 /**
  * A provider catalog that failed to load, with a retry that reloads it and its sign-in accounts.
- * The banner stays while the retry runs, so a failed retry leaves focus on Retry; a successful one
- * moves focus to the section heading.
+ * The banner stays while the retry runs, so a failed retry leaves focus on Retry and says it failed,
+ * even when the error text is the same. A successful retry moves focus to the section heading,
+ * unless the user has moved it elsewhere meanwhile.
  */
 function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoadErrorProps) {
   const retryProviderCatalog = useProviderCatalogRetry()
+  const retryRef = useRef<HTMLButtonElement>(null)
   const [retryingAfter, setRetryingAfter] = useState<string | null>(null)
+  const [failedRetries, setFailedRetries] = useState(0)
   const message = loadError ?? retryingAfter
   if (message === null) return null
   const retrying = retryingAfter !== null
@@ -93,26 +96,39 @@ function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoad
     setRetryingAfter(loadError)
     const loaded = await retryProviderCatalog()
     setRetryingAfter(null)
-    if (loaded) headingRef.current?.focus()
+    if (!loaded) {
+      setFailedRetries((count) => count + 1)
+      return
+    }
+    const focused = document.activeElement
+    if (focused === null || focused === document.body || focused === retryRef.current) {
+      headingRef.current?.focus()
+    }
   }
 
   return (
-    <div
-      role="alert"
-      aria-busy={retrying}
-      className="flex items-start justify-between gap-3 rounded-lg border border-error/25 bg-error/6 px-3 py-2"
-    >
-      <p className="min-w-0 text-sm text-error-text">Failed to load providers: {message}</p>
-      <Button
-        variant="secondary"
-        aria-label="Retry loading providers"
-        aria-disabled={retrying || undefined}
-        onClick={() => void retry()}
-        className="shrink-0"
+    <>
+      <div
+        role="alert"
+        aria-busy={retrying}
+        className="flex items-start justify-between gap-3 rounded-lg border border-error/25 bg-error/6 px-3 py-2"
       >
-        {retrying ? 'Retrying…' : 'Retry'}
-      </Button>
-    </div>
+        <p className="min-w-0 text-sm text-error-text">Failed to load providers: {message}</p>
+        <Button
+          ref={retryRef}
+          variant="secondary"
+          aria-label="Retry loading providers"
+          aria-disabled={retrying || undefined}
+          onClick={() => void retry()}
+          className="shrink-0"
+        >
+          {retrying ? 'Retrying…' : 'Retry'}
+        </Button>
+      </div>
+      <span role="status" className="sr-only">
+        {failedRetries > 0 && !retrying ? `Retry ${failedRetries} failed.` : ''}
+      </span>
+    </>
   )
 }
 

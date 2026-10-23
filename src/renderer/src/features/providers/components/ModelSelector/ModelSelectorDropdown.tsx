@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from 'react'
+import { type RefObject, useEffect, useId } from 'react'
 import { useProviderStore } from '../../state/provider-store'
 import { ModelSelectorList } from './ModelSelectorList'
 import type { FlatModel } from './types'
@@ -25,18 +25,18 @@ const DROPDOWN_STYLE = {
 }
 
 /** Why the picker has no models: the provider catalog failed to load, or none is enabled. */
-function ModelSelectorEmptyState() {
+function ModelSelectorEmptyState({ id }: { readonly id: string }) {
   const catalogLoadError = useProviderStore((s) => s.loadError)
   if (catalogLoadError !== null) {
     return (
-      <div className="px-3 py-4 text-center">
+      <div id={id} className="px-3 py-4 text-center">
         <p className="text-xs text-error-text">Couldn't load providers.</p>
         <p className="mt-1 text-xs text-text-muted">Retry in Settings → Connections.</p>
       </div>
     )
   }
   return (
-    <div className="px-3 py-4 text-center">
+    <div id={id} className="px-3 py-4 text-center">
       <p className="text-xs text-text-tertiary">No models configured.</p>
       <p className="mt-1 text-xs text-text-muted">Go to Settings → Connections to enable models.</p>
     </div>
@@ -51,6 +51,7 @@ export function ModelSelectorDropdown({
   onSelectModel,
 }: ModelSelectorDropdownProps) {
   const isEmpty = models.length === 0
+  const emptyStateId = useId()
   // The empty dialog has no option to tab to, so it takes focus to be read and closed with Escape.
   useEffect(() => {
     if (isEmpty) dropdownRef.current?.focus()
@@ -63,13 +64,14 @@ export function ModelSelectorDropdown({
         ref={dropdownRef}
         role="dialog"
         aria-label="Models"
+        aria-describedby={emptyStateId}
         data-model-picker-open
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className={DROPDOWN_CLASS}
         style={DROPDOWN_STYLE}
       >
-        <ModelSelectorEmptyState />
+        <ModelSelectorEmptyState id={emptyStateId} />
       </div>
     )
   }

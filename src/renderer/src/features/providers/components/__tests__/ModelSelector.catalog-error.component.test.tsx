@@ -72,6 +72,9 @@ describe('ModelSelector without a provider catalog', () => {
 
     const popup = screen.getByRole('dialog', { name: 'Models' })
     expect(popup).toHaveFocus()
+    expect(popup).toHaveAccessibleDescription(
+      "Couldn't load providers. Retry in Settings → Connections.",
+    )
     fireEvent.keyDown(popup, { key: 'Escape' })
 
     expect(screen.queryByRole('dialog', { name: 'Models' })).not.toBeInTheDocument()

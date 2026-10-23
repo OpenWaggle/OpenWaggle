@@ -89,6 +89,41 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     expect(await screen.findByText('user@example.com')).toBeInTheDocument()
   })
 
+  it('announces a failed retry even when the error text is unchanged', async () => {
+    apiMock.getProviderModels.mockRejectedValue(new Error('Pi catalog unavailable'))
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+
+    expect(await screen.findByText('Retry 1 failed.')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to load providers: Pi catalog unavailable',
+    )
+  })
+
+  it('leaves focus where the user moved it while a retry succeeded', async () => {
+    let resolveCatalog = (_models: ProviderInfo[]) => {}
+    apiMock.getProviderModels.mockReturnValue(
+      new Promise<ProviderInfo[]>((resolve) => {
+        resolveCatalog = resolve
+      }),
+    )
+    apiMock.getAuthAccountInfo.mockResolvedValue({
+      provider: 'openai-codex',
+      connected: false,
+      label: '',
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    const elsewhere = screen.getByRole('button', { name: /API Key Providers/i })
+    elsewhere.focus()
+    resolveCatalog(PROVIDER_MODELS)
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(elsewhere).toHaveFocus()
+  })
+
   it('keeps the banner, busy, while the retry runs', async () => {
     let rejectCatalog = (_error: Error) => {}
     apiMock.getProviderModels.mockReturnValue(
@@ -127,6 +162,7 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     )
     await waitFor(() => expect(retry).toHaveTextContent('Retry'))
     expect(retry).toHaveFocus()
+    expect(screen.getByRole('status')).toHaveTextContent('Retry 1 failed.')
     expect(retry).not.toHaveAttribute('aria-disabled')
     expect(apiMock.getAuthAccountInfo).not.toHaveBeenCalled()
   })
