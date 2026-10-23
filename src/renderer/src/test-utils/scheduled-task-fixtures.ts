@@ -1,5 +1,8 @@
 import type { ScheduledTask, ScheduledTaskRun } from '@shared/types/scheduled-task'
 
+const WEEKDAYS = [1, 2, 3, 4, 5] as const
+const HEARTBEAT_EVERY_MINUTES = 30
+
 export function scheduledTaskRun(patch: Partial<ScheduledTaskRun> = {}): ScheduledTaskRun {
   return {
     id: 'run-1',
@@ -20,7 +23,7 @@ export function scheduledTask(patch: Partial<ScheduledTask> = {}): ScheduledTask
     prompt: 'Triage new issues.',
     kind: 'launch',
     enabled: true,
-    schedule: { kind: 'daily', at: '09:00', weekdays: [1, 2, 3, 4, 5] },
+    schedule: { kind: 'daily', at: '09:00', weekdays: [...WEEKDAYS] },
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     endsAt: null,
     maxRuns: null,
@@ -51,7 +54,7 @@ export function heartbeatTask(patch: Partial<ScheduledTask> = {}): ScheduledTask
     id: 'heartbeat-1',
     name: 'CI watch',
     kind: 'heartbeat',
-    schedule: { kind: 'interval', everyMinutes: 30 },
+    schedule: { kind: 'interval', everyMinutes: HEARTBEAT_EVERY_MINUTES },
     target: { kind: 'heartbeat', sessionId: 'session-1' },
     notificationPolicy: 'failures-only',
     ...patch,

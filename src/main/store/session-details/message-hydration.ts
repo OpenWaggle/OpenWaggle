@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
@@ -63,6 +64,7 @@ const messagePartSchema = Schema.Union(
 
 const messageMetadataSchema = Schema.Struct({
   durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
+  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
   visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),

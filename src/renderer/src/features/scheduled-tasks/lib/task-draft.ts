@@ -149,7 +149,7 @@ function targetFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskT
 }
 
 /** The last moment of the chosen day on the task's own time zone clock. */
-function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftResult<number | null> {
+export function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftResult<number | null> {
   if (endDate === '') return { ok: true, value: null }
   const match = DATE_PATTERN.exec(endDate)
   if (!match || !isValidTimeZone(timeZone)) return { ok: false, error: 'Choose a valid end date.' }
@@ -173,9 +173,26 @@ function maxRunsFromDraft(maxRuns: string): TaskDraftResult<number | null> {
   return { ok: true, value: count }
 }
 
+const NAME_WORD_LIMIT = 6
+const NAME_LENGTH_LIMIT = 60
+
+/** A task name from the start of its prompt, used until the user names the task. */
+export function nameFromPrompt(prompt: string) {
+  const firstLine = prompt.trim().split('\n')[0] ?? ''
+  const words = firstLine
+    .replace(/[.!?:;,]+$/u, '')
+    .split(/\s+/u)
+    .filter(Boolean)
+  // A first line of only punctuation still names the task, rather than leaving no name.
+  if (words.length === 0) return firstLine.slice(0, NAME_LENGTH_LIMIT)
+  const name = words.slice(0, NAME_WORD_LIMIT).join(' ')
+  const trimmed =
+    name.length > NAME_LENGTH_LIMIT ? name.slice(0, NAME_LENGTH_LIMIT).trimEnd() : name
+  return words.length > NAME_WORD_LIMIT || name.length > NAME_LENGTH_LIMIT ? `${trimmed}…` : trimmed
+}
+
 /** The create input an editor draft describes, or the first reason it does not yet. */
 export function taskInputFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskInput> {
-  if (draft.name.trim() === '') return { ok: false, error: 'Give the task a name.' }
   if (draft.prompt.trim() === '') return { ok: false, error: 'Write the prompt to deliver.' }
   const target = targetFromDraft(draft)
   if (!target.ok) return target
@@ -188,7 +205,7 @@ export function taskInputFromDraft(draft: TaskEditorDraft): TaskDraftResult<Sche
   return {
     ok: true,
     value: {
-      name: draft.name.trim(),
+      name: draft.name.trim() || nameFromPrompt(draft.prompt),
       prompt: draft.prompt,
       enabled: draft.enabled,
       schedule: schedule.schedule,

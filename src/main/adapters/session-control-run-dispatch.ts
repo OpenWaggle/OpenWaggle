@@ -190,6 +190,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       payload,
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
+      ...(input.execution.scheduledTask ? { scheduledTask: input.execution.scheduledTask } : {}),
       signal: input.controller.signal,
       onEvent: (event) => {
         terminal.observe(event)

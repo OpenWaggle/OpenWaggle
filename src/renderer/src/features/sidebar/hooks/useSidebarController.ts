@@ -133,9 +133,6 @@ function buildControllerOutput(
     handleOpenSettings() {
       void state.navigate({ to: '/settings' })
     },
-    handleOpenScheduledTasks() {
-      void state.navigate({ to: '/scheduled' })
-    },
     handleOpenUsageCost() {
       void state.navigate({ to: '/usage' })
     },

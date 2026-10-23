@@ -2,7 +2,6 @@ import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { BackgroundStartSetting } from '@/features/scheduled-tasks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -171,8 +170,6 @@ export function GeneralSection() {
       <CompactionThresholdSetting />
 
       <PiSessionContinuationSetting />
-
-      <BackgroundStartSetting />
 
       <AgentToolsSettings />
 

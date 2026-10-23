@@ -52,12 +52,12 @@ function formatterFor(timeZone: string) {
   return formatter
 }
 
-/** Whether the platform knows `timeZone` as an IANA zone. */
 /** The machine's IANA time zone, or UTC when the platform does not name one. */
 export function machineTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
+/** Whether the platform knows `timeZone` as an IANA zone. */
 export function isValidTimeZone(timeZone: string) {
   try {
     formatterFor(timeZone)

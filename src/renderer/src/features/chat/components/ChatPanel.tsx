@@ -1,7 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { HeartbeatStrip } from '@/features/scheduled-tasks'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
@@ -15,7 +14,7 @@ import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
-import { CHAT_CONTENT_FRAME_CLASS, CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
+import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
@@ -229,9 +228,6 @@ export function ChatPanelContent({
 
           <ArchivedSessionNotice />
           <DeletedPiSessionFileNotice />
-          <PanelErrorBoundary name="Heartbeat strip">
-            <HeartbeatStrip sessionId={activeSessionId} className={CHAT_CONTENT_FRAME_CLASS} />
-          </PanelErrorBoundary>
           <PanelErrorBoundary name="Composer">
             <ChatComposerStack
               agentInteractions={sections.agentInteractions}

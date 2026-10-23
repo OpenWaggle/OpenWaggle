@@ -18,6 +18,7 @@ import { Button } from '@/shared/ui/Button'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
 import { OptimisticMessageImages } from './OptimisticMessageImages'
+import { ScheduledMessageFrame } from './ScheduledMessageProvenance'
 import { SteerDeliveryStatus } from './SteerDeliveryStatus'
 
 /**
@@ -244,77 +245,79 @@ export function UserMessageBubble({
   }
 
   return (
-    <div className="group/user-msg flex justify-end w-full">
-      <div
-        className={cn(
-          'relative min-w-0 max-w-full rounded-2xl rounded-br-xs border px-3.5 py-2.5',
-          // A steer the agent has not read yet is not part of the conversation so far.
-          isSteerPreview
-            ? 'border-dashed border-border bg-transparent'
-            : 'border-border-light bg-bg-hover',
-        )}
-        data-steer-delivery={steerDelivery}
-      >
-        <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
-        {capturedImages.length === 0 ? <OptimisticMessageImages message={message} /> : null}
-        {attachmentParts.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
-            {attachmentParts.map((p, i) => (
-              <AttachmentChip
-                key={`${message.id}-attachment-${String(i)}`}
-                name={parseAttachmentName(p.content)}
-              />
-            ))}
-          </div>
-        )}
-        {message.metadata?.waggleInvocation ? (
-          <div className="flex min-w-0 items-start gap-2" data-waggle-invocation-line="true">
-            <WaggleInvocationChip message={message} />
+    <ScheduledMessageFrame message={message}>
+      <div className="group/user-msg flex justify-end w-full">
+        <div
+          className={cn(
+            'relative min-w-0 max-w-full rounded-2xl rounded-br-xs border px-3.5 py-2.5',
+            // A steer the agent has not read yet is not part of the conversation so far.
+            isSteerPreview
+              ? 'border-dashed border-border bg-transparent'
+              : 'border-border-light bg-bg-hover',
+          )}
+          data-steer-delivery={steerDelivery}
+        >
+          <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
+          {capturedImages.length === 0 ? <OptimisticMessageImages message={message} /> : null}
+          {attachmentParts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
+              {attachmentParts.map((p, i) => (
+                <AttachmentChip
+                  key={`${message.id}-attachment-${String(i)}`}
+                  name={parseAttachmentName(p.content)}
+                />
+              ))}
+            </div>
+          )}
+          {message.metadata?.waggleInvocation ? (
+            <div className="flex min-w-0 items-start gap-2" data-waggle-invocation-line="true">
+              <WaggleInvocationChip message={message} />
+              <UserMessageContent message={message} contentParts={contentParts} />
+            </div>
+          ) : (
             <UserMessageContent message={message} contentParts={contentParts} />
-          </div>
-        ) : (
-          <UserMessageContent message={message} contentParts={contentParts} />
-        )}
-        {steerDelivery ? <SteerDeliveryStatus delivery={steerDelivery} /> : null}
-        <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
-          {onBranchFromMessage && !isSteerPreview ? (
+          )}
+          {steerDelivery ? <SteerDeliveryStatus delivery={steerDelivery} /> : null}
+          <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
+            {onBranchFromMessage && !isSteerPreview ? (
+              <Button
+                variant="unstyled"
+                type="button"
+                title="Edit from here"
+                aria-label="Edit from here"
+                onClick={() => onBranchFromMessage(message.id)}
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+              >
+                <GitBranch className="size-3" />
+              </Button>
+            ) : null}
+
+            {onForkFromMessage && !isSteerPreview ? (
+              <Button
+                variant="unstyled"
+                type="button"
+                title="Fork from here"
+                aria-label="Fork from here"
+                onClick={() => onForkFromMessage(message.id)}
+                className="flex cursor-pointer items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
+              >
+                <GitFork className="size-3" />
+              </Button>
+            ) : null}
+
             <Button
               variant="unstyled"
               type="button"
-              title="Edit from here"
-              aria-label="Edit from here"
-              onClick={() => onBranchFromMessage(message.id)}
+              title="Copy message"
+              aria-label="Copy message"
+              onClick={handleCopy}
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
             >
-              <GitBranch className="size-3" />
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
             </Button>
-          ) : null}
-
-          {onForkFromMessage && !isSteerPreview ? (
-            <Button
-              variant="unstyled"
-              type="button"
-              title="Fork from here"
-              aria-label="Fork from here"
-              onClick={() => onForkFromMessage(message.id)}
-              className="flex cursor-pointer items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
-            >
-              <GitFork className="size-3" />
-            </Button>
-          ) : null}
-
-          <Button
-            variant="unstyled"
-            type="button"
-            title="Copy message"
-            aria-label="Copy message"
-            onClick={handleCopy}
-            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-          </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </ScheduledMessageFrame>
   )
 }

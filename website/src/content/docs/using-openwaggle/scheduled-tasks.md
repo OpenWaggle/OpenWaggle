@@ -14,9 +14,24 @@ A Scheduled task delivers a prompt for you on a schedule. There are two kinds:
 
 The Session Host runs Scheduled tasks. It keeps running while any task is enabled, even with every window closed, and it runs nothing while the machine is asleep or the Host is not running.
 
+## Where to find tasks
+
+| Place | What it shows |
+| --- | --- |
+| **Scheduled** in the Right panel | The tasks of the project you are in. Heartbeats into the open Session come first. |
+| **Settings > Scheduled tasks** | Every task in every project, with **Background start**. |
+| **Scheduled** in the Session Summary | The Heartbeats that run in this Session, or the Launch schedule that started it. Hover a row to see the next run. Right-click it for **Run now**, **Pause**, **Edit** and **Delete**. |
+
+Opening a task shows its settings and run history in the place you opened it. Editing it, or choosing **New task**, replaces the detail with the editor in that same place.
+
 ## Create a task
 
-Open **Scheduled tasks** from the calendar button at the bottom of the sidebar, then choose **New task**. Pick the kind, the Session or project, the prompt, and the schedule.
+Choose **New task** in the Scheduled panel or in Settings, or **+** in the Session Summary's Scheduled section to add a Heartbeat for that Session. Then fill in:
+
+1. **Prompt**: what the agent should do each time. The task takes its name from the start of the prompt until you give it one.
+2. **Runs**: **Into a Session** for a Heartbeat, or **New Session each time** for a Launch schedule.
+3. **When**: the schedule and its time zone. The editor shows the next three times it would fire.
+4. The collapsed line under it sets an end date, a maximum number of runs and notifications.
 
 You can also ask an agent: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own Session through its `sessions` tool. It creates a task only when you ask for recurring work. Work it can finish in the current turn, it finishes there instead. Agents connected over MCP (`openwaggle mcp serve`) cannot manage Scheduled tasks: their access ends when the MCP server stops, so a later run would have no access left to check.
 
@@ -59,19 +74,19 @@ The agent sees which task started its Run, when it fired, and when the task last
 
 A Launch schedule starts each Session in a new worktree by default, so unattended edits stay out of the checkout you work in. Choose **Local checkout** to run in the project folder instead. Workspace setup runs only if you enabled it for the project.
 
-Each Session is titled with the task name and the date, and its sidebar row shows a calendar icon. Turn on **Archive finished runs** to archive a Session once its Run completed, nothing in it needs attention, and you never sent it anything yourself.
+Each Session is titled with the task name and the date, and its sidebar row shows a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a Session once its Run completed, nothing in it needs attention, and you never sent it anything yourself.
 
 If the task's model is no longer available, or its Agent definition no longer works, the task stops and asks for attention. It never falls back to another model.
 
 ## Background start
 
-To keep tasks firing after a restart or logout, turn on **Settings > Background start**. OpenWaggle then starts only the Session Host, with no window, when you log in. OpenWaggle offers this after you create your first task. It works in installed builds on macOS (a LaunchAgent), Windows (a login item), and Linux (an autostart entry).
+To keep tasks firing after a restart or logout, turn on **Background start** in **Settings > Scheduled tasks**. OpenWaggle then starts only the Session Host, with no window, when you log in. OpenWaggle offers this after you create your first task. It works in installed builds on macOS (a LaunchAgent), Windows (a login item), and Linux (an autostart entry).
 
 `openwaggle status` lists the enabled tasks and when each fires next, so you can always see why a Host is running.
 
 ## Notifications
 
-A Heartbeat tells you about failures and tasks that need attention only, so a quiet monitor stays quiet. A Launch schedule tells you about every run. Change this per task.
+A Heartbeat tells you about failures and tasks that need attention only, so a quiet monitor stays quiet. A Launch schedule tells you about every run. Change this per task. **Open** on a notification opens the task in the Scheduled panel when you are in its project, and in Settings otherwise. The Scheduled rail icon and the Settings tab show a dot while a task needs attention.
 
 ## From the command line
 

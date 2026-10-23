@@ -1,4 +1,5 @@
 import { Schema } from '@shared/schema'
+import { messageScheduledTaskOriginSchema } from './message-scheduled-task-origin'
 import { preparedAttachmentSchema } from './validation'
 import { waggleInvocationMetadataSchema } from './waggle'
 
@@ -16,6 +17,7 @@ export const agentTransportUserMessageSchema = Schema.Struct({
   sessionNodeCreatedOrder: logOrderSchema,
   durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
+  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
 })
 
 /** `BackgroundRunUserMessage`: an incorporated user message an active Run snapshot retains. */

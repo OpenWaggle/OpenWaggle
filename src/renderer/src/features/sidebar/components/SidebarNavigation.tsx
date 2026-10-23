@@ -1,7 +1,6 @@
 import {
   ArrowDownAZ,
   Calendar,
-  CalendarClock,
   ChartColumn,
   Check,
   Clock,
@@ -11,7 +10,6 @@ import {
   Settings,
 } from 'lucide-react'
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
-import { useScheduledTasksNeedAttention } from '@/features/scheduled-tasks'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
@@ -156,19 +154,16 @@ export function SidebarProjectsHeader({
  * The gear icon is deliberately the app's existing one. The prototype swapped in a different
  * glyph and the maintainer asked to keep this.
  *
- * Scheduled tasks and Usage & Cost (the cross-session views) sit at the row's right edge as their
- * own hit targets: the full-width row keeps opening Settings.
+ * Usage & Cost (the cross-session view) sits at the row's right edge as its own hit target:
+ * the full-width row keeps opening Settings.
  */
 export function SidebarSettingsButton({
   onOpenSettings,
-  onOpenScheduledTasks,
   onOpenUsageCost,
 }: {
   readonly onOpenSettings: () => void
-  readonly onOpenScheduledTasks: () => void
   readonly onOpenUsageCost: () => void
 }) {
-  const scheduledTasksNeedAttention = useScheduledTasksNeedAttention()
   return (
     <div className="no-drag flex shrink-0 items-center gap-0.5 border-t border-border px-1.5 py-1">
       <Button
@@ -184,26 +179,6 @@ export function SidebarSettingsButton({
         <span>Settings</span>
       </Button>
       {/* ghost, not row: the row variant is w-full and would crowd the Settings label out. */}
-      <Button
-        variant="ghost"
-        size="none"
-        radius="md"
-        aria-label={
-          scheduledTasksNeedAttention ? 'Scheduled tasks (needs attention)' : 'Scheduled tasks'
-        }
-        data-qa="sidebar-scheduled-tasks"
-        title="Scheduled tasks"
-        onClick={onOpenScheduledTasks}
-        className="relative size-7.5"
-      >
-        <CalendarClock className="size-3.5 shrink-0" />
-        {scheduledTasksNeedAttention ? (
-          <span
-            aria-hidden="true"
-            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-warning"
-          />
-        ) : null}
-      </Button>
       <Button
         variant="ghost"
         size="none"

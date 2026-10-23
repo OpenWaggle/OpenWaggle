@@ -38,6 +38,7 @@ describe('SessionSummaryHub', () => {
     expect(sessionSummarySectionOrder()).toEqual([
       'environment',
       'actions',
+      'scheduled',
       'preparation',
       'change-requests',
       'extensions-context',

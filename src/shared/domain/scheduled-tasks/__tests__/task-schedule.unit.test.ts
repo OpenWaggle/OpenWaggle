@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { nextRecurrence } from '../recurrence-evaluation'
 import { parseRecurrenceRule } from '../recurrence-rule'
 import {
+  isScheduleJittered,
   jitterMs,
   MISSED_FIRING_COUNT_LIMIT,
   missedOccurrences,
@@ -10,6 +11,7 @@ import {
   planNextFiring,
   SCHEDULED_TASK_JITTER_MS,
   type ScheduleDefinition,
+  upcomingNominalTimes,
   validateTaskSchedule,
 } from '../task-schedule'
 
@@ -122,6 +124,17 @@ describe('Task schedules', () => {
     const value = definition({ endsAt: Date.UTC(2026, 0, 5, 8, 45) })
     expect(nextNominalAt(value, value.anchorAt)).toBe(value.anchorAt + 30 * MINUTE)
     expect(nextNominalAt(value, value.anchorAt + 30 * MINUTE)).toBeNull()
+  })
+
+  it('lists upcoming times up to the end date, and spreads only clock-aligned schedules', () => {
+    const value = definition({ endsAt: Date.UTC(2026, 0, 5, 9, 45) })
+    expect(upcomingNominalTimes(value, value.anchorAt, 5)).toEqual([
+      value.anchorAt + 30 * MINUTE,
+      value.anchorAt + 60 * MINUTE,
+      value.anchorAt + 90 * MINUTE,
+    ])
+    expect(isScheduleJittered(value)).toBe(false)
+    expect(isScheduleJittered(definition({ schedule: { kind: 'daily', at: '09:00' } }))).toBe(true)
   })
 
   it('spreads hourly-or-slower firings within five minutes, deterministically', () => {

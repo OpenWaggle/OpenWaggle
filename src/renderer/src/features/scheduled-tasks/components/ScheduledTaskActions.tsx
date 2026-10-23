@@ -63,21 +63,30 @@ export function ScheduledTaskActions({
   task,
   onEdit,
   onDeleted,
+  align = 'end',
 }: {
   readonly task: ScheduledTask
   readonly onEdit: (task: ScheduledTask) => void
   readonly onDeleted?: () => void
+  readonly align?: 'start' | 'end'
 }) {
   const enabled = useSetScheduledTaskEnabled()
   const runNow = useRunScheduledTaskNow()
   const error = errorText(runNow.error) ?? errorText(enabled.error)
   return (
-    <div className="flex shrink-0 flex-col items-end gap-1">
+    <div
+      className={
+        align === 'end'
+          ? 'flex shrink-0 flex-col items-end gap-1'
+          : 'flex shrink-0 flex-col items-start gap-1'
+      }
+    >
       <div className="flex items-center gap-1">
         <ToggleSwitch
           size="compact"
           checked={task.enabled}
-          label={`${task.enabled ? 'Pause' : 'Resume'} ${task.name}`}
+          // The list beside this detail names its own switch after the task.
+          label={task.enabled ? 'Pause this task' : 'Resume this task'}
           disabled={enabled.pendingTaskId === task.id}
           onCheckedChange={(next) => enabled.setEnabled(task.id, next)}
           className="mr-1"
@@ -103,7 +112,14 @@ export function ScheduledTaskActions({
         <DeleteTaskControl task={task} onDeleted={onDeleted} />
       </div>
       {error ? (
-        <p role="alert" className="max-w-xs text-right text-xs text-error-text">
+        <p
+          role="alert"
+          className={
+            align === 'end'
+              ? 'max-w-xs text-right text-xs text-error-text'
+              : 'max-w-xs text-xs text-error-text'
+          }
+        >
           {error}
         </p>
       ) : null}

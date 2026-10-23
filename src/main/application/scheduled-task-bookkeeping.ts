@@ -1,6 +1,6 @@
+import { missedOccurrences } from '@shared/domain/scheduled-tasks/task-schedule'
 import type { ScheduledTaskAttention, ScheduledTaskRunTrigger } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
-import { missedOccurrences } from '../domain/scheduled-tasks/task-schedule'
 import {
   type ScheduledTaskRecord,
   type ScheduledTaskRecordChanges,

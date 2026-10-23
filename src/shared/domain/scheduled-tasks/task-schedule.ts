@@ -120,6 +120,25 @@ function isJittered(definition: ScheduleDefinition, rule: RecurrenceRule) {
   return gap !== null && gap >= HOUR_MINUTES
 }
 
+/** Whether a schedule's firings are spread by up to ±5 minutes (hourly or slower). */
+export function isScheduleJittered(definition: ScheduleDefinition) {
+  const rule = recurrenceOf(definition.schedule)
+  return typeof rule !== 'string' && isJittered(definition, rule)
+}
+
+/** The next `count` nominal fire times after `after`, for a schedule preview. */
+export function upcomingNominalTimes(definition: ScheduleDefinition, after: number, count: number) {
+  const times: number[] = []
+  let cursor = after
+  while (times.length < count) {
+    const next = nextNominalAt(definition, cursor)
+    if (next === null) break
+    times.push(next)
+    cursor = next
+  }
+  return times
+}
+
 /**
  * A deterministic offset within ±5 minutes, from the task and its nominal time, so tasks set for
  * the same minute do not all reach their providers together and a retried plan is the same.

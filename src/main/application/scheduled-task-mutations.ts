@@ -1,3 +1,4 @@
+import { validateTaskSchedule } from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   ScheduledTaskInput,
   ScheduledTaskKind,
@@ -7,7 +8,6 @@ import type {
   ScheduledTaskTarget,
 } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
-import { validateTaskSchedule } from '../domain/scheduled-tasks/task-schedule'
 import {
   type ScheduledTaskRecord,
   type ScheduledTaskRecordChanges,

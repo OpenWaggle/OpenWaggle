@@ -140,6 +140,7 @@ export function toggleWorkspaceRightPanel(ownerKey: string) {
     )
     .with({ kind: 'browser' }, ({ previewId }) => store.showBrowser(ownerKey, previewId))
     .with({ kind: 'project-actions' }, () => store.showIndexSurface(ownerKey, 'project-actions'))
+    .with({ kind: 'scheduled-tasks' }, () => store.showIndexSurface(ownerKey, 'scheduled-tasks'))
     .with({ kind: 'all-panels' }, () => store.showIndexSurface(ownerKey, 'all-panels'))
     .exhaustive()
   return true

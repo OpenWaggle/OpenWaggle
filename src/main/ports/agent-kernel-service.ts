@@ -2,6 +2,7 @@ import type {
   AgentSteerDeliveryResult,
   HydratedAgentSendPayload,
   Message,
+  MessageScheduledTaskOrigin,
 } from '@shared/types/agent'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
@@ -57,6 +58,8 @@ export interface AgentKernelRunInput {
   readonly sessionIdentityContext?: string
   /** Run-scoped Host identity, delivered per Run outside the cacheable system prompt. */
   readonly runIdentityContext?: string
+  /** The Scheduled task whose run sent this Run's request, recorded with its prompt message. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]

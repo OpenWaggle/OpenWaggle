@@ -42,3 +42,11 @@ export function launchedSessionNames(tasks: readonly ScheduledTask[]) {
   }
   return names
 }
+
+/** The Launch schedule whose run started this Session, if one did. */
+export function launchScheduleForSession(tasks: readonly ScheduledTask[], sessionId: string) {
+  return (
+    tasks.find((task) => task.kind === 'launch' && task.recentSessionIds.includes(sessionId)) ??
+    null
+  )
+}

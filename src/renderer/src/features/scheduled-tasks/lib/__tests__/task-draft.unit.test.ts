@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { heartbeatTask, scheduledTask } from '@/test-utils/scheduled-task-fixtures'
 import {
   draftFromTask,
+  nameFromPrompt,
   newTaskDraft,
   taskInputFromDraft,
   taskPatchFromDraft,
   withDraftKind,
 } from '../task-draft'
-import { heartbeatTask, scheduledTask } from './scheduled-task-fixtures'
 
 describe('task editor draft', () => {
   it('defaults a Heartbeat to failures-only and a Launch schedule to every run', () => {
@@ -54,7 +55,7 @@ describe('task editor draft', () => {
 
   it('reports the first missing field', () => {
     const empty = newTaskDraft({ kind: 'heartbeat', timeZone: 'UTC' })
-    expect(taskInputFromDraft(empty)).toEqual({ ok: false, error: 'Give the task a name.' })
+    expect(taskInputFromDraft(empty)).toEqual({ ok: false, error: 'Write the prompt to deliver.' })
     expect(taskInputFromDraft({ ...empty, name: 'Watch', prompt: 'Check CI' })).toEqual({
       ok: false,
       error: 'Choose the Session to deliver into.',
@@ -68,6 +69,18 @@ describe('task editor draft', () => {
         maxRuns: '0',
       }),
     ).toEqual({ ok: false, error: 'Max runs must be a whole number of at least 1.' })
+  })
+
+  it('names an unnamed task from the start of its prompt', () => {
+    const draft = {
+      ...newTaskDraft({ kind: 'heartbeat', timeZone: 'UTC' }),
+      prompt: 'Check CI on the PR and stop when it is green.',
+      sessionId: 'session-1',
+    }
+    const result = taskInputFromDraft(draft)
+    expect(result.ok && result.value.name).toBe('Check CI on the PR and…')
+    expect(nameFromPrompt('Summarize open PRs.')).toBe('Summarize open PRs')
+    expect(nameFromPrompt('...\nCheck CI')).toBe('...')
   })
 
   it('ends on the last moment of the chosen day in the task time zone', () => {

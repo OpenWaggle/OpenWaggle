@@ -33,12 +33,14 @@ export type WorkspacePanelSurface =
   | { readonly kind: 'browser'; readonly previewId: string }
   /** The Project Actions list on the Panel rail (ADR 0043). */
   | { readonly kind: 'project-actions' }
+  /** The project's Scheduled tasks on the Panel rail (ADR 0057). */
+  | { readonly kind: 'scheduled-tasks' }
   /** The All panels index on the Panel rail (ADR 0043). */
   | { readonly kind: 'all-panels' }
   | null
 
 /** Workspace surfaces that are shown without any per-surface payload. */
-export type WorkspacePanelIndexSurfaceKind = 'project-actions' | 'all-panels'
+export type WorkspacePanelIndexSurfaceKind = 'project-actions' | 'scheduled-tasks' | 'all-panels'
 
 export interface WorkspacePanelGroupState {
   readonly browserTabs: readonly BrowserPreviewTabState[]

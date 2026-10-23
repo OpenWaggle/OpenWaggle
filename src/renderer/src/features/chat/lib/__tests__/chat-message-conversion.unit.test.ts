@@ -1,6 +1,8 @@
-import { ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
-import { messagePartToUIParts } from '../chat-message-conversion'
+import { messagePartToUIParts, sessionToUIMessages } from '../chat-message-conversion'
 
 describe('messagePartToUIParts', () => {
   it('restores the live nested calls of a running tool call from the active Run buffer', () => {
@@ -83,5 +85,28 @@ describe('messagePartToUIParts', () => {
         },
       },
     ])
+  })
+})
+
+describe('sessionToUIMessages', () => {
+  it('keeps the Scheduled task a persisted user message records as its origin', () => {
+    const scheduledTask = { taskId: 'task-1', name: 'Weekly deps', kind: 'launch' as const }
+    const session = fromPartial<SessionDetail>({
+      id: SessionId('session-1'),
+      messages: [
+        {
+          id: MessageId('user-1'),
+          role: 'user',
+          parts: [{ type: 'text', text: 'Update dependencies' }],
+          metadata: { sessionNodeCreatedOrder: 1, scheduledTask },
+          createdAt: 1,
+        },
+      ],
+    })
+
+    expect(sessionToUIMessages(session)[0]?.metadata).toEqual({
+      sessionNodeCreatedOrder: 1,
+      scheduledTask,
+    })
   })
 })

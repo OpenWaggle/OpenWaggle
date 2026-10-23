@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import {
+  heartbeatTask,
+  scheduledTask,
+  scheduledTaskRun,
+} from '@/test-utils/scheduled-task-fixtures'
 import { noticeSnapshots, scheduledTaskNotices } from '../task-notices'
-import { heartbeatTask, scheduledTask, scheduledTaskRun } from './scheduled-task-fixtures'
 
 describe('scheduledTaskNotices', () => {
   it('announces nothing on the first read', () => {

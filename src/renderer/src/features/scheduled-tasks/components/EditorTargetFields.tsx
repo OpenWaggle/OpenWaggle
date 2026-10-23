@@ -14,9 +14,11 @@ import {
 import { EditorField } from './EditorField'
 
 const KIND_OPTIONS: readonly { value: ScheduledTaskKind; label: string }[] = [
-  { value: 'heartbeat', label: 'Heartbeat' },
-  { value: 'launch', label: 'Launch schedule' },
+  { value: 'heartbeat', label: 'Into a Session' },
+  { value: 'launch', label: 'New Session each time' },
 ]
+
+export type ScheduledTaskEditorLayout = 'narrow' | 'wide'
 
 const WORKSPACE_OPTIONS: readonly { value: LaunchScheduleWorkspace; label: string }[] = [
   { value: 'new-worktree', label: 'New worktree' },
@@ -52,7 +54,11 @@ function HeartbeatTargetField({ editor }: { readonly editor: ScheduledTaskEditor
     <EditorField
       label="Session"
       htmlFor="scheduled-task-session"
-      hint={editor.isEdit ? 'A Heartbeat’s Session cannot change.' : undefined}
+      hint={
+        editor.isEdit
+          ? 'A Heartbeat’s Session cannot change.'
+          : 'Sent as a new Run only when the Session is idle. It never steers or queues.'
+      }
     >
       <Select
         id="scheduled-task-session"
@@ -67,14 +73,20 @@ function HeartbeatTargetField({ editor }: { readonly editor: ScheduledTaskEditor
   )
 }
 
-function LaunchModelFields({ editor }: { readonly editor: ScheduledTaskEditorState }) {
+function LaunchModelFields({
+  editor,
+  layout,
+}: {
+  readonly editor: ScheduledTaskEditorState
+  readonly layout: ScheduledTaskEditorLayout
+}) {
   const models = useEnabledModelOptions(editor.draft.modelId)
   const definitions = useAgentDefinitionOptions(
     editor.draft.projectPath,
     editor.draft.agentDefinitionName,
   )
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className={layout === 'wide' ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'}>
       <EditorField label="Model" htmlFor="scheduled-task-model">
         <Select
           id="scheduled-task-model"
@@ -115,7 +127,13 @@ function LaunchModelFields({ editor }: { readonly editor: ScheduledTaskEditorSta
   )
 }
 
-function LaunchTargetFields({ editor }: { readonly editor: ScheduledTaskEditorState }) {
+function LaunchTargetFields({
+  editor,
+  layout,
+}: {
+  readonly editor: ScheduledTaskEditorState
+  readonly layout: ScheduledTaskEditorLayout
+}) {
   const projects = useLaunchProjectOptions(editor.draft.projectPath)
   return (
     <>
@@ -137,7 +155,7 @@ function LaunchTargetFields({ editor }: { readonly editor: ScheduledTaskEditorSt
           onSelect={(workspace) => editor.change({ workspace })}
         />
       </EditorField>
-      <LaunchModelFields editor={editor} />
+      <LaunchModelFields editor={editor} layout={layout} />
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-text-secondary">
           Archive finished runs that need no attention and that no one opened
@@ -152,24 +170,30 @@ function LaunchTargetFields({ editor }: { readonly editor: ScheduledTaskEditorSt
   )
 }
 
-/** What the task fires into: an existing Session (Heartbeat) or a new one per run (Launch). */
-export function EditorTargetFields({ editor }: { readonly editor: ScheduledTaskEditorState }) {
+/** Where the task runs: into an existing Session (Heartbeat) or a new one each time (Launch). */
+export function EditorTargetFields({
+  editor,
+  layout,
+}: {
+  readonly editor: ScheduledTaskEditorState
+  readonly layout: ScheduledTaskEditorLayout
+}) {
   return (
     <div className="space-y-3">
       {editor.isEdit ? null : (
-        <EditorField label="Kind">
+        <div>
           <SegmentedRadioGroup
-            label="Kind"
+            label="Where it runs"
             options={KIND_OPTIONS}
             value={editor.draft.kind}
             onSelect={editor.changeKind}
           />
-        </EditorField>
+        </div>
       )}
       {editor.draft.kind === 'heartbeat' ? (
         <HeartbeatTargetField editor={editor} />
       ) : (
-        <LaunchTargetFields editor={editor} />
+        <LaunchTargetFields editor={editor} layout={layout} />
       )}
     </div>
   )

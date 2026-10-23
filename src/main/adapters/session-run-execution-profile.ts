@@ -1,3 +1,4 @@
+import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { ResolvedAgentDefinitionSnapshot } from '@shared/types/agent-definition'
 import { SupportedModelId } from '@shared/types/brand'
@@ -9,6 +10,7 @@ import {
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
+import { scheduledTaskMessageOrigin, scheduledTaskRecord } from './session-run-scheduled-task'
 
 const JSON_INDENT_SPACES = 2
 
@@ -47,6 +49,8 @@ export interface ResolvedSessionRunExecution {
   readonly identityContext: string
   /** Run-scoped Host identity: the Run id and Session state that can change between Runs. */
   readonly runIdentityContext: string
+  /** The Scheduled task whose run sent this Run's request, which its prompt's message records. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
 }
 
 function parseJsonRecord(value: string, label: string) {
@@ -206,19 +210,12 @@ function isoTime(value: unknown) {
  * the task, not from a person typing it now.
  */
 function scheduledTaskOrigin(value: string | null | undefined) {
-  if (!value) return undefined
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch {
-    return undefined
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
-  const record: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
-  if (typeof record.id !== 'string' || typeof record.name !== 'string') return undefined
+  const task = scheduledTaskRecord(value)
+  if (!task) return undefined
+  const { record } = task
   return {
-    id: record.id,
-    name: record.name,
+    id: task.id,
+    name: task.name,
     ...(record.kind === 'launch' ? { kind: 'launch-schedule' } : {}),
     ...(record.kind === 'heartbeat' ? { kind: 'heartbeat' } : {}),
     trigger: typeof record.trigger === 'string' ? record.trigger : 'schedule',
@@ -264,6 +261,7 @@ export function resolveSessionRunExecution(
     row.parent_session_id !== null,
     profile,
   )
+  const scheduledTask = scheduledTaskMessageOrigin(row.scheduled_task_json)
   return {
     model: SupportedModelId(profile.modelId),
     authorizationCeiling: row.authorization_ceiling,
@@ -275,6 +273,7 @@ export function resolveSessionRunExecution(
     ...(row.project_path ? { projectPath: row.project_path } : {}),
     identityContext: sessionIdentityContext(row, profile, agentSnapshot),
     runIdentityContext: runIdentityContext(row, runId),
+    ...(scheduledTask ? { scheduledTask } : {}),
   }
 }
 

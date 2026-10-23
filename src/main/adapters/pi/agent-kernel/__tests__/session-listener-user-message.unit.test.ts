@@ -167,6 +167,36 @@ describe('createSessionListener user messages', () => {
     },
   )
 
+  it('publishes the Scheduled task a Run prompt came from, as its user node projects it', () => {
+    const session = createFakePiSession()
+    const emitted: AgentTransportEvent[] = []
+    session.subscribe(
+      createSessionListener(
+        {
+          model: MODEL,
+          sessionEntries: session.sessionManager,
+          onEvent: (event) => emitted.push(event),
+        },
+        'run-1',
+      ),
+    )
+    const scheduledTask = { taskId: 'task-1', name: 'Morning triage', kind: 'heartbeat' as const }
+    enqueueUserInputProjection(
+      session,
+      { text: 'Check CI', attachments: [] },
+      undefined,
+      scheduledTask,
+    )
+
+    session.deliverMessage({ role: 'user', content: 'Check CI', timestamp: 1 })
+
+    expect(userMessageStarts(emitted)[0]?.userMessage).toMatchObject({ scheduledTask })
+    const userNode = projectPiSessionSnapshot({ sessionManager: session.sessionManager }).nodes.at(
+      -1,
+    )
+    expect(JSON.parse(userNode?.metadataJson ?? '{}')).toMatchObject({ scheduledTask })
+  })
+
   it('falls back to the typed text alone when no display projection was recorded', () => {
     const session = createFakePiSession()
     const emitted: AgentTransportEvent[] = []

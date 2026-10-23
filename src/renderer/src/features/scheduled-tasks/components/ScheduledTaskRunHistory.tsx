@@ -25,8 +25,8 @@ function RunRow({
   const reason = runReasonText(run)
   const showNominal = run.trigger !== 'run-now' && run.nominalAt !== run.firedAt
   return (
-    <li className="flex items-start gap-3 border-b border-border px-4 py-2.5 text-xs last:border-b-0">
-      <div className="w-16 shrink-0 pt-px">
+    <li className="flex items-start gap-3 border-b border-border px-3 py-2 text-xs last:border-b-0">
+      <div className="w-14 shrink-0 pt-px">
         <ScheduledTaskRunStatus run={run} />
       </div>
       <div className="min-w-0 flex-1 space-y-0.5">
@@ -43,12 +43,13 @@ function RunRow({
         <Button
           variant="ghost"
           size="xs"
+          aria-label="Open Session"
           rightIcon={<ExternalLink className="size-3" />}
           onClick={() => {
             if (run.sessionId) onOpenSession(run.sessionId)
           }}
         >
-          Open Session
+          Open
         </Button>
       ) : null}
     </li>

@@ -8,20 +8,11 @@ import {
   nextRunText,
   RUN_STATUS_LABELS,
   runReasonText,
-  SCHEDULED_TASK_KIND_LABELS,
 } from '../lib/task-format'
 
 export function ScheduledTaskKindIcon({ task }: { readonly task: Pick<ScheduledTask, 'kind'> }) {
   const Icon = task.kind === 'heartbeat' ? HeartPulse : CalendarClock
   return <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
-}
-
-export function ScheduledTaskKindBadge({ task }: { readonly task: Pick<ScheduledTask, 'kind'> }) {
-  return (
-    <span className="shrink-0 rounded border border-border-light px-1.5 py-0.5 text-xs text-text-tertiary">
-      {SCHEDULED_TASK_KIND_LABELS[task.kind]}
-    </span>
-  )
 }
 
 /** "Every 30 minutes · Europe/Paris · Next in 12 minutes (Jan 3, 09:00)". */

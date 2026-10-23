@@ -17,14 +17,9 @@ import type { OpenWaggleQueryOptions } from './query-options'
  */
 const SCHEDULED_TASKS_REFRESH_INTERVAL_MS = 30_000
 
-export interface ScheduledTasksListFilter {
-  readonly projectPath?: string
-  readonly sessionId?: string
-}
-
 export const scheduledTasksQueryKeys = {
   all: ['scheduledTasks'] as const,
-  list: (filter: ScheduledTasksListFilter) => ['scheduledTasks', 'list', filter] as const,
+  list: () => ['scheduledTasks', 'list'] as const,
   detail: (taskId: string) => ['scheduledTasks', 'detail', taskId] as const,
   runs: (taskId: string) => ['scheduledTasks', 'runs', taskId] as const,
 }
@@ -58,8 +53,8 @@ function unexpectedOutcome(outcome: AcceptedOutcome): never {
   throw new Error(`Unexpected Scheduled tasks outcome: ${outcome.effect}`)
 }
 
-async function listScheduledTasks(filter: ScheduledTasksListFilter) {
-  const outcome = await executeScheduledTasksCommand({ operation: 'list', ...filter })
+async function listScheduledTasks() {
+  const outcome = await executeScheduledTasksCommand({ operation: 'list' })
   return outcome.effect === 'listed' ? outcome.tasks : unexpectedOutcome(outcome)
 }
 
@@ -77,37 +72,19 @@ async function listScheduledTaskRuns(taskId: string) {
   return outcome.effect === 'runs-listed' ? outcome.runs : unexpectedOutcome(outcome)
 }
 
-export function scheduledTasksListQueryOptions(
-  filter: ScheduledTasksListFilter = {},
-): OpenWaggleQueryOptions<
+/**
+ * Every task the user can see, in one shared cache entry: each surface (Right panel, Settings,
+ * Session Summary, transcript rows, the shell monitor) narrows it client-side.
+ */
+export function scheduledTasksListQueryOptions(): OpenWaggleQueryOptions<
   readonly ScheduledTask[],
   Error,
   readonly ScheduledTask[],
   ReturnType<typeof scheduledTasksQueryKeys.list>
 > {
   return queryOptions({
-    queryKey: scheduledTasksQueryKeys.list(filter),
-    queryFn: () => listScheduledTasks(filter),
-    refetchInterval: SCHEDULED_TASKS_REFRESH_INTERVAL_MS,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-  })
-}
-
-/** The tasks naming one Session, for its Heartbeat strip; idle while no Session is shown. */
-export function scheduledTasksForSessionQueryOptions(
-  sessionId: string | null,
-): OpenWaggleQueryOptions<
-  readonly ScheduledTask[],
-  Error,
-  readonly ScheduledTask[],
-  ReturnType<typeof scheduledTasksQueryKeys.list>
-> {
-  const filter: ScheduledTasksListFilter = sessionId === null ? {} : { sessionId }
-  return queryOptions({
-    queryKey: scheduledTasksQueryKeys.list(filter),
-    queryFn: () => listScheduledTasks(filter),
-    enabled: sessionId !== null,
+    queryKey: scheduledTasksQueryKeys.list(),
+    queryFn: () => listScheduledTasks(),
     refetchInterval: SCHEDULED_TASKS_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

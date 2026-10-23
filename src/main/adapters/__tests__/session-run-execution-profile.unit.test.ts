@@ -122,6 +122,23 @@ describe('Session run execution profile', () => {
     expect(identityJson(typed.runIdentityContext)).not.toHaveProperty('scheduledTask')
   })
 
+  it('gives the Run the Scheduled task its prompt message records', () => {
+    const task = { id: 'task-1', name: 'Morning triage', firedAt: 1, nominalAt: 1 }
+    expect(
+      resolveSessionRunExecution(
+        row({ scheduled_task_json: JSON.stringify({ ...task, kind: 'heartbeat' }) }),
+        'run-1',
+      ).scheduledTask,
+    ).toEqual({ taskId: 'task-1', name: 'Morning triage', kind: 'heartbeat' })
+    expect(
+      resolveSessionRunExecution(
+        row({ scheduled_task_json: JSON.stringify({ ...task, kind: null }) }),
+        'run-1',
+      ).scheduledTask,
+    ).toEqual({ taskId: 'task-1', name: 'Morning triage' })
+    expect(resolveSessionRunExecution(row(), 'run-1').scheduledTask).toBeUndefined()
+  })
+
   it('keeps the Session identity identical across Runs and Session state changes', () => {
     const first = resolveSessionRunExecution(row(), 'run-1')
     const second = resolveSessionRunExecution(

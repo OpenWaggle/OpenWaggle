@@ -113,6 +113,7 @@ function sanitizeActiveSurface(
       return { kind: 'action', projectPath: value.projectPath, runId: value.runId }
     if (value.kind === 'terminal') return { kind: 'terminal' }
     if (value.kind === 'project-actions') return { kind: 'project-actions' }
+    if (value.kind === 'scheduled-tasks') return { kind: 'scheduled-tasks' }
     if (value.kind === 'all-panels') return { kind: 'all-panels' }
     const activeBrowser = browserSurface(value, browserTabs)
     if (activeBrowser !== null) return activeBrowser

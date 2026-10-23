@@ -83,6 +83,7 @@ export function useScheduledTaskEditor(
   return {
     draft,
     isEdit: target.mode === 'edit',
+    original: target.mode === 'edit' ? target.task : null,
     change,
     changeSchedule,
     changeKind,

@@ -10,11 +10,3 @@ export function useOpenScheduledSession() {
     void navigate({ to: '/sessions/$sessionId', params: { sessionId } })
   }
 }
-
-/** Open the Scheduled tasks page, optionally on one task's detail and history. */
-export function useOpenScheduledTasksPage() {
-  const navigate = useNavigate()
-  return (taskId?: string) => {
-    void navigate({ to: '/scheduled', search: taskId ? { task: taskId } : {} })
-  }
-}

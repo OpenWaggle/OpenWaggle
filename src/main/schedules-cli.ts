@@ -129,6 +129,8 @@ export async function runSchedulesCli(args: readonly string[]) {
     const client = await createLocalSessionCliClientInput(arguments_)
     const idempotencyKey = option(arguments_, 'idempotency-key')
     const responses: ScheduledTasksResponse[] = []
+    // One at a time on purpose: an import creates its tasks in file order, so the report lines
+    // up with the file and the Host never sees a burst of creates from one invocation.
     for (const scheduledCommand of commands) {
       const result = await executeLocalSessionCommand({
         ...client,

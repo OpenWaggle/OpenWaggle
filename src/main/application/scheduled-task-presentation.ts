@@ -1,5 +1,8 @@
+import {
+  planNextFiring,
+  type ScheduleDefinition,
+} from '@shared/domain/scheduled-tasks/task-schedule'
 import type { ScheduledTask, ScheduledTaskRun } from '@shared/types/scheduled-task'
-import { planNextFiring, type ScheduleDefinition } from '../domain/scheduled-tasks/task-schedule'
 import type { ScheduledTaskRecord } from '../ports/scheduled-task-repository'
 
 export function scheduleDefinitionOf(

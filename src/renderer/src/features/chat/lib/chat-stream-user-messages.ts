@@ -12,6 +12,7 @@ function incorporatedUserMetadata(userMessage: AgentTransportUserMessage) {
     sessionNodeCreatedOrder: userMessage.sessionNodeCreatedOrder,
     ...(userMessage.durableTextSha256 ? { durableTextSha256: userMessage.durableTextSha256 } : {}),
     ...(userMessage.waggleInvocation ? { waggleInvocation: userMessage.waggleInvocation } : {}),
+    ...(userMessage.scheduledTask ? { scheduledTask: userMessage.scheduledTask } : {}),
   }
 }
 

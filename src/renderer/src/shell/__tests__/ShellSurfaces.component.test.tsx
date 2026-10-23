@@ -67,15 +67,18 @@ vi.mock('@/features/chat/hooks/useBackgroundRunMonitor', () => ({
 vi.mock('@/features/feedback/components/FeedbackModal', () => ({
   FeedbackModal: () => <div>Feedback modal</div>,
 }))
-
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: shellMocks.projectPath }),
+  useSessionProjectPath: () => shellMocks.projectPath,
 }))
 
-vi.mock('@/features/scheduled-tasks', () => ({ useScheduledTasksMonitor: vi.fn() }))
-vi.mock('@/features/sidebar/components/Sidebar', () => ({
-  Sidebar: () => <aside>Sidebar</aside>,
+vi.mock('@/features/scheduled-tasks', () => ({
+  useScheduledTasksMonitor: vi.fn(),
+  useScheduledTasksPanelTitle: () => ({ label: 'Scheduled' }),
+  useProjectScheduledTasksNeedAttention: () => false,
+  ScheduledTasksPanel: () => null,
 }))
+vi.mock('@/features/sidebar/components/Sidebar', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
 
 vi.mock('@/features/terminal/components', () => ({
   TerminalPanel: ({ ownerKey, onClose }: { ownerKey: string; onClose: () => void }) => (

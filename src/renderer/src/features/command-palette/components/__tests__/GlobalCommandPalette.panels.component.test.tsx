@@ -103,10 +103,13 @@ async function renderPalette() {
   await screen.findByRole('menuitem', { name: /Notes/ })
 }
 
+/** The built-in panels plus the one extension panel this test installs. */
+const PANEL_COUNT = 10
+
 function panelLabels() {
   const items = screen.getAllByRole('menuitem')
   const first = items.findIndex((item) => within(item).queryByText('All panels') !== null)
-  return items.slice(first, first + 9).map((item) => item.textContent)
+  return items.slice(first, first + PANEL_COUNT).map((item) => item.textContent)
 }
 
 describe('GlobalCommandPalette Panels section', () => {
@@ -155,6 +158,7 @@ describe('GlobalCommandPalette Panels section', () => {
       'All panelsEvery panel you can open here, with its shortcut',
       'ChangesReview the working tree diffCtrl + D',
       'Project ActionsRun, stop and inspect project actions',
+      "ScheduledThis project's Heartbeats and Launch schedules",
       'BrowserPreview pages in the session browserCtrl + Shift + J',
       'FilesBrowse and edit workspace files',
       'Session TreeInspect branches and session historyCtrl + Shift + Y',

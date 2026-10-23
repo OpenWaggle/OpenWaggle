@@ -1,16 +1,20 @@
 import type { ScheduledTask } from '@shared/types/scheduled-task'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { scheduledTaskDetailQueryOptions } from '@/queries/scheduled-tasks'
 import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { useNow } from '../hooks/useNow'
 import { useOpenScheduledSession } from '../hooks/useOpenScheduledSession'
-import { differingTimeZone, NOTIFICATION_POLICY_LABELS } from '../lib/task-format'
+import {
+  differingTimeZone,
+  NOTIFICATION_POLICY_LABELS,
+  SCHEDULED_TASK_KIND_LABELS,
+} from '../lib/task-format'
+import type { ScheduledTaskEditorLayout } from './EditorTargetFields'
 import { ScheduledTaskActions } from './ScheduledTaskActions'
 import {
   ScheduledTaskAttention,
-  ScheduledTaskKindBadge,
   ScheduledTaskKindIcon,
   ScheduledTaskLastRunLine,
   ScheduledTaskScheduleLine,
@@ -23,10 +27,11 @@ function TargetLine({ task }: { readonly task: ScheduledTask }) {
   if (target.kind === 'heartbeat') {
     return (
       <span>
-        Delivers into{' '}
+        Into{' '}
         <Button variant="link" size="none" onClick={() => openSession(target.sessionId)}>
           its Session
-        </Button>
+        </Button>{' '}
+        when it is idle
       </span>
     )
   }
@@ -39,88 +44,105 @@ function TargetLine({ task }: { readonly task: ScheduledTask }) {
   ].filter((part): part is string => part !== null && part !== undefined)
   return (
     <span>
-      Launches a Session in {projectName(target.projectPath)} in {workspace}
+      A new Session in {projectName(target.projectPath)}, in {workspace}
       {details.length > 0 ? ` · ${details.join(' · ')}` : ''}
     </span>
   )
 }
 
-function TaskSummary({
-  task,
-  onEdit,
-  onDeleted,
-}: {
-  readonly task: ScheduledTask
-  readonly onEdit: (task: ScheduledTask) => void
-  readonly onDeleted: () => void
-}) {
-  const now = useNow()
+function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-bg px-4 py-4">
-      <div className="flex items-start gap-3">
-        <div className="pt-1">
-          <ScheduledTaskKindIcon task={task} />
-        </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-base font-semibold text-text-primary">{task.name}</h1>
-            <ScheduledTaskKindBadge task={task} />
-          </div>
-          <ScheduledTaskScheduleLine task={task} now={now} />
-          <ScheduledTaskLastRunLine task={task} />
-        </div>
-        <ScheduledTaskActions task={task} onEdit={onEdit} onDeleted={onDeleted} />
-      </div>
-      <ScheduledTaskAttention task={task} />
-      <div className="space-y-1 text-xs text-text-tertiary">
-        <div>
-          <TargetLine task={task} />
-        </div>
-        <div>
-          Notifies on {NOTIFICATION_POLICY_LABELS[task.notificationPolicy].toLowerCase()} · Created
-          by {task.creator.label} · {String(task.runCount)} runs
-        </div>
-      </div>
-      <p className="whitespace-pre-wrap rounded-md bg-bg-secondary px-3 py-2 text-xs text-text-secondary">
-        {task.prompt}
-      </p>
-    </section>
+    <>
+      <dt className="text-text-tertiary">{label}</dt>
+      <dd className="min-w-0 text-text-secondary">{children}</dd>
+    </>
   )
 }
 
-/** One task's settings and its full history of Scheduled task runs. */
+function TaskSettings({
+  task,
+  layout,
+}: {
+  readonly task: ScheduledTask
+  readonly layout: ScheduledTaskEditorLayout
+}) {
+  const now = useNow()
+  return (
+    <dl
+      className={
+        layout === 'wide'
+          ? 'grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-xs'
+          : 'grid grid-cols-[5rem_1fr] gap-x-3 gap-y-2 text-xs'
+      }
+    >
+      <Row label="Prompt">
+        <p className="whitespace-pre-wrap text-text-primary">{task.prompt}</p>
+      </Row>
+      <Row label="Runs">
+        <TargetLine task={task} />
+      </Row>
+      <Row label="When">
+        <ScheduledTaskScheduleLine task={task} now={now} />
+      </Row>
+      <Row label="Last run">
+        <ScheduledTaskLastRunLine task={task} />
+      </Row>
+      <Row label="Notifies on">{NOTIFICATION_POLICY_LABELS[task.notificationPolicy]}</Row>
+      <Row label="Created by">
+        {task.creator.label} · {String(task.runCount)} runs
+      </Row>
+    </dl>
+  )
+}
+
+/**
+ * One task's settings, actions and run history. The Right panel and Settings show the same view;
+ * the container owns the way back.
+ */
 export function ScheduledTaskDetail({
   taskId,
-  onBack,
+  layout,
   onEdit,
+  onDeleted,
 }: {
   readonly taskId: string
-  readonly onBack: () => void
+  readonly layout: ScheduledTaskEditorLayout
   readonly onEdit: (task: ScheduledTask) => void
+  readonly onDeleted: () => void
 }) {
   const taskQuery = useQuery(scheduledTaskDetailQueryOptions(taskId))
   const task = taskQuery.data
+  if (taskQuery.isError) {
+    return (
+      <p role="alert" className="p-4 text-sm text-error-text">
+        {taskQuery.error.message}
+      </p>
+    )
+  }
+  if (!task) return null
   return (
-    <div className="space-y-4">
-      <Button
-        variant="ghost"
-        size="xs"
-        leftIcon={<ArrowLeft className="size-3" />}
-        onClick={onBack}
-      >
-        All Scheduled tasks
-      </Button>
-      {taskQuery.isError ? (
-        <p role="alert" className="text-sm text-error-text">
-          {taskQuery.error.message}
-        </p>
+    <div className="space-y-4 p-4">
+      <div className="flex items-start gap-2">
+        <div className="pt-0.5">
+          <ScheduledTaskKindIcon task={task} />
+        </div>
+        <div className="min-w-0 flex-1">
+          {/* The Right panel header already names the task; Settings has no such header. */}
+          {layout === 'wide' ? (
+            <h2 className="truncate text-sm font-semibold text-text-primary">{task.name}</h2>
+          ) : null}
+          <p className="text-xs text-text-tertiary">{SCHEDULED_TASK_KIND_LABELS[task.kind]}</p>
+        </div>
+        {layout === 'wide' ? (
+          <ScheduledTaskActions task={task} onEdit={onEdit} onDeleted={onDeleted} />
+        ) : null}
+      </div>
+      {layout === 'narrow' ? (
+        <ScheduledTaskActions task={task} onEdit={onEdit} onDeleted={onDeleted} align="start" />
       ) : null}
-      {task ? (
-        <>
-          <TaskSummary task={task} onEdit={onEdit} onDeleted={onBack} />
-          <ScheduledTaskRunHistory taskId={task.id} timeZone={differingTimeZone(task)} />
-        </>
-      ) : null}
+      <ScheduledTaskAttention task={task} />
+      <TaskSettings task={task} layout={layout} />
+      <ScheduledTaskRunHistory taskId={task.id} timeZone={differingTimeZone(task)} />
     </div>
   )
 }

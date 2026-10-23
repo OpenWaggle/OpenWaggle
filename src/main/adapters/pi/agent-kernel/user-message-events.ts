@@ -59,6 +59,7 @@ export function incorporatedUserMessageDisplay(
     parts: projection?.parts ?? piUserContentToDisplayParts(message.content),
     sessionNodeCreatedOrder: position.createdOrder,
     ...(projection?.durableTextSha256 ? { durableTextSha256: projection.durableTextSha256 } : {}),
+    ...(projection?.scheduledTask ? { scheduledTask: projection.scheduledTask } : {}),
   }
 }
 

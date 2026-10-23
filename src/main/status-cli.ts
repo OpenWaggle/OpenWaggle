@@ -231,10 +231,12 @@ export async function readStatusReport(
   if (host.state === 'not-running') return { version, host }
   if (host.state === 'upgrade-pending') return { version, host }
   const snapshots = await dependencies.snapshotActiveRuns(input)
-  const activeRuns = await mapWithConcurrency(snapshots, STATUS_LOOKUP_CONCURRENCY, (run) =>
-    describeActiveRun(input, run, dependencies),
-  )
-  const scheduledTasks = await enabledScheduledTasks(input, dependencies)
+  const [activeRuns, scheduledTasks] = await Promise.all([
+    mapWithConcurrency(snapshots, STATUS_LOOKUP_CONCURRENCY, (run) =>
+      describeActiveRun(input, run, dependencies),
+    ),
+    enabledScheduledTasks(input, dependencies),
+  ])
   return {
     version,
     host: {

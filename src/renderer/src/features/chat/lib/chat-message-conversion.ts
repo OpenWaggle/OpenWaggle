@@ -62,7 +62,8 @@ function hasUIMetadata(metadata: MessageMetadata) {
     !metadata.compactionSummary &&
     !metadata.waggleInvocation &&
     !metadata.visualizationSessionId &&
-    !metadata.error
+    !metadata.error &&
+    !metadata.scheduledTask
   )
 }
 
@@ -80,6 +81,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
     ...(metadata.compactionSummary ? { compactionSummary: metadata.compactionSummary } : {}),
     ...(metadata.waggleInvocation ? { waggleInvocation: metadata.waggleInvocation } : {}),
     ...(metadata.error ? { error: metadata.error } : {}),
+    ...(metadata.scheduledTask ? { scheduledTask: metadata.scheduledTask } : {}),
   }
 }
 

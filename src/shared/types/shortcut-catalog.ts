@@ -191,6 +191,13 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'application',
   },
   {
+    command: 'rightPanel.scheduledTasks',
+    label: 'Toggle Scheduled',
+    description: "Show or hide this project's Scheduled tasks in the Right panel",
+    group: 'Workspace',
+    scope: 'application',
+  },
+  {
     command: 'rightPanel.files',
     label: 'Toggle Files',
     description: 'Show or hide workspace files in the Right panel',

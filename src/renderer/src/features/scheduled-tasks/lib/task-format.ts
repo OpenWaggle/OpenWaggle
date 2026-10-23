@@ -95,13 +95,67 @@ export function formatRelativeTime(at: number, now: number) {
   return relativeFormatter.format(Math.round(hours / HOURS_PER_DAY), 'day')
 }
 
+const ABSOLUTE_TIME: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }
+// `dateStyle` and `timeStyle` cannot be combined with `timeZoneName`, so a zoned time spells
+// out its fields instead.
+const ZONED_ABSOLUTE_TIME: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+}
+const absoluteFormatters = new Map<string, Intl.DateTimeFormat>()
+
 /** Absolute local date and time; in `timeZone` when the task keeps a different one. */
 export function formatAbsoluteTime(at: number, timeZone?: string | null) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    ...(timeZone ? { timeZone, timeZoneName: 'short' } : {}),
-  }).format(at)
+  const key = timeZone ?? ''
+  let formatter = absoluteFormatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(
+      undefined,
+      timeZone ? { ...ZONED_ABSOLUTE_TIME, timeZone } : ABSOLUTE_TIME,
+    )
+    absoluteFormatters.set(key, formatter)
+  }
+  return formatter.format(at)
+}
+
+const PREVIEW_TIME: Intl.DateTimeFormatOptions = { timeStyle: 'short' }
+const PREVIEW_DATE_TIME: Intl.DateTimeFormatOptions = {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+}
+
+const PREVIEW_DAY: Intl.DateTimeFormatOptions = { dateStyle: 'short' }
+const previewFormatters = new Map<string, Intl.DateTimeFormat>()
+
+/** One formatter per shape and zone: the preview formats three times on every keystroke. */
+function previewFormatter(
+  shape: 'day' | 'time' | 'date-time',
+  timeZone: string | null | undefined,
+): Intl.DateTimeFormat {
+  const key = `${shape}:${timeZone ?? ''}`
+  const cached = previewFormatters.get(key)
+  if (cached) return cached
+  const options = { day: PREVIEW_DAY, time: PREVIEW_TIME, 'date-time': PREVIEW_DATE_TIME }[shape]
+  const formatter = new Intl.DateTimeFormat(shape === 'day' ? 'en-CA' : undefined, {
+    ...options,
+    ...(timeZone ? { timeZone } : {}),
+  })
+  previewFormatters.set(key, formatter)
+  return formatter
+}
+
+/** A compact next-run time: "20:45" today, "Fri 23 Oct, 09:00" on another day. */
+export function formatPreviewTime(at: number, now: number, timeZone?: string | null) {
+  const day = previewFormatter('day', timeZone)
+  const sameDay = day.format(at) === day.format(now)
+  return previewFormatter(sameDay ? 'time' : 'date-time', timeZone).format(at)
 }
 
 /** What the row says about the next firing. */
@@ -110,11 +164,4 @@ export function nextRunText(task: ScheduledTask, now: number) {
   if (task.waitingSince !== null) return 'Waiting for the Session to be idle'
   if (task.nextRunAt === null) return 'Schedule ended'
   return `Next ${formatRelativeTime(task.nextRunAt, now)}`
-}
-
-/** The same status as `nextRunText`, worded to follow other text in a sentence. */
-export function inlineNextRunText(task: ScheduledTask, now: number) {
-  if (task.waitingSince !== null && task.enabled) return 'waiting for this Session to be idle'
-  const text = nextRunText(task, now)
-  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`
 }

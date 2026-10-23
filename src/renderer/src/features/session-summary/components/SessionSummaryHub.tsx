@@ -1,3 +1,4 @@
+import { useSessionHasScheduledTasks } from '@/features/scheduled-tasks'
 import { SessionSummaryExpandedPanel } from './SessionSummaryExpandedPanel'
 import { SessionSummaryHubDialogs } from './SessionSummaryHubDialogs'
 import { createSessionSummaryPanelSections } from './SessionSummaryPanelSections'
@@ -11,7 +12,8 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   const workspaceActivityAvailable = useWorkspaceActivityAvailable(
     session?.projectPath ? { projectPath: session.projectPath, sessionId: session.id } : null,
   )
-  const availableInput = { ...input, workspaceActivityAvailable }
+  const scheduledAvailable = useSessionHasScheduledTasks(session ? String(session.id) : null)
+  const availableInput = { ...input, workspaceActivityAvailable, scheduledAvailable }
   if (!session || !hasSummaryContent(availableInput)) return null
   return <AvailableSessionSummaryHub input={availableInput} />
 }

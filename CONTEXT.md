@@ -1363,7 +1363,7 @@ The single container beside the chat that shows one **Right panel surface** at a
 _Avoid_: right sidebar, inspector, side panel (an extension contributes a side panel; the container is the Right panel)
 
 **Right panel surface**:
-One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, Resources, or Hive, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
+One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Scheduled, Browser, Files, Session Tree, Resources, or Hive, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
 _Avoid_: tab, view, tool
 
 **Right panel toggle**:
@@ -2653,13 +2653,17 @@ _Avoid_: start at login (shows a window), launch agent, background service, daem
 When a **Scheduled task** fires: an interval, a daily time on chosen weekdays, or a recurrence rule, read in the time zone stored with the task, with an optional end date or run count.
 _Avoid_: cron expression, trigger, timer
 
-**Scheduled tasks page**:
-The top-level page that lists every **Scheduled task** by project and keeps each one's history of **Scheduled task runs**, including skipped and failed ones with their reason.
-_Avoid_: automations page, inbox, scheduler dashboard
+**Scheduled panel**:
+The **Right panel** surface that lists the **Scheduled tasks** of the project the user is in, the **Heartbeats** into the open Session first, and shows one task's settings, actions, editor and history of **Scheduled task runs** in place of the list.
+_Avoid_: automations panel, scheduler sidebar
 
-**Heartbeat strip**:
-The compact composer-adjacent row in a **Heartbeat**'s target Session that shows its schedule and next fire time, with Pause and Open.
-_Avoid_: heartbeat banner, automation card
+**Scheduled tasks settings**:
+The Settings tab that lists every **Scheduled task** in every project beside one task's detail, with the same detail, actions and editor as the **Scheduled panel**, and holds **Background start**.
+_Avoid_: scheduled tasks page, automations page, inbox, scheduler dashboard
+
+**Scheduled summary section**:
+The Session Summary section that lists the **Heartbeats** that run in the open Session, or the **Launch schedule** that started it, each opening its task and offering Run now, Pause, Edit and Delete from its menu, as Codex's thread summary does.
+_Avoid_: heartbeat strip, heartbeat banner, automation card
 
 **Scheduled task run**:
 One firing of a **Scheduled task**, which produces a Run (Heartbeat) or a Session (Launch schedule) or is recorded as skipped or failed.
@@ -2680,6 +2684,7 @@ _Avoid_: Run (that is the agent execution it may produce), trigger, execution
 - Creating a **Heartbeat** also requires `sessions:message` on its target Session, and creating a **Launch schedule** requires `sessions:create` and `sessions:start` in its project, so a **Scheduled task** never does more than its creator could do by hand.
 - An agent creates a **Scheduled task** through the **Hive tool** only when the user asks directly or a project or skill instruction authorizes it; work already in progress is finished in the current Run, not scheduled.
 - An MCP client cannot create, read or change a **Scheduled task** in v1: an `openwaggle mcp serve` process holds only transient authority that ends with the process, so no later **Scheduled task run** could revalidate it. MCP-driven agents ask the user, or use the **Hive CLI** under a **CLI client profile**.
+- A **Scheduled task** is opened where the user is: in the **Scheduled panel** when a chat in its project is open, otherwise in **Scheduled tasks settings**; its editor replaces the detail in that same place and is never a modal.
 - A **Launch schedule**'s Sessions are ordinary sidebar Sessions marked with a scheduled provenance icon; there is no separate inbox, and no **Scheduled task run** is required to end its reply in a particular format.
 - A **Heartbeat** notifies only on failure or attention by default and a **Launch schedule** on every run; a **Scheduled task** disabled or skipped for an authority reason always produces an **Agent notification**.
 - A **Launch schedule** may archive its finished Sessions automatically, only when nothing needs attention and the user never touched them, and only when that option is on.

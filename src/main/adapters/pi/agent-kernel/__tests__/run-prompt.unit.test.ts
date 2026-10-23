@@ -86,3 +86,36 @@ it('does not leave a display projection when Pi handles input without a user mes
 
   expect(appendCustomEntry).not.toHaveBeenCalled()
 })
+
+it('records the Scheduled task a Run was started by with its prompt display projection', async () => {
+  const appendCustomEntry = vi.fn(() => 'display-entry')
+  let listener: SessionListener | undefined
+  const session = fromPartial<AgentSession>({
+    sessionManager: fromPartial({ appendCustomEntry }),
+    subscribe: (nextListener: SessionListener) => {
+      listener = nextListener
+      return () => {
+        listener = undefined
+      }
+    },
+    prompt: vi.fn(async (text: string) => {
+      listener?.({
+        type: 'message_start',
+        message: fromPartial({ role: 'user' as const, content: [{ type: 'text' as const, text }] }),
+      })
+    }),
+  })
+  const scheduledTask = { taskId: 'task-1', name: 'Morning triage', kind: 'heartbeat' as const }
+
+  await promptPiSession(
+    session,
+    fromPartial<PiModel>({ input: ['text'] }),
+    { text: 'Check CI', attachments: [] },
+    scheduledTask,
+  )
+
+  expect(appendCustomEntry).toHaveBeenCalledWith(
+    'openwaggle-user-input',
+    expect.objectContaining({ parts: [{ type: 'text', text: 'Check CI' }], scheduledTask }),
+  )
+})

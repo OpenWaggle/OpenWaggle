@@ -1,6 +1,7 @@
 import type { MessageId, SessionId } from './brand'
 import type { JsonValue } from './json'
 import type { SupportedModelId } from './llm'
+import type { ScheduledTaskKind } from './scheduled-task'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 import type { WaggleInvocation, WaggleInvocationMetadata, WaggleMessageMetadata } from './waggle'
 
@@ -145,6 +146,19 @@ export interface BranchSummaryMetadata {
   readonly summary: string
 }
 
+/**
+ * The Scheduled task whose run delivered a user message (ADR 0057). The Host records it with the
+ * message when the Run starts, from its own Scheduled task run record, never from the prompt text,
+ * so a message cannot claim to be scheduled. It survives the task's later rename or deletion.
+ */
+export interface MessageScheduledTaskOrigin {
+  readonly taskId: string
+  /** The task's name when it fired. */
+  readonly name: string
+  /** Absent when the task was deleted before its Run started. */
+  readonly kind?: ScheduledTaskKind
+}
+
 export interface MessageMetadata {
   /** Authoritative append order in the native Session log, not its visible transcript index. */
   readonly sessionNodeCreatedOrder?: number
@@ -162,6 +176,8 @@ export interface MessageMetadata {
   readonly selectedModel?: SupportedModelId
   /** The provider error this response ended with (Pi's `errorMessage` of a failed response). */
   readonly error?: string
+  /** A user message a Scheduled task run delivered, not one a person typed. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
 }
 
 export interface Message {

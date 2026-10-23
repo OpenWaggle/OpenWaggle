@@ -9,7 +9,7 @@ import {
   scheduledTaskNotices,
 } from '../lib/task-notices'
 import { useScheduledTaskIndexStore } from '../state/scheduled-task-index-store'
-import { useOpenScheduledTasksPage } from './useOpenScheduledSession'
+import { useOpenScheduledTask } from './useShowScheduledTasks'
 
 function toastMessage(notices: readonly ScheduledTaskNotice[]) {
   const [first] = notices
@@ -27,7 +27,7 @@ function toastMessage(notices: readonly ScheduledTaskNotice[]) {
 export function useScheduledTasksMonitor(): void {
   const { data: tasks } = useQuery(scheduledTasksListQueryOptions())
   const index = useScheduledTaskIndexStore((state) => state.index)
-  const openPage = useOpenScheduledTasksPage()
+  const openTask = useOpenScheduledTask()
   const previous = useRef<ReadonlyMap<string, ScheduledTaskNoticeSnapshot> | null>(null)
 
   const announce = useEffectEvent((notices: readonly ScheduledTaskNotice[]) => {
@@ -40,7 +40,7 @@ export function useScheduledTasksMonitor(): void {
     useUIStore.getState().showActionToast({
       message: toastMessage(ordered),
       variant: first.variant,
-      action: { label: 'Open', onClick: () => openPage(first.taskId) },
+      action: { label: 'Open', onClick: () => openTask(first.taskId) },
     })
   })
 

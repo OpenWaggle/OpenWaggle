@@ -68,6 +68,7 @@ describe('createPanelCommandItems', () => {
       ['All panels', 'Panels', undefined],
       ['Changes', 'Panels', 'Ctrl + D'],
       ['Project Actions', 'Panels', undefined],
+      ['Scheduled', 'Panels', undefined],
       ['Browser', 'Panels', 'Ctrl + Shift + J'],
       ['Files', 'Panels', undefined],
       ['Session Tree', 'Panels', 'Ctrl + Shift + Y'],

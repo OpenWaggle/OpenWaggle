@@ -62,7 +62,7 @@ export function useRunScheduledTaskNow() {
   })
 }
 
-/** Pause or resume: the enabled switch, the Heartbeat strip, and the row all share this. */
+/** Pause or resume: the enabled switch, the list row, and the Summary menu all share this. */
 export function useSetScheduledTaskEnabled() {
   const update = useUpdateScheduledTask()
   return {

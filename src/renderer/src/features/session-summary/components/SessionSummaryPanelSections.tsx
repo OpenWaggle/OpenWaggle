@@ -4,6 +4,7 @@ import { WorkspacePreparationStatus } from '@/features/project-actions'
 import { ActionRunsSummarySection } from './ActionRunsSummarySection'
 import { ExtensionSessionSummarySections } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'
+import { ScheduledSummarySection } from './ScheduledSummarySection'
 import { SessionResourcesCatalogFailure } from './SessionResourcesCatalogFailure'
 import type { SessionSummaryPanelSection } from './SessionSummaryExpandedPanel'
 import {
@@ -17,6 +18,7 @@ import type { SessionSummaryHubController } from './use-session-summary-hub-cont
 const SESSION_SUMMARY_SECTION_IDENTITIES = [
   { id: 'environment', label: 'Environment' },
   { id: 'actions', label: 'Actions' },
+  { id: 'scheduled', label: 'Scheduled' },
   { id: 'preparation', label: 'Workspace preparation' },
   { id: 'change-requests', label: 'Change requests' },
   { id: 'extensions-context', label: 'Extension context' },
@@ -79,6 +81,7 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
       />
     ) : null,
     actions: <ActionRunsSummarySection sessionId={session.id} projectPath={session.projectPath} />,
+    scheduled: <ScheduledSummarySection sessionId={String(session.id)} />,
     environment: (
       <EnvironmentSummarySection
         input={{

@@ -117,7 +117,7 @@ it is expected to be promoted within about a week.
 - The release docs and release skill match the v1 release policy.
 - Scheduled tasks (Heartbeats and Launch schedules, ADR 0057 and ADR 0058) shipped in a Beta build:
   their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions,
-  Scheduled tasks page, and Background start become covered surfaces at `1.0.0`.
+  and Background start become covered surfaces at `1.0.0`.
 - No release blocker is open.
 
 `1.0.0` Stable additionally requires a curated `CHANGELOG.md` entry and release notes for the
