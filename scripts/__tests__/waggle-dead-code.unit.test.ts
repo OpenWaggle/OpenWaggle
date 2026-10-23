@@ -107,6 +107,8 @@ describe('waggleDeadCodeFindings', () => {
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'activeWaggleRuns' },
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'openWaggleHome' },
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'OpenWaggleApi' },
+          { path: 'src/main/store/session-details/constants.ts', export_name: 'WAGGLE_FUTURE_MODE' },
+          { path: 'src/main/env.ts', export_name: 'OPENWAGGLE_HOME' },
           { path: 'scripts/release.ts', export_name: 'waggleRelease' },
         ],
       }),
@@ -115,6 +117,11 @@ describe('waggleDeadCodeFindings', () => {
 
     expect(findings).toEqual([
       { kind: 'unused_exports', path: 'src/main/ipc/active-agent-runs.ts', name: 'activeWaggleRuns' },
+      {
+        kind: 'unused_exports',
+        path: 'src/main/store/session-details/constants.ts',
+        name: 'WAGGLE_FUTURE_MODE',
+      },
     ])
   })
 
@@ -127,5 +134,8 @@ describe('waggleDeadCodeFindings', () => {
     expect(() => waggleDeadCodeFindings(withoutExports, scope)).toThrow(
       'fallow report has no unused_exports list.',
     )
+    expect(() =>
+      waggleDeadCodeFindings(report({ unused_files: [{ file: 'src/main/agent/a.ts' }] }), scope),
+    ).toThrow('fallow unused_files entry has no path.')
   })
 })

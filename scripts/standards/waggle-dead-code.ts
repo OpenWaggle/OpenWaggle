@@ -12,8 +12,8 @@ const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
 const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
 const WAGGLE_DIRECTORY = /(?:^|\/)waggle(?:-run)?\//
 const WAGGLE_PACKAGE_IMPORT = /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
-/** Waggle in a file or symbol name, but not as part of OpenWaggle. */
-const WAGGLE_SYMBOL_NAME = /(?<![Oo]pen)[Ww]aggle/
+/** Waggle in a file or symbol name, constants included, but not as part of OpenWaggle. */
+const WAGGLE_SYMBOL_NAME = /(?<![Oo]pen|OPEN)(?:[Ww]aggle|WAGGLE)/
 const TEST_PATH = /(?:^|\/)__tests__\/|\.test\.[cm]?tsx?$|(?:^|\/)test-(?:utils|support)(?:\/|\.)/
 
 /**
@@ -72,7 +72,9 @@ export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<strin
     const issues = report[kind]
     if (!Array.isArray(issues)) throw new Error(`fallow report has no ${kind} list.`)
     for (const issue of issues) {
-      if (!isRecord(issue) || typeof issue.path !== 'string') continue
+      if (!isRecord(issue) || typeof issue.path !== 'string') {
+        throw new Error(`fallow ${kind} entry has no path.`)
+      }
       const name = findingName(issue)
       const waggleSymbol =
         name !== undefined &&
