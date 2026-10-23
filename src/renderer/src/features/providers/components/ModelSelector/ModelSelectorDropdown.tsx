@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import { useProviderStore } from '../../state/provider-store'
 import { ModelSelectorList } from './ModelSelectorList'
 import type { FlatModel } from './types'
 
@@ -21,6 +22,8 @@ export function ModelSelectorDropdown({
   onKeyDown,
   onSelectModel,
 }: ModelSelectorDropdownProps) {
+  const catalogLoadError = useProviderStore((s) => s.loadError)
+
   return (
     <div
       ref={dropdownRef}
@@ -36,7 +39,12 @@ export function ModelSelectorDropdown({
         maxHeight: DROPDOWN_MAX_HEIGHT,
       }}
     >
-      {models.length === 0 ? (
+      {models.length === 0 && catalogLoadError !== null ? (
+        <div role="alert" className="px-3 py-4 text-center">
+          <p className="text-xs text-error-text">Couldn't load providers.</p>
+          <p className="mt-1 text-xs text-text-muted">Retry in Settings → Connections.</p>
+        </div>
+      ) : models.length === 0 ? (
         <div className="px-3 py-4 text-center">
           <p className="text-xs text-text-tertiary">No models configured.</p>
           <p className="mt-1 text-xs text-text-muted">

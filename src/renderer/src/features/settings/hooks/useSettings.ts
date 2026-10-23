@@ -1,8 +1,34 @@
+import type { OAuthProvider } from '@shared/types/auth'
+import type { Settings } from '@shared/types/settings'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { useSyntaxThemeCatalogStore } from '@/features/settings/state/syntax-theme-store'
 import { api } from '@/shared/lib/ipc'
+
+interface ProviderCatalogLoaders {
+  readonly loadProviderModels: (settings: Settings) => Promise<Settings | null>
+  readonly loadAllAuthAccounts: (providers: readonly OAuthProvider[]) => Promise<void>
+  readonly isActive: () => boolean
+}
+
+/**
+ * Loads the Pi provider catalog for the loaded settings, keeps the selection it repaired, then
+ * loads the accounts of its sign-in providers. Startup and the provider catalog retry share it.
+ */
+async function hydrateProviderCatalog(loaders: ProviderCatalogLoaders) {
+  const updatedSettings = await loaders.loadProviderModels(usePreferencesStore.getState().settings)
+  if (!loaders.isActive()) return
+
+  if (updatedSettings) {
+    usePreferencesStore.setState({ settings: updatedSettings })
+  }
+
+  const oauthProviders = useProviderStore
+    .getState()
+    .providerModels.flatMap((provider) => (provider.auth.supportsOAuth ? [provider.provider] : []))
+  await loaders.loadAllAuthAccounts(oauthProviders)
+}
 
 /**
  * Load settings and provider models on mount. Call once at the app root.
@@ -32,19 +58,11 @@ export function useSettingsSetup(): () => void {
       if (!active) return
       if (usePreferencesStore.getState().loadError !== null) return
 
-      const updatedSettings = await loadProviderModels(usePreferencesStore.getState().settings)
-      if (!active) return
-
-      if (updatedSettings) {
-        usePreferencesStore.setState({ settings: updatedSettings })
-      }
-
-      const oauthProviders = useProviderStore
-        .getState()
-        .providerModels.flatMap((provider) =>
-          provider.auth.supportsOAuth ? [provider.provider] : [],
-        )
-      await loadAllAuthAccounts(oauthProviders)
+      await hydrateProviderCatalog({
+        loadProviderModels,
+        loadAllAuthAccounts,
+        isActive: () => active,
+      })
     }
 
     void initialize()
@@ -67,6 +85,18 @@ export function useSettingsSetup(): () => void {
   }, [])
 
   return retry
+}
+
+/**
+ * Retries a provider catalog that failed to load while settings loaded, through the same steps as
+ * startup: the catalog for the current settings, then the sign-in accounts it lists.
+ */
+export function useProviderCatalogRetry(): () => Promise<void> {
+  const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
+  const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
+
+  return () =>
+    hydrateProviderCatalog({ loadProviderModels, loadAllAuthAccounts, isActive: () => true })
 }
 
 /**

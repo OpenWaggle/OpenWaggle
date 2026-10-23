@@ -1,1 +1,6 @@
-export { usePreferences, useProviders, useSettingsSetup } from './useSettings'
+export {
+  usePreferences,
+  useProviderCatalogRetry,
+  useProviders,
+  useSettingsSetup,
+} from './useSettings'

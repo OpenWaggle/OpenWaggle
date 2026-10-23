@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, KeyRound, type LucideIcon, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { useProviders } from '@/features/settings/hooks/useSettings'
+import { useProviderCatalogRetry, useProviders } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
@@ -70,6 +70,31 @@ function AuthProviderGroup({
   )
 }
 
+/**
+ * A provider catalog that failed to load, with a retry that reloads it and its sign-in accounts.
+ * Retrying clears the error, so the section shows its loading state until the catalog settles.
+ */
+function ProviderCatalogLoadError({ message }: { readonly message: string }) {
+  const retryProviderCatalog = useProviderCatalogRetry()
+
+  return (
+    <div
+      role="alert"
+      className="flex items-start justify-between gap-3 rounded-lg border border-error/25 bg-error/6 px-3 py-2"
+    >
+      <p className="min-w-0 text-sm text-error-text">Failed to load providers: {message}</p>
+      <Button
+        variant="secondary"
+        aria-label="Retry loading providers"
+        onClick={() => void retryProviderCatalog()}
+        className="shrink-0"
+      >
+        Retry
+      </Button>
+    </div>
+  )
+}
+
 export function ConnectionsSection() {
   const { providerModels, isLoading, loadError } = useProviders()
   const [apiKeysOpen, setApiKeysOpen] = useState(false)
@@ -87,11 +112,7 @@ export function ConnectionsSection() {
         </p>
       </div>
 
-      {loadError && (
-        <p className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error-text">
-          Failed to load providers: {loadError}
-        </p>
-      )}
+      {loadError && <ProviderCatalogLoadError message={loadError} />}
 
       {isLoading && providerModels.length === 0 && (
         <p className="text-xs text-text-muted">Loading providers…</p>
