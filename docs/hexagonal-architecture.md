@@ -114,7 +114,7 @@ Shared types that cross the IPC boundary. Zero vendor imports.
 
 ## Effect Runtime
 
-All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers. An excerpt with the layers this document names:
+All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers. An excerpt of `AppLayer`:
 
 ```typescript
 const AppLayer = Layer.mergeAll(
