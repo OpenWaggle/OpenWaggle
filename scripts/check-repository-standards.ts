@@ -5,6 +5,7 @@ import {
   collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations,
 } from './standards/forbidden-references'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
+import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
 import {
   collectScriptedElectronLaunchViolations,
   collectUnguardedDesktopUiViolations,
@@ -124,6 +125,7 @@ async function collectViolationsForFile(file: string) {
     ...collectScriptedElectronLaunchViolations(file, contents),
     ...collectSessionSummaryColumnViolations(file, contents),
     ...collectSyntaxRenderingViolations(file, contents),
+    ...collectExactDependencyVersionViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 

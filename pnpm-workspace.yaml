@@ -12,6 +12,10 @@ catalogs:
     "@earendil-works/pi-telemetry": 1.4.0
     "@earendil-works/pi-tui": 1.4.0
 
+# `pnpm add` writes exact versions; check:repository-standards rejects ranges
+# (docs/dependency-updates.md).
+saveExact: true
+
 # Supply-chain hardening: delay installs until a release has had time to be
 # vetted, and never accept weakening trust signals (provenance/signatures).
 minimumReleaseAge: 10080
