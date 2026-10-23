@@ -71,7 +71,8 @@ before 1.0.
 A package listed under `patchedDependencies` needs its patch re-applied to the new version before
 the lockfile changes.
 
-`electron`, `node-pty`, `better-sqlite3` and `sharp` are native modules. An update to one needs
+`node-pty`, `better-sqlite3` and `sharp` are native modules, and `electron` sets the ABI they are
+rebuilt for. An update to any of them needs
 `pnpm prepare:native:node`, `pnpm prepare:native:electron`, and a packaged build with
 `pnpm build:unpack` and `pnpm packaged-app:smoke`, because native ABI problems only show up there.
 

@@ -87,12 +87,12 @@ packages/pi-waggle/
     "extensions": ["./dist/extension.js"]
   },
   "dependencies": {
-    "@openwaggle/waggle-core": "workspace:^",
-    "typebox": "1.3.32"
+    "@openwaggle/waggle-core": "workspace:^"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }
 ```
