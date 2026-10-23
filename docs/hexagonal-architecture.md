@@ -114,7 +114,7 @@ Shared types that cross the IPC boundary. Zero vendor imports.
 
 ## Effect Runtime
 
-All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers.
+All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers. An excerpt with the layers this document names:
 
 ```typescript
 const AppLayer = Layer.mergeAll(
@@ -124,14 +124,15 @@ const AppLayer = Layer.mergeAll(
   SettingsService.Live,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  FilesystemStandardsLive,
-  PiAgentKernelLive,
+  PiAgentKernelWithExtensionSelectionLive,
+  McpServicesLive,
   PiProviderAuthLive,
-  PiProviderProbeLive,
+  PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
-  ProviderServiceLive,
+  ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
+  // …and the session control, resource, extension, desktop, and usage statistics layers
 )
 ```
 
