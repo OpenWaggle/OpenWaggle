@@ -2,9 +2,11 @@
  * Runs inside a bundle built with OpenWaggle's Electron main configuration (see
  * `scripts/pi-main-bundle-smoke.ts`). It exercises the Pi 1.0 loaders that only break once Pi is
  * bundled into one main chunk: the codemode sandbox worker and QuickJS wasm, and the MCP
- * extension's lazily loaded runtime with a real stdio server. Pi is imported dynamically because
- * the Pi SDK boundary rule confines static imports to `src/main/adapters/pi/`; the literal
- * specifier is still inlined into the one main chunk.
+ * extension's lazily loaded runtime with a real stdio server. It also loads `@openwaggle/pi-waggle`
+ * from the bundle: the package's declared Pi extension entry and the loop, mode-state and protocol
+ * modules the desktop Waggle run uses. Pi is imported dynamically because the Pi SDK boundary rule
+ * confines static imports to `src/main/adapters/pi/`; the literal specifier is still inlined into
+ * the one main chunk.
  */
 // Like src/main/index.ts: before any Pi module reads its package.json.
 import '../../src/main/apply-pi-package-directory'
@@ -60,6 +62,68 @@ function resultText(result: { readonly content: readonly { readonly type: string
 
 const loadPi = () => import('@earendil-works/pi-coding-agent')
 type PiSdk = Awaited<ReturnType<typeof loadPi>>
+
+/** The package's declared Pi extension entry (`pi.extensions`), which also re-exports the loop. */
+const loadPiWaggleExtension = () => import('@openwaggle/pi-waggle/extension')
+const loadPiWaggleModeState = () => import('@openwaggle/pi-waggle/mode-state')
+const loadPiWaggleProtocol = () => import('@openwaggle/pi-waggle/protocol')
+const loadWaggleCore = () => import('@openwaggle/waggle-core')
+
+interface BundledWaggle {
+  readonly extension: Awaited<ReturnType<typeof loadPiWaggleExtension>>
+  readonly modeState: Awaited<ReturnType<typeof loadPiWaggleModeState>>
+  readonly protocol: Awaited<ReturnType<typeof loadPiWaggleProtocol>>
+  readonly config: Awaited<ReturnType<typeof loadWaggleCore>>['BUILT_IN_WAGGLE_PRESETS'][number]['config']
+}
+
+async function loadBundledWaggle(): Promise<BundledWaggle> {
+  const [extension, modeState, protocol, core] = await Promise.all([
+    loadPiWaggleExtension(),
+    loadPiWaggleModeState(),
+    loadPiWaggleProtocol(),
+    loadWaggleCore(),
+  ])
+  const preset = core.BUILT_IN_WAGGLE_PRESETS[0]
+  if (!preset) fail('waggle-core has no built-in Waggle preset')
+  return { extension, modeState, protocol, config: preset.config }
+}
+
+/** The desktop Waggle run's loop factory, as `waggle-run.ts` builds it, with no turns driven. */
+function desktopWaggleLoopFactory(waggle: BundledWaggle) {
+  return waggle.extension.createPiWaggleExtension({
+    config: waggle.config,
+    createTurnMetadata: ({ turnNumber, agentIndex }) => ({ turnNumber, agentIndex }),
+    onTurnComplete: () => ({ continue: false }),
+    buildTurnMessage: ({ meta }) => ({
+      customType: waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE,
+      content: `turn ${meta.turnNumber}`,
+      display: false,
+    }),
+  }).factory
+}
+
+/**
+ * The declared extension registers Waggle's commands and transcript renderer, and the mode-state
+ * entry the desktop run writes reads back from the bundled Pi session manager.
+ */
+function checkBundledWaggle(session: Awaited<ReturnType<PiSdk['createAgentSession']>>['session'], waggle: BundledWaggle) {
+  const commands = session.extensionRunner.getRegisteredCommands().map((command) => command.name)
+  for (const name of ['waggle', 'standard']) {
+    if (!commands.includes(name)) fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+  }
+  if (!session.extensionRunner.getMessageRenderer(waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE)) {
+    fail('pi-waggle did not register its turn renderer')
+  }
+  waggle.modeState.appendPiWaggleModeState(
+    session.sessionManager,
+    waggle.modeState.enabledPiWaggleModeState({ config: waggle.config, presetId: 'code-review' }),
+  )
+  const state = waggle.modeState.latestPiWaggleModeStateFromBranch(session.sessionManager)
+  if (!state?.enabled || state.presetId !== 'code-review') {
+    fail(`Waggle mode state did not read back: ${JSON.stringify(state)}`)
+  }
+  return `commands /waggle and /standard, turn renderer, mode state ${state.presetId}`
+}
 
 /** A 2x2 opaque PNG: `read` returns it as an image block only when Photon (WASM) loads. */
 const SMOKE_PNG_BASE64 =
@@ -135,7 +199,7 @@ async function waitForTool(names: () => readonly string[], name: string) {
   fail(`${name} never registered; tools: ${names().join(', ')}`)
 }
 
-async function runBundledSession(pi: PiSdk, workDirectory: string) {
+async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
   const serverPath = path.join(workDirectory, 'mcp-smoke-server.cjs')
   await writeFile(serverPath, MCP_SERVER_SOURCE, 'utf8')
   const imagePath = path.join(workDirectory, 'smoke.png')
@@ -170,6 +234,8 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
         }),
       },
       { name: 'codemode', factory: pi.createCodemodeExtension({ models: false }) },
+      { name: 'pi-waggle', factory: waggle.extension.default },
+      { name: 'pi-waggle-loop', factory: desktopWaggleLoopFactory(waggle) },
     ],
   })
   await resourceLoader.reload()
@@ -186,6 +252,7 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
   })
   try {
     await session.bindExtensions({})
+    const waggleCheck = checkBundledWaggle(session, waggle)
     await waitForTool(() => session.getAllTools().map((tool) => tool.name), SMOKE_TOOL_NAME)
     session.setActiveToolsByName([...session.getActiveToolNames(), 'codemode', SMOKE_TOOL_NAME])
     const tool = (name: string) => {
@@ -235,7 +302,7 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
     ) {
       fail(`codemode script did not complete with an image: ${codemode.result}`)
     }
-    return { mcp, codemode: codemode.result }
+    return { mcp, codemode: codemode.result, waggle: waggleCheck }
   } finally {
     session.dispose()
   }
@@ -258,14 +325,14 @@ async function main() {
     const temporaryDirectory = await useTemporaryDirectory(workDirectory)
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
-    const { codemode, mcp } = await runBundledSession(pi, workDirectory)
+    const { codemode, mcp, waggle } = await runBundledSession(pi, await loadBundledWaggle(), workDirectory)
     const outputFiles = await readdir(temporaryDirectory)
     if (!outputFiles.some((file) => /^pi-codemode-[0-9a-f]+\.png$/.test(file))) {
       fail(`codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`)
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, imageWorker, packageAssets })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, waggle, imageWorker, packageAssets })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })
