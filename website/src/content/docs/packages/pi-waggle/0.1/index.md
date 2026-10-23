@@ -35,13 +35,13 @@ Try it for one run without keeping it installed:
 pi -e npm:@openwaggle/pi-waggle
 ```
 
-Pi installs the package and provides its Pi SDK peer dependencies. After installation, run `/waggle` to choose or configure a preset.
+Pi installs the package and provides its Pi SDK and `typebox` peer dependencies. After installation, run `/waggle` to choose or configure a preset.
 
 If you are importing the package APIs into another project instead of installing the Pi extension, use your package manager:
 
-<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui"></package-install>
+<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui typebox"></package-install>
 
-`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
+`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox` are host-provided peer dependencies. Application developers should install the versions their Pi host uses.
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 
@@ -132,6 +132,7 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggl
 | Node.js | 22.19 and newer |
 | Pi coding agent | Host-provided peer; match your host's SDK version |
 | Pi TUI | Host-provided peer; match your host's TUI version |
+| TypeBox (`typebox`) | Host-provided peer; match the version your Pi host supplies |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.1 |
 
@@ -150,6 +151,6 @@ The peer declarations accept any version, but that is not a guarantee of compati
 
 **Commands render but state does not persist.** Preserve `pi-waggle.mode-state` custom entries as well as turn and user-request custom messages in Pi session data. Saving only messages loses the persisted mode state.
 
-**Peer dependency warnings appear.** Install the Pi coding-agent and TUI versions used by your host. The package's wildcard peer declarations do not select those versions for you.
+**Peer dependency warnings appear.** Install the Pi coding-agent, TUI and `typebox` versions used by your host. The package's wildcard peer declarations do not select those versions for you.
 
 There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.

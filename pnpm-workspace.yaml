@@ -11,6 +11,10 @@ catalogs:
     "@earendil-works/pi-mcp": 1.4.0
     "@earendil-works/pi-telemetry": 1.4.0
     "@earendil-works/pi-tui": 1.4.0
+  # Packages Pi supplies to extensions outside its own release. The app and pi-waggle build and
+  # test against the same version.
+  pi-extension-host:
+    typebox: 1.3.32
 
 # `pnpm add` writes exact versions; check:repository-standards rejects ranges
 # (docs/dependency-updates.md).
