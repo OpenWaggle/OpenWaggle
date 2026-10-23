@@ -174,13 +174,28 @@ const PI_HOST_PROVIDED_PACKAGES = [
   'typebox',
 ] as const
 
+/** Manifest sections whose packages are installed as physical copies inside the package. */
+const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] as const
+
+function bundledDependencyNames(manifest: { readonly [key: string]: unknown }) {
+  for (const key of ['bundleDependencies', 'bundledDependencies']) {
+    const value = manifest[key]
+    if (Array.isArray(value)) return value.filter((name): name is string => typeof name === 'string')
+  }
+  return []
+}
+
 export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
   if (!isObject(manifest) || !isObject(manifest.pi)) return
-  const dependencies = isObject(manifest.dependencies) ? manifest.dependencies : {}
   const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
+  const bundled = bundledDependencyNames(manifest)
   const problems: string[] = []
   for (const name of PI_HOST_PROVIDED_PACKAGES) {
-    if (name in dependencies) problems.push(`${name} is in dependencies`)
+    for (const section of INSTALLED_DEPENDENCY_SECTIONS) {
+      const dependencies = manifest[section]
+      if (isObject(dependencies) && name in dependencies) problems.push(`${name} is in ${section}`)
+    }
+    if (bundled.includes(name)) problems.push(`${name} is bundled`)
     if (name in peerDependencies && peerDependencies[name] !== '*') {
       problems.push(`${name} peer range is ${String(peerDependencies[name])}, not "*"`)
     }

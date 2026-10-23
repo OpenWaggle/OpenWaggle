@@ -22,6 +22,16 @@ describe("a Pi package's host-provided dependencies", () => {
     ).toThrow('typebox is in dependencies')
   })
 
+  it('rejects host packages installed as optional or bundled dependencies', () => {
+    expect(() =>
+      assertPiHostPackagesArePeers('@openwaggle/pi-waggle', {
+        pi: { extensions: ['./dist/extension.js'] },
+        optionalDependencies: { '@sinclair/typebox': '0.34.0' },
+        bundleDependencies: ['@earendil-works/pi-tui'],
+      }),
+    ).toThrow('@earendil-works/pi-tui is bundled; @sinclair/typebox is in optionalDependencies')
+  })
+
   it('rejects a host peer narrower than "*"', () => {
     expect(() =>
       assertPiHostPackagesArePeers('@openwaggle/pi-waggle', {
