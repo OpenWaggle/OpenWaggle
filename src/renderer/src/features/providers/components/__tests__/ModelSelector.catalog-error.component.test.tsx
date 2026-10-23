@@ -31,9 +31,11 @@ describe('ModelSelector without a provider catalog', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /select model/i }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load providers.")
-    expect(screen.getByRole('alert')).toHaveTextContent('Retry in Settings → Connections.')
+    expect(screen.getByText("Couldn't load providers.")).toBeInTheDocument()
+    expect(screen.getByText('Retry in Settings → Connections.')).toBeInTheDocument()
     expect(screen.queryByText('No models configured.')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Models' })).toBeInTheDocument()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('still points to Connections when the catalog loaded but no model is enabled', () => {
@@ -50,6 +52,6 @@ describe('ModelSelector without a provider catalog', () => {
     fireEvent.click(screen.getByRole('button', { name: /select model/i }))
 
     expect(screen.getByText('No models configured.')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText("Couldn't load providers.")).not.toBeInTheDocument()
   })
 })
