@@ -28,6 +28,7 @@ import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 import { isPiVirtualModel } from './pi-virtual-models'
 import { ensurePiVisualizeSkill } from './pi-visualize-skill'
+import { installOpenWaggleProviderAttribution } from './provider-attribution'
 
 export { findPiToolCapableModel } from './pi-model-reference'
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
@@ -175,6 +176,7 @@ export async function createPiRuntimeServices(
   // reintroduce the packaged-only "Cannot find module bedrock-converse-stream"
   // failure. Idempotent, so this is free.
   registerPiBundledBedrockProvider()
+  installOpenWaggleProviderAttribution()
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
     ...(options.compactionThresholdPercent !== undefined
       ? { compactionThresholdPercent: options.compactionThresholdPercent }
@@ -205,6 +207,7 @@ export async function createPiRuntimeServices(
 async function createPiGlobalProviderCatalogServices() {
   const agentDir = getPiAgentDir()
   registerPiBundledBedrockProvider()
+  installOpenWaggleProviderAttribution()
   const settingsManager = createOpenWaggleGlobalPiSettingsManager({
     excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,

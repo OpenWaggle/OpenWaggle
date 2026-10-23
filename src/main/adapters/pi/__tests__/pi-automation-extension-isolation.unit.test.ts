@@ -36,10 +36,9 @@ it('excludes project/user extensions but retains trusted built-ins during automa
   expect(services.modelRuntime.getProvider(providerId)).toBeUndefined()
   expect(inlineFactory).not.toHaveBeenCalled()
   expect(trustedFactory).toHaveBeenCalledOnce()
-  // Only OpenWaggle's provider attribution loads beside the trusted built-ins.
+  // The global runtime loads no extension factories during automation.
   expect(createOpenWaggleGlobalPiResourceLoaderOptions()).toEqual({
     noExtensions: true,
-    extensionFactories: [expect.any(Function)],
     extensionsOverride: expect.any(Function),
   })
   expect(
@@ -51,7 +50,6 @@ it('excludes project/user extensions but retains trusted built-ins during automa
   ).toMatchObject({
     additionalExtensionPaths: ['builtin:codemode', 'builtin:tool-search'],
     extensionFactories: [
-      expect.any(Function),
       expect.objectContaining({ name: 'codemode', builtin: true }),
       expect.objectContaining({ name: 'tool-search', builtin: true }),
       trustedFactory,

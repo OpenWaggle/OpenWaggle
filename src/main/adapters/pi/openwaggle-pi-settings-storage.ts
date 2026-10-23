@@ -10,10 +10,6 @@ import {
   withStoredPiAppSettings,
 } from './openwaggle-pi-settings-app-overlay'
 import {
-  withReportedInstallTelemetry,
-  withStoredInstallTelemetry,
-} from './openwaggle-pi-settings-install-telemetry'
-import {
   withoutExcludedPackageEntries,
   withoutExcludedPackages,
   withoutSyntheticExcludedExtensionPatterns,
@@ -238,7 +234,7 @@ function createOpenWagglePiSettingsStorage(
       )
       const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
         current,
-        withStoredInstallTelemetry(current, fn(withReportedInstallTelemetry(visibleCurrent))),
+        fn(visibleCurrent),
         options.excludedProjectPackageSources,
       )
       const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
@@ -270,16 +266,10 @@ function withGlobalPiSettingsLock(
   )
   const app = options.appSettings
   const renamed = withRenamedLegacyProviders(visibleCurrent)
-  const reported = withReportedInstallTelemetry(
-    app ? withOpenWagglePiAppSettings(renamed, app) : renamed,
-  )
-  const written = fn(reported)
+  const written = fn(app ? withOpenWagglePiAppSettings(renamed, app) : renamed)
   const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
     current,
-    withStoredInstallTelemetry(
-      current,
-      app ? withStoredPiAppSettings(current, written, app) : written,
-    ),
+    app ? withStoredPiAppSettings(current, written, app) : written,
     options.excludedGlobalPackageSources,
   )
   const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
