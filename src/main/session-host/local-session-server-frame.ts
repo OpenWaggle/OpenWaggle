@@ -3,11 +3,15 @@ import type { LocalSessionProfileManagementResponse } from '@shared/types/local-
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
+import { createLogger } from '../logger'
 import { encodeLocalSessionFrameSegments } from './local-session-framing'
 import {
   type LocalSessionOutboundByteBudget,
   LocalSessionOutboundCapacityError,
+  type LocalSessionOutboundOwner,
 } from './local-session-outbound-budget'
+
+const logger = createLogger('session-host/outbound')
 
 /** The message Effect gives a tagged error that was created without one. */
 const EFFECT_DEFAULT_ERROR_MESSAGE = 'An error has occurred'
@@ -122,16 +126,80 @@ function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   })
 }
 
-export async function writeLocalSessionSocketFrame(input: {
+/**
+ * Frames are written in slices of at most this, the wire bytes unchanged, so a client reading a
+ * large frame slowly shows its progress to the outbound budget long before its stop time.
+ */
+const WRITE_SLICE_BYTES = 1024 * 1024
+/** A capacity wait longer than this is logged, so slow readers show up before any eviction. */
+const LOGGED_CAPACITY_WAIT_MS = 1_000
+
+function budgetUsage(budget: LocalSessionOutboundByteBudget) {
+  return {
+    pendingBytes: budget.pendingBytes,
+    peakBytes: budget.peakBytes,
+    maxBytes: budget.maxBytes,
+  }
+}
+
+const outboundOwners = new WeakMap<Socket, LocalSessionOutboundOwner>()
+
+/** One owner per socket, so the budget closes a connection once however many frames it holds. */
+function outboundOwner(input: FrameWriteInput) {
+  const known = outboundOwners.get(input.socket)
+  if (known) return known
+  const { socket, budget, peer } = input
+  const owner: LocalSessionOutboundOwner = {
+    evict: (unreadForMs) => {
+      logger.warn('Closing a Local Session connection that stopped reading its frames.', {
+        peer: peer?.(),
+        unreadForMs: Math.round(unreadForMs),
+        ...budgetUsage(budget),
+      })
+      socket.destroy()
+    },
+  }
+  outboundOwners.set(socket, owner)
+  return owner
+}
+
+interface FrameWriteInput {
   readonly socket: Socket
   readonly value: unknown
   readonly budget: LocalSessionOutboundByteBudget
   readonly signal: AbortSignal
-}): Promise<void> {
-  const lease = await input.budget.encode(input.value, input.signal).catch((error: unknown) => {
-    if (error instanceof LocalSessionOutboundCapacityError) input.socket.destroy()
-    throw error
-  })
+  /** Names the connection's caller in logs, such as `gui:local-user`. */
+  readonly peer?: (() => string | undefined) | undefined
+  /** The most bytes the frame encodes to, for small frames such as the handshake's. */
+  readonly maxBytes?: number | undefined
+}
+
+export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
+  const lease = await input.budget
+    .encode(
+      input.value,
+      input.signal,
+      outboundOwner(input),
+      input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes },
+    )
+    .catch((error: unknown) => {
+      if (error instanceof LocalSessionOutboundCapacityError) {
+        // No open connection left a frame unread long enough to close it within the wait.
+        logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
+          peer: input.peer?.(),
+          ...budgetUsage(input.budget),
+        })
+        input.socket.destroy()
+      }
+      throw error
+    })
+  if (lease.waitedMs > LOGGED_CAPACITY_WAIT_MS) {
+    logger.info('A Local Session frame waited for outbound capacity.', {
+      peer: input.peer?.(),
+      waitedMs: Math.round(lease.waitedMs),
+      ...budgetUsage(input.budget),
+    })
+  }
   const release = lease.release
   input.socket.once('close', release)
   try {
@@ -139,12 +207,16 @@ export async function writeLocalSessionSocketFrame(input: {
       throw new Error('Local Session client disconnected before its response was written.')
     }
     for (const segment of encodeLocalSessionFrameSegments(lease.payload)) {
-      // The guard above ran before the first segment; a large frame spans several writes, and
-      // the peer can go away in between, where the next write would only fail with EPIPE.
-      if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
-        throw new LocalSessionClientDisconnectedError()
+      for (let offset = 0; offset < segment.byteLength; offset += WRITE_SLICE_BYTES) {
+        // The guard above ran before the first write; a large frame spans several writes, and
+        // the peer can go away in between, where the next write would only fail with EPIPE.
+        if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
+          throw new LocalSessionClientDisconnectedError()
+        }
+        await writeSocketSegment(input.socket, segment.subarray(offset, offset + WRITE_SLICE_BYTES))
+        // The client read this slice, so it has not stopped reading.
+        lease.touch()
       }
-      await writeSocketSegment(input.socket, segment)
     }
   } finally {
     input.socket.off('close', release)

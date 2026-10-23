@@ -1,9 +1,17 @@
 import type { Socket } from 'node:net'
+import { createLogger } from '../logger'
+import { MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES } from './local-session-framing'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { writeLocalSessionSocketFrame } from './local-session-server-frame'
 
 const DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION = 16
+const logger = createLogger('session-host/outbound')
 export type LocalSessionSocketFrameWriter = typeof writeLocalSessionSocketFrame
+
+export interface LocalSessionOutboundSendOptions {
+  /** Bounds a small frame so it need not wait for room. */
+  readonly maxBytes?: number
+}
 
 export class LocalSessionOutboundWriter {
   private writeTail = Promise.resolve()
@@ -16,6 +24,8 @@ export class LocalSessionOutboundWriter {
     private readonly signal: AbortSignal,
     maxPendingFrames = DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION,
     private readonly writeFrame: LocalSessionSocketFrameWriter = writeLocalSessionSocketFrame,
+    /** Names the connection's caller in logs. */
+    private readonly peer?: () => string | undefined,
   ) {
     if (!Number.isSafeInteger(maxPendingFrames) || maxPendingFrames < 1) {
       throw new Error('Local Session pending outbound frame limit must be a positive safe integer.')
@@ -23,8 +33,22 @@ export class LocalSessionOutboundWriter {
     this.maxPendingFrames = maxPendingFrames
   }
 
-  send(value: unknown): Promise<void> {
+  /**
+   * Handshake and connection-error frames are small. Bounded, they are written while large answers
+   * wait for room, so a full budget never stalls a handshake toward its deadline.
+   */
+  sendHandshakeFrame(value: unknown): Promise<void> {
+    return this.send(value, { maxBytes: MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES })
+  }
+
+  send(value: unknown, options: LocalSessionOutboundSendOptions = {}): Promise<void> {
     if (this.pendingSends >= this.maxPendingFrames) {
+      if (!this.socket.destroyed) {
+        logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
+          peer: this.peer?.(),
+          pendingFrames: this.pendingSends,
+        })
+      }
       this.socket.destroy()
       return Promise.reject(new Error('Local Session client is not consuming outbound frames.'))
     }
@@ -37,6 +61,8 @@ export class LocalSessionOutboundWriter {
           value,
           budget: this.budget,
           signal: this.signal,
+          peer: this.peer,
+          ...options,
         })
       })
       .finally(() => {
