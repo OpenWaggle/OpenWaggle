@@ -13,7 +13,7 @@ package in the real Pi TUI, which no automated check does.
 | Tarball consumers | `pnpm package:smoke`, part of `pnpm check` | The packed tarballs install with npm, pnpm, Yarn and Bun. Every export resolves in ESM and CommonJS, and a CommonJS Waggle turn settles. Pi's own resource loader loads the installed package as a package source, with no errors or warnings, and the declared entry, `dist/extension.js`, registers `/waggle`, `/standard` and the turn renderer. Pi's host packages, the Pi SDKs and `typebox`, must be `"*"` peer dependencies. |
 | Desktop bundle | `pnpm pi-main-bundle:smoke`, part of `pnpm check` | The Electron main build bundles `@openwaggle/pi-waggle` from its sources. In a real Pi session under Node and under Electron, the smoke loads `src/extension.ts`, the module the declared entry is built from, and checks that `/waggle`, `/standard` and the turn renderer register and that mode state round-trips. It also binds the desktop Waggle loop and stops it. |
 | Dead code | `pnpm check:waggle-dead-code`, part of `pnpm check` | No production-unused code in the Waggle packages, the app files that import them or are named for Waggle, and the desktop agent policy modules. Code that only tests use counts as unused. |
-| API surface | `pnpm api:snapshot:check` | Public exports match the committed snapshots. |
+| Public exports | `pnpm api:snapshot:check` | Public exports match the committed snapshots. |
 
 ## Manual: the packed package in the Pi TUI
 
