@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { parse } from 'yaml'
+import { isRecord } from './records'
 import type { Violation } from './violation'
 
 /**
@@ -18,10 +19,6 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
  * links a monorepo package that pnpm rewrites when it publishes.
  */
 const PINNED_PROTOCOL = /^(?:catalog|workspace):/
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function normalizePath(file: string) {
   return file.split(path.sep).join('/')
