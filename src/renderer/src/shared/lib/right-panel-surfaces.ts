@@ -15,6 +15,7 @@ export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
   'all-panels',
   'changes',
   'project-actions',
+  'scheduled-tasks',
   'browser',
   'files',
   'session-tree',

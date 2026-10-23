@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
-import type { MessagePart } from '@shared/types/agent'
+import type { MessagePart, MessageScheduledTaskOrigin } from '@shared/types/agent'
 import {
   buildPersistedUserMessageParts,
   type PersistedUserMessagePartsPayload,
@@ -20,6 +21,8 @@ const userInputProjectionSchema = Schema.Struct({
     ),
   ),
   durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
+  /** The Scheduled task whose run sent this message, recorded by the Host (ADR 0057). */
+  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
 })
 
 type ProjectionSession = {
@@ -29,6 +32,7 @@ type ProjectionSession = {
 type SessionEvent = Parameters<Parameters<AgentSession['subscribe']>[0]>[0]
 type PendingProjection = {
   readonly payload: PersistedUserMessagePartsPayload
+  readonly scheduledTask?: MessageScheduledTaskOrigin
   readonly signal?: AbortSignal
   cancel: () => void
 }
@@ -42,10 +46,12 @@ const projectionQueues = new WeakMap<object, ProjectionQueue>()
 export function buildUserInputProjection(
   payload: PersistedUserMessagePartsPayload,
   durableText?: string,
+  scheduledTask?: MessageScheduledTaskOrigin,
 ) {
   return {
     version: 1 as const,
     parts: buildPersistedUserMessageParts(payload),
+    ...(scheduledTask ? { scheduledTask } : {}),
     ...(durableText === undefined
       ? {}
       : {
@@ -84,22 +90,27 @@ function projectionQueue(session: ProjectionSession) {
     pending.signal?.removeEventListener('abort', pending.cancel)
     session.sessionManager.appendCustomEntry(
       OPENWAGGLE_USER_INPUT_CUSTOM_TYPE,
-      buildUserInputProjection(pending.payload, durableText),
+      buildUserInputProjection(pending.payload, durableText, pending.scheduledTask),
     )
     closeEmptyQueue(session, queue)
   })
   return queue
 }
 
-/** Appends display-only input immediately before Pi persists the corresponding user message. */
+/**
+ * Appends display-only input immediately before Pi persists the corresponding user message. A
+ * Scheduled task run's prompt also records the task it came from, which the transcript shows.
+ */
 export function enqueueUserInputProjection(
   session: ProjectionSession,
   payload: PersistedUserMessagePartsPayload,
   signal?: AbortSignal,
+  scheduledTask?: MessageScheduledTaskOrigin,
 ) {
   const queue = projectionQueue(session)
   const pending: PendingProjection = {
     payload,
+    ...(scheduledTask ? { scheduledTask } : {}),
     signal,
     cancel: () => {
       const index = queue.pending.indexOf(pending)
@@ -139,7 +150,11 @@ export function findUserInputProjection(
     if (entry.type === 'custom' && entry.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
       const projection = decodeProjection(entry.data)
       return projection
-        ? { parts: projection.parts, durableTextSha256: projection.durableTextSha256 ?? null }
+        ? {
+            parts: projection.parts,
+            durableTextSha256: projection.durableTextSha256 ?? null,
+            scheduledTask: projection.scheduledTask ?? null,
+          }
         : null
     }
     currentId = entry.parentId

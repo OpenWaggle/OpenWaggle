@@ -17,7 +17,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api: mocks }))
 vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
-vi.mock('@/features/sessions/hooks', () => ({ useProject: () => mocks.context }))
+vi.mock('@/features/sessions/hooks', () => ({
+  useProject: () => mocks.context,
+  useSessionProjectPath: () => null,
+}))
 vi.mock('@/shared/hooks/useMediaQuery', () => ({ useMediaQuery: () => false }))
 vi.mock('../useBrowserPreviewOwnerRegistration', () => ({
   useBrowserPreviewOwnerRegistration: vi.fn(),

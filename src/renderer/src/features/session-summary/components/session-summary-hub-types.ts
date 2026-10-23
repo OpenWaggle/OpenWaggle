@@ -11,6 +11,8 @@ export interface SessionSummaryHubInput {
   /** A newly spawned Worker can need Hive navigation before its first message. */
   readonly hiveAvailable?: boolean
   readonly workspaceActivityAvailable?: boolean
+  /** A Heartbeat runs in this Session or a Launch schedule started it. */
+  readonly scheduledAvailable?: boolean
   readonly autoHidden: boolean
   readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void
@@ -25,6 +27,7 @@ export function hasSummaryContent(input: SessionSummaryHubInput) {
   return (
     input.messageCount > 0 ||
     input.hiveAvailable === true ||
-    input.workspaceActivityAvailable === true
+    input.workspaceActivityAvailable === true ||
+    input.scheduledAvailable === true
   )
 }

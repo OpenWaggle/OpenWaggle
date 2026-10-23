@@ -20,6 +20,7 @@ describe('Panel rail order', () => {
     expect(defaultRailOrder(KNOWN)).toEqual([
       'changes',
       'project-actions',
+      'scheduled-tasks',
       'browser',
       'files',
       'session-tree',
@@ -43,6 +44,7 @@ describe('Panel rail order', () => {
       'browser',
       'changes',
       'project-actions',
+      'scheduled-tasks',
       'session-tree',
       'files',
       'resources',
@@ -70,6 +72,7 @@ describe('Panel rail order', () => {
     expect(visibleRailOrder(null, KNOWN, ['files', LINEAR])).toEqual([
       'changes',
       'project-actions',
+      'scheduled-tasks',
       'browser',
       'session-tree',
       'resources',
@@ -81,10 +84,11 @@ describe('Panel rail order', () => {
   it('moves a surface past its visible neighbours, skipping hidden ones', () => {
     const full = fullRailOrder(null, KNOWN)
     const visible = visibleRailOrder(null, KNOWN, ['browser'])
-    expect(moveRailSurface(full, visible, 'files', { type: 'up' }).slice(0, 4)).toEqual([
+    expect(moveRailSurface(full, visible, 'files', { type: 'up' }).slice(0, 5)).toEqual([
       'changes',
-      'files',
       'project-actions',
+      'files',
+      'scheduled-tasks',
       'browser',
     ])
     expect(moveRailSurface(full, visible, 'changes', { type: 'up' })).toEqual(full)
@@ -103,7 +107,7 @@ describe('Panel rail order', () => {
       COVERAGE,
     )
     const after = moveRailSurface(full, visible, 'changes', { type: 'after', target: 'browser' })
-    expect(after.slice(0, 3)).toEqual(['project-actions', 'browser', 'changes'])
+    expect(after.slice(0, 4)).toEqual(['project-actions', 'scheduled-tasks', 'browser', 'changes'])
     expect(moveRailSurface(full, visible, 'changes', { type: 'after', target: 'changes' })).toEqual(
       full,
     )

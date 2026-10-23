@@ -29,6 +29,17 @@ function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
 }
 
 describe('buildSessionProvenance', () => {
+  it('names the Launch schedule that started a Session', () => {
+    expect(
+      buildSessionProvenance({
+        session: session(),
+        gitBranch: null,
+        terminalCount: 0,
+        scheduledTaskName: 'Morning triage',
+      }),
+    ).toEqual([{ kind: 'scheduled-task', description: 'Started by Scheduled task Morning triage' }])
+  })
+
   it('shows nothing for a plain local session with unknown git status', () => {
     expect(
       buildSessionProvenance({ session: session(), gitBranch: null, terminalCount: 0 }),

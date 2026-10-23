@@ -43,9 +43,10 @@ The same applies to an unknown short option such as `-x`, a mistyped or differen
 | --- | --- |
 | `run` | Run an agent in a project and stream its reply to the terminal |
 | `status` | Show whether the Session Host is running and which Runs are active |
-| `host` | Check on or stop the background Session Host |
+| `host` | Check on, start, or stop the background Session Host |
 | `sessions` | Find, start, message, steer, wait for, and export Sessions. See [Sessions CLI](/docs/developer-workflow/sessions-cli) |
 | `delegations` | List, review, and resolve Worker Delegations |
+| `schedules` | Create and manage [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks) |
 | `agents` | List, validate, and manage [Agent definitions](/docs/extending/agent-definitions) |
 | `access` | Manage named access profiles for agents and scripts |
 | `mcp` | Add, list, and sign in to [MCP servers](/docs/configuration/mcp#command-line), or serve OpenWaggle over MCP |
@@ -89,9 +90,19 @@ Active runs: 1
     Run 0b9d8c7e-1a2b-4c3d-8e9f-0a1b2c3d4e5f  in /Users/you/code/app
 ```
 
+When Scheduled tasks are enabled, `status` also lists each one and when it fires next. An enabled task keeps the Host running, so this is where to look when a Host stays up with no window open.
+
 If the Session Host is an older version, `status` reports that it hands over to this version once its active Runs end. Any command, including `status`, asks an older Host to do that. Details `status` could not read, such as a Session title, are shown as unavailable rather than guessed.
 
 An agent running inside OpenWaggle must pass an access profile with `--profile`, as with `openwaggle sessions`. It should normally use its native `sessions` tool instead.
+
+## Start the Session Host
+
+```sh
+openwaggle host start
+```
+
+`host start` starts the Host with no window if it is not running, then returns. [Background start](/docs/using-openwaggle/scheduled-tasks#background-start) runs it at login so Scheduled tasks keep firing after a restart. With no task enabled, the Host exits again a few minutes later.
 
 ## Stop the Session Host
 
@@ -101,7 +112,7 @@ openwaggle host stop --wait --timeout-ms 60000
 openwaggle host stop --update
 ```
 
-The Session Host exits on its own a few minutes after its last work ends, and every update stops it before installing, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle sessions queue list <session-id>` shows the revision). The command says what the Host is waiting for.
+The Session Host exits on its own a few minutes after its last work ends, unless a Scheduled task is enabled, and every update stops it before installing, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle sessions queue list <session-id>` shows the revision). The command says what the Host is waiting for.
 
 While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app, which keeps showing your Sessions. Commands that start work fail with a message that the Host is stopping.
 

@@ -60,6 +60,7 @@ its icon on the panel rail.
 | All panels | Unassigned |
 | Changes | `Cmd/Ctrl+D` |
 | Project Actions | Unassigned |
+| Scheduled | Unassigned |
 | Browser | `Cmd/Ctrl+Shift+J` |
 | Files | Unassigned |
 | Session Tree | `Cmd/Ctrl+Shift+Y` |

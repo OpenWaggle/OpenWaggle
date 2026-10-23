@@ -50,6 +50,13 @@ function queryTarget(
   return query.sessionId
 }
 
+/**
+ * An MCP server's authority lives only as long as its process, so nothing it creates can be
+ * revalidated when a Scheduled task later fires (ADR 0057).
+ */
+export const SCHEDULED_TASKS_UNAVAILABLE =
+  'Scheduled tasks are not available through the Sessions MCP adapter: an MCP server holds only transient authority, and a Scheduled task needs a lasting creator whose authority each run revalidates.'
+
 function directTarget(payload: LocalSessionCommandPayload) {
   return matchBy(payload, 'contract')
     .with(
@@ -69,6 +76,9 @@ function directTarget(payload: LocalSessionCommandPayload) {
       throw new Error(
         'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
       )
+    })
+    .with('scheduled-tasks-v1', () => {
+      throw new Error(SCHEDULED_TASKS_UNAVAILABLE)
     })
     .with('local-access-v1', () => undefined)
     .with('session-control-v2', controlTarget)

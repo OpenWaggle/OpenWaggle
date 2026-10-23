@@ -163,7 +163,7 @@ export async function runPiSession(
     unsubscribe,
     abortWarning: 'Failed to abort Pi session cleanly',
     preAbortWarning: 'Failed to abort pre-cancelled Pi session cleanly',
-    operation: () => promptPiSession(session, model, input.payload),
+    operation: () => promptPiSession(session, model, input.payload, input.scheduledTask),
     buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
   }).finally(() => {
     peerReports.close()

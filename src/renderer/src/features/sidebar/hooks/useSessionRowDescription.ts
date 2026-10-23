@@ -1,4 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
+import { useScheduledTaskLaunchedBy } from '@/features/scheduled-tasks'
 import { useRunningTerminalCount } from '@/features/terminal'
 import { sessionLineagePresentation } from '../lib/session-lineage'
 import { buildSessionProvenance, describeSessionRow } from '../lib/session-provenance'
@@ -21,10 +22,12 @@ export function useSessionRowDescription(input: {
   const gitBranch = useSessionGitBranch(input.session)
   const gitIndicator = useSessionGitIndicator(input.session)
   const terminalCount = useRunningTerminalCount(String(input.session.id))
+  const scheduledTaskName = useScheduledTaskLaunchedBy(String(input.session.id))
   const indicators = buildSessionProvenance({
     session: input.session,
     gitBranch,
     terminalCount,
+    scheduledTaskName,
   })
 
   return describeSessionRow({

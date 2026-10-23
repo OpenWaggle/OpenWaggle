@@ -1,3 +1,4 @@
+import type { MessageScheduledTaskOrigin } from './agent'
 import type { SessionId } from './brand'
 import type { NestedToolCalls } from './tools'
 import type { WaggleInvocationMetadata } from './waggle'
@@ -104,6 +105,8 @@ export interface UIMessageMetadata {
    * its id is a stream id, not a Session node id.
    */
   readonly liveIncorporated?: true
+  /** A user message a Scheduled task run delivered (Host-recorded), shown as "Scheduled · name". */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
 }
 
 export interface UIMessage {

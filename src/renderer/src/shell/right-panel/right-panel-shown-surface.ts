@@ -64,6 +64,9 @@ function workspaceSurface(
   if (surface.kind === 'project-actions') {
     return { shown: 'project-actions', highlight: 'project-actions' }
   }
+  if (surface.kind === 'scheduled-tasks') {
+    return { shown: 'scheduled-tasks', highlight: 'scheduled-tasks' }
+  }
   return { shown: 'all-panels', highlight: 'all-panels' }
 }
 

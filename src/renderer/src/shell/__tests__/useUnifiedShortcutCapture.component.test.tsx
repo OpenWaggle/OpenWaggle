@@ -60,6 +60,7 @@ function handlers(): BuiltInShortcutHandlers {
     'rightPanel.files': vi.fn(),
     'rightPanel.resources': vi.fn(),
     'rightPanel.hive': vi.fn(),
+    'rightPanel.scheduledTasks': vi.fn(),
   }
 }
 

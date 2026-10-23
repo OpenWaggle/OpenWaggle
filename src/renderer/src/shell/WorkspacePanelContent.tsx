@@ -4,6 +4,7 @@ import type { TerminalOwnerContext } from '@/features/terminal'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { AllPanelsSurface } from './right-panel/AllPanelsSurface'
 import { WorkspaceProjectActionsSurface } from './right-panel/WorkspaceProjectActionsSurface'
+import { WorkspaceScheduledTasksSurface } from './right-panel/WorkspaceScheduledTasksSurface'
 import { useUIStore } from './ui-store'
 import {
   type BrowserPreviewTabState,
@@ -38,6 +39,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   if (props.activeSurface?.kind === 'project-actions') {
     return <WorkspaceProjectActionsSurface owner={props.owner} />
   }
+  if (props.activeSurface?.kind === 'scheduled-tasks') return <WorkspaceScheduledTasksSurface />
   if (props.activeSurface?.kind === 'action')
     return (
       <ActionRunPanel

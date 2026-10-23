@@ -1,5 +1,7 @@
 import type { JsonObject } from '@shared/types/json'
+import { sessionsToolScheduleAction } from './sessions-tool-schedule'
 import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
+import { SCHEDULE_ACTION_NAMES, scheduleLabel } from './tool-labels-schedule'
 
 /** The Pi tool through which an agent coordinates its Workers (to be renamed `hive`, ADR 0053). */
 export const SESSIONS_TOOL_NAME = 'sessions'
@@ -9,7 +11,8 @@ const DETAIL_MAX_CHARS = 80
 
 /**
  * The Session a sessions-tool call acts on, as the Hive panel knows it: its current title, its
- * Agent definition, and whether it is a Worker of this Hive.
+ * Agent definition, and whether it is a Worker of this Hive. For a Scheduled task action it is
+ * the task, whose `title` is the task's current name.
  */
 export interface SessionsToolTarget {
   readonly title: string
@@ -102,7 +105,7 @@ const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
   }),
 )
 
-const ACTION_NAMES: readonly string[] = ['wait', ...ACTION_VERBS.keys()]
+const ACTION_NAMES: readonly string[] = ['wait', ...ACTION_VERBS.keys(), ...SCHEDULE_ACTION_NAMES]
 
 /**
  * Whether a streaming action name is whole: a known action that is not the start of a longer
@@ -202,6 +205,10 @@ function requestedText(running: string) {
 export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | null): ToolLabel {
   const action = stringArg(args, 'action') ?? ''
   if (action === 'wait') return waitLabel(args)
+  const scheduleAction = sessionsToolScheduleAction(args)
+  if (scheduleAction) {
+    return scheduleLabel(scheduleAction, shortDetail(target?.title ?? stringArg(args, 'name')))
+  }
   const verbs = actionVerbs(action)
   // An action this list does not know yet keeps its name visible.
   if (!verbs) {

@@ -56,6 +56,7 @@ export function rightPanelShortcutHandlers(input: {
     },
     'rightPanel.allPanels': () => toggleOnChatPage('all-panels', input.showToast),
     'rightPanel.projectActions': () => toggleOnChatPage('project-actions', input.showToast),
+    'rightPanel.scheduledTasks': () => toggleOnChatPage('scheduled-tasks', input.showToast),
     'rightPanel.files': () => toggleOnChatPage('files', input.showToast),
     'rightPanel.resources': () => toggleOnChatPage('resources', input.showToast),
     'rightPanel.hive': () => toggleOnChatPage('hive', input.showToast),

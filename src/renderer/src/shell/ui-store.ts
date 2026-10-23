@@ -55,6 +55,7 @@ export const SETTINGS_TABS = [
   'extensions',
   'skills',
   'agents',
+  'scheduled',
   'permissions',
   'mcp',
   'worktrees',

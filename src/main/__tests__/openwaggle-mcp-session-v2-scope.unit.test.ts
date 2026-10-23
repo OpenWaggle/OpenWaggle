@@ -226,4 +226,15 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     })
     expect(submittedPayloads).toHaveLength(0)
   })
+  it('refuses Scheduled tasks, which need a creator that outlives the MCP server', async () => {
+    const payload = {
+      contract: 'scheduled-tasks-v1',
+      request: { contractVersion: 1, requestId: 'request-1', command: { operation: 'list' } },
+    } as const
+    const execute = vi.fn()
+    await expect(prepareMcpSessionTargetScope(scopedOptions(), execute, payload)).rejects.toThrow(
+      /Scheduled tasks are not available through the Sessions MCP adapter/,
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
 })

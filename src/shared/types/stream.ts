@@ -5,7 +5,7 @@
  * remaining vendor-free shared types.
  */
 
-import type { MessagePart } from './agent'
+import type { MessagePart, MessageScheduledTaskOrigin } from './agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionKind,
@@ -157,6 +157,8 @@ export interface AgentTransportUserMessage {
   readonly durableTextSha256?: string
   /** The Waggle preset a visible Waggle user request invoked. */
   readonly waggleInvocation?: WaggleInvocationMetadata
+  /** The Scheduled task whose run delivered this message, as the persisted node records it. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
 }
 
 export interface AgentTransportMessageStartEvent extends TransportEventBase {

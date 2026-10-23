@@ -1,4 +1,8 @@
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type {
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { listAgentDefinitions, searchAgentDefinitions } from '../../agents/agent-definition-catalog'
 import { createLogger } from '../../logger'
@@ -13,8 +17,14 @@ import {
   flattenSessionsToolParameters,
   sessionsToolParameterVariants,
 } from './sessions-tool-flat-schema'
+import { sessionsToolPromptGuidelines } from './sessions-tool-guidelines'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
+import {
+  executeSessionsToolSchedule,
+  isSessionsToolScheduleAction,
+} from './sessions-tool-schedule-payload'
+import { scheduledTasksToolResult } from './sessions-tool-schedule-result'
 import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
 
 const logger = createLogger('sessions-tool')
@@ -213,25 +223,11 @@ async function authorizeExport(
   }
 }
 
-async function executeSessionsTool(
-  rawParams: SessionsToolParameters,
+function sendSessionsToolCommand(
   input: SessionsToolExtensionInput,
-  ctx: ExtensionContext,
+  payload: LocalSessionCommandPayload,
   signal?: AbortSignal,
-) {
-  if (signal?.aborted) throw new Error('aborted')
-  assertSessionsToolActionArguments(rawParams)
-  const params = resolveSessionsToolSessionLinks(rawParams)
-  if (isAgentDefinitionAction(params)) {
-    return queryAgentDefinitionsForTool(
-      params,
-      input.projectPath ?? input.workingDirectory,
-      input.agentDefinitionToggles,
-    )
-  }
-  const initialPayload = buildSessionsToolPayload(params, input)
-  await authorizeAttachments(initialPayload, ctx, signal)
-  const payload = await authorizeExport(initialPayload, input, ctx, signal)
+): Promise<LocalSessionCommandResult> {
   return executeSessionToolCommand({
     sourceSessionId: input.sessionId,
     sourceRunId: input.runId,
@@ -240,6 +236,39 @@ async function executeSessionsTool(
     payload,
     ...(signal ? { signal } : {}),
   })
+}
+
+async function executeSessionsToolCall(
+  rawParams: SessionsToolParameters,
+  input: SessionsToolExtensionInput,
+  ctx: ExtensionContext,
+  toolCallId: string,
+  signal?: AbortSignal,
+) {
+  if (signal?.aborted) throw new Error('aborted')
+  assertSessionsToolActionArguments(rawParams)
+  const params = resolveSessionsToolSessionLinks(rawParams)
+  if (isAgentDefinitionAction(params)) {
+    return successfulToolResult(
+      await queryAgentDefinitionsForTool(
+        params,
+        input.projectPath ?? input.workingDirectory,
+        input.agentDefinitionToggles,
+      ),
+    )
+  }
+  if (isSessionsToolScheduleAction(params)) {
+    const result = await executeSessionsToolSchedule(params, { ...input, toolCallId }, (payload) =>
+      sendSessionsToolCommand(input, payload, signal),
+    )
+    return result.contract === 'scheduled-tasks-v1'
+      ? scheduledTasksToolResult(result)
+      : successfulToolResult(result)
+  }
+  const initialPayload = buildSessionsToolPayload(params, input)
+  await authorizeAttachments(initialPayload, ctx, signal)
+  const payload = await authorizeExport(initialPayload, input, ctx, signal)
+  return successfulToolResult(await sendSessionsToolCommand(input, payload, signal))
 }
 
 function successfulToolResult(result: unknown) {
@@ -263,26 +292,10 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       name: 'sessions',
       label: 'Sessions',
       description:
-        'Coordinate durable OpenWaggle sessions. Spawn Worker Sessions in the current Hive, discover and read authorized sessions, report durable peer context, send future Follow-ups, steer an exact active Run, or interrupt it. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary sidebar sessions with independent transcripts and may continue after this Run ends.',
+        'Coordinate durable OpenWaggle sessions. Spawn Worker Sessions in the current Hive, discover and read authorized sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary sidebar sessions with independent transcripts and may continue after this Run ends.',
       promptSnippet:
         'Use sessions to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
-      promptGuidelines: [
-        'Use spawn for a new Worker Session; it never creates an in-memory subagent.',
-        'Use launch for an independent root Session that starts immediately, or create for an idle independent root. Neither joins the current Hive.',
-        'A root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows, without sharing a Hive, when its current Run was started by the desktop user or by an agent with the same reach. Workers and project-scoped callers stay in their own scope and get target_scope_denied. Use list or search with catalogScope project and that repository projectPath, or catalogScope all, then read, report, or follow_up by sessionId. To start work there, pass its projectPath to launch or create with workspace local or new-worktree; omitted or current uses the checkout of that project.',
-        'Wherever a sessionId, sessionIds, parentSessionId, workerSessionId, or report target takes a Session identity, a Session link the user pasted (openwaggle://sessions/<session-id>) works as it is.',
-        'Use start for an idle Session, follow_up for durable work after its current Run, steer to append to one exact active Run, replace to interrupt and restart, and promote to move one queued Follow-up into an exact active Run.',
-        "thinking sets a Session's thinking level and authorization applies to one Run. create, launch, and spawn accept thinking as the new Session's starting level; launch and spawn accept authorization for its first Run. message and start accept both only when the Session is idle and the call starts a Run; thinking then stays the Session's level. Both are refused while a Run is active (a message that would be queued, follow_up, steer, replace), so a Follow-up never carries them. authorization: yolo needs a caller grant that permits that effective access and never changes the Session's mode.",
-        'Use requests_list to inspect parked interactions. request_respond cannot approve Authorization; approval_respond requires an explicit delegated approval grant.',
-        'authorization_set changes a persistent Session boundary and requires its stronger dedicated grant.',
-        'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.',
-        'Workers submit immutable Delegation results; parents request revision or accept an exact submission revision.',
-        'Cleanup is automatic: once you accept or cancel a Worker and it is idle with nothing queued or parked, the Host archives it on your behalf unless the user ever interacted with it. Sending start, follow_up, steer, or replace to a Worker that cleanup archived, or reopening or requesting revision of its Delegation, restores it. A Worker archived explicitly stays archived; use unarchive to show it again.',
-        'Search before reading broad history, and page transcript items deliberately.',
-        'When export returns nextCreatedOrder, continue with afterCreatedOrder and the exact first-page snapshotManifest; never reconstruct or edit that manifest.',
-        'Use export_create for a durable file or bundle export, then exports_wait or exports_read to inspect completion. Export destinations stay inside the current workspace.',
-        'Discover optional Agent definitions on demand; do not assume named roles exist.',
-      ],
+      promptGuidelines: sessionsToolPromptGuidelines(input.sessionCapabilities),
       parameters: input.sessionCapabilities
         ? sessionsToolSchemaForCapabilities({
             capabilities: input.sessionCapabilities,
@@ -290,9 +303,9 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
           })
         : flattenSessionsToolParameters(sessionsToolParameterVariants),
       executionMode: 'sequential',
-      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      async execute(toolCallId, params, signal, _onUpdate, ctx) {
         try {
-          return successfulToolResult(await executeSessionsTool(params, input, ctx, signal))
+          return await executeSessionsToolCall(params, input, ctx, toolCallId, signal)
         } catch (error) {
           return failedToolResult(error)
         }

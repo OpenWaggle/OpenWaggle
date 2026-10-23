@@ -29,6 +29,7 @@ export const DEFAULT_SHORTCUT_BINDINGS = {
   // Panel commands added with the Panel rail (ADR 0043) start unassigned.
   'rightPanel.allPanels': null,
   'rightPanel.projectActions': null,
+  'rightPanel.scheduledTasks': null,
   'rightPanel.files': null,
   'rightPanel.resources': null,
   'rightPanel.hive': null,

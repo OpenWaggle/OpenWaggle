@@ -49,6 +49,7 @@ function runContextOptions(input: AgentRunInput) {
       ? { sessionIdentityContext: input.sessionIdentityContext }
       : {}),
     ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
+    ...(input.scheduledTask ? { scheduledTask: input.scheduledTask } : {}),
     ...runDeliveryContextOptions(input),
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),

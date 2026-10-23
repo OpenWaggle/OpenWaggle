@@ -1,10 +1,12 @@
 import path from 'node:path'
+import { editDistance } from './top-level-cli-edit-distance'
 import { routeSessionLinkLaunch, type SessionLinkLaunchRoute } from './top-level-cli-session-link'
 
 /** Command groups owned by an existing `*-cli-entry.ts` module. */
 const TOP_LEVEL_CLI_GROUPS = [
   'sessions',
   'delegations',
+  'schedules',
   'agents',
   'access',
   'mcp',
@@ -53,7 +55,6 @@ const SHORT_WORD_LENGTH = 4
 const SHORT_WORD_MAX_DISTANCE = 1
 const LONG_WORD_MAX_DISTANCE = 2
 const MINIMUM_PREFIX_LENGTH = 3
-const TRANSPOSITION_SPAN = 2
 const HOME_PREFIXES = ['~/', '~\\'] as const
 const OPTION_VALUE_SEPARATOR = '='
 /** Chromium's verbose-logging switch is `--v=<level>`; a bare `--v` is a mistyped version flag. */
@@ -98,40 +99,6 @@ function isGroup(value: string): value is TopLevelCliGroup {
 
 function isCommand(value: string): value is TopLevelCliCommand {
   return TOP_LEVEL_CLI_COMMANDS.some((command) => command === value)
-}
-
-function isAdjacentTransposition(left: string, right: string, row: number, column: number) {
-  return (
-    row >= TRANSPOSITION_SPAN &&
-    column >= TRANSPOSITION_SPAN &&
-    left[row - 1] === right[column - TRANSPOSITION_SPAN] &&
-    left[row - TRANSPOSITION_SPAN] === right[column - 1]
-  )
-}
-
-/** Optimal string alignment distance: Levenshtein plus adjacent transposition. */
-export function editDistance(left: string, right: string) {
-  // Rows are kept as a rolling window of the last three rows needed for transpositions.
-  let beforePrevious: number[] = []
-  let previous = Array.from({ length: right.length + 1 }, (_, column) => column)
-  for (let row = 1; row <= left.length; row += 1) {
-    const current = [row]
-    for (let column = 1; column <= right.length; column += 1) {
-      const substitution =
-        (previous[column - 1] ?? 0) + (left[row - 1] === right[column - 1] ? 0 : 1)
-      const best = Math.min(
-        (previous[column] ?? 0) + 1,
-        (current[column - 1] ?? 0) + 1,
-        substitution,
-      )
-      current[column] = isAdjacentTransposition(left, right, row, column)
-        ? Math.min(best, (beforePrevious[column - TRANSPOSITION_SPAN] ?? 0) + 1)
-        : best
-    }
-    beforePrevious = previous
-    previous = current
-  }
-  return previous[right.length] ?? Number.POSITIVE_INFINITY
 }
 
 function maximumDistance(value: string) {

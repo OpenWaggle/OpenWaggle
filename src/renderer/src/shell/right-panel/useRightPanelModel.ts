@@ -7,6 +7,7 @@ import { useChat } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
 import { useGit } from '@/features/git/hooks'
 import { useHasActiveProjectActionRun } from '@/features/project-actions'
+import { useProjectScheduledTasksNeedAttention } from '@/features/scheduled-tasks'
 import { useProject, useSessionProjectPath, useSessions } from '@/features/sessions/hooks'
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -118,7 +119,9 @@ function builtInDisabledReason(
     readonly sessionInHive: boolean
   },
 ) {
-  if (id === 'project-actions') return context.sessionProjectPath ? null : NEEDS_PROJECT
+  if (id === 'project-actions' || id === 'scheduled-tasks') {
+    return context.sessionProjectPath ? null : NEEDS_PROJECT
+  }
   if (id === 'all-panels') return context.ownerKey.length > 0 ? null : NEEDS_PROJECT
   if (id === 'session-tree') return context.hasSessionTree ? null : NEEDS_FIRST_MESSAGE
   if (id === 'resources') return context.sessionId ? null : NEEDS_FIRST_MESSAGE
@@ -152,6 +155,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const running = useHasActiveProjectActionRun(sessionProjectPath, sessionId)
   const sessionInHive = lineageInHive(activeSessionLineage(chatSessions, chatActiveSessionId))
   const hiveAttention = useHiveAttention(sessionId, sessionInHive)
+  const scheduledAttention = useProjectScheduledTasksNeedAttention(sessionProjectPath)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,
     projectPath: workingPath,
@@ -188,7 +192,9 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     pinned: surface.id === 'all-panels' || !hiddenIds.has(surface.id),
     isNew: false,
     running: surface.id === 'project-actions' && running,
-    attention: surface.id === 'hive' && hiveAttention,
+    attention:
+      (surface.id === 'hive' && hiveAttention) ||
+      (surface.id === 'scheduled-tasks' && scheduledAttention),
   }))
   const extensions: RightPanelSurfaceEntry[] = extensionPanels.map((panel) => ({
     id: panel.id,

@@ -94,6 +94,11 @@ export class SessionControlRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class ScheduledTaskRepositoryError extends Data.TaggedError('ScheduledTaskRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
 export class SessionControlOperationPendingError extends Data.TaggedError(
   'SessionControlOperationPendingError',
 )<{

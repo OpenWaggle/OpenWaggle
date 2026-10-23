@@ -9,7 +9,10 @@ import { useWorkspacePanelStore } from '../workspace-panel-store'
 
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
-vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
+vi.mock('@/features/sessions/hooks', () => ({
+  useProject: () => ({ projectPath: '/repo' }),
+  useSessionProjectPath: () => '/repo',
+}))
 vi.mock('../useBrowserPreviewOwnerRegistration', () => ({
   useBrowserPreviewOwnerRegistration: vi.fn(),
 }))
