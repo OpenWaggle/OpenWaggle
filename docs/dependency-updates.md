@@ -1,14 +1,15 @@
 # Dependency updates
 
 Every direct dependency in the root, `packages/*` and `website` manifests is pinned to an exact
-version, and so is every entry of the pnpm catalogs in `pnpm-workspace.yaml`. The lockfile already
+version, except `workspace:` links between monorepo packages, which pnpm publishes as caret
+ranges. Every entry of the pnpm catalogs in `pnpm-workspace.yaml` is exact too. The lockfile already
 fixes what `pnpm install --frozen-lockfile` installs. Pinning adds two things on top of it. A
 direct dependency moves only when someone edits its manifest line, so the new version is visible
 in the pull request diff. And `pnpm update`, or a lockfile that gets re-resolved, cannot carry a
-direct dependency to a newer minor or patch release on its own. That matters most for packages
-before 1.0, where a minor release may break things, such as the Effect platform and SQL packages,
-Lexical, TanStack Hotkeys and the xterm add-ons. It matters just as much for the packages the app
-cannot run without: Electron, Pi, `node-pty` and `better-sqlite3`.
+direct dependency to a newer minor or patch release on its own. Two groups need this most. Packages
+before 1.0 may break things in a minor release, such as the Effect platform and SQL packages,
+Lexical, TanStack Hotkeys and the xterm add-ons. And the app cannot run without Electron, Pi,
+`node-pty` and `better-sqlite3`.
 
 Transitive dependencies are not pinned. They change through the lockfile alone, and the
 supply-chain settings below are what guard them.
@@ -52,12 +53,12 @@ expiry that `check:pi-runtime` enforces. For any other exception the date is a c
 the entry by hand once it passes. A vulnerable transitive dependency gets an override floor
 instead.
 
-Update everything else in batches, about once a month and between release trains. Run
+Update everything else in batches, about once a month, and never during an RC freeze. Run
 `pnpm outdated -r`, move related packages together, such as all `@effect/*`, all `@tanstack/*` or
 all `@xterm/*`, and keep each batch small enough to review. A dependency nobody needs to update
 can stay where it is.
 
-Don't update dependencies during an RC freeze. A `chore(deps):` change to app code during RC blocks
+During an RC freeze, a `chore(deps):` change to app code during RC blocks
 Stable promotion, unless it is the fix for a release blocker. See
 [Release and versioning](release-and-versioning.md#rc-freeze-and-promotion-guard).
 
