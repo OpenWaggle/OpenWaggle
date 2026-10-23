@@ -58,11 +58,13 @@ patchedDependencies:
       [packageRef('pi-mcp')]: 'catalog:pi-runtime',
       'quickjs-wasi': '3.6.2',
       '@silvia-odwyer/photon-node': '0.3.4',
+      typebox: 'catalog:pi-extension-host',
     },
     now: new Date('2026-10-14T12:00:00Z'),
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-tui')]: 'catalog:pi-runtime',
+      typebox: 'catalog:pi-extension-host',
     },
   }
 }

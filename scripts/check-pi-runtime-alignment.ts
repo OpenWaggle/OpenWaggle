@@ -121,7 +121,14 @@ function extensionHostCatalogVersion(workspace: string, packageName: string) {
 
 function extensionHostPackageProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
+  const catalogReference = `catalog:${PI_EXTENSION_HOST_CATALOG}`
   for (const name of PI_EXTENSION_HOST_PACKAGES) {
+    if (input.rootDependencies[name] !== catalogReference) {
+      problems.push(`package.json must take ${name} from ${catalogReference}.`)
+    }
+    if (input.piWaggleDevDependencies[name] !== catalogReference) {
+      problems.push(`packages/pi-waggle/package.json must take ${name} from ${catalogReference}.`)
+    }
     const piVersion = input.piCodingAgentDependencies[name]
     if (!piVersion) {
       problems.push(`pi-coding-agent no longer depends on ${name}; update catalogs.${PI_EXTENSION_HOST_CATALOG}.`)
