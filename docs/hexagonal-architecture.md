@@ -34,7 +34,6 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - `ProviderOAuthService` — Provider OAuth flow state backed by Pi auth storage
 - `ProviderProbeService` — Provider/model credential probing through project-scoped Pi services
 - `SessionTreePreferencesService` — Pi-backed Session Tree and branch-summary preferences
-- `StandardsService` — Agent/skill loading
 - `WagglePresetsRepository` — Waggle preset persistence across built-in, global, and project scopes
 
 **Rules:**
@@ -42,8 +41,6 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - MUST NOT import from `src/main/store/` or any infrastructure
 - Service methods MUST return `Effect.Effect<Result, TaggedError>`
 - Every port MUST have at least one `yield*` consumer in production code
-
-Known current gap: `StandardsService` is registered in the runtime but is not consumed by the standard Pi run path. Fixing that should either wire standards into Pi-native resources or remove the unused port.
 
 ### Adapters (`src/main/adapters/`)
 
@@ -54,7 +51,6 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 - `sqlite-session-projection-repository.ts` — Implements SessionProjectionRepository via SQLite store
 - `sqlite-session-repository.ts` — Implements SessionRepository via SQLite store
 - `settings-waggle-presets-repository.ts` — Implements WagglePresetsRepository via built-in presets, user-data JSON, and project `.openwaggle/settings.json`
-- `standards-adapter.ts` — Implements StandardsService via filesystem
 - `pi/pi-provider-service.ts` — Implements ProviderService via Pi provider/model metadata
 - `pi/pi-provider-auth-service.ts` — Implements ProviderAuthService via Pi auth storage
 - `pi/pi-provider-oauth-service.ts` — Implements ProviderOAuthService via Pi auth storage
