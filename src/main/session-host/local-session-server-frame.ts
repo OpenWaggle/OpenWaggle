@@ -172,16 +172,16 @@ interface FrameWriteInput {
   readonly peer?: (() => string | undefined) | undefined
   /** The most bytes the frame encodes to, for small frames such as the handshake's. */
   readonly maxBytes?: number | undefined
-  /** When the command this frame answers arrived (`performance.now()`). */
-  readonly receivedAt?: number | undefined
 }
 
 export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
   const lease = await input.budget
-    .encode(input.value, input.signal, outboundOwner(input), {
-      ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
-      ...(input.receivedAt === undefined ? {} : { receivedAt: input.receivedAt }),
-    })
+    .encode(
+      input.value,
+      input.signal,
+      outboundOwner(input),
+      input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes },
+    )
     .catch((error: unknown) => {
       if (error instanceof LocalSessionOutboundCapacityError) {
         // No open connection left a frame unread long enough to close it within the wait.

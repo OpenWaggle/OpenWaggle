@@ -89,7 +89,11 @@ describe('Local Session outbound byte budget', () => {
 
   let encodedLargeResponses = 0
 
-  async function listen(endpoint: string, outboundCapacityWaitMs: number) {
+  async function listen(
+    endpoint: string,
+    outboundCapacityWaitMs: number,
+    maxPendingOutboundBytesGlobal = OUTBOUND_BUDGET_BYTES,
+  ) {
     encodedLargeResponses = 0
     handle = await listenLocalSessionServer(endpoint, {
       hostInstanceId: 'host-current',
@@ -98,7 +102,7 @@ describe('Local Session outbound byte budget', () => {
         idleGracePeriodMs: 60_000,
         requestShutdown: vi.fn(),
       }),
-      maxPendingOutboundBytesGlobal: OUTBOUND_BUDGET_BYTES,
+      maxPendingOutboundBytesGlobal,
       outboundCapacityWaitMs,
       authenticate: async () => ({ callerId: 'local-user' }),
       dispatch: async ({ payload }) => {
@@ -112,6 +116,17 @@ describe('Local Session outbound byte budget', () => {
       },
     })
     return handle
+  }
+
+  /** Reads one chunk every `pauseMs`, a client that keeps reading, slowly. */
+  function readSlowly(socket: Socket, pauseMs: number) {
+    const onData = () => {
+      socket.pause()
+      setTimeout(() => socket.resume(), pauseMs)
+    }
+    socket.on('data', onData)
+    socket.resume()
+    return () => socket.off('data', onData)
   }
 
   /** Connects every client first: a handshake needs outbound capacity too. */
@@ -239,5 +254,39 @@ describe('Local Session outbound byte budget', () => {
     }
     expect(closed).toEqual([])
     await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
+  })
+
+  it('keeps a reader that reads a large answer slowly but steadily', async () => {
+    const endpoint = path.join(temporaryRoot, 'slow-reader.sock')
+    // One unread large answer fills it.
+    await listen(endpoint, 2_000, RETAINED_LARGE_RESPONSE_BYTES + 64 * 1024 * 1024)
+    const slow = await connect(endpoint, 'slow-steady-reader')
+    const waiting = await connect(endpoint, 'waits-for-the-slow-reader')
+    let slowClosed = false
+    const closedEarly = new Promise<never>((_resolve, reject) => {
+      slow.socket.once('close', () => {
+        slowClosed = true
+        reject(new Error('The slow but steady reader was closed.'))
+      })
+    })
+    void closedEarly.catch(() => undefined)
+    slow.socket.pause()
+    requestLargeResponse(slow.socket, 'slow')
+    await vi.waitFor(() =>
+      expect(handle?.outboundByteUsage().pendingBytes).toBeGreaterThan(LARGE_RESPONSE_BYTES),
+    )
+    requestLargeResponse(waiting.socket, 'waiting')
+
+    // About 10 MB read a socket buffer at a time with a 2 ms pause after each: a few MB/s, so
+    // the whole answer takes longer than the 2 s stop time while each 1 MiB slice takes less.
+    const stopReading = readSlowly(slow.socket, 2)
+    await expect(Promise.race([slow.reader.next(), closedEarly])).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
+    stopReading()
+    await expect(waiting.reader.next()).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
+    expect(slowClosed).toBe(false)
   })
 })

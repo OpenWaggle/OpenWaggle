@@ -11,8 +11,6 @@ export type LocalSessionSocketFrameWriter = typeof writeLocalSessionSocketFrame
 export interface LocalSessionOutboundSendOptions {
   /** Bounds a small frame so it need not wait for room. */
   readonly maxBytes?: number
-  /** When the command this frame answers arrived (`performance.now()`); limits its wait. */
-  readonly receivedAt?: number
 }
 
 export class LocalSessionOutboundWriter {
