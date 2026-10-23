@@ -165,14 +165,21 @@ interface FrameWriteInput {
   readonly signal: AbortSignal
   /** Names the connection's caller in logs, such as `gui:local-user`. */
   readonly peer?: (() => string | undefined) | undefined
+  /** The most bytes the frame encodes to, for small frames such as the handshake's. */
+  readonly maxBytes?: number | undefined
 }
 
 export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
   const lease = await input.budget
-    .encode(input.value, input.signal, outboundOwner(input))
+    .encode(
+      input.value,
+      input.signal,
+      outboundOwner(input),
+      input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes },
+    )
     .catch((error: unknown) => {
       if (error instanceof LocalSessionOutboundCapacityError) {
-        // No connection that held an unread frame since this one arrived was left to close.
+        // No open connection left a frame unread long enough to close it within the wait.
         logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
           peer: input.peer?.(),
           ...budgetUsage(input.budget),
@@ -201,6 +208,7 @@ export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Prom
         throw new LocalSessionClientDisconnectedError()
       }
       await writeSocketSegment(input.socket, segment)
+      lease.touch()
     }
   } finally {
     input.socket.off('close', release)

@@ -34,7 +34,7 @@ import type {
 
 const logger = createLogger('session-host/connection')
 
-export const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
+const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
@@ -188,7 +188,7 @@ export class LocalSessionConnection {
     const authenticateServer = this.dependencies.authenticateServer
     if (!authenticateServer)
       throw new Error('Local Session Host identity authority is unavailable.')
-    await this.send(await authenticateServer(value))
+    await this.outbound.sendHandshakeFrame(await authenticateServer(value))
     this.serverAuthenticated = true
   }
 
@@ -199,7 +199,7 @@ export class LocalSessionConnection {
       dependencies: this.dependencies,
       budget: this.authenticationBudget,
       signal: this.authenticationController.signal,
-      send: (frame) => this.send(frame),
+      send: (frame) => this.outbound.sendHandshakeFrame(frame),
       authenticationFailed: (failure) => {
         logger.warn('Local Session authentication failed', { reason: failure.reason })
         return this.fail(failure.code, failure.message, failure.retryable)
@@ -216,7 +216,7 @@ export class LocalSessionConnection {
     this.inbound.markAuthenticated()
     this.releaseClientLiveness = this.dependencies.liveness.acquire('client')
     this.handshakeDeadline.clear()
-    await this.send(result.negotiation)
+    await this.outbound.sendHandshakeFrame(result.negotiation)
   }
 
   private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
@@ -289,7 +289,9 @@ export class LocalSessionConnection {
       // The error frame is best effort: fail() runs fire and forget from the handshake deadline
       // and the inbound protocol paths, so a peer that went away mid-write must not turn the
       // report into an escaping rejection; the socket ends either way.
-      await this.send({ kind: 'error', code, message, retryable }).catch(() => undefined)
+      await this.outbound
+        .sendHandshakeFrame({ kind: 'error', code, message, retryable })
+        .catch(() => undefined)
     } finally {
       this.socket.end()
     }

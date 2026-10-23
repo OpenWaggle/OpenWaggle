@@ -3,25 +3,33 @@ import {
   MAX_LOCAL_SESSION_FRAME_BYTES,
   MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES,
 } from './local-session-framing'
-import { LocalSessionOutboundTurn } from './local-session-outbound-turn'
+import { LocalSessionHostLiveClock } from './local-session-host-live-clock'
+import {
+  LocalSessionOutboundLeases,
+  type LocalSessionOutboundOwner,
+} from './local-session-outbound-leases'
+import {
+  LocalSessionOutboundReleaseSignal,
+  LocalSessionOutboundTurn,
+} from './local-session-outbound-turn'
+
+export type { LocalSessionOutboundOwner } from './local-session-outbound-leases'
 
 export const DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL = 256 * 1024 * 1024
 /**
- * How long, from its arrival, a frame waits for outbound capacity before connections that left
- * frames unread for that whole time are closed. Capacity is held by frames other clients have not
- * read yet, such as the desktop app parsing a large transcript, which usually takes a second or
- * two. Measured from arrival, a frame queued behind others is decided as soon as one at the head.
+ * How long a frame must stay unread before its connection counts as stopped, and how long a frame
+ * that finds no room waits before such connections are closed. Both are live time: time the
+ * Host's event loop was blocked, when no socket could be served, is not counted. A reader of a
+ * large transcript usually catches up within a second or two.
  */
 export const DEFAULT_OUTBOUND_CAPACITY_WAIT_MS = 4_000
 /** How long an evicted connection gets to release its frames before the next one is evicted. */
 export const DEFAULT_OUTBOUND_EVICTION_RELEASE_WAIT_MS = 500
 /**
- * A wait that wakes later than this fraction of the capacity wait is the Host's stall, not the
- * clients': it gets that fraction again of time in which sockets are served.
+ * The wall-clock limit on any one wait, below the client's 10 s answer timeout, so a Host that
+ * keeps stalling still answers or closes before the client gives up.
  */
-const LATE_WAKE_FRACTION_DENOMINATOR = 4
-/** A Host that keeps stalling still decides. */
-const MAX_LATE_EXTENSIONS = 3
+export const MAX_OUTBOUND_CAPACITY_WAIT_MS = 8_000
 const MAX_OUTBOUND_ENCODING_RESERVATION_BYTES =
   MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES + MAX_LOCAL_SESSION_FRAME_BYTES
 
@@ -33,28 +41,28 @@ export class LocalSessionOutboundCapacityError extends Error {
 
 export interface LocalSessionOutboundLease {
   readonly payload: Buffer
+  /** Records that the client read part of the frame, so it does not count as stopped. */
+  readonly touch: () => void
   readonly release: () => void
   /** How long the frame waited for room before it was encoded. */
   readonly waitedMs: number
 }
 
-/** The connection a frame is written to; it is closed if it leaves its frames unread too long. */
-export interface LocalSessionOutboundOwner {
-  /** Closes the connection; its frames release their bytes when its socket closes. */
-  readonly evict: (unreadForMs: number) => void
-}
-
 export interface LocalSessionOutboundByteBudgetOptions {
   readonly capacityWaitMs?: number | undefined
   readonly evictionReleaseWaitMs?: number | undefined
-  /** A monotonic clock in milliseconds. */
+  /** The wall-clock limit on one wait; `MAX_OUTBOUND_CAPACITY_WAIT_MS` unless a test sets it. */
+  readonly maxWaitMs?: number | undefined
+  /** A monotonic wall clock in milliseconds; stalls are measured against it. */
   readonly now?: () => number
 }
 
-interface RetainedLease {
-  readonly bytes: number
-  readonly retainedAt: number
-  readonly owner: LocalSessionOutboundOwner | undefined
+export interface LocalSessionOutboundEncodeOptions {
+  /**
+   * The most bytes the frame may encode to, such as a handshake frame's. A bounded frame that
+   * fits is encoded at once, ahead of frames waiting for room, since it reserves only that much.
+   */
+  readonly maxBytes?: number
 }
 
 function encodingAborted() {
@@ -75,25 +83,22 @@ function afterPendingIo() {
 
 /**
  * Bounds the bytes the Host holds for frames clients have not read yet. Encodes run one at a
- * time in arrival order; one that finds no room waits for room while holding that turn, since no
- * later encode could fit either, so the first frame to wait is the first to be written. When the
- * room stays held for the capacity wait, the connections whose frames were retained before the
- * frame arrived and are still unread are the readers that stopped: they are closed, preferring one
- * that frees enough room alone, instead of the connection that asked for room.
+ * time in arrival order; one that finds no room waits while holding that turn, since no later
+ * encode could fit either. After the capacity wait it closes the connections that left a frame
+ * unread for that long, preferring one that frees enough room alone, instead of the connection
+ * that asked for room; it fails only when no connection holds such a frame or will soon.
  */
 export class LocalSessionOutboundByteBudget {
   private retainedBytes = 0
   private peakRetainedBytes = 0
   private readonly encoderTurn = new LocalSessionOutboundTurn(encodingAborted)
-  /** Retained frames, oldest first. */
-  private readonly leases = new Set<RetainedLease>()
-  private readonly bytesByOwner = new Map<LocalSessionOutboundOwner, number>()
-  private readonly evictedOwners = new WeakSet<LocalSessionOutboundOwner>()
-  /** The encode holding the turn, waiting for bytes to be released. */
-  private releaseWaiter: (() => void) | undefined
+  private readonly leases: LocalSessionOutboundLeases
+  private readonly released = new LocalSessionOutboundReleaseSignal(encodingAborted)
   private readonly capacityWaitMs: number
   private readonly evictionReleaseWaitMs: number
-  private readonly now: () => number
+  private readonly maxWaitMs: number
+  private readonly wallNow: () => number
+  private readonly clock: LocalSessionHostLiveClock
 
   constructor(
     private readonly capacity = DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL,
@@ -112,7 +117,13 @@ export class LocalSessionOutboundByteBudget {
       options.evictionReleaseWaitMs ?? DEFAULT_OUTBOUND_EVICTION_RELEASE_WAIT_MS,
       'outbound eviction release wait',
     )
-    this.now = options.now ?? (() => performance.now())
+    this.maxWaitMs = nonNegativeInteger(
+      options.maxWaitMs ?? MAX_OUTBOUND_CAPACITY_WAIT_MS,
+      'outbound capacity wait limit',
+    )
+    this.wallNow = options.now ?? (() => performance.now())
+    this.clock = new LocalSessionHostLiveClock(this.wallNow)
+    this.leases = new LocalSessionOutboundLeases(this.clock, this.capacityWaitMs)
   }
 
   get pendingBytes() {
@@ -127,104 +138,108 @@ export class LocalSessionOutboundByteBudget {
     return this.capacity
   }
 
-  /**
-   * Encodes `value` once the budget has room for it, waiting as the class describes. Fails with
-   * `LocalSessionOutboundCapacityError` when no connection that held an unread frame since the
-   * frame arrived is left to close.
-   */
   async encode(
     value: unknown,
     signal: AbortSignal,
     owner?: LocalSessionOutboundOwner,
+    options: LocalSessionOutboundEncodeOptions = {},
   ): Promise<LocalSessionOutboundLease> {
-    const arrivedAt = this.now()
+    const arrivedAt = this.wallNow()
+    const arrivedLiveAt = this.clock.now()
+    if (signal.aborted) throw encodingAborted()
+    const bounded =
+      options.maxBytes === undefined
+        ? undefined
+        : this.encodeBounded(value, owner, options.maxBytes)
+    if (bounded) return bounded
     await this.encoderTurn.acquire(signal)
     try {
-      await this.waitForRoom(signal, arrivedAt)
-      return this.encodeWithReservation(value, signal, owner, this.now() - arrivedAt)
+      await this.waitForRoom(signal, arrivedAt, arrivedLiveAt)
+      return this.encodeReserved(value, signal, owner, arrivedAt)
     } finally {
       this.encoderTurn.release()
     }
+  }
+
+  /** Undefined when the bound does not fit now or the frame encodes to more than it. */
+  private encodeBounded(
+    value: unknown,
+    owner: LocalSessionOutboundOwner | undefined,
+    maxBytes: number,
+  ) {
+    if (maxBytes > MAX_LOCAL_SESSION_FRAME_BYTES) return undefined
+    if (this.retainedBytes + maxBytes > this.capacity) return undefined
+    this.retainBytes(maxBytes)
+    let payload: Buffer
+    try {
+      payload = encodeLocalSessionPayload(value)
+    } catch (error) {
+      this.releaseBytes(maxBytes)
+      throw error
+    }
+    if (payload.byteLength > maxBytes) {
+      // Larger than its bound: it waits for room like any frame.
+      this.releaseBytes(maxBytes)
+      return undefined
+    }
+    return this.leaseFor(payload, owner, maxBytes, this.wallNow())
   }
 
   private hasRoom() {
     return this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES <= this.capacity
   }
 
-  private async waitForRoom(signal: AbortSignal, arrivedAt: number) {
-    let deadline = arrivedAt + this.capacityWaitMs
-    let lateExtensions = 0
+  /** Waits up to the capacity wait of live time from arrival, and never past the wall limit. */
+  private async waitForRoom(signal: AbortSignal, arrivedAt: number, arrivedLiveAt: number) {
+    const giveUpAt = arrivedAt + this.maxWaitMs
+    const decideAt = arrivedLiveAt + this.capacityWaitMs
     while (!this.hasRoom()) {
       if (signal.aborted) throw encodingAborted()
-      const remainingMs = deadline - this.now()
-      if (remainingMs > 0) {
-        const lateMs = await this.sleepUntilRelease(signal, remainingMs)
-        const grace = this.capacityWaitMs / LATE_WAKE_FRACTION_DENOMINATOR
-        if (lateMs > grace && lateExtensions < MAX_LATE_EXTENSIONS) {
-          // The Host could not read or write sockets while it stalled: give clients live time.
-          lateExtensions += 1
-          deadline = Math.max(deadline, this.now() + grace)
-        }
+      const wallRemainingMs = giveUpAt - this.wallNow()
+      if (wallRemainingMs <= 0) throw new LocalSessionOutboundCapacityError()
+      const liveRemainingMs = decideAt - this.clock.now()
+      if (liveRemainingMs > 0) {
+        await this.released.wait(signal, Math.min(liveRemainingMs, wallRemainingMs))
         continue
       }
       await afterPendingIo()
       if (signal.aborted) throw encodingAborted()
       if (this.hasRoom()) break
-      const stalled = this.stalledOwnerToEvict(arrivedAt)
-      if (!stalled) throw new LocalSessionOutboundCapacityError()
-      this.evictedOwners.add(stalled.owner)
-      stalled.owner.evict(this.now() - stalled.retainedAt)
-      await this.waitForOwnerRelease(signal, stalled.owner)
+      const stalled = this.leases.stalledOwnerToEvict(
+        this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES - this.capacity,
+      )
+      if (stalled) {
+        this.leases.markEvicted(stalled.owner)
+        stalled.owner.evict(stalled.unreadForMs)
+        await this.waitForOwnerRelease(signal, stalled.owner, giveUpAt)
+        continue
+      }
+      const nextStallInMs = this.leases.nextStallInMs()
+      // Only frames of connections already closed, or of no connection, hold the room.
+      if (nextStallInMs === undefined) throw new LocalSessionOutboundCapacityError()
+      await this.released.wait(signal, Math.min(nextStallInMs, wallRemainingMs))
     }
     if (signal.aborted) throw encodingAborted()
   }
 
-  /** Sleeps until a release or `timeoutMs`; returns how much later than due it woke. */
-  private async sleepUntilRelease(signal: AbortSignal, timeoutMs: number) {
-    const dueAt = this.now() + timeoutMs
-    const wokeByRelease = await this.nextRelease(signal, timeoutMs)
-    return wokeByRelease ? 0 : Math.max(0, this.now() - dueAt)
-  }
-
-  private async waitForOwnerRelease(signal: AbortSignal, owner: LocalSessionOutboundOwner) {
-    const releaseBy = this.now() + this.evictionReleaseWaitMs
-    while (!this.hasRoom() && (this.bytesByOwner.get(owner) ?? 0) > 0) {
-      const remainingMs = releaseBy - this.now()
+  private async waitForOwnerRelease(
+    signal: AbortSignal,
+    owner: LocalSessionOutboundOwner,
+    giveUpAt: number,
+  ) {
+    const releaseBy = this.clock.now() + this.evictionReleaseWaitMs
+    while (!this.hasRoom() && this.leases.bytesHeldBy(owner) > 0) {
+      const remainingMs = Math.min(releaseBy - this.clock.now(), giveUpAt - this.wallNow())
       if (remainingMs <= 0) return
-      await this.nextRelease(signal, remainingMs)
+      await this.released.wait(signal, remainingMs)
     }
   }
 
-  /**
-   * Among connections holding a frame retained before `arrivedAt` and not evicted yet: the oldest
-   * whose frames free enough room alone, else the one holding the most bytes.
-   */
-  private stalledOwnerToEvict(arrivedAt: number) {
-    const missingBytes =
-      this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES - this.capacity
-    let largest: { owner: LocalSessionOutboundOwner; retainedAt: number } | undefined
-    let largestBytes = 0
-    const seen = new Set<LocalSessionOutboundOwner>()
-    for (const lease of this.leases) {
-      if (lease.retainedAt > arrivedAt) break
-      const owner = lease.owner
-      if (!owner || seen.has(owner) || this.evictedOwners.has(owner)) continue
-      seen.add(owner)
-      const bytes = this.bytesByOwner.get(owner) ?? 0
-      if (bytes >= missingBytes) return { owner, retainedAt: lease.retainedAt }
-      if (bytes > largestBytes) {
-        largest = { owner, retainedAt: lease.retainedAt }
-        largestBytes = bytes
-      }
-    }
-    return largest
-  }
-
-  private encodeWithReservation(
+  private encodeReserved(
     value: unknown,
     signal: AbortSignal,
     owner: LocalSessionOutboundOwner | undefined,
-    waitedMs: number,
+    arrivedAt: number,
   ): LocalSessionOutboundLease {
     this.retainBytes(MAX_OUTBOUND_ENCODING_RESERVATION_BYTES)
     let payload: Buffer
@@ -235,24 +250,27 @@ export class LocalSessionOutboundByteBudget {
       this.releaseBytes(MAX_OUTBOUND_ENCODING_RESERVATION_BYTES)
       throw error
     }
-    const retainedLeaseBytes =
+    return this.leaseFor(payload, owner, MAX_OUTBOUND_ENCODING_RESERVATION_BYTES, arrivedAt)
+  }
+
+  /** Turns the reservation an encoded payload was made under into its lease's retained bytes. */
+  private leaseFor(
+    payload: Buffer,
+    owner: LocalSessionOutboundOwner | undefined,
+    reservationBytes: number,
+    arrivedAt: number,
+  ): LocalSessionOutboundLease {
+    const bytes =
       payload.byteLength +
       (payload.byteLength > MAX_LOCAL_SESSION_FRAME_BYTES ? MAX_LOCAL_SESSION_FRAME_BYTES : 0)
-    const lease: RetainedLease = { bytes: retainedLeaseBytes, retainedAt: this.now(), owner }
-    this.leases.add(lease)
-    if (owner) this.bytesByOwner.set(owner, (this.bytesByOwner.get(owner) ?? 0) + lease.bytes)
-    this.releaseBytes(MAX_OUTBOUND_ENCODING_RESERVATION_BYTES - retainedLeaseBytes)
+    const lease = this.leases.add(bytes, owner)
+    this.releaseBytes(reservationBytes - bytes)
     return {
       payload,
-      waitedMs,
+      waitedMs: this.wallNow() - arrivedAt,
+      touch: () => this.leases.touch(lease),
       release: () => {
-        if (!this.leases.delete(lease)) return
-        if (owner) {
-          const remaining = (this.bytesByOwner.get(owner) ?? 0) - lease.bytes
-          if (remaining > 0) this.bytesByOwner.set(owner, remaining)
-          else this.bytesByOwner.delete(owner)
-        }
-        this.releaseBytes(lease.bytes)
+        if (this.leases.remove(lease)) this.releaseBytes(lease.bytes)
       },
     }
   }
@@ -264,35 +282,6 @@ export class LocalSessionOutboundByteBudget {
 
   private releaseBytes(bytes: number) {
     this.retainedBytes = Math.max(0, this.retainedBytes - bytes)
-    if (bytes > 0) this.releaseWaiter?.()
-  }
-
-  /**
-   * Resolves `true` on the next release, `false` after `timeoutMs`; rejects when `signal` aborts.
-   * Only the encode holding the turn waits, and it registers in the same tick it saw no room, so
-   * no release is missed.
-   */
-  private nextRelease(signal: AbortSignal, timeoutMs: number): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      const settle = () => {
-        clearTimeout(timer)
-        signal.removeEventListener('abort', abort)
-        if (this.releaseWaiter === released) this.releaseWaiter = undefined
-      }
-      const released = () => {
-        settle()
-        resolve(true)
-      }
-      const abort = () => {
-        settle()
-        reject(encodingAborted())
-      }
-      const timer = setTimeout(() => {
-        settle()
-        resolve(false)
-      }, timeoutMs)
-      signal.addEventListener('abort', abort, { once: true })
-      this.releaseWaiter = released
-    })
+    if (bytes > 0) this.released.notify()
   }
 }

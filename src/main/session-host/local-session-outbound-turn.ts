@@ -46,3 +46,39 @@ export class LocalSessionOutboundTurn {
     }
   }
 }
+
+/**
+ * Wakes the one waiter on the next notify. Only the holder of a `LocalSessionOutboundTurn` waits,
+ * and it starts waiting in the same tick it found no room, so no notify is missed.
+ */
+export class LocalSessionOutboundReleaseSignal {
+  private waiter: (() => void) | undefined
+
+  constructor(private readonly aborted: () => Error) {}
+
+  notify(): void {
+    this.waiter?.()
+  }
+
+  /** Resolves on the next notify or after `timeoutMs`; rejects when `signal` aborts. */
+  wait(signal: AbortSignal, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const settle = () => {
+        clearTimeout(timer)
+        signal.removeEventListener('abort', abort)
+        if (this.waiter === wake) this.waiter = undefined
+      }
+      const wake = () => {
+        settle()
+        resolve()
+      }
+      const abort = () => {
+        settle()
+        reject(this.aborted())
+      }
+      const timer = setTimeout(wake, timeoutMs)
+      signal.addEventListener('abort', abort, { once: true })
+      this.waiter = wake
+    })
+  }
+}

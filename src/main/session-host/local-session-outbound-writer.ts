@@ -1,5 +1,6 @@
 import type { Socket } from 'node:net'
 import { createLogger } from '../logger'
+import { MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES } from './local-session-framing'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { writeLocalSessionSocketFrame } from './local-session-server-frame'
 
@@ -27,7 +28,16 @@ export class LocalSessionOutboundWriter {
     this.maxPendingFrames = maxPendingFrames
   }
 
-  send(value: unknown): Promise<void> {
+  /**
+   * Handshake and connection-error frames are small. Bounded, they are written while large answers
+   * wait for room, so a full budget never stalls a handshake toward its deadline.
+   */
+  sendHandshakeFrame(value: unknown): Promise<void> {
+    return this.send(value, MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES)
+  }
+
+  /** `maxBytes` bounds a small frame so it need not wait for room. */
+  send(value: unknown, maxBytes?: number): Promise<void> {
     if (this.pendingSends >= this.maxPendingFrames) {
       if (!this.socket.destroyed) {
         logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
@@ -48,6 +58,7 @@ export class LocalSessionOutboundWriter {
           budget: this.budget,
           signal: this.signal,
           peer: this.peer,
+          ...(maxBytes === undefined ? {} : { maxBytes }),
         })
       })
       .finally(() => {
