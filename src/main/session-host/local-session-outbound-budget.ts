@@ -26,8 +26,9 @@ export const DEFAULT_OUTBOUND_CAPACITY_WAIT_MS = 4_000
 /** How long an evicted connection gets to release its frames before the next one is evicted. */
 export const DEFAULT_OUTBOUND_EVICTION_RELEASE_WAIT_MS = 500
 /**
- * The wall-clock limit on any one wait, below the client's 10 s answer timeout, so a Host that
- * keeps stalling still answers or closes before the client gives up.
+ * The wall-clock limit on any one wait, counted from when the request it answers arrived, below the
+ * client's 10 s answer timeout, so a Host that keeps stalling still answers or closes before the
+ * client gives up.
  */
 export const MAX_OUTBOUND_CAPACITY_WAIT_MS = 8_000
 const MAX_OUTBOUND_ENCODING_RESERVATION_BYTES =
@@ -63,6 +64,11 @@ export interface LocalSessionOutboundEncodeOptions {
    * fits is encoded at once, ahead of frames waiting for room, since it reserves only that much.
    */
   readonly maxBytes?: number
+  /**
+   * When the request this frame answers arrived, on the budget's clock. The wall limit counts from
+   * it, since the client's answer timeout started then, not when the answer was ready.
+   */
+  readonly receivedAt?: number
 }
 
 function encodingAborted() {
@@ -145,6 +151,7 @@ export class LocalSessionOutboundByteBudget {
     options: LocalSessionOutboundEncodeOptions = {},
   ): Promise<LocalSessionOutboundLease> {
     const arrivedAt = this.wallNow()
+    const requestedAt = Math.min(options.receivedAt ?? arrivedAt, arrivedAt)
     const arrivedLiveAt = this.clock.now()
     if (signal.aborted) throw encodingAborted()
     const bounded =
@@ -154,7 +161,7 @@ export class LocalSessionOutboundByteBudget {
     if (bounded) return bounded
     await this.encoderTurn.acquire(signal)
     try {
-      await this.waitForRoom(signal, arrivedAt, arrivedLiveAt)
+      await this.waitForRoom(signal, requestedAt, arrivedLiveAt)
       return this.encodeReserved(value, signal, owner, arrivedAt)
     } finally {
       this.encoderTurn.release()
@@ -189,9 +196,9 @@ export class LocalSessionOutboundByteBudget {
     return this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES <= this.capacity
   }
 
-  /** Waits up to the capacity wait of live time from arrival, and never past the wall limit. */
-  private async waitForRoom(signal: AbortSignal, arrivedAt: number, arrivedLiveAt: number) {
-    const giveUpAt = arrivedAt + this.maxWaitMs
+  /** Waits up to the capacity wait of live time from arrival, never past the wall limit. */
+  private async waitForRoom(signal: AbortSignal, requestedAt: number, arrivedLiveAt: number) {
+    const giveUpAt = requestedAt + this.maxWaitMs
     const decideAt = arrivedLiveAt + this.capacityWaitMs
     while (!this.hasRoom()) {
       if (signal.aborted) throw encodingAborted()

@@ -173,6 +173,23 @@ describe('LocalSessionOutboundByteBudget', () => {
     expect(budget.pendingBytes).toBe(0)
   })
 
+  it('counts the wall limit from when the request arrived, not when its answer was ready', async () => {
+    useFakeClock()
+    const budget = budgetWith()
+    const reader = evictableOwner()
+    reader.hold(await budget.encode(UNREAD_FRAME, connection(), reader))
+    reader.hold(await budget.encode(UNREAD_FRAME, connection(), reader))
+    // The command took 7.9 s to answer, so only 100 ms of the 8 s limit are left.
+    const failed = expect(
+      budget.encode({ ok: true }, connection(), undefined, {
+        receivedAt: Date.now() - (MAX_OUTBOUND_CAPACITY_WAIT_MS - 100),
+      }),
+    ).rejects.toBeInstanceOf(LocalSessionOutboundCapacityError)
+    await advance(150)
+    await failed
+    expect(reader.evictions).toBe(0)
+  })
+
   it('stops waiting when its connection goes away and leaves no timer behind', async () => {
     useFakeClock()
     const budget = budgetWith()

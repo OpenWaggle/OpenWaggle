@@ -62,6 +62,7 @@ export class LocalSessionOutboundReleaseSignal {
 
   /** Resolves on the next notify or after `timeoutMs`; rejects when `signal` aborts. */
   wait(signal: AbortSignal, timeoutMs: number): Promise<void> {
+    if (signal.aborted) return Promise.reject(this.aborted())
     return new Promise((resolve, reject) => {
       const settle = () => {
         clearTimeout(timer)

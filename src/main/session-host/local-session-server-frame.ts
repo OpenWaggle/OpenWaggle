@@ -126,6 +126,11 @@ function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   })
 }
 
+/**
+ * Frames are written in slices of at most this, the wire bytes unchanged, so a client reading a
+ * large frame slowly shows its progress to the outbound budget long before its stop time.
+ */
+const WRITE_SLICE_BYTES = 1024 * 1024
 /** A capacity wait longer than this is logged, so slow readers show up before any eviction. */
 const LOGGED_CAPACITY_WAIT_MS = 1_000
 
@@ -167,16 +172,16 @@ interface FrameWriteInput {
   readonly peer?: (() => string | undefined) | undefined
   /** The most bytes the frame encodes to, for small frames such as the handshake's. */
   readonly maxBytes?: number | undefined
+  /** When the command this frame answers arrived (`performance.now()`). */
+  readonly receivedAt?: number | undefined
 }
 
 export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
   const lease = await input.budget
-    .encode(
-      input.value,
-      input.signal,
-      outboundOwner(input),
-      input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes },
-    )
+    .encode(input.value, input.signal, outboundOwner(input), {
+      ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
+      ...(input.receivedAt === undefined ? {} : { receivedAt: input.receivedAt }),
+    })
     .catch((error: unknown) => {
       if (error instanceof LocalSessionOutboundCapacityError) {
         // No open connection left a frame unread long enough to close it within the wait.
@@ -202,13 +207,16 @@ export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Prom
       throw new Error('Local Session client disconnected before its response was written.')
     }
     for (const segment of encodeLocalSessionFrameSegments(lease.payload)) {
-      // The guard above ran before the first segment; a large frame spans several writes, and
-      // the peer can go away in between, where the next write would only fail with EPIPE.
-      if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
-        throw new LocalSessionClientDisconnectedError()
+      for (let offset = 0; offset < segment.byteLength; offset += WRITE_SLICE_BYTES) {
+        // The guard above ran before the first write; a large frame spans several writes, and
+        // the peer can go away in between, where the next write would only fail with EPIPE.
+        if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
+          throw new LocalSessionClientDisconnectedError()
+        }
+        await writeSocketSegment(input.socket, segment.subarray(offset, offset + WRITE_SLICE_BYTES))
+        // The client read this slice, so it has not stopped reading.
+        lease.touch()
       }
-      await writeSocketSegment(input.socket, segment)
-      lease.touch()
     }
   } finally {
     input.socket.off('close', release)

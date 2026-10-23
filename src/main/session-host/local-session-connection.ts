@@ -228,6 +228,7 @@ export class LocalSessionConnection {
 
   private async handleCommand(frame: Extract<LocalSessionClientFrame, { kind: 'command' }>) {
     if (!this.caller || this.negotiatedRevision === null) return
+    const receivedAt = performance.now()
     const controller = new AbortController()
     const activeCommand = { controller, abortOnProfileFence: false }
     this.commandControllers.set(frame.requestId, activeCommand)
@@ -267,7 +268,7 @@ export class LocalSessionConnection {
             resolveEventCursor: (cursor) => this.cursorProjection.resolve(caller, cursor),
             exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
             signal: controller.signal,
-            send: (response) => this.send(response),
+            send: (response) => this.outbound.send(response, { receivedAt }),
             ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),
           })
         } finally {

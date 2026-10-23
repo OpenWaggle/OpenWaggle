@@ -8,6 +8,13 @@ const DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION = 16
 const logger = createLogger('session-host/outbound')
 export type LocalSessionSocketFrameWriter = typeof writeLocalSessionSocketFrame
 
+export interface LocalSessionOutboundSendOptions {
+  /** Bounds a small frame so it need not wait for room. */
+  readonly maxBytes?: number
+  /** When the command this frame answers arrived (`performance.now()`); limits its wait. */
+  readonly receivedAt?: number
+}
+
 export class LocalSessionOutboundWriter {
   private writeTail = Promise.resolve()
   private pendingSends = 0
@@ -33,11 +40,10 @@ export class LocalSessionOutboundWriter {
    * wait for room, so a full budget never stalls a handshake toward its deadline.
    */
   sendHandshakeFrame(value: unknown): Promise<void> {
-    return this.send(value, MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES)
+    return this.send(value, { maxBytes: MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES })
   }
 
-  /** `maxBytes` bounds a small frame so it need not wait for room. */
-  send(value: unknown, maxBytes?: number): Promise<void> {
+  send(value: unknown, options: LocalSessionOutboundSendOptions = {}): Promise<void> {
     if (this.pendingSends >= this.maxPendingFrames) {
       if (!this.socket.destroyed) {
         logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
@@ -58,7 +64,7 @@ export class LocalSessionOutboundWriter {
           budget: this.budget,
           signal: this.signal,
           peer: this.peer,
-          ...(maxBytes === undefined ? {} : { maxBytes }),
+          ...options,
         })
       })
       .finally(() => {

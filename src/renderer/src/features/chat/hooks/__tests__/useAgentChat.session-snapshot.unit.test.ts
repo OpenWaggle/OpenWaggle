@@ -63,6 +63,25 @@ describe('createSessionSnapshotRefresh', () => {
     expect(upsertSession).not.toHaveBeenCalled()
   })
 
+  it('does not read again once another Session is shown', async () => {
+    getSessionDetail.mockRejectedValue(connectionClosed())
+    const currentSessionIdRef: { current: SessionId | null } = { current: SESSION }
+    const upsertSession = vi.fn()
+    const refresh = createSessionSnapshotRefresh({
+      currentSessionIdRef,
+      sessionRef: { current: fromPartial({ id: SESSION, updatedAt: 1 }) },
+      upsertSession,
+      retryDelayMs: 10,
+    })
+
+    const refreshing = refresh(SESSION)
+    currentSessionIdRef.current = SessionId('session-other')
+    await refreshing
+
+    expect(getSessionDetail).toHaveBeenCalledTimes(1)
+    expect(upsertSession).not.toHaveBeenCalled()
+  })
+
   it('drops a reply older than the Session shown', async () => {
     getSessionDetail.mockResolvedValue(fromPartial<SessionDetail>({ id: SESSION, updatedAt: 1 }))
     const { refresh, upsertSession } = refreshFor(fromPartial({ id: SESSION, updatedAt: 2 }))

@@ -208,7 +208,7 @@ describe('Local Session outbound byte budget', () => {
 
   it('does not close readers that resumed while the Host was stalled past the wait', async () => {
     const endpoint = path.join(temporaryRoot, 'outbound-budget-stall.sock')
-    await listen(endpoint, 400)
+    await listen(endpoint, 1_000)
     const {
       stalled: firstReader,
       delayedReader: secondReader,
@@ -219,14 +219,14 @@ describe('Local Session outbound byte budget', () => {
     secondReader.socket.once('close', () => closed.push('second'))
 
     requestLargeResponse(waiting.socket, 'waiting')
-    // Both readers catch up at 300 ms, but the Host is blocked from 200 ms to 700 ms, past the
-    // 400 ms wait: their frames could not be written meanwhile, which is no fault of theirs.
+    // Both readers catch up at 300 ms, but the Host is blocked from 200 ms to 1.4 s, past the
+    // 1 s wait: their frames could not be written meanwhile, which is no fault of theirs.
     setTimeout(() => {
       firstReader.socket.resume()
       secondReader.socket.resume()
     }, 300)
     setTimeout(() => {
-      const blockedUntil = Date.now() + 500
+      const blockedUntil = Date.now() + 1_200
       while (Date.now() < blockedUntil) {
         // Simulates a synchronous Host stall.
       }
