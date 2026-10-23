@@ -17,6 +17,8 @@ describe('Waggle dead-code scope', () => {
       'src/shared/types/local-session-waggle.ts',
       'src/renderer/src/features/waggle/state/waggle-store.ts',
       'src/renderer/src/features/composer/components/nodes/WaggleMentionNode.ts',
+      'src/renderer/src/features/chat/hooks/useWaggleMetadataLookup.ts',
+      'src/renderer/src/features/settings/hooks/useWaggleForm.ts',
     ]) {
       expect(isWaggleScopeFile(filePath, NO_IMPORTS), filePath).toBe(true)
     }

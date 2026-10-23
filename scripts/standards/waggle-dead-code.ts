@@ -3,15 +3,16 @@ import { isRecord } from './records'
 /**
  * The Waggle scope of the production-only dead-code check (`scripts/check-waggle-dead-code.ts`):
  * the two Waggle packages, every app file that imports one of them, the desktop agent policy
- * modules under `src/main/agent/`, and app files named for Waggle (`waggle-run/`, `waggle/`,
- * `waggle-*`, `*-waggle-*`, `Waggle*`, never `openwaggle-*`). Tests are never in scope. An unused
- * export or member named for Waggle counts in any app file, such as a re-export in a module whose
- * name does not say Waggle.
+ * modules under `src/main/agent/`, files in a `waggle/` or `waggle-run/` directory, and files whose
+ * name contains Waggle outside `openwaggle`. Tests are never in scope. An unused export or member
+ * named for Waggle counts in any app file, such as a re-export in a module whose name does not say
+ * Waggle.
  */
 const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
 const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
-const WAGGLE_NAMED_PATH = /(?:^|\/)waggle(?:-run)?\/|(?:^|\/|-)[Ww]aggle(?:[-.]|[A-Z])[^/]*$/
+const WAGGLE_DIRECTORY = /(?:^|\/)waggle(?:-run)?\//
 const WAGGLE_PACKAGE_IMPORT = /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
+/** Waggle in a file or symbol name, but not as part of OpenWaggle. */
 const WAGGLE_SYMBOL_NAME = /(?<![Oo]pen)[Ww]aggle/
 const TEST_PATH = /(?:^|\/)__tests__\/|\.test\.[cm]?tsx?$|(?:^|\/)test-(?:utils|support)(?:\/|\.)/
 
@@ -44,7 +45,8 @@ export function isWaggleScopeFile(filePath: string, contents: string) {
   if (!filePath.startsWith('src/')) return false
   return (
     DESKTOP_AGENT_POLICY_PATH.test(filePath) ||
-    WAGGLE_NAMED_PATH.test(filePath) ||
+    WAGGLE_DIRECTORY.test(filePath) ||
+    WAGGLE_SYMBOL_NAME.test(filePath.slice(filePath.lastIndexOf('/') + 1)) ||
     WAGGLE_PACKAGE_IMPORT.test(contents)
   )
 }
