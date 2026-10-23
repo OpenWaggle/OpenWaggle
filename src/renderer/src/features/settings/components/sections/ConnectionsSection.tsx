@@ -87,6 +87,8 @@ function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoad
   const retryRef = useRef<HTMLButtonElement>(null)
   const [retryingAfter, setRetryingAfter] = useState<string | null>(null)
   const [failedRetries, setFailedRetries] = useState(0)
+  // The catalog loaded some other way, such as a saved API key, so a later failure starts anew.
+  if (loadError === null && retryingAfter === null && failedRetries !== 0) setFailedRetries(0)
   const message = loadError ?? retryingAfter
   if (message === null) return null
   const retrying = retryingAfter !== null
@@ -100,8 +102,6 @@ function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoad
       setFailedRetries((count) => count + 1)
       return
     }
-    // A later failure from another path starts a new count, so it never reports this one.
-    setFailedRetries(0)
     const focused = document.activeElement
     if (focused === null || focused === document.body || focused === retryRef.current) {
       headingRef.current?.focus()

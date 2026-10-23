@@ -124,6 +124,24 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     expect(screen.queryByText(/Retry \d+ failed\./)).not.toBeInTheDocument()
   })
 
+  it('starts the failed-retry count again when the catalog loads some other way', async () => {
+    apiMock.getProviderModels.mockRejectedValue(new Error('Pi catalog unavailable'))
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading providers' }))
+    expect(await screen.findByText('Retry 1 failed.')).toBeInTheDocument()
+
+    act(() => {
+      useProviderStore.setState({ loadError: null })
+    })
+    act(() => {
+      useProviderStore.setState({ loadError: 'Pi catalog unavailable again' })
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Pi catalog unavailable again')
+    expect(screen.queryByText(/Retry \d+ failed\./)).not.toBeInTheDocument()
+  })
+
   it('leaves focus where the user moved it while a retry succeeded', async () => {
     let resolveCatalog = (_models: ProviderInfo[]) => {}
     apiMock.getProviderModels.mockReturnValue(
