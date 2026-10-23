@@ -118,9 +118,16 @@ describe('Local Session outbound byte budget', () => {
     return handle
   }
 
-  /** Reads one chunk every `pauseMs`, a client that keeps reading, slowly. */
-  function readSlowly(socket: Socket, pauseMs: number) {
-    const onData = () => {
+  /**
+   * A client that keeps reading, slowly: it pauses `pauseMs` after every `bytesPerPause` it reads,
+   * whatever size the platform's socket reads have.
+   */
+  function readSlowly(socket: Socket, bytesPerPause: number, pauseMs: number) {
+    let sincePause = 0
+    const onData = (chunk: Buffer) => {
+      sincePause += chunk.byteLength
+      if (sincePause < bytesPerPause) return
+      sincePause = 0
       socket.pause()
       setTimeout(() => socket.resume(), pauseMs)
     }
@@ -129,7 +136,7 @@ describe('Local Session outbound byte budget', () => {
     return () => socket.off('data', onData)
   }
 
-  /** Connects every client first: a handshake needs outbound capacity too. */
+  /** Connects every client before the budget fills, so each test controls who holds the room. */
   async function holdCapacityWithUnreadResponses(endpoint: string, nextClientVersion: string) {
     const stalled = await connect(endpoint, 'stalled-reader')
     const delayedReader = await connect(endpoint, 'delayed-reader')
@@ -259,7 +266,7 @@ describe('Local Session outbound byte budget', () => {
   it('keeps a reader that reads a large answer slowly but steadily', async () => {
     const endpoint = path.join(temporaryRoot, 'slow-reader.sock')
     // One unread large answer fills it.
-    await listen(endpoint, 2_000, RETAINED_LARGE_RESPONSE_BYTES + 64 * 1024 * 1024)
+    await listen(endpoint, 1_000, RETAINED_LARGE_RESPONSE_BYTES + 64 * 1024 * 1024)
     const slow = await connect(endpoint, 'slow-steady-reader')
     const waiting = await connect(endpoint, 'waits-for-the-slow-reader')
     let slowClosed = false
@@ -277,16 +284,41 @@ describe('Local Session outbound byte budget', () => {
     )
     requestLargeResponse(waiting.socket, 'waiting')
 
-    // About 10 MB read a socket buffer at a time with a 2 ms pause after each: a few MB/s, so
-    // the whole answer takes longer than the 2 s stop time while each 1 MiB slice takes less.
-    const stopReading = readSlowly(slow.socket, 2)
+    // About 10 MB at 256 KiB per 100 ms: each 1 MiB slice takes about 400 ms, under the 1 s stop
+    // time, while the whole answer takes about 4 s, well over it.
+    const readingStartedAt = performance.now()
+    const stopReading = readSlowly(slow.socket, 256 * 1024, 100)
     await expect(Promise.race([slow.reader.next(), closedEarly])).resolves.toSatisfy(
       (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
     )
     stopReading()
+    // The test's premise: without per-slice progress the reader would have been closed.
+    expect(performance.now() - readingStartedAt).toBeGreaterThan(2_000)
     await expect(waiting.reader.next()).resolves.toSatisfy(
       (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
     )
     expect(slowClosed).toBe(false)
+  })
+
+  it('completes a new handshake at once while a large answer waits for room', async () => {
+    const endpoint = path.join(temporaryRoot, 'handshake.sock')
+    await listen(endpoint, 30_000)
+    const {
+      stalled,
+      delayedReader,
+      next: waiting,
+    } = await holdCapacityWithUnreadResponses(endpoint, 'holds-the-turn')
+    requestLargeResponse(waiting.socket, 'waiting')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const startedAt = performance.now()
+    await connect(endpoint, 'connects-while-full')
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
+
+    stalled.socket.destroy()
+    delayedReader.socket.destroy()
+    await expect(waiting.reader.next()).resolves.toSatisfy(
+      (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+    )
   })
 })

@@ -28,7 +28,7 @@ describe('LocalSessionOutboundByteBudget', () => {
     vi.useRealTimers()
   })
 
-  it('gives up waiting before the client gives up on its answer', () => {
+  it('keeps a waiting frame within the client answer timeout once its answer is ready', () => {
     expect(MAX_OUTBOUND_CAPACITY_WAIT_MS).toBeLessThan(LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS)
     expect(
       DEFAULT_OUTBOUND_CAPACITY_WAIT_MS + DEFAULT_OUTBOUND_EVICTION_RELEASE_WAIT_MS,
@@ -158,19 +158,50 @@ describe('LocalSessionOutboundByteBudget', () => {
     await expect(waiting).resolves.toBeDefined()
   })
 
-  it('fails with a capacity error when only frames of no connection hold the room', async () => {
+  it('fails at the wall limit when only frames of no connection hold the room', async () => {
     useFakeClock()
-    const budget = budgetWith({ capacityWaitMs: 0 })
+    const budget = budgetWith({ capacityWaitMs: 0, maxWaitMs: 300 })
     const held = await budget.encode(UNREAD_FRAME, connection())
     const second = await budget.encode(UNREAD_FRAME, connection())
-    const failed = expect(budget.encode({ ok: true }, connection())).rejects.toBeInstanceOf(
-      LocalSessionOutboundCapacityError,
-    )
-    await advance(20)
+    const waiting = budget.encode({ ok: true }, connection())
+    const state = settledState(waiting)
+    const failed = expect(waiting).rejects.toBeInstanceOf(LocalSessionOutboundCapacityError)
+    await advance(250)
+    expect(state.settled).toBe(false)
+    await advance(100)
     await failed
     held.release()
     second.release()
     expect(budget.pendingBytes).toBe(0)
+  })
+
+  it('closes a stopped reader once more before failing on the wall limit', async () => {
+    useFakeClock()
+    const budget = budgetWith({ maxWaitMs: CAPACITY_WAIT_MS / 2 })
+    const stalled = evictableOwner()
+    stalled.hold(await budget.encode(UNREAD_FRAME, connection(), stalled))
+    stalled.hold(await budget.encode(UNREAD_FRAME, connection(), stalled))
+    // The reader stopped long ago; this frame's limit passes before its own capacity wait.
+    await advance(CAPACITY_WAIT_MS * 2)
+    const waiting = budget.encode({ ok: true }, connection())
+    await advance(CAPACITY_WAIT_MS / 2 + 20)
+    await expect(waiting).resolves.toBeDefined()
+    expect(stalled.evictions).toBe(1)
+  })
+
+  it('does not close a stopped reader whose frames could not make room', async () => {
+    useFakeClock()
+    // 76 bytes are missing; the stopped reader holds 75, the rest belongs to no connection.
+    const budget = budgetWith({ capacity: RESERVATION + UNREAD_FRAME_BYTES - 1, maxWaitMs: 3_000 })
+    const held = await budget.encode(UNREAD_FRAME, connection())
+    const small = evictableOwner()
+    small.hold(await budget.encode(SMALL_FRAME, connection(), small, { maxBytes: 1024 }))
+    const waiting = budget.encode({ ok: true }, connection())
+    await advance(CAPACITY_WAIT_MS * 2)
+    expect(small.evictions).toBe(0)
+    held.release()
+    await expect(waiting).resolves.toBeDefined()
+    expect(small.evictions).toBe(0)
   })
 
   it('stops waiting when its connection goes away and leaves no timer behind', async () => {

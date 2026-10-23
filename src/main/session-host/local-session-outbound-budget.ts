@@ -88,7 +88,7 @@ function afterPendingIo() {
  * time in arrival order; one that finds no room waits while holding that turn, since no later
  * encode could fit either. After the capacity wait it closes the connections that left a frame
  * unread for that long, preferring one that frees enough room alone, instead of the connection
- * that asked for room; it fails only when no connection holds such a frame or will soon.
+ * that asked for room; it fails only at the wall limit.
  */
 export class LocalSessionOutboundByteBudget {
   private retainedBytes = 0
@@ -195,10 +195,21 @@ export class LocalSessionOutboundByteBudget {
   private async waitForRoom(signal: AbortSignal, arrivedAt: number, arrivedLiveAt: number) {
     const giveUpAt = arrivedAt + this.maxWaitMs
     const decideAt = arrivedLiveAt + this.capacityWaitMs
+    let lastEvictionTried = false
     while (!this.hasRoom()) {
       if (signal.aborted) throw encodingAborted()
       const wallRemainingMs = giveUpAt - this.wallNow()
-      if (wallRemainingMs <= 0) throw new LocalSessionOutboundCapacityError()
+      if (wallRemainingMs <= 0) {
+        // The limit can pass while the frame queues for the turn: close a stopped reader first.
+        if (lastEvictionTried) throw new LocalSessionOutboundCapacityError()
+        lastEvictionTried = true
+        await afterPendingIo()
+        const releaseBy = this.wallNow() + this.evictionReleaseWaitMs
+        if (!this.hasRoom() && !(await this.evictStoppedReader(signal, releaseBy))) {
+          throw new LocalSessionOutboundCapacityError()
+        }
+        continue
+      }
       const liveRemainingMs = decideAt - this.clock.now()
       if (liveRemainingMs > 0) {
         await this.released.wait(signal, Math.min(liveRemainingMs, wallRemainingMs))
@@ -207,21 +218,24 @@ export class LocalSessionOutboundByteBudget {
       await afterPendingIo()
       if (signal.aborted) throw encodingAborted()
       if (this.hasRoom()) break
-      const stalled = this.leases.stalledOwnerToEvict(
-        this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES - this.capacity,
-      )
-      if (stalled) {
-        this.leases.markEvicted(stalled.owner)
-        stalled.owner.evict(stalled.unreadForMs)
-        await this.waitForOwnerRelease(signal, stalled.owner, giveUpAt)
-        continue
-      }
-      const nextStallInMs = this.leases.nextStallInMs()
-      // Only frames of connections already closed, or of no connection, hold the room.
-      if (nextStallInMs === undefined) throw new LocalSessionOutboundCapacityError()
+      if (await this.evictStoppedReader(signal, giveUpAt)) continue
+      // No reader to close yet: wait for a release, or for a reader to reach the stop time.
+      const nextStallInMs = this.leases.nextStallInMs() ?? wallRemainingMs
       await this.released.wait(signal, Math.min(nextStallInMs, wallRemainingMs))
     }
     if (signal.aborted) throw encodingAborted()
+  }
+
+  /** Closes a stopped reader whose frames can make room and waits for them; false if none. */
+  private async evictStoppedReader(signal: AbortSignal, releaseBy: number) {
+    const stalled = this.leases.stalledOwnerToEvict(
+      this.retainedBytes + MAX_OUTBOUND_ENCODING_RESERVATION_BYTES - this.capacity,
+    )
+    if (!stalled) return false
+    this.leases.markEvicted(stalled.owner)
+    stalled.owner.evict(stalled.unreadForMs)
+    await this.waitForOwnerRelease(signal, stalled.owner, releaseBy)
+    return true
   }
 
   private async waitForOwnerRelease(

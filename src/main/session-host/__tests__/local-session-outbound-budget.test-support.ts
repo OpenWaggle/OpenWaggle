@@ -20,11 +20,16 @@ export const CAPACITY_WAIT_MS = 1_000
 export const EVICTION_RELEASE_WAIT_MS = 100
 
 export function budgetWith(
-  options: { readonly capacity?: number; readonly capacityWaitMs?: number } = {},
+  options: {
+    readonly capacity?: number
+    readonly capacityWaitMs?: number
+    readonly maxWaitMs?: number
+  } = {},
 ) {
   return new LocalSessionOutboundByteBudget(options.capacity ?? CAPACITY, {
     capacityWaitMs: options.capacityWaitMs ?? CAPACITY_WAIT_MS,
     evictionReleaseWaitMs: EVICTION_RELEASE_WAIT_MS,
+    maxWaitMs: options.maxWaitMs,
     // Fake timers move Date, not performance.now().
     now: () => Date.now(),
   })

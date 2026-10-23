@@ -68,6 +68,7 @@ export class LocalSessionOutboundLeases {
   /**
    * Among connections that left a frame unread for the stop time and were not closed already: the
    * longest stopped one whose frames free `missingBytes` alone, else the one holding the most.
+   * None when all of them together could not free that much: closing one would make no room.
    */
   stalledOwnerToEvict(missingBytes: number): StalledOutboundOwner | undefined {
     const now = this.clock.now()
@@ -77,6 +78,9 @@ export class LocalSessionOutboundLeases {
       if (unreadForMs < this.stoppedAfterMs || !this.evictable(lease.owner)) continue
       stoppedFor.set(lease.owner, Math.max(stoppedFor.get(lease.owner) ?? 0, unreadForMs))
     }
+    let stoppedBytes = 0
+    for (const owner of stoppedFor.keys()) stoppedBytes += this.bytesHeldBy(owner)
+    if (stoppedBytes < missingBytes) return undefined
     let freesEnough: StalledOutboundOwner | undefined
     let largest: (StalledOutboundOwner & { readonly bytes: number }) | undefined
     for (const [owner, unreadForMs] of stoppedFor) {
@@ -89,13 +93,17 @@ export class LocalSessionOutboundLeases {
     return freesEnough ?? largest
   }
 
-  /** Live time until some connection's frame has been unread for the stop time; none if no open connection holds one. */
+  /**
+   * Live time until a frame of an open connection, still being read, reaches the stop time; none
+   * when no such frame is held.
+   */
   nextStallInMs(): number | undefined {
     const now = this.clock.now()
     let soonest: number | undefined
     for (const lease of this.leases) {
       if (!this.evictable(lease.owner)) continue
-      const inMs = Math.max(1, lease.progressAt + this.stoppedAfterMs - now)
+      const inMs = lease.progressAt + this.stoppedAfterMs - now
+      if (inMs <= 0) continue
       soonest = soonest === undefined ? inMs : Math.min(soonest, inMs)
     }
     return soonest
