@@ -126,6 +126,9 @@ function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   })
 }
 
+/** A capacity wait longer than this is logged, so slow readers show up before any eviction. */
+const LOGGED_CAPACITY_WAIT_MS = 1_000
+
 function budgetUsage(budget: LocalSessionOutboundByteBudget) {
   return {
     pendingBytes: budget.pendingBytes,
@@ -137,13 +140,15 @@ function budgetUsage(budget: LocalSessionOutboundByteBudget) {
 const outboundOwners = new WeakMap<Socket, LocalSessionOutboundOwner>()
 
 /** One owner per socket, so the budget closes a connection once however many frames it holds. */
-function outboundOwner(socket: Socket, budget: LocalSessionOutboundByteBudget) {
-  const known = outboundOwners.get(socket)
+function outboundOwner(input: FrameWriteInput) {
+  const known = outboundOwners.get(input.socket)
   if (known) return known
+  const { socket, budget, peer } = input
   const owner: LocalSessionOutboundOwner = {
     evict: (unreadForMs) => {
       logger.warn('Closing a Local Session connection that stopped reading its frames.', {
-        unreadForMs,
+        peer: peer?.(),
+        unreadForMs: Math.round(unreadForMs),
         ...budgetUsage(budget),
       })
       socket.destroy()
@@ -153,24 +158,36 @@ function outboundOwner(socket: Socket, budget: LocalSessionOutboundByteBudget) {
   return owner
 }
 
-export async function writeLocalSessionSocketFrame(input: {
+interface FrameWriteInput {
   readonly socket: Socket
   readonly value: unknown
   readonly budget: LocalSessionOutboundByteBudget
   readonly signal: AbortSignal
-}): Promise<void> {
+  /** Names the connection's caller in logs, such as `gui:local-user`. */
+  readonly peer?: (() => string | undefined) | undefined
+}
+
+export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
   const lease = await input.budget
-    .encode(input.value, input.signal, outboundOwner(input.socket, input.budget))
+    .encode(input.value, input.signal, outboundOwner(input))
     .catch((error: unknown) => {
       if (error instanceof LocalSessionOutboundCapacityError) {
-        // Frames written moments ago held the budget for the whole wait; none was left unread.
+        // No connection that held an unread frame since this one arrived was left to close.
         logger.warn('Closing a Local Session connection: the outbound byte budget stayed full.', {
+          peer: input.peer?.(),
           ...budgetUsage(input.budget),
         })
         input.socket.destroy()
       }
       throw error
     })
+  if (lease.waitedMs > LOGGED_CAPACITY_WAIT_MS) {
+    logger.info('A Local Session frame waited for outbound capacity.', {
+      peer: input.peer?.(),
+      waitedMs: Math.round(lease.waitedMs),
+      ...budgetUsage(input.budget),
+    })
+  }
   const release = lease.release
   input.socket.once('close', release)
   try {

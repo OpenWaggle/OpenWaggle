@@ -68,6 +68,7 @@ export class LocalSessionConnection {
       this.authenticationController.signal,
       dependencies.maxPendingOutboundFramesPerConnection,
       dependencies.writeFrame,
+      () => this.caller?.callerId,
     )
     this.subscriptions = new LocalSessionConnectionSubscriptions({
       dependencies,

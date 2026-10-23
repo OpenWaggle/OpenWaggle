@@ -18,6 +18,8 @@ export class LocalSessionOutboundWriter {
     private readonly signal: AbortSignal,
     maxPendingFrames = DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION,
     private readonly writeFrame: LocalSessionSocketFrameWriter = writeLocalSessionSocketFrame,
+    /** Names the connection's caller in logs. */
+    private readonly peer?: () => string | undefined,
   ) {
     if (!Number.isSafeInteger(maxPendingFrames) || maxPendingFrames < 1) {
       throw new Error('Local Session pending outbound frame limit must be a positive safe integer.')
@@ -29,6 +31,7 @@ export class LocalSessionOutboundWriter {
     if (this.pendingSends >= this.maxPendingFrames) {
       if (!this.socket.destroyed) {
         logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
+          peer: this.peer?.(),
           pendingFrames: this.pendingSends,
         })
       }
@@ -44,6 +47,7 @@ export class LocalSessionOutboundWriter {
           value,
           budget: this.budget,
           signal: this.signal,
+          peer: this.peer,
         })
       })
       .finally(() => {

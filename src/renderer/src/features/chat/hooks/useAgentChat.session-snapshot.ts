@@ -5,7 +5,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import type { MutableValueRef } from './useAgentChat.types'
 
 const logger = createRendererLogger('agent-run-controls')
-/** The Host re-establishes a dropped connection within a second or two. */
+/** Each read opens a new Host connection; a second one a moment later usually gets through. */
 const SNAPSHOT_RETRY_DELAY_MS = 2_000
 
 interface SessionSnapshotRefreshInput {

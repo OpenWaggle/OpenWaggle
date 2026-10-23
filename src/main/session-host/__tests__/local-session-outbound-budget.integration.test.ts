@@ -122,6 +122,12 @@ describe('Local Session outbound byte budget', () => {
     stalled.socket.pause()
     delayedReader.socket.pause()
     requestLargeResponse(stalled.socket, 'stalled')
+    // The stalled reader's frame is retained first, so it is the oldest unread one.
+    await vi.waitFor(() => {
+      const pendingBytes = handle?.outboundByteUsage().pendingBytes ?? 0
+      expect(pendingBytes).toBeGreaterThan(RETAINED_LARGE_RESPONSE_BYTES)
+      expect(pendingBytes).toBeLessThan(RETAINED_LARGE_RESPONSE_BYTES + 1024)
+    })
     requestLargeResponse(delayedReader.socket, 'delayed')
     await vi.waitFor(() => {
       const pendingBytes = handle?.outboundByteUsage().pendingBytes ?? 0
@@ -197,6 +203,41 @@ describe('Local Session outbound byte budget', () => {
     await expect(delayedReader.reader.next()).resolves.toSatisfy(
       (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
     )
+    await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
+  })
+
+  it('does not close readers that resumed while the Host was stalled past the wait', async () => {
+    const endpoint = path.join(temporaryRoot, 'outbound-budget-stall.sock')
+    await listen(endpoint, 400)
+    const {
+      stalled: firstReader,
+      delayedReader: secondReader,
+      next: waiting,
+    } = await holdCapacityWithUnreadResponses(endpoint, 'waits-through-host-stall')
+    const closed: string[] = []
+    firstReader.socket.once('close', () => closed.push('first'))
+    secondReader.socket.once('close', () => closed.push('second'))
+
+    requestLargeResponse(waiting.socket, 'waiting')
+    // Both readers catch up at 300 ms, but the Host is blocked from 200 ms to 700 ms, past the
+    // 400 ms wait: their frames could not be written meanwhile, which is no fault of theirs.
+    setTimeout(() => {
+      firstReader.socket.resume()
+      secondReader.socket.resume()
+    }, 300)
+    setTimeout(() => {
+      const blockedUntil = Date.now() + 500
+      while (Date.now() < blockedUntil) {
+        // Simulates a synchronous Host stall.
+      }
+    }, 200)
+
+    for (const reader of [firstReader, secondReader, waiting]) {
+      await expect(reader.reader.next()).resolves.toSatisfy(
+        (value: unknown) => responseTextLength(value) === LARGE_RESPONSE_BYTES,
+      )
+    }
+    expect(closed).toEqual([])
     await vi.waitFor(() => expect(handle?.outboundByteUsage().pendingBytes).toBe(0))
   })
 })
