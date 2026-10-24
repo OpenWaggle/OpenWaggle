@@ -1,8 +1,12 @@
+import type { WorkspacePreparationSnapshot } from '@shared/types/workspace-preparation'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import {
+  describeCleanupBlockedByGeneration,
   describeWorkspaceGenerationMismatch,
   durableDirectoryIdentityKey,
   isSameDurableDirectoryIdentity,
+  preparationPinsCleanup,
 } from '../workspace-generation'
 
 const recorded = { device: '16777230', inode: '408642463', birthtime: '1792486351612449418' }
@@ -99,4 +103,35 @@ describe('describeWorkspaceGenerationMismatch', () => {
           : { status, workspacePath: '/w' }
     expect(describeWorkspaceGenerationMismatch(check).verdict).toBe(verdict)
   })
+})
+
+describe('describeCleanupBlockedByGeneration', () => {
+  const check = { status: 'unrecorded', workspacePath: '/w' } as const
+  function snapshot(...phases: ('setup' | 'cleanup')[]) {
+    return fromPartial<WorkspacePreparationSnapshot>({
+      definitions: phases.map((phase) => ({
+        definition: { id: phase, profileId: 'default', phase },
+        review: 'enabled',
+      })),
+    })
+  }
+
+  it('names the pinned cleanup and Delete anyway when the snapshot pins one', () => {
+    expect(preparationPinsCleanup(snapshot('setup', 'cleanup'))).toBe(true)
+    expect(describeCleanupBlockedByGeneration(check, snapshot('setup', 'cleanup'))).toBe(
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /w. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
+    )
+  })
+
+  it.each([[[]], [['setup']]] as const)(
+    'never claims a pinned cleanup when the snapshot has none (%o)',
+    (phases) => {
+      const value = snapshot(...phases)
+      expect(preparationPinsCleanup(value)).toBe(false)
+      const message = describeCleanupBlockedByGeneration(check, value)
+      expect(message).toBe(
+        'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /w. Its preparation has no cleanup to run, so you can remove it without Delete anyway.',
+      )
+    },
+  )
 })

@@ -1449,9 +1449,12 @@ returns `current`, `replaced`, `unreadable`, `awaiting-birth` or `unrecorded`; t
 and both identities. Recovery copy says to delete, not move, a mismatched worktree: a moved copy
 still points at the git data Recreate worktree reuses. If the recorded generation is missing or
 differs at removal, do not execute its pinned cleanup command
-in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
-Retained-preparation listing must include generation mismatches even when cleanup status is idle
-or succeeded. Settings must keep Delete anyway visible for those rows and explain why Retry cannot
+in a replacement checkout. Explicit Delete anyway can still skip that cleanup. A snapshot with no
+cleanup-phase definition has nothing to protect: removal records cleanup skipped before the
+generation check, and Settings does not flag the mismatch (issue #332,
+`preparationPinsCleanup`). A disabled cleanup definition still counts as pinned.
+Retained-preparation listing must include generation mismatches of a snapshot that pins a cleanup
+even when cleanup status is idle or succeeded. Settings must keep Delete anyway visible for those rows and explain why Retry cannot
 run the pinned cleanup in the replacement directory.
 
 Workspace preparation review writes two durable records: the project catalog's remembered approval

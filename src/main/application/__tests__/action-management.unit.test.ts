@@ -93,16 +93,11 @@ describe('native action management authority', () => {
     })
   })
 
-  it('retains a replaced checkout for Delete anyway even when cleanup previously succeeded', async () => {
-    const test = fixture()
-    test.preparationRead.mockReturnValue(
-      Effect.succeed(
-        fromPartial<WorkspacePreparation>({
-          workspaceId: 'retained',
-          cleanup: { status: 'succeeded' },
-        }),
-      ),
-    )
+  const pinnedCleanup = fromPartial<WorkspacePreparation['snapshot']['definitions'][number]>({
+    definition: { id: 'cleanup', profileId: 'default', phase: 'cleanup' },
+    review: 'enabled',
+  })
+  function replacedCheckout(test: ReturnType<typeof fixture>) {
     test.inspectWorkspaceGeneration.mockReturnValue(
       Effect.succeed({
         status: 'replaced',
@@ -111,6 +106,20 @@ describe('native action management authority', () => {
         observed: { device: '1', inode: '4', birthtime: '0' },
       }),
     )
+  }
+
+  it('retains a replaced checkout for Delete anyway even when cleanup previously succeeded', async () => {
+    const test = fixture()
+    test.preparationRead.mockReturnValue(
+      Effect.succeed(
+        fromPartial<WorkspacePreparation>({
+          workspaceId: 'retained',
+          snapshot: { definitions: [pinnedCleanup] },
+          cleanup: { status: 'succeeded' },
+        }),
+      ),
+    )
+    replacedCheckout(test)
 
     await expect(
       test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
@@ -124,6 +133,24 @@ describe('native action management authority', () => {
         },
       ],
     })
+  })
+
+  it('leaves out a replaced checkout whose snapshot pins no cleanup, so Remove works normally', async () => {
+    const test = fixture()
+    test.preparationRead.mockReturnValue(
+      Effect.succeed(
+        fromPartial<WorkspacePreparation>({
+          workspaceId: 'retained',
+          snapshot: { definitions: [] },
+          cleanup: { status: 'idle' },
+        }),
+      ),
+    )
+    replacedCheckout(test)
+
+    await expect(
+      test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
+    ).resolves.toMatchObject({ type: 'retained-preparation', workspaces: [] })
   })
 
   it('retains a checkout after successful cleanup when Git removal did not finish', async () => {

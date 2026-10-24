@@ -57,6 +57,8 @@ it('interrupts crashed cleanup before resuming a journaled Session deletion', as
   let stored = fromPartial<StoredWorkspacePreparation>({
     workspaceId: workspace.workspaceId,
     revision: 1,
+    // A cleanup only runs, and crashes, when the snapshot pins one.
+    snapshot: { definitions: [{ definition: { id: 'cleanup', phase: 'cleanup' } }] },
     setup: { status: 'succeeded' },
     cleanup: { status: 'running', output: 'side effect already started', attemptId: 'old-attempt' },
   })

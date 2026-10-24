@@ -1,7 +1,10 @@
 import { stat } from 'node:fs/promises'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
-import { describeCleanupBlockedByGeneration } from '../domain/workspace-generation'
+import {
+  describeCleanupBlockedByGeneration,
+  preparationPinsCleanup,
+} from '../domain/workspace-generation'
 import { createLogger } from '../logger'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
@@ -48,9 +51,13 @@ export function listRetainedPreparation(projectPath: string) {
           const state = yield* preparation.read(scope)
           if (!state) return null
           const generation = yield* preparation.inspectWorkspaceGeneration(scope)
-          const generationMismatch = generation.status !== 'current'
+          // Without a pinned cleanup, removal goes ahead in any checkout: nothing to recover.
+          const mismatch =
+            generation.status !== 'current' && preparationPinsCleanup(state.snapshot)
+              ? generation
+              : null
           if (
-            !generationMismatch &&
+            !mismatch &&
             state.cleanup.status !== 'failed' &&
             state.cleanup.status !== 'review-required' &&
             state.cleanup.status !== 'succeeded' &&
@@ -60,12 +67,15 @@ export function listRetainedPreparation(projectPath: string) {
           return {
             path: workspace.workingPath,
             preparation: state,
-            ...(generation.status === 'current'
-              ? {}
-              : {
+            ...(mismatch
+              ? {
                   generationMismatch: true,
-                  generationMismatchMessage: describeCleanupBlockedByGeneration(generation),
-                }),
+                  generationMismatchMessage: describeCleanupBlockedByGeneration(
+                    mismatch,
+                    state.snapshot,
+                  ),
+                }
+              : {}),
           }
         }),
     )

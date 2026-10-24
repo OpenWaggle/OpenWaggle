@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { WorktreePreparationVerdict } from '@shared/domain/worktree-preparation-messages'
+import type { WorkspacePreparationSnapshot } from '@shared/types/workspace-preparation'
 
 /** A folder as seen by `lstat` (bigint), recorded so a later check can tell it is the same one. */
 export interface WorkspaceDirectoryIdentity {
@@ -149,9 +150,23 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
     .exhaustive()
 }
 
-/** Why worktree removal will not run a worktree's pinned cleanup; Settings shows the same text. */
-export function describeCleanupBlockedByGeneration(check: WorkspaceGenerationMismatch) {
+/** Whether a preparation snapshot pins a cleanup for worktree removal to run, or to protect. */
+export function preparationPinsCleanup(snapshot: WorkspacePreparationSnapshot) {
+  return snapshot.definitions.some(({ definition }) => definition.phase === 'cleanup')
+}
+
+/**
+ * Why worktree removal will not run a worktree's pinned cleanup; Settings shows the same text.
+ * Only a snapshot that pins a cleanup blocks removal, so only then does the text claim one.
+ */
+export function describeCleanupBlockedByGeneration(
+  check: WorkspaceGenerationMismatch,
+  snapshot: WorkspacePreparationSnapshot,
+) {
   const { verdict, problem, details } = describeWorkspaceGenerationMismatch(check)
-  const message = `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`
+  const consequence = preparationPinsCleanup(snapshot)
+    ? 'Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.'
+    : 'Its preparation has no cleanup to run, so you can remove it without Delete anyway.'
+  const message = `This worktree ${verdict} the checkout that captured its preparation: ${problem}. ${consequence}`
   return details ? `${message} ${details}` : message
 }
