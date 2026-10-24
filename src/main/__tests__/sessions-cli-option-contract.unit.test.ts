@@ -220,7 +220,9 @@ describe('Hive CLI option contract', () => {
     [['delegations', 'list'], 'delegations-list'],
     [['queue', 'withdraw', 'session', 'follow-1'], 'queue-withdraw'],
     [['requests', 'respond', 'session', 'run', 'interaction'], 'request-respond'],
-    [['authorization', 'clear', 'session'], 'authorization-set'],
+    [['authorization', 'clear', 'session'], 'authorization-set <session-id> inherit'],
+    [['authorization', 'set', 'session', 'yolo'], 'authorization-set'],
+    [['requests', 'respond', 'session', 'run', 'interaction', '--approve'], 'approval-respond'],
     [['export', 'create', 'session', 'out.jsonl'], 'export-create'],
     [['export', 'watch', 'session'], 'exports-watch'],
   ] as const)(

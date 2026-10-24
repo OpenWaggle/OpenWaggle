@@ -121,12 +121,12 @@ export function assertSessionsToolActionArguments(params: SessionsToolParameters
     (candidate) => variantActionName(candidate) === params.action,
   )
   if (variant === undefined) {
-    throw new Error(`Unknown sessions action "${params.action}".`)
+    throw new Error(`Unknown hive action "${params.action}".`)
   }
   const matchesVariant: boolean = Check(variant, params)
   if (matchesVariant) return
   const details = [...Errors(variant, params)]
     .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
     .join('; ')
-  throw new Error(`Invalid arguments for sessions action "${params.action}": ${details}`)
+  throw new Error(`Invalid arguments for hive action "${params.action}": ${details}`)
 }

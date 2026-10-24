@@ -53,4 +53,6 @@ export const OPENWAGGLE_MCP_SESSION_OPERATIONS_V2 = [
   'queue-reorder',
   'queue-pause',
   'queue-resume',
+  'agent-definitions-list',
+  'agent-definitions-search',
 ] as const

@@ -395,7 +395,7 @@ The durable Session Host work record that produces a destination file or bundle 
 _Avoid_: stdout stream, agent run
 
 **Hive CLI**:
-The stable `openwaggle hive` command family through which people and external agentic tools invoke Session Control. It mirrors the **Hive tool** exactly: each tool action is a `hive` subcommand of the same name, Delegation and Agent-definition discovery included.
+The stable `openwaggle hive` command family through which people and external agentic tools invoke Session Control. It mirrors the **Hive tool**: each tool action is a `hive` subcommand of the same name, Delegation and Agent-definition discovery included, except Scheduled task actions, which keep `openwaggle schedules` (ADR 0053 amendment).
 _Avoid_: Sessions CLI, Delegations CLI, session shell, Pi CLI, MCP session client
 
 **Access CLI**:

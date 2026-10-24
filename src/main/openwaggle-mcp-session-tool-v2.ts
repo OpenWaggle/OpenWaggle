@@ -7,6 +7,10 @@ import {
   requiredSessionLifecycleCapabilities,
   requiredSessionQueryCapabilities,
 } from './domain/session-control/session-capability-authorization'
+import {
+  isMcpAgentDefinitionOperation,
+  queryMcpAgentDefinitions,
+} from './openwaggle-mcp-agent-definitions-v2'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
 import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from './openwaggle-mcp-session-input-v2'
 import {
@@ -237,6 +241,11 @@ export function registerOpenWaggleSessionToolV2(
       inputSchema: sessionInputSchemaV2,
     },
     async (input) => {
+      if (isMcpAgentDefinitionOperation(input.operation)) {
+        return toolResult(
+          await queryMcpAgentDefinitions(options, { ...input, operation: input.operation }),
+        )
+      }
       let payload: LocalSessionCommandPayload = buildMcpSessionPayloadV2(input)
       assertMcpOriginProvenance(options, payload)
       for (const capability of requiredCapabilities(payload)) requireGrant(options, capability)

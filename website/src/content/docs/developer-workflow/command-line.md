@@ -14,7 +14,7 @@ openwaggle --help       # list every command
 openwaggle --version    # print the installed version
 ```
 
-`openwaggle <path>` accepts any existing directory. It selects that project and starts a new draft Session in it, as choosing the project in the sidebar does. A file opens the folder that contains it. If the app is already open, it takes the project and comes to the front instead of starting a second copy; on macOS it opens a new window when none is open. A command name wins over a folder with the same name, so write `./sessions` to open a folder called `sessions`.
+`openwaggle <path>` accepts any existing directory. It selects that project and starts a new draft Session in it, as choosing the project in the sidebar does. A file opens the folder that contains it. If the app is already open, it takes the project and comes to the front instead of starting a second copy; on macOS it opens a new window when none is open. A command name wins over a folder with the same name, so write `./hive` to open a folder called `hive`.
 
 `openwaggle openwaggle://sessions/<session-id>` opens the desktop app on that session, the same as clicking its [session link](/docs/using-openwaggle/chat-and-tools#session-links). Anything after the link, or an `openwaggle:` value that is not a session link, is a mistake and does not open the app.
 

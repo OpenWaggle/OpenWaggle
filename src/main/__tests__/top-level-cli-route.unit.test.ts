@@ -202,6 +202,24 @@ describe('top-level CLI routing', () => {
     })
   })
 
+  it('refuses a former group even when a same-named directory is in the working directory', () => {
+    for (const group of ['sessions', 'delegations']) {
+      const shadowing = path.join(WORKING_DIRECTORY, group)
+      expect(route([group, 'list'], { [shadowing]: 'directory' })).toEqual({
+        kind: 'usage-error',
+        message: `unknown command '${group}'. It is now 'hive'.`,
+      })
+      expect(route([group], { [shadowing]: 'directory' })).toEqual({
+        kind: 'usage-error',
+        message: `unknown command '${group}'. It is now 'hive'.`,
+      })
+      expect(route([`./${group}`], { [shadowing]: 'directory' })).toEqual({
+        kind: 'open-project',
+        projectPath: shadowing,
+      })
+    }
+  })
+
   it('prefers commands over a same-named directory', () => {
     const shadowing = path.join(WORKING_DIRECTORY, 'hive')
     expect(route(['hive'], { [shadowing]: 'directory' })).toEqual({

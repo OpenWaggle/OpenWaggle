@@ -29,7 +29,7 @@ const FORMER_GROUPS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     resume: 'queue-resume',
   },
   requests: { list: 'requests-list', respond: 'request-respond' },
-  authorization: { set: 'authorization-set', clear: 'authorization-set' },
+  authorization: { set: 'authorization-set', clear: 'authorization-set <session-id> inherit' },
   export: {
     create: 'export-create',
     cancel: 'export-cancel',
@@ -40,8 +40,16 @@ const FORMER_GROUPS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
 }
 
-/** The flat Hive subcommand a former grouped spelling such as `queue withdraw` became. */
+/**
+ * The flat Hive subcommand a former grouped spelling such as `queue withdraw` became. An approval
+ * (`requests respond --approve`) is its own subcommand, and clearing an override is setting it to
+ * `inherit`.
+ */
 export function formerGroupReplacement(command: string, arguments_: ParsedArguments) {
   const action = arguments_.positionals[0]
-  return action === undefined ? undefined : FORMER_GROUPS[command]?.[action]
+  if (action === undefined) return undefined
+  if (command === 'requests' && action === 'respond' && arguments_.options.has('approve')) {
+    return 'approval-respond'
+  }
+  return FORMER_GROUPS[command]?.[action]
 }

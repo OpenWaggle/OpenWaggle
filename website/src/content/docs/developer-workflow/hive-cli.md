@@ -7,7 +7,7 @@ section: "Developer docs"
 
 Use `openwaggle hive` to find conversations, start work, send follow-ups, review Workers' Delegations, or export a transcript from a terminal. The commands operate on the same sessions you see in the desktop app.
 
-The CLI, the agent's native `hive` tool, and the `openwaggle_hive` MCP tool share one vocabulary: every tool action is a `hive` subcommand of the same name, with `-` for `_`. The tool's `follow_up` is `openwaggle hive follow-up`, `delegation_accept` is `openwaggle hive delegation-accept`, and `agent_definitions_search` is `openwaggle hive agent-definitions-search`. Before 1.0, these commands were `openwaggle sessions`, `openwaggle delegations`, and `openwaggle hive agent-definitions-list|search`; those names no longer work.
+The CLI, the agent's native `hive` tool, and the `openwaggle_hive` MCP tool share one vocabulary: every tool action is a `hive` subcommand and an MCP operation of the same name, with `-` for `_`. The exception is Scheduled tasks, which have their own [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) command. The tool's `follow_up` is `openwaggle hive follow-up`, `delegation_accept` is `openwaggle hive delegation-accept`, and `agent_definitions_search` is `openwaggle hive agent-definitions-search`. Before 1.0, these commands were `openwaggle sessions`, `openwaggle delegations`, and `openwaggle agents list|search`; those names no longer work. `openwaggle agents` still validates, imports, explains, and edits definition files.
 
 The CLI talks to the local Session Host, the process that owns saved sessions and agent execution. It does not open the database directly. Commands can start the Host when needed, and accepted runs continue when the GUI closes.
 

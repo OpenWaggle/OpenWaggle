@@ -5,7 +5,7 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
-import { listAgentDefinitions, searchAgentDefinitions } from '../../agents/agent-definition-catalog'
+import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
@@ -30,8 +30,6 @@ import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
 
 const logger = createLogger('hive-tool')
 
-const DEFAULT_AGENT_DEFINITION_RESULTS = 50
-
 interface SessionsToolExtensionInput {
   readonly sessionId: string
   readonly runId: string
@@ -46,7 +44,7 @@ type SessionsToolPayload = ReturnType<typeof buildSessionsToolPayload>
 
 export { buildSessionsToolPayload } from './sessions-tool-payload'
 
-export async function queryAgentDefinitionsForTool(
+export function queryAgentDefinitionsForTool(
   input: Extract<
     SessionsToolParameters,
     { action: 'agent_definitions_list' | 'agent_definitions_search' }
@@ -54,22 +52,12 @@ export async function queryAgentDefinitionsForTool(
   projectPath: string,
   enabledByName: Readonly<Record<string, boolean>> = {},
 ) {
-  const definitions =
-    input.action === 'agent_definitions_search'
-      ? await searchAgentDefinitions({ projectPath, query: input.query })
-      : await listAgentDefinitions({ projectPath })
-  return {
-    definitions: definitions
-      .filter((item) => enabledByName[item.name] !== false)
-      .slice(0, input.limit ?? DEFAULT_AGENT_DEFINITION_RESULTS)
-      .map((item) => ({
-        name: item.name,
-        description: item.description,
-        scope: item.scope,
-        valid: !item.loadError,
-        ...(item.loadError ? { diagnostic: item.loadError } : {}),
-      })),
-  }
+  return discoverAgentDefinitions({
+    projectPath,
+    ...(input.action === 'agent_definitions_search' ? { query: input.query } : {}),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
+    enabledByName,
+  })
 }
 
 function isAgentDefinitionAction(
