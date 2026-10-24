@@ -100,7 +100,7 @@ vi.mock('@/features/providers/state/auth-store', () => ({
   useAuthStore: selectAuth,
 }))
 
-import { useSettingsSetup } from '../useSettings'
+import { useProviderCatalogRetry, useSettingsSetup } from '../useSettings'
 
 describe('useSettingsSetup', () => {
   beforeEach(() => {
@@ -194,5 +194,48 @@ describe('useSettingsSetup', () => {
     unmount()
 
     expect(unsubscribeMock).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useProviderCatalogRetry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    loadProviderModelsMock.mockResolvedValue(null)
+    loadAllAuthAccountsMock.mockResolvedValue(undefined)
+  })
+
+  it('reloads the provider catalog for the loaded settings, then its sign-in accounts', async () => {
+    const { result } = renderHook(() => useProviderCatalogRetry())
+
+    await act(async () => {
+      await result.current()
+    })
+
+    expect(loadSettingsMock).not.toHaveBeenCalled()
+    expect(loadProviderModelsMock).toHaveBeenCalledWith({ projectPath: null })
+    expect(loadAllAuthAccountsMock).toHaveBeenCalledWith(['openai-codex', 'github-copilot'])
+  })
+
+  it('merges only the selection the reloaded catalog repaired into current settings', async () => {
+    loadProviderModelsMock.mockResolvedValue({
+      projectPath: null,
+      selectedModel: 'openai-codex/gpt-5.4',
+      enabledModels: ['stale'],
+    })
+    const { result } = renderHook(() => useProviderCatalogRetry())
+
+    await act(async () => {
+      await result.current()
+    })
+
+    const update: unknown = setPreferencesStateMock.mock.calls.at(-1)?.[0]
+    if (typeof update !== 'function') throw new Error('expected a settings updater')
+    expect(update({ settings: { projectPath: '/edited', enabledModels: ['kept'] } })).toEqual({
+      settings: {
+        projectPath: '/edited',
+        enabledModels: ['kept'],
+        selectedModel: 'openai-codex/gpt-5.4',
+      },
+    })
   })
 })

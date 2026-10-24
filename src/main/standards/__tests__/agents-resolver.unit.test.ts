@@ -3,9 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  buildEffectiveAgentsInstruction,
   resolveAgentsChainForPath,
-  resolveAgentsForRun,
+  resolveProjectRootAgents,
   resolveRootAgents,
 } from '../agents-resolver'
 
@@ -44,7 +43,7 @@ describe('agents-resolver', () => {
 
     expect(result.root.status).toBe('found')
     expect(result.scoped.map((scope) => scope.scopeRelativeDir)).toEqual(['packages', 'packages/a'])
-    expect(buildEffectiveAgentsInstruction(result)).toContain('# package-a')
+    expect(result.scoped.at(-1)?.content).toContain('# package-a')
   })
 
   it('rejects paths outside project boundary', async () => {
@@ -55,52 +54,27 @@ describe('agents-resolver', () => {
     )
   })
 
-  it('dedupes scopes across multiple candidate paths', async () => {
+  it('resolves only the root AGENTS.md for the project view', async () => {
     const projectPath = await makeTempProject()
-    await fs.mkdir(path.join(projectPath, 'packages', 'a', 'src'), { recursive: true })
-    await fs.mkdir(path.join(projectPath, 'packages', 'a', 'tests'), { recursive: true })
+    await fs.mkdir(path.join(projectPath, 'packages'), { recursive: true })
     await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# root', 'utf8')
     await fs.writeFile(path.join(projectPath, 'packages', 'AGENTS.md'), '# packages', 'utf8')
-    await fs.writeFile(path.join(projectPath, 'packages', 'a', 'AGENTS.md'), '# package-a', 'utf8')
 
-    const result = await resolveAgentsForRun(projectPath, [
-      'packages/a/src/index.ts',
-      'packages/a/tests/a.test.ts',
-    ])
-
-    expect(result.scoped.map((scope) => scope.filePath)).toEqual([
-      path.join(projectPath, 'packages', 'AGENTS.md'),
-      path.join(projectPath, 'packages', 'a', 'AGENTS.md'),
-    ])
-  })
-
-  it('returns warnings and continues when one candidate cannot be resolved', async () => {
-    const projectPath = await makeTempProject()
-    await fs.mkdir(path.join(projectPath, 'packages', 'a'), { recursive: true })
-    await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# root', 'utf8')
-    await fs.writeFile(path.join(projectPath, 'packages', 'a', 'AGENTS.md'), '# package-a', 'utf8')
-
-    const result = await resolveAgentsForRun(projectPath, [
-      'packages/a/index.ts',
-      '../../outside.ts',
-    ])
+    const result = await resolveProjectRootAgents(projectPath)
 
     expect(result.root.status).toBe('found')
-    expect(result.scoped.map((scope) => scope.scopeRelativeDir)).toEqual(['packages/a'])
-    expect(
-      result.warnings.some((warning) => warning.includes('Failed to resolve AGENTS scope')),
-    ).toBe(true)
+    expect(result.scoped).toEqual([])
+    expect(result.warnings).toEqual([])
   })
 
-  it('dedupes repeated root-load warnings across multiple candidates', async () => {
+  it('reports a root AGENTS.md that cannot be read', async () => {
     const projectPath = await makeTempProject()
     await fs.mkdir(path.join(projectPath, 'AGENTS.md'), { recursive: true })
 
-    const result = await resolveAgentsForRun(projectPath, ['packages/a/src/index.ts', 'packages/b'])
-    const rootWarningCount = result.warnings.filter((warning) =>
-      warning.startsWith('Failed to load root AGENTS.md:'),
-    ).length
+    const result = await resolveProjectRootAgents(projectPath)
 
-    expect(rootWarningCount).toBe(1)
+    expect(result.root.status).toBe('error')
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toMatch(/^Failed to load root AGENTS\.md:/)
   })
 })

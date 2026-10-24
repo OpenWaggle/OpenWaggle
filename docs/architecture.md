@@ -76,7 +76,13 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 
 ## Testing
 
+- `docs/pi-waggle-release-checklist.md` — automated and manual Pi TUI checks before a Waggle package release.
 - `docs/git-behaviour-test-coverage.md` — which git, diff and worktree behaviours are covered, and by which test.
+
+## Maintenance
+
+- `docs/dependency-updates.md` — exact dependency pins, when to update, and what to check.
+- `docs/pi-runtime-upgrades.md` — upgrading the matched Pi runtime release.
 
 ## Specs
 

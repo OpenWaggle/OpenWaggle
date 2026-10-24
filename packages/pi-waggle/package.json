@@ -98,18 +98,19 @@
     "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
   },
   "dependencies": {
-    "@openwaggle/waggle-core": "workspace:^",
-    "typebox": "1.3.32"
+    "@openwaggle/waggle-core": "workspace:^"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "catalog:pi-runtime",
     "@earendil-works/pi-coding-agent": "catalog:pi-runtime",
     "@earendil-works/pi-tui": "catalog:pi-runtime",
-    "@total-typescript/shoehorn": "0.1.2"
+    "@total-typescript/shoehorn": "0.1.2",
+    "typebox": "catalog:pi-extension-host"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }

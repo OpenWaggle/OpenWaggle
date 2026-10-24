@@ -34,7 +34,6 @@ export interface PreferencesState {
   loadError: string | null
 
   loadSettings: () => Promise<void>
-  retryLoad: () => Promise<void>
   setSelectedModel: (model: SupportedModelId) => Promise<void>
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>

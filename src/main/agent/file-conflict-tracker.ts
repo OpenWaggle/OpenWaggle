@@ -1,58 +1,27 @@
-import type {
-  WaggleAgentSlot,
-  WaggleFileConflictWarning,
-  WaggleFileModificationRecord,
-} from '@shared/types/waggle'
+import type { WaggleAgentSlot, WaggleFileConflictWarning } from '@shared/types/waggle'
 
 /**
  * Tracks which agent last modified each file path during a Waggle collaboration.
  * Returns conflict warnings when a different agent edits a file previously modified by another.
  */
 export class FileConflictTracker {
-  private readonly modifications = new Map<string, WaggleFileModificationRecord>()
+  private readonly lastModifiedBy = new Map<string, number>()
 
   recordModification(
     filePath: string,
     agentIndex: number,
     agents: readonly [WaggleAgentSlot, WaggleAgentSlot],
     turnNumber: number,
-  ) {
-    const existing = this.modifications.get(filePath)
+  ): WaggleFileConflictWarning | null {
+    const previousAgentIndex = this.lastModifiedBy.get(filePath)
+    this.lastModifiedBy.set(filePath, agentIndex)
+    if (previousAgentIndex === undefined || previousAgentIndex === agentIndex) return null
 
-    if (existing && existing.lastModifiedBy !== agentIndex) {
-      const warning: WaggleFileConflictWarning = {
-        path: filePath,
-        previousAgent:
-          agents[existing.lastModifiedBy]?.label ?? `Agent ${String(existing.lastModifiedBy)}`,
-        currentAgent: agents[agentIndex]?.label ?? `Agent ${String(agentIndex)}`,
-        turnNumber,
-      }
-
-      this.modifications.set(filePath, {
-        path: filePath,
-        lastModifiedBy: agentIndex,
-        modifiedAt: Date.now(),
-        modificationCount: existing.modificationCount + 1,
-      })
-
-      return warning
-    }
-
-    this.modifications.set(filePath, {
+    return {
       path: filePath,
-      lastModifiedBy: agentIndex,
-      modifiedAt: Date.now(),
-      modificationCount: (existing?.modificationCount ?? 0) + 1,
-    })
-
-    return null
-  }
-
-  getModifications() {
-    return this.modifications
-  }
-
-  reset() {
-    this.modifications.clear()
+      previousAgent: agents[previousAgentIndex]?.label ?? `Agent ${String(previousAgentIndex)}`,
+      currentAgent: agents[agentIndex]?.label ?? `Agent ${String(agentIndex)}`,
+      turnNumber,
+    }
   }
 }

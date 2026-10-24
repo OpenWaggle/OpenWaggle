@@ -3,7 +3,9 @@
  * Node and under Electron as Node. Pi 1.0 loads the codemode sandbox worker, the QuickJS wasm,
  * and the MCP runtime through paths that only break once Pi is bundled into one main chunk, so
  * reading the bundle is not enough: this runs a codemode script and loads the MCP extension
- * against a real stdio server inside the bundle.
+ * against a real stdio server inside the bundle. It also loads `@openwaggle/pi-waggle` from the
+ * same bundle: the source module its declared Pi extension entry is built from, and the desktop
+ * Waggle loop.
  *
  * Usage: pnpm pi-main-bundle:smoke
  */
@@ -58,7 +60,7 @@ async function main() {
   try {
     await runSmoke('node', process.execPath, { ...process.env, ELECTRON_RUN_AS_NODE: undefined })
     await runSmoke('electron-as-node', electronBinary(), { ...process.env, ELECTRON_RUN_AS_NODE: '1' })
-    console.log('Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, and MCP extension load.')
+    console.log('Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, MCP extension load, and the pi-waggle extension and desktop loop.')
   } finally {
     await rm(SMOKE_OUT_DIR, { recursive: true, force: true })
   }

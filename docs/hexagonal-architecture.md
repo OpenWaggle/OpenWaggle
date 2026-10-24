@@ -12,7 +12,6 @@ Pure business logic. Zero infrastructure imports. Zero vendor imports. Zero side
 
 **Current modules:**
 - `shared/domain/error-classifier.ts` — Error classification rules
-- `shared/domain/skill-references.ts` — Skill reference parsing
 - `shared/domain/scheduled-tasks/` — Scheduled task schedules: interval and RRULE evaluation, next and missed occurrences, jitter, and the editor's next-run preview. Shared so the Host and the renderer compute the same times.
 
 **Rules:**
@@ -34,7 +33,6 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - `ProviderOAuthService` — Provider OAuth flow state backed by Pi auth storage
 - `ProviderProbeService` — Provider/model credential probing through project-scoped Pi services
 - `SessionTreePreferencesService` — Pi-backed Session Tree and branch-summary preferences
-- `StandardsService` — Agent/skill loading
 - `WagglePresetsRepository` — Waggle preset persistence across built-in, global, and project scopes
 
 **Rules:**
@@ -42,8 +40,6 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - MUST NOT import from `src/main/store/` or any infrastructure
 - Service methods MUST return `Effect.Effect<Result, TaggedError>`
 - Every port MUST have at least one `yield*` consumer in production code
-
-Known current gap: `StandardsService` is registered in the runtime but is not consumed by the standard Pi run path. Fixing that should either wire standards into Pi-native resources or remove the unused port.
 
 ### Adapters (`src/main/adapters/`)
 
@@ -54,7 +50,6 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 - `sqlite-session-projection-repository.ts` — Implements SessionProjectionRepository via SQLite store
 - `sqlite-session-repository.ts` — Implements SessionRepository via SQLite store
 - `settings-waggle-presets-repository.ts` — Implements WagglePresetsRepository via built-in presets, user-data JSON, and project `.openwaggle/settings.json`
-- `standards-adapter.ts` — Implements StandardsService via filesystem
 - `pi/pi-provider-service.ts` — Implements ProviderService via Pi provider/model metadata
 - `pi/pi-provider-auth-service.ts` — Implements ProviderAuthService via Pi auth storage
 - `pi/pi-provider-oauth-service.ts` — Implements ProviderOAuthService via Pi auth storage
@@ -118,7 +113,7 @@ Shared types that cross the IPC boundary. Zero vendor imports.
 
 ## Effect Runtime
 
-All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers.
+All ports are `Context.Tag` services. All adapters are `Layer` implementations. The `AppLayer` in `src/main/runtime.ts` composes all layers. An excerpt of `AppLayer`:
 
 ```typescript
 const AppLayer = Layer.mergeAll(
@@ -128,14 +123,15 @@ const AppLayer = Layer.mergeAll(
   SettingsService.Live,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  FilesystemStandardsLive,
-  PiAgentKernelLive,
+  PiAgentKernelWithExtensionSelectionLive,
+  McpServicesLive,
   PiProviderAuthLive,
-  PiProviderProbeLive,
+  PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
-  ProviderServiceLive,
+  ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
+  // …and the other layers composed in src/main/runtime.ts
 )
 ```
 

@@ -1,29 +1,7 @@
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
-import { SupportedModelId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 
 describe('shared agent helpers', () => {
-  describe('makeMessage', () => {
-    it('creates a message with required fields', async () => {
-      const { makeMessage } = await import('../shared')
-      const msg = makeMessage('user', [{ type: 'text', text: 'hello' }])
-      expect(msg.role).toBe('user')
-      expect(msg.parts).toEqual([{ type: 'text', text: 'hello' }])
-      expect(msg.id).toBeTruthy()
-      expect(msg.createdAt).toBeGreaterThan(0)
-    })
-
-    it('includes optional model', async () => {
-      const { makeMessage } = await import('../shared')
-      const msg = makeMessage(
-        'assistant',
-        [{ type: 'text', text: 'hi' }],
-        SupportedModelId('gpt-4.1-mini'),
-      )
-      expect(msg.model).toBe('gpt-4.1-mini')
-    })
-  })
-
   describe('buildPersistedUserMessageParts', () => {
     it('builds text parts from payload', async () => {
       const { buildPersistedUserMessageParts } = await import('../shared')

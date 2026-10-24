@@ -14,6 +14,7 @@ import {
 } from './package-smoke-documentation-assertions'
 import {
   assertNoWorkspaceProtocols,
+  assertPiHostPackagesArePeers,
   assertReactPeerDependencies,
 } from './package-smoke-runtime-assertions'
 import type { PackedPackageReference } from './package-smoke-canonical'
@@ -84,6 +85,7 @@ export async function validatePackedPackage(
   assertPackedDocumentationMetadata(manifest, spec.directory)
   assertPackedPackageReadme({ packageName: spec.name, readme })
   assertDualModuleExports(spec.name, manifest)
+  assertPiHostPackagesArePeers(spec.name, manifest)
   if (spec.name === '@openwaggle/extension-react') {
     assertReactPeerDependencies(manifest)
     assertCanonicalExtensionReactStylesheet(

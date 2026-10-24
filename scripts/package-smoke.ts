@@ -70,6 +70,8 @@ const SMOKE_REGISTRY_DEPENDENCIES = [
   'react',
   'react-dom',
   'tsx',
+  // Pi supplies typebox to extensions; pi-waggle declares it as a peer.
+  'typebox',
   'typescript',
   'vite',
 ]

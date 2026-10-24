@@ -99,7 +99,8 @@ interface ModelSelectorTriggerProps {
   readonly triggerRef: RefObject<HTMLButtonElement | null>
   readonly disabled: boolean
   readonly title: string | undefined
-  readonly isOpen: boolean
+  /** Whether the popup is open, and its role: a listbox of models, or a dialog saying why none. */
+  readonly popup: { readonly open: boolean; readonly role: 'listbox' | 'dialog' }
   readonly label: string
   readonly provider: FlatModel['provider'] | undefined
   readonly onToggle: () => void
@@ -111,7 +112,7 @@ function ModelSelectorTrigger({
   triggerRef,
   disabled,
   title,
-  isOpen,
+  popup,
   label,
   provider,
   onToggle,
@@ -132,8 +133,8 @@ function ModelSelectorTrigger({
         aria-disabled={disabled || undefined}
         aria-describedby={describedReason ? reasonId : undefined}
         title={title}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
+        aria-expanded={popup.open}
+        aria-haspopup={popup.role}
         className={cn(
           'no-drag flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
           disabled ? 'cursor-not-allowed opacity-80' : 'hover:bg-bg-hover hover:text-text-primary',
@@ -224,6 +225,11 @@ export function ModelSelector({
 
   function triggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (disabled) return
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault()
+      closeList()
+      return
+    }
     if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
       event.preventDefault()
       setIsOpen(true)
@@ -236,7 +242,7 @@ export function ModelSelector({
         triggerRef={triggerRef}
         disabled={disabled}
         title={title}
-        isOpen={isOpen}
+        popup={{ open: isOpen, role: flatModels.length > 0 ? 'listbox' : 'dialog' }}
         label={selectedModel?.name ?? fallbackLabel ?? 'Select model'}
         provider={selectedModel?.provider}
         onToggle={() => {

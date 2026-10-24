@@ -46,9 +46,3 @@ export interface SkillCatalogResult {
   readonly projectPath: string
   readonly skills: readonly SkillDiscoveryItem[]
 }
-
-export interface SkillActivationResult {
-  readonly explicitSkillIds: readonly string[]
-  readonly heuristicSkillIds: readonly string[]
-  readonly selectedSkillIds: readonly string[]
-}

@@ -31,6 +31,8 @@ export function alignedInput(): PiRuntimeAlignmentInput {
     workspace: `catalogs:
   pi-runtime:
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
+  pi-extension-host:
+    typebox: 1.3.27
 minimumReleaseAgeExclude:
   # pi-runtime-release-age-exclusions-expire: 2026-10-19T23:04:00Z
 ${installedPackages.map((name) => `  - "${packageRef(name)}@${version}"`).join('\n')}
@@ -49,17 +51,20 @@ patchedDependencies:
       [piCodingAgentPatch]: 'diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js',
     },
     patchFiles: [piAiPatch, piCodingAgentPatch],
+    piCodingAgentDependencies: { typebox: '1.3.27' },
     rootDependencies: {
       [packageRef('pi-ai')]: 'catalog:pi-runtime',
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-mcp')]: 'catalog:pi-runtime',
       'quickjs-wasi': '3.6.2',
       '@silvia-odwyer/photon-node': '0.3.4',
+      typebox: 'catalog:pi-extension-host',
     },
     now: new Date('2026-10-14T12:00:00Z'),
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-tui')]: 'catalog:pi-runtime',
+      typebox: 'catalog:pi-extension-host',
     },
   }
 }

@@ -154,3 +154,55 @@ export function smokePnpmWorkspaceConfig(
   ]
   return ['packages: []', '', 'overrides:', ...overrideLines, ''].join('\n')
 }
+
+/**
+ * The packages Pi supplies to every extension, the same set as `HOST_PROVIDED_EXTENSION_PACKAGES`
+ * in pi-coding-agent's `dist/core/resource-loader.js` (Pi's `docs/packages.md`, "Declare
+ * dependencies"). A Pi package must declare them as `"*"` peers: a physical copy under
+ * `dependencies` bypasses Pi's extension module mapping, and Pi warns about it on every start.
+ */
+const PI_HOST_PROVIDED_PACKAGES = [
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-tui',
+  '@mariozechner/pi-agent-core',
+  '@mariozechner/pi-ai',
+  '@mariozechner/pi-coding-agent',
+  '@mariozechner/pi-tui',
+  '@sinclair/typebox',
+  'typebox',
+] as const
+
+/** Manifest sections whose packages are installed as physical copies inside the package. */
+const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] as const
+
+function bundledDependencyNames(manifest: { readonly [key: string]: unknown }) {
+  for (const key of ['bundleDependencies', 'bundledDependencies']) {
+    const value = manifest[key]
+    if (Array.isArray(value)) return value.filter((name): name is string => typeof name === 'string')
+  }
+  return []
+}
+
+export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
+  if (!isObject(manifest) || !isObject(manifest.pi)) return
+  const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
+  const bundled = bundledDependencyNames(manifest)
+  const problems: string[] = []
+  for (const name of PI_HOST_PROVIDED_PACKAGES) {
+    for (const section of INSTALLED_DEPENDENCY_SECTIONS) {
+      const dependencies = manifest[section]
+      if (isObject(dependencies) && name in dependencies) problems.push(`${name} is in ${section}`)
+    }
+    if (bundled.includes(name)) problems.push(`${name} is bundled`)
+    if (name in peerDependencies && peerDependencies[name] !== '*') {
+      problems.push(`${name} peer range is ${String(peerDependencies[name])}, not "*"`)
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `${packageName} must declare Pi's host-provided packages as "*" peer dependencies: ${problems.join('; ')}.`,
+    )
+  }
+}

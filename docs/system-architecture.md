@@ -9,7 +9,7 @@ The main process owns runtime execution, persistence, provider configuration, au
 Layering follows the hexagonal model:
 
 - `src/main/domain/` contains pure business logic.
-- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, `WagglePresetsRepository`, and `StandardsService`.
+- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, and `WagglePresetsRepository`.
 - `src/main/adapters/` implements ports. OpenWaggle desktop app Pi SDK imports are confined to `src/main/adapters/pi/`; dedicated Pi packages under `packages/pi-*` may import Pi SDKs internally.
 - `src/main/application/` orchestrates runs through ports.
 - `src/main/ipc/` handles Electron IPC and emits transport events.

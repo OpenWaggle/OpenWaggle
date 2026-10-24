@@ -2,9 +2,11 @@
  * Runs inside a bundle built with OpenWaggle's Electron main configuration (see
  * `scripts/pi-main-bundle-smoke.ts`). It exercises the Pi 1.0 loaders that only break once Pi is
  * bundled into one main chunk: the codemode sandbox worker and QuickJS wasm, and the MCP
- * extension's lazily loaded runtime with a real stdio server. Pi is imported dynamically because
- * the Pi SDK boundary rule confines static imports to `src/main/adapters/pi/`; the literal
- * specifier is still inlined into the one main chunk.
+ * extension's lazily loaded runtime with a real stdio server. It also loads `@openwaggle/pi-waggle`
+ * from the bundle: the package's declared Pi extension entry and the loop, mode-state and protocol
+ * modules the desktop Waggle run uses. Pi is imported dynamically because the Pi SDK boundary rule
+ * confines static imports to `src/main/adapters/pi/`; the literal specifier is still inlined into
+ * the one main chunk.
  */
 // Like src/main/index.ts: before any Pi module reads its package.json.
 import '../../src/main/apply-pi-package-directory'
@@ -60,6 +62,154 @@ function resultText(result: { readonly content: readonly { readonly type: string
 
 const loadPi = () => import('@earendil-works/pi-coding-agent')
 type PiSdk = Awaited<ReturnType<typeof loadPi>>
+
+/**
+ * The module pi-waggle's declared Pi extension entry (`pi.extensions`, `dist/extension.js`) is built
+ * from. The desktop build aliases the package to its sources, so this is `src/extension.ts`; the
+ * package consumer smoke checks the built entry.
+ */
+const loadPiWaggleExtension = () => import('@openwaggle/pi-waggle/extension')
+/** The loop the desktop Waggle run imports (`waggle-run.ts`). */
+const loadPiWaggleLoop = () => import('@openwaggle/pi-waggle/loop')
+const loadPiWaggleModeState = () => import('@openwaggle/pi-waggle/mode-state')
+const loadPiWaggleProtocol = () => import('@openwaggle/pi-waggle/protocol')
+const loadWaggleCore = () => import('@openwaggle/waggle-core')
+
+interface BundledWaggle {
+  readonly extension: Awaited<ReturnType<typeof loadPiWaggleExtension>>
+  readonly loop: Awaited<ReturnType<typeof loadPiWaggleLoop>>
+  readonly modeState: Awaited<ReturnType<typeof loadPiWaggleModeState>>
+  readonly protocol: Awaited<ReturnType<typeof loadPiWaggleProtocol>>
+  readonly preset: Awaited<ReturnType<typeof loadWaggleCore>>['BUILT_IN_WAGGLE_PRESETS'][number]
+}
+
+async function loadBundledWaggle(): Promise<BundledWaggle> {
+  const [extension, loop, modeState, protocol, core] = await Promise.all([
+    loadPiWaggleExtension(),
+    loadPiWaggleLoop(),
+    loadPiWaggleModeState(),
+    loadPiWaggleProtocol(),
+    loadWaggleCore(),
+  ])
+  const preset = core.BUILT_IN_WAGGLE_PRESETS[0]
+  if (!preset) fail('waggle-core has no built-in Waggle preset')
+  return { extension, loop, modeState, protocol, preset }
+}
+
+/** The desktop Waggle run's loop, as `waggle-run.ts` builds it, with no turns driven. */
+function desktopWaggleLoop(waggle: BundledWaggle) {
+  return waggle.loop.createPiWaggleExtension({
+    config: waggle.preset.config,
+    createTurnMetadata: ({ turnNumber, agentIndex }) => ({ turnNumber, agentIndex }),
+    onTurnComplete: () => ({ continue: false }),
+    buildTurnMessage: ({ meta }) => ({
+      customType: waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE,
+      content: `turn ${meta.turnNumber}`,
+      display: false,
+    }),
+  })
+}
+
+type DesktopWaggleLoop = ReturnType<typeof desktopWaggleLoop>
+
+/** Lets queued promise callbacks and I/O callbacks run once. */
+const nextMacrotask = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+/**
+ * A bound loop with no turns is still running, and failing it ends `done` with that error, as the
+ * desktop run's turn-start failure path does.
+ */
+async function checkDesktopWaggleLoop(loop: DesktopWaggleLoop) {
+  let settled: 'resolved' | 'rejected' | null = null
+  loop.done.then(
+    () => {
+      settled = 'resolved'
+    },
+    () => {
+      settled = 'rejected'
+    },
+  )
+  await nextMacrotask()
+  if (settled !== null) fail(`the desktop Waggle loop ${settled} before any turn ran`)
+  const stop = new Error('pi main bundle smoke stopped the loop')
+  loop.fail(stop)
+  const outcome = await loop.done.then(
+    () => fail('the desktop Waggle loop completed instead of failing'),
+    (error: unknown) => error,
+  )
+  if (outcome !== stop) fail(`the desktop Waggle loop failed with ${String(outcome)}`)
+  return 'desktop loop bound and stoppable'
+}
+
+type BundledSession = Awaited<ReturnType<PiSdk['createAgentSession']>>['session']
+
+/** The declared extension registers Waggle's commands and transcript renderer. */
+function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWaggle) {
+  const commands = session.extensionRunner.getRegisteredCommands().map((command) => command.name)
+  for (const name of ['waggle', 'standard']) {
+    if (!commands.includes(name)) fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+  }
+  if (!session.extensionRunner.getMessageRenderer(waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE)) {
+    fail('pi-waggle did not register its turn renderer')
+  }
+  return 'commands /waggle and /standard, turn renderer'
+}
+
+/** The mode-state entry the desktop run writes reads back from the bundled Pi session manager. */
+function checkWaggleModeState(session: BundledSession, waggle: BundledWaggle) {
+  waggle.modeState.appendPiWaggleModeState(
+    session.sessionManager,
+    waggle.modeState.enabledPiWaggleModeState({ config: waggle.preset.config, presetId: waggle.preset.id }),
+  )
+  const state = waggle.modeState.latestPiWaggleModeStateFromBranch(session.sessionManager)
+  if (!state?.enabled || state.presetId !== waggle.preset.id) {
+    fail(`Waggle mode state did not read back: ${JSON.stringify(state)}`)
+  }
+  return `mode state ${state.presetId}`
+}
+
+/**
+ * The desktop loop in a session of its own: OpenWaggle never loads it beside the package's default
+ * extension (`pi-waggle-package-dedupe.ts`), whose context handler would run a second loop.
+ */
+async function runDesktopWaggleLoopSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
+  const loop = desktopWaggleLoop(waggle)
+  const agentDir = path.join(workDirectory, 'waggle-agent')
+  const settingsManager = pi.SettingsManager.inMemory()
+  const resourceLoader = new pi.DefaultResourceLoader({
+    cwd: workDirectory,
+    agentDir,
+    settingsManager,
+    noExtensions: true,
+    noSkills: true,
+    noPromptTemplates: true,
+    noThemes: true,
+    noContextFiles: true,
+    extensionFactories: [{ name: 'pi-waggle-loop', factory: loop.factory }],
+  })
+  await resourceLoader.reload()
+  const { session } = await pi.createAgentSession({
+    cwd: workDirectory,
+    agentDir,
+    resourceLoader,
+    settingsManager,
+    sessionManager: pi.SessionManager.inMemory(workDirectory),
+    modelRuntime: await pi.ModelRuntime.create({
+      authPath: path.join(agentDir, 'auth.json'),
+      modelsPath: path.join(agentDir, 'models.json'),
+    }),
+  })
+  try {
+    await session.bindExtensions({})
+    // The loop advances on `agent_settled`, so a factory that never ran would leave no handler.
+    if (!session.extensionRunner.hasHandlers('agent_settled')) {
+      fail('the desktop Waggle loop registered no agent_settled handler')
+    }
+    return `${checkWaggleModeState(session, waggle)}, ${await checkDesktopWaggleLoop(loop)}`
+  } finally {
+    session.dispose()
+  }
+}
 
 /** A 2x2 opaque PNG: `read` returns it as an image block only when Photon (WASM) loads. */
 const SMOKE_PNG_BASE64 =
@@ -135,7 +285,7 @@ async function waitForTool(names: () => readonly string[], name: string) {
   fail(`${name} never registered; tools: ${names().join(', ')}`)
 }
 
-async function runBundledSession(pi: PiSdk, workDirectory: string) {
+async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
   const serverPath = path.join(workDirectory, 'mcp-smoke-server.cjs')
   await writeFile(serverPath, MCP_SERVER_SOURCE, 'utf8')
   const imagePath = path.join(workDirectory, 'smoke.png')
@@ -170,6 +320,7 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
         }),
       },
       { name: 'codemode', factory: pi.createCodemodeExtension({ models: false }) },
+      { name: 'pi-waggle', factory: waggle.extension.default },
     ],
   })
   await resourceLoader.reload()
@@ -186,6 +337,7 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
   })
   try {
     await session.bindExtensions({})
+    const waggleCheck = checkBundledWaggleExtension(session, waggle)
     await waitForTool(() => session.getAllTools().map((tool) => tool.name), SMOKE_TOOL_NAME)
     session.setActiveToolsByName([...session.getActiveToolNames(), 'codemode', SMOKE_TOOL_NAME])
     const tool = (name: string) => {
@@ -235,7 +387,7 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
     ) {
       fail(`codemode script did not complete with an image: ${codemode.result}`)
     }
-    return { mcp, codemode: codemode.result }
+    return { mcp, codemode: codemode.result, waggle: waggleCheck }
   } finally {
     session.dispose()
   }
@@ -258,14 +410,16 @@ async function main() {
     const temporaryDirectory = await useTemporaryDirectory(workDirectory)
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
-    const { codemode, mcp } = await runBundledSession(pi, workDirectory)
+    const bundledWaggle = await loadBundledWaggle()
+    const { codemode, mcp, waggle: waggleExtension } = await runBundledSession(pi, bundledWaggle, workDirectory)
+    const waggle = `${waggleExtension}, ${await runDesktopWaggleLoopSession(pi, bundledWaggle, workDirectory)}`
     const outputFiles = await readdir(temporaryDirectory)
     if (!outputFiles.some((file) => /^pi-codemode-[0-9a-f]+\.png$/.test(file))) {
       fail(`codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`)
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, imageWorker, packageAssets })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, waggle, imageWorker, packageAssets })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })

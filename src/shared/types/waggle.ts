@@ -92,13 +92,6 @@ export const WAGGLE_COLLABORATION_STATUSES = [
 ] as const
 export type WaggleCollaborationStatus = (typeof WAGGLE_COLLABORATION_STATUSES)[number]
 
-export interface WaggleFileModificationRecord {
-  readonly path: string
-  readonly lastModifiedBy: number
-  readonly modifiedAt: number
-  readonly modificationCount: number
-}
-
 export interface WaggleFileConflictWarning {
   readonly path: string
   readonly previousAgent: string

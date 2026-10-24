@@ -6,7 +6,7 @@ import {
   setSkillEnabledOperation,
 } from '../application/skill-operations'
 import { loadProjectAgentsInstruction } from '../standards/agents-loader'
-import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/agents-resolver'
+import { resolveAgentsChainForPath, resolveProjectRootAgents } from '../standards/agents-resolver'
 import { hostHandle, typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
@@ -32,7 +32,7 @@ export function registerSkillsHandlers(): void {
         if (typeof rawTargetPath === 'string' && rawTargetPath.trim().length > 0) {
           return yield* Effect.promise(() => resolveAgentsChainForPath(projectPath, rawTargetPath))
         }
-        return yield* Effect.promise(() => resolveAgentsForRun(projectPath, []))
+        return yield* Effect.promise(() => resolveProjectRootAgents(projectPath))
       }),
   )
 

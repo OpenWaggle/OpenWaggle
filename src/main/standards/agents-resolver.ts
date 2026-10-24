@@ -54,96 +54,18 @@ export async function resolveAgentsChainForPath(
   }
 }
 
-export async function resolveAgentsForRun(
+/** The project's root AGENTS.md as a resolution with no directory scopes, for Settings > Skills. */
+export async function resolveProjectRootAgents(
   projectPath: string,
-  candidatePaths: readonly string[],
 ): Promise<AgentsResolutionResult> {
   const root = await resolveRootAgents(projectPath)
-  const seenWarnings = new Set<string>()
-  const warnings: string[] = []
-  const addWarning = (warning: string) => {
-    if (seenWarnings.has(warning)) return
-    seenWarnings.add(warning)
-    warnings.push(warning)
-  }
-
-  matchBy(root, 'status')
-    .with('error', (value) => {
-      if (value.error) {
-        addWarning(`Failed to load root AGENTS.md: ${value.error}`)
-      }
-    })
-    .with('found', 'missing', () => undefined)
+  const warnings = matchBy(root, 'status')
+    .with('error', (value) =>
+      value.error ? [`Failed to load root AGENTS.md: ${value.error}`] : [],
+    )
+    .with('found', 'missing', () => [])
     .exhaustive()
-
-  // Candidate chains resolve independently; fetch concurrently then fold in
-  // candidate order so warning order and first-wins dedupe stay deterministic.
-  const chains = await Promise.all(
-    candidatePaths.map(async (candidatePath) => {
-      try {
-        return {
-          candidatePath,
-          chain: await resolveAgentsChainForPath(projectPath, candidatePath),
-          error: null,
-        }
-      } catch (error) {
-        return { candidatePath, chain: null, error }
-      }
-    }),
-  )
-
-  const scopedByFilePath = new Map<string, AgentsScopeItem>()
-  for (const { candidatePath, chain, error } of chains) {
-    if (!chain) {
-      addWarning(
-        `Failed to resolve AGENTS scope for "${candidatePath}": ${error instanceof Error ? error.message : String(error)}`,
-      )
-      continue
-    }
-    for (const warning of chain.warnings) {
-      addWarning(warning)
-    }
-    for (const scope of chain.scoped) {
-      if (!scopedByFilePath.has(scope.filePath)) {
-        scopedByFilePath.set(scope.filePath, scope)
-      }
-    }
-  }
-
-  return {
-    projectPath,
-    root,
-    scoped: [...scopedByFilePath.values()],
-    warnings,
-  }
-}
-
-export function buildEffectiveAgentsInstruction(resolution: AgentsResolutionResult): string {
-  const sections: string[] = []
-
-  matchBy(resolution.root, 'status')
-    .with('found', (root) => {
-      if (root.content.trim()) {
-        sections.push(`Root scope (${root.filePath})\n${root.content.trim()}`)
-      }
-    })
-    .with('missing', 'error', () => undefined)
-    .exhaustive()
-
-  for (const scope of resolution.scoped) {
-    matchBy(scope, 'status')
-      .with('found', (value) => {
-        if (value.content.trim()) {
-          sections.push(
-            `Scope ${value.scopeRelativeDir} (${value.filePath})\n${value.content.trim()}`,
-          )
-        }
-      })
-      .with('missing', 'error', () => undefined)
-      .exhaustive()
-  }
-
-  return sections.join('\n\n')
+  return { projectPath, root, scoped: [], warnings }
 }
 
 async function resolveTargetDirectoryWithinProject(projectPath: string, targetPath: string) {

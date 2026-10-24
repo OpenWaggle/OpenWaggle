@@ -39,7 +39,6 @@ import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-sessio
 import { SqliteSessionRepositoryLive as SqliteSessionRepositoryWithoutRepairLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
-import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
@@ -227,7 +226,6 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionRepositoryLive,
   PiSessionContinuationServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   SessionTitleServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
-  FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   McpServicesLive,
   PiProviderAuthLive,
