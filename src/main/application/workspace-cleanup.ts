@@ -36,7 +36,7 @@ export function prepareWorkspaceRemoval(
         ok: false,
         code: 'cleanup-failed',
         preparation: state,
-        message: describeCleanupBlockedByGeneration(generation, state.snapshot),
+        message: describeCleanupBlockedByGeneration(generation),
       } satisfies GitWorktreeMutationResult
     }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'

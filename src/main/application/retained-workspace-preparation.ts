@@ -70,10 +70,7 @@ export function listRetainedPreparation(projectPath: string) {
             ...(mismatch
               ? {
                   generationMismatch: true,
-                  generationMismatchMessage: describeCleanupBlockedByGeneration(
-                    mismatch,
-                    state.snapshot,
-                  ),
+                  generationMismatchMessage: describeCleanupBlockedByGeneration(mismatch),
                 }
               : {}),
           }

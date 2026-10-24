@@ -105,8 +105,7 @@ describe('describeWorkspaceGenerationMismatch', () => {
   })
 })
 
-describe('describeCleanupBlockedByGeneration', () => {
-  const check = { status: 'unrecorded', workspacePath: '/w' } as const
+describe('preparationPinsCleanup', () => {
   function snapshot(...phases: ('setup' | 'cleanup')[]) {
     return fromPartial<WorkspacePreparationSnapshot>({
       definitions: phases.map((phase) => ({
@@ -116,22 +115,17 @@ describe('describeCleanupBlockedByGeneration', () => {
     })
   }
 
-  it('names the pinned cleanup and Delete anyway when the snapshot pins one', () => {
+  it('is true only when the snapshot has a cleanup-phase definition', () => {
     expect(preparationPinsCleanup(snapshot('setup', 'cleanup'))).toBe(true)
-    expect(describeCleanupBlockedByGeneration(check, snapshot('setup', 'cleanup'))).toBe(
+    expect(preparationPinsCleanup(snapshot('setup'))).toBe(false)
+    expect(preparationPinsCleanup(snapshot())).toBe(false)
+  })
+})
+
+describe('describeCleanupBlockedByGeneration', () => {
+  it('names the pinned cleanup and Delete anyway', () => {
+    expect(describeCleanupBlockedByGeneration({ status: 'unrecorded', workspacePath: '/w' })).toBe(
       'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /w. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
     )
   })
-
-  it.each([[[]], [['setup']]] as const)(
-    'never claims a pinned cleanup when the snapshot has none (%o)',
-    (phases) => {
-      const value = snapshot(...phases)
-      expect(preparationPinsCleanup(value)).toBe(false)
-      const message = describeCleanupBlockedByGeneration(check, value)
-      expect(message).toBe(
-        'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /w. Its preparation has no cleanup to run, so you can remove it without Delete anyway.',
-      )
-    },
-  )
 })

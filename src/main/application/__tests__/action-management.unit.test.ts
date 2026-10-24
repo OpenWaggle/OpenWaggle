@@ -153,6 +153,31 @@ describe('native action management authority', () => {
     ).resolves.toMatchObject({ type: 'retained-preparation', workspaces: [] })
   })
 
+  it('lists a replaced checkout without cleanup whose Git removal did not finish, without a mismatch', async () => {
+    const test = fixture()
+    test.preparationRead.mockReturnValue(
+      Effect.succeed(
+        fromPartial<WorkspacePreparation>({
+          workspaceId: 'retained',
+          snapshot: { definitions: [] },
+          cleanup: { status: 'skipped' },
+        }),
+      ),
+    )
+    replacedCheckout(test)
+
+    const result = await test.run({
+      scope: { projectPath: root },
+      operation: { type: 'retained-preparation' },
+    })
+    if (result.type !== 'retained-preparation') throw new Error(`unexpected ${result.type}`)
+    expect(result.workspaces).toHaveLength(1)
+    const [row] = result.workspaces
+    expect(row).toMatchObject({ path: root, preparation: { cleanup: { status: 'skipped' } } })
+    expect(row).not.toHaveProperty('generationMismatch')
+    expect(row).not.toHaveProperty('generationMismatchMessage')
+  })
+
   it('retains a checkout after successful cleanup when Git removal did not finish', async () => {
     const test = fixture()
     test.preparationRead.mockReturnValue(

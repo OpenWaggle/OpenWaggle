@@ -157,16 +157,11 @@ export function preparationPinsCleanup(snapshot: WorkspacePreparationSnapshot) {
 
 /**
  * Why worktree removal will not run a worktree's pinned cleanup; Settings shows the same text.
- * Only a snapshot that pins a cleanup blocks removal, so only then does the text claim one.
+ * Only for snapshots that pin a cleanup ({@link preparationPinsCleanup}): callers check that
+ * first, because a snapshot without one has nothing to protect and removal goes ahead.
  */
-export function describeCleanupBlockedByGeneration(
-  check: WorkspaceGenerationMismatch,
-  snapshot: WorkspacePreparationSnapshot,
-) {
+export function describeCleanupBlockedByGeneration(check: WorkspaceGenerationMismatch) {
   const { verdict, problem, details } = describeWorkspaceGenerationMismatch(check)
-  const consequence = preparationPinsCleanup(snapshot)
-    ? 'Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.'
-    : 'Its preparation has no cleanup to run, so you can remove it without Delete anyway.'
-  const message = `This worktree ${verdict} the checkout that captured its preparation: ${problem}. ${consequence}`
+  const message = `This worktree ${verdict} the checkout that captured its preparation: ${problem}. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.`
   return details ? `${message} ${details}` : message
 }
