@@ -9,6 +9,7 @@ import type {
 } from './profile-credential-destination'
 import { credentialDestinationIdentity } from './profile-credential-destination-identity'
 import { readOwnedFile } from './profile-credential-owned-files'
+import { isSameReceiptDirectory, parseCredentialReceipt } from './profile-credential-receipt'
 import {
   storedProfileCredentialPath,
   validateProfileCredential,
@@ -75,22 +76,6 @@ export function receiptPath(stateRoot: string, profileName: string, stagingIdent
   )
 }
 
-export function parseReceipt(value: unknown, targetPath: string) {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    !('targetPath' in value) ||
-    value.targetPath !== targetPath ||
-    !('fingerprint' in value) ||
-    typeof value.fingerprint !== 'string' ||
-    !('directoryIdentity' in value) ||
-    typeof value.directoryIdentity !== 'string'
-  ) {
-    throw new Error('Credential installation receipt is invalid.')
-  }
-  return { fingerprint: value.fingerprint, directoryIdentity: value.directoryIdentity }
-}
-
 export async function recoverInstalledCredential(input: {
   readonly destination: ProfileCredentialDestination
   readonly targetPath: string
@@ -101,13 +86,16 @@ export async function recoverInstalledCredential(input: {
     path.basename(input.receiptPath),
   )
   if (!receiptFile.content) return undefined
-  const receipt = parseReceipt(JSON.parse(receiptFile.content.toString('utf8')), input.targetPath)
+  const receipt = parseCredentialReceipt(
+    JSON.parse(receiptFile.content.toString('utf8')),
+    input.targetPath,
+  )
   const targetFile = await readOwnedFile(
     path.dirname(input.targetPath),
     path.basename(input.targetPath),
   )
   if (!targetFile.content) return undefined
-  if (targetFile.directoryIdentity !== receipt.directoryIdentity) {
+  if (!isSameReceiptDirectory(receipt.directory, targetFile)) {
     throw new Error('The credential destination directory changed after installation.')
   }
   const credential = decodeCredentialContent(input.destination, targetFile.content)
