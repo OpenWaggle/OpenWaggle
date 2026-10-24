@@ -6,6 +6,7 @@ import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { createTerminalHistorySanitizer } from '../terminal/terminal-history-sanitizer'
 import type { PreparationDependencies } from './managed-workspace-preparation'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
+import { settleRunBirthSetup } from './preparation-workspace-generation'
 import { EMPTY_PREPARATION_EXECUTION } from './workspace-preparation-model'
 
 const OUTPUT_CHARACTERS = 128 * 1_024
@@ -107,7 +108,7 @@ export async function executeWorkspacePreparation(input: {
   }
   if (timer) clearTimeout(timer)
   try {
-    checkpoint(state)
+    checkpoint(settleRunBirthSetup(state)) // Bypasses the engine's `save`, which also settles.
     await writes
     publish(null)
   } catch (error) {
