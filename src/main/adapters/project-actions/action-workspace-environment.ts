@@ -21,17 +21,14 @@ async function inspectRunWorkspaceGeneration(
   workspace: ActionRunWorkspace,
 ) {
   const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
-  if (check.status !== 'awaiting-birth') return { check, birthRecorded: false }
-  const recovered = await Effect.runPromise(preparation.completeWorktreeBirth(workspace))
-  return { check: recovered, birthRecorded: recovered.status === 'current' }
+  return check.status === 'awaiting-birth'
+    ? Effect.runPromise(preparation.completeWorktreeBirth(workspace))
+    : check
 }
 
 export interface PreparedWorkspaceEnvironmentOptions {
-  /**
-   * Runs after this run recorded a pending birth's folder and before the exports are read. Its
-   * setup was never dispatched, so the agent run gates on it here.
-   */
-  readonly onBirthRecorded?: () => Promise<void>
+  /** Runs once the worktree passed its check, before the exports are read. */
+  readonly beforeEnvironment?: () => Promise<void>
 }
 
 export async function readPreparedWorkspaceEnvironment(
@@ -42,7 +39,7 @@ export async function readPreparedWorkspaceEnvironment(
   if (workspace.workspacePath !== workspace.projectPath) {
     const state = await Effect.runPromise(preparation.read(workspace))
     if (state) {
-      const { check, birthRecorded } = await inspectRunWorkspaceGeneration(preparation, workspace)
+      const check = await inspectRunWorkspaceGeneration(preparation, workspace)
       if (check.status !== 'current') {
         logger.warn('Worktree failed its saved-preparation check', {
           workspaceId: workspace.workspaceId,
@@ -52,7 +49,7 @@ export async function readPreparedWorkspaceEnvironment(
         const message = `${worktreePreparationHeadline(verdict)}: ${problem}. ${recovery}`
         throw new Error(details ? `${message} ${details}` : message)
       }
-      if (birthRecorded) await options.onBirthRecorded?.()
+      await options.beforeEnvironment?.()
     }
   }
   return Effect.runPromise(preparation.environment(workspace.workspaceId))

@@ -102,7 +102,12 @@ async function recoverPreparationBirth(
     return existing
   }
   logger.info('Recorded a worktree created before its preparation captured it', details)
-  return deps.save(withRecordedBirth(existing, decision.record), existing.revision)
+  // No setup dispatch ran for this birth, so agent runs owe its setup until it settles.
+  const recorded = {
+    ...withRecordedBirth(existing, decision.record),
+    runBirthSetupOwed: true as const,
+  }
+  return deps.save(recorded, existing.revision)
 }
 
 export interface RunBirthDependencies {

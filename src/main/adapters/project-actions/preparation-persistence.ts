@@ -15,6 +15,11 @@ export interface StoredWorkspacePreparation extends Omit<WorkspacePreparation, '
    * created for it from an older one. Only present while `awaitingWorktreeBirth` is true.
    */
   readonly awaitingWorktreeBirthSince?: number
+  /**
+   * A run, not setup dispatch, recorded the worktree's folder, so no dispatch ran setup for it.
+   * Agent runs gate on setup until it has succeeded or been skipped, which removes this.
+   */
+  readonly runBirthSetupOwed?: true
 }
 export interface PreparationPersistence {
   readonly read: (workspaceId: string) => Promise<StoredWorkspacePreparation | null>

@@ -31,6 +31,11 @@ export interface WorkspacePreparationServiceShape {
   readonly completeWorktreeBirth: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<WorkspaceGenerationCheck, Error>
+  /**
+   * Whether a run, not setup dispatch, recorded this worktree's birth and its setup has not yet
+   * succeeded or been skipped. Agent runs then gate on setup, as the dispatch would have.
+   */
+  readonly owesSetupAfterRunBirth: (workspace: ActionRunWorkspace) => Effect.Effect<boolean, Error>
   readonly select: (
     workspace: ActionRunWorkspace,
     profileId: string,

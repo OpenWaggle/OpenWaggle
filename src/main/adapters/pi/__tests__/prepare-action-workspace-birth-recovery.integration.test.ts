@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { cp, lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -159,11 +159,30 @@ describe.skipIf(!recordsBirthTime)('Host loss between git worktree add and captu
     expect(await storedPreparation()).not.toHaveProperty('awaitingWorktreeBirthSince')
   })
 
-  it('lets the next agent run record the worktree, run setup, and continue', async () => {
-    await hostStopsAfterBirth()
-    // The restarted birth finds the existing worktree; this Session's dispatch has nothing left.
+  it('records a worktree whose git dir records its folder relative to itself', async () => {
+    // Git 2.48+ writes `<gitDir>/gitdir` relative to the git dir with this setting.
+    await hostStopsAfterBirth(() =>
+      git(
+        projectPath,
+        '-c',
+        'worktree.useRelativePaths=true',
+        'worktree',
+        'add',
+        '-qb',
+        'session-branch',
+        worktreePath,
+      ),
+    )
+    await expect(
+      host((deps) => readActionWorkspaceEnvironment(restartedService(deps).service, scope())),
+    ).resolves.toMatchObject({ OPENWAGGLE_WORKTREE_PATH: worktreePath })
+    await expectRecorded()
+  })
+
+  /** An agent run whose Session's setup dispatch has nothing left to run. */
+  function agentRun() {
     birth.mockResolvedValue(worktreePath)
-    const result = await host((deps) =>
+    return host((deps) =>
       Effect.runPromise(
         prepareActionWorkspace(
           fromPartial<AgentKernelRunInput>({
@@ -189,10 +208,32 @@ describe.skipIf(!recordsBirthTime)('Host loss between git worktree add and captu
         ),
       ),
     )
-    expect(result).toEqual({ projectPath, executionPath: worktreePath, preparedEnvironment: {} })
+  }
+
+  it('lets the next agent run record the worktree, run setup, and continue', async () => {
+    await hostStopsAfterBirth()
+    expect(await agentRun()).toEqual({
+      projectPath,
+      executionPath: worktreePath,
+      preparedEnvironment: {},
+    })
     await expectRecorded()
     // The profile has no Setup action, so the setup gate records it as skipped.
     expect(await storedPreparation()).toMatchObject({ setup: { status: 'skipped' } })
+    expect(await storedPreparation()).not.toHaveProperty('runBirthSetupOwed')
+  })
+
+  it('gates a later agent run on setup after a Project Action run recorded the worktree', async () => {
+    await hostStopsAfterBirth()
+    await host((deps) => readActionWorkspaceEnvironment(restartedService(deps).service, scope()))
+    expect(await storedPreparation()).toMatchObject({
+      runBirthSetupOwed: true,
+      setup: { status: 'idle' },
+    })
+    // The check is current now, so only the durable marker tells the agent run setup is owed.
+    await agentRun()
+    expect(await storedPreparation()).toMatchObject({ setup: { status: 'skipped' } })
+    expect(await storedPreparation()).not.toHaveProperty('runBirthSetupOwed')
   })
 
   it.each([
@@ -202,6 +243,23 @@ describe.skipIf(!recordsBirthTime)('Host loss between git worktree add and captu
       'a plain folder inside the main checkout is at the path',
       () => mkdir(join(projectPath, 'nested')),
       () => join(projectPath, 'nested'),
+    ],
+    [
+      // A copy would share the other worktree's HEAD and index.
+      'a copy of another live worktree is at the path',
+      async () => {
+        await git(projectPath, 'worktree', 'add', '-qb', 'other-branch', join(root, 'other'))
+        await cp(join(root, 'other'), worktreePath, { recursive: true })
+      },
+      () => worktreePath,
+    ],
+    [
+      'the path is a folder inside another linked worktree',
+      async () => {
+        await git(projectPath, 'worktree', 'add', '-qb', 'other-branch', join(root, 'other'))
+        await mkdir(join(root, 'other', 'nested'))
+      },
+      () => join(root, 'other', 'nested'),
     ],
     [
       'git worktree add did not finish',

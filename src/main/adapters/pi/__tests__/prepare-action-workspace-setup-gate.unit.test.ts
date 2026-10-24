@@ -26,11 +26,16 @@ describe('a worktree birth the run records', () => {
     await rm(projectPath, { recursive: true, force: true })
   })
 
-  it('gates on Setup when the run itself records a pending worktree birth', async () => {
+  it.each([
+    ['recorded by this run', true, ['birth-recorded', 'owed?', 'setup-gate', 'environment']],
+    // Another run, such as a Project Action run, recorded it earlier; the check is current now.
+    ['recorded by an earlier run', true, ['owed?', 'setup-gate', 'environment']],
+    ['recorded by setup dispatch', false, ['owed?', 'environment']],
+  ] as const)('gates on owed Setup for a worktree birth %s', async (recordedBy, owed, expected) => {
     projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-recorded-birth-')))
     const workspacePath = join(projectPath, 'existing-worktree')
     await mkdir(workspacePath)
-    // The Session's setup dispatch had nothing pending, so it never captured the folder.
+    // This Session's setup dispatch has nothing pending, so it does not run setup.
     mocks.birth.mockResolvedValue(workspacePath)
     const order: string[] = []
     const result = await Effect.runPromise(
@@ -61,11 +66,20 @@ describe('a worktree birth the run records', () => {
                 }),
               ),
             inspectWorkspaceGeneration: () =>
-              Effect.succeed({ status: 'awaiting-birth' as const, workspacePath }),
+              Effect.succeed(
+                recordedBy === 'recorded by this run'
+                  ? { status: 'awaiting-birth' as const, workspacePath }
+                  : { status: 'current' as const },
+              ),
             completeWorktreeBirth: () =>
               Effect.sync(() => {
                 order.push('birth-recorded')
                 return { status: 'current' as const }
+              }),
+            owesSetupAfterRunBirth: () =>
+              Effect.sync(() => {
+                order.push('owed?')
+                return owed
               }),
             requireSetup: (workspace: ActionRunWorkspace) =>
               Effect.sync(() => {
@@ -75,13 +89,13 @@ describe('a worktree birth the run records', () => {
             environment: () =>
               Effect.sync(() => {
                 order.push('environment')
-                return { PREPARED: 'after-setup' }
+                return { PREPARED: 'yes' }
               }),
           }),
         },
       ),
     )
-    expect(order).toEqual(['birth-recorded', 'setup-gate', 'environment'])
-    expect(result.preparedEnvironment).toEqual({ PREPARED: 'after-setup' })
+    expect(order).toEqual(expected)
+    expect(result.preparedEnvironment).toEqual({ PREPARED: 'yes' })
   })
 })

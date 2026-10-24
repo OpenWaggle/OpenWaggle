@@ -41,4 +41,5 @@ export const storedWorkspacePreparationSchema = Schema.Struct({
   awaitingWorktreeBirthSince: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   ),
+  runBirthSetupOwed: Schema.optional(Schema.Literal(true)),
 })

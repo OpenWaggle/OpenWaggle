@@ -95,9 +95,14 @@ export function prepareActionWorkspace(
     const preparedEnvironment = yield* Effect.tryPromise({
       try: () =>
         readPreparedWorkspaceEnvironment(services.preparation, workspace, {
-          // Setup dispatch records the folder itself, so a birth recorded here never went through
-          // this Session's dispatch; the run gates on setup as that dispatch would have.
-          onBirthRecorded: () => Effect.runPromise(requireSetup(workspace)),
+          // A birth a run recorded never went through setup dispatch, possibly not this
+          // Session's: every agent run gates on its setup until it succeeds or is skipped.
+          beforeEnvironment: () =>
+            Effect.runPromise(
+              services.preparation
+                .owesSetupAfterRunBirth(workspace)
+                .pipe(Effect.flatMap((owed) => (owed ? requireSetup(workspace) : Effect.void))),
+            ),
         }),
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     })

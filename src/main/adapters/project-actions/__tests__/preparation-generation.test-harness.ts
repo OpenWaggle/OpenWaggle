@@ -58,6 +58,8 @@ export function restartedService(deps: PreparationDependencies) {
           try: () => engine.completeWorktreeBirth(workspace),
           catch: (error) => (error instanceof Error ? error : new Error(String(error))),
         }),
+      owesSetupAfterRunBirth: (workspace: ActionRunWorkspace) =>
+        Effect.promise(() => engine.owesSetupAfterRunBirth(workspace)),
       requireSetup: (workspace: ActionRunWorkspace) =>
         Effect.promise(() => engine.requireSetup(workspace)),
       environment: (workspaceId: string) => Effect.promise(() => engine.environment(workspaceId)),

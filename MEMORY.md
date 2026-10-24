@@ -1461,18 +1461,24 @@ agent run whose Session's dispatch has nothing pending, e.g. another Session in 
 calls `completeWorktreeBirth` (`preparation-birth-recovery.ts`). It records the folder only when
 setup has not started, the folder's birth time is no more than 1 s before
 `awaitingWorktreeBirthSince` (the slack covers coarse filesystem clocks), and Git reports it as a
-finished linked worktree of the project (`GitWorktreeService.inspectLinkedWorktree`: same common
-dir as `isWorktreeOf`, a git dir of its own, and no `locked` file, which `git worktree add` keeps
-until its checkout finishes). Anything else keeps failing closed. `awaitingWorktreeBirthSince` is
-`Date.now()` when a record starts pending (`freshPreparationState`, for `capture` and `select`
-before the worktree exists) or is reset (`resetPreparationForBirth`), and `prepareBirth` refreshes
-it on an already pending birth (`refreshPendingBirth`), so a retry, or a pending record saved
-before the field existed, gets the time of the attempt that runs `git worktree add`. The field
-exists only while the birth is pending. An agent run that records the birth itself then runs the
-setup gate (`requireSetup`) before reading exports. Older builds decode stored preparations
-exactly, and `recoverAfterHostLoss` lists all of them before the Session Host listens, so after a
-downgrade one pending record with this field stops the older Host from starting (downgrades are
-unsupported).
+finished linked worktree of the project (`GitWorktreeService.inspectLinkedWorktree`): same common
+dir as `isWorktreeOf`, a git dir of its own, `--show-toplevel` equal to the folder (not a folder
+inside a worktree), `<gitDir>/gitdir` (relative to the git dir under Git 2.48+
+`worktree.useRelativePaths`) naming this folder's `.git` (not a `cp -R` copy of another live
+worktree, which shares that worktree's HEAD and index), and no `locked` file, which
+`git worktree add` keeps until its checkout finishes. Anything else keeps failing closed.
+`awaitingWorktreeBirthSince` is `Date.now()` when a record starts pending (`freshPreparationState`,
+for `capture` and `select` before the worktree exists) or is reset (`resetPreparationForBirth`),
+and `prepareBirth` refreshes it on an already pending birth (`refreshPendingBirth`), so a retry,
+or a pending record saved before the field existed, gets the time of the attempt that runs
+`git worktree add`. The field exists only while the birth is pending. A run-recorded birth also
+sets `runBirthSetupOwed`, since no setup dispatch ran for it: every agent run, in any Session,
+gates on setup (`owesSetupAfterRunBirth`, then `requireSetup`) until setup has succeeded or been
+skipped. `save` drops the marker then, and so does the final write of
+`executeWorkspacePreparation`, which bypasses `save`. A failed setup keeps it, and `select` carries it over. Older builds decode stored
+preparations exactly, and `recoverAfterHostLoss` lists all of them before the Session Host
+listens. So after a downgrade, one record with either field (a pending birth, or setup still owed
+after a run recorded the birth) stops the older Host from starting (downgrades are unsupported).
 
 Workspace preparation review writes two durable records: the project catalog's remembered approval
 and the pinned Workspace snapshot. If snapshot persistence fails after a catalog edit, restore the

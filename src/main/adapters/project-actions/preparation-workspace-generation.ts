@@ -35,6 +35,22 @@ export function refreshPendingBirth(state: StoredWorkspacePreparation): StoredWo
   return { ...state, revision: state.revision + 1, awaitingWorktreeBirthSince: Date.now() }
 }
 
+/** Setup is still owed for a birth a run recorded (`runBirthSetupOwed`). */
+export function owesRunBirthSetup(state: StoredWorkspacePreparation | null) {
+  return (
+    state?.runBirthSetupOwed === true &&
+    state.setup.status !== 'succeeded' &&
+    state.setup.status !== 'skipped'
+  )
+}
+
+/** Drops `runBirthSetupOwed` once setup has succeeded or been skipped. */
+export function settleRunBirthSetup(state: StoredWorkspacePreparation): StoredWorkspacePreparation {
+  if (!state.runBirthSetupOwed || owesRunBirthSetup(state)) return state
+  const { runBirthSetupOwed: _settled, ...settled } = state
+  return settled
+}
+
 export function isPendingPreparationBirth(state: StoredWorkspacePreparation) {
   return (
     state.awaitingWorktreeBirth === true &&
@@ -57,6 +73,7 @@ export async function freshPreparationState(
   workspace: ActionRunWorkspace,
   snapshot: StoredWorkspacePreparation['snapshot'],
   revision: number,
+  previous: StoredWorkspacePreparation | null = null,
 ): Promise<StoredWorkspacePreparation> {
   const identity =
     workspace.workspacePath === workspace.projectPath
@@ -72,6 +89,8 @@ export async function freshPreparationState(
     ...(identity
       ? { workspaceIdentity: identity }
       : { awaitingWorktreeBirth: true, awaitingWorktreeBirthSince: Date.now() }),
+    // Choosing another profile for the same folder keeps the setup a run's birth still owes.
+    ...(identity && owesRunBirthSetup(previous) ? { runBirthSetupOwed: true as const } : {}),
   }
 }
 
