@@ -23,6 +23,14 @@ export interface WorkspacePreparationServiceShape {
   readonly inspectWorkspaceGeneration: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<WorkspaceGenerationCheck, Error>
+  /**
+   * For a run that found its worktree `awaiting-birth`: records the folder, as setup dispatch
+   * would have, when it is a readable folder created after the birth was prepared and setup has
+   * not started; then checks again. Anything else stays `awaiting-birth`.
+   */
+  readonly completeWorktreeBirth: (
+    workspace: ActionRunWorkspace,
+  ) => Effect.Effect<WorkspaceGenerationCheck, Error>
   readonly select: (
     workspace: ActionRunWorkspace,
     profileId: string,

@@ -39,6 +39,11 @@ export function restartedService(deps: PreparationDependencies) {
       read: (workspace: ActionRunWorkspace) => Effect.promise(() => engine.read(workspace)),
       inspectWorkspaceGeneration: (workspace: ActionRunWorkspace) =>
         Effect.promise(() => engine.inspectWorkspaceGeneration(workspace)),
+      completeWorktreeBirth: (workspace: ActionRunWorkspace) =>
+        Effect.tryPromise({
+          try: () => engine.completeWorktreeBirth(workspace),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }),
       environment: (workspaceId: string) => Effect.promise(() => engine.environment(workspaceId)),
     },
   }

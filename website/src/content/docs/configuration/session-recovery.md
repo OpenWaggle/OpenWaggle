@@ -50,7 +50,7 @@ OpenWaggle 1.0.0-beta.21 and earlier could also report this error after you rest
 2. Otherwise, commit or copy out any changes you want to keep from the folder at that path, and delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
 3. Reopen the session and choose **Recreate worktree** or **Use current checkout**, as for a missing worktree.
 
-"This worktree cannot be checked against its saved preparation" has two causes. If the message says the folder could not be read, fix the permissions of that folder or the folders above it and send your message again; don't delete it. Otherwise the preparation never recorded this folder: follow steps 2 and 3.
+"This worktree cannot be checked against its saved preparation" has two causes. If the message says the folder could not be read, fix the permissions of that folder or the folders above it and send your message again; don't delete it. Otherwise the preparation never recorded this folder: follow steps 2 and 3. If the app stopped while it was creating the worktree, versions newer than 1.0.0-beta.24 record the folder on your next message or project action instead of showing this error. A worktree left in that state by an earlier version still needs steps 2 and 3.
 
 For a worktree that no session uses any more, **Settings > Worktrees** explains why its cleanup cannot run and offers **Delete anyway**. For a session's own worktree, follow the steps above.
 

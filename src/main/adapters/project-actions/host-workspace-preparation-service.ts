@@ -64,6 +64,7 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
       read: (workspace) => attempt(() => engine.read(workspace)),
       inspectWorkspaceGeneration: (workspace) =>
         attempt(() => engine.inspectWorkspaceGeneration(workspace)),
+      completeWorktreeBirth: (workspace) => attempt(() => engine.completeWorktreeBirth(workspace)),
       select: (workspace, profileId, revision) =>
         attempt(() => engine.select(workspace, profileId, revision)),
       adopt: (workspace, revision) => attempt(() => engine.adopt(workspace, revision)),

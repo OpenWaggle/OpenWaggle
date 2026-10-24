@@ -14,9 +14,10 @@ import { recoverPreparationAfterHostLoss } from './preparation-recovery'
 import { commitReviewedSnapshot } from './preparation-review-commit'
 import {
   completePreparationBirth,
+  completeRunWorktreeBirth,
+  freshPreparationState,
   inspectPreparationGeneration,
   isPendingPreparationBirth,
-  preparationGenerationFields,
   resetPreparationForBirth,
 } from './preparation-workspace-generation'
 import {
@@ -61,6 +62,15 @@ export class ManagedWorkspacePreparation {
   async inspectWorkspaceGeneration(workspace: ActionRunWorkspace) {
     return inspectPreparationGeneration(workspace, await this.state(workspace.workspaceId))
   }
+  completeWorktreeBirth(workspace: ActionRunWorkspace) {
+    return this.serial(workspace.workspaceId, async () =>
+      completeRunWorktreeBirth(
+        workspace,
+        await this.state(workspace.workspaceId),
+        (state, revision) => this.save(state, revision),
+      ),
+    )
+  }
   capture(workspace: ActionRunWorkspace, profileId?: string) {
     return this.serial(workspace.workspaceId, async () => {
       const existing = await this.state(workspace.workspaceId)
@@ -72,18 +82,7 @@ export class ManagedWorkspacePreparation {
           ),
         )
       const snapshot = capturePreparationSnapshot(await this.deps.catalog(workspace), profileId)
-      const state = await this.save(
-        {
-          workspaceId: workspace.workspaceId,
-          revision: 1,
-          snapshot,
-          setup: EMPTY_PREPARATION_EXECUTION,
-          cleanup: EMPTY_PREPARATION_EXECUTION,
-          environment: {},
-          ...(await preparationGenerationFields(workspace)),
-        },
-        0,
-      )
+      const state = await this.save(await freshPreparationState(workspace, snapshot, 1), 0)
       return this.project(workspace, state)
     })
   }
@@ -114,15 +113,7 @@ export class ManagedWorkspacePreparation {
       return this.project(
         workspace,
         await this.save(
-          {
-            workspaceId: workspace.workspaceId,
-            revision: expectedRevision + 1,
-            snapshot,
-            setup: EMPTY_PREPARATION_EXECUTION,
-            cleanup: EMPTY_PREPARATION_EXECUTION,
-            environment: {},
-            ...(await preparationGenerationFields(workspace)),
-          },
+          await freshPreparationState(workspace, snapshot, expectedRevision + 1),
           expectedRevision,
         ),
       )

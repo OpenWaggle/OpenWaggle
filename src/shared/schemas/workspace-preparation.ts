@@ -38,4 +38,7 @@ export const storedWorkspacePreparationSchema = Schema.Struct({
     Schema.Struct({ device: Schema.String, inode: Schema.String, birthtime: Schema.String }),
   ),
   awaitingWorktreeBirth: Schema.optional(Schema.Boolean),
+  awaitingWorktreeBirthSince: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  ),
 })

@@ -9,8 +9,22 @@ const logger = createLogger('workspace-preparation')
 
 type PreparationEnvironmentReader = Pick<
   WorkspacePreparationServiceShape,
-  'read' | 'inspectWorkspaceGeneration' | 'environment'
+  'read' | 'inspectWorkspaceGeneration' | 'completeWorktreeBirth' | 'environment'
 >
+
+/**
+ * A Host that stopped between `git worktree add` and the setup dispatch's capture leaves the
+ * birth pending with the folder in place; the run records it then, when that is safe.
+ */
+async function inspectRunWorkspaceGeneration(
+  preparation: PreparationEnvironmentReader,
+  workspace: ActionRunWorkspace,
+) {
+  const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
+  return check.status === 'awaiting-birth'
+    ? Effect.runPromise(preparation.completeWorktreeBirth(workspace))
+    : check
+}
 
 export async function readPreparedWorkspaceEnvironment(
   preparation: PreparationEnvironmentReader,
@@ -19,7 +33,7 @@ export async function readPreparedWorkspaceEnvironment(
   if (workspace.workspacePath !== workspace.projectPath) {
     const state = await Effect.runPromise(preparation.read(workspace))
     if (state) {
-      const check = await Effect.runPromise(preparation.inspectWorkspaceGeneration(workspace))
+      const check = await inspectRunWorkspaceGeneration(preparation, workspace)
       if (check.status !== 'current') {
         logger.warn('Worktree failed its saved-preparation check', {
           workspaceId: workspace.workspaceId,

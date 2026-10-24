@@ -1454,6 +1454,16 @@ Retained-preparation listing must include generation mismatches even when cleanu
 or succeeded. Settings must keep Delete anyway visible for those rows and explain why Retry cannot
 run the pinned cleanup in the replacement directory.
 
+A Host that stops between `git worktree add` and setup dispatch's `capture` leaves the
+preparation `awaiting-birth` with the folder in place. Setup dispatch records any folder it finds;
+a run that reaches the generation check with the birth still pending (a Project Action run, or an
+agent run whose dispatch has nothing pending) calls `completeWorktreeBirth`
+(`recoverPreparationBirth`), which records the folder only when setup has not started and the
+folder's birth time is no more than 1 s before `awaitingWorktreeBirthSince` (`Date.now()` at
+`prepareBirth`; the slack covers coarse filesystem clocks). A missing, unreadable or older folder,
+no birth time, or a pending birth saved before that field existed keeps failing closed. The field
+is present only while the birth is pending.
+
 Workspace preparation review writes two durable records: the project catalog's remembered approval
 and the pinned Workspace snapshot. If snapshot persistence fails after a catalog edit, restore the
 exact previous catalog review using the resulting catalog revision; never leave a shared setup
