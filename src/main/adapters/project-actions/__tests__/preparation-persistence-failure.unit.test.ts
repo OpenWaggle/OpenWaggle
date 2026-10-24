@@ -47,6 +47,7 @@ function fixture() {
     catalog: async () => catalog,
     execute,
     acquireLiveness: () => release,
+    inspectLinkedWorktree: async () => 'not-a-worktree' as const,
   })
   return {
     engine,

@@ -141,6 +141,7 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
             EffectModule.promise(() => mocks.removeGitWorktree(projectPath, input)),
           validateRemoval: () =>
             EffectModule.succeed({ ok: true, message: 'safe', path: WORKTREE_PATH }),
+          inspectLinkedWorktree: () => EffectModule.dieMessage('not used'),
         }),
         Layer.succeed(
           SessionWorkspaceResourceRepository,

@@ -1,7 +1,10 @@
+import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { storedWorkspacePreparationSchema } from '@shared/schemas/workspace-preparation'
 import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import type { ActionRunWorkspace } from '../../../ports/action-run-service'
+import type { LinkedWorktreeCheck } from '../../../ports/git-worktree-service'
 import {
   ManagedWorkspacePreparation,
   type PreparationDependencies,
@@ -15,17 +18,28 @@ export const catalog: ActionCatalog = {
   preparation: [],
 }
 
-export function memoryDeps() {
+/**
+ * In-memory persistence that decodes and compares revisions as the SQLite one does. Every folder
+ * counts as a finished linked worktree unless `linkedWorktree` says otherwise.
+ */
+export function memoryDeps(
+  linkedWorktree: (candidatePath: string) => Promise<LinkedWorktreeCheck> = async () => 'linked',
+) {
   const storage = new Map<string, StoredWorkspacePreparation>()
   const deps = fromPartial<PreparationDependencies>({
     catalog: async () => catalog,
     persistence: {
       read: async (id: string) => storage.get(id) ?? null,
       list: async () => [...storage.values()],
-      write: async (state: StoredWorkspacePreparation) => {
-        storage.set(state.workspaceId, structuredClone(state))
+      write: async (state: StoredWorkspacePreparation, expectedRevision: number) => {
+        if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision)
+          throw new Error('Workspace preparation changed. Reload before continuing.')
+        const valid = decodeUnknownExactOrThrow(storedWorkspacePreparationSchema, state)
+        storage.set(state.workspaceId, structuredClone(valid))
       },
     },
+    inspectLinkedWorktree: (_projectPath: string, candidatePath: string) =>
+      linkedWorktree(candidatePath),
   })
   return { storage, deps }
 }
@@ -44,6 +58,8 @@ export function restartedService(deps: PreparationDependencies) {
           try: () => engine.completeWorktreeBirth(workspace),
           catch: (error) => (error instanceof Error ? error : new Error(String(error))),
         }),
+      requireSetup: (workspace: ActionRunWorkspace) =>
+        Effect.promise(() => engine.requireSetup(workspace)),
       environment: (workspaceId: string) => Effect.promise(() => engine.environment(workspaceId)),
     },
   }

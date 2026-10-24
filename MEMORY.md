@@ -1457,12 +1457,22 @@ run the pinned cleanup in the replacement directory.
 A Host that stops between `git worktree add` and setup dispatch's `capture` leaves the
 preparation `awaiting-birth` with the folder in place. Setup dispatch records any folder it finds;
 a run that reaches the generation check with the birth still pending (a Project Action run, or an
-agent run whose dispatch has nothing pending) calls `completeWorktreeBirth`
-(`recoverPreparationBirth`), which records the folder only when setup has not started and the
-folder's birth time is no more than 1 s before `awaitingWorktreeBirthSince` (`Date.now()` at
-`prepareBirth`; the slack covers coarse filesystem clocks). A missing, unreadable or older folder,
-no birth time, or a pending birth saved before that field existed keeps failing closed. The field
-is present only while the birth is pending.
+agent run whose Session's dispatch has nothing pending, e.g. another Session in the Workspace)
+calls `completeWorktreeBirth` (`preparation-birth-recovery.ts`). It records the folder only when
+setup has not started, the folder's birth time is no more than 1 s before
+`awaitingWorktreeBirthSince` (the slack covers coarse filesystem clocks), and Git reports it as a
+finished linked worktree of the project (`GitWorktreeService.inspectLinkedWorktree`: same common
+dir as `isWorktreeOf`, a git dir of its own, and no `locked` file, which `git worktree add` keeps
+until its checkout finishes). Anything else keeps failing closed. `awaitingWorktreeBirthSince` is
+`Date.now()` when a record starts pending (`freshPreparationState`, for `capture` and `select`
+before the worktree exists) or is reset (`resetPreparationForBirth`), and `prepareBirth` refreshes
+it on an already pending birth (`refreshPendingBirth`), so a retry, or a pending record saved
+before the field existed, gets the time of the attempt that runs `git worktree add`. The field
+exists only while the birth is pending. An agent run that records the birth itself then runs the
+setup gate (`requireSetup`) before reading exports. Older builds decode stored preparations
+exactly, and `recoverAfterHostLoss` lists all of them before the Session Host listens, so after a
+downgrade one pending record with this field stops the older Host from starting (downgrades are
+unsupported).
 
 Workspace preparation review writes two durable records: the project catalog's remembered approval
 and the pinned Workspace snapshot. If snapshot persistence fails after a catalog edit, restore the

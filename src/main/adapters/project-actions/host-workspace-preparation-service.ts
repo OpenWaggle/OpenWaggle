@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { app } from 'electron'
 import { ActionCatalogService } from '../../ports/action-catalog-service'
+import { GitWorktreeService } from '../../ports/git-worktree-service'
 import { WorkspaceExecutionAdmission } from '../../ports/workspace-execution-admission'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { getSessionHostEventRuntime } from '../../session-host/session-host-events'
@@ -26,6 +27,7 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
     const sql = yield* SqlClient.SqlClient
     const catalog = yield* ActionCatalogService
     const admission = yield* WorkspaceExecutionAdmission
+    const gitWorktrees = yield* GitWorktreeService
     let execute: ReturnType<typeof createPreparationExecutor> | null = null
     const engine = new ManagedWorkspacePreparation({
       persistence: createPreparationPersistence(sql),
@@ -49,6 +51,8 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
         return execute(input)
       },
       acquireLiveness: () => getSessionHostEventRuntime().liveness.acquire('action-run'),
+      inspectLinkedWorktree: (projectPath, candidatePath) =>
+        Effect.runPromise(gitWorktrees.inspectLinkedWorktree(projectPath, candidatePath)),
     })
     yield* Effect.addFinalizer(() =>
       attempt(async () => {

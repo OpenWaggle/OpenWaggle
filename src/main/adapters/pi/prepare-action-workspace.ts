@@ -54,6 +54,13 @@ export function prepareActionWorkspace(
             : Effect.fail(new Error('This Session no longer has a Workspace binding.')),
         ),
       )
+    const requireSetup = (workspace: ActionRunWorkspace) =>
+      Effect.gen(function* () {
+        const reportsSetup = runsSetupAction(yield* services.preparation.read(workspace))
+        if (reportsSetup) input.onWorktreeLaunch?.(SETUP_STARTED)
+        yield* services.preparation.requireSetup(workspace)
+        if (reportsSetup) input.onWorktreeLaunch?.(SETUP_FINISHED)
+      })
     const executionPath = yield* Effect.tryPromise({
       try: () =>
         ensureSessionWorktreeProjectPath(input.session, {
@@ -77,10 +84,7 @@ export function prepareActionWorkspace(
                       'A previous setup dispatch has no confirmed result. Review Workspace preparation and explicitly run setup or continue.',
                     ),
                   )
-                const reportsSetup = runsSetupAction(yield* services.preparation.read(workspace))
-                if (reportsSetup) input.onWorktreeLaunch?.(SETUP_STARTED)
-                yield* services.preparation.requireSetup(workspace)
-                if (reportsSetup) input.onWorktreeLaunch?.(SETUP_FINISHED)
+                yield* requireSetup(workspace)
               }),
             ),
           signal: input.signal,
@@ -89,7 +93,12 @@ export function prepareActionWorkspace(
     })
     const workspace = { ...(yield* resolveWorkspace()), workspacePath: executionPath }
     const preparedEnvironment = yield* Effect.tryPromise({
-      try: () => readPreparedWorkspaceEnvironment(services.preparation, workspace),
+      try: () =>
+        readPreparedWorkspaceEnvironment(services.preparation, workspace, {
+          // Setup dispatch records the folder itself, so a birth recorded here never went through
+          // this Session's dispatch; the run gates on setup as that dispatch would have.
+          onBirthRecorded: () => Effect.runPromise(requireSetup(workspace)),
+        }),
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     })
     return { projectPath, executionPath, preparedEnvironment }

@@ -134,6 +134,7 @@ async function invokeCreate(payload: unknown) {
               Effect.promise(() => mocks.createGitWorktree(projectPath, input)),
             remove: () => Effect.dieMessage('not used'),
             validateRemoval: () => Effect.dieMessage('not used'),
+            inspectLinkedWorktree: () => Effect.dieMessage('not used'),
           }),
         ),
       ),

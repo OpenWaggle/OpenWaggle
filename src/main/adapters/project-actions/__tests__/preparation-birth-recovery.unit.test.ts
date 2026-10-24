@@ -2,8 +2,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { LinkedWorktreeCheck } from '../../../ports/git-worktree-service'
 import { readActionWorkspaceEnvironment } from '../action-workspace-environment'
 import { ManagedWorkspacePreparation } from '../managed-workspace-preparation'
+import { BIRTH_CLOCK_TOLERANCE_MS } from '../preparation-birth-recovery'
+import type { PreparationDependencies } from '../preparation-dependencies'
 import type { StoredWorkspacePreparation } from '../preparation-persistence'
 import { memoryDeps, restartedService } from './preparation-generation.test-harness'
 
@@ -32,9 +35,12 @@ afterEach(async () => {
  * Prepares a birth as the first send does, before `git worktree add`: the Workspace is still
  * pending, so its path is the project checkout.
  */
-async function prepareBirth(workspacePath: string) {
+async function prepareBirth(
+  workspacePath: string,
+  linkedWorktree?: Parameters<typeof memoryDeps>[0],
+) {
   const workspace = { workspaceId: 'tracked', projectPath: root, workspacePath }
-  const { storage, deps } = memoryDeps()
+  const { storage, deps } = memoryDeps(linkedWorktree)
   await new ManagedWorkspacePreparation(deps).prepareBirth({ ...workspace, workspacePath: root })
   const pending = storage.get(workspace.workspaceId)
   if (!pending?.awaitingWorktreeBirth) throw new Error('expected a pending birth')
@@ -159,6 +165,84 @@ describe.skipIf(!recordsBirthTime)('a worktree born before the Host stopped', ()
     expect(storage.get(workspace.workspaceId)).toEqual(started)
   })
 
+  it.each([
+    ['not-a-worktree', 'not-a-linked-worktree'],
+    ['locked', 'worktree-add-unfinished'],
+  ] satisfies [LinkedWorktreeCheck, string][])(
+    'keeps failing when Git reports the folder as %s',
+    async (check, reason) => {
+      const inspected: string[] = []
+      const { workspace, storage, deps, pending } = await prepareBirth(
+        path.join(root, 'worktree'),
+        async (candidatePath) => {
+          inspected.push(candidatePath)
+          return check
+        },
+      )
+      await fs.mkdir(workspace.workspacePath)
+      const { service } = restartedService(deps)
+      await expect(readActionWorkspaceEnvironment(service, workspace)).rejects.toThrow(
+        AWAITING_BIRTH,
+      )
+      expect(inspected).toEqual([workspace.workspacePath])
+      expect(storage.get(workspace.workspaceId)).toEqual(pending)
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Did not record a pending worktree birth',
+        expect.objectContaining({ reason }),
+      )
+    },
+  )
+
+  it.each([
+    [BIRTH_CLOCK_TOLERANCE_MS - 1, 'records'],
+    [BIRTH_CLOCK_TOLERANCE_MS + 1, 'refuses'],
+  ])(
+    'allows for coarse filesystem clocks: a birth prepared %i ms after the folder %s it',
+    async (afterFolder, outcome) => {
+      const { workspace, storage, deps, pending } = await prepareBirth(path.join(root, 'worktree'))
+      await fs.mkdir(workspace.workspacePath)
+      const born = (await fs.lstat(workspace.workspacePath, { bigint: true })).birthtimeNs
+      const state = { ...pending, awaitingWorktreeBirthSince: birthtimeMs(born) + afterFolder }
+      storage.set(workspace.workspaceId, state)
+      const { service } = restartedService(deps)
+      const run = readActionWorkspaceEnvironment(service, workspace)
+      if (outcome === 'records') {
+        await expect(run).resolves.toMatchObject({
+          OPENWAGGLE_WORKTREE_PATH: workspace.workspacePath,
+        })
+        expect(storage.get(workspace.workspaceId)?.workspaceIdentity?.birthtime).toBe(
+          born.toString(),
+        )
+      } else {
+        await expect(run).rejects.toThrow(AWAITING_BIRTH)
+        expect(storage.get(workspace.workspaceId)).toEqual(state)
+      }
+    },
+  )
+
+  it('records nothing when the preparation changes while the run records the folder', async () => {
+    const { workspace, storage, deps } = await prepareBirth(path.join(root, 'worktree'))
+    await fs.mkdir(workspace.workspacePath)
+    // Another writer saves a new revision after each read, before the run's write lands.
+    const racing: PreparationDependencies = {
+      ...deps,
+      persistence: {
+        ...deps.persistence,
+        read: async (id) => {
+          const state = await deps.persistence.read(id)
+          if (state) storage.set(id, { ...state, revision: state.revision + 1 })
+          return state
+        },
+      },
+    }
+    const { service } = restartedService(racing)
+    await expect(readActionWorkspaceEnvironment(service, workspace)).rejects.toThrow(
+      'Workspace preparation changed',
+    )
+    expect(storage.get(workspace.workspaceId)).toMatchObject({ awaitingWorktreeBirth: true })
+    expect(storage.get(workspace.workspaceId)).not.toHaveProperty('workspaceIdentity')
+  })
+
   it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     'keeps failing, naming the folder, when it cannot be read',
     async () => {
@@ -191,3 +275,38 @@ it('records when a birth was prepared, and forgets it once the folder is capture
   expect(storage.get(workspace.workspaceId)).toMatchObject({ awaitingWorktreeBirth: false })
   expect(storage.get(workspace.workspaceId)).not.toHaveProperty('awaitingWorktreeBirthSince')
 })
+
+it('refreshes the time when a pending birth is prepared again, as on a retry days later', async () => {
+  const { workspace, storage, deps, pending } = await prepareBirth(path.join(root, 'worktree'))
+  const daysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000
+  storage.set(workspace.workspaceId, { ...pending, awaitingWorktreeBirthSince: daysAgo })
+  const beforeRetry = Date.now()
+  await new ManagedWorkspacePreparation(deps).prepareBirth({ ...workspace, workspacePath: root })
+  const retried = storage.get(workspace.workspaceId)
+  expect(retried).toEqual({
+    ...pending,
+    revision: pending.revision + 1,
+    awaitingWorktreeBirthSince: expect.any(Number),
+  })
+  expect(retried?.awaitingWorktreeBirthSince).toBeGreaterThanOrEqual(beforeRetry)
+})
+
+it.skipIf(!recordsBirthTime)(
+  'gives a pending birth saved before its time was recorded one when it is prepared again',
+  async () => {
+    const { workspace, storage, deps, pending } = await prepareBirth(path.join(root, 'worktree'))
+    const { awaitingWorktreeBirthSince: _since, ...legacy } = pending
+    storage.set(workspace.workspaceId, legacy)
+    const beforeRetry = Date.now()
+    await new ManagedWorkspacePreparation(deps).prepareBirth({ ...workspace, workspacePath: root })
+    expect(storage.get(workspace.workspaceId)?.awaitingWorktreeBirthSince).toBeGreaterThanOrEqual(
+      beforeRetry,
+    )
+    await fs.mkdir(workspace.workspacePath)
+    const { engine, service } = restartedService(deps)
+    await expect(readActionWorkspaceEnvironment(service, workspace)).resolves.toMatchObject({
+      OPENWAGGLE_WORKTREE_PATH: workspace.workspacePath,
+    })
+    expect(await engine.inspectWorkspaceGeneration(workspace)).toEqual({ status: 'current' })
+  },
+)
