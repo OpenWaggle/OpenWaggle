@@ -2,6 +2,8 @@
 
 Status: accepted
 
+Amended 2026-10-24: Scheduled tasks are a Covered surface (see the Amendment below).
+
 Refines ADR 0032 (Coexisting Build Identities and Channel-Keyed Updates). Supersedes the release-intent design in PRD issue #90.
 
 OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs disagreed about the target: the release docs planned a Stable `0.4.0`, while PRD #90 planned a governed `1.0.0` train with custom release-intent files. We are shipping v1, so we fixed the policy that the release workflow, updater, and docs must follow. The full rules live in `docs/release-and-versioning.md`.
@@ -34,4 +36,4 @@ OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs di
 
 ## Amendment (2026-10-24): Scheduled tasks are a Covered surface
 
-Scheduled tasks (Heartbeats and Launch schedules, ADR 0057 and ADR 0058) were added during the Beta. From `1.0.0` their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start are Covered surfaces too, beside the list in the Decision. `1.0.0-rc.1` also requires that they shipped in a Beta build. `docs/release-and-versioning.md` has the full rule.
+Scheduled tasks (Heartbeats and Launch schedules, [ADR 0057](0057-the-session-host-runs-scheduled-tasks.md) and [ADR 0058](0058-scheduled-tasks-are-host-records-not-files.md)) shipped in `1.0.0-beta.23` (#335), which also added this rule to `docs/release-and-versioning.md`. From `1.0.0` their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start are Covered surfaces too, beside the list in the Decision. `1.0.0-rc.1` also requires that they shipped in a Beta build.

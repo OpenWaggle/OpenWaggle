@@ -87,7 +87,7 @@ pnpm dev
 
 **Developer Preview** — Functional for local development, active iteration on core features.
 
-Platform builds (macOS .dmg, Windows NSIS, Linux AppImage) produce local artifacts but require signing/notarization work for public distribution.
+The release workflow publishes macOS .dmg/.zip (Developer ID signed and notarized), Windows NSIS, and Linux AppImage artifacts; Windows and Linux are unsigned.
 
 ---
 

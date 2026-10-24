@@ -27,7 +27,7 @@ After opening the app, follow [Get started](/docs/getting-started/first-run) to 
 
 ### Signing and first launch
 
-macOS builds are signed with an Apple Developer ID and notarized by Apple, so macOS opens them without a Gatekeeper warning. Builds before `1.0.0-beta.1` were unsigned. If you still run one of those, download the current version from GitHub Releases and replace the app in Applications once; an in-app update from an unsigned build may not install.
+macOS builds are signed with an Apple Developer ID and notarized by Apple, so macOS does not block them as coming from an unidentified developer. The first time you open one, macOS may still ask you to confirm opening an app downloaded from the internet. Builds before `1.0.0-beta.1` were unsigned. If you still run one of those, download the current version from GitHub Releases and replace the app in Applications once; an in-app update from an unsigned build may not install.
 
 Windows installers are not signed yet, so SmartScreen may warn the first time you run one. If it does, check that you downloaded the installer from the official release page, then choose **More info** and **Run anyway**. The Linux AppImage is not signed.
 
