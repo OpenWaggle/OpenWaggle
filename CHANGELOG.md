@@ -77,7 +77,7 @@ The extension host contract follows the `@openwaggle/extension-sdk` package's ow
 - Sessions you started with the `pi` command line in a project's folder are listed with that project's sessions and get titles the same way. Before you continue one that `pi` used last, OpenWaggle asks whether to continue in OpenWaggle or keep running in `pi`. Pi extension commands show in the slash menu.
 - MCP servers run through Pi's built-in MCP support. OpenWaggle reads `~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, and the project's `.mcp.json`, `.pi/mcp.json` and `.openwaggle/mcp.json`. Existing OpenWaggle MCP settings are migrated once, with a backup.
 - MCP now works as it does in `pi`. Adding a project trusts the MCP servers its files configure. The Global MCP switch, the per-server trust step and the MCP sandbox are gone, so local servers run with your user's permissions. In Ask for Approval mode every MCP tool call still asks first. In YOLO mode, the default, they run without asking.
-- After the upgrade, servers in the projects OpenWaggle already knew stay on or off as they were. If MCP was off, every server starts off. Projects you add later start their servers as their files say.
+- After the upgrade, if you had set up MCP in OpenWaggle, the projects it already knew keep their old state: servers that connected before stay on, and the others start off. Where MCP was off, every server starts off. If you never set up MCP in OpenWaggle, and in projects you add later, servers start as their files say, including Pi's files and a repository's `.mcp.json`.
 - Each server has an exposure that decides how the agent reaches its tools: Codemode, which is the default, Deferred, Direct or Hidden. The `mcp` and `mcp_run` tools are gone. Agent definitions that list them keep working.
 - Codemode is on in every session. The agent can write a short script that calls several tools in one step, and only what the script prints reaches the model. Turn it off, or change prompt cache warming, in Settings > General > Agent tools.
 - Virtual models that Pi extensions register can be turned on in Available Models and picked like any other model. After a reply, the model picker shows which real model answered.
@@ -87,7 +87,7 @@ The extension host contract follows the `@openwaggle/extension-sdk` package's ow
 - A tool error that carries an image no longer breaks a Claude session for good.
 - Settings > Connections > Available Models has search, filters and a provider list.
 - If the provider list fails to load, Settings > Connections shows the error with a Retry button.
-- Pi renamed the Azure provider from `azure-openai-responses` to `azure`. OpenWaggle moves your saved Azure model choices and credential to the new name. Settings you added under the old name in Pi's `models.json` need renaming by hand.
+- Pi renamed the Azure provider from `azure-openai-responses` to `azure`. OpenWaggle moves your saved Azure model choices, and each session's model, to the new name, and copies your Azure credential to it. Model settings you added under the old name in Pi's `models.json` need renaming by hand.
 
 ### Settings and usage
 
