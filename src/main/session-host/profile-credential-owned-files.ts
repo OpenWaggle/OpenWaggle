@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
+import type { WorkspaceDirectoryIdentity } from '../domain/workspace-generation'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -107,6 +108,22 @@ function spawnOwnedFileHelper(
   )
 }
 
+/**
+ * The identity of an open directory that a later boot can compare (inode plus birth time). The
+ * `dev:ino` string next to it pins the directory only within this process: macOS renumbers
+ * volumes at mount, so `st_dev` changes across reboots.
+ */
+export async function readDurableDirectoryIdentity(
+  directoryHandle: FileHandle,
+): Promise<WorkspaceDirectoryIdentity> {
+  const stats = await directoryHandle.stat({ bigint: true })
+  return {
+    device: stats.dev.toString(),
+    inode: stats.ino.toString(),
+    birthtime: stats.birthtimeNs.toString(),
+  }
+}
+
 async function runOwnedFileOperation(input: {
   readonly directory: string
   readonly operation: 'read' | 'write' | 'unlink' | 'list'
@@ -122,6 +139,7 @@ async function runOwnedFileOperation(input: {
   const directoryHandle = await fs.open(input.directory, OPEN_DIRECTORY_NO_FOLLOW)
   try {
     const stats = await directoryHandle.stat()
+    const durableDirectoryIdentity = await readDurableDirectoryIdentity(directoryHandle)
     const canonicalDirectory = await fs.realpath(input.directory)
     await input.beforeSpawn?.()
     const child = spawnOwnedFileHelper(input, `${stats.dev}:${stats.ino}`)
@@ -154,11 +172,16 @@ async function runOwnedFileOperation(input: {
     }
     const exitCode = await exitCodePromise
     if (exitCode === OWNED_FILE_MISSING_EXIT_CODE)
-      return { result: undefined, directoryIdentity: `${stats.dev}:${stats.ino}` }
+      return {
+        result: undefined,
+        directoryIdentity: `${stats.dev}:${stats.ino}`,
+        durableDirectoryIdentity,
+      }
     if (exitCode !== 0) throw new Error('Protected credential storage changed during access.')
     return {
       result: output.match(/result=([^\n]*)$/)?.[1] ?? '',
       directoryIdentity: `${stats.dev}:${stats.ino}`,
+      durableDirectoryIdentity,
     }
   } finally {
     await directoryHandle.close()
@@ -183,6 +206,7 @@ export async function readOwnedFile(
       content: undefined,
       fileIdentity: undefined,
       directoryIdentity: output.directoryIdentity,
+      durableDirectoryIdentity: output.durableDirectoryIdentity,
     }
   }
   const parsed: unknown = JSON.parse(Buffer.from(output.result, 'base64').toString('utf8'))
@@ -200,6 +224,7 @@ export async function readOwnedFile(
     content: Buffer.from(parsed.content, 'base64'),
     fileIdentity: parsed.identity,
     directoryIdentity: output.directoryIdentity,
+    durableDirectoryIdentity: output.durableDirectoryIdentity,
   }
 }
 

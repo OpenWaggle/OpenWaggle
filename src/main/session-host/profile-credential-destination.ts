@@ -16,11 +16,15 @@ import {
   destinationPath,
   openUnlinkedCredentialSource,
   ownerStateRoot,
-  parseReceipt,
   receiptPath,
   recoverInstalledCredential,
 } from './profile-credential-destination-support'
-import { readOwnedFile, unlinkOwnedFile, writeOwnedFile } from './profile-credential-owned-files'
+import {
+  readDurableDirectoryIdentity,
+  readOwnedFile,
+  unlinkOwnedFile,
+  writeOwnedFile,
+} from './profile-credential-owned-files'
 import {
   markInstalledPendingCredentials,
   preparePendingCredential,
@@ -29,6 +33,12 @@ import {
   validateCredentialDestination,
   validateStagedCredentialDestination,
 } from './profile-credential-preflight'
+import {
+  credentialReceiptRecord,
+  isSameReceiptDirectory,
+  type ObservedReceiptDirectory,
+  parseCredentialReceipt,
+} from './profile-credential-receipt'
 import { validateProfileCredential } from './profile-credential-storage'
 
 export {
@@ -53,11 +63,20 @@ function validateCredential(credential: string) {
   validateProfileCredential(credential)
 }
 
-async function readDestinationDirectoryIdentity(targetPath: string) {
+/**
+ * The destination directory through one handle: `directoryIdentity` (`dev:ino`) pins it for the
+ * installer in this process; the durable identity goes into the receipt that a later boot reads.
+ */
+async function readDestinationDirectoryIdentity(
+  targetPath: string,
+): Promise<ObservedReceiptDirectory> {
   const handle = await open(path.dirname(targetPath), 'r')
   try {
     const stats = await handle.stat()
-    return `${stats.dev}:${stats.ino}`
+    return {
+      directoryIdentity: `${stats.dev}:${stats.ino}`,
+      durableDirectoryIdentity: await readDurableDirectoryIdentity(handle),
+    }
   } finally {
     await handle.close()
   }
@@ -68,15 +87,17 @@ async function persistCredentialReceipt(input: {
   readonly installedReceiptPath: string
   readonly targetPath: string
   readonly selectedCredential: string
-  readonly directoryIdentity: string
+  readonly directory: ObservedReceiptDirectory
   readonly beforeReceiptMutation?: () => Promise<void>
 }) {
   const receiptHandle = await openUnlinkedCredentialSource(
-    JSON.stringify({
-      targetPath: input.targetPath,
-      fingerprint: credentialFingerprint(input.selectedCredential),
-      directoryIdentity: input.directoryIdentity,
-    }),
+    JSON.stringify(
+      credentialReceiptRecord({
+        targetPath: input.targetPath,
+        fingerprint: credentialFingerprint(input.selectedCredential),
+        directory: input.directory.durableDirectoryIdentity,
+      }),
+    ),
   )
   try {
     await writeOwnedFile({
@@ -91,9 +112,12 @@ async function persistCredentialReceipt(input: {
       path.basename(input.installedReceiptPath),
     )
     if (!receipt.content) throw error
-    const existing = parseReceipt(JSON.parse(receipt.content.toString('utf8')), input.targetPath)
+    const existing = parseCredentialReceipt(
+      JSON.parse(receipt.content.toString('utf8')),
+      input.targetPath,
+    )
     if (
-      existing.directoryIdentity !== input.directoryIdentity ||
+      !isSameReceiptDirectory(existing.directory, input.directory) ||
       existing.fingerprint !== credentialFingerprint(input.selectedCredential)
     ) {
       throw new Error('A conflicting credential installation receipt already exists.', {
@@ -172,7 +196,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
     targetDirectory: path.dirname(targetPath),
     mode: OWNER_DIRECTORY_MODE,
   })
-  const directoryIdentity = await readDestinationDirectoryIdentity(targetPath)
+  const destinationDirectory = await readDestinationDirectoryIdentity(targetPath)
   const stagingIdentity = input.stagingKey
     ? createHash('sha256').update(input.stagingKey).digest('hex')
     : randomUUID()
@@ -239,7 +263,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
         if (!alreadyInstalled) {
           await installCredentialInBoundDirectory({
             directory: path.dirname(targetPath),
-            directoryIdentity,
+            directoryIdentity: destinationDirectory.directoryIdentity,
             targetName: path.basename(targetPath),
             mode: stagedDestinationIdentity ? 'replace' : 'create',
             ...(stagedDestinationIdentity
@@ -259,7 +283,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
           installedReceiptPath,
           targetPath,
           selectedCredential: pending.selectedCredential,
-          directoryIdentity,
+          directory: destinationDirectory,
           ...(input.beforeReceiptMutation
             ? { beforeReceiptMutation: input.beforeReceiptMutation }
             : {}),

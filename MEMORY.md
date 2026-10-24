@@ -1123,6 +1123,14 @@ those additional recovery locations through the staged commit error and accepted
 alongside the original staging path. VM tests cover cleanup errors and rollback branches, but do
 not substitute for native Windows locking and ACL checks.
 
+A profile credential receipt outlives the process, so it records the destination directory as
+`directory: { device, inode, birthtime }` and an idempotent replay compares it with
+`isSameDurableDirectoryIdentity` (`profile-credential-receipt.ts`). Receipts written before #330
+carry only `directoryIdentity: "${dev}:${ino}"`; they are still read, by inode alone, because
+their device number may predate a reboot. Malformed receipts, or ones with neither field, are
+refused. The `dev:ino` string still pins the directory for the installer and owned-file helpers,
+which check it within one operation.
+
 Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
 project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
 is refreshed on authentication, profile changes, and lineage-producing lifecycle changes. Events
@@ -1443,7 +1451,7 @@ preparation compare persisted identities only through `isSameDurableDirectoryIde
 no birth time. In-process checks may still compare it, such as the language-detection cache
 (`workspace-language-detection.ts`) and the open-versus-resolve check in
 `filesystem-inline-visualization-service.ts`. Profile
-credential receipts still persist `${dev}:${ino}` (issue #330). `inspectWorkspaceGeneration`
+credential receipts do too since #330. `inspectWorkspaceGeneration`
 returns `current`, `replaced`, `unreadable`, `awaiting-birth` or `unrecorded`; the Host log under
 `workspace-preparation` records that status with the raw identities, and the error names the path
 and both identities. Recovery copy says to delete, not move, a mismatched worktree: a moved copy
