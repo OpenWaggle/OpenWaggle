@@ -1,4 +1,5 @@
 import * as Layer from 'effect/Layer'
+import { GitWorktreeServiceLive } from './adapters/git-worktree-service'
 import { PiSessionTranscriptFilesLive } from './adapters/pi/pi-session-transcript-files'
 import { WorkspaceExecutionAdmissionLive } from './adapters/project-actions/action-workspace-admission'
 import { HostActionRunServiceLive } from './adapters/project-actions/host-action-run-service'
@@ -11,7 +12,9 @@ import { AppDatabaseLive } from './services/database-service'
 const ActionCatalogLive = SqliteActionCatalogServiceLive.pipe(Layer.provide(AppDatabaseLive))
 const AdmissionLive = WorkspaceExecutionAdmissionLive.pipe(Layer.provide(AppDatabaseLive))
 const PreparationLive = HostWorkspacePreparationServiceLive.pipe(
-  Layer.provide(Layer.mergeAll(AppDatabaseLive, ActionCatalogLive, AdmissionLive)),
+  Layer.provide(
+    Layer.mergeAll(AppDatabaseLive, ActionCatalogLive, AdmissionLive, GitWorktreeServiceLive),
+  ),
 )
 const ActionRunsLive = HostActionRunServiceLive.pipe(
   Layer.provide(Layer.mergeAll(AppDatabaseLive, ActionCatalogLive, PreparationLive, AdmissionLive)),

@@ -2,6 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import { createGitWorktree, removeGitWorktree, validateGitWorktreeRemoval } from './git/worktree'
+import { inspectLinkedWorktree } from './git/worktree-membership'
 
 export const GitWorktreeServiceLive = Layer.succeed(
   GitWorktreeService,
@@ -10,5 +11,10 @@ export const GitWorktreeServiceLive = Layer.succeed(
     remove: (projectPath, payload) => Effect.promise(() => removeGitWorktree(projectPath, payload)),
     validateRemoval: (projectPath, payload) =>
       Effect.promise(() => validateGitWorktreeRemoval(projectPath, payload)),
+    inspectLinkedWorktree: (projectPath, candidatePath) =>
+      Effect.tryPromise({
+        try: () => inspectLinkedWorktree(projectPath, candidatePath),
+        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+      }),
   }),
 )

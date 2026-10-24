@@ -33,15 +33,22 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
   const inspectWorkspaceGeneration = vi.fn(() =>
     check instanceof Error ? Effect.fail(check) : Effect.succeed(check),
   )
+  // A pending birth whose folder cannot be recorded stays pending.
+  const completeWorktreeBirth = vi.fn(
+    (): Effect.Effect<WorkspaceGenerationCheck, Error> =>
+      check instanceof Error ? Effect.fail(check) : Effect.succeed(check),
+  )
   const environment = vi.fn(() => Effect.succeed({ TOOLCHAIN_PATH: '/old-checkout/bin' }))
   return {
     service: fromPartial<WorkspacePreparationServiceShape>({
       read,
       inspectWorkspaceGeneration,
+      completeWorktreeBirth,
       environment,
     }),
     read,
     inspectWorkspaceGeneration,
+    completeWorktreeBirth,
     environment,
   }
 }
@@ -123,9 +130,26 @@ it.each([
       workspaceId: worktree.workspaceId,
       ...check,
     })
+    // Only a pending birth is offered the chance to record the folder first.
+    expect(fixture.completeWorktreeBirth).toHaveBeenCalledTimes(
+      check.status === 'awaiting-birth' ? 1 : 0,
+    )
     expect(fixture.environment).not.toHaveBeenCalled()
   },
 )
+
+it('uses prepared exports once a pending birth records the folder', async () => {
+  const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), {
+    status: 'awaiting-birth',
+    workspacePath: worktree.workspacePath,
+  })
+  fixture.completeWorktreeBirth.mockReturnValue(Effect.succeed({ status: 'current' as const }))
+  await expect(readActionWorkspaceEnvironment(fixture.service, worktree)).resolves.toMatchObject({
+    OPENWAGGLE_WORKTREE_PATH: worktree.workspacePath,
+  })
+  expect(fixture.completeWorktreeBirth).toHaveBeenCalledWith(worktree)
+  expect(warn).not.toHaveBeenCalled()
+})
 
 it('keeps the recovery advice inside the 600 characters a run error shows', async () => {
   const longRoot = `/Volumes/Work Drive/${'x'.repeat(64)}`

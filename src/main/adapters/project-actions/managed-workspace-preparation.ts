@@ -8,16 +8,20 @@ import type { PreparationDependencies } from './preparation-dependencies'
 
 export type { PreparationDependencies } from './preparation-dependencies'
 
+import { completeRunWorktreeBirth } from './preparation-birth-recovery'
 import { executeWorkspacePreparation } from './preparation-execution'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { recoverPreparationAfterHostLoss } from './preparation-recovery'
 import { commitReviewedSnapshot } from './preparation-review-commit'
 import {
   completePreparationBirth,
+  freshPreparationState,
   inspectPreparationGeneration,
   isPendingPreparationBirth,
-  preparationGenerationFields,
+  owesRunBirthSetup,
+  refreshPendingBirth,
   resetPreparationForBirth,
+  settleRunBirthSetup,
 } from './preparation-workspace-generation'
 import {
   capturePreparationSnapshot,
@@ -50,9 +54,10 @@ export class ManagedWorkspacePreparation {
     }
   }
   private async save(state: StoredWorkspacePreparation, previousRevision: number) {
-    await this.deps.persistence.write(state, previousRevision)
-    this.live.delete(state.workspaceId)
-    return state
+    const settled = settleRunBirthSetup(state)
+    await this.deps.persistence.write(settled, previousRevision)
+    this.live.delete(settled.workspaceId)
+    return settled
   }
   async read(workspace: ActionRunWorkspace) {
     const state = await this.state(workspace.workspaceId)
@@ -60,6 +65,17 @@ export class ManagedWorkspacePreparation {
   }
   async inspectWorkspaceGeneration(workspace: ActionRunWorkspace) {
     return inspectPreparationGeneration(workspace, await this.state(workspace.workspaceId))
+  }
+  async owesSetupAfterRunBirth(workspace: ActionRunWorkspace) {
+    return owesRunBirthSetup(await this.state(workspace.workspaceId))
+  }
+  completeWorktreeBirth(workspace: ActionRunWorkspace) {
+    return this.serial(workspace.workspaceId, async () =>
+      completeRunWorktreeBirth(workspace, await this.state(workspace.workspaceId), {
+        save: (state, revision) => this.save(state, revision),
+        inspectLinkedWorktree: this.deps.inspectLinkedWorktree,
+      }),
+    )
   }
   capture(workspace: ActionRunWorkspace, profileId?: string) {
     return this.serial(workspace.workspaceId, async () => {
@@ -72,18 +88,7 @@ export class ManagedWorkspacePreparation {
           ),
         )
       const snapshot = capturePreparationSnapshot(await this.deps.catalog(workspace), profileId)
-      const state = await this.save(
-        {
-          workspaceId: workspace.workspaceId,
-          revision: 1,
-          snapshot,
-          setup: EMPTY_PREPARATION_EXECUTION,
-          cleanup: EMPTY_PREPARATION_EXECUTION,
-          environment: {},
-          ...(await preparationGenerationFields(workspace)),
-        },
-        0,
-      )
+      const state = await this.save(await freshPreparationState(workspace, snapshot, 1), 0)
       return this.project(workspace, state)
     })
   }
@@ -91,11 +96,11 @@ export class ManagedWorkspacePreparation {
     await this.capture(workspace)
     return this.serial(workspace.workspaceId, async () => {
       const state = await this.requireState(workspace.workspaceId)
-      if (isPendingPreparationBirth(state)) return this.project(workspace, state)
-      return this.project(
-        workspace,
-        await this.save(resetPreparationForBirth(state), state.revision),
-      )
+      // Git creates the folder after this, so the time bounds the folder a run may record.
+      const next = isPendingPreparationBirth(state)
+        ? refreshPendingBirth(state)
+        : resetPreparationForBirth(state)
+      return this.project(workspace, await this.save(next, state.revision))
     })
   }
   async stopSetup(workspace: ActionRunWorkspace, attemptId: string) {
@@ -114,15 +119,7 @@ export class ManagedWorkspacePreparation {
       return this.project(
         workspace,
         await this.save(
-          {
-            workspaceId: workspace.workspaceId,
-            revision: expectedRevision + 1,
-            snapshot,
-            setup: EMPTY_PREPARATION_EXECUTION,
-            cleanup: EMPTY_PREPARATION_EXECUTION,
-            environment: {},
-            ...(await preparationGenerationFields(workspace)),
-          },
+          await freshPreparationState(workspace, snapshot, expectedRevision + 1, previous),
           expectedRevision,
         ),
       )
