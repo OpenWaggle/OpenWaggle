@@ -11,13 +11,23 @@ This file lists OpenWaggle's Stable releases, starting with 1.0.0. Earlier 0.x b
 From 1.0.0 on, version numbers follow semver for a defined set of covered surfaces. A change that breaks one of them ships only in a new major version, such as 2.0.0.
 
 - Your data: sessions, settings, projects, credentials and the Session Host database. Every later 1.x release opens data written by an earlier 1.x release and migrates it forward. Downgrades are not supported.
-- The `openwaggle sessions`, `openwaggle delegations` and `openwaggle access` commands, including their JSON and JSONL output. New fields can appear. Existing commands, flags and fields are not removed or renamed.
-- Session Control through the OpenWaggle MCP server. An existing contract version keeps its meaning.
+- The `openwaggle hive` and `openwaggle access` commands, including their JSON and JSONL output. New fields can appear. Existing commands, flags and fields are not removed or renamed.
+- Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool. An existing contract version keeps its meaning.
 - The Agent-definition schema. A definition that is valid in 1.0.0 stays valid in 1.x.
-- Scheduled tasks: the `openwaggle schedules` command, the `schedules:read` and `schedules:manage` capabilities, the agent's schedule actions and Background start.
+- Scheduled tasks: the `openwaggle schedules` command, the `schedules:read` and `schedules:manage` capabilities, the `schedule_*` actions of the agent's `hive` tool, and Background start.
 - Supported platforms: macOS, Windows x64 and Linux x64.
 
 The extension host contract follows the `@openwaggle/extension-sdk` package's own versions. Pi extensions, skills and prompts follow Pi's compatibility. UI layout, wording, default settings and keyboard shortcuts can change in any release. The full rules are in [Release, versioning and CI/CD](https://github.com/OpenWaggle/OpenWaggle/blob/main/docs/release-and-versioning.md#v1-compatibility-promise).
+
+### Renamed to hive before 1.0.0
+
+If you script OpenWaggle or connect other agents to it, the coordination tool and its command line have new names. The old names are refused, with no alias.
+
+- `openwaggle sessions …` and `openwaggle delegations …` are now `openwaggle hive <action>`. Each subcommand is flat and matches the agent's tool action, for example `hive follow-up`, `hive delegation-accept`, `hive delegations-list`, `hive queue-withdraw` and `hive request-respond`. `hive approval-respond` replaces `requests respond --approve`, and `hive authorization-set <id> inherit` replaces `authorization clear`. Exports use `hive export-create`, `hive export-cancel`, `hive exports-list`, `hive exports-read`, `hive exports-wait` and `hive exports-watch`.
+- `openwaggle agents list` and `openwaggle agents search` are now `openwaggle hive agent-definitions-list` and `openwaggle hive agent-definitions-search`. The other `openwaggle agents` commands keep their names.
+- The OpenWaggle MCP server's tool is now `openwaggle_hive`. An MCP client that calls `openwaggle_sessions` gets a tool-not-found error, so update its config. The tool's operations and their JSON are unchanged.
+- The agent's coordination tool is now `hive`. An Agent definition that lists `sessions` under `tools` must list `hive` instead. Until it does, OpenWaggle reports `sessions` in it as an unknown reference. Older conversations still show their `sessions` calls, as an unrecognized tool.
+- `openwaggle schedules` and `openwaggle access` keep their names. The CLI guide moved to [Hive CLI](https://openwaggle.ai/docs/developer-workflow/hive-cli), and the old page redirects there.
 
 ### Updates and installation
 
@@ -101,7 +111,7 @@ The extension host contract follows the `@openwaggle/extension-sdk` package's ow
 - `openwaggle status` shows whether the Session Host is running and what it is working on.
 - `openwaggle host start` and `openwaggle host stop` start and stop the Session Host.
 - `openwaggle <folder>` opens a folder as a project.
-- The CLI, agents and MCP clients can set a session's thinking level only when they create the session or start a run on an idle one. `follow-up`, `steer` and `replace` refuse `--thinking`, `--authorization` and `--yolo`, and `queue update-authorization` is gone.
+- The CLI, agents and MCP clients can set a session's thinking level only when they create the session or start a run on an idle one. `hive follow-up`, `hive steer` and `hive replace` refuse `--thinking`, `--authorization` and `--yolo`, and `queue update-authorization` is gone.
 
 ### Reliability
 
