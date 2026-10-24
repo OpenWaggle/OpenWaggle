@@ -14,9 +14,9 @@ vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: mocks.executeCommand,
 }))
 
-import { runDelegationsCli } from '../delegations-cli'
+import { runSessionsCli } from '../sessions-cli'
 
-describe('Delegations CLI structured failure exit status', () => {
+describe('Hive CLI Delegation structured failure exit status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createClientInput.mockResolvedValue({
@@ -45,11 +45,13 @@ describe('Delegations CLI structured failure exit status', () => {
       },
     })
 
-    await expect(runDelegationsCli(['read', 'missing-delegation', '--json'])).resolves.toBe(5)
+    await expect(
+      runSessionsCli(['delegations-read', 'missing-delegation', '--json']),
+    ).resolves.toBe(5)
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'read',
+      command: 'delegations-read',
       result: { response: { outcome: { error: { code: 'delegation_not_found' } } } },
     })
   })
@@ -72,12 +74,12 @@ describe('Delegations CLI structured failure exit status', () => {
     })
 
     await expect(
-      runDelegationsCli(['accept', 'queen', 'delegation-1', '2', '--json']),
+      runSessionsCli(['delegation-accept', 'queen', 'delegation-1', '2', '--json']),
     ).resolves.toBe(6)
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'accept',
+      command: 'delegation-accept',
       result: {
         response: { outcome: { effect: 'rejected', code: 'submission_revision_stale' } },
       },
@@ -97,7 +99,7 @@ describe('Delegations CLI structured failure exit status', () => {
       },
     })
 
-    await expect(runDelegationsCli(['list', '--all'])).resolves.toBe(0)
+    await expect(runSessionsCli(['delegations-list', '--all'])).resolves.toBe(0)
     const output = String(vi.mocked(process.stdout.write).mock.calls[0]?.[0])
     expect(output).toContain('Delegations List')
     expect(output).toContain('delegation-1')
@@ -138,7 +140,7 @@ describe('Delegations CLI structured failure exit status', () => {
         mocks.executeCommand.mockRejectedValue(error)
       }
 
-      await expect(runDelegationsCli(['list', '--all', '--json'])).resolves.toBe(exitCode)
+      await expect(runSessionsCli(['delegations-list', '--all', '--json'])).resolves.toBe(exitCode)
       expect(process.stdout.write).not.toHaveBeenCalled()
       expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
         schemaVersion: 1,
@@ -148,12 +150,12 @@ describe('Delegations CLI structured failure exit status', () => {
     },
   )
 
-  it('keeps usage errors consistent with Sessions without contacting the Host', async () => {
-    await expect(runDelegationsCli(['list', '--unknown', '--json'])).resolves.toBe(2)
+  it('reports usage errors without contacting the Host', async () => {
+    await expect(runSessionsCli(['delegations-list', '--unknown', '--json'])).resolves.toBe(2)
     expect(mocks.createClientInput).not.toHaveBeenCalled()
     expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toMatchObject({
       type: 'error',
-      error: { kind: 'usage', message: 'Unknown option for OpenWaggle Delegations: --unknown.' },
+      error: { kind: 'usage', message: 'Unknown option for OpenWaggle Hive: --unknown.' },
     })
   })
 })

@@ -4,6 +4,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parseAgentDefinition } from '../agents/agent-definition-parser'
 import { runAgentsCli } from '../agents-cli'
+import { parseMcpCliArguments } from '../mcp-cli-arguments'
+import { runAgentDefinitionDiscoveryCommand } from '../sessions-cli-agent-definitions'
 
 const definition = `---
 schemaVersion: 1
@@ -75,6 +77,47 @@ describe('Agent definitions CLI', () => {
     })
     expect(stdout.join('')).toContain('security-reviewer')
     expect(stderr).toEqual([])
+  })
+
+  it('lists and searches definitions through the Hive CLI, not openwaggle agents (ADR 0053)', async () => {
+    const sourcePath = path.join(root, 'incoming.md')
+    await fs.writeFile(sourcePath, definition, 'utf8')
+    await expect(run(['import', sourcePath, '--scope', 'project'])).resolves.toBe(0)
+    stdout = []
+
+    await expect(run(['search', 'security'])).resolves.toBe(2)
+    expect(stderr.join('')).toContain("Use 'openwaggle hive agent-definitions-search'.")
+    stderr = []
+    await expect(run(['list', '--json'])).resolves.toBe(2)
+    expect(stdout).toEqual([])
+    expect(parsedError()).toEqual({
+      schemaVersion: 1,
+      error: {
+        message:
+          "Unsupported OpenWaggle Agents command: list. Use 'openwaggle hive agent-definitions-list'.",
+      },
+    })
+
+    const discover = (args: readonly string[]) => {
+      const parsed = parseMcpCliArguments(args)
+      return runAgentDefinitionDiscoveryCommand(
+        parsed.positionals[0] ?? '',
+        { ...parsed, positionals: parsed.positionals.slice(1) },
+        { cwd: project, home, stdout: (value) => void stdout.push(value) },
+      )
+    }
+    await expect(discover(['agent-definitions-list', '--json'])).resolves.toBe(0)
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      schemaVersion: 1,
+      type: 'response',
+      command: 'agent-definitions-list',
+      result: { definitions: [{ name: 'security-reviewer', scope: 'project', valid: true }] },
+    })
+    stdout = []
+    await expect(
+      discover(['agent-definitions-search', 'authorization', 'boundaries']),
+    ).resolves.toBe(0)
+    expect(stdout.join('')).toContain('security-reviewer\tproject\tvalid')
   })
 
   it('refreshes against the destination content inspected by its plan', async () => {
@@ -259,7 +302,7 @@ describe('Agent definitions CLI', () => {
     const outputReady = new Promise<void>((resolve) => {
       release = resolve
     })
-    const running = runAgentsCli(['list', '--json'], {
+    const running = runAgentsCli(['help'], {
       cwd: project,
       home,
       stdout: async () => outputReady,
@@ -277,7 +320,7 @@ describe('Agent definitions CLI', () => {
 
   it('converts asynchronous stdout failures into the controlled CLI failure path', async () => {
     await expect(
-      runAgentsCli(['list', '--json'], {
+      runAgentsCli(['help'], {
         cwd: project,
         home,
         stdout: async () => Promise.reject(new Error('stdout closed')),

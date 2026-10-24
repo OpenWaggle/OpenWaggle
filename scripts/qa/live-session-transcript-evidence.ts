@@ -29,12 +29,12 @@ export function transcriptInvokedSkill(jsonl: string, skillId: string) {
 }
 
 function isSessionsSpawnToolCall(value: Record<string, unknown>) {
-  if (value.type === 'toolCall' && value.name === 'sessions' && isRecord(value.arguments)) {
+  if (value.type === 'toolCall' && value.name === 'hive' && isRecord(value.arguments)) {
     return value.arguments.action === 'spawn' || value.arguments.operation === 'spawn'
   }
   if (value.type === 'tool-call' && isRecord(value.toolCall)) {
     return (
-      value.toolCall.name === 'sessions' &&
+      value.toolCall.name === 'hive' &&
       isRecord(value.toolCall.args) &&
       (value.toolCall.args.action === 'spawn' || value.toolCall.args.operation === 'spawn')
     )

@@ -33,7 +33,7 @@ function offersScheduledTasks(capabilities: readonly SessionCapability[] | undef
   )
 }
 
-/** Model guidance for the sessions tool; Scheduled task guidance only where it can be used. */
+/** Model guidance for the hive tool; Scheduled task guidance only where it can be used. */
 export function sessionsToolPromptGuidelines(
   capabilities: readonly SessionCapability[] | undefined,
 ) {

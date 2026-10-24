@@ -10,12 +10,11 @@ function command(arguments_: readonly string[]) {
   }
 }
 
-describe('Sessions CLI authorization and wait commands', () => {
+describe('Hive CLI authorization and wait commands', () => {
   it('lists and responds to parked agent-loop interactions with separate approval authority', () => {
-    const list = command(['requests', 'list', 'session-1'])
+    const list = command(['requests-list', 'session-1'])
     const respond = command([
-      'requests',
-      'respond',
+      'request-respond',
       'session-1',
       'run-1',
       'interaction-1',
@@ -23,14 +22,12 @@ describe('Sessions CLI authorization and wait commands', () => {
       '{"kind":"input","value":"ship it"}',
     ])
     const approve = command([
-      'requests',
-      'respond',
+      'approval-respond',
       'session-1',
       'run-1',
       'interaction-2',
       '--response-json',
       '{"kind":"confirm","accepted":true}',
-      '--approve',
     ])
 
     expect(buildSessionsCliPayload(list.name, list.arguments)).toMatchObject({
@@ -56,8 +53,8 @@ describe('Sessions CLI authorization and wait commands', () => {
   })
 
   it('sets or clears the persistent Session Authorization override explicitly', () => {
-    const yolo = command(['authorization', 'set', 'session-1', 'yolo'])
-    const inherit = command(['authorization', 'clear', 'session-1'])
+    const yolo = command(['authorization-set', 'session-1', 'yolo'])
+    const inherit = command(['authorization-set', 'session-1', 'inherit'])
 
     expect(buildSessionsCliPayload(yolo.name, yolo.arguments)).toMatchObject({
       request: {

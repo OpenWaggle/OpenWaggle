@@ -81,7 +81,7 @@ The non-empty Markdown body is the agent instruction text. The complete frontmat
 | `tools` | No | Tool allowlist. Omission inherits; `[]` exposes none. |
 | `skills` | No | Skill allowlist with the same omission/empty semantics. |
 | `mcpServers` | No | MCP-server allowlist with the same omission/empty semantics. |
-| `sessionCapabilities` | No | Operation-level reduction for the native `sessions` tool. |
+| `sessionCapabilities` | No | Operation-level reduction for the native `hive` tool. |
 | `authorizationMode` | No | `ask-for-approval` or `yolo`, bounded by the caller's ceiling. |
 | `workspace` | No | `share-parent`, `local`, or `new-worktree` default. |
 | `import` | Managed | Provenance written by an import adapter; do not hand-author it. |
@@ -111,8 +111,8 @@ The selected definition is resolved and snapshotted when the Session is created.
 ## CLI
 
 ```sh
-openwaggle agents list --project /path/to/project
-openwaggle agents search security --project /path/to/project
+openwaggle hive agent-definitions-list --project /path/to/project
+openwaggle hive agent-definitions-search security --project /path/to/project
 openwaggle agents validate ./security-reviewer.md --json
 openwaggle agents import ./security-reviewer.md --from openwaggle --scope project --dry-run
 openwaggle agents import ~/.codex/agents/reviewer.toml --from codex --scope project
@@ -150,4 +150,4 @@ to refresh a specific definition. Without `--scope`, the CLI refreshes the norma
 To change a definition yourself, edit its Markdown file. A new Session uses the revised file; a
 Session already using a snapshot keeps its existing definition.
 
-Agents can discover names and descriptions on demand through the native `sessions` tool using `agent_definitions_list` or `agent_definitions_search`. Instruction bodies are not injected into every Run.
+Agents can discover names and descriptions on demand through the native `hive` tool using `agent_definitions_list` or `agent_definitions_search`. Instruction bodies are not injected into every Run.

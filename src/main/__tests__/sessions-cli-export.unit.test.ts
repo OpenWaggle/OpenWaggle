@@ -28,7 +28,7 @@ function manifest(selectedBranchId = 'branch-at-snapshot') {
   }
 }
 
-describe('Sessions CLI export continuation', () => {
+describe('Hive CLI export continuation', () => {
   it('pins later pages to the branch selected by the first snapshot', () => {
     const query = continuationQuery({
       sessionId: 'session-1',

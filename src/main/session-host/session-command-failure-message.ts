@@ -47,11 +47,11 @@ function describeAuthorizationFailure(failure: LocalSessionCommandAuthorizationE
  * Turn a Session command failure into a message an agent or CLI user can act on.
  *
  * Effect renders a tagged error without a `message` field as "An error has occurred", which hid
- * every authorization refusal from the Sessions tool. Authorization refusals name their code,
+ * every authorization refusal from the Hive tool. Authorization refusals name their code,
  * reason, and missing capabilities; a cancelled command says so; anything else is described by
  * `describeLocalSessionServerError`, which shows only identifying fields of a cause. Every text
- * except the fixed messages is redacted and bounded, because Sessions tool results go into
- * provider transcripts. The Sessions tool and the Host's command error frames both use it.
+ * except the fixed messages is redacted and bounded, because Hive tool results go into
+ * provider transcripts. The Hive tool and the Host's command error frames both use it.
  */
 export function sessionCommandFailureMessage(error: unknown): string {
   if (isInterruptedOnly(error)) return CANCELLED_MESSAGE

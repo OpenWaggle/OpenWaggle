@@ -4,7 +4,7 @@ import {
   type decodeSessionAuthoritySnapshot,
 } from './session-authority-snapshot'
 
-/** The Sessions tool scope of a Session agent: every project, its project, or listed Sessions. */
+/** The Hive tool scope of a Session agent: every project, its project, or listed Sessions. */
 export function agentBaseScope(input: {
   readonly everyProject: boolean
   readonly sharedProjectPath: string | undefined

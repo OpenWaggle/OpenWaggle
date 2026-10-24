@@ -4,8 +4,7 @@ import { routeSessionLinkLaunch, type SessionLinkLaunchRoute } from './top-level
 
 /** Command groups owned by an existing `*-cli-entry.ts` module. */
 const TOP_LEVEL_CLI_GROUPS = [
-  'sessions',
-  'delegations',
+  'hive',
   'schedules',
   'agents',
   'access',
@@ -28,8 +27,17 @@ const HELP_TOKENS = new Set(['help', '-h', '--help'])
 const VERSION_TOKENS = new Set(['version', '-v', '-V', '--version'])
 const HELP_FLAGS = new Set(['-h', '--help'])
 
-/** Sessions subcommands a user may type without the `sessions` group. */
-const SESSIONS_SUBCOMMAND_HINTS = new Set([
+/**
+ * The groups ADR 0053 renamed to `hive`. They are not accepted: the command fails as unknown and
+ * names its replacement.
+ */
+const RENAMED_GROUPS: Readonly<Record<string, string>> = {
+  sessions: 'hive',
+  delegations: 'hive',
+}
+
+/** Hive subcommands a user may type without the `hive` group. */
+const HIVE_SUBCOMMAND_HINTS = new Set([
   'archive',
   'create',
   'export',
@@ -154,10 +162,12 @@ function resolveUserPath(value: string, environment: TopLevelCliEnvironment) {
 }
 
 function unknownCommand(value: string) {
+  const renamed = RENAMED_GROUPS[value]
+  if (renamed) return `unknown command '${value}'. It is now '${renamed}'.`
   const suggestion = suggestTopLevelCommand(value)
   if (suggestion) return `unknown command '${value}'. Did you mean '${suggestion}'?`
-  if (SESSIONS_SUBCOMMAND_HINTS.has(value)) {
-    return `unknown command '${value}'. Did you mean 'sessions ${value}'?`
+  if (HIVE_SUBCOMMAND_HINTS.has(value)) {
+    return `unknown command '${value}'. Did you mean 'hive ${value}'?`
   }
   return `unknown command '${value}'.`
 }

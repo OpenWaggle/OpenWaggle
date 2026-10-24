@@ -95,7 +95,7 @@ export function resolveScheduledTaskCaller(sql: SqlClient.SqlClient, record: Sch
 
 /**
  * A catalog-wide Session agent may launch only in projects OpenWaggle already knows (ADR 0042);
- * the Sessions tool checks this before dispatch, and so does a run the agent scheduled.
+ * the Hive tool checks this before dispatch, and so does a run the agent scheduled.
  */
 export function assertScheduledLaunchProjectKnown(
   sql: SqlClient.SqlClient,

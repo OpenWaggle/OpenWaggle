@@ -22,14 +22,14 @@ const mocks = vi.hoisted<{ clientInput: LocalSessionCliClientInput | undefined }
 vi.mock('../local-session-cli-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../local-session-cli-client')>()),
   createLocalSessionCliClientInput: vi.fn(async () => {
-    if (!mocks.clientInput) throw new Error('Missing Sessions CLI integration client input.')
+    if (!mocks.clientInput) throw new Error('Missing Hive CLI integration client input.')
     return mocks.clientInput
   }),
 }))
 
 import { runSessionsCli } from '../sessions-cli'
 
-describe('Sessions CLI Host rejection', () => {
+describe('Hive CLI Host rejection', () => {
   let temporaryRoot = ''
   let fallbackEndpointDirectory: string | null = null
   let runtime: LocalSessionHostRuntime | null = null

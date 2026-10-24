@@ -10,7 +10,7 @@ function command(arguments_: readonly string[]) {
   }
 }
 
-describe('Sessions CLI command contract', () => {
+describe('Hive CLI command contract', () => {
   it('keeps follow-up and Steering as explicit different operations', () => {
     const followUp = command(['follow-up', 'session-1', '--text', 'Do this'])
     const steer = command([
@@ -170,8 +170,7 @@ describe('Sessions CLI command contract', () => {
 
   it('builds explicit Delegation submission and acceptance operations', () => {
     const submit = command([
-      'delegation',
-      'submit',
+      'delegation-submit',
       'worker',
       'delegation-1',
       'Implementation',
@@ -180,8 +179,7 @@ describe('Sessions CLI command contract', () => {
       '{"kind":"observed-command","summary":"Tests passed"}',
     ])
     const accept = command([
-      'delegation',
-      'accept',
+      'delegation-accept',
       'parent',
       'delegation-1',
       '1',

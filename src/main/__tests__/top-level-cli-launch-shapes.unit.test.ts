@@ -74,9 +74,9 @@ describe('real launch shapes', () => {
     expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', '--help'], true)).toEqual({
       kind: 'help',
     })
-    expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', 'sessions', 'list'], true)).toEqual({
+    expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', 'hive', 'list'], true)).toEqual({
       kind: 'delegate',
-      argv: ['sessions', 'list'],
+      argv: ['hive', 'list'],
     })
   })
 
@@ -91,9 +91,9 @@ describe('real launch shapes', () => {
   })
 
   it('reports a packaged typo instead of opening the app', () => {
-    expect(launch(['/opt/OpenWaggle/openwaggle', 'sesions', 'list'], true)).toEqual({
+    expect(launch(['/opt/OpenWaggle/openwaggle', 'hvie', 'list'], true)).toEqual({
       kind: 'usage-error',
-      message: "unknown command 'sesions'. Did you mean 'sessions'?",
+      message: "unknown command 'hvie'. Did you mean 'hive'?",
     })
   })
 })

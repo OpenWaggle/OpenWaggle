@@ -10,7 +10,7 @@ import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { resolveSessionToolAgentCaller } from '../session-tool-gateway-installer'
 import { insertRunInitiators } from './session-run-initiators.test-support'
 
-describe('Sessions tool agent authority', () => {
+describe('Hive tool agent authority', () => {
   let temporaryRoot = ''
 
   beforeEach(async () => {

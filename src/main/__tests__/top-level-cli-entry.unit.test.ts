@@ -87,11 +87,11 @@ describe('top-level CLI entry', () => {
   it('prints help for a mistyped command instead of opening the app', async () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    expect(startTopLevelCli(['sesions', 'list'], environment)).toEqual({ kind: 'handled' })
+    expect(startTopLevelCli(['hvie', 'list'], environment)).toEqual({ kind: 'handled' })
 
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(2))
     const written = stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
-    expect(written).toContain("openwaggle: unknown command 'sesions'. Did you mean 'sessions'?")
+    expect(written).toContain("openwaggle: unknown command 'hvie'. Did you mean 'hive'?")
     expect(written).toContain('Commands:\n  run')
     stderr.mockRestore()
   })

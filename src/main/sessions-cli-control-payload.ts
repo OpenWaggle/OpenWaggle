@@ -18,8 +18,8 @@ import {
 } from './sessions-cli-arguments'
 import { delegationCommand } from './sessions-cli-delegation-command'
 
-const QUEUE_ITEM_POSITIONAL_START = 2
-const AUTHORIZATION_MODE_POSITIONAL = 2
+const QUEUE_ITEM_POSITIONAL_START = 1
+const AUTHORIZATION_MODE_POSITIONAL = 1
 
 function messageInput(text: string, arguments_: ParsedArguments) {
   const resolvedThinkingLevel = thinkingLevel(option(arguments_, 'thinking'))
@@ -155,16 +155,15 @@ function messagingCommand(
   throw new Error(`Unsupported messaging command: ${command}.`)
 }
 
+/** `hive authorization-set <session> inherit` clears the override, as the tool's `inherit` does. */
 function authorizationCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
-  const action = required(arguments_.positionals[0], 'Authorization action')
-  const sessionId = requiredSessionId(arguments_.positionals[1])
-  if (action === 'clear') {
+  const sessionId = requiredSessionId(arguments_.positionals[0])
+  const mode = required(arguments_.positionals[AUTHORIZATION_MODE_POSITIONAL], 'Authorization mode')
+  if (mode === 'inherit') {
     return { operation: 'authorization-set', sessionId, authorizationMode: null }
   }
-  if (action !== 'set') throw new Error(`Unsupported Authorization action: ${action}.`)
-  const mode = required(arguments_.positionals[AUTHORIZATION_MODE_POSITIONAL], 'Authorization mode')
   if (mode !== 'ask-for-approval' && mode !== 'yolo') {
-    throw new Error('Authorization mode must be ask-for-approval or yolo.')
+    throw new Error('Authorization mode must be inherit, ask-for-approval, or yolo.')
   }
   return {
     operation: 'authorization-set',
@@ -221,10 +220,9 @@ function reportCommand(
   }
 }
 
-function queueCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
-  const action = required(arguments_.positionals[0], 'Queue action')
-  const sessionId = requiredSessionId(arguments_.positionals[1])
-  if (action === 'withdraw') {
+function queueCommand(command: string, arguments_: ParsedArguments): SessionControlMutationCommand {
+  const sessionId = requiredSessionId(arguments_.positionals[0])
+  if (command === 'queue-withdraw') {
     return {
       operation: 'queue-withdraw',
       sessionId,
@@ -235,7 +233,7 @@ function queueCommand(arguments_: ParsedArguments): SessionControlMutationComman
     option(arguments_, 'queue-revision'),
     '--queue-revision',
   )
-  if (action === 'reorder') {
+  if (command === 'queue-reorder') {
     return {
       operation: 'queue-reorder',
       sessionId,
@@ -243,14 +241,10 @@ function queueCommand(arguments_: ParsedArguments): SessionControlMutationComman
       orderedFollowUpIds: arguments_.positionals.slice(QUEUE_ITEM_POSITIONAL_START),
     }
   }
-  if (action === 'pause' || action === 'resume') {
-    return {
-      operation: action === 'pause' ? 'queue-pause' : 'queue-resume',
-      sessionId,
-      expectedQueueRevision,
-    }
+  if (command === 'queue-pause' || command === 'queue-resume') {
+    return { operation: command, sessionId, expectedQueueRevision }
   }
-  throw new Error(`Unsupported queue action: ${action}.`)
+  throw new Error(`Unsupported queue command: ${command}.`)
 }
 
 export function buildSessionsCliControlPayload(
@@ -276,12 +270,12 @@ export function buildSessionsCliControlPayload(
       requestId: randomUUID(),
       idempotencyKey: option(arguments_, 'idempotency-key') ?? randomUUID(),
       command:
-        command === 'authorization'
+        command === 'authorization-set'
           ? authorizationCommand(arguments_)
-          : command === 'queue'
-            ? queueCommand(arguments_)
-            : command === 'delegation'
-              ? delegationCommand(arguments_)
+          : command.startsWith('queue-')
+            ? queueCommand(command, arguments_)
+            : command.startsWith('delegation-')
+              ? delegationCommand(command, arguments_)
               : controlCommand(command, arguments_),
     },
   }

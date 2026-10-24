@@ -5,7 +5,7 @@ import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-input-v2'
 import { buildSessionsCliPayload } from '../sessions-cli'
 
 describe('Session organization adapters', () => {
-  it('maps rename, archive, and handoff through CLI, MCP, and the native Sessions tool', () => {
+  it('maps rename, archive, and handoff through CLI, MCP, and the native Hive tool', () => {
     expect(
       buildSessionsCliPayload('rename', parseMcpCliArguments(['worker', 'Clear title'])),
     ).toMatchObject({

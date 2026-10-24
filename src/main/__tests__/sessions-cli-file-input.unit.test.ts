@@ -10,7 +10,7 @@ import {
   resolveSessionsCliMessageInput,
 } from '../sessions-cli-message-input'
 
-describe('Sessions CLI file input', () => {
+describe('Hive CLI file input', () => {
   let root = ''
 
   beforeEach(async () => {

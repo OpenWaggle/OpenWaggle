@@ -15,7 +15,7 @@ const PROFILE_JSON = '{"modelId":"provider/model","thinkingLevel":"medium"}'
  * The authority snapshot stored with a Session bounds its reach even when the live origin would
  * reach every project. Snapshot roots must be real canonical directories, so this suite uses them.
  */
-describe('Sessions tool reach bounded by the stored authority snapshot', () => {
+describe('Hive tool reach bounded by the stored authority snapshot', () => {
   let root = ''
   let project = ''
 

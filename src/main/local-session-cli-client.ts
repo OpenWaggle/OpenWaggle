@@ -39,7 +39,7 @@ export async function prepareLocalSessionCliClientInput(
   }
   if (env.OPENWAGGLE_AGENT_RUN === '1' && !profile) {
     throw new Error(
-      'OpenWaggle agents must use their native Sessions tool or an explicit named CLI profile.',
+      'OpenWaggle agents must use their native Hive tool or an explicit named CLI profile.',
     )
   }
   const paths = await prepareLocalSessionHostPaths(

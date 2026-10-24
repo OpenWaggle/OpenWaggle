@@ -161,14 +161,14 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
       1,
       '/packaged/OpenWaggle',
       {},
-      ['sessions', 'list', '--all', '--limit', '1'],
+      ['hive', 'list', '--all', '--limit', '1'],
       { timeoutMs: 1_000 },
     )
     expect(runCli).toHaveBeenNthCalledWith(
       2,
       '/packaged/OpenWaggle',
       {},
-      ['sessions', 'list', '--all', '--limit', '1'],
+      ['hive', 'list', '--all', '--limit', '1'],
       { timeoutMs: 350 },
     )
   })
@@ -229,7 +229,7 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
           content: [
             {
               type: 'tool-call',
-              toolCall: { name: 'sessions', args: { action: 'spawn' } },
+              toolCall: { name: 'hive', args: { action: 'spawn' } },
             },
           ],
         },
@@ -244,7 +244,7 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
           content: [
             {
               type: 'toolCall',
-              name: 'sessions',
+              name: 'hive',
               arguments: { operation: 'spawn' },
             },
           ],

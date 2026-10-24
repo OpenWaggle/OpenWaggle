@@ -7,7 +7,7 @@ import { createSessionsToolExtension } from '../sessions-tool-extension'
 import { renderScheduledTasksToolResult } from '../sessions-tool-schedule-result'
 import { result, task } from './sessions-tool-schedule.test-utils'
 
-describe('Sessions tool Scheduled task results', () => {
+describe('Hive tool Scheduled task results', () => {
   it('renders tasks compactly with wall-clock times in their stored zone', () => {
     const rendered = JSON.parse(
       renderScheduledTasksToolResult(
@@ -114,7 +114,7 @@ describe('Sessions tool Scheduled task results', () => {
   })
 })
 
-describe('Sessions tool Scheduled task registration', () => {
+describe('Hive tool Scheduled task registration', () => {
   let releaseGateway: (() => void) | undefined
 
   afterEach(() => {
@@ -139,7 +139,7 @@ describe('Sessions tool Scheduled task registration', () => {
         },
       }),
     )
-    if (!tool) throw new Error('sessions tool was not registered')
+    if (!tool) throw new Error('hive tool was not registered')
     return tool
   }
 

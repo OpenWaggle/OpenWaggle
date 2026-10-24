@@ -52,7 +52,6 @@ export function mcpDelegationPositionals(input: SessionToolInputV2, message: str
   if (!input.operation.startsWith('delegation-')) return undefined
   if (input.operation === 'delegation-verify') {
     return [
-      'verify',
       ...(input.sessionId ? [input.sessionId] : []),
       ...(input.delegationId ? [input.delegationId] : []),
       ...(input.submissionRevision === undefined ? [] : [String(input.submissionRevision)]),
@@ -60,13 +59,8 @@ export function mcpDelegationPositionals(input: SessionToolInputV2, message: str
       ...(message ? [message] : []),
     ]
   }
-  const action =
-    input.operation === 'delegation-conflict-acknowledge'
-      ? 'acknowledge-conflict'
-      : input.operation.slice('delegation-'.length)
   const content = delegationContent(input, message)
   return [
-    action,
     ...(input.sessionId ? [input.sessionId] : []),
     ...(input.delegationId ? [input.delegationId] : []),
     ...delegationStateSegment(input),

@@ -6,7 +6,7 @@ import type {
 } from './usage-statistics-observations'
 
 const GUI_CALLER_ID = 'gui:local-user'
-/** Runs started by an OpenWaggle agent through the Sessions tool. */
+/** Runs started by an OpenWaggle agent through the Hive tool. */
 const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
 /** Runs started by an external agentic tool through a scoped MCP authority. */
 const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'

@@ -23,7 +23,7 @@ describe('applyTurnFolds with hidden calls', () => {
         {
           type: 'tool-call',
           id: 'w1',
-          name: 'sessions',
+          name: 'hive',
           arguments: '{"action":"wait"}',
           state: 'input-complete',
         },

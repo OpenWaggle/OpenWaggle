@@ -1,7 +1,5 @@
 import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import { z } from 'zod'
-import { validateDelegationsCliOptions } from './delegations-cli-option-contract'
-import { buildDelegationsCliPayload } from './delegations-cli-payload'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { buildMcpSessionExportPayloadV2 } from './openwaggle-mcp-session-export-payload-v2'
 import { mcpSessionControlOperationSchemasV2 } from './openwaggle-mcp-session-input-control-schema-v2'
@@ -70,23 +68,11 @@ function validateWorkspaceFields(input: SessionToolInputV2) {
   }
 }
 
-function isDelegationQuery(operation: SessionToolInputV2['operation']) {
-  return (
-    operation === 'delegations-list' ||
-    operation === 'delegations-read' ||
-    operation === 'delegations-conflicts'
-  )
-}
-
 function validateParsedInput(input: SessionToolInputV2, parsed: ReturnType<typeof parsedInput>) {
   validateResourceFields(input)
   validateExportBranchFields(input)
   validateWorkspaceFields(input)
   if (input.operation === 'export') return
-  if (isDelegationQuery(input.operation)) {
-    validateDelegationsCliOptions(input.operation.slice('delegations-'.length), parsed.arguments)
-    return
-  }
   validateSessionsCliOptions(parsed.command, parsed.arguments)
 }
 
@@ -95,9 +81,7 @@ export function buildMcpSessionPayloadV2(input: SessionToolInputV2) {
   const payload =
     input.operation === 'export'
       ? buildMcpSessionExportPayloadV2(input)
-      : isDelegationQuery(input.operation)
-        ? buildDelegationsCliPayload(input.operation.slice('delegations-'.length), parsed.arguments)
-        : buildSessionsCliPayload(parsed.command, parsed.arguments)
+      : buildSessionsCliPayload(parsed.command, parsed.arguments)
   validateParsedInput(input, parsed)
   return payload
 }

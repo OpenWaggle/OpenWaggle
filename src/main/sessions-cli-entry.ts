@@ -1,3 +1,4 @@
+import { HIVE_CLI_COMMAND } from '@shared/constants/hive'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
@@ -5,8 +6,9 @@ import { sessionCliExitCodeForError } from './session-cli-exit-status'
 import { configureAppStoragePaths } from './session-data'
 import { writeSessionsCliError } from './sessions-cli-output'
 
-export function startSessionsCliIfRequested(argv: readonly string[]) {
-  if (argv[0] !== 'sessions') return false
+/** `openwaggle hive <subcommand>`; the former `sessions` and `delegations` groups are gone (ADR 0053). */
+export function startHiveCliIfRequested(argv: readonly string[]) {
+  if (argv[0] !== HIVE_CLI_COMMAND) return false
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
   void app
     .whenReady()

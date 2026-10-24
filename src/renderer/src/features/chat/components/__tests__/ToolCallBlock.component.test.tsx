@@ -69,7 +69,7 @@ describe('ToolCallBlock', () => {
     const { container } = render(
       <>
         <ToolCallBlock
-          name="sessions"
+          name="hive"
           args='{"action":"spawn","objective":"Review the diff"}'
           state="input-complete"
           result={{ content: 'ok', state: 'success' }}

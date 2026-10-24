@@ -24,7 +24,7 @@ function scheduledCommand(input: SessionsToolParameters, from: typeof source | o
   return payload.request
 }
 
-describe('Sessions tool Scheduled task payloads', () => {
+describe('Hive tool Scheduled task payloads', () => {
   it('creates a Heartbeat for the calling Session by default', () => {
     const request = scheduledCommand({
       action: 'schedule_create',

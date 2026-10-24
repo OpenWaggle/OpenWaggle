@@ -28,7 +28,7 @@ function schemaShape(schema: unknown) {
 
 // Issue #218: GLM via OpenRouter silently emits `{}` tool arguments when the tool's
 // parameter schema is a root-level anyOf union. The registered schema must stay flat.
-describe('sessions tool flattened schema', () => {
+describe('hive tool flattened schema', () => {
   it('flattens the full variant list into a single object schema', () => {
     const shape = schemaShape(flattenSessionsToolParameters(sessionsToolParameterVariants))
 

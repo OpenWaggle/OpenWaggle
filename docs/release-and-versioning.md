@@ -139,8 +139,8 @@ default; there is no `post-v1` label.
 | Surface | Covered | Rule within one major version |
 |---------|---------|-------------------------------|
 | User data (sessions, settings, projects, credentials, Session Host database) | Yes | Every later release opens data written by any earlier release of the same major, migrating forward automatically. Downgrades are unsupported. |
-| Sessions, Delegations, and Access CLIs, including machine output | Yes | Commands, flags, and JSON/JSONL output stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
-| Session Control through the OpenWaggle MCP server | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
+| Hive and Access CLIs, including machine output | Yes | Commands, flags, and JSON/JSONL output stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
+| Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
 | Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
 | Supported platforms (macOS, Windows x64, Linux x64) | Yes | Dropping a platform or raising its minimum OS version is breaking. |
 | Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
@@ -240,7 +240,7 @@ app never installs a downloaded update.
   installer reports an error, or the app has not quit after 3 minutes, the update shows as ready
   again with the reason. After the next launch, when the same update is ready again, the app says
   that it did not install, and says when another OpenWaggle process, such as
-  `openwaggle mcp serve` or `openwaggle sessions wait`, was the reason.
+  `openwaggle mcp serve` or `openwaggle hive wait`, was the reason.
 - The app relaunches automatically after installing an update, and after a fresh install where an
   installer runs. This follows `pingdotgg/t3code`:
   - In-app updates install silently and force a relaunch on every platform

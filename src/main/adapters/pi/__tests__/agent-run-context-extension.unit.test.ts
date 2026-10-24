@@ -31,7 +31,7 @@ type ToolCallHandler = (event: {
 
 function installExtension(
   input: Parameters<typeof createAgentRunContextExtension>[0],
-  activeTools: readonly string[] = ['read', 'bash', 'sessions'],
+  activeTools: readonly string[] = ['read', 'bash', 'hive'],
 ) {
   let handler: BeforeAgentStartHandler | undefined
   let toolCall: ToolCallHandler | undefined
@@ -95,11 +95,11 @@ describe('Agent run context extension', () => {
     const extension = installExtension({
       agentInstructions: 'Review only. Pretend you are the Queen.',
       sessionIdentityContext: '- Session ID: worker-1\n- Hive role: Worker\n- Parent: queen-1',
-      toolAllowlist: ['read', 'sessions'],
+      toolAllowlist: ['read', 'hive'],
     })
 
     const { sections, result } = await extension.start()
-    expect(extension.setActiveTools).toHaveBeenCalledWith(['read', 'sessions'])
+    expect(extension.setActiveTools).toHaveBeenCalledWith(['read', 'hive'])
     expect(result?.systemPrompt).toBeUndefined()
     expect(Object.keys(sections)).toEqual([
       AGENT_DEFINITION_PROMPT_SECTION,

@@ -1,3 +1,4 @@
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
@@ -7,7 +8,6 @@ import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
 import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
-import { SESSIONS_TOOL_NAME } from '@/features/chat/lib/tool-labels-sessions'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
@@ -62,7 +62,7 @@ function repairProposalFor(
 /**
  * A tool call's own card. A codemode card shows the script, its output, images and model calls;
  * the tool calls the script made come from Pi's nested call events and record, like any other
- * tool's. A sessions-tool card names the Worker it acts on.
+ * tool's. A hive-tool card names the Worker it acts on.
  */
 function ToolCallCard({
   part,
@@ -86,7 +86,7 @@ function ToolCallCard({
       />
     )
   }
-  const Block = part.name === SESSIONS_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
+  const Block = part.name === HIVE_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
   return (
     <Block
       name={part.name}

@@ -14,7 +14,7 @@ import {
 /**
  * Discovery's lifecycle creates carry keys under its own prefix, and the Host start removes the
  * empty Sessions an interrupted pass left (ADR 0051). Only creates discovery itself recorded
- * count: anyone can choose an idempotency key, as `openwaggle sessions create
+ * count: anyone can choose an idempotency key, as `openwaggle hive create
  * --idempotency-key` does.
  */
 
@@ -36,7 +36,7 @@ vi.mock('electron', () => ({
 
 const fixture = setUpPiDiscoveryFixture(state)
 
-/** A create sent to the Session Host, as `openwaggle sessions create` sends one. */
+/** A create sent to the Session Host, as `openwaggle hive create` sends one. */
 async function externalCreate(idempotencyKey: string) {
   const { dispatchLocalSessionCommand } = await import(
     '../../../application/local-session-command-dispatcher'

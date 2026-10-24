@@ -59,7 +59,7 @@ function decodeCapabilities(value: string | null): readonly SessionCapability[] 
 }
 
 function assertLiveAuthority(row: AuthorityRow | undefined, sessionId: string) {
-  if (!row) throw new Error(`Sessions tool source Session was not found: ${sessionId}`)
+  if (!row) throw new Error(`Hive tool source Session was not found: ${sessionId}`)
   if (row.historical_parent_session_id !== null && row.parent_session_id === null) {
     throw new Error('Historical Worker ancestry does not grant Session Host agent authority.')
   }

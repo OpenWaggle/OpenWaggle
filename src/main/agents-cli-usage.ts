@@ -1,8 +1,6 @@
 export const AGENTS_CLI_USAGE = `OpenWaggle Agent definitions
 
 Usage:
-  openwaggle agents list [--project <path>] [--json]
-  openwaggle agents search <query> [--project <path>] [--json]
   openwaggle agents validate <file> [--json]
   openwaggle agents explain <name> [--project <path>] [--json]
   openwaggle agents create <file> --scope project|portable-project|user [--project <path>] [--json]
@@ -15,6 +13,9 @@ Usage:
     [--expected-digest <sha256>] [--json]
   openwaggle agents refresh <name> [--scope <scope>] [--project <path>] [--dry-run] [--replace] [--json]
 
+To list or search Agent definitions, use openwaggle hive agent-definitions-list and
+openwaggle hive agent-definitions-search.
+
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
-fail before files are read or changed. Multi-word search queries remain positional rest operands.
+fail before files are read or changed.
 `

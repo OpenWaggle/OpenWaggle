@@ -42,8 +42,8 @@ describe('nestedToolCallsView', () => {
   it('leaves out Worker waits, so the list and its frame match what shows', () => {
     const waits: NestedToolCalls = {
       calls: [
-        { id: 'code-1/1', name: 'sessions', args: { action: 'wait' }, status: 'ok' },
-        { id: 'code-1/2', name: 'sessions', args: { action: 'spawn' }, status: 'ok' },
+        { id: 'code-1/1', name: 'hive', args: { action: 'wait' }, status: 'ok' },
+        { id: 'code-1/2', name: 'hive', args: { action: 'spawn' }, status: 'ok' },
       ],
       complete: true,
     }

@@ -49,12 +49,12 @@ describe('top-level CLI routing', () => {
   })
 
   it('delegates command groups without inspecting their payload', () => {
-    const argv = ['sessions', 'message', 'id', '--text', '--help']
+    const argv = ['hive', 'message', 'id', '--text', '--help']
     expect(route(argv)).toEqual({ kind: 'delegate', argv })
   })
 
   it.each([
-    ['sessions', ['sessions', 'help']],
+    ['hive', ['hive', 'help']],
     ['mcp', ['mcp', 'help']],
     ['update', ['update', '--help']],
     ['access', ['access']],
@@ -86,13 +86,14 @@ describe('top-level CLI routing', () => {
   })
 
   it.each([
-    ['sesions', 'sessions'],
-    ['sessoins', 'sessions'],
+    ['hvie', 'hive'],
+    ['hiev', 'hive'],
     ['statsu', 'status'],
     ['rnu', 'run'],
     ['updat', 'update'],
     ['agnets', 'agents'],
-    ['sess', 'sessions'],
+    ['hiv', 'hive'],
+    ['sched', 'schedules'],
   ])('prints help instead of opening the app for the typo %s', (typo, suggestion) => {
     const result = route([typo])
     expect(result).toEqual({
@@ -101,12 +102,26 @@ describe('top-level CLI routing', () => {
     })
   })
 
-  it('suggests the sessions group for a bare sessions subcommand', () => {
+  it('suggests the hive group for a bare hive subcommand', () => {
     expect(route(['list'])).toEqual({
       kind: 'usage-error',
-      message: "unknown command 'list'. Did you mean 'sessions list'?",
+      message: "unknown command 'list'. Did you mean 'hive list'?",
     })
   })
+
+  it.each([['sessions', 'list', '--all'], ['sessions'], ['delegations', 'list']])(
+    'refuses the former %s group and names hive (ADR 0053)',
+    (...argv) => {
+      expect(route(argv)).toEqual({
+        kind: 'usage-error',
+        message: `unknown command '${argv[0]}'. It is now 'hive'.`,
+      })
+      expect(route(['help', argv[0] ?? ''])).toEqual({
+        kind: 'usage-error',
+        message: `no help topic '${argv[0]}'.`,
+      })
+    },
+  )
 
   it('reports an unknown word without a suggestion when nothing is close', () => {
     expect(route(['frobnicate'])).toEqual({
@@ -135,7 +150,7 @@ describe('top-level CLI routing', () => {
       kind: 'usage-error',
       message: "unknown option '--status'. Did you mean 'status'?",
     })
-    expect(route(['--sessions'])).toMatchObject({ kind: 'usage-error' })
+    expect(route(['--hive'])).toMatchObject({ kind: 'usage-error' })
     expect(route(['--updated'])).toEqual({ kind: 'gui' })
   })
 
@@ -149,9 +164,9 @@ describe('top-level CLI routing', () => {
   })
 
   it('rejects a packaged switch followed by a command word instead of dropping the word', () => {
-    expect(packagedRoute(['--json', 'sessions', 'list'])).toEqual({
+    expect(packagedRoute(['--json', 'hive', 'list'])).toEqual({
       kind: 'usage-error',
-      message: "unknown option '--json' before 'sessions'.",
+      message: "unknown option '--json' before 'hive'.",
     })
     expect(route(['--inspect=0', '/app'])).toEqual({ kind: 'gui' })
     expect(packagedRoute(['--remote-debugging-port=9222'])).toEqual({ kind: 'gui' })
@@ -188,12 +203,12 @@ describe('top-level CLI routing', () => {
   })
 
   it('prefers commands over a same-named directory', () => {
-    const shadowing = path.join(WORKING_DIRECTORY, 'sessions')
-    expect(route(['sessions'], { [shadowing]: 'directory' })).toEqual({
+    const shadowing = path.join(WORKING_DIRECTORY, 'hive')
+    expect(route(['hive'], { [shadowing]: 'directory' })).toEqual({
       kind: 'delegate',
-      argv: ['sessions'],
+      argv: ['hive'],
     })
-    expect(route(['./sessions'], { [shadowing]: 'directory' })).toEqual({
+    expect(route(['./hive'], { [shadowing]: 'directory' })).toEqual({
       kind: 'open-project',
       projectPath: shadowing,
     })
@@ -233,7 +248,7 @@ describe('top-level CLI routing', () => {
   })
 
   it.each([
-    ['delegations', ['delegations', 'help']],
+    ['schedules', ['schedules', 'help']],
     ['agents', ['agents', 'help']],
     ['recovery', ['recovery', 'help']],
   ])('maps help %s to that group help', (group, expected) => {

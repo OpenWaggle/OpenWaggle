@@ -47,7 +47,7 @@ function call(args: object, id = 'tc-1'): ToolCallPart {
   return {
     type: 'tool-call',
     id,
-    name: 'sessions',
+    name: 'hive',
     arguments: JSON.stringify(args),
     state: 'input-complete',
   }
@@ -76,7 +76,7 @@ function renderRow(part: ToolCallPart, toolResults = resultFor(part.id, {})) {
   )
 }
 
-describe('sessions-tool rows', () => {
+describe('hive-tool rows', () => {
   beforeEach(() => {
     listHiveTreeSessionCatalogPage.mockReset().mockResolvedValue(hivePage())
     navigate.mockReset().mockResolvedValue(undefined)
@@ -99,6 +99,19 @@ describe('sessions-tool rows', () => {
       to: '/sessions/$sessionId',
       params: { sessionId: 'w1' },
     })
+  })
+
+  it('shows a recorded call to the former `sessions` tool as an unrecognized tool (ADR 0053)', async () => {
+    renderRow({
+      ...call({ action: 'spawn', objective: 'Old objective', agent: 'reviewer' }),
+      name: 'sessions',
+    })
+
+    expect(await screen.findByText('sessions')).toBeInTheDocument()
+    expect(screen.queryByText(/Worker/)).toBeNull()
+    expect(document.querySelector('[data-tool-kind="workers"]')).toBeNull()
+    expect(document.querySelector('[data-tool-kind="other"]')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
   })
 
   it('names the Worker a later action targets, without spawn controls', async () => {
@@ -132,13 +145,13 @@ describe('sessions-tool rows', () => {
             calls: [
               {
                 id: 'code-1/1',
-                name: 'sessions',
+                name: 'hive',
                 args: { action: 'message', sessionId: 'w1' },
                 status: 'ok',
               },
               {
                 id: 'code-1/2',
-                name: 'sessions',
+                name: 'hive',
                 args: { action: 'wait', sessionIds: ['w1'] },
                 status: 'ok',
               },

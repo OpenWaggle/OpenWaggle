@@ -44,7 +44,7 @@ function create(projectPath: string): LocalSessionCommandPayload {
   }
 }
 
-describe('Sessions tool command admission', () => {
+describe('Hive tool command admission', () => {
   let root = ''
   let databaseCount = 0
 

@@ -41,6 +41,22 @@ describe('documentation navigation', () => {
     expect(config).toContain(`'/docs': '${destination}'`);
   });
 
+  it('sends the former Sessions CLI page to the Hive CLI page in Astro and Cloudflare Pages', () => {
+    const destination = '/docs/developer-workflow/hive-cli/';
+    const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('/docs/developer-workflow/sessions-cli'))
+      .map((line) => line.trim().split(/\s+/));
+    expect(redirects).toEqual([
+      ['/docs/developer-workflow/sessions-cli', destination, '301'],
+      ['/docs/developer-workflow/sessions-cli/', destination, '301'],
+    ]);
+    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8');
+    expect(config).toContain(`'/docs/developer-workflow/sessions-cli': '${destination}'`);
+    expect(existsSync(new URL('../../content/docs/developer-workflow/hive-cli.md', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../content/docs/developer-workflow/sessions-cli.md', import.meta.url))).toBe(false);
+  });
+
   it.each([
     { source: 'configuration/app-settings', target: 'configuration/per-project-config' },
     { source: 'providers/overview', target: 'configuration/thinking-levels' },

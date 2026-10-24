@@ -70,7 +70,7 @@ function describeRequiredActions(schema: TSchema, actions: readonly string[] | u
 }
 
 /**
- * The provider-facing sessions tool schema: a single object with `action` as a literal
+ * The provider-facing hive tool schema: a single object with `action` as a literal
  * union and every other property optional. Root-level anyOf unions break tool-call
  * argument emission on some providers (GLM via OpenRouter returns `{}`), so variants must
  * never be exposed as alternatives at the schema root. The static type stays the

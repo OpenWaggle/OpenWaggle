@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
-const documentationPath = 'website/src/content/docs/developer-workflow/sessions-cli.md'
+const documentationPath = 'website/src/content/docs/developer-workflow/hive-cli.md'
 
-describe('Sessions CLI documentation contract', () => {
+describe('Hive CLI documentation contract', () => {
   it('distinguishes command envelopes, rejected responses, and export artifact records', async () => {
     const documentation = await readFile(documentationPath, 'utf8')
 
@@ -29,7 +29,7 @@ describe('Sessions CLI documentation contract', () => {
     expect(documentation).toContain("exportLine.record === 'manifest'")
     expect(documentation).toContain("exportLine.record === 'node'")
     expect(documentation).toContain(
-      '`export watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope',
+      '`exports-watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope',
     )
   })
 })

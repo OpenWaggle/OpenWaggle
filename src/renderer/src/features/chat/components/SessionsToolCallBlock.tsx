@@ -27,7 +27,7 @@ interface SessionsToolCallBlockProps {
 }
 
 /**
- * A sessions-tool row names what it acts on: a Scheduled task by its current name, with controls
+ * A hive-tool row names what it acts on: a Scheduled task by its current name, with controls
  * when the call created or changed it, or a Session as the Hive panel does.
  */
 export function SessionsToolCallBlock(props: SessionsToolCallBlockProps) {

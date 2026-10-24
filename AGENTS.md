@@ -51,9 +51,9 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 ## Operating Rules
 
 - Do not use the global `herdr-orchestration` skill in this repository. OpenWaggle Hive QA must
-  create and coordinate Workers through the native Sessions tool and Session Host so tests exercise
+  create and coordinate Workers through the native `hive` tool and Session Host so tests exercise
   the product path rather than an external orchestrator.
-- For Hive work, use the native `sessions` tool to spawn durable Worker Sessions, then wait, read,
+- For Hive work, use the native `hive` tool to spawn durable Worker Sessions, then wait, read,
   and review their results. A Worker has its own transcript and may use the same checkout or a
   separate worktree; choose the Workspace deliberately. Discover optional Agent definitions
   instead of assuming named roles exist. Use `report` for peer context, `follow_up` for a later

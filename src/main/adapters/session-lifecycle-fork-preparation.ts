@@ -79,7 +79,7 @@ export function prepareLifecycleFork(input: {
   readonly sql: SqlClient.SqlClient
   readonly kernel: AgentKernelServiceShape
   readonly command: ForkSessionCommand
-  /** Who asked: only the desktop app's clone is a clone; the CLI and Sessions tool fork. */
+  /** Who asked: only the desktop app's clone is a clone; the CLI and Hive tool fork. */
   readonly callerId: string
   readonly modelId: string
   /** The preparation attempt the fork's file is recorded under before it is written. */

@@ -223,7 +223,7 @@ describe('openwaggle run interrupts and output failures', () => {
 
     expect(await runRunCli(['--stdin'], dependencies)).toBe(0)
     await vi.waitFor(() =>
-      expect(test.stderr.join('')).toContain('openwaggle sessions requests respond'),
+      expect(test.stderr.join('')).toContain('openwaggle hive approval-respond'),
     )
   })
 

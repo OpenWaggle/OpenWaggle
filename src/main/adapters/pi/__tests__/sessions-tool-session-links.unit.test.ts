@@ -25,7 +25,7 @@ function registeredTool() {
       },
     }),
   )
-  if (!tool) throw new Error('The sessions tool was not registered.')
+  if (!tool) throw new Error('The hive tool was not registered.')
   return tool
 }
 
@@ -41,7 +41,7 @@ async function runTool(params: Record<string, unknown>) {
   return { result, text: content?.type === 'text' ? content.text : '' }
 }
 
-describe('Session links in the Sessions tool', () => {
+describe('Session links in the Hive tool', () => {
   let releaseGateway: (() => void) | undefined
 
   afterEach(() => {
