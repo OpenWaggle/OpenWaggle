@@ -24,13 +24,22 @@ const replaced: WorkspaceGenerationCheck = {
   recorded,
   observed: { device: '16777230', inode: '500', birthtime: '1792563460000000000' },
 }
+type SnapshotDefinition = WorkspacePreparation['snapshot']['definitions'][number]
+function definition(phase: 'setup' | 'cleanup') {
+  return fromPartial<SnapshotDefinition>({
+    definition: { id: phase, profileId: 'default', phase },
+    review: 'enabled',
+  })
+}
 function fixture(
   status: WorkspacePreparation['cleanup']['status'],
   generation: WorkspaceGenerationCheck = { status: 'current' },
+  definitions: readonly SnapshotDefinition[] = [definition('setup'), definition('cleanup')],
 ) {
   const state = fromPartial<WorkspacePreparation>({
     workspaceId: workspace.workspaceId,
     revision: 4,
+    snapshot: { definitions },
     cleanup: { status, error: 'cleanup failed', output: 'retained output' },
   })
   const order: string[] = []
@@ -46,6 +55,7 @@ function fixture(
     }),
   )
   const skip = vi.fn(() => Effect.succeed(state))
+  const inspectWorkspaceGeneration = vi.fn(() => Effect.succeed(generation))
   const perform = (options: { retryFailed: boolean; skipCleanup?: boolean }) =>
     Effect.runPromise(
       prepareWorkspaceRemoval(workspace, options).pipe(
@@ -54,14 +64,14 @@ function fixture(
           WorkspacePreparationService,
           fromPartial({
             read: () => Effect.succeed(state),
-            inspectWorkspaceGeneration: () => Effect.succeed(generation),
+            inspectWorkspaceGeneration,
             run,
             skip,
           }),
         ),
       ),
     )
-  return { perform, run, skip, order }
+  return { perform, run, skip, inspectWorkspaceGeneration, order }
 }
 describe('workspace cleanup removal boundary', () => {
   it('stops owned executions before cleanup and retains the workspace on failure', async () => {
@@ -113,6 +123,30 @@ describe('workspace cleanup removal boundary', () => {
     expect(test.skip).not.toHaveBeenCalled()
     expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
     expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+  })
+  it.each([
+    ['no definitions', []],
+    ['only a setup definition', [definition('setup')]],
+  ] as const)(
+    'removes a replaced checkout whose snapshot pins no cleanup (%s) without Delete anyway',
+    async (_label, definitions) => {
+      const test = fixture('idle', replaced, definitions)
+      expect(await test.perform({ retryFailed: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+      expect(test.inspectWorkspaceGeneration).not.toHaveBeenCalled()
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.order).toEqual(['stop'])
+    },
+  )
+  it('still refuses a replaced checkout whose snapshot pins a cleanup', async () => {
+    const test = fixture('idle', replaced, [definition('cleanup')])
+    expect(await test.perform({ retryFailed: true })).toMatchObject({
+      ok: false,
+      code: 'cleanup-failed',
+      message: expect.stringContaining('Its pinned cleanup cannot run here.'),
+    })
+    expect(test.skip).not.toHaveBeenCalled()
+    expect(test.run).not.toHaveBeenCalled()
   })
   it('still offers explicit Delete anyway when old cleanup had succeeded', async () => {
     const test = fixture('succeeded', replaced)

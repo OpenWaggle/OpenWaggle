@@ -163,8 +163,24 @@ it.skipIf(!recordsBirthTime)(
       await new ManagedWorkspacePreparation(deps).capture(workspace)
       const recorded = storage.get(workspace.workspaceId)
       if (!recorded?.workspaceIdentity) throw new Error('missing preparation identity')
+      // A pinned (disabled) cleanup keeps removal and listing on the generation check.
       storage.set(workspace.workspaceId, {
         ...recorded,
+        snapshot: {
+          ...recorded.snapshot,
+          definitions: [
+            {
+              source: 'local',
+              review: 'disabled',
+              definition: {
+                id: 'cleanup',
+                profileId: 'default',
+                phase: 'cleanup',
+                invocation: { type: 'command', command: 'exit 1', directory: '.' },
+              },
+            },
+          ],
+        },
         workspaceIdentity: { ...recorded.workspaceIdentity, device: '999999999' },
       })
       const engine = new ManagedWorkspacePreparation(deps)
@@ -202,8 +218,8 @@ it.skipIf(!recordsBirthTime)(
           ),
         ),
       )
-      // The generation matches despite the new device, so removal proceeds; with no definitions,
-      // cleanup records skipped.
+      // The generation matches despite the new device, so removal proceeds; the disabled cleanup
+      // records skipped.
       expect(removal).toBeNull()
       expect(storage.get(workspace.workspaceId)?.cleanup.status).toBe('skipped')
     } finally {
