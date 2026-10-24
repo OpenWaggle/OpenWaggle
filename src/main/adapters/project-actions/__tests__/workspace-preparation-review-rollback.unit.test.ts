@@ -51,6 +51,7 @@ it('undoes a shared setup approval if saving the reviewed snapshot fails', async
     rememberReview,
     execute: async () => ({ exitCode: 0, environment: {} }),
     acquireLiveness: () => () => {},
+    inspectLinkedWorktree: async () => 'not-a-worktree' as const,
   })
   const captured = await engine.capture(workspace)
   write.mockRejectedValueOnce(new Error('snapshot save failed'))

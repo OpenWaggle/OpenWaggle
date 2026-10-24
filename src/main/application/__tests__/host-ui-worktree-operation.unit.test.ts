@@ -90,6 +90,7 @@ function operationLayer(
         remove: (projectPath, payload) => Effect.promise(() => mocks.remove(projectPath, payload)),
         validateRemoval: (projectPath, payload) =>
           Effect.promise(() => mocks.validateRemoval(projectPath, payload)),
+        inspectLinkedWorktree: () => Effect.succeed('not-a-worktree'),
       }),
     ),
   )

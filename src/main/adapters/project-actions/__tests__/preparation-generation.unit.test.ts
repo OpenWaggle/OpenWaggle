@@ -137,8 +137,9 @@ it('pins a durable checkout generation and rejects a replacement at the same pat
     })
 
     const pending = await restarted.prepareBirth({ ...workspace, workspacePath: root })
+    // Preparing it again only refreshes the pending birth's time.
     expect((await restarted.prepareBirth({ ...workspace, workspacePath: root })).revision).toBe(
-      pending.revision,
+      pending.revision + 1,
     )
     expect(await restarted.inspectWorkspaceGeneration(workspace)).toEqual({
       status: 'awaiting-birth',
