@@ -1448,10 +1448,11 @@ recorded: macOS renumbers APFS volumes at mount, and on 2026-10-20/21 it went 16
 matches its saved preparation" until its record was hand-patched. Project Actions and Workspace
 preparation compare persisted identities only through `isSameDurableDirectoryIdentity`
 (`src/main/domain/workspace-generation.ts`), which uses `device` only when the filesystem records
-no birth time. In-process checks may still compare it, such as the language-detection cache
+no birth time. Profile credential receipts (since #330) compare through
+`isSameDurableDirectoryIdentity` too; legacy `dev:ino` receipts are matched by inode only.
+In-process checks may still compare it, such as the language-detection cache
 (`workspace-language-detection.ts`) and the open-versus-resolve check in
-`filesystem-inline-visualization-service.ts`. Profile
-credential receipts do too since #330. `inspectWorkspaceGeneration`
+`filesystem-inline-visualization-service.ts`. `inspectWorkspaceGeneration`
 returns `current`, `replaced`, `unreadable`, `awaiting-birth` or `unrecorded`; the Host log under
 `workspace-preparation` records that status with the raw identities, and the error names the path
 and both identities. Recovery copy says to delete, not move, a mismatched worktree: a moved copy

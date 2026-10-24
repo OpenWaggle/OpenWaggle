@@ -15,11 +15,12 @@ vi.mock('electron', () => ({
 
 import { generateProfileCredential } from '../profile-credential'
 import { stageProfileCredential } from '../profile-credential-destination'
-import { receiptPath } from '../profile-credential-destination-support'
+import { credentialFingerprint, receiptPath } from '../profile-credential-destination-support'
 
 const PROFILE = 'reviewer'
 const STAGING_KEY = 'replayed-request'
 const DIRECTORY_CHANGED = 'The credential destination directory changed after installation.'
+const CONFLICTING_RECEIPT = 'A conflicting credential installation receipt already exists.'
 
 /** A device number that differs from the live one, as after a macOS reboot renumbers volumes. */
 function otherDevice(device: bigint) {
@@ -170,5 +171,88 @@ describe('profile credential receipt replay', () => {
     await fs.chmod(path.join(credentialDirectory, credentialFile), 0o600)
 
     await expect(replay()).rejects.toThrow(DIRECTORY_CHANGED)
+  })
+
+  describe('when a receipt for the same operation appears before this commit writes its own', () => {
+    type ExistingDirectory = (stats: Awaited<ReturnType<typeof liveDirectory>>) => object
+
+    /** Commits while a concurrent writer leaves `existing` at the receipt path first. */
+    async function commitAfterConcurrentReceipt(existing: ExistingDirectory) {
+      const credential = generateProfileCredential()
+      const staged = await stageProfileCredential({
+        destination: { kind: 'credential-store', stateRoot: root },
+        profileName: PROFILE,
+        credential,
+        replace: false,
+        stagingKey: STAGING_KEY,
+        beforeReceiptWrite: async () => {
+          const written = await fs.readdir(credentialDirectory)
+          const targetPath = path.join(credentialDirectory, written[0] ?? 'missing')
+          await fs.writeFile(
+            installedReceipt,
+            JSON.stringify({
+              targetPath,
+              fingerprint: credentialFingerprint(credential),
+              ...existing(await liveDirectory()),
+            }),
+            { mode: 0o600, flag: 'wx' },
+          )
+        },
+      })
+      return { credential, commit: staged.commit() }
+    }
+
+    it.each<[string, ExistingDirectory]>([
+      [
+        'a durable receipt',
+        (stats) => ({
+          directory: {
+            device: otherDevice(stats.dev),
+            inode: stats.ino.toString(),
+            birthtime: stats.birthtimeNs.toString(),
+          },
+        }),
+      ],
+      [
+        'a legacy receipt',
+        (stats) => ({ directoryIdentity: `${otherDevice(stats.dev)}:${stats.ino}` }),
+      ],
+    ])('accepts %s for the same directory and credential', async (_kind, existing) => {
+      const { credential, commit } = await commitAfterConcurrentReceipt(existing)
+
+      await expect(commit).resolves.toBeUndefined()
+      await expect(replay()).resolves.toMatchObject({ credential })
+    })
+
+    it.each<[string, ExistingDirectory]>([
+      [
+        'a durable receipt',
+        (stats) => ({
+          directory: {
+            device: stats.dev.toString(),
+            inode: (stats.ino + 1n).toString(),
+            birthtime: stats.birthtimeNs.toString(),
+          },
+        }),
+      ],
+      [
+        'a durable receipt with another birth time',
+        (stats) => ({
+          directory: {
+            device: stats.dev.toString(),
+            inode: stats.ino.toString(),
+            birthtime: (stats.birthtimeNs + 1n).toString(),
+          },
+        }),
+      ],
+      ['a legacy receipt', (stats) => ({ directoryIdentity: `${stats.dev}:${stats.ino + 1n}` })],
+    ])('refuses %s for a different directory', async (_kind, existing) => {
+      const { commit } = await commitAfterConcurrentReceipt(existing)
+
+      await expect(commit).rejects.toMatchObject({
+        message: expect.stringContaining('remains recoverable'),
+        cause: { message: CONFLICTING_RECEIPT },
+      })
+    })
   })
 })
