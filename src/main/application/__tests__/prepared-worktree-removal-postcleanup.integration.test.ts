@@ -55,6 +55,7 @@ it('retains a worktree when Cleanup creates an untracked file after Git prefligh
   const state = fromPartial<WorkspacePreparation>({
     workspaceId,
     revision: 1,
+    snapshot: { definitions: [{ definition: { id: 'cleanup', phase: 'cleanup' } }] },
     cleanup: { status: 'idle' },
   })
   const finalizations: unknown[] = []

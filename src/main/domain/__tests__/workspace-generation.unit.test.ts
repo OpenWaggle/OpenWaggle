@@ -1,8 +1,12 @@
+import type { WorkspacePreparationSnapshot } from '@shared/types/workspace-preparation'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import {
+  describeCleanupBlockedByGeneration,
   describeWorkspaceGenerationMismatch,
   durableDirectoryIdentityKey,
   isSameDurableDirectoryIdentity,
+  preparationPinsCleanup,
 } from '../workspace-generation'
 
 const recorded = { device: '16777230', inode: '408642463', birthtime: '1792486351612449418' }
@@ -98,5 +102,30 @@ describe('describeWorkspaceGenerationMismatch', () => {
           ? { status, workspacePath: '/w', reason: 'missing' as const, recorded }
           : { status, workspacePath: '/w' }
     expect(describeWorkspaceGenerationMismatch(check).verdict).toBe(verdict)
+  })
+})
+
+describe('preparationPinsCleanup', () => {
+  function snapshot(...phases: ('setup' | 'cleanup')[]) {
+    return fromPartial<WorkspacePreparationSnapshot>({
+      definitions: phases.map((phase) => ({
+        definition: { id: phase, profileId: 'default', phase },
+        review: 'enabled',
+      })),
+    })
+  }
+
+  it('is true only when the snapshot has a cleanup-phase definition', () => {
+    expect(preparationPinsCleanup(snapshot('setup', 'cleanup'))).toBe(true)
+    expect(preparationPinsCleanup(snapshot('setup'))).toBe(false)
+    expect(preparationPinsCleanup(snapshot())).toBe(false)
+  })
+})
+
+describe('describeCleanupBlockedByGeneration', () => {
+  it('names the pinned cleanup and Delete anyway', () => {
+    expect(describeCleanupBlockedByGeneration({ status: 'unrecorded', workspacePath: '/w' })).toBe(
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /w. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
+    )
   })
 })

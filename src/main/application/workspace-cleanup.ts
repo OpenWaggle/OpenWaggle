@@ -1,6 +1,9 @@
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import { describeCleanupBlockedByGeneration } from '../domain/workspace-generation'
+import {
+  describeCleanupBlockedByGeneration,
+  preparationPinsCleanup,
+} from '../domain/workspace-generation'
 import { createLogger } from '../logger'
 import { ActionRunService, type ActionRunWorkspace } from '../ports/action-run-service'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
@@ -18,7 +21,8 @@ export function prepareWorkspaceRemoval(
     yield* actions.stopWorkspaceRuns(workspace.workspaceId)
     const state = yield* preparation.read(workspace)
     if (!state) return null
-    if (options.skipCleanup) {
+    // With no pinned cleanup there is nothing to run, or to protect from a replacement checkout.
+    if (options.skipCleanup || !preparationPinsCleanup(state.snapshot)) {
       yield* preparation.skip(workspace, 'cleanup', state.revision)
       return null
     }
