@@ -38,4 +38,27 @@ describe('OpenWaggle MCP Hive tool name (ADR 0053)', () => {
       expect.any(Function),
     )
   })
+
+  it('answers Agent-definition discovery in the server, before any Session Host command', async () => {
+    const registerTool = vi.fn()
+    registerOpenWaggleSessionToolV2(
+      fromPartial<OpenWaggleMcpServer>({ registerTool }),
+      {
+        transport: 'stdio',
+        grants: new Set(),
+        workspaceRoots: [],
+        sessionIds: new Set(),
+        profile: 'test',
+        authorizationCeiling: 'ask-for-approval',
+        userDataRoot: '/user-data',
+        version: 'test',
+      },
+      { userDataRoot: '/user-data', version: 'test' },
+    )
+    const handler: unknown = registerTool.mock.calls[0]?.[2]
+    if (typeof handler !== 'function') throw new Error('No tool handler was registered.')
+    await expect(handler({ operation: 'agent-definitions-list' })).rejects.toThrow(
+      'Agent-definition discovery requires an explicit MCP workspace grant.',
+    )
+  })
 })
