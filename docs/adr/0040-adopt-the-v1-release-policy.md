@@ -31,3 +31,7 @@ OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs di
 - `main` is frozen for app code for at least the 7-day RC window.
 - macOS users on unsigned builds will likely need one manual reinstall to reach the first signed build, planned during Beta.
 - Changing the Apple signing team later may cost macOS users another manual reinstall.
+
+## Amendment (2026-10-24): Scheduled tasks are a Covered surface
+
+Scheduled tasks (Heartbeats and Launch schedules, ADR 0057 and ADR 0058) were added during the Beta. From `1.0.0` their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start are Covered surfaces too, beside the list in the Decision. `1.0.0-rc.1` also requires that they shipped in a Beta build. `docs/release-and-versioning.md` has the full rule.

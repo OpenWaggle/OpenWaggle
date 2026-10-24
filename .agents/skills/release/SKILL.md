@@ -75,7 +75,7 @@ Meanings:
 
 ## Compatibility promise
 
-From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the Sessions/Delegations/Access CLIs and their machine output (additive fields allowed), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, and supported platforms. Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
+From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the Sessions/Delegations/Access CLIs and their machine output (additive fields allowed), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms. Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
 
 ## Release intent and notes
 
@@ -88,7 +88,7 @@ From `1.0.0`, breaking a Covered surface requires the next major version. Covere
 
 ## v1 scope and release blockers
 
-`1.0.0-rc.1` requires: macOS signing and notarization in the release workflow (#253), RC delivered to Beta and Alpha (#254), the update restart rules below (#255), relaunch after install (#256), the RC promotion guard (#257), Stable-only GitHub "Latest" (#261), docs and this skill matching the policy, and no open release blocker. `1.0.0` also requires the curated changelog (#258). Everything else is post-v1. Track RC-blocking work in the `v1.0.0` milestone and defects with the `release-blocker` label.
+`1.0.0-rc.1` requires: macOS signing and notarization in the release workflow (#253), RC delivered to Beta and Alpha (#254), the update restart rules below (#255), relaunch after install (#256), the RC promotion guard (#257), Stable-only GitHub "Latest" (#261), Scheduled tasks shipped in a Beta build (ADR 0057, ADR 0058), docs and this skill matching the policy, and no open release blocker. `1.0.0` also requires the curated changelog (#258). Everything else is post-v1. Track RC-blocking work in the `v1.0.0` milestone and defects with the `release-blocker` label.
 
 A **Release blocker** loses user data, prevents launch, or blocks updating. It blocks entering RC; during RC it cuts `rc.N+1` and restarts the 7-day window. Intact data shown incorrectly is not a release blocker.
 
@@ -105,7 +105,7 @@ One release line: merges prepare the next Stable version and the maintainer sets
 ## Platform trust
 
 - macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
-- The first signed macOS build likely needs a one-time manual reinstall from unsigned builds; ship it during Beta.
+- The first signed macOS build was `1.0.0-beta.1`; moving to it from an unsigned `0.x` build may need a one-time manual reinstall.
 - Windows signing is post-v1 (#49). Linux AppImage is not signed.
 
 ## Update channels

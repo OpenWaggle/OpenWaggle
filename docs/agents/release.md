@@ -49,7 +49,7 @@ Release automation is GitHub-based:
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
-Published artifacts are currently unsigned. macOS signing and notarization block `1.0.0` and must be in place before the first RC; Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
+macOS artifacts are Developer ID signed and notarized; the release workflow refuses to build RC and Stable macOS artifacts without the signing secrets. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
 
 ## When To Load The Release Skill
 

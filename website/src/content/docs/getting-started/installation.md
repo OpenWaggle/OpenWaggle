@@ -25,9 +25,11 @@ Released builds send anonymous usage statistics and error reports, from the firs
 
 After opening the app, follow [Get started](/docs/getting-started/first-run) to connect a model and open a project.
 
-### macOS Gatekeeper note
+### Signing and first launch
 
-The release workflow produces unsigned builds. macOS may block the first launch. Only allow the app after checking that you downloaded it from the official release page. Depending on your macOS version, use right-click **Open** or the blocked-app controls in **System Settings > Privacy & Security**.
+macOS builds are signed with an Apple Developer ID and notarized by Apple, so macOS opens them without a Gatekeeper warning. Builds before `1.0.0-beta.1` were unsigned. If you still run one of those, download the current version from GitHub Releases and replace the app in Applications once; an in-app update from an unsigned build may not install.
+
+Windows installers are not signed yet, so SmartScreen may warn the first time you run one. If it does, check that you downloaded the installer from the official release page, then choose **More info** and **Run anyway**. The Linux AppImage is not signed.
 
 ## Quick install (macOS / Linux)
 
