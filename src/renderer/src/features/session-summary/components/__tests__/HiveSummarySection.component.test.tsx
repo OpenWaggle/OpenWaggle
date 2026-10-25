@@ -99,7 +99,7 @@ describe('HiveSummarySection', () => {
     const region = await screen.findByRole('region', { name: 'Hive' })
     await waitFor(() => expect(region).toHaveTextContent('3 direct Workers · 3 ready for review'))
     expect(region).not.toHaveTextContent('active')
-    expect(screen.getByText('3 ready for review').className).toContain('text-accent')
+    expect(screen.getByText('3 ready for review').className).toContain('text-info-text')
   })
 
   it('marks counts as lower bounds while more Workers are unread', async () => {

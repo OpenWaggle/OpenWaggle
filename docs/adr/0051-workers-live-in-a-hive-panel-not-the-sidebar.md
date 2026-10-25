@@ -46,4 +46,4 @@ The beta.25 QA found one Delegation state under five names and "Done" under thre
 - The State cell shows the Delegation state's full label (Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, Cancelled) instead of a short form such as "You".
 - A Queen's sidebar line says `1 needs attention`, matching the group and the rail tooltip.
 - Each count names its scope: the panel header counts the whole Hive (`12 Workers in this Hive`), and the Session Hub's Hive row counts direct Workers by group (`3 direct Workers · 3 ready for review`). The sidebar's Worker count stays the direct count, named in its tooltip.
-- `via ⟨parent⟩` is its own line under the title, so a long title can no longer truncate it away.
+- A title takes up to two lines and `via ⟨parent⟩` is its own line under it, so neither a long title nor a shared title start hides which Worker a row is. The State cell wraps its longer labels.

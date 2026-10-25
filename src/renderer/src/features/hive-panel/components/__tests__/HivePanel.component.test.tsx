@@ -133,7 +133,7 @@ describe('HivePanel', () => {
 
     const row = await screen.findByRole('button', { name: /Open Worker Session: deep/ })
     // Depth is its own visible line, so a long title cannot truncate it away (#356).
-    expect(within(row).getByText('deep')).toHaveClass('truncate')
+    expect(within(row).getByText('deep')).toHaveClass('line-clamp-2')
     expect(within(row).getByText('via Mid worker')).not.toBe(within(row).getByText('deep'))
     fireEvent.click(row)
     expect(useNavigate).toHaveBeenCalled()
