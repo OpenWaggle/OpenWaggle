@@ -1,5 +1,25 @@
-import { rm } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import type { IPty } from 'node-pty'
+
+/** `OpenWaggle terminal <shell>-XXXXXX`, the prompt integration files of one launch. */
+const SHELL_INTEGRATION_DIRECTORY = /^OpenWaggle terminal [a-z]+-[A-Za-z0-9]{6}$/
+
+/**
+ * The runner removes a launch's prompt integration directory once the shell exits, without
+ * awaiting it. Waiting for it keeps each test's temporary directory empty and proves the removal.
+ */
+async function waitForShellIntegrationCleanup() {
+  const deadline = Date.now() + 5_000
+  while (true) {
+    const entries = await readdir(tmpdir())
+    if (!entries.some((entry) => SHELL_INTEGRATION_DIRECTORY.test(entry))) return
+    if (Date.now() > deadline) {
+      throw new Error('The terminal left its shell prompt integration directory behind.')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
 
 interface PtyFixture {
   readonly pty: Pick<IPty, 'kill'> & { readonly closeDescriptor?: () => void }
@@ -29,6 +49,7 @@ export async function cleanupPtyFixture(fixture: PtyFixture | null, home: string
       }
       const [, drained] = await Promise.race([completion, deadline])
       if (!drained) throw new Error('PTY fixture resource drain failed.')
+      await waitForShellIntegrationCleanup()
     } finally {
       clearTimeout(timeout)
       clearTimeout(escalation)
