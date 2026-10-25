@@ -86,6 +86,8 @@ openwaggle recovery status --json
 
 The result shows the active database and recovery-copy paths, sizes, timestamps, and whether the active schema is compatible. Inspecting status does not start another database owner. A fresh installation may have no pre-upgrade recovery copy.
 
+`legacy` lists old database files left at the top of the application-data directory: `openwaggle.db` and `session-host.sqlite`. Current versions do not write either. A file with `"empty": true` is 0 bytes and holds nothing; restoration and the upgrade treat it as absent. A file with data at `openwaggle.db` blocks restoration until you move it aside.
+
 Save the result and back up important work before deciding to restore. The database recovery copy is not a backup of your Git checkout or worktrees.
 
 ## Restore explicitly
@@ -100,7 +102,7 @@ openwaggle recovery restore-pre-cutover --yes --json
 
 The command requires exclusive database ownership. If it reports an ownership conflict, stop the remaining OpenWaggle work or clients before retrying. Do not delete lock or ownership files to force access.
 
-Before replacement, OpenWaggle preserves the current active database as a timestamped artifact. It then migrates the recovery copy again. If restoration fails, it puts the current active database back.
+Before replacement, OpenWaggle preserves the current active database as a timestamped artifact. An empty `openwaggle.db` in the way is removed first. It then migrates the recovery copy again. If restoration fails, it puts the current active database back.
 
 Sessions and changes created after the original migration are not present in the restored history. OpenWaggle never performs this restoration automatically after a crash, failed agent request, or validation error.
 
