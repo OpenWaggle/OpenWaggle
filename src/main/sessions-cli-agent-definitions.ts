@@ -1,4 +1,8 @@
 import os from 'node:os'
+import {
+  type AgentDefinitionToggleLoader,
+  loadAgentDefinitionTogglesForProject,
+} from './agent-definition-toggle-loader'
 import { listAgentDefinitions, searchAgentDefinitions } from './agents/agent-definition-catalog'
 import { agentDefinitionsProjectPath } from './agents-cli-options'
 import { compactAgentCatalog, writeAgentsCliCatalog } from './agents-cli-output'
@@ -12,12 +16,15 @@ export interface AgentDefinitionDiscoveryIo {
   readonly cwd?: string
   readonly home?: string
   readonly stdout?: (value: string) => void | Promise<void>
+  readonly loadToggles?: AgentDefinitionToggleLoader
 }
 
 /**
  * `hive agent-definitions-list` and `hive agent-definitions-search`, the tool's
  * `agent_definitions_list` and `agent_definitions_search`. They read definition files in this
  * process; `--json` answers with the tool's `{ definitions }` shape in the Hive CLI envelope.
+ * Like the tool, they leave out definitions turned off for the project, which spawn and launch
+ * refuse. The file-authoring commands under `openwaggle agents` still reach every definition.
  */
 export async function runAgentDefinitionDiscoveryCommand(
   command: string,
@@ -35,7 +42,10 @@ export async function runAgentDefinitionDiscoveryCommand(
           query: required(arguments_.positionals.join(' '), 'Search query'),
         })
       : await listAgentDefinitions({ projectPath, userHome })
-  const definitions = compactAgentCatalog(items)
+  const enabledByName = await (io.loadToggles ?? loadAgentDefinitionTogglesForProject)(projectPath)
+  const definitions = compactAgentCatalog(
+    items.filter((item) => enabledByName[item.name] !== false),
+  )
   if (hasFlag(arguments_, 'json')) {
     await stdout(sessionsCliResponseText(command, { definitions }, true))
   } else {

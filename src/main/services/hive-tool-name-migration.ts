@@ -44,8 +44,12 @@ function renameStatement(column: string) {
  * (`resolved_agent_snapshot_json.tools`, which a fork intersects with). Read as they are, such a
  * Session would silently lose the Hive tool. This rewrites those stored allowlists once; it is
  * data the Host wrote, not a name a caller can send, so the old name stays refused everywhere
- * else. A profile without `sessions` is not touched, and running it again changes nothing. The
- * snapshot's `contentDigest` still names the definition file it was taken from.
+ * else. A profile without `sessions` is not touched, and running it again changes nothing.
+ *
+ * The snapshot's `contentDigest` is the SHA-256 of `JSON.stringify` of the parsed definition
+ * (`agent-definition-parser.ts`), so after this rewrite it no longer matches the snapshot's
+ * `tools`. Nothing checks it today; a future snapshot-integrity check must accept migrated
+ * snapshots (rewritten `sessions` to `hive`, everything else equal) rather than reject them.
  */
 export const HIVE_TOOL_NAME_MIGRATION_STATEMENTS = [
   renameStatement('profile_json'),

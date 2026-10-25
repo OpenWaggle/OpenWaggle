@@ -117,6 +117,8 @@ Run authorization (launch, spawn, message, start): --authorization <mode> or --y
 New Worktree (create, launch, fork, spawn, handoff):
   --workspace new-worktree [--base-ref <ref>] [--start-from-origin]
 Catalog (list, search, delegations-list, delegations-conflicts): --project <path> | --all
+Agent definitions (agent-definitions-list, agent-definitions-search): definitions turned off for
+  the project are left out, as spawn and launch refuse them
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
 fail before files, credentials, or Session Host state change. Documented search/title/reason and
 multi-target operands remain positional rest operands.

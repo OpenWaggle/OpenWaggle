@@ -1,3 +1,7 @@
+import {
+  type AgentDefinitionToggleLoader,
+  loadAgentDefinitionTogglesForProject,
+} from './agent-definition-toggle-loader'
 import { discoverAgentDefinitions } from './agents/agent-definition-discovery'
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-types-v2'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
@@ -13,7 +17,8 @@ export function isMcpAgentDefinitionOperation(
 /**
  * `agent-definitions-list` and `agent-definitions-search`, the hive tool's
  * `agent_definitions_list` and `agent_definitions_search`. Like the tool, they need no Session
- * capability and return names and descriptions only. The tool reads its own project; an MCP
+ * capability, return names and descriptions only, and leave out definitions turned off for the
+ * project, which spawn and launch refuse. The tool reads its own project; an MCP
  * caller reads a project inside its workspace grants, the first grant by default. They read
  * definition files in the server process, not the Session Host.
  */
@@ -25,7 +30,10 @@ export async function queryMcpAgentDefinitions(
   input: Pick<SessionToolInputV2, 'projectPath' | 'message' | 'limit'> & {
     readonly operation: AgentDefinitionOperation
   },
-  dependencies: { readonly userHome?: string } = {},
+  dependencies: {
+    readonly userHome?: string
+    readonly loadToggles?: AgentDefinitionToggleLoader
+  } = {},
 ) {
   const requested = input.projectPath ?? options.workspaceRoots[0]
   if (options.workspaceRoots.length === 0 || requested === undefined) {
@@ -35,8 +43,10 @@ export async function queryMcpAgentDefinitions(
   if (input.operation === 'agent-definitions-search' && !input.message?.trim()) {
     throw new Error('message is required for agent-definitions-search.')
   }
+  const loadToggles = dependencies.loadToggles ?? loadAgentDefinitionTogglesForProject
   return discoverAgentDefinitions({
     projectPath,
+    enabledByName: await loadToggles(projectPath),
     ...(input.operation === 'agent-definitions-search' && input.message
       ? { query: input.message }
       : {}),

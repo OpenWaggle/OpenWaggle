@@ -62,7 +62,7 @@ describe('openwaggle_hive Agent-definition discovery', () => {
     const listed = await queryMcpAgentDefinitions(
       scope([project]),
       { operation: 'agent-definitions-list' },
-      { userHome: home },
+      { userHome: home, loadToggles: async () => ({}) },
     )
     expect(listed).toEqual({
       definitions: [
@@ -79,9 +79,34 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-search', message: 'nothing-matches' },
-        { userHome: home },
+        { userHome: home, loadToggles: async () => ({}) },
       ),
     ).resolves.toEqual({ definitions: [] })
+  })
+
+  it('leaves out a definition turned off for the project, as the tool does', async () => {
+    const asked: string[] = []
+    await expect(
+      queryMcpAgentDefinitions(
+        scope([project]),
+        { operation: 'agent-definitions-list' },
+        {
+          userHome: home,
+          loadToggles: async (projectPath) => {
+            asked.push(projectPath)
+            return { reviewer: false }
+          },
+        },
+      ),
+    ).resolves.toEqual({ definitions: [] })
+    await expect(
+      queryMcpAgentDefinitions(
+        scope([project]),
+        { operation: 'agent-definitions-search', message: 'security' },
+        { userHome: home, loadToggles: async () => ({ reviewer: false }) },
+      ),
+    ).resolves.toEqual({ definitions: [] })
+    expect(asked).toEqual([project])
   })
 
   it('reads only a project inside the caller workspace grants', async () => {
@@ -89,7 +114,7 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([]),
         { operation: 'agent-definitions-list' },
-        { userHome: home },
+        { userHome: home, loadToggles: async () => ({}) },
       ),
     ).rejects.toThrow('requires an explicit MCP workspace grant')
     const other = path.join(root, 'other')
@@ -98,14 +123,14 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-list', projectPath: other },
-        { userHome: home },
+        { userHome: home, loadToggles: async () => ({}) },
       ),
     ).rejects.toThrow("outside this server profile's workspace grants")
     await expect(
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-search' },
-        { userHome: home },
+        { userHome: home, loadToggles: async () => ({}) },
       ),
     ).rejects.toThrow('message is required')
   })
