@@ -71,7 +71,27 @@ async function probeActiveClose(
   backend: Backend,
 ) {
   const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pty-probe-'))
-  const sentinelPath = path.join(temporaryDirectory, 'descendant-survived')
+  try {
+    await probeActiveCloseWithSentinel(
+      nodePty,
+      platform,
+      executablePath,
+      backend,
+      path.join(temporaryDirectory, 'descendant-survived'),
+    )
+  } finally {
+    // Also when the terminal fails the patched-lifecycle check before the probe starts.
+    await fs.rm(temporaryDirectory, { force: true, recursive: true })
+  }
+}
+
+async function probeActiveCloseWithSentinel(
+  nodePty: PtySpawner,
+  platform: NodeJS.Platform,
+  executablePath: string,
+  backend: Backend,
+  sentinelPath: string,
+) {
   const pty = assertPatchedPty(
     nodePty.spawn(executablePath, ['-e', activeCloseScript(sentinelPath)], spawnOptions(backend)),
     backend,
@@ -133,7 +153,6 @@ async function probeActiveClose(
   } finally {
     output.dispose()
     if (!descriptorClosed) pty.closeDescriptor()
-    await fs.rm(temporaryDirectory, { force: true, recursive: true })
   }
 }
 

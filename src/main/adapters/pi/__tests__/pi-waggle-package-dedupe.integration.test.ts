@@ -9,8 +9,8 @@ import {
 
 const directories: string[] = []
 
-afterEach(() => {
-  cleanupOpenWagglePiSessions()
+afterEach(async () => {
+  await cleanupOpenWagglePiSessions()
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 

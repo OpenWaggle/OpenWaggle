@@ -1,6 +1,10 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
+import {
+  NODE_TIER_TIMEOUTS,
+  TEST_TEMPORARY_ROOT_SETUP,
+} from './scripts/test-support/vitest-tier-options'
 
 export default defineConfig({
   resolve: {
@@ -14,6 +18,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
+    ...NODE_TIER_TIMEOUTS,
     setupFiles: [
       'scripts/test-support/isolate-user-home.ts',
       'src/main/test-support/isolate-user-mcp-files.ts',

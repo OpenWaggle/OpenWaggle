@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let createLogger: typeof import('../logger').createLogger
 let getLogFilePath: typeof import('../logger').getLogFilePath
@@ -9,6 +9,10 @@ let initFileLogger: typeof import('../logger').initFileLogger
 let drainFileLogger: typeof import('../logger').drainFileLogger
 
 const mockLogsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openwaggle-log-test-'))
+
+afterAll(() => {
+  fs.rmSync(mockLogsDir, { recursive: true, force: true })
+})
 
 describe('file logger', () => {
   beforeEach(async () => {

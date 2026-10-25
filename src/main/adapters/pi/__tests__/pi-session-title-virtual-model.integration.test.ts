@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
-import os from 'node:os'
 import path from 'node:path'
 import { SupportedModelId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { temporaryTestDirectory } from '../../../test-support/temporary-test-directory'
 import {
   createPiSessionTitleGenerator,
   projectTitleModelRuntime,
@@ -56,7 +56,7 @@ async function titleBackend() {
 
 /** A project whose Pi extension registers a backend and a virtual model that routes to it. */
 async function projectWithRouter(baseUrl: string) {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-title-router-'))
+  const projectPath = await temporaryTestDirectory('ow-title-router-')
   const extensionPath = path.join(projectPath, '.pi', 'extensions', 'qa-router.js')
   await fs.mkdir(path.dirname(extensionPath), { recursive: true })
   await fs.writeFile(
@@ -91,7 +91,7 @@ export default function extension(pi) {
 
 describe('a virtual model as the Title model', () => {
   it('routes the title request through the project runtime to its physical model', async () => {
-    vi.stubEnv('PI_CODING_AGENT_DIR', await fs.mkdtemp(path.join(os.tmpdir(), 'ow-pi-agent-')))
+    vi.stubEnv('PI_CODING_AGENT_DIR', await temporaryTestDirectory('ow-pi-agent-'))
     const backend = await titleBackend()
     const projectPath = await projectWithRouter(backend.baseUrl)
     const generator = createPiSessionTitleGenerator({

@@ -7,8 +7,8 @@ import {
   createOpenWagglePiSession,
 } from './openwaggle-pi-session.test-support'
 
-afterEach(() => {
-  cleanupOpenWagglePiSessions()
+afterEach(async () => {
+  await cleanupOpenWagglePiSessions()
 })
 
 describe("a Session's Pi extension commands", () => {

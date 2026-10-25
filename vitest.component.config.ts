@@ -3,6 +3,10 @@ import babel from '@rolldown/plugin-babel'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+import {
+  COMPONENT_TIER_TIMEOUTS,
+  TEST_TEMPORARY_ROOT_SETUP,
+} from './scripts/test-support/vitest-tier-options'
 
 /**
  * Stub `*.svg?react` imports in jsdom tests — SVGR data-URIs are not
@@ -47,6 +51,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
+    ...COMPONENT_TIER_TIMEOUTS,
     include: ['src/**/*.component.test.tsx', 'packages/**/*.component.test.tsx'],
     setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
     coverage: {
