@@ -26,7 +26,7 @@ On macOS and Linux, you can also use the installer script:
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
 ```
 
-See [Installation](https://openwaggle.ai/docs/getting-started/installation) for platform-specific steps, unsigned-app warnings, and updates.
+See [Installation](https://openwaggle.ai/docs/getting-started/installation) for platform-specific steps, signing and first-launch warnings, and updates.
 
 Released builds send anonymous usage statistics and error reports. Statistics never include prompts, code, file paths, or any identifier for you or your install. [Usage statistics](https://openwaggle.ai/docs/configuration/usage-statistics) lists every field and how to turn both off.
 

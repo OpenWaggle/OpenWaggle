@@ -944,7 +944,7 @@ jobs:
             -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
-      - name: Create draft release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}

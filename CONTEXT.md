@@ -1033,7 +1033,7 @@ A known bug that loses user data, prevents launch, or blocks updating. It blocks
 _Avoid_: P0, critical bug, v1-required (v1-required work is planned scope, not a defect)
 
 **Covered surface**:
-A user-relied-on part of OpenWaggle that the **Compatibility promise** protects: user data, the Hive and Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, and the supported platforms. The extension host contract follows the extension SDK's own version, and Pi-owned resources follow Pi's compatibility; neither is a Covered surface of the app.
+A user-relied-on part of OpenWaggle that the **Compatibility promise** protects: user data, the Hive and Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, **Scheduled tasks** (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and **Background start**), and the supported platforms. The extension host contract follows the extension SDK's own version, and Pi-owned resources follow Pi's compatibility; neither is a Covered surface of the app.
 _Avoid_: public API (user data and platforms are covered too), stable surface
 
 **Dual package output**:
