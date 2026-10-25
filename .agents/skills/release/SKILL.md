@@ -65,7 +65,7 @@ The canonical package policy lives in `docs/release-and-versioning.md` and ADR-0
 - The `0.x` trains end without a Stable release. The first Stable release is `1.0.0`.
 - The `1.0.0` line starts at `1.0.0-beta.1`, the first signed macOS build. There is no `1.0.0-alpha.N` stage.
 - Train: `1.0.0-beta.N` -> `1.0.0-rc.N` -> `1.0.0`.
-- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR.
+- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR. Pass the bare version (`1.0.0-rc.1`, no leading `v`). Pause `feat:`/`fix:` merges to `main` until that PR merges: a merge in between opens a competing release PR for the current stage. To recover, close the competing PR and dispatch again from the new `main`.
 
 Meanings:
 

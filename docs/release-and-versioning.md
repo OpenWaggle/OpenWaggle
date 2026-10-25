@@ -149,7 +149,54 @@ default; there is no `post-v1` label.
 To retire a covered field or command, ship the replacement beside it and remove the old one only in
 the next major version.
 
-#### Supported platform minimums
+| Stage | Example Version | What Happens On Release |
+|-------|-----------------|-------------------------|
+| Beta | `1.0.0-beta.N` | Increments `beta.N+1` on release-eligible changes. |
+| RC | `1.0.0-rc.N` | Increments `rc.N+1` on release-eligible changes. During the RC freeze those are release-blocker fixes only. |
+| Stable | `1.0.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+
+The `1.0.0` line has no Alpha stage. A later prerelease line opened by `target_version` dispatch,
+such as `2.0.0-alpha.1`, increments the same way as Beta.
+
+Stage transitions use the same protected, version-only release PR as ordinary releases. Never
+retag a prerelease or edit a GitHub release to simulate promotion.
+
+Prepare an explicit forward transition from `main` with:
+
+```bash
+gh workflow run release.yml --ref main -f target_version=1.0.0
+```
+
+Manual release dispatches are accepted only from `main` and require an explicit target. The
+workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
+normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
+The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
+
+Pass `target_version` as the bare version, without a leading `v`: `1.0.0-rc.1`, not
+`v1.0.0-rc.1`. The tag gets its `v` from the workflow.
+
+A dispatched transition PR does not hold `main`. If a `feat:` or `fix:` merge lands on `main`
+after the dispatch and before its PR merges, that push starts an ordinary release run, which opens
+a competing release PR for the next version of the current stage (for example `1.0.0-beta.26`
+beside the dispatched `1.0.0-rc.1`). Pause merges to `main` from the dispatch until the transition
+PR merges. If a competing PR opens anyway, close it without merging and dispatch
+`target_version` again from the new `main`, so the transition PR includes that merge.
+
+Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
+receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
+non-downgrade version itself, then points the updater at that release's metadata, so RC does not
+depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
+RC build with no saved preference defaults to Beta. Release packaging publishes the matching
+metadata aliases for every eligible automatic channel because electron-builder does not generate
+the cross-channel aliases for its GitHub provider. The app and
+CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
+authoritative channel before installing a downloaded release and invalidates a release that is no
+longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
+downloads pass through the explicit, authoritative restart action. The shell installer persists its
+selected policy channel as a one-time Session Host intent instead of inferring future policy from
+the downloaded artifact's version.
+
+### Supported platform minimums
 
 | Platform | Minimum from `1.0.0` | Guard threshold |
 |----------|----------------------|-----------------|
@@ -176,43 +223,6 @@ Microsoft's end of support, or the distribution's end of standard support), or w
 Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in
 a minor version, its release notes name it, and the previous release's notes announce it when
 possible.
-
-| Stage | Example Version | What Happens On Release |
-|-------|-----------------|-------------------------|
-| Beta | `1.0.0-beta.N` | Increments `beta.N+1` on release-eligible changes. |
-| RC | `1.0.0-rc.N` | Increments `rc.N+1` on release-eligible changes. During the RC freeze those are release-blocker fixes only. |
-| Stable | `1.0.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
-
-The `1.0.0` line has no Alpha stage. A later prerelease line opened by `target_version` dispatch,
-such as `2.0.0-alpha.1`, increments the same way as Beta.
-
-Stage transitions use the same protected, version-only release PR as ordinary releases. Never
-retag a prerelease or edit a GitHub release to simulate promotion.
-
-Prepare an explicit forward transition from `main` with:
-
-```bash
-gh workflow run release.yml --ref main -f target_version=1.0.0
-```
-
-Manual release dispatches are accepted only from `main` and require an explicit target. The
-workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
-normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
-The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
-
-Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
-receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
-non-downgrade version itself, then points the updater at that release's metadata, so RC does not
-depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
-RC build with no saved preference defaults to Beta. Release packaging publishes the matching
-metadata aliases for every eligible automatic channel because electron-builder does not generate
-the cross-channel aliases for its GitHub provider. The app and
-CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
-authoritative channel before installing a downloaded release and invalidates a release that is no
-longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
-downloads pass through the explicit, authoritative restart action. The shell installer persists its
-selected policy channel as a one-time Session Host intent instead of inferring future policy from
-the downloaded artifact's version.
 
 ### Differential update downloads
 

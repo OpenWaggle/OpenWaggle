@@ -40,6 +40,9 @@ Use the Release workflow's `target_version` dispatch for a deliberate promotion 
 prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
 explicit target. It still produces the ordinary version-only release PR and never bypasses the
 maintainer merge gate.
+Pass the bare version without a leading `v`, and pause `feat:`/`fix:` merges to `main` until the
+dispatched PR merges; see the `target_version` dispatch notes in `docs/release-and-versioning.md` for the
+competing-PR race and how to recover from it.
 
 Release automation is GitHub-based:
 
