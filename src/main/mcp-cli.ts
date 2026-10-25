@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { sessionIdFromReference } from '@shared/utils/session-link'
 import { app } from 'electron'
 import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
@@ -11,12 +10,13 @@ import {
   parseMcpCliArguments,
   readSecretFromStdin,
   requireServeScope,
-  serveAuthorizationCeiling,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
 import { runMcpManagementCommand } from './mcp-cli-management'
 import { isMcpManagementCommand } from './mcp-cli-management-arguments'
 import { createMcpCliHost } from './mcp-cli-management-host'
+import { parseServeIdentity, resolveServeIdentity } from './mcp-cli-serve-identity'
+import { serveUsage } from './mcp-cli-serve-usage'
 import {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
@@ -44,22 +44,17 @@ Usage:
                               [--name <server>] [--version <version>]
                               [--scope global|project] [--exposure <mode>] [-l]
   openwaggle mcp doctor [--json] [-l]
-  openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
+  openwaggle mcp serve --stdio (--profile <name> | --owner)
+                       --grant <capability>... (--workspace <path> | --session <id>)...
+                       [--profile-credential-file <path>]
                        [--authorization-ceiling ask-for-approval|yolo]
-                       [--workspace <path>]... [--session <id>]...
-                       [--export-root <path>]...
-                       [--attachment-root <path>]...
+                       [--export-root <path>]... [--attachment-root <path>]...
                        [--origin-session <id>]
-  openwaggle mcp serve --http <port> --token-stdin [--profile <name>]
-                       [--authorization-ceiling ask-for-approval|yolo]
-                       [--grant <capability>]... [--workspace <path>]...
-                       [--export-root <path>]...
-                       [--attachment-root <path>]...
-                       [--session <id>]... [--origin-session <id>]
+  openwaggle mcp serve --http <port> --token-stdin (--profile <name> | --owner)
+                       --grant <capability>... (--workspace <path> | --session <id>)...
+                       [same options as --stdio]
 
-Server scope: at least one --workspace <path> or --session <id> is required.
-A --session or --origin-session id may also be a Session link (openwaggle://sessions/<id>).
-Unexpected positional and -- passthrough input fail before the server starts.
+Run "openwaggle mcp serve --help" for what each server option means.
 
 Servers are read from ~/.pi/agent/mcp.json and ~/.openwaggle/mcp.json, and with -l
 (or --project <path>) also from the project's .mcp.json, .pi/mcp.json, and
@@ -128,32 +123,22 @@ function parseServeTransport(arguments_: ParsedArguments) {
   return { stdio, http, httpPort: http === undefined ? undefined : Number(http) }
 }
 
-export function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) {
-  const profile = option(arguments_, 'profile')?.trim() || (stdio ? 'local-stdio' : 'local-http')
-  if (!/^[A-Za-z0-9._-]{1,80}$/.test(profile)) {
-    throw new Error('Server profile must use 1-80 letters, numbers, dots, underscores, or dashes.')
-  }
-  const originReference = option(arguments_, 'origin-session')?.trim()
-  const originSessionId = originReference
-    ? sessionIdFromReference(originReference, '--origin-session')
-    : undefined
-  if (originSessionId && !/^[A-Za-z0-9._:-]{1,200}$/.test(originSessionId)) {
-    throw new Error(
-      'Origin session must use 1-200 letters, numbers, dots, underscores, colons, or dashes.',
-    )
-  }
-  return { profile, originSessionId }
-}
-
 async function runServeCommand(arguments_: ParsedArguments) {
   const { stdio, http, httpPort } = parseServeTransport(arguments_)
-  const { profile, originSessionId } = parseServeIdentity(arguments_, stdio)
+  const { identity, originSessionId } = parseServeIdentity(arguments_, stdio)
   const scope = requireServeScope(arguments_)
+  const grants = parseServeGrants(arguments_.options.get('grant'))
+  if (grants.size === 0) {
+    throw new Error(
+      `Server mode requires at least one --grant <capability>; without one every operation would be refused. Supported grants: ${OPENWAGGLE_MCP_SERVE_GRANTS.join(', ')}.`,
+    )
+  }
+  const userDataRoot = app.getPath('userData')
   await serveOpenWaggleMcpServer({
     transport: stdio ? 'stdio' : 'streamable-http',
     ...(httpPort === undefined ? {} : { httpPort }),
     ...(http ? { bearerToken: await readSecretFromStdin() } : {}),
-    grants: parseServeGrants(arguments_.options.get('grant')),
+    grants,
     workspaceRoots: scope.workspaces.map((entry) =>
       canonicalizeExistingProjectPath(path.resolve(entry)),
     ),
@@ -165,9 +150,8 @@ async function runServeCommand(arguments_: ParsedArguments) {
     ),
     sessionIds: new Set(scope.sessions),
     ...(originSessionId ? { originSessionId } : {}),
-    profile,
-    authorizationCeiling: serveAuthorizationCeiling(arguments_),
-    userDataRoot: app.getPath('userData'),
+    identity: await resolveServeIdentity(identity, userDataRoot),
+    userDataRoot,
     version: app.getVersion(),
     stderr: process.stderr,
   })
@@ -196,6 +180,32 @@ function exitCodeForError(message: string) {
   if (usagePrefixes.some((prefix) => message.startsWith(prefix))) return EXIT.USAGE
   if (message.includes('require')) return EXIT.POLICY
   return EXIT.FAILURE
+}
+
+/** The usage text a help request asks for, after validating it, or undefined to run serve. */
+function helpText(
+  command: string | undefined,
+  parsed: ParsedArguments,
+  commandArguments: ParsedArguments,
+) {
+  if (command === '-h' || (!command && parsed.options.has('help'))) return usage()
+  if (command === 'serve' && isServeHelp(commandArguments)) return serveUsage()
+  validateMcpCliOptions(command ?? 'help', commandArguments)
+  if (command === 'help' && commandArguments.positionals.length > 0) {
+    if (commandArguments.positionals[0] !== 'serve') {
+      throw new Error(`Unsupported MCP command: ${commandArguments.positionals[0]}.`)
+    }
+    return serveUsage()
+  }
+  return !command || command === 'help' ? usage() : undefined
+}
+
+function isServeHelp(arguments_: ParsedArguments) {
+  return (
+    arguments_.options.has('help') ||
+    arguments_.positionals.includes('-h') ||
+    arguments_.positionals.includes('help')
+  )
 }
 
 export function getMcpCliArguments(argv: readonly string[]) {
@@ -227,9 +237,9 @@ export async function runMcpCli(args: readonly string[]) {
   const commandArguments = { ...parsed, positionals: parsed.positionals.slice(1) }
   const json = hasFlag(parsed, 'json')
   try {
-    validateMcpCliOptions(command ?? 'help', commandArguments)
-    if (!command || command === 'help') {
-      await writeOutput(usage(), false)
+    const help = helpText(command, parsed, commandArguments)
+    if (help !== undefined) {
+      await writeOutput(help, false)
       return EXIT.SUCCESS
     }
     await runServeCommand(commandArguments)

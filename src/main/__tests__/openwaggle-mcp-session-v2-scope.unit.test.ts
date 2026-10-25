@@ -28,8 +28,7 @@ function scopedOptions(): OpenWaggleMcpServeOptions {
     grants: new Set(),
     workspaceRoots: [allowedRoot],
     sessionIds: new Set(['session-explicit']),
-    profile: 'test',
-    authorizationCeiling: 'ask-for-approval',
+    identity: { kind: 'owner', label: 'test', authorizationCeiling: 'ask-for-approval' },
     userDataRoot: '/tmp/openwaggle-test',
     version: 'test',
   }

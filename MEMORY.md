@@ -601,6 +601,22 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   caller: its own message, or its own Follow-up that its resume delivers. Resuming in front of
   someone else's Follow-up leaves it alone; that Run is bounded by its writer's boundary
   (`session-agent-run-ceiling.ts`) when it starts.
+- `openwaggle mcp serve --profile <name>` used to be a label (`mcp:<name>`) on owner authority:
+  a revoked or unknown profile still served the owner's Sessions (#350). Now a server is either
+  `--owner` (the old transient authority, refused under `OPENWAGGLE_AGENT_RUN=1`) or `--profile`,
+  which sends the profile name and credential plus its grants as `transientAuthority`. The
+  authenticator accepts that pair only from an MCP client, stores it as `profileNarrowing`, and
+  returns a placeholder authority with no capability and no target, so any path that skips
+  `refreshNamedProfileCaller` fails closed. The refresh re-reads the profile and then
+  `narrowNamedProfileCaller` intersects: capabilities and ceiling exactly; targets as profile
+  projects inside the server's workspaces plus the existing Sessions both scopes list (a scope is
+  a union, so the intersection is materialised per connection; MCP opens one per call). The
+  caller id stays `profile:<id>`, so revocation still stops queued work, but durable checks keyed
+  on the caller id (Follow-up delivery, run reach) see the whole profile; that is why a profile
+  server refuses `--authorization-ceiling`. `openwaggle_hive` advertises only the operations whose
+  base capabilities (`openwaggle-mcp-session-operation-grants-v2.ts`) were granted; a new
+  operation must be added to that table. Server-side conformance is
+  `pnpm test:mcp:server-conformance`, part of `pnpm test:mcp:conformance`.
 
 ## Tooling Memory
 

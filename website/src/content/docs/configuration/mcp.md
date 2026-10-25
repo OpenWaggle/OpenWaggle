@@ -229,14 +229,29 @@ New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the 
 
 This advanced option lets another MCP client work with OpenWaggle sessions. It is separate from connecting external servers in Settings and does not start with the desktop app by default.
 
-Choose the exact workspaces or sessions the client may access, then grant only the operations it needs. You can serve over standard input/output or authenticated HTTP on the local machine:
+The server holds the authority of exactly one caller, chosen with one of two options:
+
+- `--profile <name>` serves as an [access profile](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) and authenticates with that profile's credential, read from the credential store (`--credential-store` when the profile was created) or from `--profile-credential-file <path>` or `OPENWAGGLE_PROFILE_CREDENTIAL_FILE`. Use this for another agentic tool.
+- `--owner` serves your own authority as the desktop user. OpenWaggle agents cannot use it; they use their native `hive` tool or a profile.
+
+Either way, choose the exact workspaces or sessions the client may access with `--workspace` or `--session`, then grant only the operations it needs with `--grant`. Both are required. You can serve over standard input/output or authenticated HTTP on the local machine:
 
 ```bash
-openwaggle mcp serve --stdio --profile local --grant sessions:discover --workspace /path/to/project
-printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin --grant sessions:discover --session SESSION_ID
+openwaggle access profiles create ci-helper --capability sessions:discover \
+  --capability sessions:read --project /path/to/project --credential-store
+openwaggle mcp serve --stdio --profile ci-helper \
+  --grant sessions:discover --grant sessions:read --workspace /path/to/project
+printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin \
+  --owner --grant sessions:discover --session SESSION_ID
 ```
 
-Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. Every caller profile must name at least one `--workspace` or `--session` scope; an empty scope never means every desktop session. `--session` and `--origin-session` take a session ID or a [session link](/docs/using-openwaggle/chat-and-tools#session-links) copied from the app. Use `--workspace /` only when you intentionally want to grant every project on the machine. Caller profiles separately grant session discovery, reading, creation, messaging, interruption, or organization. A caller cannot inherit desktop approvals or unrestricted access to every session. Hosted callers default to `--authorization-ceiling ask-for-approval`. After reviewing the caller and its scopes, an operator can explicitly use `--authorization-ceiling yolo`; that ceiling permits steering or promoting work into an active Run and allows requested YOLO Run overrides, but only alongside the operation's matching capability grants.
+A profile server holds only what both the profile and its own options allow: the capabilities in both the profile and `--grant`, and the projects and sessions in both the profile's scope and `--workspace` or `--session`. It keeps the profile's authorization ceiling, so `--authorization-ceiling` is an `--owner` option. The server checks the profile when it starts, and the Session Host checks it again on every call, so a revoked, deleted, or unknown profile, or a wrong credential, reaches no session; a profile revoked while the server runs is refused from its next call. Queued work the server leaves, such as a Follow-up, is checked against the profile itself when it runs.
+
+The `openwaggle_hive` tool lists only the operations the server's `--grant` values allow. A call that needs a grant the server lacks, such as `search` with `fullTranscript` and no `sessions:read`, fails with a message that names the missing `--grant`; a call the profile does not allow fails with `capability_denied` or `target_scope_denied`. Run `openwaggle mcp serve --help` for every option.
+
+Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. An empty scope never means every desktop session. `--session` and `--origin-session` take a session ID or a [session link](/docs/using-openwaggle/chat-and-tools#session-links) copied from the app. Use `--workspace /` only when you intentionally want to grant every project the caller can reach. A caller cannot inherit desktop approvals or unrestricted access to every session. An `--owner` server defaults to `--authorization-ceiling ask-for-approval`. After reviewing the caller and its scopes, an operator can explicitly use `--authorization-ceiling yolo`; that ceiling permits steering or promoting work into an active Run and allows requested YOLO Run overrides, but only alongside the operation's matching capability grants.
+
+Before 1.0, `--profile` only labelled the server and every server held the desktop user's authority. Add `--owner` to keep that behaviour, or create an access profile and pass its name.
 
 The `openwaggle_hive` tool exposes the Session Control v2 vocabulary used by the CLI and GUI. Each operation is the [`openwaggle hive`](/docs/developer-workflow/hive-cli) subcommand of the same name, and the agent's `hive` tool action with `_` in place of `-`. Before 1.0 the tool was named `openwaggle_sessions`; that name is no longer served.
 
@@ -248,7 +263,7 @@ The `openwaggle_hive` tool exposes the Session Control v2 vocabulary used by the
 - exports: `export`, `export-create`, `export-cancel`, `exports-list`, `exports-read`, and `exports-wait`.
 - Agent definitions: `agent-definitions-list` and `agent-definitions-search` (with `message` as the query). They return names and descriptions, never instructions, for a directory inside the caller's `--workspace` grants (the first grant by default), and need no further grant. A session's managed worktree, or a folder inside one, reads that session's project; any other folder, a subfolder of a project included, reads only itself. Definitions turned off for that project are left out, as they are for the agent.
 
-Scheduled tasks are not available over MCP: a server holds only transient authority, and a Scheduled task needs a lasting creator. Use [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) or the agent's `hive` tool.
+Scheduled tasks are not available over MCP: a server's grants last only as long as its process, and a Scheduled task needs a lasting creator. Use [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) or the agent's `hive` tool.
 
 Idempotency keys that start with `pi-session-discovery:` are reserved for the Sessions OpenWaggle creates for discovered Pi sessions; a lifecycle `create` that uses one is refused with `reserved_idempotency_key`.
 
@@ -256,7 +271,7 @@ Use the lifecycle operation's `workspace` field to choose `current`, `local`, `e
 
 For `create`, `launch`, `fork`, `spawn`, and `handoff`, set `workspace: "new-worktree"` and `startFromOrigin: true` to resolve the new Worktree from the configured origin remote. `baseRef` and `startFromOrigin` are rejected for other Workspace modes. A `spawn` Delegation accepts `resourceReferences` for files or context the Worker should use; `exportResources` is a separate `export-create` field and never becomes Worker context. Supplying either resource field to another operation is rejected rather than ignored.
 
-`launch` and `spawn` accept `yolo: true` for a per-Run override and `thinking` for the new Session's starting thinking level. `message` and `start` accept `thinking` and either `yolo: true` or `runAuthorizationOverride` only when they start a Run on an idle Session. `thinking` becomes the Session's thinking level; the override applies to that one Run. A `message` that would be queued behind an active Run is refused with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`, and `follow-up` and `replace` do not accept either field. A YOLO override requires a server started with `--authorization-ceiling yolo`, and the caller must hold the operation's matching capability grants. `steer` and `promote` also require that reviewed YOLO ceiling because they inject work into an active Run. `promote` requires `sessionId`, `followUpId`, and `expectedRunId`, and fails rather than steering a different Run when that Run id is stale.
+`launch` and `spawn` accept `yolo: true` for a per-Run override and `thinking` for the new Session's starting thinking level. `message` and `start` accept `thinking` and either `yolo: true` or `runAuthorizationOverride` only when they start a Run on an idle Session. `thinking` becomes the Session's thinking level; the override applies to that one Run. A `message` that would be queued behind an active Run is refused with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`, and `follow-up` and `replace` do not accept either field. A YOLO override requires a server started with `--authorization-ceiling yolo`, or a profile whose ceiling is YOLO, and the caller must hold the operation's matching capability grants. `steer` and `promote` also require that YOLO ceiling because they inject work into an active Run. `promote` requires `sessionId`, `followUpId`, and `expectedRunId`, and fails rather than steering a different Run when that Run id is stale.
 
 `search` accepts `message`, optional `searchMode`, and `fullTranscript`. Discovery search defaults to hybrid mode; `fullTranscript: true` defaults to lexical mode and requires transcript-read authority. Explicit semantic or hybrid full-transcript searches use the bounded, authorized lazy transcript projection described in the [Hive CLI](/docs/developer-workflow/hive-cli) guide. Single-term and quoted transcript matches include node, Run when known, and durable-order attribution; unquoted multi-term matches may aggregate evidence across several items and therefore omit a misleading single-node attribution.
 

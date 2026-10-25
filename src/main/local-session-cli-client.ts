@@ -26,6 +26,20 @@ function hasProfileCredentialSource(arguments_: ParsedArguments) {
   )
 }
 
+/**
+ * The bundled shell marks agent Runs with `OPENWAGGLE_AGENT_RUN=1`. Such a Run must not reach the
+ * desktop user's own authority through the CLI or `mcp serve --owner`; it uses its native Hive
+ * tool or a named access profile. A guardrail against accidents, not a security boundary.
+ */
+export function assertCliAgentMayUseOwnerAuthority(ownerOption?: string) {
+  if (env.OPENWAGGLE_AGENT_RUN !== '1') return
+  throw new Error(
+    ownerOption
+      ? `OpenWaggle agents cannot use ${ownerOption}: use the native Hive tool or --profile <name>.`
+      : 'OpenWaggle agents must use their native Hive tool or an explicit named CLI profile.',
+  )
+}
+
 /** Resolve CLI identity and Host paths without starting or contacting the Session Host. */
 export async function prepareLocalSessionCliClientInput(
   arguments_: ParsedArguments,
@@ -37,11 +51,7 @@ export async function prepareLocalSessionCliClientInput(
   if (!profile && hasProfileCredentialSource(arguments_)) {
     throw new Error('Profile credentials require --profile or OPENWAGGLE_PROFILE.')
   }
-  if (env.OPENWAGGLE_AGENT_RUN === '1' && !profile) {
-    throw new Error(
-      'OpenWaggle agents must use their native Hive tool or an explicit named CLI profile.',
-    )
-  }
+  if (!profile) assertCliAgentMayUseOwnerAuthority()
   const paths = await prepareLocalSessionHostPaths(
     resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
   )

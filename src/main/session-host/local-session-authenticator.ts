@@ -75,6 +75,44 @@ function authenticateTransientMcpAuthority(
   }
 }
 
+/**
+ * An `mcp serve --profile` server authenticates as the named profile and sends its own grants as
+ * a narrowing (#350). Only an MCP client may, and only with an explicit target scope.
+ */
+function assertProfileNarrowing(hello: LocalSessionClientHello) {
+  const narrowing = hello.transientAuthority
+  if (!narrowing) return
+  if (hello.clientKind !== 'mcp' || narrowing.managementEnvelope) {
+    throw new Error('Only an MCP server may narrow a named Local Session profile.')
+  }
+  const scope = narrowing.scope
+  if (
+    scope.all ||
+    ((scope.workspaceRoots?.length ?? 0) === 0 && (scope.sessionIds?.length ?? 0) === 0)
+  ) {
+    throw new Error('A narrowed MCP profile requires an explicit workspace or Session scope.')
+  }
+}
+
+/**
+ * Until `refreshNamedProfileCaller` intersects the profile with the narrowing, the caller holds
+ * no capability and no target, so a path that skips the refresh fails closed.
+ */
+function narrowingPlaceholder(
+  caller: AuthenticatedLocalSessionCaller,
+  narrowing: NonNullable<LocalSessionClientHello['transientAuthority']>,
+): AuthenticatedLocalSessionCaller {
+  const authority = caller.profileAuthority
+  if (!authority) throw new Error('A narrowed MCP profile requires a named profile authority.')
+  const { derivedSessionAuthorities: _, eventAdmissionSessionIds: __, ...rest } = caller
+  return {
+    ...rest,
+    profileAuthority: { ...authority, capabilities: [], scope: {} },
+    baseProfileScope: {},
+    profileNarrowing: narrowing,
+  }
+}
+
 export function createLocalSessionAuthenticator(input: {
   readonly localUserCredential: string
   readonly namedProfiles?: LocalSessionNamedProfileAuthenticator
@@ -84,9 +122,7 @@ export function createLocalSessionAuthenticator(input: {
     .digest('hex')
     .slice(0, MACHINE_IDENTITY_CHARACTERS)
   return async (hello: LocalSessionClientHello): Promise<AuthenticatedLocalSessionCaller> => {
-    if (hello.profile && hello.transientAuthority) {
-      throw new Error('Named and transient Local Session authorities cannot be combined.')
-    }
+    if (hello.profile && hello.transientAuthority) assertProfileNarrowing(hello)
     if (hello.profile) {
       if (!hello.credential || !input.namedProfiles) {
         throw new Error('Named Local Session profile authentication failed.')
@@ -98,7 +134,9 @@ export function createLocalSessionAuthenticator(input: {
         clientVersion: hello.clientVersion,
       })
       return {
-        ...caller,
+        ...(hello.transientAuthority
+          ? narrowingPlaceholder(caller, hello.transientAuthority)
+          : caller),
         ...(hello.workingDirectory ? { workingDirectory: hello.workingDirectory } : {}),
       }
     }
