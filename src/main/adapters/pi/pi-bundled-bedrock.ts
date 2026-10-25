@@ -28,6 +28,7 @@ export function registerPiBundledBedrockProvider() {
   }
 
   setBedrockProviderModule({
+    ...bedrockProviderModule,
     stream: withExpiredCredentialRetry(bedrockProviderModule.stream),
     streamSimple: withExpiredCredentialRetry(bedrockProviderModule.streamSimple),
   })

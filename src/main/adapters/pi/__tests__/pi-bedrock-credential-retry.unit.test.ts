@@ -10,6 +10,12 @@ import { withExpiredCredentialRetry } from '../pi-bedrock-credential-retry'
 const EXPIRED =
   "Token is expired. To refresh this SSO session run 'aws sso login' with the corresponding profile."
 
+const MODEL = {
+  api: 'bedrock-converse-stream',
+  provider: 'amazon-bedrock',
+  id: 'eu.anthropic.claude-opus',
+} as const
+
 function message(overrides: Partial<AssistantMessage>): AssistantMessage {
   return {
     role: 'assistant',
@@ -53,16 +59,18 @@ function answered(text: string): AssistantMessageEvent[] {
 /** A provider stream function that answers each call with the next script. */
 function scriptedProvider(scripts: readonly (readonly AssistantMessageEvent[])[]) {
   let call = 0
-  const stream = vi.fn((_model: string, _context: string, _options?: { signal?: AbortSignal }) => {
-    const events = scripts[call] ?? []
-    call += 1
-    const result = createAssistantMessageEventStream()
-    setTimeout(() => {
-      for (const event of events) result.push(event)
-      result.end()
-    }, 0)
-    return result
-  })
+  const stream = vi.fn(
+    (_model: typeof MODEL, _context: string, _options?: { signal?: AbortSignal }) => {
+      const events = scripts[call] ?? []
+      call += 1
+      const result = createAssistantMessageEventStream()
+      setTimeout(() => {
+        for (const event of events) result.push(event)
+        result.end()
+      }, 0)
+      return result
+    },
+  )
   return stream
 }
 
@@ -79,7 +87,7 @@ describe('Amazon Bedrock expired credential retry', () => {
     const provider = scriptedProvider([[failed(EXPIRED)], answered('Hello')])
     const stream = withExpiredCredentialRetry(provider, { wait: noWait })
 
-    const { events, result } = await collect(stream('model', 'context', {}))
+    const { events, result } = await collect(stream(MODEL, 'context', {}))
 
     expect(provider).toHaveBeenCalledTimes(2)
     expect(events.map((event) => event.type)).toEqual([
@@ -96,7 +104,7 @@ describe('Amazon Bedrock expired credential retry', () => {
     const provider = scriptedProvider([[failed(EXPIRED)], [failed(`${EXPIRED} again`)]])
     const stream = withExpiredCredentialRetry(provider, { wait: noWait })
 
-    const { events, result } = await collect(stream('model', 'context', {}))
+    const { events, result } = await collect(stream(MODEL, 'context', {}))
 
     expect(provider).toHaveBeenCalledTimes(2)
     expect(events).toHaveLength(1)
@@ -107,7 +115,7 @@ describe('Amazon Bedrock expired credential retry', () => {
     const provider = scriptedProvider([[failed('ValidationException: bad request')]])
     const stream = withExpiredCredentialRetry(provider, { wait: noWait })
 
-    const { result } = await collect(stream('model', 'context', {}))
+    const { result } = await collect(stream(MODEL, 'context', {}))
 
     expect(provider).toHaveBeenCalledTimes(1)
     expect(result.errorMessage).toBe('ValidationException: bad request')
@@ -118,7 +126,7 @@ describe('Amazon Bedrock expired credential retry', () => {
     const provider = scriptedProvider([[...partial, failed(EXPIRED)]])
     const stream = withExpiredCredentialRetry(provider, { wait: noWait })
 
-    const { events, result } = await collect(stream('model', 'context', {}))
+    const { events, result } = await collect(stream(MODEL, 'context', {}))
 
     expect(provider).toHaveBeenCalledTimes(1)
     expect(events.map((event) => event.type)).toEqual([
@@ -134,9 +142,26 @@ describe('Amazon Bedrock expired credential retry', () => {
     const provider = scriptedProvider([[failed(EXPIRED)], answered('Hello')])
     const stream = withExpiredCredentialRetry(provider, { wait: () => Promise.resolve(false) })
 
-    const { result } = await collect(stream('model', 'context', {}))
+    const { result } = await collect(stream(MODEL, 'context', {}))
 
     expect(provider).toHaveBeenCalledTimes(1)
     expect(result.stopReason).toBe('aborted')
+  })
+
+  it('ends with an error instead of hanging when the provider stream throws', async () => {
+    const stream = withExpiredCredentialRetry(
+      (_model: typeof MODEL, _context: string, _options?: { signal?: AbortSignal }) => {
+        throw new Error('Cannot read the AWS config')
+      },
+      { wait: noWait },
+    )
+
+    const { result } = await collect(stream(MODEL, 'context', {}))
+
+    expect(result).toMatchObject({
+      stopReason: 'error',
+      errorMessage: 'Cannot read the AWS config',
+      provider: 'amazon-bedrock',
+    })
   })
 })

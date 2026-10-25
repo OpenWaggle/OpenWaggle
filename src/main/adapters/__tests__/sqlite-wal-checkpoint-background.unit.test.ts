@@ -123,4 +123,22 @@ describe('WAL checkpoint background', () => {
 
     expect(setting).toBe(SQLITE_DEFAULT_WAL_AUTOCHECKPOINT_PAGES)
   })
+
+  it('keeps checkpointing on commit, and lets the Host start, when the worker cannot be created', async () => {
+    const layer = await databaseLayer()
+
+    const setting = await Effect.runPromise(
+      Effect.gen(function* () {
+        const scope = yield* Scope.make()
+        yield* runWalCheckpointBackground({
+          factory: () => {
+            throw new Error("Cannot find module 'better-sqlite3'")
+          },
+        }).pipe(Scope.extend(scope))
+        return yield* autocheckpoint()
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(setting).toBe(SQLITE_DEFAULT_WAL_AUTOCHECKPOINT_PAGES)
+  })
 })

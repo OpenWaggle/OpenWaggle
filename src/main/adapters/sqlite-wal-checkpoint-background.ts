@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { Worker } from 'node:worker_threads'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { AppDatabase } from '../services/database-service'
@@ -99,7 +100,14 @@ function startWorker(input: {
   readonly onFailure: (reason: string) => void
 }) {
   return Effect.async<WalCheckpointWorkerPort, Error>((resume) => {
-    const worker = input.factory({ databasePath: input.databasePath, intervalMs: input.intervalMs })
+    let worker: WalCheckpointWorkerPort
+    try {
+      worker = input.factory({ databasePath: input.databasePath, intervalMs: input.intervalMs })
+    } catch (error) {
+      // Resolving better-sqlite3 or creating the thread can throw before the worker exists.
+      resume(Effect.fail(new Error(`The WAL checkpoint worker could not start: ${String(error)}`)))
+      return
+    }
     let ready = false
     let failed = false
     const fail = (reason: string) => {
@@ -151,7 +159,7 @@ function startWorker(input: {
  * WAL past 1,000 pages. On a 2 GB database that commit took 200 to 500 ms, most often the large
  * snapshot commit at Run settlement. The Host's connection stops checkpointing itself, and a
  * worker thread with its own connection runs a PASSIVE checkpoint every second. If the worker
- * cannot start, or stops later, the connection checkpoints itself again, as before.
+ * cannot start, or stops later, the connection checkpoints itself again, as before. It never fails.
  */
 export function runWalCheckpointBackground(
   options: { readonly factory?: WalCheckpointWorkerFactory; readonly intervalMs?: number } = {},
@@ -195,5 +203,12 @@ export function runWalCheckpointBackground(
     }
     yield* setAutocheckpoint(sql, 0)
     logger.info('WAL checkpoints run on a worker thread')
-  })
+  }).pipe(
+    // The first Host service: nothing here may keep the Host from starting.
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('WAL checkpoints stay on the Host thread', { cause: Cause.pretty(cause) })
+      }),
+    ),
+  )
 }

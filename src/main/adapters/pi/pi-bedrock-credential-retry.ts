@@ -1,9 +1,11 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import {
+  type Api,
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
   createAssistantMessageEventStream,
+  type Model,
 } from '@earendil-works/pi-ai'
 import { isExpiredCredentialMessage } from '@shared/domain/error-classifier'
 import { createLogger } from '../../logger'
@@ -80,6 +82,34 @@ async function relay(attempt: AssistantMessageEventStream, target: AssistantMess
   target.end(terminal ?? (await attempt.result()))
 }
 
+type ModelIdentity = Pick<Model<Api>, 'api' | 'provider' | 'id'>
+
+/** The error a Run sees when relaying itself failed, so a caller awaiting the result never hangs. */
+function relayFailure(model: ModelIdentity, error: unknown): AssistantMessageEvent {
+  return {
+    type: 'error',
+    reason: 'error',
+    error: {
+      role: 'assistant',
+      content: [],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: 'error',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      timestamp: Date.now(),
+    },
+  }
+}
+
 function abortedEvent(error: AssistantMessage): AssistantMessageEvent {
   return { type: 'error', reason: 'aborted', error: { ...error, stopReason: 'aborted' } }
 }
@@ -92,7 +122,7 @@ function abortedEvent(error: AssistantMessage): AssistantMessageEvent {
  * final and reaches the Run, which reports it as expired credentials.
  */
 export function withExpiredCredentialRetry<
-  TModel,
+  TModel extends ModelIdentity,
   TContext,
   TOptions extends { readonly signal?: AbortSignal },
 >(
@@ -119,6 +149,7 @@ export function withExpiredCredentialRetry<
     }
     run().catch((error: unknown) => {
       logger.error('Expired credential retry failed', { error: String(error) })
+      target.push(relayFailure(model, error))
       target.end()
     })
     return target
