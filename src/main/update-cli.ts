@@ -183,7 +183,8 @@ async function updateFromChannel(input: {
   if (selection.type === 'no-release') {
     // Stable before 1.0.0, or a release whose update metadata is still uploading.
     await writeCliStdout(
-      `OpenWaggle is up to date on the ${channel} channel: it has no release yet.\n`,
+      `OpenWaggle is up to date on the ${channel} channel: no release is available on it yet.` +
+        `${unsavedChannel ? ' The saved update channel was not changed.' : ''}\n`,
     )
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }

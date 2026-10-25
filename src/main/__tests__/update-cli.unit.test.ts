@@ -176,21 +176,19 @@ describe('update CLI', () => {
     )
   })
 
-  it.each([[['--channel', 'stable', '--check']], [['--channel', 'stable']]])(
-    'reports Stable before its first release as up to date: %j',
-    async (args) => {
-      configureUpdaterFeedMock.mockResolvedValue({ type: 'no-release' })
+  it.each([
+    [['--channel', 'stable', '--check'], ' The saved update channel was not changed.'],
+    [['--channel', 'stable'], ''],
+  ])('reports Stable before its first release as up to date: %j', async (args, unsaved) => {
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'no-release' })
 
-      await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
+    await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
 
-      expect(checkForUpdatesMock).not.toHaveBeenCalled()
-      expect(writeCliStdoutMock).toHaveBeenCalledWith(
-        expect.stringMatching(
-          /^OpenWaggle is up to date on the stable channel: it has no release yet\./u,
-        ),
-      )
-    },
-  )
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      `OpenWaggle is up to date on the stable channel: no release is available on it yet.${unsaved}\n`,
+    )
+  })
 
   it('uses the saved GUI channel when no CLI override is provided', async () => {
     executeLocalSessionCommandMock.mockResolvedValue({

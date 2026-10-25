@@ -504,7 +504,7 @@ stop_session_host_for_update() {
         # The installer quits only the app it replaces, but every installed copy shares one Host.
         [ "${QUIT_MAC_APP:-}" = "1" ] || \
           error "OpenWaggle is open and uses the Session Host this install must stop. Quit it, then run the installer again."
-        error "OpenWaggle was opened again while the installer waited. Quit it, then run the installer again."
+        error "OpenWaggle was opened again while the installer waited, or another copy of it is open. Quit it, then run the installer again."
       fi
       info "OpenWaggle is open, so it keeps its Session Host. Quit it, then run \`openwaggle host stop --update\`."
       ;;

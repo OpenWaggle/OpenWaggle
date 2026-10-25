@@ -192,10 +192,12 @@ stop_session_host_for_update "$1" 1.0.0-beta.25`
     expect(result.stdout).not.toMatch(/^open /mu)
   })
 
-  it('still reports an app reopened after the installer quit it', async () => {
+  it('reports a reopened app, or another open copy, after the installer quit its target', async () => {
     const result = await stopForUpdate('1')
 
-    expect(result.stdout).toContain('error: OpenWaggle was opened again while the installer waited.')
+    expect(result.stdout).toContain(
+      'error: OpenWaggle was opened again while the installer waited, or another copy of it is open.',
+    )
     expect(result.stdout).toContain(`open ${TARGET_APP}`)
   })
 })
