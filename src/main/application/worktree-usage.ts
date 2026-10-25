@@ -80,12 +80,18 @@ function sessionBlocker(sessions: readonly WorktreeSessionUsage[]): WorktreeRemo
   const using = sessions.filter((session) => !session.archived || session.running)
   const [first] = using
   if (!first) return null
+  if (using.length > 1) {
+    return {
+      kind: 'session',
+      message: `${String(using.length)} Sessions work in it. Archive them, and stop any Run they still have, first.`,
+    }
+  }
   return {
     kind: 'session',
-    message:
-      using.length === 1
-        ? `The Session “${first.title}” works in it. Archive that Session first.`
-        : `${String(using.length)} Sessions work in it. Archive them first.`,
+    // An archived Session only blocks while its Run goes on, so archiving is no remedy there.
+    message: first.archived
+      ? `The archived Session “${first.title}” still has a Run in it. Stop that Run first.`
+      : `The Session “${first.title}” works in it. Archive that Session first.`,
   }
 }
 

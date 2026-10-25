@@ -167,6 +167,10 @@ describe('Settings > Worktrees usage', () => {
     expect(usage.get(WORKTREES.active)?.blockers[0]?.message).toBe(
       'The Session “Fix the login bug” works in it. Archive that Session first.',
     )
+    // Archiving is no remedy for an archived Session whose Run still goes on.
+    expect(usage.get(WORKTREES.archivedRunning)?.blockers[0]?.message).toBe(
+      'The archived Session “Session archived-running” still has a Run in it. Stop that Run first.',
+    )
     expect(usage.get(WORKTREES.archived)?.sessions).toMatchObject([
       { sessionId: 'archived', archived: true, owner: true },
     ])
