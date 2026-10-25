@@ -9,6 +9,7 @@ import { runSessionScratchSweepBackground } from './adapters/session-scratch-swe
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
 import { migrateLegacyProviderReferences } from './adapters/sqlite-legacy-provider-rename-migration'
 import { migrateLegacyThinkingLevels } from './adapters/sqlite-legacy-thinking-level-migration'
+import { runWalCheckpointBackground } from './adapters/sqlite-wal-checkpoint-background'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { runFollowUpEditHoldExpiryBackground } from './application/follow-up-edit-hold-expiry'
 import {
@@ -33,6 +34,8 @@ export interface HostServiceOptions<R> {
 
 export function startHostBackgroundServices<R = never>(options: HostServiceOptions<R> = {}) {
   return Effect.gen(function* () {
+    // SQLite checkpoints on a worker thread, not inside the Host's commits (#357).
+    yield* runWalCheckpointBackground()
     // Before anything reads a Session's thinking level or starts a Run.
     yield* migrateLegacyThinkingLevels
     // Before anything resolves a stored model reference or provider credential (Pi 1.0.3 renamed
