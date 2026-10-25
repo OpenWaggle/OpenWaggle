@@ -9,13 +9,13 @@ interface WorkerDelegationRow {
   readonly state: string
   readonly current_specification_revision: number
   readonly latest_submission_revision: number
-  /** 1 when the Worker's own `delegation_state needs_attention` is the latest state change. */
+  /** 1 when the Worker set `needs_attention` itself during the settling Run (latest change). */
   readonly explicit_needs_attention: number
 }
 
 const HOST_CAPTURED_RESULT_LIMIT = 100_000
 
-function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId) {
+function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, runId: string) {
   return sql<WorkerDelegationRow>`
     SELECT contracts.id, contracts.parent_session_id, contracts.state,
       contracts.current_specification_revision,
@@ -28,6 +28,10 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId) {
           )
           AND transitions.to_state = ${'needs_attention'}
           AND transitions.actor_session_id = contracts.child_session_id
+          -- Set during the settling Run: after the parent answers, a later Run settles as usual.
+          AND transitions.created_at >= COALESCE(
+            (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+          )
           -- A failed Run's needs_attention writes no transition row, only an orchestration update.
           AND NOT EXISTS (
             SELECT 1 FROM session_orchestration_updates AS host_updates
@@ -132,8 +136,9 @@ function settleCompletedWorker(
     ) {
       return undefined
     }
-    // A Worker that asked for attention itself stays there: its reply explains the request and is
-    // not a result. Only a needs_attention the Host set after a failed Run is resolved here.
+    // A Worker that asked for attention in this Run stays there: its reply explains the request
+    // and is not a result. A Host-set needs_attention, or one from an earlier Run the parent has
+    // since answered, is resolved here.
     if (input.contract.explicit_needs_attention === 1) return undefined
     const revision = input.contract.latest_submission_revision + 1
     const summary = input.settlement.finalResponse.trim().slice(0, HOST_CAPTURED_RESULT_LIMIT)
@@ -196,7 +201,7 @@ export function settleWorkerDelegation(
   now: number,
 ) {
   return Effect.gen(function* () {
-    const contract = yield* loadWorkerDelegation(sql, settlement.sessionId)
+    const contract = yield* loadWorkerDelegation(sql, settlement.sessionId, settlement.runId)
     if (!contract) return undefined
     if (settlement.terminalStatus !== 'completed') {
       return yield* settleUnsuccessfulWorker(sql, { contract, settlement, now })

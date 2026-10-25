@@ -86,6 +86,12 @@ describe('SQLite Session Control Worker settlement', () => {
     })
   })
 
+  function runStartedAt(sql: SqlClient.SqlClient) {
+    return sql<{ readonly created_at: number }>`
+      SELECT created_at FROM session_runs WHERE id = ${'run-next'}
+    `.pipe(Effect.map((rows) => rows[0]?.created_at ?? 0))
+  }
+
   function settleCompletedRunAfterNeedsAttention(
     file: string,
     markNeedsAttention: (sql: SqlClient.SqlClient) => Effect.Effect<unknown, unknown>,
@@ -123,16 +129,17 @@ describe('SQLite Session Control Worker settlement', () => {
       'worker-explicit-needs-attention.sqlite',
       (sql) =>
         Effect.gen(function* () {
+          const duringRun = yield* runStartedAt(sql)
           yield* sql`
             INSERT INTO delegation_state_transitions (
               delegation_id, from_state, to_state, reason, actor_session_id, authored_by, created_at
             ) VALUES (
               ${'delegation-worker'}, ${'working'}, ${'needs_attention'}, ${'Blocked on credentials'},
-              ${'worker'}, ${'session-agent:worker'}, ${2000}
+              ${'worker'}, ${'session-agent:worker'}, ${duringRun}
             )
           `
           yield* sql`
-            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${2000}
+            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${duringRun}
             WHERE id = ${'delegation-worker'}
           `
         }),
@@ -142,6 +149,30 @@ describe('SQLite Session Control Worker settlement', () => {
       expect.not.objectContaining({ delegationUpdate: expect.anything() }),
     )
     expect(result).toMatchObject({ contract: { state: 'needs_attention' }, submissionCount: 0 })
+  })
+
+  it('submits a completed Run after the parent answered an earlier needs_attention', async () => {
+    const result = await settleCompletedRunAfterNeedsAttention(
+      'worker-earlier-needs-attention.sqlite',
+      (sql) =>
+        Effect.gen(function* () {
+          const earlier = (yield* runStartedAt(sql)) - 1
+          yield* sql`
+            INSERT INTO delegation_state_transitions (
+              delegation_id, from_state, to_state, reason, actor_session_id, authored_by, created_at
+            ) VALUES (
+              ${'delegation-worker'}, ${'working'}, ${'needs_attention'}, ${'Blocked'},
+              ${'worker'}, ${'session-agent:worker'}, ${earlier}
+            )
+          `
+          yield* sql`
+            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${earlier}
+            WHERE id = ${'delegation-worker'}
+          `
+        }),
+    )
+
+    expect(result).toMatchObject({ contract: { state: 'ready_for_review' }, submissionCount: 1 })
   })
 
   it('still submits a completed Run whose needs_attention the Host set after an earlier failure', async () => {

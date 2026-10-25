@@ -28,6 +28,7 @@ function projectOfWorkingPath(sql: SqlClient.SqlClient, workingPath: string) {
       ON session_workspace_bindings.workspace_id = workspace_resources.id
     JOIN sessions ON sessions.id = session_workspace_bindings.session_id
     WHERE workspace_resources.kind = ${'managed-worktree'}
+      AND workspace_resources.lifecycle_state = ${'ready'}
       AND (workspace_resources.working_path = ${workingPath}
         OR substr(${workingPath}, 1, length(workspace_resources.working_path) + 1)
           IN (workspace_resources.working_path || '/', workspace_resources.working_path || '\\'))

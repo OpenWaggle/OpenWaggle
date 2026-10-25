@@ -37,12 +37,27 @@ function rootGuideline(permits: Permits) {
   return undefined
 }
 
+function catalogDefaultsGuideline(discovery: readonly string[], permits: Permits) {
+  return [
+    `${both(discovery)} ${discovery.length === 1 ? 'looks' : 'look'} at your current project by default, every worktree of it included; catalogScope project names another project and catalogScope all every Session you can reach.`,
+    permits('list')
+      ? 'list leaves archived Sessions out unless archived is true, which lists only archived ones.'
+      : '',
+    permits('delegations_list')
+      ? 'delegations_list shows every state, newest first, unless states narrows it.'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 function catalogGuidelines(permits: Permits) {
-  if (!permits('list') && !permits('search') && !permits('delegations_list')) return []
+  const discovery = permitted(permits, ['list', 'search', 'delegations_list'])
+  if (discovery.length === 0) return []
   const roots = permitted(permits, ['launch', 'create'])
   const reachActions = permitted(permits, ['read', 'report', 'follow_up'])
   return [
-    'list, search, and delegations_list look at your current project by default, every worktree of it included; catalogScope project names another project and catalogScope all every Session you can reach. list leaves archived Sessions out unless archived is true, which lists only archived ones; delegations_list shows every state, newest first, unless states narrows it.',
+    catalogDefaultsGuideline(discovery, permits),
     [
       'A root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows, without sharing a Hive, when its current Run was started by the desktop user or by an agent with the same reach. Workers and project-scoped callers stay in their own scope and get target_scope_denied for another project.',
       `Use list or search with catalogScope project and that repository projectPath, or catalogScope all${reachActions.length ? `, then ${either(reachActions)} by sessionId` : ''}.`,

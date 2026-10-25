@@ -106,6 +106,26 @@ describe('SQLite Session query current project scope', () => {
     expect(sessionIds(result.outcome)).toEqual(['worktree-worker', 'queen', 'worker'])
   })
 
+  it('maps only a ready worktree to its project, as the Host does elsewhere', async () => {
+    const runtime = await runtimeWithWorktreeWorker('pending-worktree')
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE workspace_resources SET lifecycle_state = ${'materializing'}
+          WHERE id = ${'workspace-wt'}
+        `
+      }),
+    )
+    const result = await executeQuery(runtime, {
+      operation: 'list',
+      limit: 10,
+      workingPath: WORKTREE,
+    })
+
+    expect(sessionIds(result.outcome)).toEqual([])
+  })
+
   it('finds a Worker in another worktree of the project by search', async () => {
     const runtime = await runtimeWithWorktreeWorker('search')
     const result = await executeQuery(runtime, {

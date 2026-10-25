@@ -87,6 +87,13 @@ describe('Hive tool capability gating', () => {
     )
   })
 
+  it('describes only the discovery actions the grant carries', () => {
+    const text = guidance(register(['sessions:discover']))
+
+    expect(text).toMatch(/list and search look at your current project by default/)
+    expect(text).not.toMatch(/delegations_list/)
+  })
+
   it('refuses an action outside the grant with the capability it needs', () => {
     const tool = register(WORKER_CAPABILITIES)
 

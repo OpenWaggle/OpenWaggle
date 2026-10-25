@@ -98,7 +98,7 @@ Session capabilities constrain the native `hive` tool and authenticated Session 
 
 ## Delegation lifecycle
 
-Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself stays under **Needs you** when its Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result.
+Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself stays under **Needs you** when that Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result. Once the parent answers, a later Run that completes with a reply is captured for review as usual.
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
 
