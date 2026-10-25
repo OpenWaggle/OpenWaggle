@@ -78,7 +78,9 @@ function captureWorktreePreparation(
       projectPath,
       workspacePath: workspace.pending ? projectPath : workspace.workingPath,
     }
-    if (checkoutExists) yield* preparation.capture(scope)
+    // A pending Workspace has no folder of its own yet, so this create is its birth. Capture
+    // records no pending birth at the project path (issue #353); only prepareBirth does.
+    if (checkoutExists && !workspace.pending) yield* preparation.capture(scope)
     else yield* preparation.prepareBirth({ ...scope, workspacePath: projectPath })
   })
 }
