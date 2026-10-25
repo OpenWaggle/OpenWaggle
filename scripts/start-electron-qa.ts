@@ -15,7 +15,11 @@ import {
   releaseQaLease,
 } from './electron-qa-lease'
 import { observeElectronQaChildExit, stopElectronQaChild } from './electron-qa-process'
-import { captureRequiredQaEvidence, completeElectronQaShutdown } from './electron-qa-shutdown'
+import {
+  captureRequiredQaEvidence,
+  completeElectronQaShutdown,
+  stopElectronQaSessionHost,
+} from './electron-qa-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 const QA_HOST = '127.0.0.1'
@@ -50,18 +54,36 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
   })
 }
 
+/** The QA app's home inside its profile, removed with it. */
+const QA_HOME_DIRECTORY = 'qa-home'
+
+function qaHome(lease: Pick<QaLease, 'metadata'>) {
+  const home = path.join(lease.metadata.profilePath, QA_HOME_DIRECTORY)
+  return { home, piAgentDir: path.join(home, '.pi', 'agent') }
+}
+
 /**
- * The QA app's environment. Automation disables executable Pi extensions, which also hides the
- * first-party tools (MCP server tools from Pi's MCP extension, `hive`) from the model; a
- * caller that sets `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run
- * can drive them. Codemode and tool search load either way.
+ * The QA app's environment. HOME, the Pi agent directory, and user data all live in the lease's
+ * ephemeral profile: overriding user data alone still migrates the real `~/.openwaggle` and
+ * `~/.pi/agent` files, so the launcher never inherits them.
+ *
+ * Automation disables executable Pi extensions, which also hides the first-party tools (MCP server
+ * tools from Pi's MCP extension, `hive`) from the model; a caller that sets
+ * `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run can drive them.
+ * Codemode and tool search load either way. Automation also leaves the project's MCP files out,
+ * so the app starts none of their servers (the repository's `.mcp.json` points one at this very
+ * CDP port); `OPENWAGGLE_AUTOMATION_PROJECT_MCP=1` connects them.
  */
 export function electronEnvironment(
   lease: Pick<QaLease, 'automationIdentity' | 'metadata'>,
   callerEnvironment: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
+  const home = qaHome(lease)
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
+    HOME: home.home,
+    USERPROFILE: home.home,
+    PI_CODING_AGENT_DIR: home.piAgentDir,
     OPENWAGGLE_AUTOMATION: '1',
     OPENWAGGLE_AUTOMATION_LEASE_TOKEN: lease.automationIdentity,
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
@@ -70,6 +92,9 @@ export function electronEnvironment(
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
+      ? { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }
+      : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
       ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
@@ -77,10 +102,28 @@ export function electronEnvironment(
   })
 }
 
+/**
+ * `pnpm` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
+ * store) keeps the app, and the Session Host it forwards the switches to, off the user's real
+ * credential store: with the profile's HOME, macOS `safeStorage` otherwise blocks looking for a
+ * login keychain there.
+ */
+export function electronQaLaunchArguments(platform: NodeJS.Platform = process.platform) {
+  return [
+    'exec',
+    'electron-vite',
+    'dev',
+    '--',
+    '--use-mock-keychain',
+    ...(platform === 'linux' ? ['--password-store=basic'] : []),
+    `--remote-debugging-port=${QA_CDP_PORT}`,
+  ]
+}
+
 function startElectron(lease: QaLease) {
   return spawn(
     'pnpm',
-    ['exec', 'electron-vite', 'dev', '--', `--remote-debugging-port=${QA_CDP_PORT}`],
+    electronQaLaunchArguments(),
     {
       cwd: lease.metadata.projectPath,
       detached: process.platform !== 'win32',
@@ -145,6 +188,8 @@ async function run() {
 
   await assertQaPortAvailable()
   const lease = await acquireQaLease(projectPath)
+  // Tools the app starts expect HOME to exist.
+  await fs.mkdir(qaHome(lease).piAgentDir, { recursive: true })
   const child = startElectron(lease)
   const childExitPromise = observeElectronQaChildExit(child)
   let connection: QaConnection | null = null
@@ -163,6 +208,9 @@ async function run() {
       captureEvidence: connection === null ? async () => undefined : captureEvidence,
       closeConnection: async () => connection?.browser.close(),
       stopChild: () => stopElectronQaChild(child),
+      // The Host is detached from the Electron process group, so stopping the group leaves it
+      // running with the profile's SQLite files open.
+      stopSessionHost: () => stopElectronQaSessionHost(lease.metadata.profilePath),
     })
     return shutdownPromise
   }
