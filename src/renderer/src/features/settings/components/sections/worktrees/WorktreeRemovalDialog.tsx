@@ -59,9 +59,10 @@ function unpublishedWarning(preview: WorktreeRemovalPreview) {
   if (count === null)
     return 'OpenWaggle could not check whether this branch has commits that are not on a remote.'
   if (count === 0) return null
-  const commits = count === 1 ? '1 commit' : `${String(count)} commits`
-  const branch = preview.branch ?? 'the detached HEAD'
-  return `${branch} has ${commits} that are not on any remote. The branch is kept, but push it first if you need that work elsewhere.`
+  const commits = count === 1 ? '1 commit that is' : `${String(count)} commits that are`
+  if (preview.branch === null)
+    return `The detached HEAD has ${commits} not on any remote. With no branch, that work may be lost once the worktree is gone; create a branch for it first.`
+  return `${preview.branch} has ${commits} not on any remote. The branch is kept, but push it first if you need that work elsewhere.`
 }
 
 function PreviewDetails({ preview }: { readonly preview: WorktreeRemovalPreview }) {

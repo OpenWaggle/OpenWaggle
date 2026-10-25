@@ -116,6 +116,20 @@ describe('removing a worktree from Settings', () => {
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith('/project', { path: FREE.path }))
   })
 
+  it('warns that a detached HEAD has no branch to keep its unpublished commit', async () => {
+    respond({ preview: { branch: null, unpublishedCommitCount: 1 } })
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
+    expect(
+      await within(dialog).findByText(
+        /The detached HEAD has 1 commit that is not on any remote\. With no branch, that work may be lost/,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('disables Remove for a worktree in use and names the Session that owns it', async () => {
     respond({ usage: [OWNED_USAGE] })
     renderWithQueryClient(<WorktreesSection />)
