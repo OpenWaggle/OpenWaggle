@@ -63,6 +63,28 @@ function qaHome(lease: Pick<QaLease, 'metadata'>) {
 }
 
 /**
+ * Creates the QA home, which tools the app starts expect to exist. It runs before the launcher's
+ * cleanup is armed, so a failure releases the lease, and its profile, itself.
+ */
+export async function prepareQaHome(
+  lease: QaLease,
+  dependencies: {
+    readonly makeDirectory: (directory: string) => Promise<unknown>
+    readonly release: (lease: QaLease) => Promise<void>
+  } = {
+    makeDirectory: (directory) => fs.mkdir(directory, { recursive: true }),
+    release: releaseQaLease,
+  },
+) {
+  try {
+    await dependencies.makeDirectory(qaHome(lease).piAgentDir)
+  } catch (error) {
+    await dependencies.release(lease)
+    throw error
+  }
+}
+
+/**
  * The QA app's environment. HOME, the Pi agent directory, and user data all live in the lease's
  * ephemeral profile: overriding user data alone still migrates the real `~/.openwaggle` and
  * `~/.pi/agent` files, so the launcher never inherits them.
@@ -188,8 +210,7 @@ async function run() {
 
   await assertQaPortAvailable()
   const lease = await acquireQaLease(projectPath)
-  // Tools the app starts expect HOME to exist.
-  await fs.mkdir(qaHome(lease).piAgentDir, { recursive: true })
+  await prepareQaHome(lease)
   const child = startElectron(lease)
   const childExitPromise = observeElectronQaChildExit(child)
   let connection: QaConnection | null = null

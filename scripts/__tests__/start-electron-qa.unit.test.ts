@@ -21,6 +21,7 @@ import {
   electronQaLaunchArguments,
   isOwnedQaTemporaryPath,
   parseQaLeaseMetadata,
+  prepareQaHome,
   QA_CDP_PORT,
   qaPageMatchesAutomationIdentity,
   recoverStaleQaLease,
@@ -28,6 +29,7 @@ import {
 
 const lease = {
   automationIdentity: 'identity',
+  directory: '/tmp/lease',
   metadata: {
     version: 1 as const,
     launcherPid: 1,
@@ -69,6 +71,20 @@ describe('managed Electron QA launcher', () => {
       if (previous.PI === undefined) delete process.env.PI_CODING_AGENT_DIR
       else process.env.PI_CODING_AGENT_DIR = previous.PI
     }
+  })
+
+  it('creates the QA home, and releases the lease when it cannot', async () => {
+    const makeDirectory = vi.fn(() => Promise.resolve())
+    const release = vi.fn(() => Promise.resolve())
+    await prepareQaHome(lease, { makeDirectory, release })
+    expect(makeDirectory).toHaveBeenCalledWith(path.join('/tmp/profile', 'qa-home', '.pi', 'agent'))
+    expect(release).not.toHaveBeenCalled()
+
+    const failure = new Error('ENOSPC')
+    await expect(
+      prepareQaHome(lease, { makeDirectory: () => Promise.reject(failure), release }),
+    ).rejects.toBe(failure)
+    expect(release).toHaveBeenCalledWith(lease)
   })
 
   it('connects project MCP servers only when the caller asks for them', () => {
