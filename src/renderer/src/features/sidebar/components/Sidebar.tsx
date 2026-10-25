@@ -44,8 +44,10 @@ export function Sidebar() {
   const actions = buildSidebarActions(controller, markUnread)
 
   return (
+    // `inert` alone hides the collapsed sidebar from assistive technology, the tab order and the
+    // pointer, and moves focus out. With `aria-hidden` too, collapsing it while its Settings
+    // button had focus warned about aria-hidden on the focused element's ancestor (#356).
     <div
-      aria-hidden={sidebarHidden ? true : undefined}
       inert={sidebarHidden ? true : undefined}
       className={cn(
         'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
