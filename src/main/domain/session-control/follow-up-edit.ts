@@ -85,7 +85,7 @@ export type ReleaseFollowUpEditResult =
         readonly operation: 'queue-edit-save' | 'queue-edit-cancel'
         readonly effect: 'queue-updated'
         readonly queueState: 'running' | 'paused'
-        readonly followUpIds: readonly string[]
+        readonly remainingFollowUpIds: readonly string[]
       }
     }
   | FollowUpEditRejection
@@ -162,7 +162,7 @@ function released(
       sessionId: state.sessionId,
       queueState: state.followUpQueue.state,
       queueRevision: state.followUpQueue.revision,
-      followUpIds: state.followUpQueue.items.map((item) => item.id),
+      remainingFollowUpIds: state.followUpQueue.items.map((item) => item.id),
       stateRevision: state.revision,
     },
   }

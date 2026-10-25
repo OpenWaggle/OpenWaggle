@@ -64,7 +64,7 @@ describe('SQLite Session control: adopting a needs-attention Follow-up', () => {
     expect(result.adopted.outcome).toMatchObject({
       operation: 'queue-adopt',
       effect: 'queue-updated',
-      followUpIds: ['follow-up-stuck'],
+      remainingFollowUpIds: ['follow-up-stuck'],
     })
     expect(result.replayed.replayed).toBe(true)
     expect(result.rows).toHaveLength(1)

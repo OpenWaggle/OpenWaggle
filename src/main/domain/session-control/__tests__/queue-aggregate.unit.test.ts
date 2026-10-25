@@ -57,10 +57,58 @@ describe('Session Control queue aggregate', () => {
         sessionId,
         queueState: 'running',
         queueRevision: 6,
-        followUpIds: [second.id, first.id],
+        remainingFollowUpIds: [second.id, first.id],
         stateRevision: 11,
       },
     })
+  })
+
+  it('names the withdrawn Follow-ups apart from the ones that remain queued', () => {
+    const intent = (text: string) => ({
+      text,
+      attachmentIds: [],
+      callerId: 'local-user',
+      acceptedAt: 1000,
+      idempotencyKey: text,
+    })
+    const first = {
+      id: FollowUpId('first'),
+      intent: intent('First'),
+      deliveryState: 'pending',
+    } as const
+    const second = {
+      id: FollowUpId('second'),
+      intent: intent('Second'),
+      deliveryState: 'pending',
+    } as const
+    const third = {
+      id: FollowUpId('third'),
+      intent: intent('Third'),
+      deliveryState: 'pending',
+    } as const
+    const sessionId = SessionId('session-target')
+
+    const result = applyQueueMutation({
+      nextRunId: RunId('run-unused'),
+      state: {
+        sessionId,
+        revision: 3,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 2, items: [first, second, third] },
+      },
+      mutation: { type: 'withdraw', followUpIds: [first.id, third.id] },
+    })
+
+    expect(result).toMatchObject({
+      accepted: true,
+      outcome: {
+        operation: 'queue-withdraw',
+        effect: 'queue-updated',
+        withdrawnFollowUpIds: [first.id, third.id],
+        remainingFollowUpIds: [second.id],
+      },
+    })
+    expect(result.accepted && 'followUpIds' in result.outcome).toBe(false)
   })
 
   it('atomically starts the pending head when an idle recovered queue resumes', () => {

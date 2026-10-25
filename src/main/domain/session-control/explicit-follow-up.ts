@@ -1,5 +1,6 @@
 import type { FollowUpId, RunId } from '@shared/types/brand'
-import { mutateFollowUpQueue } from './follow-up-queue'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
+import { mutateFollowUpQueue, queuedFollowUpQueueState } from './follow-up-queue'
 import type {
   SessionControlFollowUp,
   SessionControlIntentSnapshot,
@@ -25,6 +26,8 @@ export type ApplyExplicitFollowUpResult =
             readonly effect: 'queued-follow-up'
             readonly sessionId: SessionControlSessionState['sessionId']
             readonly followUpId: FollowUpId
+            readonly queueState: 'running' | 'paused'
+            readonly pauseReason?: FollowUpQueuePauseReason
             readonly queueRevision: number
             readonly stateRevision: number
           }
@@ -104,6 +107,7 @@ export function applyExplicitFollowUp(
       effect: 'queued-follow-up',
       sessionId: input.state.sessionId,
       followUpId: input.followUpId,
+      ...queuedFollowUpQueueState(queueResult.queue),
       queueRevision: queueResult.queue.revision,
       stateRevision: nextRevision,
     },

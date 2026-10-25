@@ -21,6 +21,8 @@ export interface SessionQuerySummaryRow {
   readonly updated_at: number
   readonly parent_session_id: string | null
   readonly hive_root_session_id: string | null
+  /** `session_spawn_lineage.depth`; null for a root or for historical lineage. */
+  readonly spawn_depth?: number | null
   readonly direct_worker_count: number
   readonly profile_json: string | null
   readonly legacy_agent_definition_name?: string | null
@@ -54,6 +56,12 @@ function agentDefinitionName(profileJson: string | null) {
   }
 }
 
+/** A root is at depth 0; a Worker spawned before Session Host lineage has no recorded depth. */
+function hiveDepth(row: SessionQuerySummaryRow, worker: boolean) {
+  if (typeof row.spawn_depth === 'number') return { depth: row.spawn_depth }
+  return worker ? {} : { depth: 0 }
+}
+
 export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySummary {
   const worker = row.parent_session_id !== null
   const queen = !worker && row.direct_worker_count > 0
@@ -69,6 +77,7 @@ export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySu
     lineageRole: worker ? 'worker' : queen ? 'queen' : 'independent',
     ...(row.parent_session_id ? { parentSessionId: row.parent_session_id } : {}),
     ...(row.hive_root_session_id ? { hiveRootSessionId: row.hive_root_session_id } : {}),
+    ...hiveDepth(row, worker),
     directWorkerCount: row.direct_worker_count,
     ...(definitionName ? { agentDefinitionName: definitionName } : {}),
     ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
