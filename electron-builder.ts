@@ -15,8 +15,10 @@ import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
- * identity — name, appId, icon — is resolved once here from the build context;
- * userData follows productName automatically at runtime. electron-builder loads
+ * identity — name, appId, icon — is resolved once here from the build context.
+ * productName does not decide userData: every release channel shares the
+ * canonical `openwaggle` userData directory, and only dev builds rename the app
+ * to isolate theirs (src/main/apply-build-identity.ts). electron-builder loads
  * `.ts` config via jiti and consumes this default export; it validates the shape
  * at runtime. Left untyped: electron-builder re-exports its `Configuration` type
  * from the transitive `app-builder-lib`, which does not resolve under this repo's
