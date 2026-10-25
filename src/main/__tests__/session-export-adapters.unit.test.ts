@@ -125,7 +125,6 @@ describe('Session export adapters', () => {
 
   it('maps durable file creation, progress reads, and cancellation through the CLI', () => {
     const create = parseMcpCliArguments([
-      'create',
       'worker',
       './worker.zip',
       '--format',
@@ -134,7 +133,7 @@ describe('Session export adapters', () => {
       'docs/architecture.md',
       '--overwrite',
     ])
-    expect(buildSessionsCliPayload('export', create)).toMatchObject({
+    expect(buildSessionsCliPayload('export-create', create)).toMatchObject({
       contract: 'session-control-v2',
       request: {
         command: {
@@ -148,14 +147,13 @@ describe('Session export adapters', () => {
     })
 
     const wait = parseMcpCliArguments([
-      'wait',
       'worker',
       'export-1',
       '--timeout-ms',
       '1000',
       '--include-queue-bodies',
     ])
-    expect(buildSessionsCliPayload('export', wait)).toMatchObject({
+    expect(buildSessionsCliPayload('exports-wait', wait)).toMatchObject({
       request: {
         query: {
           operation: 'exports-wait',
@@ -168,7 +166,7 @@ describe('Session export adapters', () => {
     })
 
     expect(
-      buildSessionsCliPayload('export', parseMcpCliArguments(['cancel', 'worker', 'export-1'])),
+      buildSessionsCliPayload('export-cancel', parseMcpCliArguments(['worker', 'export-1'])),
     ).toMatchObject({ request: { command: { operation: 'export-cancel' } } })
   })
 

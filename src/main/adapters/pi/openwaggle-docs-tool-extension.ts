@@ -241,7 +241,7 @@ function execute(input: OpenWaggleDocsToolInput, params: unknown): Promise<DocsT
 /** The rules this tool adds to the system prompt; the bundle root is named only when it loads. */
 export function openWaggleDocsPromptGuidelines(bundlePath: string | null) {
   return [
-    `For questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the sessions CLI), use ${OPENWAGGLE_DOCS_TOOL_NAME} search or list, then read the topic, instead of guessing from memory or file paths.`,
+    `For questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the hive CLI), use ${OPENWAGGLE_DOCS_TOOL_NAME} search or list, then read the topic, instead of guessing from memory or file paths.`,
     ...(bundlePath
       ? [
           `The installed OpenWaggle docs bundle is ${JSON.stringify(bundlePath)}: ${BUNDLE_README} and ${BUNDLE_INDEX} at its root, Markdown under topics/. Its topics/pi/ holds the Pi docs as plain files: paths inside app.asar open with the read and ls tools, not from shell commands, find, or grep.`,

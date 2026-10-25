@@ -20,7 +20,7 @@ function destinationPath(input: string, source: SessionsToolSource) {
   const destination = path.resolve(workspace, input)
   const relative = path.relative(workspace, destination)
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('sessions export_create destinationPath must stay inside this workspace.')
+    throw new Error('hive export_create destinationPath must stay inside this workspace.')
   }
   return destination
 }

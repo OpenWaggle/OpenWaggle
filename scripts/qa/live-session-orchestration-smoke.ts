@@ -137,13 +137,13 @@ async function runLiveQaScenario(input: {
     await waitForHost(cliExecutable, env)
     await waitForLiveGui(debugPort, timeoutMs, automationIdentity)
     const launch = await runJsonCli(cliExecutable, env, [
-      'sessions',
+      'hive',
       'launch',
       projectPath,
       '--title',
       'Packaged live Queen Worker QA',
       '--text',
-      'Use the native sessions tool to spawn exactly one Worker in the shared parent workspace. Do not use any external orchestration skill. Ask the Worker to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
+      'Use the native hive tool to spawn exactly one Worker in the shared parent workspace. Do not use any external orchestration skill. Ask the Worker to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
       '--model',
       model,
       '--thinking',
@@ -160,7 +160,7 @@ async function runLiveQaScenario(input: {
     await waitForHost(cliExecutable, env)
     await waitForIdle(cliExecutable, env, queenSessionId, timeoutMs)
     const list = await runJsonCli(cliExecutable, env, [
-      'sessions',
+      'hive',
       'list',
       '--all',
       '--limit',
@@ -193,7 +193,7 @@ async function runLiveQaScenario(input: {
     }
     const exported = await runProcess(
       cliExecutable,
-      ['sessions', 'export', queenSessionId, '--format', 'markdown', '--scope', 'tree'],
+      ['hive', 'export', queenSessionId, '--format', 'markdown', '--scope', 'tree'],
       env,
     )
     if (!exported.stdout.includes(workerSessionId)) {
@@ -220,7 +220,7 @@ async function runLiveQaScenario(input: {
         model,
         package: expectedPackage.name,
         version: expectedPackage.version,
-        spawnProvenance: 'pi-native-sessions-tool',
+        spawnProvenance: 'pi-native-hive-tool',
         screenshotPath,
       }),
     )

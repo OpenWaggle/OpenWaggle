@@ -259,7 +259,7 @@ describe('Agent definitions CLI', () => {
     const outputReady = new Promise<void>((resolve) => {
       release = resolve
     })
-    const running = runAgentsCli(['list', '--json'], {
+    const running = runAgentsCli(['help'], {
       cwd: project,
       home,
       stdout: async () => outputReady,
@@ -277,7 +277,7 @@ describe('Agent definitions CLI', () => {
 
   it('converts asynchronous stdout failures into the controlled CLI failure path', async () => {
     await expect(
-      runAgentsCli(['list', '--json'], {
+      runAgentsCli(['help'], {
         cwd: project,
         home,
         stdout: async () => Promise.reject(new Error('stdout closed')),

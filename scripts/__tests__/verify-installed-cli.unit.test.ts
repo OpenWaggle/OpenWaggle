@@ -28,8 +28,8 @@ function installedCli(overrides: Partial<Record<string, { stdout: string; stderr
     if (key === '--version') return { stdout: '0.4.0-alpha.10\n', stderr: '' }
     // The real usage text, so the check and the CLI cannot drift apart.
     if (key === '--help') return { stdout: `${topLevelCliUsage('0.4.0-alpha.10')}\n`, stderr: '' }
-    if (key === 'sesions') {
-      return { stdout: '', stderr: "openwaggle: unknown command 'sesions'. Did you mean 'sessions'?\n" }
+    if (key === 'hvie') {
+      return { stdout: '', stderr: "openwaggle: unknown command 'hvie'. Did you mean 'hive'?\n" }
     }
     return { stdout: VALID_RESPONSE, stderr: '' }
   })
@@ -83,7 +83,7 @@ describe('installed CLI verification', () => {
 
       expect(runCli).toHaveBeenCalledWith(
         '/installed/openwaggle',
-        ['sessions', 'list', '--all', '--limit', '1', '--json'],
+        ['hive', 'list', '--all', '--limit', '1', '--json'],
         expect.objectContaining({
           OPENWAGGLE_AUTOMATION: '1',
           OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
@@ -176,7 +176,7 @@ describe('installed CLI verification', () => {
 
     expect(runCli).toHaveBeenCalledWith(
       '/installed/openwaggle',
-      ['sesions'],
+      ['hvie'],
       expect.any(Object),
       'linux',
       { expectedExitCode: 2 },
@@ -186,7 +186,7 @@ describe('installed CLI verification', () => {
   it.each([
     ['--version', 'did not print its version'],
     ['--help', 'did not print its usage'],
-    ['sesions', 'did not report a mistyped command'],
+    ['hvie', 'did not report a mistyped command'],
   ])('fails when %s opens the app instead of answering', async (argument, message) => {
     const runCli = installedCli({ [argument]: { stdout: '', stderr: '' } })
 

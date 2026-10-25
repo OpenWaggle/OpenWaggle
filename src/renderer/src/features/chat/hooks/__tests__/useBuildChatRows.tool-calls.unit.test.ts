@@ -63,7 +63,7 @@ describe('buildChatRows tool-call rendering', () => {
         {
           type: 'tool-call',
           id: 'wait-1',
-          name: 'sessions',
+          name: 'hive',
           arguments: '{"action":"wait","sessionIds":["w1"]}',
           state: 'input-complete',
         },
@@ -90,7 +90,7 @@ describe('buildChatRows tool-call rendering', () => {
         {
           type: 'tool-call',
           id: 'wait-1',
-          name: 'sessions',
+          name: 'hive',
           arguments: '{"action":"wait"}',
           state: 'input-complete',
         },

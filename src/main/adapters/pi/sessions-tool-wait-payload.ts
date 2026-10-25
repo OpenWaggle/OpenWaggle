@@ -7,7 +7,7 @@ function waitTargets(input: Extract<SessionsToolParameters, { action: 'wait' }>)
   const condition = input.condition ?? 'idle'
   if (condition === 'state-revision-after') {
     if (input.afterStateRevision === undefined) {
-      throw new Error('sessions wait requires afterStateRevision for state-revision-after.')
+      throw new Error('hive wait requires afterStateRevision for state-revision-after.')
     }
     return input.sessionIds.map((sessionId) => ({
       sessionId,
@@ -20,14 +20,14 @@ function waitTargets(input: Extract<SessionsToolParameters, { action: 'wait' }>)
   }
   if (condition === 'report-delivered') {
     if (!input.reportId) {
-      throw new Error('sessions wait requires reportId for report-delivered.')
+      throw new Error('hive wait requires reportId for report-delivered.')
     }
     const reportId = input.reportId
     return input.sessionIds.map((sessionId) => ({ sessionId, condition, reportId }))
   }
   if (condition === 'correlated-reply') {
     if (!input.correlationId) {
-      throw new Error('sessions wait requires correlationId for correlated-reply.')
+      throw new Error('hive wait requires correlationId for correlated-reply.')
     }
     const correlationId = input.correlationId
     return input.sessionIds.map((sessionId) => ({

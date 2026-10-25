@@ -308,7 +308,7 @@ export function loadSessionForRun(sessionId: SessionId, runId?: RunId) {
 }
 
 /**
- * A Session read through the Sessions tool or `openwaggle sessions` shows the Pi file as it is
+ * A Session read through the hive tool or `openwaggle hive` shows the Pi file as it is
  * now, like the sidebar does (ADR 0051). It runs once the caller is resolved; projecting a file
  * only refreshes what the query would read anyway and returns nothing to the caller.
  */

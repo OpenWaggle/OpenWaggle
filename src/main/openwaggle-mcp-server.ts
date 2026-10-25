@@ -69,7 +69,7 @@ function registerServerPrompt(server: McpServer) {
           role: 'user',
           content: {
             type: 'text',
-            text: `Use openwaggle_sessions with operation="launch", projectPath=${JSON.stringify(projectPath)}, and this objective. If delegating from an active Session, use operation="spawn" with its exact Session and Run IDs instead:\n\n${objective}`,
+            text: `Use openwaggle_hive with operation="launch", projectPath=${JSON.stringify(projectPath)}, and this objective. If delegating from an active Session, use operation="spawn" with its exact Session and Run IDs instead:\n\n${objective}`,
           },
         },
       ],
@@ -82,7 +82,7 @@ function createOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
     { name: 'OpenWaggle', version: options.version },
     {
       instructions:
-        'Use openwaggle_sessions for durable Session and Hive orchestration through Session Control v2. Follow-ups remain queued for the next Run; Steering targets one exact active Run. Raw shell and transparent upstream MCP passthrough are intentionally unavailable.',
+        'Use openwaggle_hive for durable Session and Hive orchestration through Session Control v2. Follow-ups remain queued for the next Run; Steering targets one exact active Run. Raw shell and transparent upstream MCP passthrough are intentionally unavailable.',
       cacheHints: {
         'tools/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
         'prompts/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },

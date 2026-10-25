@@ -29,7 +29,7 @@ interface ToolCallBlockProps {
   isStreaming?: boolean
   /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
   resultNotRecorded?: boolean
-  /** A sessions-tool row's Session, as the Hive knows it, and the controls its header carries. */
+  /** A hive-tool row's Session, as the Hive knows it, and the controls its header carries. */
   hive?: ToolCallHiveContext
 }
 

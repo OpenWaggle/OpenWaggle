@@ -17,9 +17,9 @@ vi.mock('../env', () => ({ env: {} }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
 vi.mock('../sessions-cli', () => ({ runSessionsCli: mocks.run }))
 
-import { startSessionsCliIfRequested } from '../sessions-cli-entry'
+import { startHiveCliIfRequested } from '../sessions-cli-entry'
 
-describe('Sessions CLI Electron entrypoint errors', () => {
+describe('Hive CLI Electron entrypoint errors', () => {
   beforeEach(() => {
     mocks.exit.mockClear()
     mocks.flush.mockClear()
@@ -29,26 +29,34 @@ describe('Sessions CLI Electron entrypoint errors', () => {
 
   it.each([
     {
-      args: ['sessions', 'list'],
+      args: ['hive', 'list'],
       expected: 'error [host_unavailable]: session host unavailable\n',
     },
     {
-      args: ['sessions', 'list', '--json'],
+      args: ['hive', 'delegations-list', '--json'],
       expected:
         '{"schemaVersion":1,"type":"error","error":{"kind":"host_unavailable","message":"session host unavailable"}}\n',
     },
     {
-      args: ['sessions', 'events', '--jsonl'],
+      args: ['hive', 'events', '--jsonl'],
       expected:
         '{"schemaVersion":1,"type":"error","error":{"kind":"host_unavailable","message":"session host unavailable"}}\n',
     },
   ])('preserves the requested output mode for $args', async ({ args, expected }) => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    expect(startSessionsCliIfRequested(args)).toBe(true)
+    expect(startHiveCliIfRequested(args)).toBe(true)
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(8))
 
     expect(stderr).toHaveBeenCalledWith(expected)
     stderr.mockRestore()
   })
+
+  it.each([['sessions', 'list'], ['delegations', 'list'], ['sessions']])(
+    'does not accept the former group in %j (ADR 0053)',
+    (...args) => {
+      expect(startHiveCliIfRequested(args)).toBe(false)
+      expect(mocks.run).not.toHaveBeenCalled()
+    },
+  )
 })

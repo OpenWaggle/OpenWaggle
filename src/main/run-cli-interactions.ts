@@ -78,14 +78,14 @@ export function respondCommandHint(
 ) {
   const example = exampleResponse(interaction)
   if (!example) return undefined
-  const approve = isAuthorizationConfirmation(interaction) ? ' --approve' : ''
-  const command = `openwaggle sessions requests respond ${interaction.sessionId} ${interaction.runId} ${interaction.interactionId}`
+  const respond = isAuthorizationConfirmation(interaction) ? 'approval-respond' : 'request-respond'
+  const command = `openwaggle hive ${respond} ${interaction.sessionId} ${interaction.runId} ${interaction.interactionId}`
   // Windows shells quote differently, and a choice could break out of any one form, so the
   // response is shown on its own line to be quoted for the shell in use.
   if (platform === 'win32') {
-    return `${command} --response-json <response>${approve}\n  where <response> is ${example}`
+    return `${command} --response-json <response>\n  where <response> is ${example}`
   }
-  return `${command} --response-json ${shellSingleQuoted(example)}${approve}`
+  return `${command} --response-json ${shellSingleQuoted(example)}`
 }
 
 /** POSIX single quoting, so an agent-chosen choice cannot break out of the pasted command. */

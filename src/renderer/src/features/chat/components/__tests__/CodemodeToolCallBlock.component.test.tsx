@@ -130,7 +130,7 @@ describe('CodemodeToolCallBlock', () => {
               calls: [
                 {
                   id: 's/1',
-                  name: 'sessions',
+                  name: 'hive',
                   // Pi previews a script call's arguments cut to 200 characters.
                   args: `${JSON.stringify({ action: 'wait', sessionIds: Array(8).fill('00000000-0000-0000-0000-000000000000') }).slice(0, 200)}...`,
                   status: 'ok',
@@ -145,7 +145,7 @@ describe('CodemodeToolCallBlock', () => {
 
     expect(screen.getByText('1 tool call')).toBeInTheDocument()
     const calls = screen.getByRole('list', { name: 'Calls made by the script' })
-    expect(within(calls).queryByText('sessions')).toBeNull()
+    expect(within(calls).queryByText('hive')).toBeNull()
     expect(within(calls).getByText('bash')).toBeInTheDocument()
   })
 

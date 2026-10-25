@@ -52,7 +52,7 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
 
 /**
  * The QA app's environment. Automation disables executable Pi extensions, which also hides the
- * first-party tools (MCP server tools from Pi's MCP extension, `sessions`) from the model; a
+ * first-party tools (MCP server tools from Pi's MCP extension, `hive`) from the model; a
  * caller that sets `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run
  * can drive them. Codemode and tool search load either way.
  */

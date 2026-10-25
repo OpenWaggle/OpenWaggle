@@ -10,7 +10,7 @@ function command(arguments_: readonly string[]) {
   }
 }
 
-describe('Sessions CLI query contract', () => {
+describe('Hive CLI query contract', () => {
   it('scopes discovery to the caller Working path unless explicitly broadened', () => {
     const current = command(['list'])
     const all = command(['search', 'migration', '--all'])
@@ -39,8 +39,8 @@ describe('Sessions CLI query contract', () => {
       '--limit',
       '200',
     ])
-    const queue = command(['queue', 'list', 'session-1'])
-    const queueWithBodies = command(['queue', 'list', 'session-1', '--include-bodies'])
+    const queue = command(['queue-list', 'session-1'])
+    const queueWithBodies = command(['queue-list', 'session-1', '--include-bodies'])
 
     expect(buildSessionsCliPayload(turns.name, turns.arguments)).toMatchObject({
       request: {
@@ -78,7 +78,7 @@ describe('Sessions CLI query contract', () => {
   it('accepts zero-valued cursors, revisions, and bounded wait timeouts', () => {
     const items = command(['items', 'session-1', '--after', '0'])
     const wait = command(['wait', 'session-1', '--timeout-ms', '0'])
-    const pause = command(['queue', 'pause', 'session-1', '--queue-revision', '0'])
+    const pause = command(['queue-pause', 'session-1', '--queue-revision', '0'])
 
     expect(buildSessionsCliPayload(items.name, items.arguments)).toMatchObject({
       request: { query: { afterCreatedOrder: 0 } },
@@ -124,8 +124,7 @@ describe('Sessions CLI query contract', () => {
   it('rejects branch selectors for tree query and durable exports', () => {
     const query = command(['export', 'session-1', '--scope', 'tree', '--branch', 'branch-main'])
     const durable = command([
-      'export',
-      'create',
+      'export-create',
       'session-1',
       '/tmp/session.jsonl',
       '--scope',
@@ -140,8 +139,7 @@ describe('Sessions CLI query contract', () => {
 
   it('deduplicates repeated durable export status filters before Host decoding', () => {
     const list = command([
-      'export',
-      'list',
+      'exports-list',
       'session-1',
       '--status',
       'queued',

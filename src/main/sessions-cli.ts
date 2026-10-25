@@ -13,12 +13,12 @@ import {
   executeLocalSessionCommand,
   watchLocalSessionEvents,
 } from './session-host/local-session-client'
+import { runAgentDefinitionDiscoveryCommand } from './sessions-cli-agent-definitions'
 import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { streamSessionExport } from './sessions-cli-export'
 import { watchSessionExportOperations } from './sessions-cli-export-operation'
-import { isSessionExportOperationCliCommand } from './sessions-cli-export-operation-payload'
 import { resolveSessionsCliMessageInput } from './sessions-cli-message-input'
-import { validateSessionsCliOptions } from './sessions-cli-option-contract'
+import { isLocalHiveCliCommand, validateSessionsCliOptions } from './sessions-cli-option-contract'
 import {
   validateSessionsCliOutputMode,
   writeSessionsCliError,
@@ -82,7 +82,7 @@ async function runSessionCommand(
   payload: ReturnType<typeof buildSessionsCliPayload> | undefined,
 ) {
   if (command === 'watch') return runWatchCommand(arguments_, clientInput)
-  if (command === 'export' && arguments_.positionals[0] === 'watch') {
+  if (command === 'exports-watch') {
     const result = await watchSessionExportOperations(arguments_, clientInput)
     return result.status === 'resync-required' ? EXIT.FAILURE : EXIT.SUCCESS
   }
@@ -106,7 +106,7 @@ async function runSessionCommand(
     })
     return EXIT.SUCCESS
   }
-  if (command === 'export' && !isSessionExportOperationCliCommand(arguments_.positionals[0])) {
+  if (command === 'export') {
     await streamSessionExport({
       sessionId: requiredSessionId(arguments_.positionals[0]),
       firstResult: result,
@@ -120,13 +120,8 @@ async function runSessionCommand(
 }
 
 function isStreamingCommand(command: string, arguments_: ReturnType<typeof parseMcpCliArguments>) {
-  if (command === 'watch') return true
-  if (command === 'read' && hasFlag(arguments_, 'full')) return true
-  if (command !== 'export') return false
-  return (
-    arguments_.positionals[0] === 'watch' ||
-    !isSessionExportOperationCliCommand(arguments_.positionals[0])
-  )
+  if (command === 'watch' || command === 'exports-watch' || command === 'export') return true
+  return command === 'read' && hasFlag(arguments_, 'full')
 }
 
 function commandPayload(
@@ -134,8 +129,7 @@ function commandPayload(
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   resolvedPayload: ReturnType<typeof buildSessionsCliPayload> | undefined,
 ) {
-  if (command === 'watch') return undefined
-  if (command === 'export' && arguments_.positionals[0] === 'watch') return undefined
+  if (command === 'watch' || command === 'exports-watch') return undefined
   return resolvedPayload ?? buildSessionsCliPayload(command, arguments_)
 }
 
@@ -145,7 +139,7 @@ export async function runSessionsCli(args: readonly string[]) {
   const unresolvedArguments = { ...parsed, positionals: parsed.positionals.slice(1) }
   try {
     if (!command) {
-      validateImplicitCliHelp('OpenWaggle Sessions', parsed)
+      validateImplicitCliHelp('OpenWaggle Hive', parsed)
       await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
     }
@@ -153,6 +147,9 @@ export async function runSessionsCli(args: readonly string[]) {
     if (command === 'help') {
       await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
+    }
+    if (isLocalHiveCliCommand(command)) {
+      return await runAgentDefinitionDiscoveryCommand(command, unresolvedArguments)
     }
     const resolvedInput = await resolveSessionsCliMessageInput(command, unresolvedArguments)
     const arguments_ = resolvedInput.arguments

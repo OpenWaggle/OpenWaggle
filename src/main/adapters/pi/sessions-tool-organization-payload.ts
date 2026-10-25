@@ -28,7 +28,7 @@ export function buildSessionsToolOrganizationPayload(
     }
     if (input.action !== 'handoff') return { operation: input.action, sessionId: input.sessionId }
     if (input.workspace === 'existing') {
-      if (!input.workspaceId) throw new Error('sessions handoff existing requires workspaceId.')
+      if (!input.workspaceId) throw new Error('hive handoff existing requires workspaceId.')
       return {
         operation: input.action,
         sessionId: input.sessionId,

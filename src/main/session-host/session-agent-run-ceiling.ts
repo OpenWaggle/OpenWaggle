@@ -33,7 +33,7 @@ export interface SessionAuthorizationBoundary {
 /**
  * A Session agent's own Authorization boundary: its Session's ceiling, its Worker grant, and the
  * live ceiling of the CLI profile it came from. A missing Worker grant, or a revoked grant or
- * profile, counts as revoked. The Run-mode boundary and the Sessions tool both use this, so a
+ * profile, counts as revoked. The Run-mode boundary and the Hive tool both use this, so a
  * downgraded or revoked origin profile narrows both at once.
  */
 export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sessionId: string) {

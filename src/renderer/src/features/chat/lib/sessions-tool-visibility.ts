@@ -1,13 +1,14 @@
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { JsonObject } from '@shared/types/json'
 import { parseToolArgs } from './tool-args'
-import { isWholeSessionsAction, SESSIONS_TOOL_NAME } from './tool-labels-sessions'
+import { isWholeSessionsAction } from './tool-labels-sessions'
 
 type MessagePart = UIMessage['parts'][number]
 
 /**
  * The `"action"` of arguments cut short, as Pi codemode previews a call's arguments; keys keep the
- * script's order, so it need not come first. Sessions-tool arguments nest no `action` key.
+ * script's order, so it need not come first. Hive-tool arguments nest no `action` key.
  */
 const PREVIEW_ACTION = /(?<!\\)"action"\s*:\s*"([a-z_]+)"/
 const WAIT_PREVIEW = /^\{\s*"sessionIds"\s*:/
@@ -18,7 +19,7 @@ const WAIT_PREVIEW = /^\{\s*"sessionIds"\s*:/
  * Pi's partial parse yields `"w"`, `"wai"` on the way to `"wait"`; a wait never flashes a row.
  */
 export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?: string) {
-  if (name !== SESSIONS_TOOL_NAME) return false
+  if (name !== HIVE_TOOL_NAME) return false
   const action = typeof args.action === 'string' ? args.action : null
   if (action === 'wait') return true
   return state === 'input-streaming' && (action === null || !isWholeSessionsAction(action))
@@ -34,7 +35,7 @@ export function isHiddenSessionsToolCallJson(
   state?: string,
   hasResult = true,
 ) {
-  if (name !== SESSIONS_TOOL_NAME) return false
+  if (name !== HIVE_TOOL_NAME) return false
   const args = parseToolArgs(argsJson)
   if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
   const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
@@ -48,7 +49,7 @@ export function isHiddenSessionsToolCallJson(
 
 function isHiddenToolCallPart(part: MessagePart, parts: readonly MessagePart[]) {
   // The name is checked before the arguments are parsed: this runs for every call on each delta.
-  if (part.type !== 'tool-call' || part.name !== SESSIONS_TOOL_NAME) return false
+  if (part.type !== 'tool-call' || part.name !== HIVE_TOOL_NAME) return false
   const hasResult = parts.some(
     (candidate) => candidate.type === 'tool-result' && candidate.toolCallId === part.id,
   )

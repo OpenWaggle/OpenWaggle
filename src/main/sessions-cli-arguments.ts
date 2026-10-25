@@ -137,12 +137,12 @@ export function refuseRunSettingsOnActiveRunCommand(route: string, arguments_: P
   if (!ACTIVE_RUN_COMMANDS.has(route)) return
   if (arguments_.options.has('thinking')) {
     throw new Error(
-      `thinking_level_requires_idle_session: sessions ${route} does not accept --thinking. The Session thinking level can change only when no Run is active; pass --thinking to message or start on an idle Session.`,
+      `thinking_level_requires_idle_session: hive ${route} does not accept --thinking. The Session thinking level can change only when no Run is active; pass --thinking to message or start on an idle Session.`,
     )
   }
   if (arguments_.options.has('authorization') || arguments_.options.has('yolo')) {
     throw new Error(
-      `run_authorization_override_requires_idle_session: sessions ${route} does not accept --authorization or --yolo. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
+      `run_authorization_override_requires_idle_session: hive ${route} does not accept --authorization or --yolo. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
     )
   }
 }

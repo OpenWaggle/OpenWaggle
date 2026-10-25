@@ -1,9 +1,9 @@
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { ReactNode } from 'react'
 import {
   type NestedToolCallsView,
   nestedToolCallCard,
 } from '@/features/chat/lib/nested-tool-call-view'
-import { SESSIONS_TOOL_NAME } from '@/features/chat/lib/tool-labels-sessions'
 import { SessionsToolCallBlock } from './SessionsToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -26,7 +26,7 @@ export function NestedToolCallList({
       <ul aria-label={`Tool calls made by ${parentName}`} className="space-y-1">
         {nestedCalls.calls.map((call) => {
           const card = nestedToolCallCard(call)
-          const Block = card.name === SESSIONS_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
+          const Block = card.name === HIVE_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
           return (
             <li key={call.id}>
               <Block

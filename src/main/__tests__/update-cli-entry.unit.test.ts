@@ -24,7 +24,7 @@ describe('Update CLI Electron entrypoint', () => {
   })
 
   it('ignores other commands', () => {
-    expect(startUpdateCliIfRequested(['sessions', 'list'])).toBe(false)
+    expect(startUpdateCliIfRequested(['hive', 'list'])).toBe(false)
     expect(mocks.configureStorage).not.toHaveBeenCalled()
   })
 

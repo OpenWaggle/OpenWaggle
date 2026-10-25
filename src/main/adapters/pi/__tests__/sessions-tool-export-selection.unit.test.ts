@@ -6,7 +6,7 @@ import { sessionsToolExportOperationParameters } from '../sessions-tool-export-o
 import { buildSessionsToolExportOperationPayload } from '../sessions-tool-export-operation-payload'
 import { sessionsToolParameters } from '../sessions-tool-parameters'
 
-describe('Sessions tool durable export selection', () => {
+describe('Hive tool durable export selection', () => {
   it('advertises every durable export status, including installation', () => {
     expect(JSON.stringify(sessionsToolExportOperationParameters)).toContain('installing')
   })

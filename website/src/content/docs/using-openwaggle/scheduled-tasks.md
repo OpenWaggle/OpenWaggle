@@ -33,7 +33,7 @@ Choose **New task** in the Scheduled panel or in Settings, or **+** in the Sessi
 3. **When**: the schedule and its time zone. The editor shows the next three times it would fire.
 4. The collapsed line under it sets an end date, a maximum number of runs and notifications.
 
-You can also ask an agent: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own Session through its `sessions` tool. It creates a task only when you ask for recurring work. Work it can finish in the current turn, it finishes there instead. Agents connected over MCP (`openwaggle mcp serve`) cannot manage Scheduled tasks: their access ends when the MCP server stops, so a later run would have no access left to check.
+You can also ask an agent: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own Session through its `hive` tool. It creates a task only when you ask for recurring work. Work it can finish in the current turn, it finishes there instead. Agents connected over MCP (`openwaggle mcp serve`) cannot manage Scheduled tasks: their access ends when the MCP server stops, so a later run would have no access left to check.
 
 ## Schedules
 
@@ -119,4 +119,4 @@ openwaggle schedules import tasks.json
 
 Add `--json` for versioned machine output. `export` prints tasks as JSON that `import` creates again under your identity. Tasks are stored only by the Session Host. No file creates one, and a project cannot share one.
 
-An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them. See [Sessions CLI](/docs/developer-workflow/sessions-cli) for `--profile`.
+An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them. See [Hive CLI](/docs/developer-workflow/hive-cli) for `--profile`.

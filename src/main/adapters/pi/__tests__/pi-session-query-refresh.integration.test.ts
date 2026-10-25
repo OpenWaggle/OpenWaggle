@@ -10,7 +10,7 @@ import {
 } from './pi-session-discovery.test-support'
 
 /**
- * The Sessions tool and `openwaggle sessions` read a discovered Pi session as its file is now
+ * The hive tool and `openwaggle hive` read a discovered Pi session as its file is now
  * (ADR 0051), like the sidebar does, instead of an empty or stale projection.
  */
 
@@ -60,7 +60,7 @@ async function readItems(sessionId: string) {
 describe('Session queries on a discovered Pi session', () => {
   it('reads the transcript the pi CLI wrote, including what it added since', async () => {
     await registerProjects([fixture.project])
-    const cli = createPiCliSession(fixture.project, 'Read me through the Sessions tool')
+    const cli = createPiCliSession(fixture.project, 'Read me through the Hive tool')
     const sessionId = await discoverOne()
 
     expect((await readItems(sessionId)).filter((item) => item.role !== null)).toHaveLength(2)

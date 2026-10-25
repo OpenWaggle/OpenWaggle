@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { resolveSessionToolAgentCaller } from '../session-tool-agent-caller'
 
-describe('Sessions tool agent authority at catalog scale', () => {
+describe('Hive tool agent authority at catalog scale', () => {
   let temporaryRoot = ''
 
   beforeEach(async () => {

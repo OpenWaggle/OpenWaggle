@@ -74,7 +74,7 @@ function lookupForError(errorKind: SessionsCliErrorKind, target: RunTarget): Run
     kind: 'settled',
     settlement: {
       exitCode: sessionCliExitCodeForError(errorKind),
-      message: `could not read the Run's status (${errorKind}); check it with openwaggle sessions read ${target.sessionId}.`,
+      message: `could not read the Run's status (${errorKind}); check it with openwaggle hive read ${target.sessionId}.`,
     },
   }
 }

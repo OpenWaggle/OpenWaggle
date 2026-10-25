@@ -2,11 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { AgentDefinitionManagementOutcome } from '@shared/types/agent-definition-management'
 import { loadAgentDefinitionSemanticCatalog } from './agent-definition-semantic-catalog-loader'
-import {
-  listAgentDefinitions,
-  resolveAgentDefinition,
-  searchAgentDefinitions,
-} from './agents/agent-definition-catalog'
+import { resolveAgentDefinition } from './agents/agent-definition-catalog'
 import {
   type AgentDefinitionSemanticCatalogLoader,
   executeAgentDefinitionManagement,
@@ -26,12 +22,7 @@ import {
   parseAgentDefinitionScope,
   required,
 } from './agents-cli-options'
-import {
-  compactAgentCatalog,
-  writeAgentsCliCatalog,
-  writeAgentsCliError,
-  writeAgentsCliResult,
-} from './agents-cli-output'
+import { writeAgentsCliError, writeAgentsCliResult } from './agents-cli-output'
 import { AGENTS_CLI_USAGE } from './agents-cli-usage'
 import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
@@ -208,18 +199,6 @@ async function executeAgentDefinitionCommand(input: {
   })
   if (mutation) {
     await writeAgentsCliResult(mutation, json, stdout)
-    return EXIT.SUCCESS
-  }
-  if (command === 'list' || command === 'search') {
-    const items =
-      command === 'list'
-        ? await listAgentDefinitions({ projectPath: project, userHome: home })
-        : await searchAgentDefinitions({
-            projectPath: project,
-            userHome: home,
-            query: required(arguments_.positionals.join(' '), 'Search query'),
-          })
-    await writeAgentsCliCatalog(compactAgentCatalog(items), json, stdout)
     return EXIT.SUCCESS
   }
   if (command === 'validate') {

@@ -76,10 +76,11 @@ describe('tool schemas OpenWaggle hands to Pi', () => {
     const payloads = await providerToolPayloads(await openWaggleTools())
 
     for (const payload of [payloads.bedrock, payloads.openai]) {
-      const sessions = JSON.stringify(payload.get('sessions'))
+      const hive = JSON.stringify(payload.get('hive'))
       // Providers that reject unknown JSON Schema keywords would refuse the whole request.
       expect(JSON.stringify([...payload.values()])).not.toMatch(/"~[A-Za-z]+"/)
-      expect(sessions).toContain('"description":"Required for launch, spawn."')
+      expect(hive).toContain('"description":"Required for launch, spawn."')
+      expect(payload.has('sessions')).toBe(false)
     }
   })
 })

@@ -70,7 +70,7 @@ function describeRequiredActions(schema: TSchema, actions: readonly string[] | u
 }
 
 /**
- * The provider-facing sessions tool schema: a single object with `action` as a literal
+ * The provider-facing hive tool schema: a single object with `action` as a literal
  * union and every other property optional. Root-level anyOf unions break tool-call
  * argument emission on some providers (GLM via OpenRouter returns `{}`), so variants must
  * never be exposed as alternatives at the schema root. The static type stays the
@@ -121,12 +121,12 @@ export function assertSessionsToolActionArguments(params: SessionsToolParameters
     (candidate) => variantActionName(candidate) === params.action,
   )
   if (variant === undefined) {
-    throw new Error(`Unknown sessions action "${params.action}".`)
+    throw new Error(`Unknown hive action "${params.action}".`)
   }
   const matchesVariant: boolean = Check(variant, params)
   if (matchesVariant) return
   const details = [...Errors(variant, params)]
     .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
     .join('; ')
-  throw new Error(`Invalid arguments for sessions action "${params.action}": ${details}`)
+  throw new Error(`Invalid arguments for hive action "${params.action}": ${details}`)
 }

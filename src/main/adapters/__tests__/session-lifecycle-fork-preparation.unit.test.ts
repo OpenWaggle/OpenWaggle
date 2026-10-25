@@ -155,13 +155,8 @@ describe('prepareLifecycleFork', () => {
     ['a fork, from the GUI', 'gui:local-user', 'before', 'fork'],
     ['a clone, from the GUI', 'gui:local-user', 'at', 'clone'],
     ['a fork, from the CLI with --position at', 'local-user:machine', 'at', 'fork'],
-    ['a fork, from the Sessions tool with position at', 'session-agent:session-a', 'at', 'fork'],
-    [
-      'a fork, from the Sessions tool with no position',
-      'session-agent:session-a',
-      undefined,
-      'fork',
-    ],
+    ['a fork, from the Hive tool with position at', 'session-agent:session-a', 'at', 'fork'],
+    ['a fork, from the Hive tool with no position', 'session-agent:session-a', undefined, 'fork'],
   ])('tells the kernel it is %s', async (_case, callerId, position, copy) => {
     const layer = makeSessionLifecycleTestLayer(
       path.join(temporaryRoot, `copy-${String(position)}-${copy}.sqlite`),

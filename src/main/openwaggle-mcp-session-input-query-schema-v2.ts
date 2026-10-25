@@ -76,6 +76,15 @@ const sessionExportManifestSchemaV2 = z
   .strict()
 
 export const mcpSessionQueryLifecycleOperationSchemasV2 = [
+  operationSchema('agent-definitions-list', {
+    projectPath: mcpSessionPathSchemaV2.optional(),
+    limit: discoveryLimit.optional(),
+  }),
+  operationSchema('agent-definitions-search', {
+    message: mcpSessionTextSchemaV2.optional(),
+    projectPath: mcpSessionPathSchemaV2.optional(),
+    limit: discoveryLimit.optional(),
+  }),
   operationSchema('list', {
     projectPath: mcpSessionPathSchemaV2.optional(),
     catalogScope: catalogScope.optional(),

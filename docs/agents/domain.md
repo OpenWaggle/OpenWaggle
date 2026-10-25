@@ -37,7 +37,7 @@ Primary references:
 ### Session Host And Hives
 
 The local Session Host is the shared authority for durable Sessions, Runs, queues, lineage,
-delegations, and events. The GUI, CLI, MCP adapter, and the in-process `sessions` tool use that
+delegations, and events. The GUI, CLI, MCP adapter, and the in-process `hive` tool use that
 authority; do not implement a second orchestration store or route hosted agents through the CLI.
 A Hive is a family of Sessions: its root is the Queen, and descendants are Workers. These names
 describe lineage, not fixed agent roles or automatic control grants. Each Worker has its own
@@ -48,13 +48,13 @@ For hosted-agent coordination, discover optional Agent definitions on demand, sp
 clear objectives and deliberate Workspace placement, then inspect their Runs and Delegation
 submissions. Parents can request revisions or accept a specific submission; agents can send
 explicit reports upstream, to the Queen, or to another Worker. The native `wait` action observes
-a condition once; external CLI/MCP clients can use `watch` for an ongoing event subscription.
+a condition once; external clients can use `openwaggle hive watch` for an ongoing event subscription. The `hive` tool, the `openwaggle hive` CLI, and the `openwaggle_hive` MCP tool share one action vocabulary (ADR 0053): each tool action is the CLI subcommand and MCP operation of the same name, with `-` for `_`.
 `follow_up` schedules a separate next Run, while `steer` appends to one exact active Run. No Agent
 definition is required for a normal Worker.
 
 The canonical behavior and examples are in the user-facing
 [Hive guide](../../website/src/content/docs/using-openwaggle/hives-and-sessions.md),
-[Sessions CLI guide](../../website/src/content/docs/developer-workflow/sessions-cli.md), and
+[Hive CLI guide](../../website/src/content/docs/developer-workflow/hive-cli.md), and
 [Agent Definitions guide](../../website/src/content/docs/extending/agent-definitions.md).
 
 ### Renderer And Product Shell
@@ -114,7 +114,7 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **Pi**: Runtime kernel and source of truth for agent execution, native tools, sessions, providers, models, auth, and compaction.
 - **OpenWaggle projection**: SQLite read model and UI state over Pi sessions, nodes, branches, and product metadata.
 - **Session Tree**: Product navigation over projected Pi session nodes and branches.
-- **Session Host**: Local authority shared by the GUI, CLI, MCP adapter, and native Sessions tool for Session and Run control.
+- **Session Host**: Local authority shared by the GUI, CLI, MCP adapter, and native `hive` tool for Session and Run control.
 - **Hive**: A Queen Session and its descendant Worker Sessions, each with a durable transcript and Run lifecycle.
 - **Delegation Contract**: Durable spawned-work assignment whose Worker submission the parent can review, revise, or accept.
 - **Branch-scoped config**: Composer and mode configuration attached to a branch, inherited by child branches unless overridden.

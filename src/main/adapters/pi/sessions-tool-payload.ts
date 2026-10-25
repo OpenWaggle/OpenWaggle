@@ -269,5 +269,5 @@ export function buildSessionsToolPayload(
   }
   if (isSessionsToolControlAction(input)) return buildSessionsToolControlPayload(input)
   if (isSessionsToolScheduleAction(input)) return buildSessionsToolSchedulePayload(input, source)
-  throw new Error(`Unsupported Sessions tool action: ${input.action}`)
+  throw new Error(`Unsupported Hive tool action: ${input.action}`)
 }

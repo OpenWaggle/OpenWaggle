@@ -12,7 +12,7 @@ import {
 } from './session-tool-project-catalog'
 
 /**
- * Resolve the Session agent calling the Sessions tool and apply the checks that come before
+ * Resolve the Session agent calling the Hive tool and apply the checks that come before
  * dispatch: its live authority, and, for a catalog-wide agent, that a launch or create names a
  * project OpenWaggle already knows (ADR 0042). Returns the caller and the payload to dispatch.
  */

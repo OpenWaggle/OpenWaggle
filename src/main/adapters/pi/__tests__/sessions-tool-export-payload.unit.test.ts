@@ -27,7 +27,7 @@ const manifest = {
   },
 } satisfies SessionExportManifest
 
-describe('Sessions tool export payload', () => {
+describe('Hive tool export payload', () => {
   it('derives every immutable continuation field from the first-page manifest', () => {
     const payload = buildSessionsToolExportPayload({
       action: 'export',

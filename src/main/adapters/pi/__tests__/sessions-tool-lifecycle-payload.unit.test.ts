@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSessionsToolPayload } from '../sessions-tool-extension'
 
-describe('Pi-native Sessions tool lifecycle payload', () => {
+describe('Pi-native Hive tool lifecycle payload', () => {
   it('binds Worker spawn to the current durable Session and exact parent Run', () => {
     expect(
       buildSessionsToolPayload(

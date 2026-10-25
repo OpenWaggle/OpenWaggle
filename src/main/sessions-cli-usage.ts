@@ -1,94 +1,108 @@
+/**
+ * `openwaggle hive` help. Every subcommand is the Hive tool action of the same name with `_`
+ * written as `-` (ADR 0053), so `follow_up` is `hive follow-up` and `delegation_accept` is
+ * `hive delegation-accept`. `watch` and `exports-watch` are the CLI's own event streams.
+ */
 export function sessionsCliUsage() {
-  return `OpenWaggle Sessions
+  return `OpenWaggle Hive
+
+Coordinate Sessions from the terminal. Each subcommand is the agent's hive tool action and the
+openwaggle_hive MCP operation of the same name.
 
 Usage:
-  openwaggle sessions create <project> [--title <title>]
+  openwaggle hive create <project> [--title <title>]
     [--workspace current|local|existing|new-worktree] [--workspace-id <id>]
-  openwaggle sessions launch <project> --text <objective> [--attach <path>]...
+  openwaggle hive launch <project> --text <objective> [--attach <path>]...
     [--workspace current|local|existing|new-worktree] [--workspace-id <id>]
     [--title <title>]
     [--authorization ask-for-approval|yolo] [--yolo] [--interaction-timeout-ms <ms>]
-  openwaggle sessions fork <source-id> [--workspace share-source|local|existing|new-worktree]
+  openwaggle hive fork <source-id> [--workspace share-source|local|existing|new-worktree]
     [--workspace-id <id>] [--target-node <node-id>] [--position before|at] [--title <title>]
-  openwaggle sessions spawn <parent-id> --text <objective> --expected-run <run-id>
+  openwaggle hive spawn <parent-id> --text <objective> --expected-run <run-id>
     [--workspace share-parent|local|new-worktree] [--attach <path>]...
     [--deliverable <text>]... [--accept <criterion>]... [--resource <reference>]...
     [--authorization ask-for-approval|yolo] [--yolo] [--interaction-timeout-ms <ms>]
-  openwaggle sessions message <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
-  openwaggle sessions start <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
+  openwaggle hive message <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
+  openwaggle hive start <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
     [--interaction-timeout-ms <ms>]
-  openwaggle sessions follow-up <session-id> --text <message> [--attach <path>]...
-  openwaggle sessions steer <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
-  openwaggle sessions replace <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
-  openwaggle sessions interrupt <session-id> --expected-run <run-id>
-  openwaggle sessions interrupt-descendants <session-id>
-  openwaggle sessions rename <session-id> <title>
-  openwaggle sessions archive|unarchive <session-id>
-  openwaggle sessions handoff <session-id> --workspace local|existing|new-worktree
+  openwaggle hive follow-up <session-id> --text <message> [--attach <path>]...
+  openwaggle hive steer <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
+  openwaggle hive replace <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
+  openwaggle hive interrupt <session-id> --expected-run <run-id>
+  openwaggle hive interrupt-descendants <session-id>
+  openwaggle hive rename <session-id> <title>
+  openwaggle hive archive|unarchive <session-id>
+  openwaggle hive handoff <session-id> --workspace local|existing|new-worktree
     [--workspace-id <id>] [--base-ref <ref>] [--start-from-origin]
-  openwaggle sessions promote <session-id> <follow-up-id> --expected-run <run-id>
-  openwaggle sessions report <source-session-id> --text <message>
+  openwaggle hive promote <session-id> <follow-up-id> --expected-run <run-id>
+  openwaggle hive report <source-session-id> --text <message>
     (--upstream|--queen|--target <id>|--worker <name>)
     [--source-run <run-id>] [--request-reply] [--reply-to <report-id>]
-  openwaggle sessions delegation submit <worker-id> <delegation-id> <summary> [--evidence-json <json>]...
-  openwaggle sessions delegation state <worker-id> <delegation-id>
+  openwaggle hive delegations-list [--parent <session>] [--worker <session>] [--state <state>]...
+    [--limit <n>] [--cursor <cursor>]
+  openwaggle hive delegations-read <delegation-id> [--limit <n>] [--cursor <cursor>]
+  openwaggle hive delegations-conflicts [--delegation <id>] [--kind live-overlap|merge-overlap]
+    [--status unacknowledged|acknowledged|resolved]
+  openwaggle hive delegation-submit <worker-id> <delegation-id> <summary> [--evidence-json <json>]...
+  openwaggle hive delegation-state <worker-id> <delegation-id>
     working|waiting|needs_attention <reason>
-  openwaggle sessions delegation claim <worker-id> <delegation-id> <reason> [--claim-json <json>]...
-  openwaggle sessions delegation acknowledge-conflict <parent-id> <delegation-id>
+  openwaggle hive delegation-claim <worker-id> <delegation-id> <reason> [--claim-json <json>]...
+  openwaggle hive delegation-conflict-acknowledge <parent-id> <delegation-id>
     <conflict-id> <reason>
-  openwaggle sessions delegation dependency <parent-id> <delegation-id> add|remove
+  openwaggle hive delegation-dependency <parent-id> <delegation-id> add|remove
     <dependency-id> ready_for_review|accepted <reason>
-  openwaggle sessions delegation propose-amendment <worker-id> <delegation-id>
+  openwaggle hive delegation-propose-amendment <worker-id> <delegation-id>
     <base-revision> <reason> --specification-json <json>
-  openwaggle sessions delegation amend <parent-id> <delegation-id> <expected-revision>
+  openwaggle hive delegation-amend <parent-id> <delegation-id> <expected-revision>
     <reason> --specification-json <json> [--proposal <proposal-id>]
-  openwaggle sessions delegation request-revision <parent-id> <delegation-id> <revision>
+  openwaggle hive delegation-request-revision <parent-id> <delegation-id> <revision>
     <feedback> [--revised-objective <text> --deliverable <text>... --accept <criterion>...
     --resource <reference>...]
-  openwaggle sessions delegation accept <parent-id> <delegation-id> <revision> [note]
-  openwaggle sessions delegation verify <parent-id> <delegation-id> <revision>
+  openwaggle hive delegation-accept <parent-id> <delegation-id> <revision> [note]
+  openwaggle hive delegation-verify <parent-id> <delegation-id> <revision>
     passed|failed|inconclusive <summary> [--evidence-json <json>]...
-  openwaggle sessions delegation reopen|cancel <parent-id> <delegation-id> <reason>
-  openwaggle sessions queue withdraw <session-id> <follow-up-id>...
-  openwaggle sessions queue reorder <session-id> <follow-up-id>... --queue-revision <n>
-  openwaggle sessions queue pause|resume <session-id> --queue-revision <n>
-  openwaggle sessions list [--project <path>|--all] [--archived] [--limit <n>] [--cursor <cursor>]
-  openwaggle sessions search <query> [--mode hybrid|lexical|semantic] [--require-fresh]
+  openwaggle hive delegation-reopen|delegation-cancel <parent-id> <delegation-id> <reason>
+  openwaggle hive queue-list <session-id> [--include-bodies]
+  openwaggle hive queue-withdraw <session-id> <follow-up-id>...
+  openwaggle hive queue-reorder <session-id> <follow-up-id>... --queue-revision <n>
+  openwaggle hive queue-pause|queue-resume <session-id> --queue-revision <n>
+  openwaggle hive list [--project <path>|--all] [--archived] [--limit <n>] [--cursor <cursor>]
+  openwaggle hive search <query> [--mode hybrid|lexical|semantic] [--require-fresh]
     [--full-transcript] [--include-archived] [--project <path>|--all]
     [--limit <n>] [--cursor <cursor>] [--timeout-ms <ms>]
     (default: hybrid discovery; lexical with --full-transcript)
-  openwaggle sessions read <session-id> [--full] [--scope active-branch|tree] [--branch <branch-id>]
-  openwaggle sessions turns <session-id> [--limit <n>] [--cursor <cursor>]
-  openwaggle sessions items <session-id> [--run <run-id>] [--scope active-branch|tree]
+  openwaggle hive read <session-id> [--full] [--scope active-branch|tree] [--branch <branch-id>]
+  openwaggle hive turns <session-id> [--limit <n>] [--cursor <cursor>]
+  openwaggle hive items <session-id> [--run <run-id>] [--scope active-branch|tree]
     [--branch <branch-id>] [--after <created-order>] [--through <created-order>]
     [--snapshot-head <node-id>] [--limit <n>]
-  openwaggle sessions export <session-id> [--format markdown|jsonl] [--scope active-branch|tree]
+  openwaggle hive status <session-id>
+  openwaggle hive export <session-id> [--format markdown|jsonl] [--scope active-branch|tree]
     [--branch <branch-id>] [--include-queue-bodies] [--limit <n>]
-  openwaggle sessions export create <session-id> <destination> [--format jsonl|markdown|bundle]
+  openwaggle hive export-create <session-id> <destination> [--format jsonl|markdown|bundle]
     [--scope active-branch|tree] [--branch <branch-id>] [--include-queue-bodies]
     [--resource <relative-path>]... [--overwrite]
-  openwaggle sessions export list <session-id> [--status <status>]... [--limit <n>] [--cursor <cursor>]
+  openwaggle hive export-cancel <session-id> <export-operation-id>
+  openwaggle hive exports-list <session-id> [--status <status>]... [--limit <n>] [--cursor <cursor>]
     [--include-queue-bodies]
-  openwaggle sessions export read <session-id> <export-operation-id> [--include-queue-bodies]
-  openwaggle sessions export cancel <session-id> <export-operation-id>
-  openwaggle sessions export wait <session-id> <export-operation-id> --timeout-ms <ms>
+  openwaggle hive exports-read <session-id> <export-operation-id> [--include-queue-bodies]
+  openwaggle hive exports-wait <session-id> <export-operation-id> --timeout-ms <ms>
     [--after-host <id> --after-sequence <n>] [--include-queue-bodies]
-  openwaggle sessions export watch <session-id> [export-operation-id]
+  openwaggle hive exports-watch <session-id> [export-operation-id]
     [--after-host <id> --after-sequence <n>]
-  openwaggle sessions status <session-id>
-  openwaggle sessions queue list <session-id> [--include-bodies]
-  openwaggle sessions requests list <session-id>
-  openwaggle sessions requests respond <session-id> <run-id> <interaction-id>
-    --response-json <json> [--approve]
-  openwaggle sessions authorization set <session-id> ask-for-approval|yolo
-  openwaggle sessions authorization clear <session-id>
-  openwaggle sessions watch [session-id...] [--after-host <id> --after-sequence <n>]
-  openwaggle sessions wait <session-id>... [--condition idle|queue-empty|state-revision-after|report-delivered|correlated-reply]
+  openwaggle hive requests-list <session-id>
+  openwaggle hive request-respond <session-id> <run-id> <interaction-id> --response-json <json>
+  openwaggle hive approval-respond <session-id> <run-id> <interaction-id> --response-json <json>
+  openwaggle hive authorization-set <session-id> inherit|ask-for-approval|yolo
+  openwaggle hive agent-definitions-list [--project <path>] [--json]
+  openwaggle hive agent-definitions-search <query> [--project <path>] [--json]
+  openwaggle hive watch [session-id...] [--after-host <id> --after-sequence <n>]
+  openwaggle hive wait <session-id>... [--condition idle|queue-empty|state-revision-after|report-delivered|correlated-reply]
     [--after-state-revision <n>] [--report-id <id>] [--correlation-id <id>]
     --timeout-ms <ms> [--after-host <id> --after-sequence <n>]
 
-Session identities: every Session ID operand and --target also accept a Session link
-  (openwaggle://sessions/<session-id>), as the desktop app copies it
+Session identities: every Session ID operand, --parent, --worker, and --target also accept a
+  Session link (openwaggle://sessions/<session-id>), as the desktop app copies it
 Message input: exactly one of --text <text>, --stdin, --input-file <path>, --request-json <path|->
 Output: human-readable by default; --json for one response; --jsonl for streams
 Authentication: --profile <name> [--credential-stdin|--profile-credential-file <path>]
@@ -102,7 +116,12 @@ Run authorization (launch, spawn, message, start): --authorization <mode> or --y
   (run_authorization_override_requires_idle_session)
 New Worktree (create, launch, fork, spawn, handoff):
   --workspace new-worktree [--base-ref <ref>] [--start-from-origin]
+Catalog (list, search, delegations-list, delegations-conflicts): --project <path> | --all
+Agent definitions (agent-definitions-list, agent-definitions-search): definitions turned off for
+  the project are left out, as spawn and launch refuse them
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
 fail before files, credentials, or Session Host state change. Documented search/title/reason and
-multi-target operands remain positional rest operands.`
+multi-target operands remain positional rest operands.
+Scheduled tasks have their own command: openwaggle schedules. Agent-definition authoring stays in
+  openwaggle agents (validate, import, explain, create, update, duplicate, delete, refresh).`
 }

@@ -164,7 +164,7 @@ export async function waitForHost(
   let lastError: unknown
   while (now() < deadline) {
     try {
-      await runCli(executable, env, ['sessions', 'list', '--all', '--limit', '1'], {
+      await runCli(executable, env, ['hive', 'list', '--all', '--limit', '1'], {
         timeoutMs: Math.max(MIN_PROCESS_TIMEOUT_MS, deadline - now()),
       })
       return
@@ -183,7 +183,7 @@ export async function waitForIdle(
   timeoutMs: number,
 ) {
   const response = await runJsonCli(executable, env, [
-    'sessions',
+    'hive',
     'wait',
     sessionId,
     '--condition',
@@ -203,7 +203,7 @@ export async function readTranscript(
 ) {
   const { stdout } = await runProcess(
     executable,
-    ['sessions', 'read', sessionId, '--full', '--jsonl'],
+    ['hive', 'read', sessionId, '--full', '--jsonl'],
     env,
   )
   return stdout
@@ -233,7 +233,7 @@ async function callSessionTool(
   timeoutMs: number,
 ) {
   const result = await client.callTool(
-    { name: 'openwaggle_sessions', arguments: args },
+    { name: 'openwaggle_hive', arguments: args },
     { timeout: timeoutMs, maxTotalTimeout: timeoutMs },
   )
   if (result.isError === true) throw new Error(`MCP tool failed: ${JSON.stringify(result.content)}`)
@@ -272,8 +272,8 @@ export async function verifyExternalMcp(input: {
   try {
     await client.connect(transport, { timeout: STARTUP_TIMEOUT_MS })
     const tools = await client.listTools()
-    if (!tools.tools.some((tool) => tool.name === 'openwaggle_sessions')) {
-      throw new Error('MCP server did not advertise openwaggle_sessions.')
+    if (!tools.tools.some((tool) => tool.name === 'openwaggle_hive')) {
+      throw new Error('MCP server did not advertise openwaggle_hive.')
     }
     const list = await callSessionTool(
       client,

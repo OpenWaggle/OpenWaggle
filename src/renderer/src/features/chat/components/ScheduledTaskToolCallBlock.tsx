@@ -31,7 +31,7 @@ function useLiveScheduledTask(taskId: string | null) {
 }
 
 /**
- * A sessions-tool row over a Scheduled task names the task by its current name. The row of a call
+ * A hive-tool row over a Scheduled task names the task by its current name. The row of a call
  * that created or changed a task also carries its Open, Pause/Resume and Delete controls, which
  * follow the task list, so they show the task's state now; a task deleted since says so instead.
  */

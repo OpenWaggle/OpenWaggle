@@ -1,15 +1,17 @@
 ---
-title: "Sessions CLI"
-description: "Discover, control, watch, and export OpenWaggle Sessions from a terminal or another agent."
+title: "Hive CLI"
+description: "Coordinate, discover, control, watch, and export OpenWaggle Sessions from a terminal or another agent."
 order: 5
 section: "Developer docs"
 ---
 
-Use `openwaggle sessions` to find conversations, start work, send follow-ups, or export a transcript from a terminal. The commands operate on the same sessions you see in the desktop app.
+Use `openwaggle hive` to find conversations, start work, send follow-ups, review Workers' Delegations, or export a transcript from a terminal. The commands operate on the same sessions you see in the desktop app.
+
+The CLI, the agent's native `hive` tool, and the `openwaggle_hive` MCP tool share one vocabulary: every tool action is a `hive` subcommand and an MCP operation of the same name, with `-` for `_`. The exception is Scheduled tasks, which have their own [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) command. The tool's `follow_up` is `openwaggle hive follow-up`, `delegation_accept` is `openwaggle hive delegation-accept`, and `agent_definitions_search` is `openwaggle hive agent-definitions-search`. Before 1.0, these commands were `openwaggle sessions`, `openwaggle delegations`, and `openwaggle agents list|search`; those names no longer work. `openwaggle agents` still validates, imports, explains, and edits definition files.
 
 The CLI talks to the local Session Host, the process that owns saved sessions and agent execution. It does not open the database directly. Commands can start the Host when needed, and accepted runs continue when the GUI closes.
 
-An agent hosted by OpenWaggle should use its native `sessions` tool. The CLI is for people in a terminal and agents running in other tools. Both paths create the same durable Sessions; a CLI-spawned Worker appears in the desktop sidebar and Session Summary.
+An agent hosted by OpenWaggle should use its native `hive` tool. The CLI is for people in a terminal and agents running in other tools. Both paths create the same durable Sessions; a CLI-spawned Worker appears in the Hive panel and Session Summary.
 
 For opening the app, `openwaggle run`, `openwaggle status`, and the full command list, see [Command line](/docs/developer-workflow/command-line).
 
@@ -20,35 +22,35 @@ The installed app includes the CLI. On macOS and Linux, packaged app startup ins
 From your repository directory:
 
 ```sh
-openwaggle sessions list
-openwaggle sessions read <session-id>
-openwaggle sessions status <session-id>
-openwaggle sessions follow-up <session-id> --text "Summarize the remaining work. Do not edit files."
+openwaggle hive list
+openwaggle hive read <session-id>
+openwaggle hive status <session-id>
+openwaggle hive follow-up <session-id> --text "Summarize the remaining work. Do not edit files."
 ```
 
-Replace `<session-id>` with an ID returned by `list`, or with a session link copied from the desktop app (`openwaggle://sessions/<session-id>`). Every session ID operand accepts either form, and so do `--target` and `--worker` on `report`, the `delegations` filters `--parent` and `--worker`, and the `access` scopes `--session` and `--hive`. The first three commands inspect state. The last sends a new task: it starts when the session is idle or waits behind its active run. Inspect the target before sending messages, since they can cause the agent to use tools.
+Replace `<session-id>` with an ID returned by `list`, or with a session link copied from the desktop app (`openwaggle://sessions/<session-id>`). Every session ID operand accepts either form, and so do `--target` and `--worker` on `report`, the `delegations-list` and `delegations-conflicts` filters `--parent` and `--worker`, and the `access` scopes `--session` and `--hive`. The first three commands inspect state. The last sends a new task: it starts when the session is idle or waits behind its active run. Inspect the target before sending messages, since they can cause the agent to use tools.
 
 Use [Create and communicate](#create-and-communicate) to start a new session. For independent Workers and shared-workspace risks, read [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
 
 ## Discover and read
 
 ```sh
-openwaggle sessions list
-openwaggle sessions search "authorization migration" --mode hybrid
-openwaggle sessions search "semantic session host" --mode semantic --all --json
-openwaggle sessions read <session-id>
-openwaggle sessions read <session-id> --full --jsonl
-openwaggle sessions turns <session-id> --limit 50
-openwaggle sessions items <session-id> --after 200 --limit 100
+openwaggle hive list
+openwaggle hive search "authorization migration" --mode hybrid
+openwaggle hive search "semantic session host" --mode semantic --all --json
+openwaggle hive read <session-id>
+openwaggle hive read <session-id> --full --jsonl
+openwaggle hive turns <session-id> --limit 50
+openwaggle hive items <session-id> --after 200 --limit 100
 ```
 
 List and search default to the current working path. Use `--project <path>` for the repository project or `--all` for the complete authorized catalog. Hybrid search combines indexed lexical relevance and semantic similarity. `--require-fresh` waits for the current semantic projection instead of returning a readiness marker.
 
-Lexical multiword searches match all tokens anywhere in one Session. Wrap the complete search text in literal double quotes when word order and adjacency are required within one transcript item, for example `openwaggle sessions search '"authorization migration"' --mode lexical`. Quoted phrases never join text across message or tool-event boundaries, so every phrase result can identify one matching item.
+Lexical multiword searches match all tokens anywhere in one Session. Wrap the complete search text in literal double quotes when word order and adjacency are required within one transcript item, for example `openwaggle hive search '"authorization migration"' --mode lexical`. Quoted phrases never join text across message or tool-event boundaries, so every phrase result can identify one matching item.
 
 `read --full` streams a stable high-water-mark snapshot page by page, so an agent can retrieve the complete transcript without accumulating it in memory. Pages are bounded by both record count and encoded bytes; a Session with large messages therefore produces smaller pages automatically. A single pathological record that cannot fit in one bounded response fails with `record_too_large` instead of crashing the Host. Machine consumers should use `--json` for one response and `--jsonl` for streams.
 
-Single-response commands with `--json` use a schema-versioned `type: "response"` envelope on stdout and place the command result in `result`. This includes a structured rejected outcome returned by the Host; the response remains available on stdout while the process uses its matching nonzero exit class. Command streams such as `read --full`, `watch`, and `export watch` use `--jsonl`; every stdout line has `type: "record"` and places the stream value in `record`.
+Single-response commands with `--json` use a schema-versioned `type: "response"` envelope on stdout and place the command result in `result`. This includes a structured rejected outcome returned by the Host; the response remains available on stdout while the process uses its matching nonzero exit class. Command streams such as `read --full`, `watch`, and `exports-watch` use `--jsonl`; every stdout line has `type: "record"` and places the stream value in `record`.
 
 A failure that aborts before a structured command result is available produces a schema-versioned `type: "error"` envelope on stderr. This covers usage validation, authentication or authorization protocol failures, transport failures, and internal errors. This is different from a structured rejected response on stdout.
 
@@ -67,17 +69,17 @@ Single-term and quoted full-transcript matches identify the matching transcript 
 ## Create and communicate
 
 ```sh
-openwaggle sessions launch . --text "Plan the migration" --workspace current
-openwaggle sessions spawn <parent-id> --expected-run <run-id> \
+openwaggle hive launch . --text "Plan the migration" --workspace current
+openwaggle hive spawn <parent-id> --expected-run <run-id> \
   --text "Implement the storage slice" --workspace new-worktree
-openwaggle sessions follow-up <session-id> --text "Run the integration tests"
-openwaggle sessions steer <session-id> --expected-run <run-id> \
+openwaggle hive follow-up <session-id> --text "Run the integration tests"
+openwaggle hive steer <session-id> --expected-run <run-id> \
   --text "Also preserve the old API contract"
-openwaggle sessions replace <session-id> --expected-run <run-id> \
+openwaggle hive replace <session-id> --expected-run <run-id> \
   --text "Stop and use the revised design"
 ```
 
-Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for message input. Attach files with repeatable `--attach`. `create`, `launch`, and `spawn` accept `--agent`, `--model`, and `--thinking`; `--thinking` sets the new Session's starting thinking level. `launch` and `spawn` also accept `--yolo` when the resolved authorization ceiling permits it. Workspace flags depend on the operation; use `sessions help` for the accepted choices.
+Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for message input. Attach files with repeatable `--attach`. `create`, `launch`, and `spawn` accept `--agent`, `--model`, and `--thinking`; `--thinking` sets the new Session's starting thinking level. `launch` and `spawn` also accept `--yolo` when the resolved authorization ceiling permits it. Workspace flags depend on the operation; use `hive help` for the accepted choices.
 
 The thinking level is a Session setting, like its model. `message` and `start` accept `--thinking` only when the Session is idle and the command starts a Run. The level then becomes the Session's thinking level for that Run and later ones, but it never changes the desktop default for new Sessions. In the same way, `message` and `start` accept `--authorization` or `--yolo` only when they start a Run on an idle Session. The override applies to that one Run, is capped by your authorization ceiling, and is never saved as the Session's mode. While a Run is active, a `message` that would be queued is refused with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. `follow-up`, `steer`, and `replace` never accept these options, so a queued Follow-up always runs with the Session's settings when it starts.
 
@@ -87,42 +89,45 @@ Profiles that use `replace` need both `sessions:message` and `sessions:interrupt
 
 Idempotency keys that start with `pi-session-discovery:` are reserved for the Sessions OpenWaggle creates for discovered Pi sessions; a `create` that passes one with `--idempotency-key` is refused with `reserved_idempotency_key`.
 
-Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. Steering receipts were introduced in Local Session protocol revision 8; current clients must use the revision accepted by the installed Host. Use `watch` or `read` to observe subsequent delivery. If the Run ends before Pi incorporates a queued steer, the Host returns it to the front of the Follow-up queue: a promoted Follow-up keeps its ID, and a direct `steer` becomes a new Follow-up from the same caller whose `queue list` item carries `returnedSteer` with the steer's Run and idempotency key, so check the queue before resending. A steer still waiting for compaction when the Run ends is refused instead, so the caller keeps it. A direct `steer` is rejected with `queue_capacity_reached` while the Follow-up queue is full, or `steering_capacity_reached` when the Run already holds the maximum number of steers it could return.
+Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. Steering receipts were introduced in Local Session protocol revision 8; current clients must use the revision accepted by the installed Host. Use `watch` or `read` to observe subsequent delivery. If the Run ends before Pi incorporates a queued steer, the Host returns it to the front of the Follow-up queue: a promoted Follow-up keeps its ID, and a direct `steer` becomes a new Follow-up from the same caller whose `queue-list` item carries `returnedSteer` with the steer's Run and idempotency key, so check the queue before resending. A steer still waiting for compaction when the Run ends is refused instead, so the caller keeps it. A direct `steer` is rejected with `queue_capacity_reached` while the Follow-up queue is full, or `steering_capacity_reached` when the Run already holds the maximum number of steers it could return.
 
 ### Coordinate a Worker from another tool
 
 Find the parent Session and its active Run first, then spawn against that Run. The exact Run id prevents an external agent from attaching a Worker to a parent that has already moved on. Choose `share-parent` for the same checkout or `new-worktree` when edits need isolation.
 
 ```sh
-openwaggle sessions search "Sessions release" --all
-openwaggle sessions status <parent-id>
-openwaggle sessions spawn <parent-id> --expected-run <run-id> \
+openwaggle hive search "Sessions release" --all
+openwaggle hive status <parent-id>
+openwaggle hive spawn <parent-id> --expected-run <run-id> \
   --text "Review the release checks and submit findings" --workspace new-worktree
-openwaggle sessions wait <worker-id> --condition idle --timeout-ms 60000
-openwaggle sessions read <worker-id> --full --jsonl
-openwaggle delegations list --parent <parent-id>
+openwaggle hive wait <worker-id> --condition idle --timeout-ms 60000
+openwaggle hive read <worker-id> --full --jsonl
+openwaggle hive delegations-list --parent <parent-id>
+openwaggle hive delegation-accept <parent-id> <delegation-id> <submission-revision>
 ```
 
-Read the returned Worker and Delegation ids from the spawn response; do not infer them from a title. A wait is one bounded observation, not a subscription. If it times out, the Worker may still be running: wait again or use `sessions watch <worker-id>` for live events. Review the Delegation submission before asking for revision or accepting it. To pass information between Sessions without starting another Run, use `sessions report <source-session-id> --upstream --text "..."` or target a Session explicitly with `--target <id>`.
+To pick a Worker's Agent definition first, run `openwaggle hive agent-definitions-list` or `openwaggle hive agent-definitions-search <query>`, then pass the name to `spawn --agent <name>`. Run from a session's worktree or a folder inside it, they read that session's project; any other folder, a subfolder of a project included, is read as its own project, as `launch` takes it. Like the agent's tool, they leave out definitions turned off for the project, because `spawn` and `launch` refuse them.
+
+Read the returned Worker and Delegation ids from the spawn response; do not infer them from a title. A wait is one bounded observation, not a subscription. If it times out, the Worker may still be running: wait again or use `hive watch <worker-id>` for live events. Review the Delegation submission before asking for revision or accepting it. To pass information between Sessions without starting another Run, use `hive report <source-session-id> --upstream --text "..."` or target a Session explicitly with `--target <id>`.
 
 ## Queue, requests, and coordination
 
 ```sh
-openwaggle sessions queue list <session-id> --include-bodies
-openwaggle sessions queue pause <session-id> --queue-revision <revision>
-openwaggle sessions queue reorder <session-id> <follow-up-id>... \
+openwaggle hive queue-list <session-id> --include-bodies
+openwaggle hive queue-pause <session-id> --queue-revision <revision>
+openwaggle hive queue-reorder <session-id> <follow-up-id>... \
   --queue-revision <revision>
-openwaggle sessions promote <session-id> <follow-up-id> --expected-run <run-id>
-openwaggle sessions requests list <session-id>
-openwaggle sessions requests respond <session-id> <run-id> <request-id> \
-  --response-json '{"kind":"confirm","accepted":true}' --approve
+openwaggle hive promote <session-id> <follow-up-id> --expected-run <run-id>
+openwaggle hive requests-list <session-id>
+openwaggle hive approval-respond <session-id> <run-id> <request-id> \
+  --response-json '{"kind":"confirm","accepted":true}'
 ```
 
 Pending agent-loop questions survive GUI disconnects and have no automatic expiry. Inspect and answer them explicitly through the GUI or CLI. Queue mutations use an expected revision so concurrent callers cannot silently overwrite each other.
 
 A durable Follow-up queue accepts at most 256 entries and 32 MiB of serialized intent. Appends beyond either boundary fail with `queue_capacity_reached` or `queue_byte_capacity_reached`; withdraw or deliver entries before retrying. This keeps queue mutation, GUI synchronization, and recovery memory bounded without changing one-by-one delivery.
 
-`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. Supplying Session ids applies the filter inside the Host before events consume the subscription buffer; an unfiltered watch continues to receive every authorized event. JSONL output emits a versioned envelope for every line. Inspect `line.record`; cursor checkpoints have `line.record.kind === "cursor"` and carry the initial subscription boundary or the latest progress past a filtered event.
+`hive wait` blocks until an idle, queue-empty, or state-revision condition is reached. `hive watch` subscribes to the ordered Host event stream. Supplying Session ids applies the filter inside the Host before events consume the subscription buffer; an unfiltered watch continues to receive every authorized event. JSONL output emits a versioned envelope for every line. Inspect `line.record`; cursor checkpoints have `line.record.kind === "cursor"` and carry the initial subscription boundary or the latest progress past a filtered event.
 
 ```js
 const line = JSON.parse(rawLine)
@@ -136,9 +141,9 @@ Persist the latest emitted Host identity and sequence, including the cursor embe
 Delegation history uses the same bounded retrieval model:
 
 ```sh
-openwaggle delegations list --parent <queen-or-worker-session-id>
-openwaggle delegations read <delegation-id> --limit 50
-openwaggle delegations read <delegation-id> --limit 50 --cursor <next-cursor>
+openwaggle hive delegations-list --parent <queen-or-worker-session-id>
+openwaggle hive delegations-read <delegation-id> --limit 50
+openwaggle hive delegations-read <delegation-id> --limit 50 --cursor <next-cursor>
 ```
 
 The cursor fixes a high-water snapshot across every Delegation history stream, so records appended while an agent reads later pages do not shift or duplicate that read. The Host may return fewer than `--limit` records to stay within its encoded-byte budget; continue while `nextCursor` is present. A single history record that cannot fit returns `record_too_large`.
@@ -146,10 +151,10 @@ The cursor fixes a high-water snapshot across every Delegation history stream, s
 ## Export
 
 ```sh
-openwaggle sessions export <session-id> --format markdown > conversation.md
-openwaggle sessions export <session-id> --format jsonl --scope tree > conversation.jsonl
-openwaggle sessions export create <session-id> ./handoff --format bundle
-openwaggle sessions export wait <session-id> <operation-id> --timeout-ms 60000
+openwaggle hive export <session-id> --format markdown > conversation.md
+openwaggle hive export <session-id> --format jsonl --scope tree > conversation.jsonl
+openwaggle hive export-create <session-id> ./handoff --format bundle
+openwaggle hive exports-wait <session-id> <operation-id> --timeout-ms 60000
 ```
 
 Streaming export writes to stdout and byte-pages large transcripts automatically. Its `--format jsonl` output (also selected by the `--jsonl` stream shorthand) is a portable export artifact, not a command-stream envelope: the first line is `{ "record": "manifest", "manifest": { "schemaVersion": 1, ... } }`, and each following line is a raw `{ "record": "node", "schemaVersion": 1, ... }` record. Parse the top-level `exportLine.record` field rather than `exportLine.type` or `exportLine.record.kind`.
@@ -163,9 +168,9 @@ if (exportLine.record === 'manifest') {
 }
 ```
 
-Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. Export list, read, and wait responses omit stored queue intent bodies by default. Use `openwaggle sessions export read <session-id> <export-operation-id> --include-queue-bodies` (or the same flag on `export list`/`export wait`) only when the active access profile grants both Session read and queue access. `export watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint, and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
+Artifact export is durable, supports `exports-list`, `exports-read`, `exports-wait`, `export-cancel`, and `exports-watch`, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. Export list, read, and wait responses omit stored queue intent bodies by default. Use `openwaggle hive exports-read <session-id> <export-operation-id> --include-queue-bodies` (or the same flag on `exports-list`/`exports-wait`) only when the active access profile grants both Session read and queue access. `exports-watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint, and `resync-required` records as `hive watch`, including when unrelated export events are filtered out.
 
-On Windows, workspace-scoped artifact export currently fails closed because the platform does not provide the descriptor-relative installation semantics OpenWaggle requires to prevent path-swap attacks. Use streaming export to stdout instead, for example `openwaggle sessions export <session-id> --format markdown > conversation.md`.
+On Windows, workspace-scoped artifact export currently fails closed because the platform does not provide the descriptor-relative installation semantics OpenWaggle requires to prevent path-swap attacks. Use streaming export to stdout instead, for example `openwaggle hive export <session-id> --format markdown > conversation.md`.
 
 ## Restricted external-agent profiles
 
@@ -180,11 +185,11 @@ openwaggle access profiles create ci-helper \
   --authorization ask-for-approval \
   --credential-store
 
-openwaggle sessions list --profile ci-helper --json
+openwaggle hive list --profile ci-helper --json
 openwaggle access profiles revoke ci-helper
 ```
 
-Named profiles enforce their policy at the Session Host API and authenticate with their own credential; a restricted Windows client does not need access to the desktop owner's credential. Windows rotates the Local Session pipe name for every Host launch and publishes it only in the current user's protected Session Host directory. Before accepting clients, it also verifies a protected DACL that grants only the current Windows user SID. If Windows cannot apply and verify that DACL, the Session Host refuses to start instead of using the operating system's broader default pipe permissions. Elevated and unelevated processes for the same Windows account can reach the pipe, then named-profile policy determines their OpenWaggle authority. Named profiles do not contain a process that can also invoke the CLI as the same unrestricted user. Use an OS sandbox, separate account, or container when an external agent must be unable to recover owner authority. OpenWaggle-hosted agents should use the native `sessions` tool; the bundled shell marks agent runs and refuses accidental profile-less CLI use, but that marker is a guardrail rather than a security boundary.
+Named profiles enforce their policy at the Session Host API and authenticate with their own credential; a restricted Windows client does not need access to the desktop owner's credential. Windows rotates the Local Session pipe name for every Host launch and publishes it only in the current user's protected Session Host directory. Before accepting clients, it also verifies a protected DACL that grants only the current Windows user SID. If Windows cannot apply and verify that DACL, the Session Host refuses to start instead of using the operating system's broader default pipe permissions. Elevated and unelevated processes for the same Windows account can reach the pipe, then named-profile policy determines their OpenWaggle authority. Named profiles do not contain a process that can also invoke the CLI as the same unrestricted user. Use an OS sandbox, separate account, or container when an external agent must be unable to recover owner authority. OpenWaggle-hosted agents should use the native `hive` tool; the bundled shell marks agent runs and refuses accidental profile-less CLI use, but that marker is a guardrail rather than a security boundary.
 
 The generated credential is stored separately from the profile policy. Profiles are authenticated, scoped, revocable, and never inherit a broader `YOLO` preference implicitly. CLI errors use stable nonzero exit classes for usage (2), authentication (3), authorization (4), not-found (5), conflict (6), timeout (7), Host-unavailable (8), and internal failures (1). With `--json`, Access command failures emit `{"schemaVersion":1,"type":"error","error":{"kind":"...","message":"..."}}` on stderr. A rejected profile-management response remains a structured response on stdout and uses the matching nonzero exit class, consistent with rejected Session commands.
 
@@ -204,4 +209,4 @@ The current Local Session protocol revision is **25**, and the Host accepts **on
 
 Workspace authorization and visualization source preparation were introduced in revision 9, steering receipts in revision 8, and MCP authorization in revision 7. These minimum operation revisions do not mean the current Host accepts all old wire revisions. Older Hosts must complete the authenticated upgrade handoff before serving requests they do not support. The GUI does not fall back to its own database, save approvals locally, or grant access when the Host is unavailable.
 
-Run `openwaggle sessions help`, `openwaggle access profiles help`, or `openwaggle agents help` for the complete operation and flag list.
+Run `openwaggle hive help`, `openwaggle access profiles help`, or `openwaggle agents help` for the complete operation and flag list.

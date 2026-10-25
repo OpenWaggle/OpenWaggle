@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSessionsToolPayload } from '../sessions-tool-extension'
 
-describe('Pi-native Sessions tool', () => {
+describe('Pi-native Hive tool', () => {
   it('keeps durable Follow-up distinct from active-Run Steering', () => {
     expect(
       buildSessionsToolPayload(

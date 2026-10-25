@@ -1,10 +1,11 @@
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
-import { listAgentDefinitions, searchAgentDefinitions } from '../../agents/agent-definition-catalog'
+import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
@@ -27,9 +28,7 @@ import {
 import { scheduledTasksToolResult } from './sessions-tool-schedule-result'
 import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
 
-const logger = createLogger('sessions-tool')
-
-const DEFAULT_AGENT_DEFINITION_RESULTS = 50
+const logger = createLogger('hive-tool')
 
 interface SessionsToolExtensionInput {
   readonly sessionId: string
@@ -45,7 +44,7 @@ type SessionsToolPayload = ReturnType<typeof buildSessionsToolPayload>
 
 export { buildSessionsToolPayload } from './sessions-tool-payload'
 
-export async function queryAgentDefinitionsForTool(
+export function queryAgentDefinitionsForTool(
   input: Extract<
     SessionsToolParameters,
     { action: 'agent_definitions_list' | 'agent_definitions_search' }
@@ -53,22 +52,12 @@ export async function queryAgentDefinitionsForTool(
   projectPath: string,
   enabledByName: Readonly<Record<string, boolean>> = {},
 ) {
-  const definitions =
-    input.action === 'agent_definitions_search'
-      ? await searchAgentDefinitions({ projectPath, query: input.query })
-      : await listAgentDefinitions({ projectPath })
-  return {
-    definitions: definitions
-      .filter((item) => enabledByName[item.name] !== false)
-      .slice(0, input.limit ?? DEFAULT_AGENT_DEFINITION_RESULTS)
-      .map((item) => ({
-        name: item.name,
-        description: item.description,
-        scope: item.scope,
-        valid: !item.loadError,
-        ...(item.loadError ? { diagnostic: item.loadError } : {}),
-      })),
-  }
+  return discoverAgentDefinitions({
+    projectPath,
+    ...(input.action === 'agent_definitions_search' ? { query: input.query } : {}),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
+    enabledByName,
+  })
 }
 
 function isAgentDefinitionAction(
@@ -101,7 +90,7 @@ async function authorizeExportWrite(input: {
         message,
         scopeKey: {
           requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Sessions',
+          requester: 'OpenWaggle Hive',
           capability: 'sessions.export-write',
           resource: 'workspace-export',
         },
@@ -130,7 +119,7 @@ async function authorizeAttachmentRead(input: {
         message,
         scopeKey: {
           requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Sessions',
+          requester: 'OpenWaggle Hive',
           capability: 'sessions.attachment-read',
           resource: 'workspace-attachments',
         },
@@ -159,7 +148,7 @@ async function authorizeExportResourceRead(input: {
         message,
         scopeKey: {
           requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Sessions',
+          requester: 'OpenWaggle Hive',
           capability: 'sessions.resource-read',
           resource: 'workspace-export-resources',
         },
@@ -278,7 +267,7 @@ function successfulToolResult(result: unknown) {
 function failedToolResult(error: unknown) {
   const message = sessionCommandFailureMessage(error)
   // The result text leaves out Host context such as paths in a cause; the log keeps all of it.
-  logger.warn('Sessions tool command failed', { message, error: describeError(error) })
+  logger.warn('Hive tool command failed', { message, error: describeError(error) })
   return {
     content: [{ type: 'text' as const, text: message }],
     details: undefined,
@@ -289,12 +278,12 @@ function failedToolResult(error: unknown) {
 export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
   return (pi) => {
     pi.registerTool<ReturnType<typeof flattenSessionsToolParameters>, unknown>({
-      name: 'sessions',
-      label: 'Sessions',
+      name: HIVE_TOOL_NAME,
+      label: 'Hive',
       description:
-        'Coordinate durable OpenWaggle sessions. Spawn Worker Sessions in the current Hive, discover and read authorized sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary sidebar sessions with independent transcripts and may continue after this Run ends.',
+        'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends.',
       promptSnippet:
-        'Use sessions to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
+        'Use hive to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
       promptGuidelines: sessionsToolPromptGuidelines(input.sessionCapabilities),
       parameters: input.sessionCapabilities
         ? sessionsToolSchemaForCapabilities({

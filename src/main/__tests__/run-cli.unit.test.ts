@@ -154,7 +154,7 @@ describe('openwaggle run', () => {
     expect(await runRunCli(['clean'], test.dependencies)).toBe(0)
     await vi.waitFor(() =>
       expect(test.stderr.join('')).toContain(
-        `openwaggle sessions requests respond ${SESSION} ${RUN} i-1 --response-json '{"kind":"confirm","accepted":true}' --approve`,
+        `openwaggle hive approval-respond ${SESSION} ${RUN} i-1 --response-json '{"kind":"confirm","accepted":true}'`,
       ),
     )
   })

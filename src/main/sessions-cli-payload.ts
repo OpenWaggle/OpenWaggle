@@ -21,6 +21,10 @@ import {
 } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
 import {
+  buildDelegationQueryCliPayload,
+  isDelegationQueryCliCommand,
+} from './sessions-cli-delegations-payload'
+import {
   buildSessionsCliExportOperationPayload,
   isSessionExportOperationCliCommand,
 } from './sessions-cli-export-operation-payload'
@@ -33,8 +37,8 @@ import {
 } from './sessions-cli-lifecycle-payload'
 
 const DEFAULT_SEARCH_LIMIT = 20
-const REQUEST_RUN_POSITIONAL = 2
-const REQUEST_INTERACTION_POSITIONAL = 3
+const REQUEST_RUN_POSITIONAL = 1
+const REQUEST_INTERACTION_POSITIONAL = 2
 
 function catalogPathScope(arguments_: ParsedArguments, workingDirectory: string) {
   if (hasFlag(arguments_, 'all')) return {}
@@ -197,17 +201,16 @@ function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPaylo
       requestId: randomUUID(),
       query: {
         operation: 'queue-list',
-        sessionId: requiredSessionId(arguments_.positionals[1]),
+        sessionId: requiredSessionId(arguments_.positionals[0]),
         ...(hasFlag(arguments_, 'include-bodies') ? { includeBodies: true } : {}),
       },
     },
   }
 }
 
-function requestsPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
-  const action = required(arguments_.positionals[0], 'Requests action')
-  const sessionId = requiredSessionId(arguments_.positionals[1])
-  if (action === 'list') {
+function requestsPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
+  const sessionId = requiredSessionId(arguments_.positionals[0])
+  if (command === 'requests-list') {
     return {
       contract: 'session-query-v2',
       request: {
@@ -217,7 +220,9 @@ function requestsPayload(arguments_: ParsedArguments): LocalSessionCommandPayloa
       },
     }
   }
-  if (action !== 'respond') throw new Error(`Unsupported requests action: ${action}.`)
+  if (command !== 'request-respond' && command !== 'approval-respond') {
+    throw new Error(`Unsupported requests command: ${command}.`)
+  }
   const response = decodeUnknownExactOrThrow(
     agentLoopResponseSchema,
     JSON.parse(required(option(arguments_, 'response-json'), '--response-json')),
@@ -229,7 +234,7 @@ function requestsPayload(arguments_: ParsedArguments): LocalSessionCommandPayloa
       requestId: randomUUID(),
       idempotencyKey: option(arguments_, 'idempotency-key') ?? randomUUID(),
       command: {
-        operation: hasFlag(arguments_, 'approve') ? 'approval-respond' : 'request-respond',
+        operation: command,
         sessionId,
         runId: required(arguments_.positionals[REQUEST_RUN_POSITIONAL], 'Run ID'),
         interactionId: required(
@@ -243,16 +248,6 @@ function requestsPayload(arguments_: ParsedArguments): LocalSessionCommandPayloa
   }
 }
 
-function isQueueListCommand(command: string, arguments_: ParsedArguments) {
-  return command === 'queue' && arguments_.positionals[0] === 'list'
-}
-
-function exportPayload(arguments_: ParsedArguments) {
-  return isSessionExportOperationCliCommand(arguments_.positionals[0])
-    ? buildSessionsCliExportOperationPayload(arguments_)
-    : buildSessionsCliExportPayload(arguments_)
-}
-
 function directSessionsCliPayload(
   command: string,
   arguments_: ParsedArguments,
@@ -262,7 +257,7 @@ function directSessionsCliPayload(
     list: () => listPayload(arguments_, workingDirectory),
     search: () => searchPayload(arguments_, workingDirectory),
     wait: () => waitPayload(arguments_),
-    export: () => exportPayload(arguments_),
+    export: () => buildSessionsCliExportPayload(arguments_),
     create: () => rootLifecyclePayload('create', arguments_, workingDirectory),
     launch: () => rootLifecyclePayload('launch', arguments_, workingDirectory),
     fork: () => forkLifecyclePayload(arguments_),
@@ -282,10 +277,20 @@ export function buildSessionsCliPayload(
   if (command === 'read' || command === 'turns' || command === 'items' || command === 'status') {
     return detailsPayload(command, arguments_)
   }
-  if (isQueueListCommand(command, arguments_)) {
-    return queueListPayload(arguments_)
+  if (command === 'queue-list') return queueListPayload(arguments_)
+  if (
+    command === 'requests-list' ||
+    command === 'request-respond' ||
+    command === 'approval-respond'
+  ) {
+    return requestsPayload(command, arguments_)
   }
-  if (command === 'requests') return requestsPayload(arguments_)
+  if (isSessionExportOperationCliCommand(command)) {
+    return buildSessionsCliExportOperationPayload(command, arguments_)
+  }
+  if (isDelegationQueryCliCommand(command)) {
+    return buildDelegationQueryCliPayload(command, arguments_, { workingDirectory })
+  }
   return buildSessionsCliControlPayload(command, arguments_)
 }
 

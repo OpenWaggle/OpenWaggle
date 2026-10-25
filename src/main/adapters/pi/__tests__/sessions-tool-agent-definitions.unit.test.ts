@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { queryAgentDefinitionsForTool } from '../sessions-tool-extension'
 
-describe('Pi-native Sessions tool Agent definitions', () => {
+describe('Pi-native Hive tool Agent definitions', () => {
   const temporaryRoots: string[] = []
 
   afterEach(async () => {

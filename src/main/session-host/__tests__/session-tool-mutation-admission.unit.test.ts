@@ -15,7 +15,7 @@ import {
   admitSessionToolObservation,
 } from '../session-tool-mutation-admission'
 
-describe('Sessions tool mutation admission', () => {
+describe('Hive tool mutation admission', () => {
   let temporaryRoot = ''
 
   beforeEach(async () => {

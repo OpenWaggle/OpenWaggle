@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { buildDelegationsCliPayload } from '../delegations-cli-payload'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { buildSessionsCliPayload } from '../sessions-cli'
 
@@ -34,13 +33,14 @@ function sessionsPayload(arguments_: readonly string[]) {
   )
 }
 
-describe('Sessions CLI Session links', () => {
+describe('Hive CLI Session links', () => {
   it.each([
     [['read', '{id}']],
     [['status', '{id}']],
     [['turns', '{id}']],
     [['items', '{id}']],
-    [['queue', 'list', '{id}']],
+    [['queue-list', '{id}']],
+    [['delegation-accept', '{id}', 'delegation-1', '1']],
     [['archive', '{id}']],
     [['rename', '{id}', 'New', 'title']],
     [['follow-up', '{id}', '--text', 'Next step.']],
@@ -66,18 +66,9 @@ describe('Sessions CLI Session links', () => {
   })
 
   it('filters Delegations by a parent or Worker given as a link', () => {
-    const byLink = command(['list', '--parent', LINK, '--worker', SECOND_LINK])
-    const byId = command(['list', '--parent', SESSION_ID, '--worker', SECOND_ID])
-
     expect(
-      withoutGeneratedIdentities(
-        buildDelegationsCliPayload(byLink.name, byLink.arguments, { workingDirectory: '/repo' }),
-      ),
-    ).toEqual(
-      withoutGeneratedIdentities(
-        buildDelegationsCliPayload(byId.name, byId.arguments, { workingDirectory: '/repo' }),
-      ),
-    )
+      sessionsPayload(['delegations-list', '--parent', LINK, '--worker', SECOND_LINK]),
+    ).toEqual(sessionsPayload(['delegations-list', '--parent', SESSION_ID, '--worker', SECOND_ID]))
   })
 
   it('refuses an openwaggle URL that is not a Session link', () => {

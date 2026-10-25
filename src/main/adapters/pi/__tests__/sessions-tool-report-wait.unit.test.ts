@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSessionsToolPayload } from '../sessions-tool-payload'
 
-describe('Pi Sessions tool report waits', () => {
+describe('Pi Hive tool report waits', () => {
   it('builds target-scoped delivery and correlated reply waits', () => {
     expect(
       buildSessionsToolPayload(

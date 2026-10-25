@@ -1,5 +1,6 @@
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
+import { formerGroupReplacement } from './sessions-cli-former-commands'
 import { validateSessionsCliCombinations } from './sessions-cli-option-combinations'
 import { validateSessionsCliPositionals } from './sessions-cli-positional-contract'
 
@@ -131,36 +132,49 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   ],
 }
 
-const GROUPED_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  'authorization:set': [...IDEMPOTENCY],
-  'authorization:clear': [...IDEMPOTENCY],
-  'queue:list': ['include-bodies'],
-  'queue:withdraw': [...IDEMPOTENCY],
-  'queue:reorder': ['queue-revision', ...IDEMPOTENCY],
-  'queue:pause': ['queue-revision', ...IDEMPOTENCY],
-  'queue:resume': ['queue-revision', ...IDEMPOTENCY],
-  'requests:list': [],
-  'requests:respond': ['response-json', 'approve', ...IDEMPOTENCY],
-  'delegation:submit': ['evidence-json', ...IDEMPOTENCY],
-  'delegation:state': [...IDEMPOTENCY],
-  'delegation:claim': ['claim-json', ...IDEMPOTENCY],
-  'delegation:acknowledge-conflict': [...IDEMPOTENCY],
-  'delegation:dependency': [...IDEMPOTENCY],
-  'delegation:propose-amendment': ['specification-json', ...IDEMPOTENCY],
-  'delegation:amend': ['specification-json', 'proposal', ...IDEMPOTENCY],
-  'delegation:request-revision': [
+const DELEGATION_CATALOG_OPTIONS = [
+  'project',
+  'all',
+  'parent',
+  'worker',
+  'limit',
+  'cursor',
+] as const
+
+/** Hive subcommands named for the tool actions they mirror (ADR 0053): `queue_list` is `queue-list`. */
+const ACTION_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  'authorization-set': [...IDEMPOTENCY],
+  'queue-list': ['include-bodies'],
+  'queue-withdraw': [...IDEMPOTENCY],
+  'queue-reorder': ['queue-revision', ...IDEMPOTENCY],
+  'queue-pause': ['queue-revision', ...IDEMPOTENCY],
+  'queue-resume': ['queue-revision', ...IDEMPOTENCY],
+  'requests-list': [],
+  'request-respond': ['response-json', ...IDEMPOTENCY],
+  'approval-respond': ['response-json', ...IDEMPOTENCY],
+  'delegation-submit': ['evidence-json', ...IDEMPOTENCY],
+  'delegation-state': [...IDEMPOTENCY],
+  'delegation-claim': ['claim-json', ...IDEMPOTENCY],
+  'delegation-conflict-acknowledge': [...IDEMPOTENCY],
+  'delegation-dependency': [...IDEMPOTENCY],
+  'delegation-propose-amendment': ['specification-json', ...IDEMPOTENCY],
+  'delegation-amend': ['specification-json', 'proposal', ...IDEMPOTENCY],
+  'delegation-request-revision': [
     'revised-objective',
     'deliverable',
     'accept',
     'resource',
     ...IDEMPOTENCY,
   ],
-  'delegation:accept': [...IDEMPOTENCY],
-  'delegation:reopen': [...IDEMPOTENCY],
-  'delegation:cancel': [...IDEMPOTENCY],
-  'delegation:verify': ['evidence-json', ...IDEMPOTENCY],
-  'export:stream': ['format', 'scope', 'branch', 'include-queue-bodies', 'limit'],
-  'export:create': [
+  'delegation-accept': [...IDEMPOTENCY],
+  'delegation-reopen': [...IDEMPOTENCY],
+  'delegation-cancel': [...IDEMPOTENCY],
+  'delegation-verify': ['evidence-json', ...IDEMPOTENCY],
+  'delegations-list': [...DELEGATION_CATALOG_OPTIONS, 'state'],
+  'delegations-read': ['limit', 'cursor'],
+  'delegations-conflicts': [...DELEGATION_CATALOG_OPTIONS, 'delegation', 'kind', 'status'],
+  export: ['format', 'scope', 'branch', 'include-queue-bodies', 'limit'],
+  'export-create': [
     'format',
     'scope',
     'branch',
@@ -169,24 +183,32 @@ const GROUPED_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'overwrite',
     ...IDEMPOTENCY,
   ],
-  'export:cancel': [...IDEMPOTENCY],
-  'export:list': ['status', 'limit', 'cursor', 'include-queue-bodies'],
-  'export:read': ['include-queue-bodies'],
-  'export:wait': ['timeout-ms', 'after-host', 'after-sequence', 'include-queue-bodies'],
-  'export:watch': ['after-host', 'after-sequence'],
+  'export-cancel': [...IDEMPOTENCY],
+  'exports-list': ['status', 'limit', 'cursor', 'include-queue-bodies'],
+  'exports-read': ['include-queue-bodies'],
+  'exports-wait': ['timeout-ms', 'after-host', 'after-sequence', 'include-queue-bodies'],
+  'exports-watch': ['after-host', 'after-sequence'],
+}
+
+/**
+ * Agent-definition discovery reads definition files in this process, so it takes no Session
+ * Host client options and answers with one JSON response at most.
+ */
+const LOCAL_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  'agent-definitions-list': ['project'],
+  'agent-definitions-search': ['project'],
 }
 
 const ALL_SESSION_OPTIONS: ReadonlySet<string> = new Set([
   ...Object.values(DIRECT_COMMAND_OPTIONS).flat(),
-  ...Object.values(GROUPED_COMMAND_OPTIONS).flat(),
+  ...Object.values(ACTION_COMMAND_OPTIONS).flat(),
+  ...Object.values(LOCAL_COMMAND_OPTIONS).flat(),
   ...CLIENT_OPTIONS,
   ...OUTPUT_OPTIONS,
 ])
 
-const EXPORT_ACTIONS = new Set(['create', 'cancel', 'list', 'read', 'wait', 'watch'])
 const BOOLEAN_OPTIONS = new Set([
   'all',
-  'approve',
   'archived',
   'credential-stdin',
   'full',
@@ -206,22 +228,23 @@ const BOOLEAN_OPTIONS = new Set([
   'yolo',
 ])
 
-function commandRoute(command: string, arguments_: ParsedArguments) {
-  if (command === 'export') {
-    const action = arguments_.positionals[0]
-    return `export:${action && EXPORT_ACTIONS.has(action) ? action : 'stream'}`
+function allowedOptions(command: string, arguments_: ParsedArguments) {
+  const local = LOCAL_COMMAND_OPTIONS[command]
+  if (local) return new Set([...local, 'json'])
+  const replacement = formerGroupReplacement(command, arguments_)
+  if (replacement) {
+    throw new Error(
+      `Unsupported OpenWaggle Hive command: ${command} ${arguments_.positionals[0] ?? ''}. Use 'openwaggle hive ${replacement}'.`,
+    )
   }
-  if (command === 'authorization' || command === 'queue' || command === 'requests') {
-    return `${command}:${arguments_.positionals[0] ?? ''}`
-  }
-  if (command === 'delegation') return `delegation:${arguments_.positionals[0] ?? ''}`
-  return command
+  const specific = DIRECT_COMMAND_OPTIONS[command] ?? ACTION_COMMAND_OPTIONS[command]
+  if (!specific) throw new Error(`Unsupported OpenWaggle Hive command: ${command}.`)
+  return new Set([...specific, ...CLIENT_OPTIONS, ...OUTPUT_OPTIONS])
 }
 
-function allowedOptions(route: string) {
-  const specific = DIRECT_COMMAND_OPTIONS[route] ?? GROUPED_COMMAND_OPTIONS[route]
-  if (!specific) throw new Error(`Unsupported Sessions command: ${route}.`)
-  return new Set([...specific, ...CLIENT_OPTIONS, ...OUTPUT_OPTIONS])
+/** Whether a Hive subcommand runs in this process instead of the Session Host. */
+export function isLocalHiveCliCommand(command: string) {
+  return command in LOCAL_COMMAND_OPTIONS
 }
 
 function validateOptionValues(arguments_: ParsedArguments) {
@@ -247,28 +270,27 @@ function validateOptionValues(arguments_: ParsedArguments) {
 }
 
 export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {
-  const route = commandRoute(command, arguments_)
-  const allowed = allowedOptions(route)
+  const allowed = allowedOptions(command, arguments_)
   const unknown = [...arguments_.options.keys()]
     .filter((name) => !ALL_SESSION_OPTIONS.has(name))
     .sort()
   if (unknown.length > 0) {
     throw new Error(
-      `Unknown option${unknown.length === 1 ? '' : 's'} for OpenWaggle Sessions: ${unknown
+      `Unknown option${unknown.length === 1 ? '' : 's'} for OpenWaggle Hive: ${unknown
         .map((name) => `--${name}`)
         .join(', ')}.`,
     )
   }
-  refuseRunSettingsOnActiveRunCommand(route, arguments_)
+  refuseRunSettingsOnActiveRunCommand(command, arguments_)
   const unsupported = [...arguments_.options.keys()].filter((name) => !allowed.has(name)).sort()
   if (unsupported.length > 0) {
     throw new Error(
-      `Unsupported option${unsupported.length === 1 ? '' : 's'} for sessions ${route.replace(':', ' ')}: ${unsupported
+      `Unsupported option${unsupported.length === 1 ? '' : 's'} for hive ${command}: ${unsupported
         .map((name) => `--${name}`)
         .join(', ')}.`,
     )
   }
   validateOptionValues(arguments_)
   validateSessionsCliCombinations(command, arguments_)
-  validateSessionsCliPositionals(route, arguments_)
+  validateSessionsCliPositionals(command, arguments_)
 }

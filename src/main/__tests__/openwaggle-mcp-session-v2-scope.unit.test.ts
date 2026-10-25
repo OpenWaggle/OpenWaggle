@@ -233,7 +233,7 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     } as const
     const execute = vi.fn()
     await expect(prepareMcpSessionTargetScope(scopedOptions(), execute, payload)).rejects.toThrow(
-      /Scheduled tasks are not available through the Sessions MCP adapter/,
+      /Scheduled tasks are not available through the Hive MCP adapter/,
     )
     expect(execute).not.toHaveBeenCalled()
   })

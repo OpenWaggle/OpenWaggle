@@ -1,11 +1,9 @@
-import { validateCommandCliOptions } from './command-cli-option-contract'
+import { CommandCliUsageError, validateCommandCliOptions } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 
 const COMMON_OPTIONS = ['json'] as const
 const OPTIONS_BY_COMMAND: Readonly<Record<string, readonly string[]>> = {
   help: [],
-  list: ['project'],
-  search: ['project'],
   validate: [],
   explain: ['project'],
   create: ['scope', 'project'],
@@ -18,8 +16,6 @@ const OPTIONS_BY_COMMAND: Readonly<Record<string, readonly string[]>> = {
 const BOOLEAN_OPTIONS = new Set(['dry-run', 'json', 'replace'])
 const ARGUMENTS_BY_COMMAND = {
   help: { minimum: 0, maximum: 0 },
-  list: { minimum: 0, maximum: 0 },
-  search: { minimum: 1 },
   validate: { minimum: 1, maximum: 1 },
   explain: { minimum: 1, maximum: 1 },
   create: { minimum: 1, maximum: 1 },
@@ -30,7 +26,19 @@ const ARGUMENTS_BY_COMMAND = {
   refresh: { minimum: 1, maximum: 1 },
 } as const
 
+/** Agent-definition discovery moved to the Hive CLI, named for the hive tool's actions (ADR 0053). */
+const MOVED_TO_HIVE: Readonly<Record<string, string>> = {
+  list: 'agent-definitions-list',
+  search: 'agent-definitions-search',
+}
+
 export function validateAgentsCliOptions(command: string, arguments_: ParsedArguments) {
+  const moved = MOVED_TO_HIVE[command]
+  if (moved) {
+    throw new CommandCliUsageError(
+      `Unsupported OpenWaggle Agents command: ${command}. Use 'openwaggle hive ${moved}'.`,
+    )
+  }
   validateCommandCliOptions({
     surface: 'OpenWaggle Agents',
     route: command,

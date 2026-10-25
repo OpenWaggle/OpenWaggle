@@ -3,14 +3,11 @@ import { sessionsToolScheduleAction } from './sessions-tool-schedule'
 import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
 import { SCHEDULE_ACTION_NAMES, scheduleLabel } from './tool-labels-schedule'
 
-/** The Pi tool through which an agent coordinates its Workers (to be renamed `hive`, ADR 0053). */
-export const SESSIONS_TOOL_NAME = 'sessions'
-
 /** How much of a title or objective a row shows; the full text is in the expanded arguments. */
 const DETAIL_MAX_CHARS = 80
 
 /**
- * The Session a sessions-tool call acts on, as the Hive panel knows it: its current title, its
+ * The Session a hive-tool call acts on, as the Hive panel knows it: its current title, its
  * Agent definition, and whether it is a Worker of this Hive. For a Scheduled task action it is
  * the task, whose `title` is the task's current name.
  */
@@ -35,7 +32,7 @@ function untargeted(running: string, done: string): ActionVerbs {
   return { running, done, targeted: false }
 }
 
-/** Every action of the sessions tool (`sessions-tool-*-parameters.ts`), by what it does. */
+/** Every action of the hive tool (`sessions-tool-*-parameters.ts`), by what it does. */
 const ACTION_VERBS: ReadonlyMap<string, ActionVerbs> = new Map(
   Object.entries({
     spawn: targeted('Spawning', 'Spawned'),
@@ -199,7 +196,7 @@ function requestedText(running: string) {
 }
 
 /**
- * The sessions tool, named for the Workers it coordinates (ADR 0053). `target` is the Session the
+ * The hive tool, named for the Workers it coordinates (ADR 0053). `target` is the Session the
  * call acts on as the Hive knows it now, so a row keeps the title the Hive panel shows.
  */
 export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | null): ToolLabel {

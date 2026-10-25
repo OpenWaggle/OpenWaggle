@@ -17,7 +17,7 @@ function exposedActions(schema: ReturnType<typeof sessionsToolSchemaForCapabilit
   )
 }
 
-describe('Sessions tool capability schema', () => {
+describe('Hive tool capability schema', () => {
   it('never exposes a root-level anyOf union (issue #218: providers drop arguments)', () => {
     const schema = sessionsToolSchemaForCapabilities({
       capabilities: ['sessions:read', 'sessions:spawn', 'sessions:discover'],

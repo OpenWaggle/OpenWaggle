@@ -3,7 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 
-describe('Sessions tool Hive cleanup guidance', () => {
+describe('Hive tool Hive cleanup guidance', () => {
   it('tells the Queen that finished untouched Workers are archived and come back with new work', async () => {
     const registerTool = vi.fn()
     await createSessionsToolExtension({
@@ -33,7 +33,7 @@ describe('Sessions tool Hive cleanup guidance', () => {
   })
 })
 
-describe('Sessions tool cross-project guidance', () => {
+describe('Hive tool cross-project guidance', () => {
   it('tells the agent how to reach Sessions and start work in another repository', async () => {
     const registerTool = vi.fn()
     await createSessionsToolExtension({

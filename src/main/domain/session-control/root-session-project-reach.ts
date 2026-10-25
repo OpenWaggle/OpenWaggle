@@ -48,7 +48,7 @@ export function parseSessionAgentCallerId(callerId: string) {
  * reaches every project (see `sessionAgentRunReachesEveryProject`), or a project-scoped caller
  * could drive a desktop Session into other projects.
  *
- * The Sessions tool (when the agent calls it) and queued Follow-up delivery (when a Follow-up it
+ * The Hive tool (when the agent calls it) and queued Follow-up delivery (when a Follow-up it
  * sent is delivered later) both decide with this function, so the two cannot drift apart.
  */
 export function rootSessionReachesEveryProject(input: {

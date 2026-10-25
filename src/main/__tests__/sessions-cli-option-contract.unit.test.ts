@@ -15,7 +15,7 @@ function validate(values: readonly string[]) {
   return () => validateSessionsCliOptions(parsed.name, parsed.arguments)
 }
 
-describe('Sessions CLI option contract', () => {
+describe('Hive CLI option contract', () => {
   it('rejects unknown options before a misspelling can change Worker placement', () => {
     expect(
       validate([
@@ -28,22 +28,27 @@ describe('Sessions CLI option contract', () => {
         '--workspce',
         'new-worktree',
       ]),
-    ).toThrow('Unknown option for OpenWaggle Sessions: --workspce')
+    ).toThrow('Unknown option for OpenWaggle Hive: --workspce')
   })
 
   it('validates options on help instead of treating misspellings as help requests', () => {
-    expect(validate(['help', '--jsoon'])).toThrow('Unknown option for OpenWaggle Sessions: --jsoon')
+    expect(validate(['help', '--jsoon'])).toThrow('Unknown option for OpenWaggle Hive: --jsoon')
   })
 
   it.each([
-    [['list', '--attach', 'notes.md'], 'sessions list: --attach'],
-    [['queue', 'list', 'session', '--idempotency-key', 'once'], 'sessions queue list'],
+    [['list', '--attach', 'notes.md'], 'hive list: --attach'],
+    [['queue-list', 'session', '--idempotency-key', 'once'], 'hive queue-list'],
     [
-      ['delegation', 'submit', 'worker', 'job', 'done', '--proposal', 'proposal-1'],
-      'delegation submit',
+      ['delegation-submit', 'worker', 'job', 'done', '--proposal', 'proposal-1'],
+      'hive delegation-submit',
     ],
-    [['export', 'list', 'session', '--overwrite'], 'sessions export list'],
-    [['steer', 'session', '--text', 'turn', '--expected-run', 'run', '--yolo'], 'sessions steer'],
+    [['exports-list', 'session', '--overwrite'], 'hive exports-list'],
+    // An approval is `approval-respond`, never a flag on `request-respond`.
+    [
+      ['request-respond', 's', 'r', 'i', '--response-json', '{}', '--approve'],
+      'Unknown option for OpenWaggle Hive: --approve',
+    ],
+    [['steer', 'session', '--text', 'turn', '--expected-run', 'run', '--yolo'], 'hive steer'],
   ] as const)('rejects options that are inapplicable to %s', (values, message) => {
     expect(validate(values)).toThrow(message)
   })
@@ -128,7 +133,7 @@ describe('Sessions CLI option contract', () => {
     expect(validate(['archive', 'session', 'accidental-extra'])).toThrow(
       'received unexpected positional arguments',
     )
-    expect(validate(['queue', 'pause', 'session', 'accidental-extra'])).toThrow(
+    expect(validate(['queue-pause', 'session', 'accidental-extra'])).toThrow(
       'received unexpected positional arguments',
     )
     expect(validate(['archive', 'session', '--', 'accidental-command'])).toThrow(
@@ -141,7 +146,7 @@ describe('Sessions CLI option contract', () => {
     expect(validate(['rename', 'session', 'A', 'new', 'title'])).not.toThrow()
     expect(validate(['wait', 'session-1', 'session-2', '--timeout-ms', '100'])).not.toThrow()
     expect(
-      validate(['queue', 'reorder', 'session', 'follow-1', 'follow-2', '--queue-revision', '2']),
+      validate(['queue-reorder', 'session', 'follow-1', 'follow-2', '--queue-revision', '2']),
     ).not.toThrow()
   })
 
@@ -168,14 +173,7 @@ describe('Sessions CLI option contract', () => {
       validate(['message', 'session', '--text', 'go', '--thinking', 'high', '--yolo']),
     ).not.toThrow()
     expect(
-      validate([
-        'queue',
-        'update-authorization',
-        'session',
-        'follow-up',
-        '--authorization',
-        'yolo',
-      ]),
+      validate(['queue-update-authorization', 'session', 'follow-up', '--authorization', 'yolo']),
     ).toThrow()
     expect(validate(['follow-up', 'session', '--text', 'later', '--thinking', 'high'])).toThrow(
       'thinking_level_requires_idle_session',
@@ -185,8 +183,7 @@ describe('Sessions CLI option contract', () => {
     ).toThrow('run_authorization_override_requires_idle_session')
     expect(
       validate([
-        'delegation',
-        'amend',
+        'delegation-amend',
         'parent',
         'job',
         '1',
@@ -199,8 +196,7 @@ describe('Sessions CLI option contract', () => {
     ).not.toThrow()
     expect(
       validate([
-        'export',
-        'create',
+        'export-create',
         'session',
         'bundle',
         '--format',
@@ -213,5 +209,40 @@ describe('Sessions CLI option contract', () => {
     expect(
       validate(['search', 'migration', '--all', '--mode', 'hybrid', '--require-fresh']),
     ).not.toThrow()
+  })
+
+  it.each([
+    [['delegation', 'submit', 'worker', 'job', 'done'], 'delegation-submit'],
+    [
+      ['delegation', 'acknowledge-conflict', 'queen', 'job', 'c', 'why'],
+      'delegation-conflict-acknowledge',
+    ],
+    [['delegations', 'list'], 'delegations-list'],
+    [['queue', 'withdraw', 'session', 'follow-1'], 'queue-withdraw'],
+    [['requests', 'respond', 'session', 'run', 'interaction'], 'request-respond'],
+    [['authorization', 'clear', 'session'], 'authorization-set <session-id> inherit'],
+    [['authorization', 'set', 'session', 'yolo'], 'authorization-set'],
+    [['requests', 'respond', 'session', 'run', 'interaction', '--approve'], 'approval-respond'],
+    [['export', 'create', 'session', 'out.jsonl'], 'export-create'],
+    [['export', 'watch', 'session'], 'exports-watch'],
+  ] as const)(
+    'refuses the former grouped spelling %j and names its replacement',
+    (values, name) => {
+      expect(validate(values)).toThrow(`Use 'openwaggle hive ${name}'.`)
+    },
+  )
+
+  it('accepts every Hive tool action as the subcommand of the same name', () => {
+    expect(validate(['delegations-list', '--all', '--state', 'working'])).not.toThrow()
+    expect(validate(['delegations-read', 'delegation-1', '--limit', '5'])).not.toThrow()
+    expect(validate(['delegations-conflicts', '--kind', 'merge-overlap'])).not.toThrow()
+    expect(validate(['delegation-conflict-acknowledge', 'q', 'd', 'c', 'reason'])).not.toThrow()
+    expect(validate(['approval-respond', 's', 'r', 'i', '--response-json', '{}'])).not.toThrow()
+    expect(validate(['authorization-set', 'session', 'inherit'])).not.toThrow()
+    expect(validate(['exports-watch', 'session', 'operation'])).not.toThrow()
+    expect(validate(['agent-definitions-search', 'code', 'review', '--json'])).not.toThrow()
+    expect(validate(['agent-definitions-list', '--profile', 'helper'])).toThrow(
+      'Unsupported option for hive agent-definitions-list: --profile',
+    )
   })
 })

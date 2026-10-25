@@ -29,7 +29,8 @@ Options:
 
 The agent's reply streams to stdout. Progress, tool activity, and questions go to
 stderr. In an interactive terminal you can answer approval prompts inline; otherwise
-answer them in the desktop app or with 'openwaggle sessions requests respond'.
+answer them in the desktop app or with 'openwaggle hive request-respond' (an
+approval with 'openwaggle hive approval-respond').
 Press Ctrl-C to interrupt the Run, and Ctrl-C again to stop waiting for it.
 
 Exit status:

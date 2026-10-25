@@ -46,7 +46,7 @@ vi.mock('../../application/local-session-command-dispatcher', () => ({
 const { installAppSessionToolGateway } = await import('../session-tool-gateway-installer')
 const { executeSessionToolCommand } = await import('../session-tool-gateway')
 
-describe('App Sessions tool gateway', () => {
+describe('App Hive tool gateway', () => {
   it('dispatches the payload its admission checked, not the one the agent sent', async () => {
     const services = Context.make(SqlClient.SqlClient, fromPartial<SqlClient.SqlClient>({}))
     // The mocked dispatcher uses none of the services the real one needs.

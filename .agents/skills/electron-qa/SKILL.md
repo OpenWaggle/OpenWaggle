@@ -29,7 +29,7 @@ Every QA run, and every other start of the built app, Session Host, or `openwagg
 
 The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
 
-Automation disables executable Pi extensions, which also hides OpenWaggle's first-party tools (such as `sessions`) from the model. To QA those tools, start the app with `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1 pnpm dev:debug`.
+Automation disables executable Pi extensions, which also hides OpenWaggle's first-party tools (such as `hive`) from the model. To QA those tools, start the app with `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1 pnpm dev:debug`.
 
 To give a QA run a fixture Pi extension, such as a faux provider or a virtual model, name its files in `OPENWAGGLE_AUTOMATION_PI_EXTENSIONS` (separated by the platform path delimiter, `:` on macOS and Linux), for example `OPENWAGGLE_AUTOMATION_PI_EXTENSIONS=$TMPDIR/qa-ext/qa-router.js pnpm dev:debug`. Automation loads those files and no other discovered extensions. The variable is ignored outside automation (`OPENWAGGLE_AUTOMATION=1`), so it cannot load code into a normal app. Pi caches the extension module, so restart the QA app after editing a fixture. Keep fixtures outside the repository, for example in the session scratch directory.
 

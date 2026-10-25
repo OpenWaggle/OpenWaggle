@@ -1,6 +1,8 @@
 # The coordination surface is named Hive everywhere
 
-Status: accepted (the rename itself lands in the follow-up to the tool row icons change)
+Status: accepted, and implemented before `1.0.0-rc.1` (issue #347)
+
+Amended 2026-10-25: Scheduled tasks keep `openwaggle schedules`, `openwaggle agents` keeps all of its file authoring, and Agent-definition discovery is on MCP too; stored tool allowlists are migrated (see the Amendment below).
 
 The agent's Session Control tool, its CLI and its MCP tool were all named "sessions", which hid that their main job is coordinating **Worker Sessions** and collided with Pi sessions and the sidebar's sessions. We rename all three to one name and one vocabulary: the Pi tool `hive`, the CLI `openwaggle hive <action>`, and the MCP tool `openwaggle_hive`. Each tool action is a CLI subcommand and an MCP operation of the same name (`follow_up` is `follow-up`), so knowing one front door means knowing the others. A Session is still a Session; `hive` only names the surface that coordinates and reaches them.
 
@@ -9,3 +11,15 @@ The CLI mirrors the tool exactly rather than grouping commands by object as `gh`
 Considered and rejected: `agents` (collides with Agent definitions), `workers` (wrong for launch and catalog reads), splitting into Codex-style per-action tools (a redesign of the model-facing interface, not a rename), and keeping `openwaggle sessions` as the CLI's object-named group (two names for one surface).
 
 Consequence: this is a full migration made during the beta, before the v1 **Compatibility promise** applies. No old name is accepted anywhere: not as a CLI command, an MCP tool, or an Agent-definition `tools:` entry. A definition that still lists `sessions` is reported as naming an unknown tool, and a Pi transcript that recorded a `sessions` call keeps that call as history and renders it as an unrecognized tool rather than being rewritten.
+
+## Amendment (2026-10-25): the exceptions the rename kept, and stored allowlists
+
+The rename (#347) found three places where "each tool action is a CLI subcommand and an MCP operation of the same name" needed a decision, and one kind of stored data that still named the old tool.
+
+- **Scheduled tasks keep `openwaggle schedules`.** The tool's `schedule_*` actions came after this decision (ADR 0057, ADR 0058) and already shipped their own command group, which ADR 0040's amendment makes a Covered surface of its own. They have no `hive schedule-*` subcommand and no MCP operation: an MCP server holds only transient authority, and a Scheduled task needs a lasting creator.
+- **`openwaggle agents` keeps every command that works on definition files**: `validate`, `import`, `explain`, `create`, `update`, `duplicate`, `delete` and `refresh`, not only the three named above. The intent was that authoring stays and discovery moves, so only `list` and `search` moved, to `hive agent-definitions-list` and `agent-definitions-search`.
+- **Agent-definition discovery is an MCP operation too.** `openwaggle_hive` gained `agent-definitions-list` and `agent-definitions-search`. Like the tool's actions, they need no Session capability, return names and descriptions only, and leave out definitions turned off for the project, which spawn and launch refuse; both they and the CLI read the project by the Host's `projectOfWorkspace` rule: a folder the user opened as a project is that project, a Session's ready managed worktree or a directory inside one stands for the Session's project (what the tool and spawn read for a Run there), and anything else, a plain subdirectory of a project included, is its own project, as `create` and `launch` take it. So the only way discovery reads beyond the directory it was given (an MCP caller names one inside its workspace grants) is from a managed worktree to its Session's project, and then only definition names and descriptions. `hive agent-definitions-list|search` hide them too; the `openwaggle agents` authoring commands still reach every definition.
+- **Stored allowlists are migrated, not aliased.** A Session created from an Agent definition that listed `sessions` stored that name in its Host-authored execution profile and Agent-definition snapshot, so it would silently lose the Hive tool. App migration 71 (`hive-tool-name`) rewrites `sessions` to `hive` in those stored `tools` lists once. The snapshot's `contentDigest` (a SHA-256 of the parsed definition) then no longer matches its `tools`; nothing checks it, and a future integrity check must accept migrated snapshots. That is data the Host wrote, not a name a caller sends, so every front door still refuses the old name.
+
+The vocabulary test (`hive-action-vocabulary.unit.test.ts`) lists these exceptions explicitly and checks tool → CLI, tool → MCP, and MCP → CLI.
+

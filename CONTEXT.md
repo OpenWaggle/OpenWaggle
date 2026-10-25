@@ -2,7 +2,7 @@
 
 OpenWaggle is an Electron desktop coding-agent workspace built on Pi. This glossary captures product-domain language that should stay stable across planning, issues, docs, and implementation.
 
-Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below, though until ADR 0053's rename lands the tool, CLI and MCP tool are still named `sessions`, `openwaggle sessions` and `openwaggle_sessions`; older entries that describe the pre-cutover runtime are historical context.
+Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below; since ADR 0053 the tool, CLI and MCP tool are named `hive`, `openwaggle hive` and `openwaggle_hive`, and their former `sessions` names are not accepted. Older entries that describe the pre-cutover runtime are historical context.
 
 ## Language
 
@@ -395,7 +395,7 @@ The durable Session Host work record that produces a destination file or bundle 
 _Avoid_: stdout stream, agent run
 
 **Hive CLI**:
-The stable `openwaggle hive` command family through which people and external agentic tools invoke Session Control. It mirrors the **Hive tool** exactly: each tool action is a `hive` subcommand of the same name, Delegation and Agent-definition discovery included.
+The stable `openwaggle hive` command family through which people and external agentic tools invoke Session Control. It mirrors the **Hive tool**: each tool action is a `hive` subcommand of the same name, Delegation and Agent-definition discovery included, except Scheduled task actions, which keep `openwaggle schedules` (ADR 0053 amendment).
 _Avoid_: Sessions CLI, Delegations CLI, session shell, Pi CLI, MCP session client
 
 **Access CLI**:
@@ -1688,7 +1688,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Runtime adapters map **Agent instructions** to the provider's appropriate agent-level system or developer instruction mechanism and never flatten them together with the Delegation task into one ambiguous prompt.
 - An omitted Agent-definition `tools` field inherits the initiating caller's available tool surface, a non-empty list is an allowlist intersected with that surface, and an empty list exposes no tools.
 - Agent definitions have no tool denylist; installing a new tool therefore cannot widen a definition that declares an explicit tool surface.
-- Because Session Control uses one compact `sessions` tool, optional Agent-definition `sessionCapabilities` narrows its operations through the existing **Session capability grant**: omission inherits permitted operations, a list intersects them, and an empty list permits none.
+- Because Session Control uses one compact `hive` tool, optional Agent-definition `sessionCapabilities` narrows its operations through the existing **Session capability grant**: omission inherits permitted operations, a list intersects them, and an empty list permits none.
 - Agent-definition `sessionCapabilities` is never an authority source and cannot add a Session Control operation the initiating caller lacks.
 - Agent-definition discovery observes valid file changes without requiring an OpenWaggle or Session Host restart.
 - Accepting a launch or spawn atomically captures a **Resolved Agent snapshot**; every existing Session keeps its snapshot when the source definition is edited, renamed, deleted, shadowed, or made invalid.
@@ -1706,7 +1706,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Session-sidebar rows retain only the approved `ChessQueen` or `Pickaxe` lineage glyph; their tooltip may include the selected Agent name and, for a Worker, its immediate parent, without adding another badge or changing the flat hierarchy.
 - Every Run receives an **Agent Session identity context** containing its stable Session identity; Queen, Worker, or independent-root classification; immediate parent identity and title when present; selected **Resolved Agent snapshot** name and scope when present; current Workspace identity, mode, and Working path; and the Session Control operations currently available to that Run.
 - The Session Host, not the model or Agent-definition Markdown, authors the **Agent Session identity context** from current authoritative state at Run start.
-- The **Agent Session identity context** includes no sibling or child list, related transcript, queue body, or Hive-wide summary; the agent retrieves authorized related state on demand through the compact `sessions` tool.
+- The **Agent Session identity context** includes no sibling or child list, related transcript, queue body, or Hive-wide summary; the agent retrieves authorized related state on demand through the compact `hive` tool.
 - A spawned Worker begins with fresh conversation context containing its **Agent instructions**, immutable **Delegation specification**, explicit handoff context and resource references, repository instructions and selected skills, and **Agent Session identity context**.
 - Spawn never copies the Queen's transcript, hidden reasoning, Follow-up queue, or unrelated tool output into the Worker; shared Workspace files remain available through ordinary filesystem authorization.
 - Any additional Session history requires an explicit authorized Session Control read; **Spawn lineage** alone gives a Worker no reciprocal transcript access to its parent or siblings.
@@ -2339,7 +2339,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Flagged ambiguities
 
-- `openwaggle agents` keeps only Agent-definition authoring (`validate`, `import`, `explain`), which edits files rather than coordinating a **Hive**; discovering definitions is the **Hive CLI**'s `agent-definitions-list` and `agent-definitions-search`, so each action has one command.
+- `openwaggle agents` keeps only Agent-definition authoring (`validate`, `import`, `explain`, and the file edits `create`, `update`, `duplicate`, `delete`, `refresh`), which works on definition files rather than coordinating a **Hive**; discovering definitions is the **Hive CLI**'s `agent-definitions-list` and `agent-definitions-search`, so each action has one command.
 - "sessions" named the agent's coordination tool, its CLI and its MCP tool, which hid that their main job is coordinating Workers and collided with Pi sessions. Resolved: the **Hive tool**, **Hive CLI** and `openwaggle_hive` MCP tool use `hive`, a full beta migration with no old name kept (ADR 0053); a Session stays a Session, and `hive` names the coordination surface over Session Control.
 - "sub-agent" was proposed for the Sessions an agent creates, as Codex and T3 Code say. Resolved: they are **Worker Sessions** everywhere, transcript included (ADR 0054).
 - "grouped Worker spawns" (Codex's "Created 3 agents") would make the transcript a second Worker list. Resolved: the **Hive panel** stays the only place Workers are listed (ADR 0054).

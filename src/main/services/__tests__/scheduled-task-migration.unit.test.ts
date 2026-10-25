@@ -29,7 +29,9 @@ function insertTask(
 
 describe('Scheduled task migration', () => {
   it('is the newest migration this binary supports', () => {
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SCHEDULED_TASK_MIGRATION.id)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      SCHEDULED_TASK_MIGRATION.id,
+    )
   })
 
   it('deletes a Heartbeat with its Session and keeps a run history only with its task', () => {

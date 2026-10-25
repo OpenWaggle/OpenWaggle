@@ -10,7 +10,7 @@ function command(arguments_: readonly string[]) {
   }
 }
 
-describe('Sessions CLI project paths', () => {
+describe('Hive CLI project paths', () => {
   it('resolves lifecycle and explicit catalog paths against the caller cwd', () => {
     const launch = command(['launch', '.', '--text', 'Plan', '--workspace', 'current'])
     const list = command(['list', '--project', '../project'])

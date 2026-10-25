@@ -243,7 +243,7 @@ function authorize(caller: LocalSessionCallerIdentity, payload: LocalSessionComm
   )
 }
 
-describe('Sessions tool cross-project authority', () => {
+describe('Hive tool cross-project authority', () => {
   let root = ''
   let callers: Awaited<ReturnType<typeof resolveCallers>>
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSessionsToolPayload } from '../sessions-tool-extension'
 
-describe('Pi-native Sessions tool project scope', () => {
+describe('Pi-native Hive tool project scope', () => {
   it('uses the canonical source project for project-scoped catalog queries', () => {
     const source = {
       sessionId: 'session-worker',

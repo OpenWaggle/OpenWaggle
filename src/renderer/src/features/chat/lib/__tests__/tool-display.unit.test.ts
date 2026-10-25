@@ -27,12 +27,12 @@ describe('resolveActionText', () => {
   })
 
   it('names OpenWaggle and MCP tools by what they did', () => {
-    expect(actionText('sessions', { action: 'spawn', objective: 'Review' }, false)).toBe(
+    expect(actionText('hive', { action: 'spawn', objective: 'Review' }, false)).toBe(
       'Spawned Worker · Review',
     )
     expect(
       resolveActionText({
-        name: 'sessions',
+        name: 'hive',
         args: { action: 'message', sessionId: 'w1' },
         awaitingResult: false,
         isRunning: false,

@@ -40,7 +40,7 @@ describe('a streamed tool call that starts with empty input', () => {
         type: 'toolcall_start',
         contentIndex: 0,
         toolCallId: 't1',
-        toolName: 'sessions',
+        toolName: 'hive',
         input: {},
       }),
     ])
@@ -56,7 +56,7 @@ describe('a streamed tool call that starts with empty input', () => {
         type: 'toolcall_start',
         contentIndex: 0,
         toolCallId: 't1',
-        toolName: 'sessions',
+        toolName: 'hive',
         input: {},
       }),
       toolEvent({

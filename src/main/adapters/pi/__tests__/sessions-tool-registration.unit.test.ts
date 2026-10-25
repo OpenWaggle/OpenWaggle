@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 
-describe('Pi-native Sessions tool registration', () => {
+describe('Pi-native Hive tool registration', () => {
   let releaseGateway: (() => void) | undefined
   const temporaryRoots: string[] = []
 
@@ -42,8 +42,9 @@ describe('Pi-native Sessions tool registration', () => {
       }),
     )
 
-    expect(tool).toMatchObject({ name: 'sessions', executionMode: 'sequential' })
+    expect(tool).toMatchObject({ name: 'hive', label: 'Hive', executionMode: 'sequential' })
     expect(tool?.description).toContain('Queen Session')
+    expect(tool?.promptSnippet).toMatch(/^Use hive /)
     const controller = new AbortController()
     const result = await tool?.execute(
       'tool-call',

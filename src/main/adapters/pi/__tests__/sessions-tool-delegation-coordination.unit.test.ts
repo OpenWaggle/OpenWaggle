@@ -137,7 +137,7 @@ describe('Pi-native Sessions Delegation coordination', () => {
     ).toThrow('Delegation dependency IDs must be unique.')
   })
 
-  it('maps conflict discovery through the native Sessions tool', () => {
+  it('maps conflict discovery through the native Hive tool', () => {
     expect(
       buildSessionsToolPayload(
         {

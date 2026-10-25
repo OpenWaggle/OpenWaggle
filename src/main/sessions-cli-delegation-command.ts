@@ -7,15 +7,16 @@ import {
   delegationSpecification,
 } from './sessions-cli-delegation-input'
 
-const CONTENT_START = 4
-const SESSION_POSITION = 1
-const DELEGATION_POSITION = 2
-const REVISION_POSITION = 3
-const DEPENDENCY_ID_POSITION = 4
-const DEPENDENCY_STATE_POSITION = 5
-const DEPENDENCY_REASON_POSITION = 6
-const VERIFICATION_OUTCOME_POSITION = 4
-const VERIFICATION_SUMMARY_POSITION = 5
+/** Operands after `hive delegation-<action>`: the acting Session, the Delegation, then the rest. */
+const SESSION_POSITION = 0
+const DELEGATION_POSITION = 1
+const REVISION_POSITION = 2
+const CONTENT_START = 3
+const DEPENDENCY_ID_POSITION = 3
+const DEPENDENCY_STATE_POSITION = 4
+const DEPENDENCY_REASON_POSITION = 5
+const VERIFICATION_OUTCOME_POSITION = 3
+const VERIFICATION_SUMMARY_POSITION = 4
 
 function stateCommand(
   arguments_: ParsedArguments,
@@ -91,7 +92,7 @@ function nonReviewCommand(
   const contribution = contributionCommand(action, arguments_, sessionId, delegationId)
   if (contribution) return contribution
   if (action === 'dependency') return dependencyCommand(arguments_, sessionId, delegationId)
-  if (action === 'acknowledge-conflict') {
+  if (action === 'conflict-acknowledge') {
     return {
       operation: 'delegation-conflict-acknowledge' as const,
       sessionId,
@@ -189,8 +190,12 @@ function revisionCommand(
   throw new Error(`Unsupported Delegation action: ${action}.`)
 }
 
-export function delegationCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
-  const action = required(arguments_.positionals[0], 'Delegation action')
+/** One `hive delegation-<action>` command; `delegation-submit` is the tool's `delegation_submit`. */
+export function delegationCommand(
+  command: string,
+  arguments_: ParsedArguments,
+): SessionControlMutationCommand {
+  const action = command.slice('delegation-'.length)
   const sessionId = requiredSessionId(arguments_.positionals[SESSION_POSITION])
   const delegationId = required(arguments_.positionals[DELEGATION_POSITION], 'Delegation ID')
   if (action === 'submit') {

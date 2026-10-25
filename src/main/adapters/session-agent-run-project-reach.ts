@@ -69,7 +69,7 @@ export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: st
  * catalog-wide profile, or another agent whose Run passes this same check. Otherwise a caller
  * limited to one project could message a desktop Session and have it act in every project.
  *
- * Decided from durable rows only, so the Sessions tool and queued Follow-up delivery agree.
+ * Decided from durable rows only, so the Hive tool and queued Follow-up delivery agree.
  * Unreadable data, and initiator trees spanning more than eight other Sessions or 256 Runs, fail
  * closed.
  */

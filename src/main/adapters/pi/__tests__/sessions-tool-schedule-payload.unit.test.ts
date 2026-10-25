@@ -24,7 +24,7 @@ function scheduledCommand(input: SessionsToolParameters, from: typeof source | o
   return payload.request
 }
 
-describe('Sessions tool Scheduled task payloads', () => {
+describe('Hive tool Scheduled task payloads', () => {
   it('creates a Heartbeat for the calling Session by default', () => {
     const request = scheduledCommand({
       action: 'schedule_create',
@@ -127,7 +127,7 @@ describe('Sessions tool Scheduled task payloads', () => {
           schedule: { kind: 'daily', at: '25:00' },
         }),
       ),
-    ).toThrow('Invalid arguments for sessions action "schedule_create"')
+    ).toThrow('Invalid arguments for hive action "schedule_create"')
     expect(() =>
       assertSessionsToolActionArguments(
         fromAny({
@@ -137,9 +137,9 @@ describe('Sessions tool Scheduled task payloads', () => {
           scheduleKind: 'heartbeat',
         }),
       ),
-    ).toThrow('Invalid arguments for sessions action "schedule_create"')
+    ).toThrow('Invalid arguments for hive action "schedule_create"')
     expect(() => assertSessionsToolActionArguments(fromAny({ action: 'schedule_read' }))).toThrow(
-      'Invalid arguments for sessions action "schedule_read"',
+      'Invalid arguments for hive action "schedule_read"',
     )
   })
 
