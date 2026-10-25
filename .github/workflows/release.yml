@@ -671,6 +671,16 @@ jobs:
               spctl --assess --type execute --verbose "$app"
             fi
           done
+          # The DMG users download is signed, notarized and stapled itself, not only the app inside.
+          dmgs=(dist/*.dmg)
+          [ "${#dmgs[@]}" -eq 2 ]
+          for dmg in "${dmgs[@]}"; do
+            codesign --verify --strict --verbose=2 "$dmg"
+            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+              xcrun stapler validate "$dmg"
+              spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+            fi
+          done
 
       - name: Prepare macOS update channels
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac

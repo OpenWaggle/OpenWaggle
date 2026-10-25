@@ -106,7 +106,7 @@ One release line: merges prepare the next Stable version and the maintainer sets
 
 ## Platform trust
 
-- macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
+- macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. Both the apps and the DMGs are signed, notarized and stapled; the DMG notarization lives in `patches/dmg-builder@26.17.0.patch`, so re-create it when dmg-builder changes version. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
 - The first signed macOS build was `1.0.0-beta.1`; moving to it from an unsigned `0.x` build may need a one-time manual reinstall.
 - Windows signing is post-v1 (#49). Linux AppImage is not signed.
 

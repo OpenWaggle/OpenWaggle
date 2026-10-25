@@ -146,6 +146,11 @@ const config = {
     entitlementsInherit: 'build/entitlements.mac.plist',
     target: ['dmg', 'zip'],
   },
+  // Sign the DMG itself; the dmg-builder patch then notarizes and staples it (an unsigned build
+  // skips both). Before 1.0.0-rc.1 only the app inside the DMG was signed and notarized.
+  dmg: {
+    sign: true,
+  },
   win: {
     icon: icons.win,
     artifactName: '${name}-${version}-${arch}.${ext}',

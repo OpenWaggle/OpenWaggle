@@ -40,7 +40,7 @@ Platform trust for v1:
   unsigned; the release workflow refuses to build RC and Stable macOS artifacts without them. The
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
-  the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
+  the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
 - The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
   Apple's verdict, and `hdiutil` needs a working disk-image device to build the DMG.
   `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call

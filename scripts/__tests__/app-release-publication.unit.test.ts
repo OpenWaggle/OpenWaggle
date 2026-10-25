@@ -69,6 +69,18 @@ describe('desktop app release publication', () => {
     expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
   })
 
+  it('verifies that both DMGs are signed, notarized and stapled, not only the apps', () => {
+    const verify = WORKFLOW.slice(
+      WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
+      WORKFLOW.indexOf('name: Prepare macOS update channels'),
+    )
+    expect(verify).toContain('dmgs=(dist/*.dmg)')
+    expect(verify).toContain('[ "${#dmgs[@]}" -eq 2 ]')
+    expect(verify).toContain('codesign --verify --strict --verbose=2 "$dmg"')
+    expect(verify).toContain('xcrun stapler validate "$dmg"')
+    expect(verify).toContain('spctl --assess --type open --context context:primary-signature --verbose "$dmg"')
+  })
+
   it('refuses to build unsigned release candidate or Stable macOS artifacts', () => {
     const guard = WORKFLOW.indexOf('name: Require macOS signing for release candidates and Stable')
     const build = WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)')
