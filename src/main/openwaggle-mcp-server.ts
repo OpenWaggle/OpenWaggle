@@ -3,8 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { z } from 'zod'
-import { CliError } from './cli-error'
 import { routedCliStdoutStream } from './cli-stdout'
+import { refusedCredentialError } from './local-session-cli-client'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
@@ -14,7 +14,6 @@ import {
   registerOpenWaggleSessionToolV2,
 } from './openwaggle-mcp-session-tool-v2'
 import { openLocalSessionConnection } from './session-host/local-session-client-connection'
-import { LocalSessionHostUnavailableError } from './session-host/local-session-client-protocol-error'
 import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
 import {
   prepareLocalSessionHostPaths,
@@ -149,13 +148,9 @@ export async function verifyServeIdentity(options: OpenWaggleMcpServeOptions) {
     })
     opened.socket.destroy()
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause)
-    if (cause instanceof LocalSessionHostUnavailableError) throw cause
-    throw new CliError(
-      'authentication',
-      `The Session Host refused access profile ${JSON.stringify(identity.profile)}: ${reason} Check that the profile exists, is not revoked, and that its credential is current (openwaggle access profiles list).`,
-      { cause },
-    )
+    // Only a refused credential is the profile's fault; a Host that is starting, handing over,
+    // or slow keeps its own kind, as in the CLI.
+    throw refusedCredentialError({ profile: identity.profile }, cause)
   }
 }
 

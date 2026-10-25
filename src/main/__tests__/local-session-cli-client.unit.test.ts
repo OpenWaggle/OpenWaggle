@@ -48,9 +48,13 @@ import { CliError } from '../cli-error'
 import {
   createLocalSessionCliClientInput,
   prepareLocalSessionCliClientInput,
+  refusedCredentialError,
 } from '../local-session-cli-client'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
-import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionHostUnavailableError,
+} from '../session-host/local-session-client-protocol-error'
 
 describe('local Hive CLI client credentials', () => {
   beforeEach(() => {
@@ -164,5 +168,22 @@ describe('local Hive CLI client credentials', () => {
         'The Session Host refused the credential for access profile "helper" (Authentication failed.)',
       ),
     })
+  })
+
+  it('keeps a Host that is starting or slow its own kind instead of blaming the profile', async () => {
+    const unavailable = new LocalSessionHostUnavailableError(
+      'Timed out starting the Local Session Host.',
+    )
+    mocks.ensureHost.mockRejectedValueOnce(unavailable)
+
+    await expect(
+      createLocalSessionCliClientInput(parseMcpCliArguments(['--profile', 'helper'])),
+    ).rejects.toBe(unavailable)
+    expect(
+      refusedCredentialError(
+        { profile: 'helper' },
+        new LocalSessionClientProtocolError('host_draining', 'Stopping.'),
+      ),
+    ).toBeInstanceOf(LocalSessionClientProtocolError)
   })
 })

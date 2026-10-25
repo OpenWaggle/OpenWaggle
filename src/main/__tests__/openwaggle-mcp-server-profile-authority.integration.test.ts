@@ -47,7 +47,7 @@ describe('OpenWaggle MCP server named access profiles fail closed (#350)', () =>
   ])('refuses %s at startup and on every call', async (_label, profile, credential) => {
     const options = host.serveOptions({ identity: host.profileIdentity(profile, credential) })
     await expect(verifyServeIdentity(options)).rejects.toThrow(
-      `The Session Host refused access profile ${JSON.stringify(profile)}`,
+      `The Session Host refused the credential for access profile ${JSON.stringify(profile)}`,
     )
     const client = await host.connect(options)
     const result = await client.callTool({

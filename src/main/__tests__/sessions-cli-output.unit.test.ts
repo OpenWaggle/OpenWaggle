@@ -76,6 +76,11 @@ describe('Hive CLI output contract', () => {
       expect(classifySessionsCliError(new Error(message))).toBe('internal')
     }
     expect(classifySessionsCliError(new LocalSessionClientTimeoutError('slow'))).toBe('timeout')
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError('authentication_throttled', 'Throttled.'),
+      ),
+    ).toBe('authentication')
     expect(classifySessionsCliError(new LocalSessionHostUnavailableError('gone'))).toBe(
       'host_unavailable',
     )

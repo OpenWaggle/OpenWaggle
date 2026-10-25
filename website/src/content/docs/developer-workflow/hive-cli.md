@@ -67,10 +67,10 @@ Every `openwaggle` command reports a failure with one of these kinds and exits w
 | Kind | Exit code | Meaning |
 | --- | --- | --- |
 | `usage` | 2 | The command line cannot run as typed: an unknown option, a missing operand, a bad value. Nothing was sent to the Host. |
-| `authentication` | 3 | A credential is missing, unreadable, or refused, such as an unknown or revoked access profile, or a profile whose credential was rotated. |
+| `authentication` | 3 | A credential is missing, unreadable, or refused, such as an unknown or revoked access profile, or a profile whose credential was rotated; also while the Host throttles repeated failed attempts (retry later). |
 | `authorization` | 4 | The caller may not do this: a missing capability, a Session outside its scope (`target_scope_denied`), or an OpenWaggle agent using the CLI without a named profile. |
 | `not_found` | 5 | The Session, Delegation, or other target does not exist (`session_not_found`, `delegation_not_found`). |
-| `conflict` | 6 | The current state refuses it: a stale Run or queue revision, an existing credential destination without `--replace`, or a destination that changed after an idempotent operation. |
+| `conflict` | 6 | The current state refuses it: a stale Run or queue revision, an existing credential destination without `--replace`, a destination that changed after an idempotent operation, or another refusal the Host answers with a code this table does not name. |
 | `timeout` | 7 | A bounded wait ended without its condition. `hive wait` and `hive exports-wait` still print their response on stdout. |
 | `host_unavailable` | 8 | The Session Host cannot be reached, started, or spoken to. |
 | `internal` | 1 | Anything else, an unexpected failure. |

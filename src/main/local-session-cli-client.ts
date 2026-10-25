@@ -97,7 +97,10 @@ const REFUSED_CREDENTIAL_CODES = new Set([
  * A credential the Host refuses says which one it was, so a stale credential-store copy left
  * after `rotate --credential-file` is not just "authentication failed" (#351).
  */
-function refusedCredentialError(input: LocalSessionCliClientInput, cause: unknown) {
+export function refusedCredentialError(
+  input: Pick<LocalSessionCliClientInput, 'profile'>,
+  cause: unknown,
+) {
   if (
     !input.profile ||
     !(cause instanceof LocalSessionClientProtocolError) ||
