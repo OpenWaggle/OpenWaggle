@@ -1,9 +1,9 @@
 /**
  * electron-builder `files` exclusions for native prebuilds that can never load in the app being
- * packaged. onnxruntime-node, pi-tui, node-pty and better-sqlite3 ship binaries for every platform
- * and architecture and pick `<platform>-<arch>` at runtime, so the others are dead weight. Linux
- * also drops onnxruntime's CUDA and TensorRT providers (about 370 MB), which the CPU-only
- * embedding and voice pipelines never load.
+ * packaged. onnxruntime-node, pi-tui, node-pty (including its bundled ConPTY) and
+ * better-sqlite3 ship binaries for every platform and architecture and pick `<platform>-<arch>`
+ * at runtime, so the others are dead weight. Linux also drops onnxruntime's CUDA and TensorRT
+ * providers (about 370 MB), which the CPU-only embedding and voice pipelines never load.
  *
  * electron-builder expands `${arch}` per packaged architecture, so one macOS run that packages
  * arm64 and x64 keeps the right binary in each. `${platform}` is the host's `process.platform`:
@@ -27,5 +27,6 @@ export const FOREIGN_NATIVE_PREBUILD_EXCLUSIONS = [
   `!${PI_TUI_NATIVE}/!(${PLATFORM})${SELF_AND_CONTENTS}`,
   `!${PI_TUI_NATIVE}/${PLATFORM}/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
   `!node_modules/**/node-pty/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
+  `!node_modules/**/node-pty/third_party/conpty/*/!(win10-${ARCH})${SELF_AND_CONTENTS}`,
   `!node_modules/**/better-sqlite3/prebuilds/!(${TARGET}.node)`,
 ] as const

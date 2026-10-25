@@ -148,16 +148,20 @@ describe('macOS native platform floor', () => {
 })
 
 describe('Windows native platform floor', () => {
-  it('fails when an x64 PE requires a Windows newer than 10.0 and skips arm64 images', async () => {
+  it('fails when an x64 or x86 PE requires a Windows newer than 10.0 and skips arm64 images', async () => {
     const root = await tree({
       'OpenWaggle.exe': peImage({ osVersion: [6, 0], subsystemVersion: [10, 0] }),
       'resources/ok.node': peImage({ subsystemVersion: [6, 0] }),
       'resources/new.dll': peImage({ osVersion: [10, 1] }),
       'resources/arm64.node': peImage({ machine: PE_MACHINE.arm64, osVersion: [11, 0] }),
+      'resources/elevate.exe': peImage({ machine: PE_MACHINE.x86, subsystemVersion: [10, 2] }),
     })
     const report = await checkNativePlatformFloor(root, 'win32')
-    expect(report.violations).toEqual(['resources/new.dll needs Windows 10.1, above the supported 10.0'])
-    expect(report.checked).toBe(3)
+    expect(report.violations).toEqual([
+      'resources/elevate.exe needs Windows 10.2, above the supported 10.0',
+      'resources/new.dll needs Windows 10.1, above the supported 10.0',
+    ])
+    expect(report.checked).toBe(4)
     expect(report.skipped).toEqual(['resources/arm64.node (PE arm64)'])
   })
 })

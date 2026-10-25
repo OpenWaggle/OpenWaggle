@@ -97,8 +97,14 @@ function evaluateMacos(file: string, binary: NativeBinary, architectures: readon
   return { kind: 'checked', violations } satisfies Evaluation
 }
 
+/** x64 Windows runs x86 images too (electron-builder's `elevate.exe` is one), so they are checked. */
+function runsOnWindows(binary: NativeBinary, architectures: readonly BinaryArchitecture[]) {
+  if (binary.format !== 'pe') return false
+  return architectures.includes(binary.architecture) || (binary.architecture === 'x86' && architectures.includes('x64'))
+}
+
 function evaluateWindows(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
-  if (binary.format !== 'pe' || !architectures.includes(binary.architecture)) {
+  if (binary.format !== 'pe' || !runsOnWindows(binary, architectures)) {
     return { kind: 'skipped', label: skippedLabel(binary) } satisfies Evaluation
   }
   const supported = floor.windows.supportedVersion
