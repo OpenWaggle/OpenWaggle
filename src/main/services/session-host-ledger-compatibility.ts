@@ -31,6 +31,7 @@ import {
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
   SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
   SESSION_MCP_SWITCH_MIGRATION_ID,
+  SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
   SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
 
@@ -104,6 +105,10 @@ const currentIdentities = [
   { id: SESSION_ARCHIVE_TIME_MIGRATION_ID, name: 'session-archive-time' },
   { id: SCHEDULED_TASK_MIGRATION_ID, name: 'scheduled-tasks' },
   { id: HIVE_TOOL_NAME_MIGRATION_ID, name: 'hive-tool-name' },
+  {
+    id: SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
+    name: 'session-resource-docs-image-references',
+  },
 ]
 
 export interface MigrationIdentity {

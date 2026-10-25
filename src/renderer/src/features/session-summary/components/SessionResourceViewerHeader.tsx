@@ -13,18 +13,18 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { useUIStore } from '@/shell/ui-store'
 import {
   preferredResourceOccurrence,
   resolveResourceBranchName,
+  resourceOriginalPath,
   resourceProvenanceLabel,
   type SessionResourceBranchNames,
 } from '../model/session-resource-browser'
 import { type ImageViewerZoom, stepImageViewerZoom } from './SessionResourceViewerCanvas'
-
-const LOCAL_RESOURCE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u
 
 function provenance(
   resource: SessionResource,
@@ -75,11 +75,11 @@ function ResourceActions({
   readonly onCopy: () => void
   readonly onAddToChat: () => void
 }) {
-  const originalPath = locator && LOCAL_RESOURCE_PATH.test(locator) ? locator : null
-  const externalSource = locator?.startsWith('http') ? locator : null
+  const originalPath = resourceOriginalPath(resource, locator)
+  const externalSource = resource.available && locator?.startsWith('http') ? locator : null
   const showToast = useUIStore((state) => state.showToast)
   const reportFailure = (cause: unknown, fallback: string) => {
-    showToast(cause instanceof Error ? cause.message : fallback, 'error')
+    showToast(ipcFailureMessage(cause, fallback), 'error')
   }
   return (
     <div className="flex items-center gap-1">

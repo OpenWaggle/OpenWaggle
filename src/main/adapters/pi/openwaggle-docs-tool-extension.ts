@@ -1,5 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { OPENWAGGLE_DOCS_TOOL_NAME } from '@shared/constants/openwaggle-docs'
 import type { DocsDiscoveryView, DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
 import { type Static, type TSchema, Type } from 'typebox'
@@ -17,7 +18,6 @@ import {
 
 const logger = createLogger('openwaggle-docs-tool')
 
-export const OPENWAGGLE_DOCS_TOOL_NAME = 'openwaggle_docs'
 const BUNDLE_README = 'README.md'
 const BUNDLE_INDEX = 'index.json'
 const MAX_QUERY_LENGTH = 500

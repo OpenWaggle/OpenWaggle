@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
@@ -96,7 +97,7 @@ export function SessionEnvironmentActions({
   const [open, setOpen] = useState(false)
   const showToast = useUIStore((state) => state.showToast)
   const reportFailure = (cause: unknown, fallback: string) => {
-    showToast(cause instanceof Error ? cause.message : fallback, 'error')
+    showToast(ipcFailureMessage(cause, fallback), 'error')
   }
 
   return (

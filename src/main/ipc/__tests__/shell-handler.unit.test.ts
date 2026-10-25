@@ -1,6 +1,14 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import type { DesktopNativeRecoveryOutcome } from '@shared/types/openwaggle-desktop-api'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const fixtureRoot = mkdtempSync(path.join(os.tmpdir(), 'ow-shell-handler-'))
+const existingFile = path.join(fixtureRoot, 'image.png')
+writeFileSync(existingFile, 'png')
+const missingFile = path.join(fixtureRoot, 'hive-sessions.png')
 
 const mockShellOpenPath = vi.fn()
 const mockShellShowItemInFolder = vi.fn()
@@ -55,6 +63,8 @@ vi.mock('../../logger', () => ({
 import { registerShellHandlers } from '../shell-handler'
 
 describe('shell-handler', () => {
+  afterAll(() => rmSync(fixtureRoot, { recursive: true, force: true }))
+
   beforeEach(() => {
     handlers.clear()
     mockShellOpenPath.mockReset()
@@ -179,14 +189,34 @@ describe('shell-handler', () => {
       expect(mockShellOpenExternal).toHaveBeenCalledWith('http://localhost:3000')
     })
 
-    it('rejects disallowed URL protocols', async () => {
+    it('refuses a link that is not a web link, in words the user can act on', async () => {
       registerShellHandlers()
       const handler = handlers.get('shell:open-external')
 
       await expect(handler?.({}, 'file:///etc/passwd')).rejects.toThrow(
-        'Disallowed URL protocol: file:',
+        'OpenWaggle opens only http and https links in your browser.',
       )
       expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    })
+
+    it('refuses a malformed link without the parser error', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-external')
+
+      await expect(handler?.({}, '/screenshots/hive-sessions.png')).rejects.toThrow(
+        /^This link is not a valid web address\.$/u,
+      )
+      expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    })
+
+    it('says the browser could not open the link when the system refuses it', async () => {
+      mockShellOpenExternal.mockRejectedValueOnce(new Error('LSOpenURLsWithRole() failed'))
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-external')
+
+      await expect(handler?.({}, 'https://openwaggle.ai')).rejects.toThrow(
+        /^Couldn't open the link in your browser\.$/u,
+      )
     })
   })
 
@@ -196,25 +226,35 @@ describe('shell-handler', () => {
       const handler = handlers.get('shell:open-path')
       expect(handler).toBeDefined()
 
-      await handler?.({}, '/tmp/project')
-      expect(mockShellOpenPath).toHaveBeenCalledWith('/tmp/project')
+      await handler?.({}, fixtureRoot)
+      expect(mockShellOpenPath).toHaveBeenCalledWith(fixtureRoot)
     })
 
     it('rejects empty paths', async () => {
       registerShellHandlers()
       const handler = handlers.get('shell:open-path')
 
-      await expect(handler?.({}, '  ')).rejects.toThrow('Path is required.')
+      await expect(handler?.({}, '  ')).rejects.toThrow('There is no file to open.')
       expect(mockShellOpenPath).not.toHaveBeenCalled()
     })
 
-    it('rejects shell.openPath failures', async () => {
-      mockShellOpenPath.mockResolvedValueOnce('No application can open the file')
+    it('says a missing file is gone instead of opening nothing', async () => {
       registerShellHandlers()
       const handler = handlers.get('shell:open-path')
 
-      await expect(handler?.({}, '/tmp/project')).rejects.toThrow(
-        'No application can open the file',
+      await expect(handler?.({}, missingFile)).rejects.toThrow(
+        /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u,
+      )
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+    })
+
+    it("maps shell.openPath's own failure to a message for the user", async () => {
+      mockShellOpenPath.mockResolvedValueOnce('Failed to open path')
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-path')
+
+      await expect(handler?.({}, existingFile)).rejects.toThrow(
+        /^Couldn't open image\.png\. No app on this computer opened it\.$/u,
       )
     })
   })
@@ -225,16 +265,26 @@ describe('shell-handler', () => {
       const handler = handlers.get('shell:reveal-path')
       expect(handler).toBeDefined()
 
-      await handler?.({}, '  /tmp/image.png  ')
+      await handler?.({}, `  ${existingFile}  `)
 
-      expect(mockShellShowItemInFolder).toHaveBeenCalledWith('/tmp/image.png')
+      expect(mockShellShowItemInFolder).toHaveBeenCalledWith(existingFile)
     })
 
     it('rejects empty paths', async () => {
       registerShellHandlers()
       const handler = handlers.get('shell:reveal-path')
 
-      await expect(handler?.({}, '  ')).rejects.toThrow('Path is required.')
+      await expect(handler?.({}, '  ')).rejects.toThrow('There is no file to reveal.')
+      expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
+    })
+
+    it('says a missing file is gone instead of revealing nothing', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:reveal-path')
+
+      await expect(handler?.({}, missingFile)).rejects.toThrow(
+        /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u,
+      )
       expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
     })
   })
