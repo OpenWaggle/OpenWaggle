@@ -269,12 +269,15 @@ async function readFatMachO(source: ByteSource, magic: number): Promise<NativeBi
 }
 
 async function readPe(source: ByteSource): Promise<NativeBinary | null> {
+  // Shorter than a DOS header: an unrelated file that happens to start with "MZ".
   if (source.size < PE.LFANEW_OFFSET + MAGIC_BYTES) return null
   const dosHeader = await readExactly(source, 0, PE.LFANEW_OFFSET + MAGIC_BYTES, 'the DOS header')
   const peOffset = dosHeader.readUInt32LE(PE.LFANEW_OFFSET)
-  if (peOffset + PE.OPTIONAL_HEADER + PE.OPTIONAL_FIELDS_END > source.size) return null
+  const signature = await readExactly(source, peOffset, MAGIC_BYTES, 'the PE signature')
+  // A DOS-only executable has no PE header and no Windows version to check.
+  if (signature.readUInt32BE(0) !== PE.SIGNATURE) return null
+  // A PE signature followed by a truncated header throws, so the guard fails closed.
   const header = await readExactly(source, peOffset, PE.OPTIONAL_HEADER + PE.OPTIONAL_FIELDS_END, 'the PE header')
-  if (header.readUInt32BE(0) !== PE.SIGNATURE) return null
   const optional = PE.OPTIONAL_HEADER
   const osVersion = `${header.readUInt16LE(optional + PE.OS_MAJOR)}.${header.readUInt16LE(optional + PE.OS_MINOR)}`
   const subsystemVersion = `${header.readUInt16LE(optional + PE.SUBSYSTEM_MAJOR)}.${header.readUInt16LE(optional + PE.SUBSYSTEM_MINOR)}`

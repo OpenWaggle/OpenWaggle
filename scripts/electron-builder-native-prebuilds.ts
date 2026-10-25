@@ -20,13 +20,27 @@ const ONNXRUNTIME_BIN = 'node_modules/**/onnxruntime-node/bin/napi-v6'
 const PI_TUI_NATIVE = 'node_modules/**/@earendil-works/pi-tui/native'
 const TARGET = `${PLATFORM}-${ARCH}`
 
-export const FOREIGN_NATIVE_PREBUILD_EXCLUSIONS = [
-  `!${ONNXRUNTIME_BIN}/!(${PLATFORM})${SELF_AND_CONTENTS}`,
-  `!${ONNXRUNTIME_BIN}/${PLATFORM}/!(${ARCH})${SELF_AND_CONTENTS}`,
-  `!${ONNXRUNTIME_BIN}/linux/*/libonnxruntime_providers_{cuda,tensorrt}.so`,
-  `!${PI_TUI_NATIVE}/!(${PLATFORM})${SELF_AND_CONTENTS}`,
-  `!${PI_TUI_NATIVE}/${PLATFORM}/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
-  `!node_modules/**/node-pty/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
-  `!node_modules/**/node-pty/third_party/conpty/*/!(win10-${ARCH})${SELF_AND_CONTENTS}`,
-  `!node_modules/**/better-sqlite3/prebuilds/!(${TARGET}.node)`,
-] as const
+const NODE_PTY_CONPTY = 'node_modules/**/node-pty/third_party/conpty'
+
+/**
+ * node-pty's bundled ConPTY is Windows-only, so a Windows pack keeps its own architecture and every
+ * other pack drops it. Keyed on the host like `${platform}`.
+ */
+function conptyExclusion(hostPlatform: NodeJS.Platform) {
+  return hostPlatform === 'win32'
+    ? `!${NODE_PTY_CONPTY}/*/!(win10-${ARCH})${SELF_AND_CONTENTS}`
+    : `!${NODE_PTY_CONPTY}${SELF_AND_CONTENTS}`
+}
+
+export function foreignNativePrebuildExclusions(hostPlatform: NodeJS.Platform = process.platform) {
+  return [
+    `!${ONNXRUNTIME_BIN}/!(${PLATFORM})${SELF_AND_CONTENTS}`,
+    `!${ONNXRUNTIME_BIN}/${PLATFORM}/!(${ARCH})${SELF_AND_CONTENTS}`,
+    `!${ONNXRUNTIME_BIN}/linux/*/libonnxruntime_providers_{cuda,tensorrt}.so`,
+    `!${PI_TUI_NATIVE}/!(${PLATFORM})${SELF_AND_CONTENTS}`,
+    `!${PI_TUI_NATIVE}/${PLATFORM}/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
+    `!node_modules/**/node-pty/prebuilds/!(${TARGET})${SELF_AND_CONTENTS}`,
+    conptyExclusion(hostPlatform),
+    `!node_modules/**/better-sqlite3/prebuilds/!(${TARGET}.node)`,
+  ]
+}

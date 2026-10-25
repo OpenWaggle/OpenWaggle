@@ -9,7 +9,7 @@ import {
   forceIncludePiPackageAsset,
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
-import { FOREIGN_NATIVE_PREBUILD_EXCLUSIONS } from './scripts/electron-builder-native-prebuilds'
+import { foreignNativePrebuildExclusions } from './scripts/electron-builder-native-prebuilds'
 import { resolveMacSigning } from './scripts/mac-signing'
 import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
 
@@ -118,7 +118,7 @@ const config = {
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
     // Native prebuilds for other platforms and architectures (scripts/electron-builder-native-prebuilds.ts).
-    ...FOREIGN_NATIVE_PREBUILD_EXCLUSIONS,
+    ...foreignNativePrebuildExclusions(),
   ],
   extraResources: [
     // Ship the channel icon as the runtime icon resource so the Windows/Linux

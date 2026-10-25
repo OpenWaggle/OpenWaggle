@@ -127,6 +127,15 @@ describe('readNativeBinary', () => {
     })
   })
 
+  it('fails closed on a PE whose header is truncated or whose PE offset is out of range', async () => {
+    const truncated = peImage({}).subarray(0, 0x80 + 30)
+    await expect(read(truncated)).rejects.toThrow(/PE header/u)
+    const outOfRange = Buffer.alloc(0x100)
+    outOfRange.write('MZ', 0, 'latin1')
+    outOfRange.writeUInt32LE(0x1000, 0x3c)
+    await expect(read(outOfRange)).rejects.toThrow(/PE signature/u)
+  })
+
   it('ignores an MZ file without a PE signature', async () => {
     const dosOnly = Buffer.alloc(0x100)
     dosOnly.write('MZ', 0, 'latin1')
