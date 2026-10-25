@@ -5,8 +5,7 @@ import { TIME_UNIT } from '@shared/constants/time'
 import type { Logger, LogLevel } from '@shared/types/logger'
 import { logLevel as configuredLogLevel } from './env'
 
-const SLICE_ARG_1 = 11
-const SLICE_ARG_2 = 23
+const ISO_TIME_START = 11
 const SLICE_ARG_2_VALUE_10 = 10
 const FILE_LOGGER_FALLBACK_PREFIX = '[file-logger]'
 
@@ -34,8 +33,16 @@ function safeSerialize(data: object) {
   }
 }
 
+/**
+ * `HH:mm:ss.mmmZ`: UTC, as the date in the log file's name is. The `Z` says so; without it a
+ * reader in another zone took the times for local ones (#357).
+ */
+function lineTimestamp() {
+  return new Date().toISOString().slice(ISO_TIME_START)
+}
+
 function formatLine(entry: LogEntry) {
-  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  const ts = lineTimestamp()
   if (entry.data && Object.keys(entry.data).length > 0) {
     return `${ts} [${entry.namespace}] ${entry.message} ${safeSerialize(entry.data)}`
   }
@@ -47,7 +54,7 @@ function isLevelEnabled(level: LogLevel) {
 }
 
 function writeToConsole(entry: LogEntry) {
-  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  const ts = lineTimestamp()
   const prefix = `${ts} [${entry.namespace}] ${entry.message}`
   const consoleMethod = {
     debug: console.debug,

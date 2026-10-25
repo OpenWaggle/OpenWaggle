@@ -51,6 +51,22 @@ describe('file logger', () => {
     expect(content).toContain('"key":"val"')
   })
 
+  it('stamps each line with its UTC time and a Z, matching the UTC date of the file', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T16:54:22.855Z'))
+    await initFileLogger(mockLogsDir, 'openwaggle-host')
+    createLogger('host').info('zoned line')
+    const consoleLine = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    createLogger('host').info('console line')
+
+    await drainFileLogger()
+    vi.useRealTimers()
+
+    expect(getLogFilePath()).toBe(path.join(mockLogsDir, 'openwaggle-host-2026-10-25.log'))
+    expect(fs.readFileSync(getLogFilePath(), 'utf8')).toContain('16:54:22.855Z [host] zoned line\n')
+    expect(consoleLine).toHaveBeenCalledWith('16:54:22.855Z [host] console line')
+  })
+
   it('does not write to file before initFileLogger is called', async () => {
     const logger = createLogger('test')
     logger.info('should be console only')

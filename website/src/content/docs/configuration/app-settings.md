@@ -185,4 +185,6 @@ Sidebar sort order, collapsed projects, and the Pinned section's sort are rememb
 | Windows | `%APPDATA%\OpenWaggle\logs\` |
 | Linux | `~/.config/OpenWaggle/logs/` |
 
+The desktop app writes `openwaggle-YYYY-MM-DD.log` there. The background session service, which runs agent work, writes `openwaggle-host-YYYY-MM-DD.log` to the `logs` folder in OpenWaggle's app data folder, beside its `session-host` folder. Each line starts with its time in UTC, such as `16:54:22.855Z`, and the date in the file name is the UTC date too.
+
 The error display can open the logs directory when agent work fails. Review logs for secrets and private project details before sharing them.
