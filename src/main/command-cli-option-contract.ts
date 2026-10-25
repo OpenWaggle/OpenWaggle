@@ -1,3 +1,4 @@
+import { CliError } from './cli-error'
 import type { ParsedArguments } from './mcp-cli-arguments'
 
 interface CommandCliOptionContractInput {
@@ -27,7 +28,8 @@ function optionList(names: readonly string[]) {
 /** Rejects ignored CLI input before a command can perform filesystem or Host side effects. */
 export function validateCommandCliOptions(input: CommandCliOptionContractInput) {
   const specific = input.optionsByRoute[input.route]
-  if (!specific) throw new Error(`Unsupported ${input.surface} command: ${input.route}.`)
+  if (!specific)
+    throw new CommandCliUsageError(`Unsupported ${input.surface} command: ${input.route}.`)
 
   const common = input.commonOptions ?? []
   const allowed = new Set([...specific, ...common])
@@ -35,14 +37,14 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
   const provided = [...input.arguments.options.keys()]
   const unknown = provided.filter((name) => !known.has(name)).sort()
   if (unknown.length > 0) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Unknown option${unknown.length === 1 ? '' : 's'} for ${input.surface}: ${optionList(unknown)}.`,
     )
   }
 
   const unsupported = provided.filter((name) => !allowed.has(name)).sort()
   if (unsupported.length > 0) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Unsupported option${unsupported.length === 1 ? '' : 's'} for ${input.surface} ${input.route}: ${optionList(unsupported)}.`,
     )
   }
@@ -53,7 +55,8 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
       !booleans.has(name) && values.some((value) => value === 'true') ? [name] : [],
     )
     .sort()
-  if (missing.length > 0) throw new Error(`Missing value for ${optionList(missing)}.`)
+  if (missing.length > 0)
+    throw new CommandCliUsageError(`Missing value for ${optionList(missing)}.`)
 
   const valuedBooleans = [...input.arguments.options.entries()]
     .flatMap(([name, values]) =>
@@ -61,12 +64,12 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
     )
     .sort()
   if (valuedBooleans.length > 0) {
-    throw new Error(`${optionList(valuedBooleans)} do not accept values.`)
+    throw new CommandCliUsageError(`${optionList(valuedBooleans)} do not accept values.`)
   }
 
   const argumentContract = input.argumentsByRoute?.[input.route]
   if (input.argumentsByRoute && !argumentContract) {
-    throw new Error(`Unsupported ${input.surface} command: ${input.route}.`)
+    throw new CommandCliUsageError(`Unsupported ${input.surface} command: ${input.route}.`)
   }
   if (argumentContract) {
     validateCommandCliArguments(input.surface, input.route, input.arguments, argumentContract)
@@ -81,14 +84,14 @@ export function validateCommandCliArguments(
   contract: CommandCliArgumentContract,
 ) {
   if (!contract.allowPassthrough && arguments_.passthrough.length > 0) {
-    throw new Error(`${surface} ${route} does not accept arguments after --.`)
+    throw new CommandCliUsageError(`${surface} ${route} does not accept arguments after --.`)
   }
   const count = arguments_.positionals.length
   if (count < contract.minimum) {
-    throw new Error(`${surface} ${route} requires more positional arguments.`)
+    throw new CommandCliUsageError(`${surface} ${route} requires more positional arguments.`)
   }
   if (contract.maximum !== undefined && count > contract.maximum) {
-    throw new Error(`${surface} ${route} received unexpected positional arguments.`)
+    throw new CommandCliUsageError(`${surface} ${route} received unexpected positional arguments.`)
   }
 }
 
@@ -98,27 +101,20 @@ export function validateImplicitCliHelp(surface: string, arguments_: ParsedArgum
   const passthrough = arguments_.passthrough.length > 0 ? ['--'] : []
   const provided = [...options, ...passthrough]
   if (provided.length === 0) return
-  throw new Error(
+  throw new CommandCliUsageError(
     `Unsupported option-only invocation for ${surface}: ${provided.join(', ')}. Specify a command or use help.`,
   )
 }
 
 /** A command line that cannot be run as typed; the CLI reports it as a usage error. */
-export class CommandCliUsageError extends Error {
+export class CommandCliUsageError extends CliError {
   override readonly name = 'CommandCliUsageError'
+
+  constructor(message: string, options?: ErrorOptions) {
+    super('usage', message, options)
+  }
 }
 
 export function isCommandCliUsageError(error: unknown) {
-  if (!(error instanceof Error)) return false
-  if (error instanceof CommandCliUsageError) return true
-  return [
-    'Unknown option',
-    'Unsupported option',
-    'Unsupported OpenWaggle',
-    'Missing value',
-    'do not accept values',
-    'requires more positional arguments',
-    'received unexpected positional arguments',
-    'does not accept arguments after --',
-  ].some((fragment) => error.message.includes(fragment))
+  return error instanceof CliError && error.kind === 'usage'
 }

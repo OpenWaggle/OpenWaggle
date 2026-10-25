@@ -1,6 +1,8 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { sessionIdFromReference } from '@shared/utils/session-link'
+import { CliError } from './cli-error'
 import { env } from './env'
 import { assertCliAgentMayUseOwnerAuthority } from './local-session-cli-client'
 import {
@@ -69,7 +71,11 @@ export function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) 
           authorizationCeiling: serveAuthorizationCeiling(arguments_),
         }
       : { kind: 'profile', profile, ...(credentialFile ? { credentialFile } : {}) }
-  if (identity.kind === 'owner') assertCliAgentMayUseOwnerAuthority('--owner')
+  if (identity.kind === 'owner') {
+    assertCliAgentMayUseOwnerAuthority(
+      'OpenWaggle agents cannot use --owner: use the native Hive tool or --profile <name>.',
+    )
+  }
   return { identity, originSessionId: parseOriginSession(arguments_) }
 }
 
@@ -92,8 +98,15 @@ export async function resolveServeIdentity(
   userDataRoot: string,
 ): Promise<OpenWaggleMcpServeIdentity> {
   if (identity.kind === 'owner') return identity
-  const credential = identity.credentialFile
-    ? await readProfileCredentialFile(identity.credentialFile)
+  const credentialFile = identity.credentialFile
+  const credential = credentialFile
+    ? await readProfileCredentialFile(credentialFile).catch((cause: unknown) => {
+        throw new CliError(
+          'authentication',
+          `Could not read the credential for access profile ${JSON.stringify(identity.profile)} from ${JSON.stringify(credentialFile)}: ${formatErrorMessage(cause)}`,
+          { cause },
+        )
+      })
     : await readStoredProfileCredential({
         stateRoot: (
           await prepareLocalSessionHostPaths(resolveLocalSessionHostPaths({ userDataRoot }))

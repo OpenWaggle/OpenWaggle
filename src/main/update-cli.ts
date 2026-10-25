@@ -6,6 +6,7 @@ import {
 } from '@shared/types/update-channel'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { CliError, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { isDesktopAppRunning } from './desktop-instance-probe'
 import { stopHostForUpdate } from './host-cli'
@@ -244,7 +245,10 @@ async function readAndUpdateChannel(
 ) {
   // The command offers the revisions it can be sent at (`supportedRevisionsForCommand`): a Host
   // accepts only its current one, so pinning the revision that introduced it failed the handshake.
-  const client = await createLocalSessionCliClientInput(parsed)
+  const client = await createLocalSessionCliClientInput(parsed, {
+    agentRefusal:
+      'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.',
+  })
   const result = await executeLocalSessionCommand({
     ...client,
     payload: requested
@@ -286,7 +290,12 @@ export async function runUpdateCli(args: readonly string[]) {
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
     return {
-      exitCode: error instanceof UpdateCliUsageError ? EXIT.USAGE : EXIT.FAILURE,
+      exitCode:
+        error instanceof UpdateCliUsageError
+          ? EXIT.USAGE
+          : error instanceof CliError
+            ? cliExitCodeForKind(error.kind)
+            : EXIT.FAILURE,
       updaterOwnsExit: false,
     }
   }

@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app } from 'electron'
+import { asUsageErrorsSync, CLI_EXIT, cliExitCodeForKind } from './cli-error'
 import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
 import {
@@ -23,8 +24,9 @@ import {
   serveOpenWaggleMcpServer,
 } from './openwaggle-mcp-server'
 import { canonicalizeExistingProjectPath } from './openwaggle-mcp-workspace-policy'
+import { writeSessionsCliError } from './sessions-cli-output'
 
-const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2, NOT_FOUND: 3, POLICY: 4 } as const
+const EXIT = CLI_EXIT
 
 function usage() {
   return `OpenWaggle MCP
@@ -123,7 +125,8 @@ function parseServeTransport(arguments_: ParsedArguments) {
   return { stdio, http, httpPort: http === undefined ? undefined : Number(http) }
 }
 
-async function runServeCommand(arguments_: ParsedArguments) {
+/** Everything `serve` reads from its command line; what it rejects is a usage error. */
+function readServeCommand(arguments_: ParsedArguments) {
   const { stdio, http, httpPort } = parseServeTransport(arguments_)
   const { identity, originSessionId } = parseServeIdentity(arguments_, stdio)
   const scope = requireServeScope(arguments_)
@@ -133,24 +136,40 @@ async function runServeCommand(arguments_: ParsedArguments) {
       `Server mode requires at least one --grant <capability>; without one every operation would be refused. Supported grants: ${OPENWAGGLE_MCP_SERVE_GRANTS.join(', ')}.`,
     )
   }
-  const userDataRoot = app.getPath('userData')
-  await serveOpenWaggleMcpServer({
-    transport: stdio ? 'stdio' : 'streamable-http',
-    ...(httpPort === undefined ? {} : { httpPort }),
-    ...(http ? { bearerToken: await readSecretFromStdin() } : {}),
+  const roots = (name: string) =>
+    (arguments_.options.get(name) ?? []).map((entry) =>
+      canonicalizeExistingProjectPath(path.resolve(entry)),
+    )
+  return {
+    stdio,
+    http,
+    httpPort,
+    identity,
+    originSessionId,
     grants,
+    sessions: scope.sessions,
     workspaceRoots: scope.workspaces.map((entry) =>
       canonicalizeExistingProjectPath(path.resolve(entry)),
     ),
-    exportRoots: (arguments_.options.get('export-root') ?? []).map((entry) =>
-      canonicalizeExistingProjectPath(path.resolve(entry)),
-    ),
-    attachmentRoots: (arguments_.options.get('attachment-root') ?? []).map((entry) =>
-      canonicalizeExistingProjectPath(path.resolve(entry)),
-    ),
-    sessionIds: new Set(scope.sessions),
-    ...(originSessionId ? { originSessionId } : {}),
-    identity: await resolveServeIdentity(identity, userDataRoot),
+    exportRoots: roots('export-root'),
+    attachmentRoots: roots('attachment-root'),
+  }
+}
+
+async function runServeCommand(arguments_: ParsedArguments) {
+  const command = asUsageErrorsSync(() => readServeCommand(arguments_))
+  const userDataRoot = app.getPath('userData')
+  await serveOpenWaggleMcpServer({
+    transport: command.stdio ? 'stdio' : 'streamable-http',
+    ...(command.httpPort === undefined ? {} : { httpPort: command.httpPort }),
+    ...(command.http ? { bearerToken: await readSecretFromStdin() } : {}),
+    grants: command.grants,
+    workspaceRoots: command.workspaceRoots,
+    exportRoots: command.exportRoots,
+    attachmentRoots: command.attachmentRoots,
+    sessionIds: new Set(command.sessions),
+    ...(command.originSessionId ? { originSessionId: command.originSessionId } : {}),
+    identity: await resolveServeIdentity(command.identity, userDataRoot),
     userDataRoot,
     version: app.getVersion(),
     stderr: process.stderr,
@@ -159,27 +178,6 @@ async function runServeCommand(arguments_: ParsedArguments) {
 
 function writeOutput(value: unknown, json: boolean) {
   return writeCliStdout(`${formatMcpCliOutput(value, json)}\n`)
-}
-
-function writeError(error: unknown, json: boolean) {
-  const message = error instanceof Error ? error.message : String(error)
-  process.stderr.write(
-    `${json ? JSON.stringify({ schemaVersion: 1, error: { message } }) : `error: ${message}`}\n`,
-  )
-}
-
-function exitCodeForError(message: string) {
-  if (message.includes('was not found')) return EXIT.NOT_FOUND
-  const usagePrefixes = [
-    'Usage:',
-    'Unknown option',
-    'Unsupported MCP command',
-    'MCP ',
-    'Missing value',
-  ]
-  if (usagePrefixes.some((prefix) => message.startsWith(prefix))) return EXIT.USAGE
-  if (message.includes('require')) return EXIT.POLICY
-  return EXIT.FAILURE
 }
 
 /** The usage text a help request asks for, after validating it, or undefined to run serve. */
@@ -237,7 +235,7 @@ export async function runMcpCli(args: readonly string[]) {
   const commandArguments = { ...parsed, positionals: parsed.positionals.slice(1) }
   const json = hasFlag(parsed, 'json')
   try {
-    const help = helpText(command, parsed, commandArguments)
+    const help = asUsageErrorsSync(() => helpText(command, parsed, commandArguments))
     if (help !== undefined) {
       await writeOutput(help, false)
       return EXIT.SUCCESS
@@ -245,9 +243,7 @@ export async function runMcpCli(args: readonly string[]) {
     await runServeCommand(commandArguments)
     return EXIT.SUCCESS
   } catch (error) {
-    writeError(error, command === 'serve' ? false : json)
-    const message = error instanceof Error ? error.message : String(error)
-    return exitCodeForError(message)
+    return cliExitCodeForKind(writeSessionsCliError(error, command === 'serve' ? false : json))
   }
 }
 

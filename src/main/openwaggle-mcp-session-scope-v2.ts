@@ -127,12 +127,18 @@ function projectPathFromReadResult(read: unknown) {
   return session.projectPath
 }
 
-async function sessionIdAllowed(
+function readFoundSession(read: unknown) {
+  const outcome = resultOutcome(read)
+  return !(typeof outcome === 'object' && outcome !== null && 'error' in outcome)
+}
+
+/** Whether a Session is in the server's scope, outside it, or unknown to the caller. */
+async function sessionScopeOf(
   options: OpenWaggleMcpServeOptions,
   execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
   sessionId: string,
-) {
-  if (options.sessionIds.has(sessionId)) return true
+): Promise<'allowed' | 'outside' | 'missing'> {
+  if (options.sessionIds.has(sessionId)) return 'allowed'
   const read = await execute({
     contract: 'session-query-v2',
     request: {
@@ -141,11 +147,14 @@ async function sessionIdAllowed(
       query: { operation: 'read', sessionId },
     },
   })
+  if (!readFoundSession(read)) return 'missing'
   const projectPath = projectPathFromReadResult(read)
   return mcpSessionPathAllowed(
     options.workspaceRoots,
     typeof projectPath === 'string' ? projectPath : null,
   )
+    ? 'allowed'
+    : 'outside'
 }
 
 export async function filterMcpSessionQueryResult(
@@ -190,8 +199,14 @@ export async function prepareMcpSessionTargetScope(
         )
       : directTarget(payload)
   for (const sessionId of Array.isArray(targets) ? targets : targets ? [targets] : []) {
-    if (await sessionIdAllowed(options, execute, sessionId)) continue
-    throw new Error(`Session ${JSON.stringify(sessionId)} was not found in the granted scope.`)
+    const scope = await sessionScopeOf(options, execute, sessionId)
+    if (scope === 'allowed') continue
+    // The same codes the Session Host answers with, first in the message (#351).
+    throw new Error(
+      scope === 'missing'
+        ? `session_not_found: Session ${JSON.stringify(sessionId)} was not found.`
+        : `target_scope_denied: Session ${JSON.stringify(sessionId)} is outside this server's --workspace and --session scope.`,
+    )
   }
   return payload
 }

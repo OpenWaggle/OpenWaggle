@@ -24,6 +24,7 @@ const BOOLEAN_OPTIONS = new Set([
   'include-archived',
   'include-bodies',
   'include-queue-bodies',
+  'include-revoked',
   'json',
   'jsonl',
   'owner',

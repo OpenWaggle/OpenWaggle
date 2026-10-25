@@ -124,10 +124,10 @@ Search by meaning needs an additional background index. It can report `preparing
 
 ## Command errors
 
-With `--json`, failures write this shape to standard error:
+With `--json`, results use the same envelope as the [Hive CLI](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes), `{"schemaVersion":1,"type":"response","command":"recovery status","result":...}` on standard output, and failures write this shape to standard error:
 
 ```json
-{"schemaVersion":1,"error":{"message":"..."}}
+{"schemaVersion":1,"type":"error","error":{"kind":"usage","message":"..."}}
 ```
 
-This includes invalid options, missing `--yes`, ownership conflicts, and filesystem or migration errors. Usage errors exit with code `2`; other failures exit with code `1`. Read the message before retrying, especially when it names a database or recovery path.
+This includes invalid options, missing `--yes`, ownership conflicts, and filesystem or migration errors. Without `--json`, a failure prints `error [<kind>]: <message>`. Usage errors, including a missing `--yes`, exit with code `2`; other failures exit with the code of their kind, `1` for most. Read the message before retrying, especially when it names a database or recovery path.

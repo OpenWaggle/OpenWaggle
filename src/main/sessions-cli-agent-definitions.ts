@@ -6,8 +6,14 @@ import {
 import { listAgentDefinitions, searchAgentDefinitions } from './agents/agent-definition-catalog'
 import { agentDefinitionsProjectPath } from './agents-cli-options'
 import { compactAgentCatalog, writeAgentsCliCatalog } from './agents-cli-output'
+import { asUsageErrorsSync } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
-import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
+import { env } from './env'
+import {
+  createLocalSessionCliClientInput,
+  prepareLocalSessionCliClientInput,
+} from './local-session-cli-client'
+import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import { SESSION_CLI_EXIT as EXIT } from './session-cli-exit-status'
 import { required } from './sessions-cli-arguments'
 import { sessionsCliResponseText } from './sessions-cli-output'
@@ -17,6 +23,18 @@ export interface AgentDefinitionDiscoveryIo {
   readonly home?: string
   readonly stdout?: (value: string) => void | Promise<void>
   readonly resolveProject?: AgentDefinitionProjectResolver
+  /** Checks the caller as every Hive command does; replaced in tests. */
+  readonly verifyCaller?: (arguments_: ParsedArguments) => Promise<unknown>
+}
+
+/**
+ * Discovery reads files in this process, but it is a Hive command: an agent Run without a named
+ * profile is refused as everywhere else, and a named profile must authenticate (#351).
+ */
+function verifyDiscoveryCaller(arguments_: ParsedArguments) {
+  return option(arguments_, 'profile') !== undefined || env.OPENWAGGLE_PROFILE !== undefined
+    ? createLocalSessionCliClientInput(arguments_)
+    : prepareLocalSessionCliClientInput(arguments_)
 }
 
 /**
@@ -31,7 +49,9 @@ export async function runAgentDefinitionDiscoveryCommand(
   arguments_: ParsedArguments,
   io: AgentDefinitionDiscoveryIo = {},
 ) {
-  // From a managed worktree or a subdirectory, read the project root, as spawn and launch do.
+  await (io.verifyCaller ?? verifyDiscoveryCaller)(arguments_)
+  // A managed worktree, or a folder inside one, reads its Session's project; any other folder is
+  // read as its own project, as launch takes it.
   const { projectPath, enabledByName } = await (io.resolveProject ?? resolveAgentDefinitionProject)(
     agentDefinitionsProjectPath(arguments_, io.cwd ?? process.cwd()),
   )
@@ -42,7 +62,9 @@ export async function runAgentDefinitionDiscoveryCommand(
       ? await searchAgentDefinitions({
           projectPath,
           userHome,
-          query: required(arguments_.positionals.join(' '), 'Search query'),
+          query: asUsageErrorsSync(() =>
+            required(arguments_.positionals.join(' '), 'Search query'),
+          ),
         })
       : await listAgentDefinitions({ projectPath, userHome })
   const definitions = compactAgentCatalog(

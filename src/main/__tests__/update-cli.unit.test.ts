@@ -131,7 +131,9 @@ describe('update CLI', () => {
     })
 
     // No pinned revision: the command offers those it can be sent at, the Host's current one.
-    expect(createClientMock).toHaveBeenCalledWith(expect.anything())
+    expect(createClientMock).toHaveBeenCalledWith(expect.anything(), {
+      agentRefusal: expect.stringContaining('Ask the user to run openwaggle update'),
+    })
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.not.objectContaining({ supportedRevisions: expect.anything() }),
     )

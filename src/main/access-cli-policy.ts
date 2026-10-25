@@ -8,6 +8,7 @@ import type {
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { resolveCliProjectPaths } from './cli-project-path'
+import { CommandCliUsageError } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { hasFlag, option } from './mcp-cli-arguments'
 
@@ -18,7 +19,8 @@ export function parseProfileCapabilities(
   const invalid = requested.filter(
     (value) => !SESSION_CAPABILITIES.some((capability) => capability === value),
   )
-  if (invalid.length > 0) throw new Error(`Unknown capability: ${invalid.join(', ')}.`)
+  if (invalid.length > 0)
+    throw new CommandCliUsageError(`Unknown capability: ${invalid.join(', ')}.`)
   return SESSION_CAPABILITIES.filter((capability) => requested.includes(capability))
 }
 
@@ -67,7 +69,7 @@ export function parseProfileScope(
     !selected.sessionIds?.length &&
     !selected.hiveRootSessionIds?.length
   ) {
-    throw new Error('At least one explicit profile scope is required.')
+    throw new CommandCliUsageError('At least one explicit profile scope is required.')
   }
   return selected
 }
@@ -75,7 +77,7 @@ export function parseProfileScope(
 export function parseProfileAuthorization(arguments_: ParsedArguments): AgentAuthorizationMode {
   const value = option(arguments_, 'authorization') ?? 'ask-for-approval'
   if (!isAgentAuthorizationMode(value)) {
-    throw new Error('--authorization must be ask-for-approval or yolo.')
+    throw new CommandCliUsageError('--authorization must be ask-for-approval or yolo.')
   }
   return value
 }

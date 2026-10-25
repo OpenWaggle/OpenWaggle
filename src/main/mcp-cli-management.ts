@@ -3,6 +3,7 @@ import type {
   McpConfigurationView,
   McpWriteDestination,
 } from '@shared/types/mcp-configuration'
+import { CliError, cliExitCodeForKind } from './cli-error'
 import {
   McpCliUsageError,
   type McpManagementCommand,
@@ -21,6 +22,7 @@ import { doctorCommand } from './mcp-cli-management-doctor'
 import { importCommand } from './mcp-cli-management-import'
 import { listCommand, projectOptionOf } from './mcp-cli-management-list'
 import { registryCommand } from './mcp-cli-management-registry'
+import { writeSessionsCliError } from './sessions-cli-output'
 
 export type { McpCliHost } from './mcp-cli-management-context'
 
@@ -176,7 +178,7 @@ export async function runMcpManagementCommand(
   command: McpManagementCommand,
   rawArgs: readonly string[],
   context: McpManagementContext,
-): Promise<McpManagementExit> {
+): Promise<number> {
   try {
     const args = parseMcpManagementArguments(command, rawArgs)
     const projectPath = mcpCliProjectPath(
@@ -186,9 +188,13 @@ export async function runMcpManagementCommand(
     )
     return await COMMANDS[command]({ args, projectPath, context })
   } catch (error) {
-    context.output.error(`error: ${error instanceof Error ? error.message : String(error)}`)
-    return error instanceof McpCliUsageError
-      ? MCP_MANAGEMENT_EXIT.USAGE
-      : MCP_MANAGEMENT_EXIT.FAILURE
+    const typed =
+      error instanceof McpCliUsageError
+        ? new CliError('usage', error.message, { cause: error })
+        : error
+    const kind = writeSessionsCliError(typed, rawArgs.includes('--json'), (text) =>
+      context.output.error(text.trimEnd()),
+    )
+    return cliExitCodeForKind(kind)
   }
 }
