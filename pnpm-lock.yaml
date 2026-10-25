@@ -497,18 +497,6 @@ importers:
       '@mariozechner/clipboard-win32-x64-msvc':
         specifier: 0.3.9
         version: 0.3.9
-      recheck-linux-x64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-macos-arm64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-macos-x64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-windows-x64:
-        specifier: 4.5.0
-        version: 4.5.0
 
   packages/extension-react:
     dependencies:
@@ -7063,26 +7051,6 @@ packages:
   readdirp@5.1.1:
     resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
     engines: {node: '>= 20.19.0'}
-
-  recheck-linux-x64@4.5.0:
-    resolution: {integrity: sha512-52kXsR/v+IbGIKYYFZfSZcgse/Ci9IA2HnuzrtvRRcfODkcUGe4n72ESQ8nOPwrdHFg9i4j9/YyPh1HWWgpJ6A==}
-    cpu: [x64]
-    os: [linux]
-
-  recheck-macos-arm64@4.5.0:
-    resolution: {integrity: sha512-qIyK3dRuLkORQvv0b59fZZRXweSmjjWaoA4K8Kgifz0anMBH4pqsDV6plBlgjcRmW9yC12wErIRzifREaKnk2w==}
-    cpu: [arm64]
-    os: [darwin]
-
-  recheck-macos-x64@4.5.0:
-    resolution: {integrity: sha512-1wp/eiLxcjC/Ex4wurlrS/LGzt8IiF4TiK5sEjldu4HVAKdNCnnmsS9a5vFpfcikDz4ZuZlLlTi1VbQTxHlwZg==}
-    cpu: [x64]
-    os: [darwin]
-
-  recheck-windows-x64@4.5.0:
-    resolution: {integrity: sha512-ekBKwAp0oKkMULn5zgmHEYLwSJfkfb95AbTtbDkQazNkqYw9PRD/mVyFUR6Ff2IeRyZI0gxy+N2AKBISWydhug==}
-    cpu: [x64]
-    os: [win32]
 
   recma-build-jsx@1.0.0:
     resolution: {integrity: sha512-8GtdyqaBcDfva+GUKDr3nev3VpKAhup1+RvkMvUxURHpW7QyIvk9F5wz7Vzo06CEMSilw6uArgRqhpiUcWp8ew==}
@@ -15291,18 +15259,6 @@ snapshots:
       util-deprecate: 1.0.2
 
   readdirp@5.1.1: {}
-
-  recheck-linux-x64@4.5.0:
-    optional: true
-
-  recheck-macos-arm64@4.5.0:
-    optional: true
-
-  recheck-macos-x64@4.5.0:
-    optional: true
-
-  recheck-windows-x64@4.5.0:
-    optional: true
 
   recma-build-jsx@1.0.0:
     dependencies:

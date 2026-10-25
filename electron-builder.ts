@@ -9,7 +9,9 @@ import {
   forceIncludePiPackageAsset,
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
+import { FOREIGN_NATIVE_PREBUILD_EXCLUSIONS } from './scripts/electron-builder-native-prebuilds'
 import { resolveMacSigning } from './scripts/mac-signing'
+import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
@@ -113,6 +115,8 @@ const config = {
     // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
+    // Native prebuilds for other platforms and architectures (scripts/electron-builder-native-prebuilds.ts).
+    ...FOREIGN_NATIVE_PREBUILD_EXCLUSIONS,
   ],
   extraResources: [
     // Ship the channel icon as the runtime icon resource so the Windows/Linux
@@ -130,6 +134,9 @@ const config = {
     // APPLE_* credentials; dev builds stay unsigned. RC and Stable fail closed without both.
     ...resolveMacSigning(identity.channel),
     icon: icons.mac,
+    // LSMinimumSystemVersion: the oldest macOS that can launch the app, below the supported 13.4
+    // floor so an auto-updated macOS 12 install still opens (scripts/supported-platform-floor.ts).
+    minimumSystemVersion: SUPPORTED_PLATFORM_FLOOR.macos.launchVersion,
     // Keep artifact filenames keyed to the lowercase package name (not the
     // channel-specific productName) so install.sh and release verification match.
     artifactName: '${name}-${version}-${arch}.${ext}',

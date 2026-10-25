@@ -51,6 +51,8 @@ The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked d
 
 macOS artifacts are Developer ID signed and notarized; the release workflow refuses to build RC and Stable macOS artifacts without the signing secrets. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
 
+Supported platforms are a covered surface with stated minimums: macOS 13.4, Windows 10 x64, and Linux x64 with glibc 2.35. `scripts/supported-platform-floor.ts` holds the thresholds, and `scripts/check-native-platform-floor.ts` runs after every release and nightly build and fails when a packaged native binary needs a newer OS. Keep the Linux build on `ubuntu-22.04` and `LSMinimumSystemVersion` at 12.0. See "Supported platform minimums" in `docs/release-and-versioning.md` for the exception that lets a minimum rise in a minor version.
+
 ## When To Load The Release Skill
 
 Load `.agents/skills/release/SKILL.md` before changing:

@@ -141,13 +141,41 @@ default; there is no `post-v1` label.
 | Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
 | Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
 | Scheduled tasks (Heartbeats and Launch schedules): their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start | Yes | The task contract, `schedules:*` capabilities, `openwaggle schedules` commands and machine output, agent tool actions, and the Background start setting stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
-| Supported platforms (macOS, Windows x64, Linux x64) | Yes | Dropping a platform or raising its minimum OS version is breaking. |
+| Supported platforms: macOS 13.4 or later (Apple silicon and Intel), Windows 10 or later (x64), Linux x64 with glibc 2.35 or later | Yes | Dropping a platform or raising its stated minimum is breaking, except as described in [Supported platform minimums](#supported-platform-minimums). |
 | Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
 | Pi-owned resources (Pi extensions, skills, prompts) | No | Follow Pi's compatibility; a Pi upgrade that breaks them is not an OpenWaggle major. |
 | UI layout, copy, default settings, keybindings | No | May change in any release. |
 
 To retire a covered field or command, ship the replacement beside it and remove the old one only in
 the next major version.
+
+#### Supported platform minimums
+
+| Platform | Minimum from `1.0.0` | Guard threshold |
+|----------|----------------------|-----------------|
+| macOS | 13.4 (Ventura), Apple silicon and Intel | No Mach-O for the app's architecture needs a macOS newer than 13.4. The main executable and `LSMinimumSystemVersion` stay at 12.0. |
+| Windows | Windows 10, x64 (NSIS installer) | No x64 PE declares an OS or subsystem version newer than 10.0. |
+| Linux | x64 with glibc 2.35, for example Ubuntu 22.04, Debian 12 and Fedora 36 or later. The AppImage is x64 only. | No x64 ELF needs a symbol version newer than `GLIBC_2.35`, `GLIBCXX_3.4.30` or `CXXABI_1.3.13`, which Ubuntu 22.04 provides. |
+
+Each minimum is the oldest version on which every feature works. The thresholds live in one
+module, `scripts/supported-platform-floor.ts`, and `scripts/check-native-platform-floor.ts` reads
+every native binary in each packaged app after its build and fails the release before upload when
+one needs a newer OS. Binaries for another platform or architecture are listed and skipped. The
+Linux release build runs on `ubuntu-22.04`, because native modules link against the build host's
+glibc and libstdc++; `1.0.0-beta.25`, built on Ubuntu 24.04, shipped a `node-pty` that needed glibc
+2.38.
+
+macOS 12 through 13.3 can still launch the app. `LSMinimumSystemVersion` stays at 12.0 so that an
+existing macOS 12 install that updates itself is never left with an app that will not open. Those
+versions are unsupported: onnxruntime, which semantic Session search and voice input load on
+demand, needs macOS 13.4.
+
+Raising a stated minimum is breaking, with one exception. A raise is not breaking when the OS
+vendor has ended support for that version (Apple no longer ships security updates for it,
+Microsoft's end of support, or the distribution's end of standard support), or when the Electron or
+Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in
+a minor version, its release notes name it, and the previous release's notes announce it when
+possible.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|

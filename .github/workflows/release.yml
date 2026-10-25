@@ -647,6 +647,9 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Check macOS native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+
       - name: Verify macOS signing and notarization
         shell: bash
         env:
@@ -689,7 +692,10 @@ jobs:
     name: Build Linux
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
+    # Native modules link against the build host's glibc and libstdc++. Ubuntu 22.04 (glibc 2.35)
+    # is the supported Linux floor (scripts/supported-platform-floor.ts); ubuntu-latest (24.04)
+    # made node-pty need glibc 2.38 in 1.0.0-beta.25.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -722,6 +728,9 @@ jobs:
 
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
+
+      - name: Check Linux native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
 
       - name: Prepare Linux update channels
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
@@ -774,6 +783,9 @@ jobs:
 
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
+
+      - name: Check Windows native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
 
       - name: Prepare Windows update channels
         shell: bash
