@@ -94,6 +94,13 @@ describe('Hive tool capability gating', () => {
     expect(text).not.toMatch(/delegations_list/)
   })
 
+  it('points a delegations-only grant at delegations_list, not list or search', () => {
+    const text = guidance(register(['delegations:read']))
+
+    expect(text).toMatch(/Use delegations_list with catalogScope project/)
+    expect(text).not.toMatch(/\b(list|search) (and|or|with|look)/)
+  })
+
   it('refuses an action outside the grant with the capability it needs', () => {
     const tool = register(WORKER_CAPABILITIES)
 

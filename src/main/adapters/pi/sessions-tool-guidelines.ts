@@ -60,7 +60,7 @@ function catalogGuidelines(permits: Permits) {
     catalogDefaultsGuideline(discovery, permits),
     [
       'A root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows, without sharing a Hive, when its current Run was started by the desktop user or by an agent with the same reach. Workers and project-scoped callers stay in their own scope and get target_scope_denied for another project.',
-      `Use list or search with catalogScope project and that repository projectPath, or catalogScope all${reachActions.length ? `, then ${either(reachActions)} by sessionId` : ''}.`,
+      `Use ${either(discovery)} with catalogScope project and that repository projectPath, or catalogScope all${reachActions.length ? `, then ${either(reachActions)} by sessionId` : ''}.`,
       roots.length
         ? `To start work there, pass its projectPath to ${either(roots)} with workspace local or new-worktree; omitted or current uses the checkout of that project.`
         : '',
