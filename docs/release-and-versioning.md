@@ -4,7 +4,7 @@
 
 Husky is configured with a `pre-push` hook. Pushes to `main` run the heavyweight gates:
 
-- `pnpm prepush:main` (`pnpm check`, `pnpm format`, `pnpm test:all` including headless Playwright e2e)
+- `pnpm prepush:main` (`pnpm check`, `pnpm format`, and `pnpm test:all`, which runs the unit, integration, component, and MCP conformance tests; there is no E2E suite)
 
 Feature-branch pushes run `pnpm verify`: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. This keeps deterministic failures out of CI entirely; `--no-verify` remains available to humans for exceptional cases.
 
@@ -18,11 +18,11 @@ Manual `full` CI also calls the same-commit Session Performance workflow and req
 
 Dispatched Commit Policy checks the commits after the candidate's merge base with the fetched `origin/main`. This preserves upstream-sync attribution even when `main` advances after the branch sync. Missing history, unrelated histories, or multiple merge bases fail the job; manual runs never substitute an empty range start. Merge-queue runs use their immutable event `base_sha` and synthetic merge head. Pull-request titles remain validated by pull-request CI, which has the authoritative title metadata.
 
-The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, release-please opens a generated version PR. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. It validates the version-only change against the branch's merge base before synchronizing, then against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer's merge enqueues the release PR through the merge queue like any other; the queued merge result is what lands. The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated version PR with `gh pr create`; `scripts/app-release-state.ts` validates the version transition and the version-only manifest. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. It validates the version-only change against the branch's merge base before synchronizing, then against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
 
 ### Required-Check Settings Runbook
 
-The workflow's job set and the repository ruleset must stay in sync. Apply these settings in the same admin window as the merge — between merge and swap, open PRs wait on a check that no longer reports (use the routine bypass if something must land in that window):
+The workflow's job set and the repository ruleset must stay in sync. Apply these settings in the same admin window as the merge — between merge and swap, open PRs wait on a check that no longer reports (an administrator can use the ruleset's emergency bypass if something must land in that window):
 
 1. `Settings → Rules → Rulesets → OpenWaggle main protections → required_status_checks`: set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`.
 2. Remove the `merge_queue` rule from the same ruleset (ADR 0033): PRs merge directly once the required checks pass.
@@ -33,7 +33,7 @@ Platform trust for v1:
 
 - macOS Developer ID signing and notarization block `1.0.0`. They must be in the release workflow before the first RC, so the RC validation window exercises the same signing pipeline that Stable ships with. macOS in-app updates require a signed app.
 - The signing identity is an individual Apple Developer Program membership. macOS installs an update only when it is signed by the same team as the running app, so changing the signing team later may require a one-time manual reinstall for macOS users.
-- The first signed macOS build is expected to need a one-time manual reinstall from unsigned builds. Ship it during Beta, not RC.
+- The first signed macOS build, `1.0.0-beta.1`, shipped during Beta. Moving to it from an unsigned `0.x` build may need a one-time manual reinstall.
 - Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
   certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
   `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
@@ -72,10 +72,8 @@ covered surface requires a major version.
 The `1.0.0` line starts at Beta; there is no `1.0.0-alpha.N` stage, because the `0.x` alpha
 builds already served as the alpha stage.
 
-1. `1.0.0-beta.1` is the first `1.0.0` build. It should also be the first signed macOS build, so
-   the one-time manual reinstall coincides with the new version line. If Apple Developer approval
-   is delayed, `1.0.0-beta.1` ships unsigned and a later signed `1.0.0-beta.N` carries the
-   reinstall.
+1. `1.0.0-beta.1` is the first `1.0.0` build and the first signed macOS build, so the one-time
+   manual reinstall from unsigned `0.x` builds coincides with the new version line.
 2. Remaining v1 work lands as further `1.0.0-beta.N` builds.
 3. `1.0.0-rc.1` starts the release-candidate freeze once v1 work is complete and macOS signing is
    in the release workflow.
@@ -142,6 +140,7 @@ default; there is no `post-v1` label.
 | Sessions, Delegations, and Access CLIs, including machine output | Yes | Commands, flags, and JSON/JSONL output stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
 | Session Control through the OpenWaggle MCP server | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
 | Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
+| Scheduled tasks (Heartbeats and Launch schedules): their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start | Yes | The task contract, `schedules:*` capabilities, `openwaggle schedules` commands and machine output, agent tool actions, and the Background start setting stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
 | Supported platforms (macOS, Windows x64, Linux x64) | Yes | Dropping a platform or raising its minimum OS version is breaking. |
 | Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
 | Pi-owned resources (Pi extensions, skills, prompts) | No | Follow Pi's compatibility; a Pi upgrade that breaks them is not an OpenWaggle major. |
@@ -152,9 +151,12 @@ the next major version.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
-| Alpha | `1.0.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
-| Beta | `1.0.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
+| Beta | `1.0.0-beta.N` | Increments `beta.N+1` on release-eligible changes. |
+| RC | `1.0.0-rc.N` | Increments `rc.N+1` on release-eligible changes. During the RC freeze those are release-blocker fixes only. |
 | Stable | `1.0.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+
+The `1.0.0` line has no Alpha stage. A later prerelease line opened by `target_version` dispatch,
+such as `2.0.0-alpha.1`, increments the same way as Beta.
 
 Stage transitions use the same protected, version-only release PR as ordinary releases. Never
 retag a prerelease or edit a GitHub release to simulate promotion.

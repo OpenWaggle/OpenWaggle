@@ -54,7 +54,7 @@ Provider/model/auth metadata comes from Pi `ModelRuntime`:
 | Renderer | React 19, Zustand (state), Tailwind CSS v4 |
 | Validation | Effect Schema (runtime + compile-time types) |
 | Bundler | Vite + electron-vite |
-| Testing | Vitest, Testing Library, Playwright E2E |
+| Testing | Vitest and Testing Library (unit, integration, component); no E2E suite (ADR 0033) |
 
 **Three-Process Architecture:**
 - **Main** — Node.js Pi runtime adapters, persistence, IPC handlers
@@ -87,7 +87,7 @@ pnpm dev
 
 **Developer Preview** — Functional for local development, active iteration on core features.
 
-Platform builds (macOS .dmg, Windows NSIS, Linux AppImage) produce local artifacts but require signing/notarization work for public distribution.
+The release workflow publishes macOS .dmg/.zip (Developer ID signed and notarized), Windows NSIS, and Linux AppImage artifacts; Windows and Linux are unsigned.
 
 ---
 
