@@ -73,8 +73,9 @@ describe('Hive CLI Agent-definition discovery', () => {
 
     let toggles: Readonly<Record<string, boolean>> = {}
     const worktree = path.join(root, 'worktrees', 'project', 'w1')
+    const insideWorktree = path.join(worktree, 'src')
     const subdirectory = path.join(project, 'src')
-    await Promise.all([fs.mkdir(worktree, { recursive: true }), fs.mkdir(subdirectory)])
+    await Promise.all([fs.mkdir(insideWorktree, { recursive: true }), fs.mkdir(subdirectory)])
     const resolveProject = fakeProjectResolver({
       projects: [project],
       worktrees: { [worktree]: project },
@@ -88,8 +89,13 @@ describe('Hive CLI Agent-definition discovery', () => {
         { cwd, home, stdout: (value) => void stdout.push(value), resolveProject },
       )
     }
-    await expect(discover(['agent-definitions-list', '--json'])).resolves.toBe(0)
-    expect(JSON.parse(stdout.join(''))).toMatchObject({
+    const listed = async (cwd: string, args: readonly string[] = []) => {
+      stdout = []
+      await expect(discover(['agent-definitions-list', '--json', ...args], cwd)).resolves.toBe(0)
+      const output: unknown = JSON.parse(stdout.join(''))
+      return output
+    }
+    expect(await listed(project)).toMatchObject({
       schemaVersion: 1,
       type: 'response',
       command: 'agent-definitions-list',
@@ -101,21 +107,22 @@ describe('Hive CLI Agent-definition discovery', () => {
     ).resolves.toBe(0)
     expect(stdout.join('')).toContain('security-reviewer\tproject\tvalid')
 
-    // From a managed worktree or a subdirectory, discovery reads the project root.
-    for (const cwd of [worktree, subdirectory]) {
-      stdout = []
-      await expect(discover(['agent-definitions-list', '--json'], cwd)).resolves.toBe(0)
-      expect(JSON.parse(stdout.join(''))).toMatchObject({
+    // From a managed worktree or inside one, discovery reads the worktree's project.
+    for (const cwd of [worktree, insideWorktree]) {
+      expect(await listed(cwd)).toMatchObject({
         result: { definitions: [{ name: 'security-reviewer' }] },
       })
     }
+    // A plain subdirectory is its own project, as `hive launch ./src` takes it.
+    expect(await listed(subdirectory)).toMatchObject({ result: { definitions: [] } })
+    expect(await listed(root, ['--project', subdirectory])).toMatchObject({
+      result: { definitions: [] },
+    })
 
     // A definition turned off for the project is hidden, as the hive tool hides it.
     toggles = { 'security-reviewer': false }
-    for (const cwd of [project, worktree, subdirectory]) {
-      stdout = []
-      await expect(discover(['agent-definitions-list', '--json'], cwd)).resolves.toBe(0)
-      expect(JSON.parse(stdout.join(''))).toMatchObject({ result: { definitions: [] } })
+    for (const cwd of [project, worktree, insideWorktree]) {
+      expect(await listed(cwd)).toMatchObject({ result: { definitions: [] } })
       stdout = []
       await expect(discover(['agent-definitions-search', 'authorization'], cwd)).resolves.toBe(0)
       expect(stdout.join('')).not.toContain('security-reviewer')

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { fakeProjectResolver } from './agent-definition-project.test-support'
 
-describe('resolveAgentDefinitionProject', () => {
+describe('resolveAgentDefinitionProject (the Host projectOfWorkspace rule)', () => {
   let root = ''
   let project = ''
   let worktree = ''
@@ -14,7 +14,7 @@ describe('resolveAgentDefinitionProject', () => {
     project = path.join(root, 'project')
     worktree = path.join(root, 'worktrees', 'project', 'w1')
     await fs.mkdir(path.join(project, 'src', 'deep'), { recursive: true })
-    await fs.mkdir(path.join(worktree, 'src'), { recursive: true })
+    await fs.mkdir(path.join(worktree, 'src', 'deep'), { recursive: true })
   })
 
   afterEach(async () => fs.rm(root, { recursive: true, force: true }))
@@ -26,8 +26,19 @@ describe('resolveAgentDefinitionProject', () => {
       toggles: () => ({ [project]: { reviewer: false } }),
     })
 
-  it('reads the project root and its toggles from a managed worktree and below it', async () => {
-    for (const directory of [worktree, path.join(worktree, 'src')]) {
+  it('reads a project the user opened, with its toggles', async () => {
+    await expect(resolver()(project)).resolves.toEqual({
+      projectPath: project,
+      enabledByName: { reviewer: false },
+    })
+  })
+
+  it("reads a managed worktree's project, from the worktree and from inside it", async () => {
+    for (const directory of [
+      worktree,
+      path.join(worktree, 'src'),
+      path.join(worktree, 'src', 'deep'),
+    ]) {
       await expect(resolver()(directory)).resolves.toEqual({
         projectPath: project,
         enabledByName: { reviewer: false },
@@ -35,10 +46,11 @@ describe('resolveAgentDefinitionProject', () => {
     }
   })
 
-  it('reads the project root and its toggles from a subdirectory', async () => {
-    await expect(resolver()(path.join(project, 'src', 'deep'))).resolves.toEqual({
-      projectPath: project,
-      enabledByName: { reviewer: false },
+  it('keeps a plain subdirectory of a project as its own project, as launch takes it', async () => {
+    const subdirectory = path.join(project, 'src', 'deep')
+    await expect(resolver()(subdirectory)).resolves.toEqual({
+      projectPath: subdirectory,
+      enabledByName: {},
     })
   })
 
@@ -48,6 +60,17 @@ describe('resolveAgentDefinitionProject', () => {
       worktrees: { [worktree]: project },
     })
     await expect(resolve(worktree)).resolves.toMatchObject({ projectPath: worktree })
+    await expect(resolve(path.join(worktree, 'src'))).resolves.toMatchObject({
+      projectPath: path.join(worktree, 'src'),
+    })
+  })
+
+  it('matches a managed worktree reached through a symlink', async () => {
+    const link = path.join(root, 'link-to-worktree')
+    await fs.symlink(worktree, link)
+    await expect(resolver()(path.join(link, 'src'))).resolves.toMatchObject({
+      projectPath: project,
+    })
   })
 
   it('treats a directory OpenWaggle does not know as its own project', async () => {

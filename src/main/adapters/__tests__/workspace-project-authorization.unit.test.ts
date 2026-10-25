@@ -5,7 +5,10 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-authorization'
-import { WorkspaceProjectAuthorizationLive } from '../workspace-project-authorization'
+import {
+  projectOfWorkspacePath,
+  WorkspaceProjectAuthorizationLive,
+} from '../workspace-project-authorization'
 
 const { findRoot, findWorktreeProject, getSettings, listPage } = vi.hoisted(() => ({
   findRoot: vi.fn(),
@@ -114,5 +117,27 @@ describe('owner workspace root authorization', () => {
     await expect(projectOf('/project')).resolves.toBe('/project')
     // A worktree the user opened as a project of its own stays that project.
     await expect(projectOf('/opened')).resolves.toBe('/opened')
+  })
+})
+
+describe('projectOfWorkspacePath', () => {
+  const sources = {
+    userProjects: ['/project', '/opened'],
+    managedWorktreeProject: async (workingPath: string) =>
+      workingPath === '/worktrees/w1' || workingPath === '/opened' ? '/project' : null,
+  }
+
+  it('maps only exact roots for the Host, and directories inside a worktree when asked', async () => {
+    await expect(projectOfWorkspacePath(['/worktrees/w1'], sources)).resolves.toBe('/project')
+    await expect(projectOfWorkspacePath(['/worktrees/w1/src'], sources)).resolves.toBeNull()
+    await expect(
+      projectOfWorkspacePath(['/worktrees/w1/src'], sources, { insideManagedWorktrees: true }),
+    ).resolves.toBe('/project')
+    await expect(
+      projectOfWorkspacePath(['/project/src'], sources, { insideManagedWorktrees: true }),
+    ).resolves.toBeNull()
+    await expect(
+      projectOfWorkspacePath(['/opened/src'], sources, { insideManagedWorktrees: true }),
+    ).resolves.toBeNull()
   })
 })

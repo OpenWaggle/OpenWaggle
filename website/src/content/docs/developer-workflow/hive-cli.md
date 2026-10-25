@@ -106,7 +106,7 @@ openwaggle hive delegations-list --parent <parent-id>
 openwaggle hive delegation-accept <parent-id> <delegation-id> <submission-revision>
 ```
 
-To pick a Worker's Agent definition first, run `openwaggle hive agent-definitions-list` or `openwaggle hive agent-definitions-search <query>`, then pass the name to `spawn --agent <name>`. Run from a session's worktree or a subdirectory, they read the project it belongs to. Like the agent's tool, they leave out definitions turned off for the project, because `spawn` and `launch` refuse them.
+To pick a Worker's Agent definition first, run `openwaggle hive agent-definitions-list` or `openwaggle hive agent-definitions-search <query>`, then pass the name to `spawn --agent <name>`. Run from a session's worktree or a folder inside it, they read that session's project; any other folder, a subfolder of a project included, is read as its own project, as `launch` takes it. Like the agent's tool, they leave out definitions turned off for the project, because `spawn` and `launch` refuse them.
 
 Read the returned Worker and Delegation ids from the spawn response; do not infer them from a title. A wait is one bounded observation, not a subscription. If it times out, the Worker may still be running: wait again or use `hive watch <worker-id>` for live events. Review the Delegation submission before asking for revision or accepting it. To pass information between Sessions without starting another Run, use `hive report <source-session-id> --upstream --text "..."` or target a Session explicitly with `--target <id>`.
 

@@ -106,35 +106,33 @@ describe('openwaggle_hive Agent-definition discovery', () => {
     ).resolves.toEqual({ definitions: [] })
   })
 
-  it('reads the project root for a managed-worktree or subdirectory grant', async () => {
+  it("reads a worktree grant's project, and keeps a plain subdirectory grant to itself", async () => {
     const worktree = path.join(root, 'worktrees', 'project', 'w1')
+    const insideWorktree = path.join(worktree, 'src')
     const subdirectory = path.join(project, 'src')
-    await Promise.all([fs.mkdir(worktree, { recursive: true }), fs.mkdir(subdirectory)])
+    await Promise.all([fs.mkdir(insideWorktree, { recursive: true }), fs.mkdir(subdirectory)])
     let toggles: Readonly<Record<string, boolean>> = {}
     const resolveProject = fakeProjectResolver({
       projects: [project],
       worktrees: { [worktree]: project },
       toggles: () => ({ [project]: toggles }),
     })
-    for (const granted of [worktree, subdirectory]) {
+    const list = (granted: string) =>
+      queryMcpAgentDefinitions(
+        scope([granted]),
+        { operation: 'agent-definitions-list' },
+        { userHome: home, resolveProject },
+      )
+    for (const granted of [worktree, insideWorktree]) {
       toggles = {}
-      // The worktree holds no definitions here, so a listed one came from the project root.
-      await expect(
-        queryMcpAgentDefinitions(
-          scope([granted]),
-          { operation: 'agent-definitions-list' },
-          { userHome: home, resolveProject },
-        ),
-      ).resolves.toMatchObject({ definitions: [{ name: 'reviewer' }] })
+      // The worktree holds no definitions here, so a listed one came from its project.
+      await expect(list(granted)).resolves.toMatchObject({ definitions: [{ name: 'reviewer' }] })
       toggles = { reviewer: false }
-      await expect(
-        queryMcpAgentDefinitions(
-          scope([granted]),
-          { operation: 'agent-definitions-list' },
-          { userHome: home, resolveProject },
-        ),
-      ).resolves.toEqual({ definitions: [] })
+      await expect(list(granted)).resolves.toEqual({ definitions: [] })
     }
+    // A `--workspace /repo/src` grant never reads /repo's definitions or toggles.
+    toggles = {}
+    await expect(list(subdirectory)).resolves.toEqual({ definitions: [] })
   })
 
   it('lists nothing when Settings cannot be read', async () => {
