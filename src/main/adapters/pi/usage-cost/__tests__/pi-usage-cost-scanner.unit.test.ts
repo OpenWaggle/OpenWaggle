@@ -34,6 +34,14 @@ function boundaryLine() {
   return `${JSON.stringify({ type: 'custom', customType: 'openwaggle-run-boundary', data: { version: 1, runId: 'r1' }, id: 'c1', parentId: null, timestamp: '2026-10-14T08:00:01.000Z' })}\n`
 }
 
+function userLine(text: string, timestamp = '2026-10-14T08:00:30.000Z') {
+  return `${JSON.stringify({ type: 'message', id: 'u1', parentId: null, timestamp, message: { role: 'user', content: [{ type: 'text', text }] } })}\n`
+}
+
+function sessionInfoLine(name: string) {
+  return `${JSON.stringify({ type: 'session_info', id: 'i1', parentId: null, timestamp: '2026-10-14T08:03:00.000Z', name })}\n`
+}
+
 async function writeSession(dir: string, name: string, lines: readonly string[]): Promise<string> {
   const file = path.join(dir, name)
   await writeFile(file, lines.join(''), 'utf8')
@@ -108,6 +116,39 @@ describe('createPiUsageCostScanner', () => {
     // No recorded cost and a model the estimator prices: Cost tier 2.
     expect(session?.records[1]).toMatchObject({ estimatedCostUsd: 0.01 })
     expect(session?.records[2]).toMatchObject({ provider: 'pi', modelId: 'tools/summaries' })
+  })
+
+  it('titles a session by its latest Pi name, else its first prompt, so rows can be told apart', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'usage-cost-title-'))
+    const projectDir = path.join(tempDir, '--tmp-project--')
+    await mkdir(projectDir, { recursive: true })
+    const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 }
+    await writeSession(projectDir, '2026-10-14T08-00-00_a.jsonl', [
+      sessionLine('named', '/tmp/project'),
+      userLine('  Fix the\n flaky   checkout test  '),
+      sessionInfoLine('Old name'),
+      assistantLine('2026-10-14T08:01:00.000Z', usage),
+      sessionInfoLine('Checkout flake'),
+    ])
+    await writeSession(projectDir, '2026-10-14T09-00-00_b.jsonl', [
+      sessionLine('prompted', '/tmp/project'),
+      userLine(`Review the release notes ${'x'.repeat(300)}`),
+      assistantLine('2026-10-14T09:01:00.000Z', usage),
+    ])
+    await writeSession(projectDir, '2026-10-14T10-00-00_c.jsonl', [
+      sessionLine('untitled', '/tmp/project'),
+      assistantLine('2026-10-14T10:01:00.000Z', usage),
+    ])
+
+    const scanner = createPiUsageCostScanner({ sessionsRoot: tempDir, costEstimator: ESTIMATOR })
+    const { sessions } = await scanner.collectSessions({ rangeStartMs: null })
+    const titles = new Map(sessions.map((entry) => [entry.sessionId, entry.title]))
+
+    expect(titles.get('named')).toBe('Checkout flake')
+    const prompted = titles.get('prompted')
+    expect(prompted?.startsWith('Review the release notes x')).toBe(true)
+    expect(prompted?.length).toBeLessThanOrEqual(120)
+    expect(titles.get('untitled')).toBeNull()
   })
 
   it('reuses the cache for unchanged files and re-parses changed ones', async () => {

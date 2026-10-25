@@ -36,6 +36,8 @@ export interface UsageCostRecord {
 export interface UsageCostScanSession {
   readonly file: string
   readonly sessionId: string | null
+  /** The latest Pi `/name`, else the first prompt, shortened; `null` when there is neither. */
+  readonly title: string | null
   readonly cwd: string | null
   /** Owning project resolved from the cwd (a git worktree's primary repository, a temporary root, a known project), or `null` when the cwd stands alone. */
   readonly resolvedProjectPath: string | null
@@ -319,6 +321,7 @@ function sessionRowForQuery(
 
   return {
     sessionId: session.sessionId,
+    title: session.title,
     file: session.file,
     projectLabel: projectIdentityFor(session, display).label,
     displayCwd: session.cwd === null ? null : displayPath(session.cwd, display.homePath),
