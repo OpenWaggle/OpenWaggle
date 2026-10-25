@@ -1,3 +1,4 @@
+import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server'
 import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { z } from 'zod'
@@ -27,18 +28,32 @@ const sessionInputDiscriminatedSchemaV2 = z.discriminatedUnion(
 export const sessionInputSchemaV2: z.ZodType<SessionToolInputV2> = sessionInputDiscriminatedSchemaV2
 
 /**
- * The tool input an `mcp serve` process advertises: only the operations its `--grant` values
- * allow (#350), so a client is not offered calls that can only fail. Agent-definition discovery
- * needs no grant and is always listed.
+ * The operations an `mcp serve` process advertises: only those its `--grant` values allow
+ * (#350), so a client is not offered calls that can only fail. Agent-definition discovery needs
+ * no grant and is always listed.
  */
-export function sessionInputSchemaForGrantsV2(
-  grants: ReadonlySet<SessionCapability>,
-): z.ZodType<SessionToolInputV2> {
+export function advertisedSessionInputSchemaV2(grants: ReadonlySet<SessionCapability>) {
   const [first, ...rest] = sessionInputOperationSchemasV2.filter((schema) =>
     mcpSessionOperationGrantedV2(schema.shape.operation.value, grants),
   )
   if (!first) throw new Error('The Hive MCP tool has no operation to advertise.')
   return z.discriminatedUnion('operation', [first, ...rest])
+}
+
+/**
+ * The tool's input schema: `tools/list` shows the advertised operations, while a call is still
+ * validated against every operation. A client that calls one it was not offered then reaches
+ * the grant check, whose error names the `--grant` to add, instead of an input-validation error
+ * that reads like a typo.
+ */
+export function sessionInputSchemaForGrantsV2(
+  grants: ReadonlySet<SessionCapability>,
+): StandardSchemaWithJSON<SessionToolInputV2> {
+  const advertised = advertisedSessionInputSchemaV2(grants)
+  const accepted: StandardSchemaWithJSON<SessionToolInputV2> = sessionInputDiscriminatedSchemaV2
+  return {
+    '~standard': { ...accepted['~standard'], jsonSchema: advertised['~standard'].jsonSchema },
+  }
 }
 
 function parsedInput(input: SessionToolInputV2): {

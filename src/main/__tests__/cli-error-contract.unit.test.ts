@@ -87,6 +87,27 @@ describe('CLI contract output (#351)', () => {
     stdout.mockRestore()
   })
 
+  it('exits with the timeout class when exports-wait gives up too', async () => {
+    mocks.createClientInput.mockResolvedValue({ paths: {}, clientKind: 'cli', clientVersion: 't' })
+    mocks.executeCommand.mockResolvedValue({
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: 2,
+        requestId: 'exports-wait',
+        outcome: { operation: 'exports-wait', timedOut: true },
+      },
+    })
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((_c, _e, callback) => {
+      callback?.()
+      return true
+    })
+
+    await expect(
+      runSessionsCli(['exports-wait', 'session-1', 'operation-1', '--timeout-ms', '10', '--json']),
+    ).resolves.toBe(7)
+    stdout.mockRestore()
+  })
+
   it('shows an idle Session with a queue that is not paused for what it is', () => {
     const text = sessionsCliResponseText(
       'status',

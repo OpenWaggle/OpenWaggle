@@ -114,7 +114,3 @@ export class CommandCliUsageError extends CliError {
     super('usage', message, options)
   }
 }
-
-export function isCommandCliUsageError(error: unknown) {
-  return error instanceof CliError && error.kind === 'usage'
-}

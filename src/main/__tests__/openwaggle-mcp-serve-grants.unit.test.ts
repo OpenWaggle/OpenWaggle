@@ -9,6 +9,7 @@ const { MCP_SESSION_OPERATION_BASE_CAPABILITIES_V2 } = await import(
 )
 const { buildMcpSessionPayloadV2, mcpSessionHostIdentity, sessionInputSchemaForGrantsV2 } =
   await import('../openwaggle-mcp-session-tool-v2')
+const { advertisedSessionInputSchemaV2 } = await import('../openwaggle-mcp-session-input-v2')
 const { requiredSessionQueryCapabilities, requiredSessionControlCapabilities } = await import(
   '../domain/session-control/session-capability-authorization'
 )
@@ -27,7 +28,7 @@ function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcp
 
 describe('mcp serve grants (#350)', () => {
   it('advertises exactly the operations whose base capabilities were granted', () => {
-    const schema = sessionInputSchemaForGrantsV2(new Set(['sessions:read']))
+    const schema = advertisedSessionInputSchemaV2(new Set(['sessions:read']))
     const advertised = OPENWAGGLE_MCP_SESSION_OPERATIONS_V2.filter(
       (operation) => schema.safeParse({ operation }).success,
     )
@@ -42,6 +43,20 @@ describe('mcp serve grants (#350)', () => {
       'agent-definitions-list',
       'agent-definitions-search',
     ])
+  })
+
+  it('lists the advertised operations but still accepts any operation, for its grant error', async () => {
+    const schema = sessionInputSchemaForGrantsV2(new Set(['sessions:discover']))
+    const listed = JSON.stringify(schema['~standard'].jsonSchema.input({ target: 'draft-2020-12' }))
+
+    expect(listed).toContain('"const":"list"')
+    expect(listed).not.toContain('"const":"read"')
+    expect(
+      await schema['~standard'].validate({ operation: 'read', sessionId: 'session-1' }),
+    ).toMatchObject({ value: { operation: 'read' } })
+    expect(await schema['~standard'].validate({ operation: 'read', typo: true })).toMatchObject({
+      issues: expect.any(Array),
+    })
   })
 
   it('keeps the base capability table in step with the Session Host requirements', () => {

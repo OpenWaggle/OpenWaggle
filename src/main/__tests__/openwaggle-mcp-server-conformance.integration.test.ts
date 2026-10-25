@@ -87,6 +87,10 @@ describe('OpenWaggle as an MCP server: protocol conformance (#350)', () => {
     })
 
     expect(ungranted.isError).toBe(true)
+    // Not offered, but the error still names the grant to add (#350).
+    expect(JSON.stringify(ungranted.content)).toContain(
+      'This MCP server was started without --grant sessions:read, which read needs.',
+    )
     expect(unknownField.isError).toBe(true)
     expect(missingGrant.isError).toBe(true)
     expect(JSON.stringify(missingGrant.content)).toContain(

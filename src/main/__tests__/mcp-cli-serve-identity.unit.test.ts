@@ -99,8 +99,11 @@ describe('mcp serve authority (#350)', () => {
       parse(['--stdio', '--profile', 'ci', '--authorization-ceiling', 'ask-for-approval']),
     ).toThrow('--authorization-ceiling applies only with --owner')
     expect(() => parse(['--stdio', '--owner', '--profile-credential-file', '/x'])).toThrow(
-      '--profile-credential-file requires --profile',
+      'requires --profile <name>',
     )
+    mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = '/secrets/env'
+    expect(() => parse(['--stdio', '--owner'])).toThrow('requires --profile <name>')
+    mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = undefined
     expect(
       parse(['--http', '0', '--owner', '--authorization-ceiling', 'yolo'], false).identity,
     ).toEqual({
