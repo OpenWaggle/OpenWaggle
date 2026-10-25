@@ -148,7 +148,7 @@ describe('update CLI with the desktop app', () => {
 
     await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 1, updaterOwnsExit: false })
     expect(process.stderr.write).toHaveBeenCalledWith(
-      'error: Update cancelled. OpenWaggle was not changed.\n',
+      'error [internal]: Update cancelled. OpenWaggle was not changed.\n',
     )
     expect(quitAndInstallMock).not.toHaveBeenCalled()
   })

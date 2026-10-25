@@ -98,3 +98,57 @@ export function advertisedOperations(tool: { readonly inputSchema: unknown }) {
     .map((match) => match[1])
     .sort()
 }
+
+function deny(code: 'capability_denied' | 'target_scope_denied', missing?: readonly string[]) {
+  return Effect.runPromise(
+    Effect.fail(
+      new LocalSessionCommandAuthorizationError({ code, ...(missing ? { missing } : {}) }),
+    ),
+  )
+}
+
+/** `read` as the Host answers it: refused outside the caller's scope, unknown IDs not found. */
+function readResult(
+  sessions: readonly StoredSession[],
+  requestId: string,
+  sessionId: string,
+  caller: LocalSessionCallerIdentity,
+) {
+  const required: readonly SessionCapability[] = ['sessions:read']
+  const capabilities = authorizeSessionCapabilities(caller.profileAuthority, required)
+  if (!capabilities.authorized) return deny('capability_denied', capabilities.missing)
+  const session = sessions.find((candidate) => candidate.id === sessionId)
+  const response = (outcome: object) =>
+    Promise.resolve({
+      contract: 'session-query-v2',
+      response: { contractVersion: 2, requestId, outcome },
+    })
+  if (!session) {
+    return response({
+      operation: 'read',
+      error: { code: 'session_not_found', message: 'The Session was not found.' },
+    })
+  }
+  const target = { projectPath: session.projectPath, sessionId, hiveRootSessionId: sessionId }
+  if (!authorizeSessionTargetForCaller(caller, target, required).authorized) {
+    return deny('target_scope_denied')
+  }
+  return response({
+    operation: 'read',
+    session: { sessionId, title: sessionId, projectPath: session.projectPath },
+  })
+}
+
+/** The fake Host's query dispatcher: `read` and `list`. */
+export function queryResult(
+  sessions: readonly StoredSession[],
+  payload: unknown,
+  caller: LocalSessionCallerIdentity,
+) {
+  const request = Reflect.get(Object(payload), 'request')
+  const requestId = String(Reflect.get(Object(request), 'requestId'))
+  const query = Reflect.get(Object(request), 'query')
+  return Reflect.get(Object(query), 'operation') === 'read'
+    ? readResult(sessions, requestId, String(Reflect.get(Object(query), 'sessionId')), caller)
+    : listResult(sessions, requestId, caller)
+}

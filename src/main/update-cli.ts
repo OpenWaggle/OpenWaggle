@@ -6,14 +6,16 @@ import {
 } from '@shared/types/update-channel'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { CliError, cliExitCodeForKind } from './cli-error'
+import { cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
+import { CommandCliUsageError } from './command-cli-option-contract'
 import { isDesktopAppRunning } from './desktop-instance-probe'
 import { stopHostForUpdate } from './host-cli'
 import { formatHostUpdateStopReport } from './host-update-stop'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
+import { writeSessionsCliError } from './sessions-cli-output'
 import {
   prepareWindowsInstaller,
   releaseForTag,
@@ -25,7 +27,7 @@ const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
 const RELEASE_TAG_PATTERN = /^v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u
 
-class UpdateCliUsageError extends Error {}
+class UpdateCliUsageError extends CommandCliUsageError {}
 
 function usage() {
   return `OpenWaggle update
@@ -288,14 +290,9 @@ export async function runUpdateCli(args: readonly string[]) {
     const channel = await readAndUpdateChannel(parsed, parseChannel(option(parsed, 'channel')))
     return await updateFromChannel(parsed, channel, hasFlag(parsed, 'check'))
   } catch (error) {
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+    // `update` has no --json; it reports like every CLI, with the kind (#351).
     return {
-      exitCode:
-        error instanceof UpdateCliUsageError
-          ? EXIT.USAGE
-          : error instanceof CliError
-            ? cliExitCodeForKind(error.kind)
-            : EXIT.FAILURE,
+      exitCode: cliExitCodeForKind(writeSessionsCliError(error, false)),
       updaterOwnsExit: false,
     }
   }

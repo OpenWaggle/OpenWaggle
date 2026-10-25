@@ -82,6 +82,18 @@ describe('mcp serve authority (#350)', () => {
     expect(mocks.readStoredCredential).not.toHaveBeenCalled()
   })
 
+  it('reports an unreadable credential store as an authentication error naming the profile', async () => {
+    mocks.readStoredCredential.mockRejectedValueOnce(new Error('decryption failed'))
+
+    await expect(
+      resolveServeIdentity(parse(['--stdio', '--profile', 'ci']).identity, '/user-data'),
+    ).rejects.toMatchObject({
+      kind: 'authentication',
+      message:
+        'Could not read the credential for access profile "ci" from the credential store: decryption failed',
+    })
+  })
+
   it('keeps the authorization ceiling an owner-only option', () => {
     expect(() =>
       parse(['--stdio', '--profile', 'ci', '--authorization-ceiling', 'ask-for-approval']),

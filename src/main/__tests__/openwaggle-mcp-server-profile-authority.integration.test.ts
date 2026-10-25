@@ -78,4 +78,26 @@ describe('OpenWaggle MCP server named access profiles fail closed (#350)', () =>
     expect(result.isError).toBe(true)
     expect(host.dispatchedCallers()).toEqual([])
   })
+
+  it('refuses an existing Session outside the profile, and names an unknown one (#351)', async () => {
+    const client = await host.connect(
+      host.serveOptions({
+        grants: new Set(['sessions:read']),
+        identity: host.profileIdentity('repo-a-reviewer', ACTIVE_CREDENTIAL),
+      }),
+    )
+    const read = (sessionId: string) =>
+      client.callTool({ name: 'openwaggle_hive', arguments: { operation: 'read', sessionId } })
+
+    const inScope = await read('session-a')
+    const outside = await read('session-b')
+    const unknown = await read('session-unknown')
+
+    expect(inScope.isError).not.toBe(true)
+    expect(outside.isError).toBe(true)
+    expect(JSON.stringify(outside.content)).toContain('target_scope_denied')
+    expect(JSON.stringify(outside.content)).not.toContain(host.repos().repoB)
+    expect(unknown.isError).toBe(true)
+    expect(JSON.stringify(unknown.content)).toContain('session_not_found')
+  })
 })

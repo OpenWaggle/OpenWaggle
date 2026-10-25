@@ -51,7 +51,7 @@ export interface LocalSessionCliClientOptions {
   readonly agentRefusal?: string
 }
 
-type CredentialSource =
+export type CredentialSource =
   | { readonly kind: 'stdin' }
   | { readonly kind: 'file'; readonly path: string }
   | { readonly kind: 'store' }
@@ -64,7 +64,12 @@ function describeCredentialSource(source: CredentialSource) {
     .exhaustive()
 }
 
-async function readProfileCredential(profile: string, source: CredentialSource, stateRoot: string) {
+/** Reads a profile credential; any failure is an `authentication` error naming the profile. */
+export async function readProfileCredential(
+  profile: string,
+  source: CredentialSource,
+  stateRoot: string,
+) {
   try {
     return await matchBy(source, 'kind')
       .with('stdin', () => readSecretFromStdin())

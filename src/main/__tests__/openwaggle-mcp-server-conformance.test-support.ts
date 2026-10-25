@@ -25,7 +25,7 @@ import {
 import { ensureLocalUserCredential } from '../session-host/local-user-credential'
 import { generateProfileCredential } from '../session-host/profile-credential'
 import {
-  listResult,
+  queryResult,
   type StoredSession,
   sessionMatches,
 } from './openwaggle-mcp-server-conformance-results.test-support'
@@ -155,9 +155,7 @@ export function createMcpConformanceHost() {
       refreshCaller: refresh,
       dispatch: async ({ caller, payload }) => {
         dispatchedCallers.push(caller)
-        const request = Reflect.get(Object(payload), 'request')
-        const requestId = String(Reflect.get(Object(request), 'requestId'))
-        return listResult(sessions, requestId, caller)
+        return queryResult(sessions, payload, caller)
       },
     })
     stopHost = async () => {

@@ -119,6 +119,22 @@ describe('update CLI', () => {
     expect(writeCliStdoutMock).toHaveBeenCalledWith(expect.stringContaining('openwaggle update'))
   })
 
+  it('refuses an agent Run with the authorization exit code and a message for update (#351)', async () => {
+    const { CliError } = await import('../cli-error')
+    createClientMock.mockRejectedValueOnce(
+      new CliError('authorization', 'OpenWaggle agents cannot check for or install updates.'),
+    )
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(runUpdateCli(['--check'])).resolves.toEqual({
+      exitCode: 4,
+      updaterOwnsExit: false,
+    })
+    expect(stderr).toHaveBeenCalledWith(
+      'error [authorization]: OpenWaggle agents cannot check for or install updates.\n',
+    )
+  })
+
   it('persists an explicit channel and checks its matching updater feed', async () => {
     checkForUpdatesMock.mockResolvedValue({
       isUpdateAvailable: true,

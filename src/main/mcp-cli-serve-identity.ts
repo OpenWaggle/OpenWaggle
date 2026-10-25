@@ -1,10 +1,11 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
-import { formatErrorMessage } from '@shared/utils/node-error'
 import { sessionIdFromReference } from '@shared/utils/session-link'
-import { CliError } from './cli-error'
 import { env } from './env'
-import { assertCliAgentMayUseOwnerAuthority } from './local-session-cli-client'
+import {
+  assertCliAgentMayUseOwnerAuthority,
+  readProfileCredential,
+} from './local-session-cli-client'
 import {
   hasFlag,
   option,
@@ -16,10 +17,6 @@ import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
 } from './session-host/local-session-paths'
-import {
-  readProfileCredentialFile,
-  readStoredProfileCredential,
-} from './session-host/profile-credential-destination'
 
 /** The owner-mode label that names the transient caller; never an access profile. */
 export const OWNER_SERVE_LABEL = { stdio: 'local-stdio', http: 'local-http' } as const
@@ -98,20 +95,13 @@ export async function resolveServeIdentity(
   userDataRoot: string,
 ): Promise<OpenWaggleMcpServeIdentity> {
   if (identity.kind === 'owner') return identity
-  const credentialFile = identity.credentialFile
-  const credential = credentialFile
-    ? await readProfileCredentialFile(credentialFile).catch((cause: unknown) => {
-        throw new CliError(
-          'authentication',
-          `Could not read the credential for access profile ${JSON.stringify(identity.profile)} from ${JSON.stringify(credentialFile)}: ${formatErrorMessage(cause)}`,
-          { cause },
-        )
-      })
-    : await readStoredProfileCredential({
-        stateRoot: (
-          await prepareLocalSessionHostPaths(resolveLocalSessionHostPaths({ userDataRoot }))
-        ).stateRoot,
-        profileName: identity.profile,
-      })
+  const stateRoot = (
+    await prepareLocalSessionHostPaths(resolveLocalSessionHostPaths({ userDataRoot }))
+  ).stateRoot
+  const credential = await readProfileCredential(
+    identity.profile,
+    identity.credentialFile ? { kind: 'file', path: identity.credentialFile } : { kind: 'store' },
+    stateRoot,
+  )
   return { kind: 'profile', profile: identity.profile, credential }
 }

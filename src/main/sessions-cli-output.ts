@@ -97,6 +97,8 @@ const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
   ['authentication_failed', 'authentication'],
   ['credential_rejected', 'authentication'],
   ['profile_revoked', 'authentication'],
+  // The caller's own profile was deleted: a credential problem, like a revoked one.
+  ['profile_not_found', 'authentication'],
   ['host_draining', 'host_unavailable'],
   // A Session whose Pi file cannot be used is refused until the file is back or a message
   // starts a new transcript.
