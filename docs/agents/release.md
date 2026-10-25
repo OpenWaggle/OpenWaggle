@@ -7,7 +7,7 @@ Use this file for agent-facing release and update-channel decisions. The canonic
 OpenWaggle uses semver release channels. Stable is the default user channel; Beta and Alpha are
 explicit opt-ins. The `0.x` prerelease trains end without a Stable release: the first Stable
 release is `1.0.0`, reached through the `1.0.0-<stage>.N` prerelease train. From `1.0.0` onward a
-breaking change to a covered surface requires a major version. The `1.0.0` line starts at `1.0.0-beta.1`, ideally the first signed macOS build; there is no
+breaking change to a covered surface requires a major version. The `1.0.0` line starts at `1.0.0-beta.1`, the first signed macOS build; there is no
 `1.0.0-alpha.N` stage. After `1.0.0` there is one release line: merges prepare the next Stable version, and a
 Beta/Alpha line opens only by explicit dispatch when it is expected to be promoted within about a
 week.
@@ -49,7 +49,7 @@ Release automation is GitHub-based:
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
-Published artifacts are currently unsigned. macOS signing and notarization block `1.0.0` and must be in place before the first RC; Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
+macOS artifacts are Developer ID signed and notarized; the release workflow refuses to build RC and Stable macOS artifacts without the signing secrets. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
 
 ## When To Load The Release Skill
 

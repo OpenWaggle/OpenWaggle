@@ -662,7 +662,7 @@ if [ "${PLATFORM}" = "mac" ]; then
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
-  # Remove quarantine for unsigned app
+  # Remove the quarantine attribute so the first launch skips the downloaded-app prompt
   xattr -rd com.apple.quarantine "${APPLICATIONS_DIR}/$(basename "${APP_PATH}")" 2>/dev/null || true
   info "Installed to ${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
 

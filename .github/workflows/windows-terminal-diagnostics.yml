@@ -1,7 +1,8 @@
 name: Windows Terminal Diagnostics
 
 # Like T3 Code's manual Windows lane, this isolates native investigations from
-# ordinary PR feedback. Required Windows app E2E remains in ci.yml's full tier.
+# ordinary PR feedback. CI has no Windows app E2E (ADR 0033); nightly.yml smokes the
+# packaged Windows app.
 on:
   workflow_dispatch:
     inputs:
