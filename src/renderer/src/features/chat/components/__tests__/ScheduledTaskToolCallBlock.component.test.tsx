@@ -47,13 +47,13 @@ function call(args: object, id = 'tc-1'): ToolCallPart {
   return {
     type: 'tool-call',
     id,
-    name: 'sessions',
+    name: 'hive',
     arguments: JSON.stringify(args),
     state: 'input-complete',
   }
 }
 
-/** A sessions-tool result as Pi records it: the compact text plus the Host response as details. */
+/** A hive-tool result as Pi records it: the compact text plus the Host response as details. */
 function scheduledResult(id: string, outcome: object) {
   return new Map([
     [
@@ -84,7 +84,7 @@ function listTasks(tasks: readonly ScheduledTask[]) {
   executeScheduledTasks.mockResolvedValue({ effect: 'listed', tasks })
 }
 
-describe('Scheduled task sessions-tool rows', () => {
+describe('Scheduled task hive-tool rows', () => {
   beforeEach(() => {
     executeScheduledTasks.mockReset()
     openTask.mockReset()

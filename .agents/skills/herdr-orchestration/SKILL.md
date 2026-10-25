@@ -7,4 +7,4 @@ disable-model-invocation: true
 # Disabled in OpenWaggle
 
 Do not use Herdr orchestration in this repository. Create and coordinate Workers through
-OpenWaggle's native Sessions tool and Session Host so the work exercises the Hive implementation.
+OpenWaggle's native `hive` tool and Session Host so the work exercises the Hive implementation.

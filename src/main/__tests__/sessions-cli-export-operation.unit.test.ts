@@ -10,7 +10,7 @@ vi.mock('../session-host/local-session-client', () => ({
 
 import { watchSessionExportOperations } from '../sessions-cli-export-operation'
 
-describe('Sessions CLI export operation watch', () => {
+describe('Hive CLI export operation watch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -19,7 +19,7 @@ describe('Sessions CLI export operation watch', () => {
     await expect(
       watchSessionExportOperations(
         {
-          positionals: ['export', 'session-target', 'operation-target'],
+          positionals: ['session-target', 'operation-target'],
           passthrough: [],
           options: new Map(),
         },

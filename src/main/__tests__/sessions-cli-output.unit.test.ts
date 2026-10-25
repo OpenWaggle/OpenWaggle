@@ -8,7 +8,7 @@ import {
   writeSessionsCliStreamRecord,
 } from '../sessions-cli-output'
 
-describe('Sessions CLI output contract', () => {
+describe('Hive CLI output contract', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('uses human-readable output by default and schema-versioned JSON explicitly', async () => {

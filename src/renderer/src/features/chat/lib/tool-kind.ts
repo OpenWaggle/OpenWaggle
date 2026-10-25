@@ -1,3 +1,4 @@
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import { isMcpServerReachToolName, parseMcpToolName } from '@shared/utils/mcp-tool-names'
 import { CODEMODE_TOOL_NAME } from './codemode-tool-view'
 
@@ -25,8 +26,12 @@ export type ToolKind =
 
 const BROWSER_PREVIEW_TOOL_PREFIX = 'preview_'
 
+/**
+ * The Hive tool was named `sessions` before ADR 0053. A transcript that recorded a call under that
+ * name keeps it, and the call shows as an unrecognized tool (`other`), not a Worker row.
+ */
 const TOOL_KINDS_BY_NAME: ReadonlyMap<string, ToolKind> = new Map<string, ToolKind>([
-  ['sessions', 'workers'],
+  [HIVE_TOOL_NAME, 'workers'],
   [CODEMODE_TOOL_NAME, 'script'],
   ['bash', 'shell'],
   ['powershell', 'shell'],

@@ -24,7 +24,7 @@ export interface RunSettlement {
 const ACTIVE_RUN_STATUSES = new Set(['starting', 'active', 'stopping'])
 
 function readCommand(target: RunTarget) {
-  return `openwaggle sessions read ${target.sessionId}`
+  return `openwaggle hive read ${target.sessionId}`
 }
 
 /** Map a Run's durable or terminal status to the command's result. */
@@ -126,7 +126,7 @@ export function settlementForWatchEnd(
         : `the Session Host event stream was lost (${result.reason})`
     return {
       exitCode: SESSION_CLI_EXIT.FAILURE,
-      message: `${detail}, so the Run's result is unknown. Check it with 'openwaggle sessions turns ${target?.sessionId ?? '<session-id>'}'.`,
+      message: `${detail}, so the Run's result is unknown. Check it with 'openwaggle hive turns ${target?.sessionId ?? '<session-id>'}'.`,
     }
   }
   return {

@@ -24,6 +24,7 @@ vi.mock('../adapters/pi/pi-provider-catalog', () => ({
 }))
 
 import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
+import { validateAgentDefinitionSemantics } from '../agents/agent-definition-semantic-validation'
 
 function managedExtension(projectPath: string): DiscoveredExtensionPackage {
   const packagePath = `${projectPath}/.openwaggle/extensions/team-tools`
@@ -127,9 +128,23 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
 
     expect(catalog).toMatchObject({
       models: ['test-provider/test-model'],
-      tools: expect.arrayContaining(['managed_tool']),
+      tools: expect.arrayContaining(['managed_tool', 'hive']),
       skills: ['managed-skill'],
     })
+    // ADR 0053: the former `sessions` tool name is not accepted in a definition's `tools`.
+    expect(catalog.tools).not.toContain('sessions')
+    expect(
+      validateAgentDefinitionSemantics(
+        {
+          schemaVersion: 1,
+          name: 'coordinator',
+          description: 'Coordinates Workers.',
+          tools: ['read', 'sessions'],
+          instructions: 'Coordinate.',
+        },
+        catalog,
+      ).diagnostics,
+    ).toMatchObject([{ code: 'unknown-reference', resource: 'tool', value: 'sessions' }])
     expect(catalogMocks.createPiRuntimeServices).toHaveBeenCalledWith(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [extensionPackage.packagePath],
       enabledOpenWaggleExtensionResourceRoots: [

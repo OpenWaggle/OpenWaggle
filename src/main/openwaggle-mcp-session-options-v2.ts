@@ -61,7 +61,6 @@ function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV
     ['parent', input.parentSessionId],
     ['worker', input.workerSessionId],
     ['delegation', input.operation === 'delegations-conflicts' ? input.delegationId : undefined],
-    ['approve', input.operation === 'approval-respond'],
   ] as const)
     add(options, name, value)
   if (input.interactionResponse)
@@ -99,21 +98,6 @@ function addCollaborationOptions(options: Map<string, string[]>, input: SessionT
   append(options, 'resource', input.revisedSpecification.resourceReferences)
 }
 
-function commandFor(operation: SessionToolInputV2['operation']) {
-  if (operation.startsWith('queue-')) return 'queue'
-  if (
-    operation === 'requests-list' ||
-    operation === 'request-respond' ||
-    operation === 'approval-respond'
-  ) {
-    return 'requests'
-  }
-  if (operation === 'authorization-set') return 'authorization'
-  if (operation.startsWith('delegation-')) return 'delegation'
-  if (operation.startsWith('export-') || operation.startsWith('exports-')) return 'export'
-  return operation
-}
-
 export function mcpSessionCliOptionsV2(input: SessionToolInputV2, message?: string) {
   const options = new Map<string, string[]>()
   addBaseOptions(options, input)
@@ -138,5 +122,6 @@ export function mcpSessionCliOptionsV2(input: SessionToolInputV2, message?: stri
     'report',
   ])
   if (message && messageOperations.has(input.operation)) add(options, 'text', message)
-  return { command: commandFor(input.operation), options }
+  // Every MCP operation is the `hive` CLI subcommand of the same name (ADR 0053).
+  return { command: input.operation, options }
 }

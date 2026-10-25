@@ -9,7 +9,7 @@ import type { SessionToolDependencies } from './session-tool-gateway-installer'
 
 /**
  * Sends a Session Control request as a Scheduled task's creator, through the same admission and
- * authorization path the Sessions tool uses, so a task can do nothing its creator could not.
+ * authorization path the Hive tool uses, so a task can do nothing its creator could not.
  */
 export function dispatchScheduledTaskCommand(input: {
   readonly caller: LocalSessionCallerIdentity

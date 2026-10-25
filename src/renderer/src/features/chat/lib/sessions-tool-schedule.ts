@@ -4,7 +4,7 @@ import { parseSerializedToolPayload } from '@shared/utils/tool-result-state'
 import { getToolResultDetails, getToolResultText } from './tool-call-block'
 import { stringArg } from './tool-label-parts'
 
-/** The sessions-tool actions over Scheduled tasks (`sessions-tool-schedule-parameters.ts`). */
+/** The hive-tool actions over Scheduled tasks (`sessions-tool-schedule-parameters.ts`). */
 const SCHEDULE_ACTIONS = [
   'schedule_list',
   'schedule_read',
@@ -22,7 +22,7 @@ const CONTROLLED_ACTIONS: ReadonlySet<SessionsToolScheduleAction> = new Set([
   'schedule_update',
 ])
 
-/** The Scheduled task one sessions-tool call acts on, as far as its result and arguments say. */
+/** The Scheduled task one hive-tool call acts on, as far as its result and arguments say. */
 export interface SessionsToolScheduledTask {
   readonly action: SessionsToolScheduleAction
   readonly taskId: string | null

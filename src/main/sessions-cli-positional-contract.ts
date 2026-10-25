@@ -34,39 +34,44 @@ const DIRECT: Readonly<Record<string, CommandCliArgumentContract>> = {
   wait: { minimum: 1 },
 }
 
-const GROUPED: Readonly<Record<string, CommandCliArgumentContract>> = {
-  'authorization:set': { minimum: 3, maximum: 3 },
-  'authorization:clear': { minimum: 2, maximum: 2 },
-  'queue:list': { minimum: 2, maximum: 2 },
-  'queue:withdraw': { minimum: 3 },
-  'queue:reorder': { minimum: 3 },
-  'queue:pause': { minimum: 2, maximum: 2 },
-  'queue:resume': { minimum: 2, maximum: 2 },
-  'requests:list': { minimum: 2, maximum: 2 },
-  'requests:respond': { minimum: 4, maximum: 4 },
-  'delegation:submit': { minimum: 4 },
-  'delegation:state': { minimum: 5 },
-  'delegation:claim': { minimum: 4 },
-  'delegation:acknowledge-conflict': { minimum: 5 },
-  'delegation:dependency': { minimum: 7 },
-  'delegation:propose-amendment': { minimum: 5 },
-  'delegation:amend': { minimum: 5 },
-  'delegation:request-revision': { minimum: 5 },
-  'delegation:accept': { minimum: 4 },
-  'delegation:reopen': { minimum: 4 },
-  'delegation:cancel': { minimum: 4 },
-  'delegation:verify': { minimum: 6 },
-  'export:stream': { minimum: 1, maximum: 1 },
-  'export:create': { minimum: 3, maximum: 3 },
-  'export:cancel': { minimum: 3, maximum: 3 },
-  'export:list': { minimum: 2, maximum: 2 },
-  'export:read': { minimum: 3, maximum: 3 },
-  'export:wait': { minimum: 3, maximum: 3 },
-  'export:watch': { minimum: 2, maximum: 3 },
+const ACTIONS: Readonly<Record<string, CommandCliArgumentContract>> = {
+  'authorization-set': { minimum: 2, maximum: 2 },
+  'queue-list': { minimum: 1, maximum: 1 },
+  'queue-withdraw': { minimum: 2 },
+  'queue-reorder': { minimum: 2 },
+  'queue-pause': { minimum: 1, maximum: 1 },
+  'queue-resume': { minimum: 1, maximum: 1 },
+  'requests-list': { minimum: 1, maximum: 1 },
+  'request-respond': { minimum: 3, maximum: 3 },
+  'approval-respond': { minimum: 3, maximum: 3 },
+  'delegation-submit': { minimum: 3 },
+  'delegation-state': { minimum: 4 },
+  'delegation-claim': { minimum: 3 },
+  'delegation-conflict-acknowledge': { minimum: 4 },
+  'delegation-dependency': { minimum: 6 },
+  'delegation-propose-amendment': { minimum: 4 },
+  'delegation-amend': { minimum: 4 },
+  'delegation-request-revision': { minimum: 4 },
+  'delegation-accept': { minimum: 3 },
+  'delegation-reopen': { minimum: 3 },
+  'delegation-cancel': { minimum: 3 },
+  'delegation-verify': { minimum: 5 },
+  'delegations-list': { minimum: 0, maximum: 0 },
+  'delegations-read': { minimum: 1, maximum: 1 },
+  'delegations-conflicts': { minimum: 0, maximum: 0 },
+  export: { minimum: 1, maximum: 1 },
+  'export-create': { minimum: 2, maximum: 2 },
+  'export-cancel': { minimum: 2, maximum: 2 },
+  'exports-list': { minimum: 1, maximum: 1 },
+  'exports-read': { minimum: 2, maximum: 2 },
+  'exports-wait': { minimum: 2, maximum: 2 },
+  'exports-watch': { minimum: 1, maximum: 2 },
+  'agent-definitions-list': { minimum: 0, maximum: 0 },
+  'agent-definitions-search': { minimum: 1 },
 }
 
-export function validateSessionsCliPositionals(route: string, arguments_: ParsedArguments) {
-  const contract = DIRECT[route] ?? GROUPED[route]
-  if (!contract) throw new Error(`Unsupported Sessions command: ${route}.`)
-  validateCommandCliArguments('OpenWaggle Sessions', route.replace(':', ' '), arguments_, contract)
+export function validateSessionsCliPositionals(command: string, arguments_: ParsedArguments) {
+  const contract = DIRECT[command] ?? ACTIONS[command]
+  if (!contract) throw new Error(`Unsupported OpenWaggle Hive command: ${command}.`)
+  validateCommandCliArguments('OpenWaggle Hive', command, arguments_, contract)
 }

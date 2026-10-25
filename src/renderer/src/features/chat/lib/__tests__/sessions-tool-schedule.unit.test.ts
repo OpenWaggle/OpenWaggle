@@ -70,14 +70,14 @@ describe('sessionsToolScheduledTask', () => {
     ).toMatchObject({ taskId: 'task-1', name: null })
   })
 
-  it('is null for any other sessions-tool action', () => {
+  it('is null for any other hive-tool action', () => {
     expect(sessionsToolScheduledTask({ action: 'spawn', objective: 'Review' }, undefined)).toBe(
       null,
     )
   })
 })
 
-describe('Scheduled task sessions-tool labels', () => {
+describe('Scheduled task hive-tool labels', () => {
   it('names the task an action acts on, or a bare scheduled task', () => {
     expect(sessionsLabel({ action: 'schedule_create', name: 'Morning triage' }, null)).toEqual({
       running: 'Creating scheduled task · Morning triage...',
@@ -97,11 +97,11 @@ describe('Scheduled task sessions-tool labels', () => {
   })
 
   it('shows a streaming Scheduled task action once its name is whole', () => {
-    expect(
-      isHiddenSessionsToolCall('sessions', { action: 'schedule_run' }, 'input-streaming'),
-    ).toBe(true)
-    expect(
-      isHiddenSessionsToolCall('sessions', { action: 'schedule_create' }, 'input-streaming'),
-    ).toBe(false)
+    expect(isHiddenSessionsToolCall('hive', { action: 'schedule_run' }, 'input-streaming')).toBe(
+      true,
+    )
+    expect(isHiddenSessionsToolCall('hive', { action: 'schedule_create' }, 'input-streaming')).toBe(
+      false,
+    )
   })
 })

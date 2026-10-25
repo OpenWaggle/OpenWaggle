@@ -27,7 +27,7 @@ export function installSessionToolGateway(gateway: SessionToolGateway) {
 
 export function executeSessionToolCommand(input: SessionToolGatewayInput) {
   if (!installedGateway) {
-    throw new Error('The OpenWaggle Sessions tool gateway is not available.')
+    throw new Error('The OpenWaggle hive tool gateway is not available.')
   }
   return installedGateway(input)
 }

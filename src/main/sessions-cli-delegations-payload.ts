@@ -14,22 +14,18 @@ import {
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
-import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
 
-const DELEGATION_MUTATION_COMMANDS = new Set([
-  'submit',
-  'claim',
-  'acknowledge-conflict',
-  'dependency',
-  'propose-amendment',
-  'amend',
-  'verify',
-  'state',
-  'request-revision',
-  'accept',
-  'reopen',
-  'cancel',
-])
+const DELEGATION_QUERY_COMMANDS = [
+  'delegations-list',
+  'delegations-read',
+  'delegations-conflicts',
+] as const
+
+export function isDelegationQueryCliCommand(
+  command: string,
+): command is (typeof DELEGATION_QUERY_COMMANDS)[number] {
+  return DELEGATION_QUERY_COMMANDS.some((candidate) => candidate === command)
+}
 
 /** `--parent` and `--worker` take a Session identity or a Session link (ADR 0056). */
 function sessionFilters(arguments_: ParsedArguments) {
@@ -162,21 +158,14 @@ function conflictsPayload(
   }
 }
 
-export function buildDelegationsCliPayload(
-  command: string,
+/** `hive delegations-list`, `delegations-read`, and `delegations-conflicts`. */
+export function buildDelegationQueryCliPayload(
+  command: (typeof DELEGATION_QUERY_COMMANDS)[number],
   arguments_: ParsedArguments,
   context: { readonly workingDirectory?: string } = {},
 ): LocalSessionCommandPayload {
-  if (command === 'list') return listPayload(arguments_, context.workingDirectory ?? process.cwd())
-  if (command === 'read') return readPayload(arguments_)
-  if (command === 'conflicts') {
-    return conflictsPayload(arguments_, context.workingDirectory ?? process.cwd())
-  }
-  if (DELEGATION_MUTATION_COMMANDS.has(command)) {
-    return buildSessionsCliControlPayload('delegation', {
-      ...arguments_,
-      positionals: [command, ...arguments_.positionals],
-    })
-  }
-  throw new Error(`Unsupported Delegations command: ${command}.`)
+  const workingDirectory = context.workingDirectory ?? process.cwd()
+  if (command === 'delegations-list') return listPayload(arguments_, workingDirectory)
+  if (command === 'delegations-read') return readPayload(arguments_)
+  return conflictsPayload(arguments_, workingDirectory)
 }

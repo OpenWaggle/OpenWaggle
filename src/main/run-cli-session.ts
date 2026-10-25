@@ -318,7 +318,7 @@ export class RunCliSession {
     if (settlement.message) this.presenter.status(settlement.message)
     if (this.target && this.dependencies.interactive) {
       this.presenter.status(
-        `continue with: openwaggle sessions follow-up ${this.target.sessionId} --text "..."`,
+        `continue with: openwaggle hive follow-up ${this.target.sessionId} --text "..."`,
       )
     }
   }

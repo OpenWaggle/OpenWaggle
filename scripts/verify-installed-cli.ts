@@ -179,10 +179,10 @@ export async function verifyInstalledCliDiscovery(
   if (!help.stdout.includes('Usage:') || !help.stdout.includes('Commands:')) {
     throw new Error('Installed OpenWaggle CLI did not print its usage for --help.')
   }
-  const typo = await runCli(command, ['sesions'], environment, platform, {
+  const typo = await runCli(command, ['hvie'], environment, platform, {
     expectedExitCode: USAGE_EXIT_CODE,
   })
-  if (!typo.stderr.includes("Did you mean 'sessions'?")) {
+  if (!typo.stderr.includes("Did you mean 'hive'?")) {
     throw new Error('Installed OpenWaggle CLI did not report a mistyped command.')
   }
 }
@@ -222,7 +222,7 @@ export async function verifyInstalledCli(
   try {
     const result = await executeCli(
       command,
-      ['sessions', 'list', '--all', '--limit', '1', '--json'],
+      ['hive', 'list', '--all', '--limit', '1', '--json'],
       environment,
       platform,
     )

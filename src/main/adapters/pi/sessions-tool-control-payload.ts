@@ -170,7 +170,7 @@ export function buildSessionsToolControlPayload(
       authorizationMode: input.authorizationMode === 'inherit' ? null : input.authorizationMode,
     })
   }
-  if (!isRunControlInput(input)) throw new Error('Unsupported Sessions control action.')
+  if (!isRunControlInput(input)) throw new Error('Unsupported hive control action.')
   return controlRequest(
     runControlCommand(input),
     'attachmentPaths' in input ? input.attachmentPaths : undefined,

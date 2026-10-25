@@ -51,7 +51,7 @@ function validateReadOptions(command: string, arguments_: ParsedArguments) {
     (arguments_.options.has('scope') || arguments_.options.has('branch')) &&
     !arguments_.options.has('full')
   ) {
-    throw new Error('--scope and --branch require sessions read --full.')
+    throw new Error('--scope and --branch require hive read --full.')
   }
 }
 

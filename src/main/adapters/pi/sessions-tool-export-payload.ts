@@ -85,7 +85,7 @@ function exportPagination(input: ExportInput) {
 
 export function buildSessionsToolExportPayload(input: ExportInput): LocalSessionCommandPayload {
   if (input.afterCreatedOrder !== undefined && !input.snapshotManifest) {
-    throw new Error('Sessions export continuation requires the first page snapshotManifest.')
+    throw new Error('hive export continuation requires the first page snapshotManifest.')
   }
   assertManifestTarget(input)
   return {

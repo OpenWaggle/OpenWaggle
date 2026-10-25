@@ -98,7 +98,7 @@ macOS or Linux; make sure `~/.local/bin` is on your shell's `PATH`. An unrelated
 path is never replaced. Windows installers register the command automatically. Run
 `openwaggle --help` to list the commands. The CLI lets terminals and external coding agents run
 agents headlessly and control the same live Sessions shown in the app; see
-[Command line](/docs/developer-workflow/command-line) and [Sessions CLI](/docs/developer-workflow/sessions-cli).
+[Command line](/docs/developer-workflow/command-line) and [Hive CLI](/docs/developer-workflow/hive-cli).
 
 ## Choose an update channel
 

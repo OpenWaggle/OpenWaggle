@@ -1,3 +1,4 @@
+import { HIVE_MCP_TOOL_NAME } from '@shared/constants/hive'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
@@ -6,6 +7,10 @@ import {
   requiredSessionLifecycleCapabilities,
   requiredSessionQueryCapabilities,
 } from './domain/session-control/session-capability-authorization'
+import {
+  isMcpAgentDefinitionOperation,
+  queryMcpAgentDefinitions,
+} from './openwaggle-mcp-agent-definitions-v2'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
 import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from './openwaggle-mcp-session-input-v2'
 import {
@@ -74,15 +79,13 @@ function requiredCapabilities(payload: LocalSessionCommandPayload) {
     payload.contract === 'local-host-v1' ||
     payload.contract === 'desktop-service-v1'
   ) {
-    throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
+    throw new Error('Local GUI contracts are not available through the Hive MCP adapter.')
   }
   if (payload.contract === 'local-access-v1') {
-    throw new Error('Profile administration is not available through the Sessions MCP adapter.')
+    throw new Error('Profile administration is not available through the Hive MCP adapter.')
   }
   if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
-    throw new Error(
-      'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
-    )
+    throw new Error('Explicit GUI Waggle contracts are not available through the Hive MCP adapter.')
   }
   if (payload.contract === 'scheduled-tasks-v1') throw new Error(SCHEDULED_TASKS_UNAVAILABLE)
   return payload.contract === 'session-control-v2'
@@ -230,14 +233,19 @@ export function registerOpenWaggleSessionToolV2(
     })
   }
   server.registerTool(
-    'openwaggle_sessions',
+    HIVE_MCP_TOOL_NAME,
     {
-      title: 'OpenWaggle sessions',
+      title: 'OpenWaggle Hive',
       description:
-        "Session Control v2 for durable OpenWaggle Sessions and Runs. Discovery defaults to all Sessions within the caller's granted workspaces and Session ids; projectPath narrows it. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.",
+        "Session Control v2 for durable OpenWaggle Sessions and Runs. Each operation is the openwaggle hive CLI subcommand of the same name. Discovery defaults to all Sessions within the caller's granted workspaces and Session ids; projectPath narrows it. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.",
       inputSchema: sessionInputSchemaV2,
     },
     async (input) => {
+      if (isMcpAgentDefinitionOperation(input.operation)) {
+        return toolResult(
+          await queryMcpAgentDefinitions(options, { ...input, operation: input.operation }),
+        )
+      }
       let payload: LocalSessionCommandPayload = buildMcpSessionPayloadV2(input)
       assertMcpOriginProvenance(options, payload)
       for (const capability of requiredCapabilities(payload)) requireGrant(options, capability)

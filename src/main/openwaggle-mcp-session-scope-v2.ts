@@ -55,7 +55,7 @@ function queryTarget(
  * revalidated when a Scheduled task later fires (ADR 0057).
  */
 export const SCHEDULED_TASKS_UNAVAILABLE =
-  'Scheduled tasks are not available through the Sessions MCP adapter: an MCP server holds only transient authority, and a Scheduled task needs a lasting creator whose authority each run revalidates.'
+  'Scheduled tasks are not available through the Hive MCP adapter: an MCP server holds only transient authority, and a Scheduled task needs a lasting creator whose authority each run revalidates.'
 
 function directTarget(payload: LocalSessionCommandPayload) {
   return matchBy(payload, 'contract')
@@ -69,12 +69,12 @@ function directTarget(payload: LocalSessionCommandPayload) {
       'local-update-v1',
       'local-host-v1',
       () => {
-        throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
+        throw new Error('Local GUI contracts are not available through the Hive MCP adapter.')
       },
     )
     .with('session-waggle-v1', 'session-waggle-cancel-v1', () => {
       throw new Error(
-        'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
+        'Explicit GUI Waggle contracts are not available through the Hive MCP adapter.',
       )
     })
     .with('scheduled-tasks-v1', () => {

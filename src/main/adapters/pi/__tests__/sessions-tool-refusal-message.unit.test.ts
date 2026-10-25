@@ -23,11 +23,11 @@ function registeredTool() {
       },
     }),
   )
-  if (!tool) throw new Error('The sessions tool was not registered.')
+  if (!tool) throw new Error('The hive tool was not registered.')
   return tool
 }
 
-describe('Sessions tool refusal messages', () => {
+describe('Hive tool refusal messages', () => {
   let releaseGateway: (() => void) | undefined
 
   afterEach(() => {

@@ -52,7 +52,7 @@ Sharing a workspace makes it harder to attribute changes. OpenWaggle records adv
 
 A **run** is one active execution of the agent in a session. Use a **Follow-up** for work that should start after it finishes; use **Steer** for guidance that belongs in the current run. Steer does not cancel a tool already running.
 
-These names have precise meanings in the GUI, CLI, MCP adapter, and native `sessions` tool:
+These names have precise meanings in the GUI, CLI, MCP adapter, and native `hive` tool:
 
 | Action | Meaning |
 |---|---|
@@ -80,7 +80,7 @@ Pi's internal steering queue is an adapter detail. The durable **Follow-up queue
 
 When you promote a Follow-up, its preview moves into the conversation while the Host processes it. During compaction it shows that it is waiting. Acceptance can precede delivery while a tool is still running, so the preview remains until the actual user message arrives. Switching Sessions does not discard it. If the Host refuses the promotion, the Follow-up remains in its queue.
 
-A steered message the agent has not read yet is not lost when its Run ends first. If you stop, interrupt, or replace the Run, or it ends without reading the message, the message returns to the front of the Follow-up queue, in the order it was steered. A promoted Follow-up keeps its identity, text, attachments, and options. A message steered directly, for example by an agent or the Sessions CLI, becomes a new Follow-up from the same caller, with its text, attachments, and visualization context; like any steer it has no Waggle, thinking level, or authorization override of its own, so it runs with the Session's settings. The queue list marks it as a returned steer with the steer's Run and idempotency key, so the caller can find it instead of sending it again. Because returned steers can push the queue past its usual capacity, a direct steer is refused while the queue is full, and one Run holds a bounded number of them. A stopped Run pauses the queue as usual, so you can resume, steer, or dismiss it. A message the agent had already started reading stays in the transcript and is not returned. After a Host crash, OpenWaggle cannot tell which steered messages were read, so it returns none of them.
+A steered message the agent has not read yet is not lost when its Run ends first. If you stop, interrupt, or replace the Run, or it ends without reading the message, the message returns to the front of the Follow-up queue, in the order it was steered. A promoted Follow-up keeps its identity, text, attachments, and options. A message steered directly, for example by an agent or the Hive CLI, becomes a new Follow-up from the same caller, with its text, attachments, and visualization context; like any steer it has no Waggle, thinking level, or authorization override of its own, so it runs with the Session's settings. The queue list marks it as a returned steer with the steer's Run and idempotency key, so the caller can find it instead of sending it again. Because returned steers can push the queue past its usual capacity, a direct steer is refused while the queue is full, and one Run holds a bounded number of them. A stopped Run pauses the queue as usual, so you can resume, steer, or dismiss it. A message the agent had already started reading stays in the transcript and is not returned. After a Host crash, OpenWaggle cannot tell which steered messages were read, so it returns none of them.
 
 ## Authorization and capacity
 
@@ -90,7 +90,7 @@ A Session's model and thinking level are Session settings. A Run uses them when 
 
 If the access a Follow-up was queued under is revoked or no longer covers the Session, the Follow-up waits in the queue marked as needing attention. In the app, **Send as me** sends it under your own access instead. The queue keeps who originally queued it, and the message can no longer be edited. You can also dismiss it.
 
-Session capabilities constrain the native `sessions` tool and authenticated Session Host requests. They are not an operating-system sandbox. A Worker that still has an unrestricted shell, process access, and the same desktop-user credentials can act with that user's authority outside the native tool, including calling the CLI directly. For strong containment, remove shell/process tools from the Agent definition or run the agent in a separate OS sandbox, account, or container. Named CLI profiles are useful for attribution and least privilege only when the caller cannot also access the owner's credentials.
+Session capabilities constrain the native `hive` tool and authenticated Session Host requests. They are not an operating-system sandbox. A Worker that still has an unrestricted shell, process access, and the same desktop-user credentials can act with that user's authority outside the native tool, including calling the CLI directly. For strong containment, remove shell/process tools from the Agent definition or run the agent in a separate OS sandbox, account, or container. Named CLI profiles are useful for attribution and least privilege only when the caller cannot also access the owner's credentials.
 
 **Settings > Agents > Hive controls** contains **Agent-created Workers**, **Workers per parent**, default `4`, and **Active agent runs**, default `16`. These control agent-created sessions, concurrent direct Workers under one parent, and the app-wide active run limit. Both limits are configurable without a fixed product maximum; high values may strain the machine or provider. A new Run at capacity receives a retryable rejection, not a queued slot. These limits count active Runs, not saved Sessions, queues, searches, exports, waits, or watchers.
 
@@ -110,7 +110,7 @@ Archived Workers stay listed under **Archived · n** in the Hive panel and in **
 
 ## How hosted agents coordinate
 
-An agent running inside OpenWaggle uses its native `sessions` tool. It can list or search available Agent definitions, then spawn a Worker with a specific objective, an optional definition, and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.
+An agent running inside OpenWaggle uses its native `hive` tool. It can list or search available Agent definitions, then spawn a Worker with a specific objective, an optional definition, and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.
 
 After spawning, the parent can use `wait` for a bounded observation, read the Worker's Session or Delegation history, and review its submitted revision. The native tool's `wait` is not a permanent subscription; external CLI/MCP clients can use `watch` for a continuing event stream. The parent may ask for revision or accept the submission. An agent can use `report` to pass context to its parent, the Queen, or another Worker without starting a Run in the recipient. A user can ask a Worker to report a finding upstream; no separate reporting UI is required.
 
@@ -124,19 +124,19 @@ check to it. If there isn't one, launch a session in ~/Projects/OpenWaggle on a 
 worktree with this report as its objective.
 ```
 
-To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. Leaving `workspace` out, or passing `current`, uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/sessions-cli#restricted-external-agent-profiles) stays inside its own project unless the profile covers every project. When the Host refuses a request, the tool reports why, such as the missing capability.
+To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. Leaving `workspace` out, or passing `current`, uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) stays inside its own project unless the profile covers every project. When the Host refuses a request, the tool reports why, such as the missing capability.
 
 ### Scratch files
 
 Each Session has a private scratch directory for temporary files. OpenWaggle sets `TMPDIR`, `TMP`, and `TEMP` to it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time cannot overwrite or read each other's file. On macOS and Linux only your user account can open it. OpenWaggle deletes it when you archive or delete the Session, or when the running turn ends if you archive it mid-turn; keep anything you need in the workspace instead. Screenshots and other files an agent wants to show you or another Session go to a separate evidence directory, `$OPENWAGGLE_EVIDENCE_DIR`, which is kept after archiving, so a Queen can still show a finished Worker's screenshots. OpenWaggle removes a Session's evidence once nothing has been added to it for a week.
 
-Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Sessions CLI](/docs/developer-workflow/sessions-cli) for the corresponding external-agent commands.
+Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Hive CLI](/docs/developer-workflow/hive-cli) for the corresponding external-agent commands.
 
 ## External control and live UI updates
 
 The Session Host is the local process that owns session execution and saved state. The desktop app, CLI, MCP server, and native agent tool all use it. A CLI-created Worker therefore appears in the GUI's Hive panel, and queue, Run, request, delegation, and lineage changes update open windows through the Host event stream. If an event cursor is too old or the Host restarts, clients reload a canonical snapshot before continuing.
 
-An agent already running in OpenWaggle uses the native `sessions` tool directly rather than spawning the CLI. External coding agents use the [Sessions CLI](/docs/developer-workflow/sessions-cli) or the versioned `openwaggle_sessions` MCP tool.
+An agent already running in OpenWaggle uses the native `hive` tool directly rather than spawning the CLI. External coding agents use the [Hive CLI](/docs/developer-workflow/hive-cli) or the versioned `openwaggle_hive` MCP tool.
 
 ### Older Hive history
 
@@ -144,7 +144,7 @@ Sessions created by the older MCP task feature keep their parent and Worker link
 
 ## Related guides
 
-- [Sessions CLI](/docs/developer-workflow/sessions-cli) covers discovery, messaging, waiting, watching, transcript reads, and exports for external agents.
+- [Hive CLI](/docs/developer-workflow/hive-cli) covers discovery, messaging, waiting, watching, transcript reads, and exports for external agents.
 - [Agent Definitions](/docs/extending/agent-definitions) explains optional Markdown roles and capability restrictions for Workers.
 - [App Settings](/docs/configuration/app-settings) covers Hive controls, Worker limits, active Run capacity, and permissions.
 - [Session Recovery](/docs/configuration/session-recovery) explains the one-time alpha migration and recovery behavior.

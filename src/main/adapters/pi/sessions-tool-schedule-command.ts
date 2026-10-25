@@ -15,7 +15,7 @@ import {
 import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
 
 /**
- * The flat Scheduled task fields the Pi-native Sessions tool and the Sessions MCP tool both accept.
+ * The flat Scheduled task fields the Pi-native hive tool and the openwaggle_hive MCP tool both accept.
  * Each adapter validates its own transport schema first; this module maps the fields onto one
  * `scheduled-tasks-v1` command so the two surfaces keep the same semantics.
  */

@@ -13,10 +13,9 @@ Commands:
   run          Run an agent in a project and stream its reply to the terminal
   status       Show whether the Session Host is running and which runs are active
   host         Check on or stop the background Session Host
-  sessions     Find, start, message, steer, wait for, and export Sessions
-  delegations  List, review, and resolve Worker Delegations
+  hive         Coordinate Sessions: spawn and message Workers, review Delegations, wait, export
   schedules    Create and manage Scheduled tasks (Heartbeats and Launch schedules)
-  agents       List, validate, and manage Agent definitions
+  agents       Validate, import, explain, and edit Agent definitions
   access       Manage named access profiles for agents and scripts
   mcp          Manage MCP servers, or serve OpenWaggle over MCP
   update       Check for and install OpenWaggle updates

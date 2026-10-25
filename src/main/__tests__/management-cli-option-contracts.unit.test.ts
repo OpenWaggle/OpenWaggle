@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { validateAccessCliOptions } from '../access-cli-option-contract'
 import { parseManagementEnvelope, parseProfileScope } from '../access-cli-policy'
 import { validateAgentsCliOptions } from '../agents-cli-option-contract'
-import { validateDelegationsCliOptions } from '../delegations-cli-option-contract'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
+import { validateSessionsCliOptions } from '../sessions-cli-option-contract'
 
 function argumentsFor(values: readonly string[]) {
   return parseMcpCliArguments(values)
@@ -100,18 +100,24 @@ describe('management CLI option contracts', () => {
     )
   })
 
-  it('rejects Delegation evidence typos before a mutation can be sent', () => {
+  it('rejects Hive Delegation evidence typos before a mutation can be sent', () => {
     expect(() =>
-      validateDelegationsCliOptions(
-        'submit',
+      validateSessionsCliOptions(
+        'delegation-submit',
         argumentsFor(['--evidencejson', '{"kind":"asserted-note","summary":"done"}']),
       ),
-    ).toThrow('Unknown option for OpenWaggle Delegations: --evidencejson')
+    ).toThrow('Unknown option for OpenWaggle Hive: --evidencejson')
     expect(() =>
-      validateDelegationsCliOptions('read', argumentsFor(['--evidence-json', '{}'])),
-    ).toThrow('Unsupported option for OpenWaggle Delegations read: --evidence-json')
+      validateSessionsCliOptions(
+        'delegations-read',
+        argumentsFor(['delegation-1', '--evidence-json', '{}']),
+      ),
+    ).toThrow('Unsupported option for hive delegations-read: --evidence-json')
     expect(() =>
-      validateDelegationsCliOptions('submit', argumentsFor(['--evidence-json'])),
+      validateSessionsCliOptions(
+        'delegation-submit',
+        argumentsFor(['worker', 'delegation-1', 'done', '--evidence-json']),
+      ),
     ).toThrow('Missing value for --evidence-json')
   })
 
@@ -120,22 +126,34 @@ describe('management CLI option contracts', () => {
       validateAgentsCliOptions('delete', argumentsFor(['reviewer', 'accidental-extra'])),
     ).toThrow('received unexpected positional arguments')
     expect(() =>
-      validateAgentsCliOptions('search', argumentsFor(['queue', 'semantics'])),
+      validateSessionsCliOptions('agent-definitions-search', argumentsFor(['queue', 'semantics'])),
     ).not.toThrow()
     expect(() =>
       validateAccessCliOptions('revoke', argumentsFor(['reviewer', 'accidental-extra'])),
     ).toThrow('received unexpected positional arguments')
     expect(() =>
-      validateDelegationsCliOptions('read', argumentsFor(['delegation-1', 'accidental-extra'])),
+      validateSessionsCliOptions(
+        'delegations-read',
+        argumentsFor(['delegation-1', 'accidental-extra']),
+      ),
     ).toThrow('received unexpected positional arguments')
     expect(() =>
-      validateDelegationsCliOptions(
-        'submit',
+      validateSessionsCliOptions(
+        'delegation-submit',
         argumentsFor(['worker', 'delegation-1', 'all', 'done']),
       ),
     ).not.toThrow()
     expect(() =>
-      validateAgentsCliOptions('list', argumentsFor(['--', 'unexpected-command'])),
+      validateAgentsCliOptions('explain', argumentsFor(['reviewer', '--', 'unexpected-command'])),
     ).toThrow('does not accept arguments after --')
+  })
+
+  it('refuses Agent-definition discovery under its former agents names (ADR 0053)', () => {
+    expect(() => validateAgentsCliOptions('list', argumentsFor([]))).toThrow(
+      "Unsupported OpenWaggle Agents command: list. Use 'openwaggle hive agent-definitions-list'.",
+    )
+    expect(() => validateAgentsCliOptions('search', argumentsFor(['reviewer']))).toThrow(
+      "Use 'openwaggle hive agent-definitions-search'.",
+    )
   })
 })

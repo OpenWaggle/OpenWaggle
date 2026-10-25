@@ -42,7 +42,7 @@ function sourceRelationshipBlockReason(
 ) {
   const sourceId = source.sessionId
   if (source.row.parent_session_id === null) {
-    // The same decision the Sessions tool made when the Follow-up was queued.
+    // The same decision the Hive tool made when the Follow-up was queued.
     return sessionAgentRunReachesEveryProject(sql, source.sessionId, source.runId).pipe(
       Effect.map((everyProject): AttentionReason | undefined =>
         everyProject ||

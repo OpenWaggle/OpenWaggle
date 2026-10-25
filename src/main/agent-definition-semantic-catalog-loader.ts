@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import * as Effect from 'effect/Effect'
 import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
 import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
@@ -22,7 +23,7 @@ const BUILTIN_AND_NATIVE_TOOL_NAMES = [
   'grep',
   'find',
   'ls',
-  'sessions',
+  HIVE_TOOL_NAME,
 ] as const
 
 export interface LoadAgentDefinitionSemanticCatalogInput {

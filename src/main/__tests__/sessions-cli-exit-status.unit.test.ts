@@ -21,7 +21,7 @@ vi.mock('../session-host/local-session-client', () => ({
 import { decodeLocalSessionCommandResponse } from '../session-host/local-session-client-response'
 import { runSessionsCli } from '../sessions-cli'
 
-describe('Sessions CLI structured failure exit status', () => {
+describe('Hive CLI structured failure exit status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createClientInput.mockResolvedValue({
@@ -55,7 +55,7 @@ describe('Sessions CLI structured failure exit status', () => {
     expect(mocks.createClientInput).not.toHaveBeenCalled()
     expect(mocks.executeCommand).not.toHaveBeenCalled()
     expect(process.stderr.write).toHaveBeenCalledWith(
-      expect.stringContaining('Unknown option for OpenWaggle Sessions: --workspce'),
+      expect.stringContaining('Unknown option for OpenWaggle Hive: --workspce'),
     )
   })
 
@@ -102,7 +102,7 @@ describe('Sessions CLI structured failure exit status', () => {
     expect(mocks.executeCommand).not.toHaveBeenCalled()
     expect(process.stdout.write).not.toHaveBeenCalled()
     expect(process.stderr.write).toHaveBeenCalledWith(
-      expect.stringContaining('Unsupported option-only invocation for OpenWaggle Sessions'),
+      expect.stringContaining('Unsupported option-only invocation for OpenWaggle Hive'),
     )
   })
 
@@ -113,7 +113,7 @@ describe('Sessions CLI structured failure exit status', () => {
     expect(mocks.executeCommand).not.toHaveBeenCalled()
     expect(process.stdout.write).not.toHaveBeenCalled()
     expect(process.stderr.write).toHaveBeenCalledWith(
-      expect.stringContaining('Unknown option for OpenWaggle Sessions: --jsoon'),
+      expect.stringContaining('Unknown option for OpenWaggle Hive: --jsoon'),
     )
   })
 
@@ -272,7 +272,7 @@ describe('Sessions CLI structured failure exit status', () => {
     })
 
     await expect(
-      runSessionsCli(['export', 'watch', 'session-1', 'export-1', '--jsonl']),
+      runSessionsCli(['exports-watch', 'session-1', 'export-1', '--jsonl']),
     ).resolves.toBe(1)
 
     const records = vi

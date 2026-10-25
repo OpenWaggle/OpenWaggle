@@ -3,7 +3,9 @@ import { toolKind } from '../tool-kind'
 
 describe('toolKind', () => {
   it('groups Pi and OpenWaggle tools by family', () => {
-    expect(toolKind('sessions')).toBe('workers')
+    expect(toolKind('hive')).toBe('workers')
+    // A call recorded under the Hive tool's former name stays unrecognized (ADR 0053).
+    expect(toolKind('sessions')).toBe('other')
     expect(toolKind('codemode')).toBe('script')
     expect(toolKind('bash')).toBe('shell')
     expect(toolKind('powershell')).toBe('shell')

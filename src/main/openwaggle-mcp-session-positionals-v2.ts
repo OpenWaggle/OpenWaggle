@@ -20,11 +20,10 @@ function delegationQueryPositionals(input: SessionToolInputV2) {
 
 function exportQueryPositionals(input: SessionToolInputV2) {
   if (input.operation === 'exports-list') {
-    return ['list', ...(input.sessionId ? [input.sessionId] : [])]
+    return input.sessionId ? [input.sessionId] : []
   }
   if (input.operation !== 'exports-read' && input.operation !== 'exports-wait') return undefined
   return [
-    input.operation === 'exports-read' ? 'read' : 'wait',
     ...(input.sessionId ? [input.sessionId] : []),
     ...(input.exportOperationId ? [input.exportOperationId] : []),
   ]
@@ -33,14 +32,12 @@ function exportQueryPositionals(input: SessionToolInputV2) {
 function exportControlPositionals(input: SessionToolInputV2) {
   if (input.operation === 'export-create') {
     return [
-      'create',
       ...(input.sessionId ? [input.sessionId] : []),
       ...(input.destinationPath ? [input.destinationPath] : []),
     ]
   }
   if (input.operation !== 'export-cancel') return undefined
   return [
-    'cancel',
     ...(input.sessionId ? [input.sessionId] : []),
     ...(input.exportOperationId ? [input.exportOperationId] : []),
   ]
@@ -58,24 +55,20 @@ function lifecyclePositionals(input: SessionToolInputV2) {
 
 function queuePositionals(input: SessionToolInputV2) {
   const direct = input.sessionId ? [input.sessionId] : []
-  if (input.operation === 'queue-list') return ['list', ...direct]
-  if (input.operation === 'queue-withdraw')
-    return ['withdraw', ...direct, ...new Set(input.followUpIds ?? [])]
-  if (input.operation === 'queue-reorder')
-    return ['reorder', ...direct, ...new Set(input.followUpIds ?? [])]
-  if (input.operation === 'queue-pause') return ['pause', ...direct]
-  return input.operation === 'queue-resume' ? ['resume', ...direct] : undefined
+  if (input.operation === 'queue-withdraw' || input.operation === 'queue-reorder') {
+    return [...direct, ...new Set(input.followUpIds ?? [])]
+  }
+  return input.operation.startsWith('queue-') ? direct : undefined
 }
 
 function requestPositionals(input: SessionToolInputV2) {
   if (input.operation === 'requests-list') {
-    return ['list', ...(input.sessionId ? [input.sessionId] : [])]
+    return input.sessionId ? [input.sessionId] : []
   }
   if (input.operation !== 'request-respond' && input.operation !== 'approval-respond') {
     return undefined
   }
   return [
-    'respond',
     ...(input.sessionId ? [input.sessionId] : []),
     ...(input.runId ? [input.runId] : []),
     ...(input.interactionId ? [input.interactionId] : []),
@@ -84,11 +77,7 @@ function requestPositionals(input: SessionToolInputV2) {
 
 function authorizationPositionals(input: SessionToolInputV2) {
   if (input.operation !== 'authorization-set') return undefined
-  if (input.authorizationMode === 'inherit') {
-    return ['clear', ...(input.sessionId ? [input.sessionId] : [])]
-  }
   return [
-    'set',
     ...(input.sessionId ? [input.sessionId] : []),
     ...(input.authorizationMode ? [input.authorizationMode] : []),
   ]

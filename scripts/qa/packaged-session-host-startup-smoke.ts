@@ -143,7 +143,7 @@ export function packagedSecondInstanceArguments(
 
 async function assertLegacySessionMigrated(executable: string, environment: Record<string, string>) {
   const response = await runJsonCli(executable, environment, [
-    'sessions',
+    'hive',
     'list',
     '--all',
     '--limit',
@@ -168,7 +168,7 @@ async function assertLegacySessionMigrated(executable: string, environment: Reco
     executable,
     environment,
     [
-      'sessions',
+      'hive',
       'search',
       'packaged cutover fixture',
       '--mode',

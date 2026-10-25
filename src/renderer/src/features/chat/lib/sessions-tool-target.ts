@@ -30,7 +30,7 @@ function createdSessionId(resultContent: unknown) {
 }
 
 /**
- * The id of the Session a sessions-tool call acts on, when its arguments or result name one. A
+ * The id of the Session a hive-tool call acts on, when its arguments or result name one. A
  * fork without a `sessionId` forks the calling Session, whose transcript the row sits in.
  */
 export function sessionsToolTargetId(

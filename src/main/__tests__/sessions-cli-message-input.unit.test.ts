@@ -116,7 +116,7 @@ const requestTargetCases = [
   },
 ] as const
 
-describe('Sessions CLI explicit message input', () => {
+describe('Hive CLI explicit message input', () => {
   it('requires exactly one explicit source and rejects positional message text', async () => {
     await expect(
       resolveSessionsCliMessageInput('message', argumentsFor(['session-1'])),

@@ -4,13 +4,13 @@ import { watchLocalSessionEvents } from './session-host/local-session-client'
 import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { writeSessionsCliStreamRecord } from './sessions-cli-output'
 
-const EXPORT_OPERATION_ID_POSITION = 2
+const EXPORT_OPERATION_ID_POSITION = 1
 
 export async function watchSessionExportOperations(
   arguments_: ParsedArguments,
   clientInput: LocalSessionCliClientInput,
 ) {
-  const sessionId = requiredSessionId(arguments_.positionals[1])
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   const exportOperationId = arguments_.positionals[EXPORT_OPERATION_ID_POSITION]
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()

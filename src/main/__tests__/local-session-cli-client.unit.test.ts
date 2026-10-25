@@ -50,7 +50,7 @@ import {
 } from '../local-session-cli-client'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 
-describe('local Sessions CLI client credentials', () => {
+describe('local Hive CLI client credentials', () => {
   beforeEach(() => {
     mocks.env.OPENWAGGLE_AGENT_RUN = undefined
     mocks.env.OPENWAGGLE_PROFILE = undefined

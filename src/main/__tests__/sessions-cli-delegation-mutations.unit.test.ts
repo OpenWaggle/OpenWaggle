@@ -1,106 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { buildDelegationsCliPayload } from '../delegations-cli-payload'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
+import { buildSessionsCliPayload } from '../sessions-cli-payload'
 
 function payload(args: readonly string[]) {
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
   if (!command) throw new Error('Missing command.')
-  return buildDelegationsCliPayload(
+  return buildSessionsCliPayload(
     command,
     { ...parsed, positionals: parsed.positionals.slice(1) },
     { workingDirectory: '/repo/worktree' },
   )
 }
 
-describe('Delegations CLI payloads', () => {
-  it('resolves an explicit project filter against the caller Working path', () => {
-    expect(payload(['list', '--project', '..'])).toMatchObject({
-      request: { query: { projectPath: '/repo' } },
-    })
-    expect(payload(['conflicts', '--project', '../project'])).toMatchObject({
-      request: { query: { projectPath: '/repo/project' } },
-    })
-  })
-
-  it('lists the current Working path with contract filters by default', () => {
-    expect(
-      payload([
-        'list',
-        '--parent',
-        'queen',
-        '--state',
-        'ready_for_review',
-        '--state',
-        'needs_attention',
-      ]),
-    ).toMatchObject({
-      contract: 'session-query-v2',
-      request: {
-        query: {
-          operation: 'delegations-list',
-          workingPath: '/repo/worktree',
-          parentSessionId: 'queen',
-          states: ['ready_for_review', 'needs_attention'],
-        },
-      },
-    })
-  })
-
-  it('reads one stable Delegation identity', () => {
-    expect(payload(['read', 'delegation-1'])).toMatchObject({
-      request: { query: { operation: 'delegations-read', delegationId: 'delegation-1' } },
-    })
-  })
-
-  it('lists conflicts with exact lifecycle filters', () => {
-    expect(
-      payload([
-        'conflicts',
-        '--delegation',
-        'delegation-1',
-        '--kind',
-        'merge-overlap',
-        '--status',
-        'unacknowledged',
-      ]),
-    ).toMatchObject({
-      request: {
-        query: {
-          operation: 'delegations-conflicts',
-          workingPath: '/repo/worktree',
-          delegationId: 'delegation-1',
-          kinds: ['merge-overlap'],
-          statuses: ['unacknowledged'],
-        },
-      },
-    })
-  })
-
-  it('deduplicates repeated finite filters before Host decoding', () => {
-    expect(payload(['list', '--all', '--state', 'working', '--state', 'working'])).toMatchObject({
-      request: { query: { states: ['working'] } },
-    })
-    expect(
-      payload([
-        'conflicts',
-        '--all',
-        '--kind',
-        'live-overlap',
-        '--kind',
-        'live-overlap',
-        '--status',
-        'resolved',
-        '--status',
-        'resolved',
-      ]),
-    ).toMatchObject({
-      request: { query: { kinds: ['live-overlap'], statuses: ['resolved'] } },
-    })
-  })
-
+describe('Hive CLI Delegation mutation payloads', () => {
   it('uses the same mutation contract for submission and review', () => {
-    expect(payload(['accept', 'queen', 'delegation-1', '2', 'Looks', 'good'])).toMatchObject({
+    expect(
+      payload(['delegation-accept', 'queen', 'delegation-1', '2', 'Looks', 'good']),
+    ).toMatchObject({
       request: {
         command: {
           operation: 'delegation-accept',
@@ -116,7 +33,7 @@ describe('Delegations CLI payloads', () => {
   it('records an explicit verification without accepting the submission', () => {
     expect(
       payload([
-        'verify',
+        'delegation-verify',
         'queen',
         'delegation-1',
         '2',
@@ -144,7 +61,7 @@ describe('Delegations CLI payloads', () => {
 
   it('records an explicit Worker-owned unresolved state transition', () => {
     expect(
-      payload(['state', 'worker', 'delegation-1', 'waiting', 'Blocked', 'on', 'API']),
+      payload(['delegation-state', 'worker', 'delegation-1', 'waiting', 'Blocked', 'on', 'API']),
     ).toMatchObject({
       request: {
         command: {
@@ -161,7 +78,7 @@ describe('Delegations CLI payloads', () => {
   it('records exact Worker scope claims through structured JSON', () => {
     expect(
       payload([
-        'claim',
+        'delegation-claim',
         'worker',
         'delegation-1',
         'Editing',
@@ -191,7 +108,7 @@ describe('Delegations CLI payloads', () => {
   it('records a Queen conflict acknowledgement against exact evidence', () => {
     expect(
       payload([
-        'acknowledge-conflict',
+        'delegation-conflict-acknowledge',
         'queen',
         'delegation-1',
         'conflict-1',
@@ -214,7 +131,7 @@ describe('Delegations CLI payloads', () => {
   it('creates an immutable specification revision for a dependency edit', () => {
     expect(
       payload([
-        'dependency',
+        'delegation-dependency',
         'queen',
         'delegation-1',
         'add',
@@ -248,7 +165,7 @@ describe('Delegations CLI payloads', () => {
     })
     expect(
       payload([
-        'propose-amendment',
+        'delegation-propose-amendment',
         'worker',
         'delegation-1',
         '1',
@@ -264,7 +181,7 @@ describe('Delegations CLI payloads', () => {
     })
     expect(
       payload([
-        'amend',
+        'delegation-amend',
         'queen',
         'delegation-1',
         '1',
@@ -287,7 +204,9 @@ describe('Delegations CLI payloads', () => {
   })
 
   it('requires explicit reasons for reopening and cancelling contracts', () => {
-    expect(payload(['reopen', 'queen', 'delegation-1', 'Target', 'changed'])).toMatchObject({
+    expect(
+      payload(['delegation-reopen', 'queen', 'delegation-1', 'Target', 'changed']),
+    ).toMatchObject({
       request: {
         command: {
           operation: 'delegation-reopen',
@@ -297,7 +216,9 @@ describe('Delegations CLI payloads', () => {
         },
       },
     })
-    expect(payload(['cancel', 'queen', 'delegation-1', 'No', 'longer', 'needed'])).toMatchObject({
+    expect(
+      payload(['delegation-cancel', 'queen', 'delegation-1', 'No', 'longer', 'needed']),
+    ).toMatchObject({
       request: {
         command: {
           operation: 'delegation-cancel',

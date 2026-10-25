@@ -125,7 +125,7 @@ interface ActionTextParams {
   readonly args: JsonObject
   readonly awaitingResult: boolean
   readonly isRunning: boolean
-  /** The Session a sessions-tool call acts on, as the Hive knows it. */
+  /** The Session a hive-tool call acts on, as the Hive knows it. */
   readonly sessionTarget?: SessionsToolTarget | null
 }
 

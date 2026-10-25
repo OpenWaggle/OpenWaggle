@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runAccessCli } from '../access-cli'
-import { runDelegationsCli } from '../delegations-cli'
+import { runSessionsCli } from '../sessions-cli'
 
 describe('management CLI validation boundaries', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -35,7 +35,7 @@ describe('management CLI validation boundaries', () => {
     )
   })
 
-  it('rejects option-only Access and Delegation invocations', async () => {
+  it('rejects option-only Access and Hive invocations', async () => {
     const stdout = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation((_chunk, _encoding, callback) => {
@@ -45,14 +45,14 @@ describe('management CLI validation boundaries', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     await expect(runAccessCli(['profiles', '--capabilty', 'sessions:read'])).resolves.toBe(2)
-    await expect(runDelegationsCli(['--evidencejson', '{}'])).resolves.toBe(2)
+    await expect(runSessionsCli(['--evidencejson', '{}'])).resolves.toBe(2)
 
     expect(stdout).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledWith(
       expect.stringContaining('Unsupported option-only invocation for OpenWaggle Access profiles'),
     )
     expect(stderr).toHaveBeenCalledWith(
-      expect.stringContaining('Unsupported option-only invocation for OpenWaggle Delegations'),
+      expect.stringContaining('Unsupported option-only invocation for OpenWaggle Hive'),
     )
   })
 
@@ -60,8 +60,8 @@ describe('management CLI validation boundaries', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     await expect(
-      runDelegationsCli([
-        'submit',
+      runSessionsCli([
+        'delegation-submit',
         'worker',
         'delegation-1',
         'Done',
@@ -71,7 +71,7 @@ describe('management CLI validation boundaries', () => {
     ).resolves.toBe(2)
 
     expect(stderr).toHaveBeenCalledWith(
-      'error [usage]: Unknown option for OpenWaggle Delegations: --evidencejson.\n',
+      'error [usage]: Unknown option for OpenWaggle Hive: --evidencejson.\n',
     )
   })
 })

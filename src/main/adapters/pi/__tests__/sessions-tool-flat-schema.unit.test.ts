@@ -28,7 +28,7 @@ function schemaShape(schema: unknown) {
 
 // Issue #218: GLM via OpenRouter silently emits `{}` tool arguments when the tool's
 // parameter schema is a root-level anyOf union. The registered schema must stay flat.
-describe('sessions tool flattened schema', () => {
+describe('hive tool flattened schema', () => {
   it('flattens the full variant list into a single object schema', () => {
     const shape = schemaShape(flattenSessionsToolParameters(sessionsToolParameterVariants))
 
@@ -53,13 +53,13 @@ describe('sessions tool flattened schema', () => {
     ).not.toThrow()
 
     expect(() => assertSessionsToolActionArguments(asParams({ action: 'spawn' }))).toThrow(
-      /Invalid arguments for sessions action "spawn"/,
+      /Invalid arguments for hive action "spawn"/,
     )
     expect(() =>
       assertSessionsToolActionArguments(asParams({ action: 'search', query: 'queen' })),
     ).not.toThrow()
     expect(() => assertSessionsToolActionArguments(asParams({ action: 'search' }))).toThrow(
-      /Invalid arguments for sessions action "search"/,
+      /Invalid arguments for hive action "search"/,
     )
   })
 
@@ -103,7 +103,7 @@ describe('sessions tool flattened schema', () => {
 
   it('enforces required fields for actions that share one parameter variant', () => {
     expect(() => assertSessionsToolActionArguments(asParams({ action: 'archive' }))).toThrow(
-      /Invalid arguments for sessions action "archive"/,
+      /Invalid arguments for hive action "archive"/,
     )
     expect(() =>
       assertSessionsToolActionArguments(asParams({ action: 'unarchive', sessionId: 'session-a' })),
@@ -113,6 +113,6 @@ describe('sessions tool flattened schema', () => {
   it('rejects unknown actions instead of passing them to the payload builders', () => {
     expect(() =>
       assertSessionsToolActionArguments(asParams({ action: '__no_permitted_actions__' })),
-    ).toThrow(/Unknown sessions action/)
+    ).toThrow(/Unknown hive action/)
   })
 })

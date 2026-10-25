@@ -43,8 +43,7 @@ function specialization(
 function rootWorkspace(input: Extract<LifecycleParameters, { action: 'create' | 'launch' }>) {
   if (!input.workspace) return undefined
   if (input.workspace === 'existing') {
-    if (!input.workspaceId)
-      throw new Error('sessions root Workspace existing requires workspaceId.')
+    if (!input.workspaceId) throw new Error('hive root Workspace existing requires workspaceId.')
     return { mode: 'existing' as const, workspaceId: input.workspaceId }
   }
   if (input.workspace === 'new-worktree') {
@@ -107,7 +106,7 @@ function workerPayload(
     (input.baseRef !== undefined || input.startFromOrigin !== undefined) &&
     input.workspace !== 'new-worktree'
   ) {
-    throw new Error('sessions spawn baseRef and startFromOrigin require Workspace new-worktree.')
+    throw new Error('hive spawn baseRef and startFromOrigin require Workspace new-worktree.')
   }
   const selectedSpecialization = specialization(input)
   const workspace =
@@ -163,7 +162,7 @@ function forkPayload(
           workspaceId:
             input.workspaceId ??
             (() => {
-              throw new Error('sessions fork Workspace existing requires workspaceId.')
+              throw new Error('hive fork Workspace existing requires workspaceId.')
             })(),
         }
       : input.workspace === 'new-worktree'

@@ -18,7 +18,7 @@ import {
   watchCursor,
 } from './sessions-cli-arguments'
 
-const EXPORT_TARGET_POSITION = 2
+const EXPORT_TARGET_POSITION = 1
 
 function controlRequest(arguments_: ParsedArguments) {
   return {
@@ -61,7 +61,7 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       ...controlRequest(arguments_),
       command: {
         operation: 'export-create',
-        sessionId: requiredSessionId(arguments_.positionals[1]),
+        sessionId: requiredSessionId(arguments_.positionals[0]),
         format: exportFormat(option(arguments_, 'format')),
         destinationPath: path.resolve(
           required(arguments_.positionals[EXPORT_TARGET_POSITION], 'Destination path'),
@@ -89,7 +89,7 @@ function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       ...controlRequest(arguments_),
       command: {
         operation: 'export-cancel',
-        sessionId: requiredSessionId(arguments_.positionals[1]),
+        sessionId: requiredSessionId(arguments_.positionals[0]),
         exportOperationId: required(
           arguments_.positionals[EXPORT_TARGET_POSITION],
           'Export operation ID',
@@ -99,9 +99,8 @@ function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
   }
 }
 
-function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
-  const subcommand = required(arguments_.positionals[0], 'Export operation command')
-  const sessionId = requiredSessionId(arguments_.positionals[1])
+function queryPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
+  const sessionId = requiredSessionId(arguments_.positionals[0])
   const base = {
     contract: 'session-query-v2' as const,
     request: {
@@ -109,7 +108,7 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
       requestId: randomUUID(),
     },
   }
-  if (subcommand === 'list') {
+  if (command === 'exports-list') {
     const statuses = exportStatuses(arguments_)
     return {
       ...base,
@@ -132,7 +131,7 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
     arguments_.positionals[EXPORT_TARGET_POSITION],
     'Export operation ID',
   )
-  if (subcommand === 'read') {
+  if (command === 'exports-read') {
     return {
       ...base,
       request: {
@@ -146,7 +145,7 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
       },
     }
   }
-  if (subcommand === 'wait') {
+  if (command === 'exports-wait') {
     const after = watchCursor(arguments_)
     return {
       ...base,
@@ -163,16 +162,17 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
       },
     }
   }
-  throw new Error(`Unsupported export operation command: ${subcommand}.`)
+  throw new Error(`Unsupported export operation command: ${command}.`)
 }
 
+/** The Hive subcommands over durable export operations; `exports-watch` streams their events. */
 export const SESSION_EXPORT_OPERATION_CLI_COMMANDS = [
-  'create',
-  'cancel',
-  'list',
-  'read',
-  'wait',
-  'watch',
+  'export-create',
+  'export-cancel',
+  'exports-list',
+  'exports-read',
+  'exports-wait',
+  'exports-watch',
 ] as const
 
 export function isSessionExportOperationCliCommand(value: string | undefined) {
@@ -180,10 +180,10 @@ export function isSessionExportOperationCliCommand(value: string | undefined) {
 }
 
 export function buildSessionsCliExportOperationPayload(
+  command: string,
   arguments_: ParsedArguments,
 ): LocalSessionCommandPayload {
-  const subcommand = arguments_.positionals[0]
-  if (subcommand === 'create') return createPayload(arguments_)
-  if (subcommand === 'cancel') return cancelPayload(arguments_)
-  return queryPayload(arguments_)
+  if (command === 'export-create') return createPayload(arguments_)
+  if (command === 'export-cancel') return cancelPayload(arguments_)
+  return queryPayload(command, arguments_)
 }
