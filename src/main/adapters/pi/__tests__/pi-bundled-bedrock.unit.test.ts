@@ -14,12 +14,16 @@ vi.mock('@earendil-works/pi-ai/api/bedrock-converse-stream.lazy', () => ({
 }))
 
 describe('Pi bundled Bedrock registration', () => {
-  it('registers the real static Bedrock module through the setter exactly once', () => {
+  it('registers the real static Bedrock streams through the setter exactly once', () => {
     registerPiBundledBedrockProvider()
     registerPiBundledBedrockProvider()
 
     expect(piBedrockMocks.setBedrockProviderModule).toHaveBeenCalledTimes(1)
-    expect(piBedrockMocks.setBedrockProviderModule).toHaveBeenCalledWith(bedrockProviderModule)
+    // Each stream is wrapped so an expired-credential failure is retried once (#357).
+    expect(piBedrockMocks.setBedrockProviderModule).toHaveBeenCalledWith({
+      stream: expect.any(Function),
+      streamSimple: expect.any(Function),
+    })
   })
 
   it('registers a module satisfying the ProviderStreams shape the lazy loader expects', () => {
