@@ -49,8 +49,8 @@ it('refreshes the focused Hive for newly spawned workers without refreshing for 
     .mockResolvedValueOnce({ context: [queen], workers: [] })
     .mockResolvedValueOnce({ context: [queen], workers: [worker] })
   renderWithQueryClient(<Harness />)
-  // The compact row derives its counts from lineage, not from the loaded page.
-  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
+  // The compact row takes its direct-Worker count from lineage, not from the loaded page.
+  expect(await screen.findByText(/^2 direct Workers/u)).toBeInTheDocument()
   const receive = onSessionHostEvent.mock.calls[0]?.[0]
   if (!receive) throw new Error('Host subscription missing')
   await act(async () => {
@@ -78,7 +78,7 @@ it('discards loaded continuation pages and starts at page one after Host resync'
     .mockResolvedValueOnce({ context: [queen], workers: [], nextCursor: 'old-page' })
     .mockResolvedValueOnce({ context: [queen], workers: [] })
   renderWithQueryClient(<Harness />)
-  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
+  expect(await screen.findByText(/^2 direct Workers/u)).toBeInTheDocument()
   await act(async () => {
     onSessionHostResyncRequired.mock.calls[0]?.[0]()
     await Promise.resolve()
@@ -103,7 +103,7 @@ it('keeps the visible Hive mounted while a Host resync refetches its first page'
     .mockResolvedValueOnce({ context: [queen], workers: [worker] })
     .mockReturnValueOnce(pendingRefresh)
   renderWithQueryClient(<Harness />)
-  expect(await screen.findByText('2 active · 2 total')).toBeInTheDocument()
+  expect(await screen.findByText(/^2 direct Workers/u)).toBeInTheDocument()
 
   await act(async () => {
     onSessionHostResyncRequired.mock.calls[0]?.[0]()

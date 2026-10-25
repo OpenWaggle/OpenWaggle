@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSidebarSessionActions } from '@/features/sidebar/lib'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
@@ -58,19 +58,24 @@ describe('HivePanel', () => {
     expect(screen.getByText('Session')).toBeInTheDocument()
     expect(screen.getByText('Workspace')).toBeInTheDocument()
     expect(screen.getByText('State')).toBeInTheDocument()
-    // The State cell uses the group's short form.
-    expect(screen.getByText('You')).toBeInTheDocument()
+    // The State cell names the Delegation state with the same words as its group (#356).
+    const needsAttention = screen.getByRole('button', { name: /Open Worker Session: needs-you/ })
+    expect(needsAttention).toHaveTextContent('Needs attention')
+    expect(screen.queryByText('You')).toBeNull()
+    // The header names its scope: every Worker of the Hive, at every depth.
+    expect(screen.getByText('4 Workers in this Hive')).toBeInTheDocument()
     // The current Session is marked, and each row's name carries its cells for screen readers.
     const current = screen.getByRole('button', { name: /Open Worker Session: active/ })
     expect(current).toHaveAttribute('aria-current', 'true')
     expect(current).toHaveAccessibleName(
       'Open Worker Session: active, state Working, workspace Checkout',
     )
-    expect(screen.getByRole('group', { name: 'Needs you Hive sessions' })).toHaveTextContent(
+    expect(screen.getByRole('group', { name: 'Needs attention Hive sessions' })).toHaveTextContent(
       'needs-you',
     )
     expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('active')
-    expect(screen.getByRole('group', { name: 'Done Hive sessions' })).toHaveTextContent('done')
+    expect(screen.getByRole('group', { name: 'Closed Hive sessions' })).toHaveTextContent('done')
+    expect(screen.queryByRole('group', { name: 'Done Hive sessions' })).toBeNull()
     // Collapsed: the archived list is hidden from the accessibility tree.
     expect(screen.queryByRole('group', { name: 'Archived Hive sessions' })).toBeNull()
     expect(screen.getByText('Archived · 1')).toBeInTheDocument()
@@ -127,7 +132,9 @@ describe('HivePanel', () => {
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
     const row = await screen.findByRole('button', { name: /Open Worker Session: deep/ })
-    expect(row).toHaveTextContent('via Mid worker')
+    // Depth is its own visible line, so a long title cannot truncate it away (#356).
+    expect(within(row).getByText('deep')).toHaveClass('truncate')
+    expect(within(row).getByText('via Mid worker')).not.toBe(within(row).getByText('deep'))
     fireEvent.click(row)
     expect(useNavigate).toHaveBeenCalled()
     expect(useNavigate.mock.calls[0]?.[0]?.search({ panel: 'diff' })).toMatchObject({

@@ -7,6 +7,7 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { ChessQueen, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { useId, useState } from 'react'
+import { HIVE_DELEGATION_GROUP_LABELS } from '@/queries/session-hive-contract'
 import {
   type HiveTreePage,
   hiveTreeMembers,
@@ -70,26 +71,26 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
           <p className="px-2 py-1.5 text-xs text-text-tertiary">No Workers yet.</p>
         ) : null}
         <HiveTreeGroup
-          label="Needs you"
-          rows={model.groups.needsYou}
+          label={HIVE_DELEGATION_GROUP_LABELS['needs-attention']}
+          rows={model.groups.needsAttention}
           onOpen={openSession}
           currentSessionId={sessionId}
         />
         <HiveTreeGroup
-          label="Review"
-          rows={model.groups.review}
+          label={HIVE_DELEGATION_GROUP_LABELS['ready-for-review']}
+          rows={model.groups.readyForReview}
           onOpen={openSession}
           currentSessionId={sessionId}
         />
         <HiveTreeGroup
-          label="Active"
+          label={HIVE_DELEGATION_GROUP_LABELS.active}
           rows={model.groups.active}
           onOpen={openSession}
           currentSessionId={sessionId}
         />
         <HiveTreeGroup
-          label="Done"
-          rows={model.groups.done}
+          label={HIVE_DELEGATION_GROUP_LABELS.closed}
+          rows={model.groups.closed}
           onOpen={openSession}
           currentSessionId={sessionId}
         />
@@ -141,9 +142,10 @@ function HivePanelHeader({
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
       <ChessQueen aria-hidden="true" className="size-3.5 text-accent" />
       <span className="flex-1 text-sm font-medium text-text-primary">Hive</span>
+      {/* The whole Hive at every depth, unlike the Session Summary's direct-Worker count. */}
       {memberCount > 0 ? (
         <span className="text-xs text-text-tertiary">
-          {memberCount} {memberCount === 1 ? 'Worker' : 'Workers'}
+          {memberCount} {memberCount === 1 ? 'Worker' : 'Workers'} in this Hive
         </span>
       ) : null}
       <Button
@@ -211,8 +213,9 @@ function HiveTreeGroup({
   if (rows.length === 0) return null
   return (
     <fieldset aria-label={`${label} Hive sessions`} className="m-0 min-w-0 border-0 p-0">
-      <div className="px-2 pb-0.5 pt-1 text-xs font-medium tracking-wide text-text-muted uppercase">
-        {label}
+      <div className="flex items-baseline gap-1.5 px-2 pb-0.5 pt-1 text-xs font-medium tracking-wide text-text-muted uppercase">
+        <span>{label}</span>
+        <span className="tabular-nums">{rows.length}</span>
       </div>
       {rows.map((row) => (
         <HiveTreeListItem

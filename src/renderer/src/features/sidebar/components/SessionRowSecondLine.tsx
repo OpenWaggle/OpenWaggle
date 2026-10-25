@@ -35,7 +35,7 @@ export function SessionRowSecondLine({
   /** Shown only when the row sits outside its project group, as Pinned rows do. */
   readonly projectLabel: string
   readonly shortcutIndex: number | null
-  /** A Queen's hidden Workers needing the user; rendered as "N needs input" (ADR 0051). */
+  /** A Queen's hidden Workers needing the user; "N needs attention" (ADR 0051, #356). */
   readonly workerAttentionCount?: number
   /** Name the Worker's parent in text, for Pinned and narrowed flat Worker rows. */
   readonly showLineageParent?: boolean
@@ -143,13 +143,16 @@ function HiveLineageLead({
   )
 }
 
-/** A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0051). */
+/**
+ * A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0051), in
+ * the words the Hive panel's Needs attention group and the rail use (#356).
+ */
 function QueenWorkerAttention({ count }: { readonly count: number }) {
   return (
     <>
       <Separator />
       <span data-qa="sidebar-row-worker-attention" className="shrink-0 text-warning">
-        {`${count} ${count === 1 ? 'needs' : 'need'} input`}
+        {`${count} ${count === 1 ? 'needs' : 'need'} attention`}
       </span>
     </>
   )

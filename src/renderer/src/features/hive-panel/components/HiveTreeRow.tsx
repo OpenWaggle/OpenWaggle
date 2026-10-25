@@ -28,7 +28,7 @@ import type { HiveTreeRow } from '../lib/hive-tree-model'
  */
 export const HIVE_ROW_GRID_STYLE = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 84px 72px',
+  gridTemplateColumns: 'minmax(0, 1fr) 84px 112px',
   columnGap: '8px',
 } as const satisfies React.CSSProperties
 
@@ -165,9 +165,12 @@ function HiveSessionCell({ view }: { readonly view: HiveRowView }) {
         className="size-1.5 shrink-0 rounded-full"
         style={{ backgroundColor: view.statusColor }}
       />
-      <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">
-        {view.session.title}
-        {view.via !== null ? <span className="text-text-tertiary"> · via {view.via}</span> : null}
+      {/* Depth gets its own line: appended to the title, it was truncated away (#356). */}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm text-text-secondary">{view.session.title}</span>
+        {view.via !== null ? (
+          <span className="truncate text-xs text-text-tertiary">via {view.via}</span>
+        ) : null}
       </span>
       {view.isPinned ? (
         <span className="shrink-0 rounded border border-border-light bg-bg-tertiary px-1 py-0.5 text-xs text-text-tertiary">
@@ -203,7 +206,7 @@ function HiveStateCell({ view }: { readonly view: HiveRowView }) {
       }
       title={view.state.hint}
     >
-      {view.state.short}
+      {view.state.label}
     </span>
   )
 }
