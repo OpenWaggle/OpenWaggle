@@ -115,9 +115,13 @@ Use **Settings > Shortcuts** for both app keyboard bindings and Project Action b
 
 You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
 
-The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list or **Remove** on a linked worktree. Normal removal refuses uncommitted changes or locks.
+The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. Each row shows the folder, its branch, and the session that owns a managed worktree, or a local session that works in it. Search by path, branch, or session title to find a worktree in a long list. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list.
 
-If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
+**Remove** asks before it deletes anything. The confirmation names the folder, its branch, and its session, and warns when the branch has commits that are not on any remote. The branch itself is kept. Normal removal refuses uncommitted changes or locks.
+
+**Remove** is unavailable, and OpenWaggle refuses the removal, while the worktree is in use: when it is the opened project's checkout or the checkout a development build of OpenWaggle runs from, when a session that is not archived or has an active run works in it, when a Project Action is running in it, or when a terminal is open in it. The row says which. Archive the session, stop the action, or close the terminal first. **Force remove** does not bypass this check.
+
+If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. Each of these removals asks for confirmation first as well. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
 
 ## Connections
 
