@@ -27,7 +27,7 @@ describe('foreign native prebuild exclusions', () => {
 
   it('keeps only the packaged architecture of per-platform packages such as sharp and keyring', () => {
     expect(foreignNativePrebuildExclusions('darwin')).toContain(
-      '!node_modules/{*,@*/*}-${platform}-!(${arch}|${arch}-*){,/**/*}',
+      '!node_modules/{,**/node_modules/}{*,@*/*}-${platform}-!(${arch}|${arch}-*){,/**/*}',
     )
   })
 

@@ -25,8 +25,10 @@ const NODE_PTY_CONPTY = 'node_modules/**/node-pty/third_party/conpty'
  * Per-platform packages such as `@img/sharp-darwin-arm64` or `@napi-rs/keyring-linux-x64-gnu`.
  * pnpm installs both CPU architectures (`supportedArchitectures` in pnpm-workspace.yaml) so the
  * x64 macOS pack has its builds; each pack keeps only its own `<platform>-<arch>[-<toolchain>]`.
+ * Anchored to package directories, top-level or nested, so a file named like `x-darwin-y.js`
+ * inside a package is never matched.
  */
-const OTHER_ARCH_PLATFORM_PACKAGES = `!node_modules/{*,@*/*}-${PLATFORM}-!(${ARCH}|${ARCH}-*)${SELF_AND_CONTENTS}`
+const OTHER_ARCH_PLATFORM_PACKAGES = `!node_modules/{,**/node_modules/}{*,@*/*}-${PLATFORM}-!(${ARCH}|${ARCH}-*)${SELF_AND_CONTENTS}`
 
 /**
  * node-pty's bundled ConPTY is Windows-only, so a Windows pack keeps its own architecture and every
