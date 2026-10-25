@@ -78,6 +78,16 @@ export type SessionHostEventPayload =
       readonly level: ThinkingLevel
     }
   | {
+      /**
+       * The provider refused a Title model (access, sign-in, or a model the account cannot use).
+       * Background titles use the Session's own model until `retryAt`; sent once per model (#357).
+       */
+      readonly kind: 'session-title-model-refused'
+      readonly model: string
+      readonly reason: string
+      readonly retryAt: number
+    }
+  | {
       readonly kind: 'session-export-changed'
       readonly sessionId: string
       readonly exportOperationId: string
@@ -88,7 +98,12 @@ export type SessionHostEventPayload =
 /** Host events about the app rather than one Session; only unscoped desktop callers see them. */
 export type SessionlessHostEventPayload = Extract<
   SessionHostEventPayload,
-  { readonly kind: 'semantic-discovery-readiness-changed' | 'default-thinking-level-changed' }
+  {
+    readonly kind:
+      | 'semantic-discovery-readiness-changed'
+      | 'default-thinking-level-changed'
+      | 'session-title-model-refused'
+  }
 >
 
 export type SessionScopedHostEventPayload = Exclude<
@@ -101,7 +116,8 @@ export function isSessionlessHostEvent(
 ): payload is SessionlessHostEventPayload {
   return (
     payload.kind === 'semantic-discovery-readiness-changed' ||
-    payload.kind === 'default-thinking-level-changed'
+    payload.kind === 'default-thinking-level-changed' ||
+    payload.kind === 'session-title-model-refused'
   )
 }
 

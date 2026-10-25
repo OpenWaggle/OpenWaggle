@@ -119,6 +119,7 @@ export function generateTitle(input: {
         ...(input.fallbackModel ? { fallbackModel: input.fallbackModel } : {}),
         titleModel,
         ...prompt,
+        ...(input.priority === 'user' ? { retryRefusedModels: true } : {}),
       })
     }).pipe(
       Effect.timeoutFail({

@@ -40,6 +40,7 @@ import {
 } from './right-panel/right-panel-shortcut-handlers'
 import type { ExtensionPanelShortcut } from './unified-shortcut-resolver'
 import { useSessionHostRefresh } from './useSessionHostRefresh'
+import { useTitleModelRefusalNotice } from './useTitleModelRefusalNotice'
 import {
   type BuiltInShortcutHandlers,
   useUnifiedShortcutCapture,
@@ -188,6 +189,7 @@ export function useWorkspaceLifecycle(): void {
     void navigate({ to: '/' })
   }
 
+  useTitleModelRefusalNotice()
   useSessionHostRefresh({
     activeSessionId,
     loadChatSessions,
