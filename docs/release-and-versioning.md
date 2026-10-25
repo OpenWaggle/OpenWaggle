@@ -207,7 +207,13 @@ the downloaded artifact's version.
 Each minimum is the oldest version on which every feature works. The thresholds live in one
 module, `scripts/supported-platform-floor.ts`, and `scripts/check-native-platform-floor.ts` reads
 every native binary in each packaged app after its build and fails the release before upload when
-one needs a newer OS. Binaries for another platform or architecture are listed and skipped. The
+one needs a newer OS. It also fails when a pack ships a binary for another platform or
+architecture, or lacks a per-platform package that one of its packages declares for the pack's own
+platform and architecture in `optionalDependencies` (such as `@img/sharp-darwin-x64`). The
+`1.0.0` betas' Intel macOS app shipped only the arm64 builds of sharp, `@napi-rs/keyring` and
+`@mariozechner/clipboard`, because the arm64 release runner installed one architecture.
+`supportedArchitectures` in `pnpm-workspace.yaml` now installs both CPU architectures, and
+`scripts/electron-builder-native-prebuilds.ts` keeps only the packed one. The
 Linux release build runs on `ubuntu-22.04`, because native modules link against the build host's
 glibc and libstdc++; `1.0.0-beta.25`, built on Ubuntu 24.04, shipped a `node-pty` that needed glibc
 2.38.

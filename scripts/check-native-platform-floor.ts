@@ -8,12 +8,18 @@
  *   version, and the main executable and `LSMinimumSystemVersion` must keep the launch version.
  * - Windows: no x64 PE may declare an OS or subsystem version newer than Windows 10.
  *
- * Binaries for another platform or architecture can never load, so they are listed and skipped.
+ * A binary for another platform or architecture can never load, so shipping one fails too: either
+ * the build for the app's own architecture is missing (the Intel macOS app once shipped only the
+ * arm64 sharp, keyring and clipboard builds) or it is dead weight that
+ * scripts/electron-builder-native-prebuilds.ts should exclude. Every per-platform package that a
+ * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
+ * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
  * Run it after packaging and before upload: `pnpm exec tsx scripts/check-native-platform-floor.ts`.
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { readAsarArchive } from './asar-archive'
 import {
   type BinaryArchitecture,
   compareVersions,
@@ -22,6 +28,7 @@ import {
   readNativeBinary,
 } from './native-binary-formats'
 import { resolveFloorTargets } from './native-platform-floor-targets'
+import { missingNativeDependencies } from './packaged-native-dependencies'
 import { SUPPORTED_PLATFORM_FLOOR } from './supported-platform-floor'
 
 export type FloorPlatform = 'darwin' | 'linux' | 'win32'
@@ -31,17 +38,23 @@ export interface FloorReport {
   readonly platform: FloorPlatform
   readonly architectures: readonly BinaryArchitecture[]
   readonly checked: number
-  readonly skipped: readonly string[]
+  /** Binaries that cannot load in this app; each one is also a violation. */
+  readonly foreign: readonly string[]
   readonly violations: readonly string[]
 }
 
 type Floor = typeof SUPPORTED_PLATFORM_FLOOR
-type Evaluation = { readonly kind: 'checked'; readonly violations: readonly string[] } | { readonly kind: 'skipped'; readonly label: string }
+type Evaluation = { readonly kind: 'checked'; readonly violations: readonly string[] } | { readonly kind: 'foreign'; readonly label: string }
 
 const MAIN_EXECUTABLE: Readonly<Record<FloorPlatform, string>> = {
   darwin: 'Contents/MacOS/OpenWaggle',
   linux: 'openwaggle',
   win32: 'OpenWaggle.exe',
+}
+const APP_ASAR: Readonly<Record<FloorPlatform, string>> = {
+  darwin: 'Contents/Resources/app.asar',
+  linux: 'resources/app.asar',
+  win32: 'resources/app.asar',
 }
 const INFO_PLIST = 'Contents/Info.plist'
 const LS_MINIMUM_SYSTEM_VERSION = /<key>LSMinimumSystemVersion<\/key>\s*<string>([^<]*)<\/string>/u
@@ -58,13 +71,13 @@ function binaryArchitectures(binary: NativeBinary) {
   return binary.format === 'mach-o' ? binary.slices.map((slice) => slice.architecture) : [binary.architecture]
 }
 
-function skippedLabel(binary: NativeBinary) {
+function foreignLabel(binary: NativeBinary) {
   return `${FORMAT_LABEL[binary.format]} ${[...new Set(binaryArchitectures(binary))].join('+')}`
 }
 
 function evaluateLinux(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
   if (binary.format !== 'elf' || !architectures.includes(binary.architecture)) {
-    return { kind: 'skipped', label: skippedLabel(binary) } satisfies Evaluation
+    return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
   }
   const violations: string[] = []
   for (const need of binary.versionNeeds) {
@@ -87,7 +100,7 @@ function evaluateMacos(file: string, binary: NativeBinary, architectures: readon
     binary.format === 'mach-o'
       ? binary.slices.filter((slice) => architectures.includes(slice.architecture) && slice.platform !== 'other')
       : []
-  if (slices.length === 0) return { kind: 'skipped', label: skippedLabel(binary) } satisfies Evaluation
+  if (slices.length === 0) return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
   const supported = floor.macos.supportedVersion
   const violations = slices.flatMap((slice) => {
     if (slice.minimumVersion === null) return [`${file} (${slice.architecture}) declares no minimum macOS version`]
@@ -105,7 +118,7 @@ function runsOnWindows(binary: NativeBinary, architectures: readonly BinaryArchi
 
 function evaluateWindows(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
   if (binary.format !== 'pe' || !runsOnWindows(binary, architectures)) {
-    return { kind: 'skipped', label: skippedLabel(binary) } satisfies Evaluation
+    return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
   }
   const supported = floor.windows.supportedVersion
   const violations =
@@ -170,31 +183,35 @@ export async function checkNativePlatformFloor(
   floor: Floor = SUPPORTED_PLATFORM_FLOOR,
 ): Promise<FloorReport> {
   const executable = await mainExecutable(root, platform)
-  const skipped: string[] = []
+  const foreign: string[] = []
   const violations: string[] = []
   let checked = 0
   for (const file of await listFiles(root)) {
     const binary = await readBinaryAt(path.join(root, file))
     if (binary === null) continue
     const evaluation = EVALUATORS[platform](file, binary, executable.architectures, floor)
-    if (evaluation.kind === 'skipped') {
-      skipped.push(`${file} (${evaluation.label})`)
+    if (evaluation.kind === 'foreign') {
+      foreign.push(`${file} (${evaluation.label})`)
+      violations.push(`${file} (${evaluation.label}) cannot load in this ${executable.architectures.join('+')} app`)
       continue
     }
     checked += 1
     violations.push(...evaluation.violations)
   }
+  const archive = await readAsarArchive(path.join(root, APP_ASAR[platform]))
+  for (const architecture of executable.architectures) {
+    violations.push(...(await missingNativeDependencies(archive, platform, architecture)))
+  }
   if (platform === 'darwin') {
     violations.push(...(await macosLaunchViolations(root, executable.relative, executable.binary, floor)))
   }
-  return { root, platform, architectures: executable.architectures, checked, skipped, violations }
+  return { root, platform, architectures: executable.architectures, checked, foreign, violations }
 }
 
 export function formatFloorReport(report: FloorReport) {
   return [
     `${report.platform} native floor (${report.architectures.join('+')}): ${report.root}`,
-    `checked ${report.checked} native binaries, skipped ${report.skipped.length} for other platforms or architectures`,
-    ...report.skipped.map((entry) => `  skipped ${entry}`),
+    `checked ${report.checked} native binaries, ${report.foreign.length} for another platform or architecture`,
     ...report.violations.map((violation) => `  FAIL ${violation}`),
     report.violations.length === 0 ? 'PASS' : `FAIL: ${report.violations.length} floor violations`,
   ].join('\n')

@@ -37,6 +37,7 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - Quitting the app never installs a downloaded update. An update installs only when you choose Restart to update, run `openwaggle update`, or run the install script.
 - If an update did not install, OpenWaggle tells you the next time it opens. On macOS, when OpenWaggle was still running during the install, the message says so and names the usual causes: reopening the app too soon, or an `openwaggle` command such as `openwaggle mcp serve`.
 - Updates download only the parts of the app that changed, after the first update following a manual install.
+- On Intel Macs, image processing, the clipboard and browser cookie import work. The 1.0.0 betas shipped only the Apple silicon builds of those components.
 - macOS builds are signed and notarized. The Dock icon now fits macOS's rounded-square shape instead of sitting on a grey tile.
 - The install script (`curl … | bash`) opens OpenWaggle when it finishes, unless you are on SSH, in CI, without a display, or pass `--no-launch`. Before it replaces an installed app, it asks about running agent work the same way Restart to update does.
 - `openwaggle update` never installs under an open app. With the app open, it tells you to use Restart to update instead.
