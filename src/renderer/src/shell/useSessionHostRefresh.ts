@@ -14,6 +14,7 @@ import { useSessionStatusStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
 import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
+import { useTitleModelRefusalNotice } from './useTitleModelRefusalNotice'
 
 const SESSION_QUERY_ROOT_SEGMENTS = 2
 
@@ -100,6 +101,17 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   void invalidateExtensionContributionsQueries(queryClient)
 }
 
+function emptyPendingSessionHostRefresh(): PendingSessionHostRefresh {
+  return {
+    sessionIds: new Set(),
+    queueSessionIds: new Set(),
+    catalog: false,
+    archivedBranches: false,
+    relationshipMayHaveChanged: false,
+    scheduled: false,
+  }
+}
+
 export function useSessionHostRefresh(input: {
   readonly activeSessionId: ChatLifecycle['activeSessionId']
   readonly loadChatSessions: ChatLifecycle['loadSessions']
@@ -118,16 +130,11 @@ export function useSessionHostRefresh(input: {
     refreshSessionTree,
     updateSessionTitle,
   } = input
+  // Subscribes before this hook's own Host event listener below.
+  useTitleModelRefusalNotice()
   const queryClient = useQueryClient()
   const latestHostCursor = useRef<HostCursor | null>(null)
-  const pendingRefresh = useRef<PendingSessionHostRefresh>({
-    sessionIds: new Set(),
-    queueSessionIds: new Set(),
-    catalog: false,
-    archivedBranches: false,
-    relationshipMayHaveChanged: false,
-    scheduled: false,
-  })
+  const pendingRefresh = useRef<PendingSessionHostRefresh>(emptyPendingSessionHostRefresh())
   useEffect(
     () =>
       api.onSessionTitleUpdated(({ sessionId, title }) => {
