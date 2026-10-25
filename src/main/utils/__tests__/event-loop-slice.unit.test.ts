@@ -2,27 +2,22 @@ import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeEventLoopSlicer, yieldToEventLoop } from '../event-loop-slice'
 
-function busyWait(milliseconds: number) {
-  const until = performance.now() + milliseconds
-  while (performance.now() < until) {
-    // Synchronous work, like a SQLite statement.
-  }
-}
-
 afterEach(() => {
   vi.useRealTimers()
 })
 
 describe('event loop slices', () => {
   it('lets pending I/O callbacks run once a slice used its budget', async () => {
-    const slice = makeEventLoopSlicer(5)
+    let clock = 0
+    const slice = makeEventLoopSlicer(5, () => clock)
     const order: string[] = []
     const work = Effect.gen(function* () {
       setImmediate(() => order.push('io'))
-      busyWait(1)
+      // Synchronous work, like SQLite statements, that has not used the budget yet.
+      clock = 4
       yield* slice
       order.push('before budget')
-      busyWait(10)
+      clock = 9
       yield* slice
       order.push('after budget')
     })

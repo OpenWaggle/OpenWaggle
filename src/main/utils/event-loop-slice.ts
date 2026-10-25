@@ -19,13 +19,16 @@ export const yieldToEventLoop = Effect.async<void>((resume) => {
 })
 
 /** A yield point that only yields once the current slice ran for `budgetMs` or longer. */
-export function makeEventLoopSlicer(budgetMs = EVENT_LOOP_SLICE_BUDGET_MS) {
-  let sliceStartedAt = performance.now()
+export function makeEventLoopSlicer(
+  budgetMs = EVENT_LOOP_SLICE_BUDGET_MS,
+  now: () => number = () => performance.now(),
+) {
+  let sliceStartedAt = now()
   return Effect.suspend(() => {
-    if (performance.now() - sliceStartedAt < budgetMs) return Effect.void
+    if (now() - sliceStartedAt < budgetMs) return Effect.void
     return Effect.tap(yieldToEventLoop, () =>
       Effect.sync(() => {
-        sliceStartedAt = performance.now()
+        sliceStartedAt = now()
       }),
     )
   })
