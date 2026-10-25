@@ -1,4 +1,7 @@
-import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
+import {
+  isTaskScheduleJittered,
+  SCHEDULED_TASK_JITTER_TEXT,
+} from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   ScheduledTask,
   ScheduledTaskRun,
@@ -43,7 +46,10 @@ function taskTarget(task: ScheduledTask) {
 
 /** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
 function nextRun(task: ScheduledTask) {
-  const jitter = task.nextRunAt !== null && isTaskScheduleJittered(task) ? ' (±5 min)' : ''
+  const jitter =
+    task.nextRunAt !== null && isTaskScheduleJittered(task)
+      ? ` (${SCHEDULED_TASK_JITTER_TEXT})`
+      : ''
   return `next ${time(task.nextRunAt, task.timeZone)}${jitter}`
 }
 
@@ -85,8 +91,14 @@ function runLine(run: ScheduledTaskRun, timeZone?: string) {
   return `${time(run.firedAt, timeZone)}  ${run.trigger}${missed}  ${run.status}${detail}${session}`
 }
 
-/** The human-readable text of one `openwaggle schedules` response. */
-export function formatSchedulesCliResponse(response: ScheduledTasksResponse) {
+/**
+ * The human-readable text of one `openwaggle schedules` response. `runsTimeZone` is the zone a
+ * run page is shown in, which the page itself does not name; the machine's by default.
+ */
+export function formatSchedulesCliResponse(
+  response: ScheduledTasksResponse,
+  runsTimeZone?: string,
+) {
   const outcome = response.outcome
   if (outcome.effect === 'listed') {
     return outcome.tasks.length === 0
@@ -103,7 +115,7 @@ export function formatSchedulesCliResponse(response: ScheduledTasksResponse) {
   if (outcome.effect === 'runs-listed') {
     return outcome.runs.length === 0
       ? 'No runs.'
-      : outcome.runs.map((run) => runLine(run)).join('\n')
+      : outcome.runs.map((run) => runLine(run, runsTimeZone)).join('\n')
   }
   if (outcome.effect === 'created') return `Created ${taskDetails(outcome.task)}`
   if (outcome.effect === 'updated') return `Updated ${taskDetails(outcome.task)}`
@@ -132,6 +144,7 @@ export function writeSchedulesCliResponses(
   command: string,
   responses: readonly ScheduledTasksResponse[],
   json: boolean,
+  runsTimeZone?: string,
 ) {
   if (command === 'export') {
     const exported = responses.flatMap(exportedTasks)
@@ -148,6 +161,6 @@ export function writeSchedulesCliResponses(
         null,
         JSON_INDENT_SPACES,
       )
-    : responses.map(formatSchedulesCliResponse).join('\n')
+    : responses.map((response) => formatSchedulesCliResponse(response, runsTimeZone)).join('\n')
   return writeCliStdout(`${output}\n`)
 }

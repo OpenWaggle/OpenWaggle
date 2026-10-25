@@ -83,6 +83,14 @@ describe('Session Summary › Scheduled', () => {
     expect(row).toHaveAttribute('title', expect.stringMatching(/^Next run: .*GMT.* ± up to 5 min$/))
   })
 
+  it('shows a Heartbeat’s next run on its own clock, as the task detail does', async () => {
+    mocks.tasks.splice(0, mocks.tasks.length, heartbeatTask({ timeZone: 'Asia/Tokyo' }))
+    renderWithQueryClient(<ScheduledSummarySection sessionId="session-1" />)
+
+    const row = await screen.findByRole('button', { name: 'Open CI watch' })
+    expect(row).toHaveAttribute('title', expect.stringMatching(/^Next run: .*6:00:00 PM GMT\+9$/))
+  })
+
   it('names the Launch schedule that started this Session', async () => {
     renderWithQueryClient(<ScheduledSummarySection sessionId="session-launched" />)
 

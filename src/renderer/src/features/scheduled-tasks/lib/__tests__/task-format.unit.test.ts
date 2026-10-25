@@ -33,11 +33,16 @@ describe('task format', () => {
 
   it('says a jittered next run may be up to 5 minutes off its time', () => {
     const daily = heartbeatTask({ schedule: { kind: 'daily', at: '10:00' }, timeZone: 'UTC' })
-    expect(nextRunAbsoluteText(daily, 'UTC')).toMatch(/9:00:00.*GMT(\+0)? ± up to 5 min$/)
-    expect(nextRunAbsoluteText(heartbeatTask({ timeZone: 'UTC' }), 'UTC')).toMatch(
-      /9:00:00.*GMT(\+0)?$/,
+    expect(nextRunAbsoluteText(daily)).toMatch(/9:00:00.*GMT(\+0)? ± up to 5 min$/)
+    expect(nextRunAbsoluteText(heartbeatTask({ timeZone: 'UTC' }))).toMatch(/9:00:00.*GMT(\+0)?$/)
+    expect(nextRunAbsoluteText(heartbeatTask({ nextRunAt: null }))).toBeNull()
+  })
+
+  it('shows the next run on the task’s own clock when it keeps another zone', () => {
+    // 2026-03-03 09:00Z is 18:00 in Tokyo.
+    expect(nextRunAbsoluteText(heartbeatTask({ timeZone: 'Asia/Tokyo' }))).toMatch(
+      /6:00:00.*PM GMT\+9$/,
     )
-    expect(nextRunAbsoluteText(heartbeatTask({ nextRunAt: null }), null)).toBeNull()
   })
 
   it('formats near times relative to now', () => {

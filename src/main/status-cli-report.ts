@@ -1,4 +1,6 @@
 /** Status report types and their human-readable rendering. */
+
+import { SCHEDULED_TASK_JITTER_TEXT } from '@shared/domain/scheduled-tasks/task-schedule'
 import type { ScheduledTaskStatusSummary } from '@shared/types/scheduled-task'
 import { cliWallClockTime } from './cli-wall-clock-time'
 import { sanitizeTerminalText } from './terminal-text'
@@ -97,7 +99,7 @@ function waitingNote(pendingQuestions: number | null) {
 /** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
 function nextRun(task: ScheduledTaskStatusSummary) {
   if (task.nextRunAt === null) return 'none'
-  return `${cliWallClockTime(task.nextRunAt)}${task.jittered ? ' (±5 min)' : ''}`
+  return `${cliWallClockTime(task.nextRunAt)}${task.jittered ? ` (${SCHEDULED_TASK_JITTER_TEXT})` : ''}`
 }
 
 function scheduledTaskLines(tasks: readonly ScheduledTaskStatusSummary[] | null | undefined) {

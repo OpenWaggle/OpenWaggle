@@ -1,5 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
+import {
+  isTaskScheduleJittered,
+  SCHEDULED_TASK_JITTER_TEXT,
+} from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   LocalScheduledTasksCommandResult,
   ScheduledTask,
@@ -24,9 +27,6 @@ function wallClock(epoch: number, timeZone: string) {
   }
 }
 
-/** Hourly-or-slower tasks fire within ±5 minutes of their nominal time (ADR 0057). */
-const NEXT_RUN_JITTER = '±5 min'
-
 function nextRun(task: ScheduledTask) {
   if (task.nextRunAt === null) return { nextRunAt: null }
   return {
@@ -34,7 +34,7 @@ function nextRun(task: ScheduledTask) {
     ...(task.nextNominalAt !== null && task.nextNominalAt !== task.nextRunAt
       ? { nextNominalAt: wallClock(task.nextNominalAt, task.timeZone) }
       : {}),
-    ...(isTaskScheduleJittered(task) ? { nextRunJitter: NEXT_RUN_JITTER } : {}),
+    ...(isTaskScheduleJittered(task) ? { nextRunJitter: SCHEDULED_TASK_JITTER_TEXT } : {}),
   }
 }
 

@@ -26,7 +26,7 @@ export function ScheduledTaskScheduleLine({
   readonly now: number
 }) {
   const zone = differingTimeZone(task)
-  const nextAt = task.enabled && task.waitingSince === null ? nextRunAbsoluteText(task, zone) : null
+  const nextAt = task.enabled && task.waitingSince === null ? nextRunAbsoluteText(task) : null
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-text-tertiary">
       <span>{describeSchedule(task.schedule)}</span>

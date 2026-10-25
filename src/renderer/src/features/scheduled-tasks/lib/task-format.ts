@@ -1,4 +1,7 @@
-import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
+import {
+  isTaskScheduleJittered,
+  SCHEDULED_TASK_JITTER_MINUTES,
+} from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   ScheduledTask,
   ScheduledTaskKind,
@@ -125,12 +128,15 @@ export function formatAbsoluteTime(at: number, timeZone?: string | null) {
 }
 
 /** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
-export const NEXT_RUN_JITTER_TEXT = '± up to 5 min'
+export const NEXT_RUN_JITTER_TEXT = `± up to ${String(SCHEDULED_TASK_JITTER_MINUTES)} min`
 
-/** The next run's absolute time, saying when it may be up to 5 minutes off; null if none. */
-export function nextRunAbsoluteText(task: ScheduledTask, timeZone?: string | null) {
+/**
+ * The next run's absolute time on the task's clock (named when it is not the machine's), saying
+ * when it may be up to 5 minutes off; null if none.
+ */
+export function nextRunAbsoluteText(task: ScheduledTask) {
   if (task.nextRunAt === null) return null
-  const at = formatAbsoluteTime(task.nextRunAt, timeZone)
+  const at = formatAbsoluteTime(task.nextRunAt, differingTimeZone(task))
   return isTaskScheduleJittered(task) ? `${at} ${NEXT_RUN_JITTER_TEXT}` : at
 }
 

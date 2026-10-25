@@ -14,7 +14,7 @@ import {
 } from '../lib/schedule-presets'
 import { previewSchedule } from '../lib/schedule-preview'
 import { endsAtFromDraft } from '../lib/task-draft'
-import { formatPreviewTime } from '../lib/task-format'
+import { formatPreviewTime, NEXT_RUN_JITTER_TEXT } from '../lib/task-format'
 import { EditorField } from './EditorField'
 
 const PRESET_OPTIONS: readonly { value: SchedulePreset; label: string }[] = [
@@ -177,7 +177,7 @@ function SchedulePreviewLine({ editor }: { readonly editor: ScheduledTaskEditorS
           </span>
         ))
       )}
-      {preview.jittered ? <span className="text-text-tertiary">± up to 5 min</span> : null}
+      {preview.jittered ? <span className="text-text-tertiary">{NEXT_RUN_JITTER_TEXT}</span> : null}
     </div>
   )
 }

@@ -13,7 +13,10 @@ import type { RecurrenceRule } from './recurrence-types'
 const MINUTE_MS = 60_000
 const HOUR_MINUTES = 60
 /** Hourly-or-slower schedules fire within ±5 minutes of their nominal time (ADR 0057). */
-export const SCHEDULED_TASK_JITTER_MS = 5 * MINUTE_MS
+export const SCHEDULED_TASK_JITTER_MINUTES = 5
+export const SCHEDULED_TASK_JITTER_MS = SCHEDULED_TASK_JITTER_MINUTES * MINUTE_MS
+/** How every surface that shows a jittered task's next run marks it in plain text. */
+export const SCHEDULED_TASK_JITTER_TEXT = `±${String(SCHEDULED_TASK_JITTER_MINUTES)} min`
 const JITTER_SPAN_SECONDS = 601
 const JITTER_OFFSET_SECONDS = 300
 const SECOND_MS = 1000
