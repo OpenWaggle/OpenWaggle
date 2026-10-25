@@ -86,6 +86,102 @@ describe('SQLite Session Control Worker settlement', () => {
     })
   })
 
+  function settleCompletedRunAfterNeedsAttention(
+    file: string,
+    markNeedsAttention: (sql: SqlClient.SqlClient) => Effect.Effect<unknown, unknown>,
+  ) {
+    const layer = makeSessionControlRunLifecycleTestLayer(path.join(temporaryRoot, file))
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* prepareWorkerDelegation(sql)
+        yield* startWorkerRun
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        yield* lifecycle.activate({ sessionId: SessionId('worker'), runId: RunId('run-next') })
+        yield* markNeedsAttention(sql)
+        const settlement = yield* lifecycle.settle({
+          sessionId: SessionId('worker'),
+          runId: RunId('run-next'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+          finalResponse: 'I need the staging credentials before I can continue.',
+        })
+        const [contract] = yield* sql<{ readonly state: string }>`
+          SELECT state FROM delegation_contracts WHERE id = ${'delegation-worker'}
+        `
+        const [submissions] = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM delegation_submissions
+          WHERE delegation_id = ${'delegation-worker'}
+        `
+        return { settlement, contract, submissionCount: submissions?.count }
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
+  it('keeps a needs_attention state the Worker set itself when its Run completes with text', async () => {
+    const result = await settleCompletedRunAfterNeedsAttention(
+      'worker-explicit-needs-attention.sqlite',
+      (sql) =>
+        Effect.gen(function* () {
+          yield* sql`
+            INSERT INTO delegation_state_transitions (
+              delegation_id, from_state, to_state, reason, actor_session_id, authored_by, created_at
+            ) VALUES (
+              ${'delegation-worker'}, ${'working'}, ${'needs_attention'}, ${'Blocked on credentials'},
+              ${'worker'}, ${'session-agent:worker'}, ${2000}
+            )
+          `
+          yield* sql`
+            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${2000}
+            WHERE id = ${'delegation-worker'}
+          `
+        }),
+    )
+
+    expect(result.settlement).toEqual(
+      expect.not.objectContaining({ delegationUpdate: expect.anything() }),
+    )
+    expect(result).toMatchObject({ contract: { state: 'needs_attention' }, submissionCount: 0 })
+  })
+
+  it('still submits a completed Run whose needs_attention the Host set after an earlier failure', async () => {
+    const result = await settleCompletedRunAfterNeedsAttention(
+      'worker-host-needs-attention.sqlite',
+      (sql) =>
+        Effect.gen(function* () {
+          // An older explicit transition, then a Host needs_attention settlement after a failed Run.
+          yield* sql`
+            INSERT INTO delegation_state_transitions (
+              delegation_id, from_state, to_state, reason, actor_session_id, authored_by, created_at
+            ) VALUES (
+              ${'delegation-worker'}, ${'working'}, ${'needs_attention'}, ${'Blocked'},
+              ${'worker'}, ${'session-agent:worker'}, ${1500}
+            )
+          `
+          yield* sql`
+            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${3000}
+            WHERE id = ${'delegation-worker'}
+          `
+          yield* sql`
+            INSERT INTO session_orchestration_updates (
+              id, parent_session_id, worker_session_id, delegation_id, source_run_id,
+              state, summary, status, created_at
+            ) VALUES (
+              ${'orchestration:delegation-worker:run-next:needs-attention'}, ${'queen'}, ${'worker'},
+              ${'delegation-worker'}, ${'run-next'}, ${'needs_attention'}, ${'Run failed.'},
+              ${'pending'}, ${3000}
+            )
+          `
+        }),
+    )
+
+    expect(result).toMatchObject({
+      settlement: { delegationUpdate: { state: 'ready_for_review', submissionRevision: 1 } },
+      contract: { state: 'ready_for_review' },
+      submissionCount: 1,
+    })
+  })
+
   it('marks an interrupted Worker Delegation as needing attention without submitting it', async () => {
     const layer = makeSessionControlRunLifecycleTestLayer(
       path.join(temporaryRoot, 'worker-interrupted.sqlite'),

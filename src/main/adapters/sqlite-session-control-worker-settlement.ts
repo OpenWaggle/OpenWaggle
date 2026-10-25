@@ -9,6 +9,8 @@ interface WorkerDelegationRow {
   readonly state: string
   readonly current_specification_revision: number
   readonly latest_submission_revision: number
+  /** 1 when the Worker's own `delegation_state needs_attention` is the latest state change. */
+  readonly explicit_needs_attention: number
 }
 
 const HOST_CAPTURED_RESULT_LIMIT = 100_000
@@ -17,7 +19,24 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId) {
   return sql<WorkerDelegationRow>`
     SELECT contracts.id, contracts.parent_session_id, contracts.state,
       contracts.current_specification_revision,
-      COALESCE(MAX(submissions.revision), 0) AS latest_submission_revision
+      COALESCE(MAX(submissions.revision), 0) AS latest_submission_revision,
+      (contracts.state = ${'needs_attention'} AND EXISTS (
+        SELECT 1 FROM delegation_state_transitions AS transitions
+        WHERE transitions.id = (
+            SELECT MAX(latest.id) FROM delegation_state_transitions AS latest
+            WHERE latest.delegation_id = contracts.id
+          )
+          AND transitions.to_state = ${'needs_attention'}
+          AND transitions.actor_session_id = contracts.child_session_id
+          -- A failed Run's needs_attention writes no transition row, only an orchestration update.
+          AND NOT EXISTS (
+            SELECT 1 FROM session_orchestration_updates AS host_updates
+            WHERE host_updates.worker_session_id = contracts.child_session_id
+              AND host_updates.delegation_id = contracts.id
+              AND host_updates.state = ${'needs_attention'}
+              AND host_updates.created_at > transitions.created_at
+          )
+      )) AS explicit_needs_attention
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
     WHERE contracts.child_session_id = ${sessionId}
@@ -113,6 +132,9 @@ function settleCompletedWorker(
     ) {
       return undefined
     }
+    // A Worker that asked for attention itself stays there: its reply explains the request and is
+    // not a result. Only a needs_attention the Host set after a failed Run is resolved here.
+    if (input.contract.explicit_needs_attention === 1) return undefined
     const revision = input.contract.latest_submission_revision + 1
     const summary = input.settlement.finalResponse.trim().slice(0, HOST_CAPTURED_RESULT_LIMIT)
     yield* sql`
