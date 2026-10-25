@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
+import { releaseStageLabel } from '@/lib/release-stage';
 import Hero from '../Hero.astro';
 
 const STAGE_BADGE = /<span\b[^>]*\bdata-release-stage\b[^>]*>([^<]*)<\/span>/u;
@@ -14,8 +15,7 @@ describe('landing hero release stage', () => {
     const { version } = JSON.parse(readFileSync(new URL('../../../../../package.json', import.meta.url), 'utf8'));
     const container = await AstroContainer.create();
     const html = await container.renderToString(Hero);
-    const expected = /-rc\./u.test(version) ? 'Release candidate' : /-beta\./u.test(version) ? 'Beta' : undefined;
-    expect(stageBadge(html)).toBe(expected);
+    expect(stageBadge(html)).toBe(releaseStageLabel(version));
     expect(html).not.toMatch(/\bALPHA\b/u);
   });
 

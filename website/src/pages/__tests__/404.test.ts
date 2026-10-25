@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
 import NotFound from '../404.astro';
@@ -8,11 +8,18 @@ async function renderNotFound() {
   return container.renderToString(NotFound, { request: new Request('https://openwaggle.ai/docs/does-not-exist/') });
 }
 
+const DIST = new URL('../../../dist/', import.meta.url);
+
 describe('not-found page', () => {
   // Cloudflare Pages answers unknown paths with the homepage and a 200 unless the build has a
-  // top-level 404.html; Astro writes src/pages/404.astro to exactly that file.
-  it('is the top-level 404 route Cloudflare Pages serves with a 404 status', () => {
-    expect(existsSync(new URL('../404.astro', import.meta.url))).toBe(true);
+  // top-level 404.html. The release rehearsal runs `website:build` before `website:test`, so this
+  // checks the artifact the host serves; without a build there is nothing to check.
+  it.skipIf(!existsSync(DIST))('is built to the top-level 404.html Cloudflare Pages serves with a 404 status', () => {
+    const page = readFileSync(new URL('404.html', DIST), 'utf8');
+    expect(page).toContain('<title>Page not found | OpenWaggle</title>');
+    expect(readFileSync(new URL('sitemap-0.xml', DIST), 'utf8')).not.toMatch(/<loc>[^<]*\/404\/?<\/loc>/u);
+    expect(existsSync(new URL('install.sh', DIST))).toBe(false);
+    expect(readFileSync(new URL('_redirects', DIST), 'utf8')).toMatch(/^\/install\.sh\s+https:\/\/raw\.githubusercontent\.com\/\S+\s+302$/mu);
   });
 
   it('says the page is missing and links back to the homepage and the docs', async () => {
