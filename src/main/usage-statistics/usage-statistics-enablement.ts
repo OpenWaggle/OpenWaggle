@@ -13,8 +13,10 @@ import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import type { BuildChannel } from '@shared/types/build-identity'
 import {
   resolveUsageStatisticsEnablement,
+  resolveUsageStatisticsEnvironmentBlock,
   type UsageStatisticsEnablement,
   type UsageStatisticsEnablementInput,
+  type UsageStatisticsEnvironmentBlock,
 } from '@shared/usage-statistics/enablement'
 import { env } from '../env'
 import { createLogger } from '../logger'
@@ -32,6 +34,8 @@ export type UsageStatisticsEnablementListener = (enabled: boolean) => void
 export interface UsageStatisticsEnablementState {
   readonly isEnabled: () => boolean
   readonly current: () => UsageStatisticsProcessEnablement
+  /** The build or environment opt-out, which no Setting overrides; null when there is none. */
+  readonly environmentBlock: () => UsageStatisticsEnvironmentBlock | null
   readonly onChange: (listener: UsageStatisticsEnablementListener) => () => void
   /** The Setting from an authoritative snapshot; `undefined` means there is none yet. */
   readonly publishSetting: (settingEnabled: boolean | undefined) => void
@@ -44,15 +48,13 @@ export function createUsageStatisticsEnablementState(input: {
   let settingEnabled: boolean | undefined
   const listeners = new Set<UsageStatisticsEnablementListener>()
 
+  // The build and environment never change while the process runs.
+  const environmentBlock = () => resolveUsageStatisticsEnvironmentBlock(input)
+
   const current = (): UsageStatisticsProcessEnablement => {
-    // Evaluated with the Setting on first, so a build or environment opt-out names its reason
-    // even before Settings load.
-    const fixed = resolveUsageStatisticsEnablement({
-      settingEnabled: true,
-      buildChannel: input.buildChannel,
-      env: input.env,
-    })
-    if (!fixed.enabled) return fixed
+    // A build or environment opt-out names its reason even before Settings load.
+    const block = environmentBlock()
+    if (block !== null) return { enabled: false, reason: block }
     if (settingEnabled === undefined) return { enabled: false, reason: 'settings-unavailable' }
     return resolveUsageStatisticsEnablement({
       settingEnabled,
@@ -66,6 +68,7 @@ export function createUsageStatisticsEnablementState(input: {
   return {
     isEnabled,
     current,
+    environmentBlock,
     onChange: (listener) => {
       listeners.add(listener)
       return () => {
@@ -112,6 +115,11 @@ export function isUsageStatisticsEnabled(): boolean {
 /** The current decision with the reason it is off, for diagnostics. */
 export function currentUsageStatisticsEnablement(): UsageStatisticsProcessEnablement {
   return processEnablement.current()
+}
+
+/** Why this process never sends statistics whatever the Setting says, for the Settings switch. */
+export function usageStatisticsEnvironmentBlock(): UsageStatisticsEnvironmentBlock | null {
+  return processEnablement.environmentBlock()
 }
 
 /**

@@ -21,6 +21,11 @@ const mockNativeAdmissionIssue = vi.fn<() => string | null>(() => null)
 const mockRecoverNativeAdmission = vi.fn<() => Promise<DesktopNativeRecoveryOutcome>>(async () => ({
   outcome: 'recovered',
 }))
+const mockUsageStatisticsBlock = vi.fn<() => string | null>(() => null)
+vi.mock('../../usage-statistics/usage-statistics-enablement', () => ({
+  usageStatisticsEnvironmentBlock: () => mockUsageStatisticsBlock(),
+}))
+
 vi.mock('../../desktop-native-admission', () => ({
   getDesktopNativeAdmissionIssue: () => mockNativeAdmissionIssue(),
   recoverDesktopNativeAdmission: () => mockRecoverNativeAdmission(),
@@ -78,10 +83,11 @@ describe('shell-handler', () => {
     mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly eight invoke handlers', () => {
+  it('registers exactly nine invoke handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(8)
+    expect(handlers.size).toBe(9)
+    expect(handlers.has('app:get-usage-statistics-block')).toBe(true)
     expect(handlers.has('app:recover-native-admission')).toBe(true)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
@@ -113,6 +119,15 @@ describe('shell-handler', () => {
     expect(await handlers.get('app:recover-native-admission')?.({})).toEqual(failure)
     expect(mockRecoverNativeAdmission).toHaveBeenCalledTimes(2)
   })
+
+  it.each([null, 'dev-build', 'automation'])(
+    'tells the Settings switch why this process never sends statistics: %s',
+    async (block) => {
+      mockUsageStatisticsBlock.mockReturnValue(block)
+      registerShellHandlers()
+      expect(await handlers.get('app:get-usage-statistics-block')?.({})).toBe(block)
+    },
+  )
 
   it('reads paste text through Electron clipboard isolation', async () => {
     registerShellHandlers()

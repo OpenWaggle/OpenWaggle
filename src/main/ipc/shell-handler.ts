@@ -8,6 +8,7 @@ import {
 } from '../desktop-native-admission'
 import { AutomationDesktopUiError, openExternal, openPath, revealPath } from '../desktop-ui'
 import { createLogger } from '../logger'
+import { usageStatisticsEnvironmentBlock } from '../usage-statistics/usage-statistics-enablement'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('ipc:shell')
@@ -73,6 +74,7 @@ export function registerShellHandlers(): void {
 
   typedHandle('app:get-logs-path', () => Effect.sync(() => app.getPath('logs')))
   typedHandle('app:get-native-admission-issue', () => Effect.sync(getDesktopNativeAdmissionIssue))
+  typedHandle('app:get-usage-statistics-block', () => Effect.sync(usageStatisticsEnvironmentBlock))
   // Choosing Recover is the user's attestation that the previous window left nothing running.
   typedHandle('app:recover-native-admission', () =>
     Effect.promise(() => recoverDesktopNativeAdmission()),
