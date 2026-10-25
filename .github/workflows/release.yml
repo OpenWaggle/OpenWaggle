@@ -956,15 +956,61 @@ jobs:
             -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
-      - name: Publish GitHub Release
+      # softprops publishes a prerelease before it uploads, so beta.25's update checks briefly got a
+      # 404 for beta-mac.yml. Upload to a draft, verify it, then publish. A rerun after publication
+      # leaves the published release alone and only verifies it.
+      - name: Find an already published release
+        id: existing-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)" = "false" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload GitHub Release as a draft
+        if: steps.existing-release.outputs.published != 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
-          draft: false
+          draft: true
           prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
           make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
           # Prereleases use generated notes; Stable uses its CHANGELOG.md entry.
           generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}
           body_path: ${{ !contains(needs.version.outputs.new_version, '-') && format('{0}/release-notes.md', runner.temp) || '' }}
           files: release/*
+
+      - name: Verify draft release assets
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release
+
+      - name: Publish GitHub Release
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+          RELEASE_PRERELEASE: ${{ contains(needs.version.outputs.new_version, '-') }}
+          # Only Stable app releases become the repository's Latest release.
+          RELEASE_LATEST: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
+        run: |
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --prerelease="$RELEASE_PRERELEASE" --latest="$RELEASE_LATEST"
+
+      - name: Verify published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release --published

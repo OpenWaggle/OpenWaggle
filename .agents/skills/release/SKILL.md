@@ -143,6 +143,7 @@ Alpha  -> alpha, beta, rc, stable
 
 - Prereleases are GitHub prereleases. Only plain `X.Y.Z` app releases may be the repository's "Latest" release; package releases use `--latest=false` (#261).
 - Never retag a prerelease or edit a GitHub release to simulate promotion.
+- Upload assets to a draft release, verify it with `scripts/verify-release-assets.ts`, and publish only after that; a published release without its metadata makes update checks 404.
 - Fail closed when version, tag, release classification, or update metadata is inconsistent.
 
 ## Implementation guidance
