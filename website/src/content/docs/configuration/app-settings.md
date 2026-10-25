@@ -62,7 +62,7 @@ Below the controls, select a project to read its agent definitions or enable and
 
 **Pi sessions** lists your projects with what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. The choice is yours only. It is stored in your OpenWaggle settings, not in the project, so others working on the project choose for themselves.
 
-**About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
+**About & Updates** shows your installed version and update channel. Until you choose a channel, a Stable build follows Stable, an Alpha or Beta build follows its own channel, and a release candidate follows Beta. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
 
 Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
 
