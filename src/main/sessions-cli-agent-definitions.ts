@@ -1,8 +1,8 @@
 import os from 'node:os'
 import {
-  type AgentDefinitionToggleLoader,
-  loadAgentDefinitionTogglesForProject,
-} from './agent-definition-toggle-loader'
+  type AgentDefinitionProjectResolver,
+  resolveAgentDefinitionProject,
+} from './agent-definition-project'
 import { listAgentDefinitions, searchAgentDefinitions } from './agents/agent-definition-catalog'
 import { agentDefinitionsProjectPath } from './agents-cli-options'
 import { compactAgentCatalog, writeAgentsCliCatalog } from './agents-cli-output'
@@ -16,7 +16,7 @@ export interface AgentDefinitionDiscoveryIo {
   readonly cwd?: string
   readonly home?: string
   readonly stdout?: (value: string) => void | Promise<void>
-  readonly loadToggles?: AgentDefinitionToggleLoader
+  readonly resolveProject?: AgentDefinitionProjectResolver
 }
 
 /**
@@ -31,7 +31,10 @@ export async function runAgentDefinitionDiscoveryCommand(
   arguments_: ParsedArguments,
   io: AgentDefinitionDiscoveryIo = {},
 ) {
-  const projectPath = agentDefinitionsProjectPath(arguments_, io.cwd ?? process.cwd())
+  // From a managed worktree or a subdirectory, read the project root, as spawn and launch do.
+  const { projectPath, enabledByName } = await (io.resolveProject ?? resolveAgentDefinitionProject)(
+    agentDefinitionsProjectPath(arguments_, io.cwd ?? process.cwd()),
+  )
   const userHome = io.home ?? os.homedir()
   const stdout = io.stdout ?? writeCliStdout
   const items =
@@ -42,7 +45,6 @@ export async function runAgentDefinitionDiscoveryCommand(
           query: required(arguments_.positionals.join(' '), 'Search query'),
         })
       : await listAgentDefinitions({ projectPath, userHome })
-  const enabledByName = await (io.loadToggles ?? loadAgentDefinitionTogglesForProject)(projectPath)
   const definitions = compactAgentCatalog(
     items.filter((item) => enabledByName[item.name] !== false),
   )

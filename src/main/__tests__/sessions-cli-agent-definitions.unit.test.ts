@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runAgentsCli } from '../agents-cli'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { runAgentDefinitionDiscoveryCommand } from '../sessions-cli-agent-definitions'
+import { fakeProjectResolver } from './agent-definition-project.test-support'
 
 const definition = `---
 schemaVersion: 1
@@ -71,21 +72,20 @@ describe('Hive CLI Agent-definition discovery', () => {
     })
 
     let toggles: Readonly<Record<string, boolean>> = {}
-    const togglesAskedFor: string[] = []
-    const discover = (args: readonly string[]) => {
+    const worktree = path.join(root, 'worktrees', 'project', 'w1')
+    const subdirectory = path.join(project, 'src')
+    await Promise.all([fs.mkdir(worktree, { recursive: true }), fs.mkdir(subdirectory)])
+    const resolveProject = fakeProjectResolver({
+      projects: [project],
+      worktrees: { [worktree]: project },
+      toggles: () => ({ [project]: toggles }),
+    })
+    const discover = (args: readonly string[], cwd = project) => {
       const parsed = parseMcpCliArguments(args)
       return runAgentDefinitionDiscoveryCommand(
         parsed.positionals[0] ?? '',
         { ...parsed, positionals: parsed.positionals.slice(1) },
-        {
-          cwd: project,
-          home,
-          stdout: (value) => void stdout.push(value),
-          loadToggles: async (projectPath) => {
-            togglesAskedFor.push(projectPath)
-            return toggles
-          },
-        },
+        { cwd, home, stdout: (value) => void stdout.push(value), resolveProject },
       )
     }
     await expect(discover(['agent-definitions-list', '--json'])).resolves.toBe(0)
@@ -101,14 +101,44 @@ describe('Hive CLI Agent-definition discovery', () => {
     ).resolves.toBe(0)
     expect(stdout.join('')).toContain('security-reviewer\tproject\tvalid')
 
+    // From a managed worktree or a subdirectory, discovery reads the project root.
+    for (const cwd of [worktree, subdirectory]) {
+      stdout = []
+      await expect(discover(['agent-definitions-list', '--json'], cwd)).resolves.toBe(0)
+      expect(JSON.parse(stdout.join(''))).toMatchObject({
+        result: { definitions: [{ name: 'security-reviewer' }] },
+      })
+    }
+
     // A definition turned off for the project is hidden, as the hive tool hides it.
     toggles = { 'security-reviewer': false }
-    stdout = []
-    await expect(discover(['agent-definitions-list', '--json'])).resolves.toBe(0)
-    expect(JSON.parse(stdout.join(''))).toMatchObject({ result: { definitions: [] } })
-    stdout = []
-    await expect(discover(['agent-definitions-search', 'authorization'])).resolves.toBe(0)
-    expect(stdout.join('')).not.toContain('security-reviewer')
-    expect(togglesAskedFor.every((projectPath) => projectPath === project)).toBe(true)
+    for (const cwd of [project, worktree, subdirectory]) {
+      stdout = []
+      await expect(discover(['agent-definitions-list', '--json'], cwd)).resolves.toBe(0)
+      expect(JSON.parse(stdout.join(''))).toMatchObject({ result: { definitions: [] } })
+      stdout = []
+      await expect(discover(['agent-definitions-search', 'authorization'], cwd)).resolves.toBe(0)
+      expect(stdout.join('')).not.toContain('security-reviewer')
+    }
+  })
+
+  it('lists nothing when Settings cannot be read', async () => {
+    const parsed = parseMcpCliArguments(['agent-definitions-list', '--json'])
+    await expect(
+      runAgentDefinitionDiscoveryCommand(
+        'agent-definitions-list',
+        { ...parsed, positionals: [] },
+        {
+          cwd: project,
+          home,
+          stdout: (value) => void stdout.push(value),
+          resolveProject: fakeProjectResolver({
+            projects: [project],
+            settingsError: new Error('OpenWaggle could not read the saved settings database.'),
+          }),
+        },
+      ),
+    ).rejects.toThrow('could not read the saved settings database')
+    expect(stdout).toEqual([])
   })
 })

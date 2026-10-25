@@ -246,7 +246,7 @@ The `openwaggle_hive` tool exposes the Session Control v2 vocabulary used by the
 - interactions and authorization: `requests-list`, `request-respond`, `approval-respond`, and `authorization-set`;
 - reports and Delegations: `report`, `delegation-submit`, `delegation-state`, `delegation-claim`, `delegation-conflict-acknowledge`, `delegation-dependency`, `delegation-propose-amendment`, `delegation-amend`, `delegation-request-revision`, `delegation-accept`, `delegation-reopen`, `delegation-cancel`, `delegation-verify`, `delegations-list`, `delegations-read`, and `delegations-conflicts`;
 - exports: `export`, `export-create`, `export-cancel`, `exports-list`, `exports-read`, and `exports-wait`.
-- Agent definitions: `agent-definitions-list` and `agent-definitions-search` (with `message` as the query). They return names and descriptions, never instructions, for a project inside the caller's `--workspace` grants (the first grant by default), and need no further grant. Definitions turned off for that project are left out, as they are for the agent.
+- Agent definitions: `agent-definitions-list` and `agent-definitions-search` (with `message` as the query). They return names and descriptions, never instructions, for a directory inside the caller's `--workspace` grants (the first grant by default), and need no further grant. A managed worktree or a subdirectory reads the OpenWaggle project it belongs to. Definitions turned off for that project are left out, as they are for the agent.
 
 Scheduled tasks are not available over MCP: a server holds only transient authority, and a Scheduled task needs a lasting creator. Use [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) or the agent's `hive` tool.
 

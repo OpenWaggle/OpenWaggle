@@ -7,6 +7,7 @@ import {
   queryMcpAgentDefinitions,
 } from '../openwaggle-mcp-agent-definitions-v2'
 import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
+import { fakeProjectResolver } from './agent-definition-project.test-support'
 
 const DEFINITION = `---
 schemaVersion: 1
@@ -62,7 +63,7 @@ describe('openwaggle_hive Agent-definition discovery', () => {
     const listed = await queryMcpAgentDefinitions(
       scope([project]),
       { operation: 'agent-definitions-list' },
-      { userHome: home, loadToggles: async () => ({}) },
+      { userHome: home, resolveProject: fakeProjectResolver({ projects: [project] }) },
     )
     expect(listed).toEqual({
       definitions: [
@@ -79,34 +80,77 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-search', message: 'nothing-matches' },
-        { userHome: home, loadToggles: async () => ({}) },
+        { userHome: home, resolveProject: fakeProjectResolver({ projects: [project] }) },
       ),
     ).resolves.toEqual({ definitions: [] })
   })
 
   it('leaves out a definition turned off for the project, as the tool does', async () => {
-    const asked: string[] = []
+    const resolveProject = fakeProjectResolver({
+      projects: [project],
+      toggles: () => ({ [project]: { reviewer: false } }),
+    })
     await expect(
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-list' },
-        {
-          userHome: home,
-          loadToggles: async (projectPath) => {
-            asked.push(projectPath)
-            return { reviewer: false }
-          },
-        },
+        { userHome: home, resolveProject },
       ),
     ).resolves.toEqual({ definitions: [] })
     await expect(
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-search', message: 'security' },
-        { userHome: home, loadToggles: async () => ({ reviewer: false }) },
+        { userHome: home, resolveProject },
       ),
     ).resolves.toEqual({ definitions: [] })
-    expect(asked).toEqual([project])
+  })
+
+  it('reads the project root for a managed-worktree or subdirectory grant', async () => {
+    const worktree = path.join(root, 'worktrees', 'project', 'w1')
+    const subdirectory = path.join(project, 'src')
+    await Promise.all([fs.mkdir(worktree, { recursive: true }), fs.mkdir(subdirectory)])
+    let toggles: Readonly<Record<string, boolean>> = {}
+    const resolveProject = fakeProjectResolver({
+      projects: [project],
+      worktrees: { [worktree]: project },
+      toggles: () => ({ [project]: toggles }),
+    })
+    for (const granted of [worktree, subdirectory]) {
+      toggles = {}
+      // The worktree holds no definitions here, so a listed one came from the project root.
+      await expect(
+        queryMcpAgentDefinitions(
+          scope([granted]),
+          { operation: 'agent-definitions-list' },
+          { userHome: home, resolveProject },
+        ),
+      ).resolves.toMatchObject({ definitions: [{ name: 'reviewer' }] })
+      toggles = { reviewer: false }
+      await expect(
+        queryMcpAgentDefinitions(
+          scope([granted]),
+          { operation: 'agent-definitions-list' },
+          { userHome: home, resolveProject },
+        ),
+      ).resolves.toEqual({ definitions: [] })
+    }
+  })
+
+  it('lists nothing when Settings cannot be read', async () => {
+    await expect(
+      queryMcpAgentDefinitions(
+        scope([project]),
+        { operation: 'agent-definitions-list' },
+        {
+          userHome: home,
+          resolveProject: fakeProjectResolver({
+            projects: [project],
+            settingsError: new Error('OpenWaggle could not read the saved settings database.'),
+          }),
+        },
+      ),
+    ).rejects.toThrow('could not read the saved settings database')
   })
 
   it('reads only a project inside the caller workspace grants', async () => {
@@ -114,7 +158,7 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([]),
         { operation: 'agent-definitions-list' },
-        { userHome: home, loadToggles: async () => ({}) },
+        { userHome: home, resolveProject: fakeProjectResolver({ projects: [project] }) },
       ),
     ).rejects.toThrow('requires an explicit MCP workspace grant')
     const other = path.join(root, 'other')
@@ -123,14 +167,14 @@ describe('openwaggle_hive Agent-definition discovery', () => {
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-list', projectPath: other },
-        { userHome: home, loadToggles: async () => ({}) },
+        { userHome: home, resolveProject: fakeProjectResolver({ projects: [project] }) },
       ),
     ).rejects.toThrow("outside this server profile's workspace grants")
     await expect(
       queryMcpAgentDefinitions(
         scope([project]),
         { operation: 'agent-definitions-search' },
-        { userHome: home, loadToggles: async () => ({}) },
+        { userHome: home, resolveProject: fakeProjectResolver({ projects: [project] }) },
       ),
     ).rejects.toThrow('message is required')
   })
