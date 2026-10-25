@@ -8,23 +8,24 @@ import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { writeCliStdout } from './cli-stdout'
 import { isDesktopAppRunning } from './desktop-instance-probe'
-import { stopHostForUpdate } from './host-cli'
-import { formatHostUpdateStopReport } from './host-update-stop'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import {
-  prepareWindowsInstaller,
-  releaseForTag,
-  runBundledInstaller,
-} from './update-cli-installers'
-import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
+  EXIT,
+  installExactVersion,
+  normalizeVersion,
+  stopSessionHostBeforeInstall,
+  UpdateCliUsageError,
+} from './update-cli-exact-version'
+import { runBundledInstaller } from './update-cli-installers'
+import {
+  configureUpdaterFeed,
+  isVersionEligibleForChannel,
+  type UpdateFeedSelection,
+} from './update-feed'
 
-const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
-const RELEASE_TAG_PATTERN = /^v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u
-
-class UpdateCliUsageError extends Error {}
 
 function usage() {
   return `OpenWaggle update
@@ -33,8 +34,9 @@ Usage:
   openwaggle update [--channel stable|beta|alpha] [--check]
   openwaggle update --version <version> [--check]
 
-The selected channel is shared with the desktop app. An exact version is a one-time install
-and does not change the saved channel.`
+The selected channel is shared with the desktop app. --check only reports: it never changes the
+saved channel, even with --channel. An exact version is a one-time install, does not change the
+saved channel, and cannot be older than the installed version: downgrades are unsupported.`
 }
 
 function validateArguments(args: ReturnType<typeof parseMcpCliArguments>) {
@@ -71,55 +73,10 @@ function parseChannel(value: string | undefined): UpdateChannel | undefined {
   return channel
 }
 
-function normalizeVersion(value: string) {
-  const tag = value.startsWith('v') ? value : `v${value}`
-  if (!RELEASE_TAG_PATTERN.test(tag)) {
-    throw new UpdateCliUsageError(`Invalid OpenWaggle version ${JSON.stringify(value)}.`)
-  }
-  return tag
-}
-
-const DESKTOP_OPEN_EXACT_VERSION_MESSAGE =
-  'OpenWaggle is open. Quit it first so its active agent runs are not interrupted, then run this command again.'
-
-/**
- * Stop the Session Host before the installer replaces the app, as Restart to update does (ADR
- * 0047): active Runs are waited for, stopped, or the update is cancelled. On macOS and for an exact
- * Linux version the bundled install script does this itself.
- */
-async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
-  const report = await stopHostForUpdate(parsed)
-  if (report.state === 'cancelled') throw new Error('Update cancelled. OpenWaggle was not changed.')
-  if (report.state === 'desktop-open') throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
-  // The Windows installer closes what is left, and an AppImage is replaced as one file.
-  if (report.state === 'timed-out' || report.state === 'refused' || report.state === 'replaced') {
-    process.stderr.write(`${formatHostUpdateStopReport(report)}\n`)
-  }
-}
-
-async function installExactVersion(parsed: ParsedArguments, tag: string, checkOnly: boolean) {
-  const release = await releaseForTag(tag)
-  if (checkOnly) {
-    await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
-    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
-  }
-  // Installing over a running app would stop its active agent runs without asking.
-  if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
-  if (process.platform === 'win32') {
-    const installer = await prepareWindowsInstaller(tag)
-    await stopSessionHostBeforeInstall(parsed).catch(async (error: unknown) => {
-      await installer.discard()
-      throw error
-    })
-    await installer.launch()
-    await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
-    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
-  }
-  const exitCode = await runBundledInstaller(tag)
-  return { exitCode, updaterOwnsExit: false }
-}
-
-async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
+async function configureUpdater(
+  channel: UpdateChannel,
+  checkOnly: boolean,
+): Promise<UpdateFeedSelection> {
   autoUpdater.channel = updaterFeedChannel(channel)
   autoUpdater.allowPrerelease = channel !== 'stable'
   autoUpdater.allowDowngrade = false
@@ -128,7 +85,7 @@ async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
   // Session Host stops install the update under it.
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = null
-  await configureUpdaterFeed(autoUpdater, channel)
+  return configureUpdaterFeed(autoUpdater, channel)
 }
 
 function createDownloadWaiter() {
@@ -182,10 +139,14 @@ async function installAvailableUpdate(input: {
   readonly channel: UpdateChannel
   readonly downloaded: ReturnType<typeof createDownloadWaiter> | null
   readonly parsed: ParsedArguments
+  readonly unsavedChannel: boolean
 }) {
   const { mode, version, channel } = input
   if (mode === 'check') {
-    await writeCliStdout(`OpenWaggle ${version} is available on the ${channel} channel.\n`)
+    await writeCliStdout(
+      `OpenWaggle ${version} is available on the ${channel} channel.` +
+        `${input.unsavedChannel ? ' The saved update channel was not changed.' : ''}\n`,
+    )
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   if (mode === 'defer-to-desktop') {
@@ -209,14 +170,23 @@ async function installAvailableUpdate(input: {
   return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
 }
 
-async function updateFromChannel(
-  parsed: ParsedArguments,
-  channel: UpdateChannel,
-  checkOnly: boolean,
-) {
-  const mode = channelInstallMode(checkOnly)
+async function updateFromChannel(input: {
+  readonly parsed: ParsedArguments
+  readonly channel: UpdateChannel
+  readonly checkOnly: boolean
+  readonly unsavedChannel: boolean
+}) {
+  const { parsed, channel, unsavedChannel } = input
+  const mode = channelInstallMode(input.checkOnly)
   const reportOnly = mode !== 'updater'
-  await configureUpdater(channel, reportOnly)
+  const selection = await configureUpdater(channel, reportOnly)
+  if (selection.type === 'no-release') {
+    // Stable before 1.0.0, or a release whose update metadata is still uploading.
+    await writeCliStdout(
+      `OpenWaggle is up to date on the ${channel} channel: it has no release yet.\n`,
+    )
+    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
+  }
   const downloaded = reportOnly ? null : createDownloadWaiter()
   const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
     abandonDownloadWaiter(downloaded)
@@ -235,7 +205,7 @@ async function updateFromChannel(
     void result.downloadPromise?.catch(() => undefined)
     throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
   }
-  return installAvailableUpdate({ mode, version, channel, downloaded, parsed })
+  return installAvailableUpdate({ mode, version, channel, downloaded, parsed, unsavedChannel })
 }
 
 async function readAndUpdateChannel(
@@ -281,8 +251,19 @@ export async function runUpdateCli(args: readonly string[]) {
     const version = option(parsed, 'version')
     if (version)
       return await installExactVersion(parsed, normalizeVersion(version), hasFlag(parsed, 'check'))
-    const channel = await readAndUpdateChannel(parsed, parseChannel(option(parsed, 'channel')))
-    return await updateFromChannel(parsed, channel, hasFlag(parsed, 'check'))
+    const requested = parseChannel(option(parsed, 'channel'))
+    const checkOnly = hasFlag(parsed, 'check')
+    // --check is read-only: it checks a requested channel without saving it.
+    if (checkOnly && requested) {
+      return await updateFromChannel({
+        parsed,
+        channel: requested,
+        checkOnly,
+        unsavedChannel: true,
+      })
+    }
+    const channel = await readAndUpdateChannel(parsed, requested)
+    return await updateFromChannel({ parsed, channel, checkOnly, unsavedChannel: false })
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
     return {

@@ -85,6 +85,8 @@ release_tag_is_supported() {
   printf '%s\n' "$1" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'
 }
 
+# Stable once it exists. Before that, Beta: the 1.0.0 line has no Alpha stage and a release
+# candidate build follows Beta, so an install during Beta or RC never saves Alpha.
 resolve_default_channel() {
   local releases_json="$1"
   local tag
@@ -94,7 +96,7 @@ resolve_default_channel() {
       return 0
     fi
   done < <(extract_release_tags "${releases_json}")
-  printf '%s\n' alpha
+  printf '%s\n' beta
 }
 
 release_is_newer() {
@@ -377,32 +379,43 @@ launch_skip_reason() {
 }
 # END TESTABLE LAUNCH POLICY
 
+# BEGIN TESTABLE MAC APP QUIT
 # The desktop window process is the app's only Foreground process. The detached Session Host and
 # CLI invocations share its bundle id but register as UIElement, so they are never matched here.
+# Only the app at the bundle path being replaced counts: an install into
+# OPENWAGGLE_APPLICATIONS_DIR leaves an OpenWaggle running from anywhere else open. Both paths are
+# compared physically, so a symlinked directory (/var is /private/var) still matches.
 running_mac_gui_pids() {
-  local asn
+  local bundle_path="$1" asn record pid type running_path physical_path
   for asn in $(lsappinfo find "bundleid=${MAC_APP_ID}" 2>/dev/null); do
-    lsappinfo info -only pid,applicationtype "${asn}" 2>/dev/null | \
-      awk -F= '/"pid"/ { pid = $2 } /"ApplicationType"/ { type = $2 } END { if (type == "\"Foreground\"") print pid }'
+    record="$(lsappinfo info -only pid,applicationtype,bundlepath "${asn}" 2>/dev/null)" || continue
+    pid="$(printf '%s\n' "${record}" | sed -n 's/^"pid"=\([0-9][0-9]*\)$/\1/p')"
+    type="$(printf '%s\n' "${record}" | sed -n 's/^"ApplicationType"="\(.*\)"$/\1/p')"
+    running_path="$(printf '%s\n' "${record}" | sed -n 's/^"LSBundlePath"="\(.*\)"$/\1/p')"
+    [ -n "${pid}" ] && [ "${type}" = "Foreground" ] && [ -n "${running_path}" ] || continue
+    physical_path="$(cd "${running_path}" 2>/dev/null && pwd -P)" || physical_path="${running_path}"
+    [ "${physical_path}" = "${bundle_path}" ] && printf '%s\n' "${pid}"
   done
+  return 0
 }
 
 # Quit the running desktop app through Electron's normal quit path (SIGTERM emits before-quit), so
 # it saves state before its bundle is replaced. Its Session Host keeps running; the installer stops
 # it next, after asking about active agent runs.
 quit_running_mac_app() {
-  local pids pid waited
-  pids="$(running_mac_gui_pids)"
+  local bundle_path="$1" pids pid waited
+  pids="$(running_mac_gui_pids "${bundle_path}")"
   [ -n "${pids}" ] || return 0
   QUIT_MAC_APP="1"
   info "Quitting the running OpenWaggle…"
   for pid in ${pids}; do kill -TERM "${pid}" 2>/dev/null || true; done
   for ((waited = 0; waited < APP_QUIT_WAIT_SECONDS; waited++)); do
-    [ -n "$(running_mac_gui_pids)" ] || return 0
+    [ -n "$(running_mac_gui_pids "${bundle_path}")" ] || return 0
     sleep 1
   done
   error "OpenWaggle is still running. Quit it, then run the installer again."
 }
+# END TESTABLE MAC APP QUIT
 
 # BEGIN TESTABLE SESSION HOST STOP
 HOST_STOP_FALLBACK_TIMEOUT_MS=20000
@@ -488,6 +501,9 @@ stop_session_host_for_update() {
     desktop-open)
       if [ "${PLATFORM}" = "mac" ]; then
         restore_installed_app
+        # The installer quits only the app it replaces, but every installed copy shares one Host.
+        [ "${QUIT_MAC_APP:-}" = "1" ] || \
+          error "OpenWaggle is open and uses the Session Host this install must stop. Quit it, then run the installer again."
         error "OpenWaggle was opened again while the installer waited. Quit it, then run the installer again."
       fi
       info "OpenWaggle is open, so it keeps its Session Host. Quit it, then run \`openwaggle host stop --update\`."
@@ -648,17 +664,19 @@ fi
 # --- Install ---
 if [ "${PLATFORM}" = "mac" ]; then
   APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"
+  mkdir -p "${APPLICATIONS_DIR}"
+  # Physical, as running_mac_gui_pids compares bundle paths.
+  APPLICATIONS_DIR="$(cd "${APPLICATIONS_DIR}" && pwd -P)"
   info "Mounting DMG and copying to ${APPLICATIONS_DIR}…"
   MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "${DOWNLOAD_PATH}" 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')"
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
   # Quit the window first: stopping the Host under an open app would only make it start another.
-  quit_running_mac_app
+  quit_running_mac_app "${INSTALLED_APP_PATH}"
   stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle" \
     "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
       "${INSTALLED_APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
-  mkdir -p "${APPLICATIONS_DIR}"
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
