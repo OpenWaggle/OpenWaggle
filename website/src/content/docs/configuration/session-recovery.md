@@ -17,6 +17,8 @@ Start with the problem you can see. Read the error or pending request before ret
 
 **Configured outside OpenWaggle** means credentials were found through environment variables, cloud credentials, or custom provider configuration. You do not need to paste another key just to change this status. For a project-specific provider, check that the intended project is selected.
 
+If a run ends with **Provider credentials expired**, renew them and send your message again. For Amazon Bedrock with an AWS SSO profile, run `aws sso login` for that profile. For a provider you signed in to through the browser, sign in again in **Settings > Connections**. OpenWaggle makes an Amazon Bedrock request that failed on expired credentials once more after two seconds before it ends the run, so a token that another request refreshed in the meantime still works.
+
 If the provider is connected but the request fails, read the error for account access, billing, quota, rate limits, or network problems. A successful login does not grant access to every model. See [Providers and models](/docs/providers/overview), [API key authentication](/docs/providers/api-key-auth), or [Browser sign-in](/docs/providers/oauth-auth).
 
 ## A session is waiting instead of answering

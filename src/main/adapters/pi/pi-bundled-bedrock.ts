@@ -1,5 +1,6 @@
 import { setBedrockProviderModule } from '@earendil-works/pi-ai/api/bedrock-converse-stream.lazy'
 import { bedrockProviderModule } from '@earendil-works/pi-ai/bedrock-provider'
+import { withExpiredCredentialRetry } from './pi-bedrock-credential-retry'
 
 let registered = false
 
@@ -17,12 +18,18 @@ let registered = false
  * is read per stream call and never memoized, so registering any time before a
  * request is issued is sufficient. Called both at runtime module load and at
  * the ModelRuntime construction chokepoint; the guard makes repeats free.
+ *
+ * Both stream functions make a request that failed on expired AWS credentials once more before
+ * failing it, which re-resolves the credentials (#357).
  */
 export function registerPiBundledBedrockProvider() {
   if (registered) {
     return
   }
 
-  setBedrockProviderModule(bedrockProviderModule)
+  setBedrockProviderModule({
+    stream: withExpiredCredentialRetry(bedrockProviderModule.stream),
+    streamSimple: withExpiredCredentialRetry(bedrockProviderModule.streamSimple),
+  })
   registered = true
 }
