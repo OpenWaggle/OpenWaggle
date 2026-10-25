@@ -231,7 +231,9 @@ export function EditorScheduleFields({ editor }: { readonly editor: ScheduledTas
       {preset === 'rrule' ? <RuleField editor={editor} /> : null}
       <SchedulePreviewLine editor={editor} />
       <p className="text-xs text-text-tertiary">
-        At most every {String(minimumIntervalMinutes(editor.draft.kind))} minutes.{' '}
+        {preset === 'interval'
+          ? `At most every ${String(minimumIntervalMinutes(editor.draft.kind))} minutes. `
+          : null}
         {editor.draft.kind === 'heartbeat'
           ? 'If the Session is busy, it waits and checks again each minute.'
           : 'If the last run’s Session is still working, that firing is skipped.'}

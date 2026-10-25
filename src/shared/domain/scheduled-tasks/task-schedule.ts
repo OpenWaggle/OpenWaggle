@@ -1,6 +1,7 @@
 import {
   HEARTBEAT_MIN_INTERVAL_MINUTES,
   LAUNCH_SCHEDULE_MIN_INTERVAL_MINUTES,
+  type ScheduledTask,
   type ScheduledTaskKind,
   type TaskSchedule,
 } from '@shared/types/scheduled-task'
@@ -124,6 +125,26 @@ function isJittered(definition: ScheduleDefinition, rule: RecurrenceRule) {
 export function isScheduleJittered(definition: ScheduleDefinition) {
   const rule = recurrenceOf(definition.schedule)
   return typeof rule !== 'string' && isJittered(definition, rule)
+}
+
+/**
+ * Whether a stored task's runs are spread by up to ±5 minutes, so every surface that shows its
+ * `nextRunAt` can say the time is not exact. Counted from the next nominal time, or from the
+ * task's creation once nothing is planned.
+ */
+export function isTaskScheduleJittered(
+  task: Pick<
+    ScheduledTask,
+    'id' | 'schedule' | 'timeZone' | 'endsAt' | 'nextNominalAt' | 'createdAt'
+  >,
+) {
+  return isScheduleJittered({
+    taskId: task.id,
+    schedule: task.schedule,
+    timeZone: task.timeZone,
+    anchorAt: task.nextNominalAt ?? task.createdAt,
+    endsAt: task.endsAt,
+  })
 }
 
 /** The next `count` nominal fire times after `after`, for a schedule preview. */

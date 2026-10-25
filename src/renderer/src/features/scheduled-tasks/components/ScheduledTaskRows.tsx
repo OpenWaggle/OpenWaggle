@@ -68,7 +68,7 @@ function TaskRow({
         <ToggleSwitch
           size="compact"
           checked={task.enabled}
-          label={`${task.enabled ? 'Pause' : 'Resume'} ${task.name}`}
+          label={`${task.name} enabled`}
           disabled={enabled.pendingTaskId === task.id}
           onCheckedChange={(next) => enabled.setEnabled(task.id, next)}
         />

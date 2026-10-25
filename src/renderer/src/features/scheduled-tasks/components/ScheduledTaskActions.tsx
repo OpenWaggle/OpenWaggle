@@ -85,8 +85,9 @@ export function ScheduledTaskActions({
         <ToggleSwitch
           size="compact"
           checked={task.enabled}
-          // The list beside this detail names its own switch after the task.
-          label={task.enabled ? 'Pause this task' : 'Resume this task'}
+          // Named for what "on" means, so it reads "Task enabled, on". The list beside this
+          // detail names its own switch after the task.
+          label="Task enabled"
           disabled={enabled.pendingTaskId === task.id}
           onCheckedChange={(next) => enabled.setEnabled(task.id, next)}
           className="mr-1"

@@ -94,6 +94,12 @@ function waitingNote(pendingQuestions: number | null) {
   return `, waiting for ${pendingQuestions === 1 ? 'an answer' : `${pendingQuestions} answers`}`
 }
 
+/** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
+function nextRun(task: ScheduledTaskStatusSummary) {
+  if (task.nextRunAt === null) return 'none'
+  return `${cliWallClockTime(task.nextRunAt)}${task.jittered ? ' (±5 min)' : ''}`
+}
+
 function scheduledTaskLines(tasks: readonly ScheduledTaskStatusSummary[] | null | undefined) {
   if (tasks === undefined) return []
   if (tasks === null) return ['Scheduled tasks: unknown']
@@ -102,7 +108,7 @@ function scheduledTaskLines(tasks: readonly ScheduledTaskStatusSummary[] | null 
     `Scheduled tasks: ${String(tasks.length)} enabled (they keep the Session Host running)`,
     ...tasks.map(
       (task) =>
-        `  ${task.id}  ${singleLine(task.name)}  (${task.kind === 'heartbeat' ? 'Heartbeat' : 'Launch schedule'}, next ${task.nextRunAt === null ? 'none' : cliWallClockTime(task.nextRunAt)})`,
+        `  ${task.id}  ${singleLine(task.name)}  (${task.kind === 'heartbeat' ? 'Heartbeat' : 'Launch schedule'}, next ${nextRun(task)})`,
     ),
   ]
 }

@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   LocalScheduledTasksCommandResult,
   ScheduledTask,
@@ -6,28 +7,35 @@ import type {
   ScheduledTasksOutcome,
   TaskSchedule,
 } from '@shared/types/scheduled-task'
+import { zonedTimestamp } from '@shared/utils/zoned-time'
 
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
-/** `YYYY-MM-DD HH:MM` on the wall clock of `timeZone`, the zone the task's schedule is read in. */
+/**
+ * `YYYY-MM-DD HH:MM:SS ±HH:MM` on the wall clock of `timeZone`, the zone the task's schedule is
+ * read in. Seconds show a jittered time exactly; the offset tells a repeated hour's two
+ * occurrences apart when clocks go back.
+ */
 function wallClock(epoch: number, timeZone: string) {
-  let parts: Intl.DateTimeFormatPart[]
   try {
-    parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(epoch)
+    return zonedTimestamp(epoch, timeZone)
   } catch {
     return new Date(epoch).toISOString()
   }
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`
+}
+
+/** Hourly-or-slower tasks fire within ±5 minutes of their nominal time (ADR 0057). */
+const NEXT_RUN_JITTER = '±5 min'
+
+function nextRun(task: ScheduledTask) {
+  if (task.nextRunAt === null) return { nextRunAt: null }
+  return {
+    nextRunAt: wallClock(task.nextRunAt, task.timeZone),
+    ...(task.nextNominalAt !== null && task.nextNominalAt !== task.nextRunAt
+      ? { nextNominalAt: wallClock(task.nextNominalAt, task.timeZone) }
+      : {}),
+    ...(isTaskScheduleJittered(task) ? { nextRunJitter: NEXT_RUN_JITTER } : {}),
+  }
 }
 
 function describeSchedule(schedule: TaskSchedule) {
@@ -73,7 +81,7 @@ function compactTask(task: ScheduledTask, options: { readonly prompt?: boolean }
     enabled: task.enabled,
     schedule: describeSchedule(task.schedule),
     timeZone: task.timeZone,
-    nextRunAt: task.nextRunAt === null ? null : wallClock(task.nextRunAt, task.timeZone),
+    ...nextRun(task),
     ...(task.endsAt !== null ? { endsAt: wallClock(task.endsAt, task.timeZone) } : {}),
     ...(task.maxRuns !== null ? { maxRuns: task.maxRuns } : {}),
     runCount: task.runCount,
@@ -85,6 +93,7 @@ function compactTask(task: ScheduledTask, options: { readonly prompt?: boolean }
       ? {
           lastRun: {
             status: task.lastRun.status,
+            trigger: task.lastRun.trigger,
             firedAt: wallClock(task.lastRun.firedAt, task.timeZone),
             ...(task.lastRun.reason ? { reason: task.lastRun.reason } : {}),
           },

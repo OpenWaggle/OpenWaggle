@@ -1,3 +1,4 @@
+import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   ScheduledTask,
   ScheduledTaskKind,
@@ -95,31 +96,42 @@ export function formatRelativeTime(at: number, now: number) {
   return relativeFormatter.format(Math.round(hours / HOURS_PER_DAY), 'day')
 }
 
-const ABSOLUTE_TIME: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }
-// `dateStyle` and `timeStyle` cannot be combined with `timeZoneName`, so a zoned time spells
-// out its fields instead.
-const ZONED_ABSOLUTE_TIME: Intl.DateTimeFormatOptions = {
+// Seconds show a jittered time exactly, and the UTC offset tells the two occurrences of an hour
+// repeated when clocks go back apart, on the machine's clock as on a task's own. `dateStyle` and
+// `timeStyle` cannot be combined with `timeZoneName`, so the fields are spelled out.
+const ABSOLUTE_TIME: Intl.DateTimeFormatOptions = {
   year: 'numeric',
   month: 'short',
   day: 'numeric',
   hour: 'numeric',
   minute: '2-digit',
-  timeZoneName: 'short',
+  second: '2-digit',
+  timeZoneName: 'shortOffset',
 }
 const absoluteFormatters = new Map<string, Intl.DateTimeFormat>()
 
-/** Absolute local date and time; in `timeZone` when the task keeps a different one. */
+/** "Oct 26, 2026, 9:58:59 AM GMT+1"; in `timeZone` when the task keeps a different one. */
 export function formatAbsoluteTime(at: number, timeZone?: string | null) {
   const key = timeZone ?? ''
   let formatter = absoluteFormatters.get(key)
   if (!formatter) {
     formatter = new Intl.DateTimeFormat(
       undefined,
-      timeZone ? { ...ZONED_ABSOLUTE_TIME, timeZone } : ABSOLUTE_TIME,
+      timeZone ? { ...ABSOLUTE_TIME, timeZone } : ABSOLUTE_TIME,
     )
     absoluteFormatters.set(key, formatter)
   }
   return formatter.format(at)
+}
+
+/** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
+export const NEXT_RUN_JITTER_TEXT = '± up to 5 min'
+
+/** The next run's absolute time, saying when it may be up to 5 minutes off; null if none. */
+export function nextRunAbsoluteText(task: ScheduledTask, timeZone?: string | null) {
+  if (task.nextRunAt === null) return null
+  const at = formatAbsoluteTime(task.nextRunAt, timeZone)
+  return isTaskScheduleJittered(task) ? `${at} ${NEXT_RUN_JITTER_TEXT}` : at
 }
 
 const PREVIEW_TIME: Intl.DateTimeFormatOptions = { timeStyle: 'short' }

@@ -57,7 +57,11 @@ describe('Session Summary › Scheduled', () => {
     renderWithQueryClient(<ScheduledSummarySection sessionId="session-1" />)
 
     const row = await screen.findByRole('button', { name: 'Open CI watch' })
-    expect(row).toHaveAttribute('title', expect.stringMatching(/^Next run: /))
+    // Seconds and the UTC offset, as everywhere a next run shows; a 30-minute Heartbeat is exact.
+    expect(row).toHaveAttribute(
+      'title',
+      expect.stringMatching(/^Next run: .*:\d\d:\d\d.*GMT[^±]*$/),
+    )
     expect(screen.getByRole('button', { name: 'Open Review comments' })).toHaveAttribute(
       'title',
       'Paused',
@@ -65,6 +69,18 @@ describe('Session Summary › Scheduled', () => {
     expect(screen.queryByText(/Started by/)).toBeNull()
     fireEvent.click(row)
     expect(mocks.openTask).toHaveBeenCalledWith('heartbeat-1')
+  })
+
+  it('says a daily Heartbeat’s next run may be up to 5 minutes off', async () => {
+    mocks.tasks.splice(
+      0,
+      mocks.tasks.length,
+      heartbeatTask({ schedule: { kind: 'daily', at: '09:00' } }),
+    )
+    renderWithQueryClient(<ScheduledSummarySection sessionId="session-1" />)
+
+    const row = await screen.findByRole('button', { name: 'Open CI watch' })
+    expect(row).toHaveAttribute('title', expect.stringMatching(/^Next run: .*GMT.* ± up to 5 min$/))
   })
 
   it('names the Launch schedule that started this Session', async () => {
