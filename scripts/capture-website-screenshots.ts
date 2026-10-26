@@ -42,11 +42,10 @@ const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
 const WINDOW_WIDTH_PX = 1600
 const WINDOW_HEIGHT_PX = 1000
-/** Fixed ids, so the worktree paths and branches read the same in every capture. */
+/** The scratch profile's parent on macOS and Linux: its short paths show in Settings > Worktrees. */
 const POSIX_TEMP_DIR = '/tmp'
 /** `node` and the script path come before the user's arguments. */
 const USER_ARGUMENT_OFFSET = 2
-const WORKTREE_IDS = ['3f9c2a1e', '7b41d0c8'] as const
 
 const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>> = {
   'hive-sessions.png': captureHiveTree,
