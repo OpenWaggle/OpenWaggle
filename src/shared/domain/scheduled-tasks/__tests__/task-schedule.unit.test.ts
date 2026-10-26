@@ -4,6 +4,7 @@ import { nextRecurrence } from '../recurrence-evaluation'
 import { parseRecurrenceRule } from '../recurrence-rule'
 import {
   isScheduleJittered,
+  isTaskScheduleJittered,
   jitterMs,
   MISSED_FIRING_COUNT_LIMIT,
   missedOccurrences,
@@ -135,6 +136,35 @@ describe('Task schedules', () => {
     ])
     expect(isScheduleJittered(value)).toBe(false)
     expect(isScheduleJittered(definition({ schedule: { kind: 'daily', at: '09:00' } }))).toBe(true)
+  })
+
+  it('tells whether a stored task’s next run is spread, from its own schedule', () => {
+    const stored = {
+      id: 'task-1',
+      timeZone: 'UTC',
+      endsAt: null,
+      nextNominalAt: Date.UTC(2026, 0, 5, 9, 0),
+      createdAt: Date.UTC(2026, 0, 1, 9, 0),
+    }
+    expect(isTaskScheduleJittered({ ...stored, schedule: { kind: 'daily', at: '09:00' } })).toBe(
+      true,
+    )
+    expect(
+      isTaskScheduleJittered({ ...stored, schedule: { kind: 'interval', everyMinutes: 120 } }),
+    ).toBe(true)
+    expect(
+      isTaskScheduleJittered({ ...stored, schedule: { kind: 'interval', everyMinutes: 30 } }),
+    ).toBe(false)
+    expect(
+      isTaskScheduleJittered({
+        ...stored,
+        nextNominalAt: null,
+        schedule: { kind: 'rrule', rule: 'FREQ=MINUTELY;INTERVAL=15' },
+      }),
+    ).toBe(false)
+    expect(
+      isTaskScheduleJittered({ ...stored, schedule: { kind: 'rrule', rule: 'FREQ=WEEKLY' } }),
+    ).toBe(true)
   })
 
   it('spreads hourly-or-slower firings within five minutes, deterministically', () => {
