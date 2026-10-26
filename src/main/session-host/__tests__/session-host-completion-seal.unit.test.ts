@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   SESSION_HOST_BASELINE_MIGRATION_ID,
@@ -8,13 +7,14 @@ import {
   SESSION_HOST_SCHEMA_REVISION,
   SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../../services/session-host-schema-identity'
+import { type HostSqliteDatabase, openHostSqliteDatabase } from '../host-sqlite-database'
 import { validateSessionHostCompletionSeal } from '../session-host-completion-seal'
 
 function completionDatabase(input?: {
   readonly revision?: string
   readonly highWatermark?: string
 }) {
-  const database = new DatabaseSync(':memory:')
+  const database = openHostSqliteDatabase(':memory:')
   database.exec(`
     CREATE TABLE session_host_schema_metadata (
       singleton INTEGER PRIMARY KEY, schema_revision INTEGER NOT NULL,
@@ -41,7 +41,7 @@ function completionDatabase(input?: {
 }
 
 describe('Session Host completion seal', () => {
-  let database: DatabaseSync | undefined
+  let database: HostSqliteDatabase | undefined
 
   afterEach(() => {
     database?.close()
@@ -61,35 +61,35 @@ describe('Session Host completion seal', () => {
   it.each([
     {
       name: 'missing ledger entry',
-      mutate: (target: DatabaseSync) => target.exec('DELETE FROM _migrations'),
+      mutate: (target: HostSqliteDatabase) => target.exec('DELETE FROM _migrations'),
     },
     {
       name: 'wrong ledger name',
-      mutate: (target: DatabaseSync) =>
+      mutate: (target: HostSqliteDatabase) =>
         target.exec("UPDATE _migrations SET name = 'unexpected-migration'"),
     },
     {
       name: 'newer migration',
-      mutate: (target: DatabaseSync) =>
+      mutate: (target: HostSqliteDatabase) =>
         target
           .prepare("INSERT INTO _migrations VALUES (?, 'future', 'now')")
           .run(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID + 1),
     },
     {
       name: 'unknown completion revision',
-      mutate: (target: DatabaseSync) =>
+      mutate: (target: HostSqliteDatabase) =>
         target.exec("UPDATE session_host_schema_metadata SET migration_revision = 'unknown'"),
     },
     {
       name: 'malformed high-water mark',
-      mutate: (target: DatabaseSync) =>
+      mutate: (target: HostSqliteDatabase) =>
         target.exec(
           'UPDATE session_host_schema_metadata SET source_high_watermark_json = \'{"sessions":1}\'',
         ),
     },
     {
       name: 'incompatible schema revision',
-      mutate: (target: DatabaseSync) =>
+      mutate: (target: HostSqliteDatabase) =>
         target.exec('UPDATE session_host_schema_metadata SET schema_revision = 999'),
     },
   ])('fails closed for a $name', ({ mutate }) => {

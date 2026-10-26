@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Statement from '@effect/sql/Statement'
 import { SqliteClient } from '@effect/sql-sqlite-node'
@@ -14,6 +13,7 @@ import {
   SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION_ID,
   SESSION_HOST_NODE_DELETE_MIGRATION_ID,
 } from '../../services/session-host-schema-identity'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -35,7 +35,7 @@ describe('Session discovery native term cutover', () => {
       recoveryDatabasePath: path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db'),
     }
     seedLegacyDatabase(paths.sourceDatabasePath)
-    const source = new DatabaseSync(paths.sourceDatabasePath)
+    const source = openHostSqliteDatabase(paths.sourceDatabasePath)
     try {
       source.exec(`
         UPDATE session_nodes SET content_json = '{"text":"Café alpha alpha"}';
@@ -50,7 +50,7 @@ describe('Session discovery native term cutover', () => {
       status: 'migrated',
       sessionCount: 2,
     })
-    const target = new DatabaseSync(paths.targetDatabasePath)
+    const target = openHostSqliteDatabase(paths.targetDatabasePath)
     try {
       target.exec('PRAGMA foreign_keys = ON')
       expect(

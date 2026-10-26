@@ -1,0 +1,27 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Button from '@/components/ui/Button.astro';
+
+// Astro writes this page to dist/404.html. Cloudflare Pages serves that file, with a 404 status, for
+// every path that matches no page, asset, or redirect; without it, Pages answers with the homepage
+// and a 200. The page can appear at any path, so it claims no canonical URL and links absolutely.
+---
+
+<BaseLayout
+  title="Page not found | OpenWaggle"
+  description="This page does not exist on openwaggle.ai."
+  noIndex
+  canonical={false}
+>
+  <section class="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center md:py-32">
+    <p class="font-display text-6xl font-bold tracking-tight text-accent md:text-7xl" aria-hidden="true">404</p>
+    <h1 class="mt-6 font-display text-3xl font-semibold tracking-tight md:text-4xl">Page not found</h1>
+    <p class="mt-4 max-w-md text-balance leading-relaxed text-text-secondary">
+      There is no page at this address. It may have moved when the docs were reorganized, or the link may have a typo.
+    </p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <Button href="/">Go to the homepage</Button>
+      <Button href="/docs/getting-started/first-run/" variant="secondary">Read the docs</Button>
+    </div>
+  </section>
+</BaseLayout>

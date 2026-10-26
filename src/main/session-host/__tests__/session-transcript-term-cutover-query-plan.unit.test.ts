@@ -1,10 +1,10 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { HostSqliteDatabase } from '../host-sqlite-database'
 import { populateSessionTranscriptTermCatalog } from '../session-transcript-term-cutover'
 import { createTranscriptTermCutoverDatabase } from './session-transcript-term-cutover.test-support'
 
 describe('Session transcript term cutover query plans', () => {
-  let database: DatabaseSync
+  let database: HostSqliteDatabase
 
   beforeEach(() => {
     database = createTranscriptTermCutoverDatabase()
@@ -24,7 +24,9 @@ describe('Session transcript term cutover query plans', () => {
     const plans: unknown[] = []
     vi.spyOn(database, 'prepare').mockImplementation((query) => {
       if (query.includes('WITH candidates AS MATERIALIZED')) {
-        plans.push(...prepare(`EXPLAIN QUERY PLAN ${query}`).all())
+        // better-sqlite3 requires every parameter; the plan does not depend on their values.
+        const parameters = Array.from({ length: query.split('?').length - 1 }, () => null)
+        plans.push(...prepare(`EXPLAIN QUERY PLAN ${query}`).all(...parameters))
       }
       return prepare(query)
     })

@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   SESSION_DISCOVERY_TERM_GROUP_SQL,
@@ -7,14 +7,14 @@ import {
 import { SESSION_DISCOVERY_TERM_SCHEMA_STATEMENTS } from '../session-host-discovery-term-schema'
 
 describe('Session discovery native term bulk validation', () => {
-  let database: DatabaseSync | undefined
+  let database: Database.Database | undefined
 
   afterEach(() => {
     database?.close()
   })
 
   function createCatalog() {
-    const target = new DatabaseSync(':memory:')
+    const target = new Database(':memory:')
     database = target
     target.exec(`
       PRAGMA foreign_keys = ON;
@@ -38,7 +38,11 @@ describe('Session discovery native term bulk validation', () => {
   it('traverses the native vocabulary only once and groups before looking up Session identities', () => {
     const target = createCatalog()
     target.exec(SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS[0])
-    const plan = target.prepare(`EXPLAIN QUERY PLAN ${SESSION_DISCOVERY_TERM_GROUP_SQL}`).all()
+    const plan = target
+      .prepare<[], Record<string, unknown>>(
+        `EXPLAIN QUERY PLAN ${SESSION_DISCOVERY_TERM_GROUP_SQL}`,
+      )
+      .all()
     const scans = plan.flatMap((row) => (typeof row.detail === 'string' ? [row.detail] : []))
     expect(scans.filter((step) => step.includes('VIRTUAL TABLE INDEX'))).toHaveLength(1)
     expect(scans.some((step) => step.includes('CORRELATED'))).toBe(false)

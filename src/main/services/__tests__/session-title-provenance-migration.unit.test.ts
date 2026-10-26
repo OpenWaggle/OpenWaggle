@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { SESSION_TITLE_PROVENANCE_MIGRATION } from '../session-title-provenance-migration'
 
 describe('Session title provenance migration', () => {
   it('marks still-untitled Sessions as default and keeps every existing title manual', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     try {
       database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL)')
       database.exec(

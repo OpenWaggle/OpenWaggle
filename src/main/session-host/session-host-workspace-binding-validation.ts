@@ -1,7 +1,7 @@
-import type { DatabaseSync } from 'node:sqlite'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
-export function validateSessionHostWorkspaceBindingProjects(database: DatabaseSync) {
+export function validateSessionHostWorkspaceBindingProjects(database: HostSqliteDatabase) {
   const mismatched = queryCutoverRecord(
     database,
     `SELECT COUNT(*) AS count

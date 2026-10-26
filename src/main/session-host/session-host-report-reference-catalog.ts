@@ -1,8 +1,8 @@
-import type { DatabaseSync } from 'node:sqlite'
 import {
   normalizeSessionReportReference,
   type SessionReportReferenceKind,
 } from '@shared/session-report-reference'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { cutoverRecord } from './session-host-cutover-database'
 
 interface ReferenceSource {
@@ -17,7 +17,7 @@ function optionalAgentDefinitionName(profileJson: string) {
   return typeof record?.agentDefinitionName === 'string' ? record.agentDefinitionName : undefined
 }
 
-function referenceSources(database: DatabaseSync): readonly ReferenceSource[] {
+function referenceSources(database: HostSqliteDatabase): readonly ReferenceSource[] {
   const values: unknown = database
     .prepare(`
       SELECT sessions.id AS session_id, sessions.title,
@@ -63,7 +63,7 @@ function expectedReferences(source: ReferenceSource) {
     .filter((reference) => reference.normalizedReference.length > 0)
 }
 
-export function populateSessionReportReferenceCatalog(database: DatabaseSync) {
+export function populateSessionReportReferenceCatalog(database: HostSqliteDatabase) {
   const insert = database.prepare(`
     INSERT INTO session_report_references (session_id, kind, normalized_reference)
     VALUES (?, ?, ?)
@@ -75,7 +75,7 @@ export function populateSessionReportReferenceCatalog(database: DatabaseSync) {
   }
 }
 
-export function validateSessionReportReferenceCatalog(database: DatabaseSync) {
+export function validateSessionReportReferenceCatalog(database: HostSqliteDatabase) {
   const expected = referenceSources(database).flatMap(expectedReferences)
   const actual: unknown = database
     .prepare(`

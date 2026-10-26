@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { SCHEDULED_TASK_MIGRATION } from '../scheduled-task-migration'
 import { SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID } from '../session-host-schema-identity'
 
 function migratedDatabase() {
-  const database = new DatabaseSync(':memory:')
+  const database = new Database(':memory:')
   database.exec('PRAGMA foreign_keys = ON')
   database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
   database.exec("INSERT INTO sessions VALUES ('session-1')")
@@ -13,7 +13,7 @@ function migratedDatabase() {
 }
 
 function insertTask(
-  database: DatabaseSync,
+  database: Database.Database,
   input: { id: string; kind: string; target: string | null },
 ) {
   database

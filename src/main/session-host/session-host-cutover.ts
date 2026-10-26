@@ -1,6 +1,5 @@
 import { access, mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import {
   defaultSessionEmbeddingModel,
   type SessionEmbeddingModel,
@@ -18,6 +17,7 @@ import {
   SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
   SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
 } from '../services/session-host-target-schema'
+import { type HostSqliteDatabase, openHostSqliteDatabase } from './host-sqlite-database'
 import { legacyDatabaseFileState } from './legacy-database-file'
 import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
 import {
@@ -76,18 +76,18 @@ export async function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
   return (await legacyDatabaseFileState(paths.sourceDatabasePath)) === 'present'
 }
 
-function applyTargetSchema(database: DatabaseSync) {
+function applyTargetSchema(database: HostSqliteDatabase) {
   for (const statement of SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
 }
 
-function applyPostPopulationSchema(database: DatabaseSync) {
+function applyPostPopulationSchema(database: HostSqliteDatabase) {
   for (const statement of SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS) {
     database.exec(statement)
   }
 }
 
 function recordMigrationMetadata(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   input: {
     readonly now: number
     readonly sourceSchemaRevision: number
@@ -131,7 +131,7 @@ function recordMigrationMetadata(
 }
 
 function prepareStagingDatabase(stagingPath: string, now: number) {
-  const database = new DatabaseSync(stagingPath)
+  const database = openHostSqliteDatabase(stagingPath)
   try {
     database.exec(`
       PRAGMA foreign_keys = ON;
@@ -168,7 +168,7 @@ function finalizeStagingDatabase(
   prepared: ReturnType<typeof prepareStagingDatabase>,
   model: SessionEmbeddingModel,
 ) {
-  const database = new DatabaseSync(stagingPath)
+  const database = openHostSqliteDatabase(stagingPath)
   try {
     database.exec('PRAGMA foreign_keys = ON; BEGIN IMMEDIATE;')
     try {
@@ -197,7 +197,7 @@ function finalizeStagingDatabase(
 }
 
 function validateCompletedTarget(targetPath: string) {
-  const database = new DatabaseSync(targetPath, { readOnly: true })
+  const database = openHostSqliteDatabase(targetPath, { readonly: true })
   try {
     validateSessionHostCompletionSeal(database)
   } finally {
@@ -206,7 +206,7 @@ function validateCompletedTarget(targetPath: string) {
 }
 
 function validateStagedTarget(targetPath: string, model: SessionEmbeddingModel) {
-  const database = new DatabaseSync(targetPath, { readOnly: true })
+  const database = openHostSqliteDatabase(targetPath, { readonly: true })
   try {
     database.exec('BEGIN')
     try {
@@ -225,7 +225,7 @@ function validateStagedTarget(targetPath: string, model: SessionEmbeddingModel) 
 }
 
 async function copySourceToStaging(sourcePath: string, stagingPath: string) {
-  const source = new DatabaseSync(sourcePath)
+  const source = openHostSqliteDatabase(sourcePath)
   try {
     source.exec('PRAGMA wal_checkpoint(TRUNCATE);')
     source.prepare('VACUUM INTO ?').run(stagingPath)

@@ -1,10 +1,10 @@
 import { access, copyFile, link, mkdtemp, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import {
   defaultSessionEmbeddingModel,
   type SessionEmbeddingModel,
 } from '../adapters/multilingual-e5-session-embedding-model'
+import { openHostSqliteDatabase } from './host-sqlite-database'
 import {
   legacyDatabaseFilePaths,
   legacyDatabaseFileState,
@@ -32,7 +32,7 @@ async function fileStatus(filePath: string) {
 }
 
 function activeSchema(databasePath: string) {
-  const database = new DatabaseSync(databasePath, { readOnly: true })
+  const database = openHostSqliteDatabase(databasePath, { readonly: true })
   try {
     const value: unknown = database
       .prepare(
@@ -103,7 +103,7 @@ function restoredSourceArtifactPath(paths: LocalSessionHostPaths, now: number) {
 }
 
 function checkpoint(databasePath: string) {
-  const database = new DatabaseSync(databasePath)
+  const database = openHostSqliteDatabase(databasePath)
   try {
     database.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } finally {

@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { validateSessionHostTarget } from '../session-host-cutover-validation'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
@@ -27,7 +27,7 @@ describe('Session Host cutover Workspace identity', () => {
   it('keeps same-path legacy worktrees isolated by project identity', async () => {
     seedLegacyDatabase(sourceDatabasePath)
     const sharedWorktreePath = path.join(temporaryRoot, 'shared-worktree')
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       const insert = source.prepare(`
         INSERT INTO sessions (
@@ -63,7 +63,7 @@ describe('Session Host cutover Workspace identity', () => {
       fakeEmbeddingModel,
     )
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       const rows = target
         .prepare(`
@@ -103,7 +103,7 @@ describe('Session Host cutover Workspace identity', () => {
       Date.now(),
       fakeEmbeddingModel,
     )
-    const target = new DatabaseSync(targetDatabasePath)
+    const target = openHostSqliteDatabase(targetDatabasePath)
     try {
       target
         .prepare(`

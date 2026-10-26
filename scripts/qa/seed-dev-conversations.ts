@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { getDatabasePath, seedSessions } from '../support/session-fixtures'
 
 const DEFAULT_MESSAGE_COUNT = 400
@@ -192,7 +192,7 @@ function ensureGitProject(projectPath: string) {
 }
 
 function removeSeededSessions() {
-  const db = new DatabaseSync(getDatabasePath(USER_DATA_DIR))
+  const db = new Database(getDatabasePath(USER_DATA_DIR))
   db.exec('PRAGMA foreign_keys = ON')
   /*
    * Only the sessions this script itself creates, matched by title.
@@ -204,7 +204,7 @@ function removeSeededSessions() {
    */
   const placeholders = CONVERSATIONS.map(() => '?').join(', ')
   const empty = db
-    .prepare(`SELECT id FROM sessions WHERE title IN (${placeholders})`)
+    .prepare<unknown[], Record<string, unknown>>(`SELECT id FROM sessions WHERE title IN (${placeholders})`)
     .all(...CONVERSATIONS.map((conversation) => conversation.title))
   for (const row of empty) {
     const id = String(row.id)

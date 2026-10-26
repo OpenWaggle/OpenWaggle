@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -22,7 +22,7 @@ describe('Session Host cutover search indexes', () => {
     const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
     const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       source.exec(`
         INSERT INTO session_nodes (
@@ -43,7 +43,7 @@ describe('Session Host cutover search indexes', () => {
       ),
     ).resolves.toMatchObject({ status: 'migrated' })
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target
@@ -96,7 +96,7 @@ describe('Session Host cutover search indexes', () => {
     const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
     const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       source.exec(`
         WITH RECURSIVE sequence(value) AS (
@@ -136,7 +136,7 @@ describe('Session Host cutover search indexes', () => {
       ),
     ).resolves.toMatchObject({ status: 'migrated', sessionCount: 2, nodeCount: 1027 })
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target.prepare('SELECT * FROM session_transcript_terms ORDER BY session_id, term').all(),
