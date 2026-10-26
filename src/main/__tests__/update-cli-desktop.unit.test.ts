@@ -76,6 +76,7 @@ vi.mock('../update-feed', async (importOriginal) => ({
 }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
+  assertCliAgentMayUseOwnerAuthority: vi.fn(),
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))

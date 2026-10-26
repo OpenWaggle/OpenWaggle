@@ -66,7 +66,7 @@ Every `openwaggle` command reports a failure with one of these kinds and exits w
 
 | Kind | Exit code | Meaning |
 | --- | --- | --- |
-| `usage` | 2 | The command line cannot run as typed: an unknown option, a missing operand, a bad value. Nothing was sent to the Host. |
+| `usage` | 2 | The command line cannot run as typed: an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one. Nothing was sent to the Host. |
 | `authentication` | 3 | A credential is missing, unreadable, or refused, such as an unknown or revoked access profile, or a profile whose credential was rotated; also while the Host throttles repeated failed attempts (retry later). |
 | `authorization` | 4 | The caller may not do this: a missing capability, a Session outside its scope (`target_scope_denied`), or an OpenWaggle agent using the CLI without a named profile. |
 | `not_found` | 5 | The Session, Delegation, or other target does not exist (`session_not_found`, `delegation_not_found`). |

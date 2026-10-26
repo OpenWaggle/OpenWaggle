@@ -16,12 +16,19 @@ const releaseSchema = Schema.Struct({
   assets: Schema.Array(Schema.Struct({ name: Schema.String, browser_download_url: Schema.String })),
 })
 
+const HTTP_NOT_FOUND = 404
+
 export async function releaseForTag(tag: string) {
   const response = await fetch(
     `https://api.github.com/repos/OpenWaggle/OpenWaggle/releases/tags/${encodeURIComponent(tag)}`,
     { headers: { accept: 'application/vnd.github+json' } },
   )
-  if (!response.ok) throw new CliError('not_found', `OpenWaggle release ${tag} was not found.`)
+  if (response.status === HTTP_NOT_FOUND) {
+    throw new CliError('not_found', `OpenWaggle release ${tag} was not found.`)
+  }
+  // A rate limit or server error is not a missing release.
+  if (!response.ok)
+    throw new Error(`Looking up OpenWaggle release ${tag} failed with HTTP ${response.status}.`)
   return decodeUnknownOrThrow(releaseSchema, await response.json())
 }
 

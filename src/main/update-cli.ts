@@ -9,7 +9,10 @@ import { autoUpdater } from 'electron-updater'
 import { CliError, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { isDesktopAppRunning } from './desktop-instance-probe'
-import { createLocalSessionCliClientInput } from './local-session-cli-client'
+import {
+  assertCliAgentMayUseOwnerAuthority,
+  createLocalSessionCliClientInput,
+} from './local-session-cli-client'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { writeSessionsCliError } from './sessions-cli-output'
@@ -27,6 +30,8 @@ import {
   type UpdateFeedSelection,
 } from './update-feed'
 
+const UPDATE_AGENT_REFUSAL =
+  'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.'
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
 
 function usage() {
@@ -218,8 +223,7 @@ async function readAndUpdateChannel(
   // The command offers the revisions it can be sent at (`supportedRevisionsForCommand`): a Host
   // accepts only its current one, so pinning the revision that introduced it failed the handshake.
   const client = await createLocalSessionCliClientInput(parsed, {
-    agentRefusal:
-      'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.',
+    agentRefusal: UPDATE_AGENT_REFUSAL,
   })
   const result = await executeLocalSessionCommand({
     ...client,
@@ -254,6 +258,8 @@ export async function runUpdateCli(args: readonly string[]) {
       await writeCliStdout(`${usage()}\n`)
       return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
     }
+    // Every path, the Host-free ones included: an agent Run neither checks nor installs (#351).
+    assertCliAgentMayUseOwnerAuthority(UPDATE_AGENT_REFUSAL)
     const version = option(parsed, 'version')
     if (version)
       return await installExactVersion(parsed, normalizeVersion(version), hasFlag(parsed, 'check'))
