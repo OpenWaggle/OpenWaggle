@@ -33,7 +33,7 @@ describe('usage statistics snapshot workflow', () => {
     const uses = [...EXECUTABLE.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1] ?? '')
     expect(uses).toEqual([
       'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10',
-      'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1',
+      'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
       'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e',
       './.github/actions/pnpm-install',
     ])

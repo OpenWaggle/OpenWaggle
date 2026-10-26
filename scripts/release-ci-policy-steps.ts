@@ -12,7 +12,7 @@
  */
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
+const PNPM_ACTION_SETUP = 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
 export const REQUIRED_COMMANDS = new Map<string, string>([
   ['Typecheck & Lint', 'pnpm check'],

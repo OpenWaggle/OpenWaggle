@@ -26,7 +26,11 @@ export function useMcpAppFrameRegistration(resource: ParsedMcpAppResource | null
       .then((result) => {
         registered = result
         if (active) setState({ resource, registration: result, error: null })
-        else void api.unregisterMcpAppFrame({ frameId, registrationId: result.registrationId })
+        else {
+          void api
+            .unregisterMcpAppFrame({ frameId, registrationId: result.registrationId })
+            .catch(() => undefined)
+        }
       })
       .catch((error: unknown) => {
         if (active) {
@@ -40,7 +44,9 @@ export function useMcpAppFrameRegistration(resource: ParsedMcpAppResource | null
     return () => {
       active = false
       if (registered) {
-        void api.unregisterMcpAppFrame({ frameId, registrationId: registered.registrationId })
+        void api
+          .unregisterMcpAppFrame({ frameId, registrationId: registered.registrationId })
+          .catch(() => undefined)
       }
     }
   }, [resource])

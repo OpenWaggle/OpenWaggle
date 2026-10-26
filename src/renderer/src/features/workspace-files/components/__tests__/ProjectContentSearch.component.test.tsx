@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => {
     searchWorkspaceContent: vi.fn(),
     workingPath: '/project',
   }
+  // The fire-and-forget cancel of a settling query must return a promise like the bridge does.
+  state.cancelWorkspaceContentSearch.mockResolvedValue(undefined)
   return state
 })
 
