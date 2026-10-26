@@ -71,7 +71,7 @@ describe('Settings › Scheduled tasks', () => {
 
     const alpha = await screen.findByRole('region', { name: 'alpha' })
     expect(within(alpha).getByText('Morning triage')).toBeInTheDocument()
-    expect(within(alpha).getByRole('switch', { name: 'Pause Morning triage' })).toBeChecked()
+    expect(within(alpha).getByRole('switch', { name: 'Morning triage enabled' })).toBeChecked()
     const beta = screen.getByRole('region', { name: 'beta' })
     expect(within(beta).getByText('The target Session was archived.')).toBeInTheDocument()
     expect(within(beta).getByLabelText('Needs attention')).toBeInTheDocument()
@@ -89,6 +89,23 @@ describe('Settings › Scheduled tasks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit Morning triage' }))
     expect(await screen.findByRole('form', { name: 'Edit Morning triage' })).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('states the minimum interval only for interval schedules, for the kind chosen', async () => {
+    renderWithQueryClient(<ScheduledTasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New task' }))
+    const form = await screen.findByRole('form', { name: 'New Scheduled task' })
+    expect(within(form).getByLabelText('Repeat')).toHaveValue('weekdays')
+    expect(within(form).queryByText(/At most every/)).toBeNull()
+
+    fireEvent.change(within(form).getByLabelText('Repeat'), { target: { value: 'interval' } })
+    expect(within(form).getByText(/At most every 15 minutes\./)).toBeInTheDocument()
+    fireEvent.click(within(form).getByRole('radio', { name: 'Into a Session' }))
+    expect(within(form).getByText(/At most every 5 minutes\./)).toBeInTheDocument()
+
+    fireEvent.change(within(form).getByLabelText('Repeat'), { target: { value: 'rrule' } })
+    expect(within(form).queryByText(/At most every/)).toBeNull()
   })
 
   it('creates a task in place with a name taken from its prompt and a preview of runs', async () => {

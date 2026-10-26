@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import {
@@ -141,7 +142,13 @@ async function enabledScheduledTasks(
     if (outcome.effect !== 'listed') return null
     return outcome.tasks
       .filter((task) => task.enabled)
-      .map((task) => ({ id: task.id, name: task.name, kind: task.kind, nextRunAt: task.nextRunAt }))
+      .map((task) => ({
+        id: task.id,
+        name: task.name,
+        kind: task.kind,
+        nextRunAt: task.nextRunAt,
+        jittered: isTaskScheduleJittered(task),
+      }))
   } catch {
     return null
   }

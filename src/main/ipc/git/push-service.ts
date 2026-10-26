@@ -40,6 +40,8 @@ export interface GitPinnedPushTarget {
   readonly remote: string
   readonly branch: string
   readonly pushUrls: readonly string[]
+  /** The push also moves the branch's upstream to the destination ({@link GitPushRefReadResult}). */
+  readonly replacesUpstream: boolean
 }
 
 export interface GitPullResult {
@@ -264,6 +266,7 @@ export async function pushCurrentBranch(
         ok: true,
         upstream: { remote: pinnedTarget.remote, branch: pinnedTarget.branch },
         usedFallbackRemote: false,
+        replacesUpstream: pinnedTarget.replacesUpstream,
       }
     : await readPushRefWithFallback(projectPath, branch, firstPushRemote)
 
@@ -278,7 +281,7 @@ export async function pushCurrentBranch(
   if (!fetchUpstreamResult.ok) {
     return { ok: false, code: 'push-failed', message: fetchUpstreamResult.message }
   }
-  const shouldSetUpstream = fetchUpstreamResult.upstream === null
+  const shouldSetUpstream = fetchUpstreamResult.upstream === null || pushRefResult.replacesUpstream
   return runWithGitNetworkLock(projectPath, () =>
     pushResolvedRef(projectPath, pushRef, shouldSetUpstream, pinnedTarget),
   )

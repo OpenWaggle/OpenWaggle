@@ -15,6 +15,7 @@ const ISO_SUNDAY = 7
 const MIDNIGHT_HOUR = 24
 const SECOND_MS = 1000
 const MONTHS_PER_YEAR = 12
+const MINUTES_PER_HOUR = 60
 
 export interface ZonedDateTime {
   readonly year: number
@@ -97,6 +98,28 @@ function offsetAt(epochMs: number, timeZone: string) {
   )
   const flooredToSecond = epochMs - (((epochMs % SECOND_MS) + SECOND_MS) % SECOND_MS)
   return asUtc - flooredToSecond
+}
+
+const OFFSET_DIGITS = 2
+
+function twoDigits(value: number) {
+  return String(value).padStart(OFFSET_DIGITS, '0')
+}
+
+/**
+ * `YYYY-MM-DD HH:MM:SS ±HH:MM`: the wall-clock time `epochMs` shows in `timeZone`, with its
+ * seconds and the zone's UTC offset at that moment, so a jittered time is exact and the two
+ * occurrences of an hour repeated when clocks go back read differently.
+ */
+export function zonedTimestamp(epochMs: number, timeZone: string) {
+  const parts = formatterFor(timeZone).formatToParts(new Date(epochMs))
+  const part = (type: Intl.DateTimeFormatPartTypes) => twoDigits(numberPart(parts, type))
+  const offsetMinutes = Math.round(offsetAt(epochMs, timeZone) / MINUTE_MS)
+  const sign = offsetMinutes < 0 ? '-' : '+'
+  const absolute = Math.abs(offsetMinutes)
+  const offset = `${sign}${twoDigits(Math.floor(absolute / MINUTES_PER_HOUR))}:${twoDigits(absolute % MINUTES_PER_HOUR)}`
+  const hour = twoDigits(numberPart(parts, 'hour') % MIDNIGHT_HOUR)
+  return `${String(numberPart(parts, 'year'))}-${part('month')}-${part('day')} ${hour}:${part('minute')}:${part('second')} ${offset}`
 }
 
 function sameWallClock(

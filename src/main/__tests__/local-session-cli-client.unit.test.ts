@@ -44,11 +44,17 @@ vi.mock('../session-host/profile-credential-destination', () => ({
   readStoredProfileCredential: mocks.readStoredCredential,
 }))
 
+import { CliError } from '../cli-error'
 import {
   createLocalSessionCliClientInput,
   prepareLocalSessionCliClientInput,
+  refusedCredentialError,
 } from '../local-session-cli-client'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionHostUnavailableError,
+} from '../session-host/local-session-client-protocol-error'
 
 describe('local Hive CLI client credentials', () => {
   beforeEach(() => {
@@ -107,5 +113,77 @@ describe('local Hive CLI client credentials', () => {
     expect(mocks.ensureHost).not.toHaveBeenCalled()
     await createLocalSessionCliClientInput(parseMcpCliArguments([]))
     expect(mocks.ensureHost).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses an agent Run without a profile as an authorization error (#351)', async () => {
+    mocks.env.OPENWAGGLE_AGENT_RUN = '1'
+
+    const refusal = await createLocalSessionCliClientInput(parseMcpCliArguments([])).catch(
+      (error: unknown) => error,
+    )
+    const custom = await prepareLocalSessionCliClientInput(parseMcpCliArguments([]), {
+      agentRefusal: 'Agents cannot update OpenWaggle.',
+    }).catch((error: unknown) => error)
+
+    expect(refusal).toBeInstanceOf(CliError)
+    expect(refusal).toMatchObject({
+      kind: 'authorization',
+      message:
+        'OpenWaggle agents must use their native Hive tool or an explicit named CLI profile.',
+    })
+    expect(custom).toMatchObject({
+      kind: 'authorization',
+      message: 'Agents cannot update OpenWaggle.',
+    })
+    expect(mocks.ensureHost).not.toHaveBeenCalled()
+    await expect(
+      createLocalSessionCliClientInput(parseMcpCliArguments(['--profile', 'helper'])),
+    ).resolves.toMatchObject({ profile: 'helper' })
+  })
+
+  it('names the profile and its source when its credential cannot be read', async () => {
+    mocks.readCredentialFile.mockRejectedValueOnce(new Error('ENOENT: no such file'))
+
+    await expect(
+      createLocalSessionCliClientInput(
+        parseMcpCliArguments(['--profile', 'helper', '--profile-credential-file', '/x/helper']),
+      ),
+    ).rejects.toMatchObject({
+      kind: 'authentication',
+      message:
+        'Could not read the credential for access profile "helper" from "/x/helper": ENOENT: no such file',
+    })
+  })
+
+  it('says which credential the Host refused, for a stale or revoked profile', async () => {
+    mocks.ensureHost.mockRejectedValueOnce(
+      new LocalSessionClientProtocolError('authentication_failed', 'Authentication failed.'),
+    )
+
+    await expect(
+      createLocalSessionCliClientInput(parseMcpCliArguments(['--profile', 'helper'])),
+    ).rejects.toMatchObject({
+      kind: 'authentication',
+      message: expect.stringContaining(
+        'The Session Host refused the credential for access profile "helper" (Authentication failed.)',
+      ),
+    })
+  })
+
+  it('keeps a Host that is starting or slow its own kind instead of blaming the profile', async () => {
+    const unavailable = new LocalSessionHostUnavailableError(
+      'Timed out starting the Local Session Host.',
+    )
+    mocks.ensureHost.mockRejectedValueOnce(unavailable)
+
+    await expect(
+      createLocalSessionCliClientInput(parseMcpCliArguments(['--profile', 'helper'])),
+    ).rejects.toBe(unavailable)
+    expect(
+      refusedCredentialError(
+        { profile: 'helper' },
+        new LocalSessionClientProtocolError('host_draining', 'Stopping.'),
+      ),
+    ).toBeInstanceOf(LocalSessionClientProtocolError)
   })
 })

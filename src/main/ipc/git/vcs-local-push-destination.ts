@@ -1,7 +1,10 @@
+import { createLogger } from '../../logger'
 import type { PrimaryRemote } from '../../services/git/primary-remote'
 import { resolveLocalDefaultRef } from './default-ref'
 import { runGit } from './shared'
 import { readPushRef } from './upstream-ref'
+
+const logger = createLogger('git-status')
 
 export type SafeLocalPushDestination =
   | {
@@ -73,7 +76,24 @@ export async function resolveLocalPushStatus(
   }
 
   const pushResult = await readPushRef(projectPath, refName, primaryRemoteName)
-  if (!pushResult.ok) return pushResult
+  if (!pushResult.ok) {
+    /*
+     * The push target alone must never fail the local status: that hid the whole Session Summary
+     * Git row, with Commit, behind "Retry Git status" (issue #353). Report it as unknown instead.
+     * Unknown counts as the default branch, so the confirmation stays fail-closed, and the
+     * main-process gate resolves the destination again and refuses or asks before any push.
+     */
+    logger.debug('Could not resolve the Git push target for the local status', {
+      refName,
+      message: pushResult.message,
+    })
+    return {
+      ok: true as const,
+      defaultRef,
+      pushTargetRef: null,
+      pushTargetIsDefaultRef: true,
+    }
+  }
   const pushRemoteName = pushResult.upstream?.remote ?? primaryRemoteName
   const destination = await resolveSafeLocalPushDestination(
     projectPath,

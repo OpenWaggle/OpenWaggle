@@ -43,10 +43,12 @@ vi.mock('../session-host/profile-credential', () => ({
 vi.mock('../session-host/profile-credential-destination', () => ({
   ProfileCredentialCommitError,
   removeStoredProfileCredential: removeCredentialMock,
+  removeStoredProfileCredentialCopy: vi.fn(async () => undefined),
   stageProfileCredential: stageCredentialMock,
 }))
 
 import { runAccessCli } from '../access-cli'
+import { LocalSessionHostUnavailableError } from '../session-host/local-session-client-protocol-error'
 
 const PROFILE_RESPONSE = {
   contract: 'local-access-v1',
@@ -187,7 +189,9 @@ describe('Access CLI credential recovery', () => {
   })
 
   it('preserves the only staged credential when reconciliation is also ambiguous', async () => {
-    executeCommandMock.mockRejectedValue(new Error('Session Host unavailable'))
+    executeCommandMock.mockRejectedValue(
+      new LocalSessionHostUnavailableError('Session Host unavailable'),
+    )
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     await expect(runAccessCli(CREATE_ARGUMENTS)).resolves.toBe(8)
@@ -270,14 +274,16 @@ describe('Access CLI credential recovery', () => {
       .mocked(process.stdout.write)
       .mock.calls.map((call) => String(call[0]))
       .join('')
-    expect(JSON.parse(output)).toMatchObject({
+    expect(JSON.parse(output).result).toMatchObject({
       contractVersion: 1,
       outcome: { effect: 'rejected', code: 'missing_access_profiles' },
     })
   })
 
   it('emits a structured Host-unavailable error with the canonical exit code', async () => {
-    executeCommandMock.mockRejectedValue(new Error('Session Host unavailable'))
+    executeCommandMock.mockRejectedValue(
+      new LocalSessionHostUnavailableError('Session Host unavailable'),
+    )
 
     await expect(runAccessCli(LIST_JSON_ARGUMENTS)).resolves.toBe(8)
 

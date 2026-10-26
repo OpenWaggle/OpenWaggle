@@ -24,10 +24,18 @@ vi.mock('../session-host/session-host-recovery', () => ({
 
 import { runRecoveryCli } from '../recovery-cli'
 
-function expectJsonError(stderr: ReturnType<typeof vi.spyOn>, message: string) {
+function expectJsonError(
+  stderr: ReturnType<typeof vi.spyOn>,
+  message: string,
+  kind: 'usage' | 'internal' = 'internal',
+) {
   const output = stderr.mock.calls[0]?.[0]
   expect(typeof output).toBe('string')
-  expect(JSON.parse(String(output))).toEqual({ schemaVersion: 1, error: { message } })
+  expect(JSON.parse(String(output))).toEqual({
+    schemaVersion: 1,
+    type: 'error',
+    error: { kind, message },
+  })
 }
 
 describe('Recovery CLI JSON failures', () => {
@@ -44,11 +52,11 @@ describe('Recovery CLI JSON failures', () => {
 
   it('emits JSON for option validation and missing confirmation', async () => {
     expect(await runRecoveryCli(['status', '--yes', '--json'])).toBe(2)
-    expectJsonError(stderr, 'Unsupported option for OpenWaggle Recovery status: --yes.')
+    expectJsonError(stderr, 'Unsupported option for OpenWaggle Recovery status: --yes.', 'usage')
 
     stderr.mockClear()
     expect(await runRecoveryCli(['restore-pre-cutover', '--json'])).toBe(2)
-    expectJsonError(stderr, 'This operation requires explicit --yes confirmation.')
+    expectJsonError(stderr, 'This operation requires explicit --yes confirmation.', 'usage')
   })
 
   it('emits JSON when recovery status cannot read the filesystem', async () => {
@@ -71,6 +79,6 @@ describe('Recovery CLI JSON failures', () => {
   it('keeps plaintext errors for non-JSON requests', async () => {
     mocks.status.mockRejectedValue(new Error('Recovery copy is unreadable.'))
     expect(await runRecoveryCli(['status'])).toBe(1)
-    expect(stderr).toHaveBeenCalledWith('error: Recovery copy is unreadable.\n')
+    expect(stderr).toHaveBeenCalledWith('error [internal]: Recovery copy is unreadable.\n')
   })
 })

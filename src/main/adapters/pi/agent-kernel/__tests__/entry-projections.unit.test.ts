@@ -137,6 +137,33 @@ describe('Pi entry projection', () => {
     })
   })
 
+  it.each([
+    ['no content', []],
+    ['an empty text block', [{ type: 'text' as const, text: '' }]],
+  ])('keeps an interrupted response with %s out of the transcript', (_label, content) => {
+    const entry = assistantMessage('aborted', 'prompt', '')
+    const projection = projectionForPiEntry({
+      ...entry,
+      message: { ...entry.message, content, stopReason: 'aborted' },
+    })
+
+    expect(projection).toMatchObject({ kind: 'custom', role: null })
+    expect(JSON.parse(projection.contentJson)).toMatchObject({
+      role: 'assistant',
+      stopReason: 'aborted',
+    })
+  })
+
+  it('keeps what an interrupted response had already streamed', () => {
+    const entry = assistantMessage('aborted', 'prompt', 'Partial answer')
+    const projection = projectionForPiEntry({
+      ...entry,
+      message: { ...entry.message, stopReason: 'aborted' },
+    })
+
+    expect(projection).toMatchObject({ kind: 'assistant_message', role: 'assistant' })
+  })
+
   it('projects visible Waggle custom messages as user messages', () => {
     const projection = projectionForPiEntry({
       ...base('visible'),

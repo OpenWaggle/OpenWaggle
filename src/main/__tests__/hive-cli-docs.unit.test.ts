@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
+import { CLI_ERROR_KINDS, cliExitCodeForKind } from '../cli-error'
 
 const documentationPath = 'website/src/content/docs/developer-workflow/hive-cli.md'
 
@@ -31,5 +32,14 @@ describe('Hive CLI documentation contract', () => {
     expect(documentation).toContain(
       '`exports-watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope',
     )
+  })
+
+  it('documents exactly the error kinds and exit codes the CLI uses (#351)', async () => {
+    const documentation = await readFile(documentationPath, 'utf8')
+    const rows = [...documentation.matchAll(/^\| `([a-z_]+)` \| (\d+) \|/gm)].map(
+      ([, kind, code]) => [kind, Number(code)],
+    )
+
+    expect(rows).toEqual(CLI_ERROR_KINDS.map((kind) => [kind, cliExitCodeForKind(kind)]))
   })
 })

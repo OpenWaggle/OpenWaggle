@@ -1,4 +1,4 @@
-import { validateCommandCliOptions } from './command-cli-option-contract'
+import { CommandCliUsageError, validateCommandCliOptions } from './command-cli-option-contract'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateSessionsCliOptions } from './sessions-cli-option-contract'
 
@@ -110,12 +110,14 @@ export function parseRunCliArguments(args: readonly string[]): RunCliInvocation 
   const explicitInput =
     parsed.options.has('text') || parsed.options.has('stdin') || parsed.options.has('input-file')
   if (prompt.length > 0 && explicitInput) {
-    throw new Error(
+    throw new CommandCliUsageError(
       'Provide the prompt either as arguments or with --text, --stdin, or --input-file, not both.',
     )
   }
   if (prompt.trim().length === 0 && !explicitInput) {
-    throw new Error('A prompt is required: openwaggle run <prompt> (see openwaggle run --help).')
+    throw new CommandCliUsageError(
+      'A prompt is required: openwaggle run <prompt> (see openwaggle run --help).',
+    )
   }
   const options = new Map([...parsed.options].filter(([name]) => !RUN_ONLY_OPTIONS.has(name)))
   if (prompt.length > 0) options.set('text', [prompt])

@@ -8,7 +8,7 @@ import { renderScheduledTasksToolResult } from '../sessions-tool-schedule-result
 import { result, task } from './sessions-tool-schedule.test-utils'
 
 describe('Hive tool Scheduled task results', () => {
-  it('renders tasks compactly with wall-clock times in their stored zone', () => {
+  it('renders tasks compactly with wall-clock times, seconds and offset in their stored zone', () => {
     const rendered = JSON.parse(
       renderScheduledTasksToolResult(
         result({
@@ -19,7 +19,7 @@ describe('Hive tool Scheduled task results', () => {
               lastRun: {
                 id: 'run-1',
                 taskId: 'task-1',
-                trigger: 'schedule',
+                trigger: 'run-now',
                 nominalAt: Date.UTC(2025, 5, 1, 7, 0),
                 firedAt: Date.UTC(2025, 5, 1, 7, 0),
                 missedCount: 0,
@@ -43,11 +43,17 @@ describe('Hive tool Scheduled task results', () => {
           enabled: true,
           schedule: 'daily 09:00 on Mon,Wed',
           timeZone: 'Europe/Madrid',
-          nextRunAt: '2025-06-02 09:00',
+          nextRunAt: '2025-06-02 09:00:00 +02:00',
+          nextRunJitter: '±5 min',
           runCount: 0,
           sessionId: 'session-self',
           attention: { reason: 'target-session-archived', message: 'Archived.' },
-          lastRun: { status: 'skipped', firedAt: '2025-06-01 09:00', reason: 'session-busy' },
+          lastRun: {
+            status: 'skipped',
+            trigger: 'run-now',
+            firedAt: '2025-06-01 09:00:00 +02:00',
+            reason: 'session-busy',
+          },
         },
       ],
     })
@@ -83,13 +89,14 @@ describe('Hive tool Scheduled task results', () => {
       nextRunAt: null,
       prompt: 'Check whether CI is green.',
     })
+    expect(read.task).not.toHaveProperty('nextRunJitter')
     expect(read.runs).toEqual([
       {
         id: 'run-2',
         status: 'started',
         trigger: 'catch-up',
-        firedAt: '2025-06-01 09:00',
-        nominalAt: '2025-06-01 08:00',
+        firedAt: '2025-06-01 09:00:00 +02:00',
+        nominalAt: '2025-06-01 08:00:00 +02:00',
         missed: 3,
         sessionId: 'session-self',
         runId: 'run-x',
@@ -110,6 +117,76 @@ describe('Hive tool Scheduled task results', () => {
       effect: 'rejected',
       code: 'invalid_schedule',
       message: 'Too frequent.',
+    })
+  })
+})
+
+describe('Hive tool Scheduled task times', () => {
+  it('shows a jittered next run to the second beside its nominal time', () => {
+    const rendered = JSON.parse(
+      renderScheduledTasksToolResult(
+        result({
+          effect: 'listed',
+          tasks: [
+            task({
+              schedule: { kind: 'daily', at: '10:00' },
+              // 08:58:59Z is 09:58:59 in Madrid on 2026-10-26, after clocks went back.
+              nextRunAt: Date.UTC(2026, 9, 26, 8, 58, 59),
+              nextNominalAt: Date.UTC(2026, 9, 26, 9, 0),
+            }),
+          ],
+        }),
+      ),
+    )
+    expect(rendered.tasks[0]).toMatchObject({
+      schedule: 'daily 10:00',
+      nextRunAt: '2026-10-26 09:58:59 +01:00',
+      nextNominalAt: '2026-10-26 10:00:00 +01:00',
+      nextRunJitter: '±5 min',
+    })
+  })
+
+  it('tells the two occurrences of a repeated hour apart, and reads run pages in UTC', () => {
+    const run = (id: string, firedAt: number) => ({
+      id,
+      taskId: 'task-1',
+      trigger: 'schedule' as const,
+      nominalAt: firedAt,
+      firedAt,
+      missedCount: 0,
+      status: 'started' as const,
+    })
+    const read = JSON.parse(
+      renderScheduledTasksToolResult(
+        result(
+          {
+            effect: 'read',
+            task: task(),
+            runs: [
+              run('run-a', Date.UTC(2026, 9, 25, 0, 30)),
+              run('run-b', Date.UTC(2026, 9, 25, 1, 30)),
+            ],
+          },
+          'read',
+        ),
+      ),
+    )
+    expect(read.runs.map((entry: { firedAt: string }) => entry.firedAt)).toEqual([
+      '2026-10-25 02:30:00 +02:00',
+      '2026-10-25 02:30:00 +01:00',
+    ])
+
+    const page = JSON.parse(
+      renderScheduledTasksToolResult(
+        result(
+          { effect: 'runs-listed', runs: [run('run-a', Date.UTC(2026, 9, 25, 0, 30))] },
+          'runs',
+        ),
+      ),
+    )
+    expect(page).toMatchObject({
+      timeZone: 'UTC',
+      runs: [{ trigger: 'schedule', firedAt: '2026-10-25 00:30:00 +00:00' }],
     })
   })
 })
@@ -175,7 +252,11 @@ describe('Hive tool Scheduled task registration', () => {
     expect(text?.type === 'text' && JSON.parse(text.text)).toMatchObject({
       operation: 'create',
       effect: 'created',
-      task: { id: 'task-1', schedule: 'daily 09:00 on Mon,Wed', nextRunAt: '2025-06-02 09:00' },
+      task: {
+        id: 'task-1',
+        schedule: 'daily 09:00 on Mon,Wed',
+        nextRunAt: '2025-06-02 09:00:00 +02:00',
+      },
     })
     expect(toolResult.details).toEqual(result({ effect: 'created', task: task() }, 'create'))
   })

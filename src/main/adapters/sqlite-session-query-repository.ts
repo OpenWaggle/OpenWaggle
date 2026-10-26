@@ -20,6 +20,7 @@ import {
 } from './sqlite-session-export-operation-query'
 import { readSessionExport } from './sqlite-session-export-query'
 import { listSessions } from './sqlite-session-query-catalog'
+import { resolveCurrentProjectQuery } from './sqlite-session-query-current-project'
 import { readQueue, readSession, readStatus } from './sqlite-session-query-details'
 import { readItems } from './sqlite-session-query-items'
 import { readTurns } from './sqlite-session-query-turns'
@@ -109,17 +110,22 @@ function execute(
   callerId?: string,
   exportMaterializationOperationId?: string,
 ) {
-  return queryProgram(
-    sql,
-    authority,
-    request,
-    windows,
-    semantic,
-    transcriptSemantic,
-    exportSelectedPaths,
-    callerId,
-    exportMaterializationOperationId,
-  ).pipe(Effect.mapError((cause) => repositoryError(`query-${request.query.operation}`, cause)))
+  return resolveCurrentProjectQuery(sql, request).pipe(
+    Effect.flatMap((resolved) =>
+      queryProgram(
+        sql,
+        authority,
+        resolved,
+        windows,
+        semantic,
+        transcriptSemantic,
+        exportSelectedPaths,
+        callerId,
+        exportMaterializationOperationId,
+      ),
+    ),
+    Effect.mapError((cause) => repositoryError(`query-${request.query.operation}`, cause)),
+  )
 }
 
 export function makeSqliteSessionQueryRepositoryLive(

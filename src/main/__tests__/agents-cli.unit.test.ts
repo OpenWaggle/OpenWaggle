@@ -143,7 +143,11 @@ describe('Agent definitions CLI', () => {
 
     expect(parsedError()).toEqual({
       schemaVersion: 1,
-      error: { message: 'Agent definition requires terminated YAML frontmatter.' },
+      type: 'error',
+      error: {
+        kind: 'internal',
+        message: 'Agent definition requires terminated YAML frontmatter.',
+      },
     })
   })
 
@@ -152,7 +156,8 @@ describe('Agent definitions CLI', () => {
 
     expect(parsedError()).toEqual({
       schemaVersion: 1,
-      error: { message: 'Agent definition "missing-role" was not found.' },
+      type: 'error',
+      error: { kind: 'internal', message: 'Agent definition "missing-role" was not found.' },
     })
   })
 
@@ -202,7 +207,11 @@ describe('Agent definitions CLI', () => {
 
     expect(parsedError()).toEqual({
       schemaVersion: 1,
-      error: { message: 'OpenWaggle Agents validate requires more positional arguments.' },
+      type: 'error',
+      error: {
+        kind: 'usage',
+        message: 'OpenWaggle Agents validate requires more positional arguments.',
+      },
     })
   })
 

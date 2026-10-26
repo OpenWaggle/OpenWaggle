@@ -307,6 +307,8 @@ export const GIT_WORKTREE_ERROR_CODES = [
    */
   'branch-checked-out-elsewhere',
   'workspace-bound',
+  /** A Session, Project Action, terminal, the open project, or the running app uses it. */
+  'worktree-in-use',
   'dirty-worktree',
   'cleanup-failed',
   'not-found',

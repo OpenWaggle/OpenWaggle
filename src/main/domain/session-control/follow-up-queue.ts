@@ -31,6 +31,16 @@ export interface FollowUpQueue<TItem extends FollowUpQueueItem> {
   readonly deferredRetryAfter?: number
 }
 
+/**
+ * The queue state a queued Follow-up reports, so a caller learns that it waits behind a paused
+ * queue (and why) instead of assuming it runs next.
+ */
+export function queuedFollowUpQueueState(queue: FollowUpQueue<FollowUpQueueItem>) {
+  return queue.state === 'paused' && queue.pauseReason
+    ? { queueState: queue.state, pauseReason: queue.pauseReason }
+    : { queueState: queue.state }
+}
+
 export interface AppendFollowUp<TItem extends FollowUpQueueItem> {
   readonly type: 'append'
   readonly item: TItem

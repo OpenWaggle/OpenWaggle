@@ -1,3 +1,4 @@
+import { CommandCliUsageError } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
 import { formerGroupReplacement } from './sessions-cli-former-commands'
@@ -50,6 +51,7 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   ],
   spawn: [
     ...MESSAGE_INPUT_OPTIONS,
+    'title',
     'attach',
     'expected-run',
     'workspace',
@@ -104,7 +106,7 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'reply-to',
     ...IDEMPOTENCY,
   ],
-  list: ['project', 'all', 'archived', 'limit', 'cursor'],
+  list: ['project', 'all', 'parent', 'archived', 'limit', 'cursor'],
   search: [
     'project',
     'all',
@@ -191,8 +193,8 @@ const ACTION_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * Agent-definition discovery reads definition files in this process, so it takes no Session
- * Host client options and answers with one JSON response at most.
+ * Agent-definition discovery reads definition files in this process and answers with one JSON
+ * response at most. It still takes the Hive client options: a named profile is authenticated.
  */
 const LOCAL_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   'agent-definitions-list': ['project'],
@@ -230,15 +232,15 @@ const BOOLEAN_OPTIONS = new Set([
 
 function allowedOptions(command: string, arguments_: ParsedArguments) {
   const local = LOCAL_COMMAND_OPTIONS[command]
-  if (local) return new Set([...local, 'json'])
+  if (local) return new Set([...local, ...CLIENT_OPTIONS, 'json'])
   const replacement = formerGroupReplacement(command, arguments_)
   if (replacement) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Unsupported OpenWaggle Hive command: ${command} ${arguments_.positionals[0] ?? ''}. Use 'openwaggle hive ${replacement}'.`,
     )
   }
   const specific = DIRECT_COMMAND_OPTIONS[command] ?? ACTION_COMMAND_OPTIONS[command]
-  if (!specific) throw new Error(`Unsupported OpenWaggle Hive command: ${command}.`)
+  if (!specific) throw new CommandCliUsageError(`Unsupported OpenWaggle Hive command: ${command}.`)
   return new Set([...specific, ...CLIENT_OPTIONS, ...OUTPUT_OPTIONS])
 }
 
@@ -252,7 +254,7 @@ function validateOptionValues(arguments_: ParsedArguments) {
     !BOOLEAN_OPTIONS.has(name) && values.some((value) => value === 'true') ? [name] : [],
   )
   if (missing.length > 0) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Missing value for ${missing
         .sort()
         .map((name) => `--${name}`)
@@ -265,7 +267,9 @@ function validateOptionValues(arguments_: ParsedArguments) {
     )
     .sort()
   if (valuedBooleans.length > 0) {
-    throw new Error(`${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`)
+    throw new CommandCliUsageError(
+      `${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`,
+    )
   }
 }
 
@@ -275,7 +279,7 @@ export function validateSessionsCliOptions(command: string, arguments_: ParsedAr
     .filter((name) => !ALL_SESSION_OPTIONS.has(name))
     .sort()
   if (unknown.length > 0) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Unknown option${unknown.length === 1 ? '' : 's'} for OpenWaggle Hive: ${unknown
         .map((name) => `--${name}`)
         .join(', ')}.`,
@@ -284,7 +288,7 @@ export function validateSessionsCliOptions(command: string, arguments_: ParsedAr
   refuseRunSettingsOnActiveRunCommand(command, arguments_)
   const unsupported = [...arguments_.options.keys()].filter((name) => !allowed.has(name)).sort()
   if (unsupported.length > 0) {
-    throw new Error(
+    throw new CommandCliUsageError(
       `Unsupported option${unsupported.length === 1 ? '' : 's'} for hive ${command}: ${unsupported
         .map((name) => `--${name}`)
         .join(', ')}.`,

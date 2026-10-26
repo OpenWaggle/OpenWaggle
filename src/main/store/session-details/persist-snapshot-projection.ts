@@ -10,6 +10,7 @@ import {
   EXPANDED_NODE_IDS_UNTOUCHED,
   TREE_SIDEBAR_EXPANDED,
 } from './constants'
+import { withDeferredLexicalDiscoveryRefresh } from './lexical-discovery-refresh'
 import { latestModeStateForActiveNode, latestModeStateForBranch } from './mode-state-projection'
 import { reconcileSnapshotNodes } from './snapshot-node-reconciliation'
 import { transcriptTermProjectionNodeIds } from './snapshot-transcript-term-changes'
@@ -181,13 +182,17 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
       nodeIds: termProjectionNodeIds,
       reconcile: Effect.zipRight(
         deleteSnapshotBranchProjection(input.sql, input.input.sessionId),
-        reconcileSnapshotNodes({
-          sql: input.sql,
-          sessionId: input.input.sessionId,
-          existingNodes: input.existingNodes,
-          nodes: input.nodes,
-          branchHintByNodeId: input.branchHintByNodeId,
-        }),
+        withDeferredLexicalDiscoveryRefresh(
+          input.sql,
+          input.input.sessionId,
+          reconcileSnapshotNodes({
+            sql: input.sql,
+            sessionId: input.input.sessionId,
+            existingNodes: input.existingNodes,
+            nodes: input.nodes,
+            branchHintByNodeId: input.branchHintByNodeId,
+          }),
+        ),
       ),
     })
     for (const branch of input.branches) {

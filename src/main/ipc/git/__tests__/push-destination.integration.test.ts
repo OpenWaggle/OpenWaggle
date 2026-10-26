@@ -312,6 +312,7 @@ exec "$OPENWAGGLE_REWRITE_TEST_REAL_GIT" "$@"
           remote: 'origin',
           branch: 'feature',
           pushUrls: [approvedUrl],
+          replacesUpstream: false,
         })
 
         expect(result).toMatchObject({ ok: true })

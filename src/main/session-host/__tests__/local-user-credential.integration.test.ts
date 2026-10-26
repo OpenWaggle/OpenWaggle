@@ -141,13 +141,75 @@ describe('Local Session credentials', () => {
       authenticate({
         protocol: 'openwaggle-local-session',
         supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+        clientKind: 'cli',
+        clientVersion: 'test',
+        profile: 'review',
+        credential: localUserCredential,
+        transientAuthority,
+      }),
+    ).rejects.toThrow('Only an MCP server may narrow')
+    await expect(
+      authenticate({
+        protocol: 'openwaggle-local-session',
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         profile: 'review',
         credential: localUserCredential,
         transientAuthority,
       }),
-    ).rejects.toThrow('cannot be combined')
+    ).rejects.toThrow('Named Local Session profile authentication failed.')
+  })
+
+  it('authenticates a narrowed MCP profile as the profile, holding nothing until the Host intersects', async () => {
+    const localUserCredential = Buffer.alloc(32, 10).toString('base64url')
+    const profileAuthority = {
+      profileId: 'review-id',
+      profileName: 'review',
+      capabilities: ['sessions:discover' as const, 'sessions:read' as const],
+      scope: { all: true },
+      authorizationCeiling: 'yolo' as const,
+    }
+    const namedProfile = vi.fn(async () => ({
+      callerId: 'profile:review-id',
+      profileAuthority,
+    }))
+    const authenticate = createLocalSessionAuthenticator({
+      localUserCredential,
+      namedProfiles: { authenticate: namedProfile },
+    })
+    const narrowing = {
+      profileId: 'mcp:review',
+      profileName: 'review',
+      capabilities: ['sessions:discover' as const],
+      scope: { workspaceRoots: ['/allowed'] },
+      authorizationCeiling: 'yolo' as const,
+    }
+    const hello = {
+      protocol: 'openwaggle-local-session' as const,
+      supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+      clientKind: 'mcp' as const,
+      clientVersion: 'test',
+      profile: 'review',
+      credential: 'profile-secret',
+    }
+
+    await expect(authenticate({ ...hello, transientAuthority: narrowing })).resolves.toEqual({
+      callerId: 'profile:review-id',
+      profileAuthority: { ...profileAuthority, capabilities: [], scope: {} },
+      baseProfileScope: {},
+      profileNarrowing: narrowing,
+    })
+    await expect(
+      authenticate({
+        ...hello,
+        transientAuthority: { ...narrowing, scope: { all: true } },
+      }),
+    ).rejects.toThrow('explicit workspace or Session scope')
+    namedProfile.mockRejectedValueOnce(new Error('profile_revoked'))
+    await expect(authenticate({ ...hello, transientAuthority: narrowing })).rejects.toThrow(
+      'profile_revoked',
+    )
   })
 
   it('keeps the transient MCP principal stable across request-specific project filters', async () => {

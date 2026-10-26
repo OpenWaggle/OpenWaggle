@@ -67,6 +67,14 @@ export const SESSION_QUERY_MAX_CURSOR_LENGTH = 4_096
 export const SESSION_QUERY_MAX_PATH_LENGTH = 4_096
 export const SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT = 1_000
 
+/**
+ * A catalog query's current project: the Sessions of the project this path belongs to, so the
+ * project checkout and every managed worktree of it. The Host resolves a managed worktree (or a
+ * directory inside one) to its Session's project, as it maps a Workspace to its project
+ * elsewhere; any other path stands for the project at that path.
+ */
+export type SessionCatalogWorkingPath = string
+
 export type SessionQuery =
   | {
       readonly operation: 'list'
@@ -77,7 +85,9 @@ export type SessionQuery =
       readonly unreadTerminalStatus?: 'completed' | 'failed'
       readonly projectPath?: string
       readonly projectPaths?: readonly string[]
-      readonly workingPath?: string
+      readonly workingPath?: SessionCatalogWorkingPath
+      /** Only the direct Workers of this Session. */
+      readonly parentSessionId?: string
       readonly searchText?: string
     }
   | {
@@ -86,7 +96,7 @@ export type SessionQuery =
       readonly limit: number
       readonly cursor?: string
       readonly projectPath?: string
-      readonly workingPath?: string
+      readonly workingPath?: SessionCatalogWorkingPath
       readonly includeArchived?: boolean
       readonly searchScope?: 'discovery' | 'full-transcript'
       readonly mode?: SessionDiscoveryMode
@@ -118,7 +128,7 @@ export type SessionQuery =
       readonly limit: number
       readonly cursor?: string
       readonly projectPath?: string
-      readonly workingPath?: string
+      readonly workingPath?: SessionCatalogWorkingPath
       readonly parentSessionId?: string
       readonly workerSessionId?: string
       readonly states?: readonly DelegationState[]
@@ -134,7 +144,7 @@ export type SessionQuery =
       readonly limit: number
       readonly cursor?: string
       readonly projectPath?: string
-      readonly workingPath?: string
+      readonly workingPath?: SessionCatalogWorkingPath
       readonly parentSessionId?: string
       readonly workerSessionId?: string
       readonly delegationId?: string

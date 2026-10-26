@@ -75,6 +75,8 @@ In **New worktree** mode the first send needs a base branch. Until one resolves,
 
 Managed worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<workspaceId>`, on a branch named `ow/session-<workspaceId>`. The workspace identifier can differ from the session ID, and several sessions can share one workspace. Existing worktrees retain their recorded names; **Recreate worktree** reattaches to the recorded branch rather than starting a new one, so commits made in the old tree are not stranded. Check **Session Summary > Environment** for the actual path and branch. You can list and remove worktrees in **Settings > Worktrees**.
 
+A new session branch does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<workspaceId>`, and sets that as its upstream, with `push.default` unset or set to `simple`, `current`, or `upstream`. Worktrees created by OpenWaggle 1.0.0-beta.25 and earlier track their base branch, such as `origin/main`. With `push.default` unset or `simple`, **Push** publishes those under their own name too and moves the upstream there, instead of failing as `git push` does. With `push.default=upstream`, the push goes to the tracked base branch, so OpenWaggle asks for confirmation first, as for any push to the default branch. If OpenWaggle cannot work out where a push would go, such as with `push.default=matching`, the Git status and **Commit** still work, and **Push** explains why it cannot run.
+
 ### First-send worktree feedback
 
 When the first message creates a worktree, OpenWaggle lists each step in the conversation as it starts, before the agent runs:
