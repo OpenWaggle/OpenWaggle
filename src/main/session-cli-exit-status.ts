@@ -1,30 +1,11 @@
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import { CLI_EXIT, cliExitCodeForKind } from './cli-error'
 import { type SessionsCliErrorKind, sessionsCliErrorKindForCode } from './sessions-cli-output'
 
-export const SESSION_CLI_EXIT = {
-  SUCCESS: 0,
-  FAILURE: 1,
-  USAGE: 2,
-  AUTHENTICATION: 3,
-  AUTHORIZATION: 4,
-  NOT_FOUND: 5,
-  CONFLICT: 6,
-  TIMEOUT: 7,
-  HOST_UNAVAILABLE: 8,
-} as const
+export const SESSION_CLI_EXIT = CLI_EXIT
 
 export function sessionCliExitCodeForError(kind: SessionsCliErrorKind) {
-  const codes: Record<SessionsCliErrorKind, number> = {
-    usage: SESSION_CLI_EXIT.USAGE,
-    authentication: SESSION_CLI_EXIT.AUTHENTICATION,
-    authorization: SESSION_CLI_EXIT.AUTHORIZATION,
-    not_found: SESSION_CLI_EXIT.NOT_FOUND,
-    conflict: SESSION_CLI_EXIT.CONFLICT,
-    timeout: SESSION_CLI_EXIT.TIMEOUT,
-    host_unavailable: SESSION_CLI_EXIT.HOST_UNAVAILABLE,
-    internal: SESSION_CLI_EXIT.FAILURE,
-  }
-  return codes[kind]
+  return cliExitCodeForKind(kind)
 }
 
 function errorKindForOutcomeCode(code: string): SessionsCliErrorKind {
@@ -35,9 +16,11 @@ export function sessionCliResultErrorKind(
   result: LocalSessionCommandResult,
 ): SessionsCliErrorKind | undefined {
   if (result.contract === 'session-query-v2') {
-    return 'error' in result.response.outcome
-      ? errorKindForOutcomeCode(result.response.outcome.error.code)
-      : undefined
+    const outcome = result.response.outcome
+    if ('error' in outcome) return errorKindForOutcomeCode(outcome.error.code)
+    // A bounded wait that ended without its condition still answers on stdout, with the timeout
+    // exit class, so a script can tell "reached" from "gave up" (#351).
+    return 'timedOut' in outcome && outcome.timedOut === true ? 'timeout' : undefined
   }
   if (result.contract === 'scheduled-tasks-v1') {
     const outcome = result.response.outcome

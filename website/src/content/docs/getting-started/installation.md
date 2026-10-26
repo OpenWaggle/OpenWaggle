@@ -11,9 +11,11 @@ Released builds send anonymous usage statistics and error reports, from the firs
 
 ## Supported platforms
 
-- macOS on Intel or Apple silicon
-- Windows on x64
-- Linux on x64
+- macOS 13.4 (Ventura) or later, on Apple silicon or Intel
+- Windows 10 or later, on x64
+- Linux on x64 with glibc 2.35 or later
+
+See [System requirements](#system-requirements) for details.
 
 ## Pre-built installers
 
@@ -41,15 +43,18 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 
 The script installs the app and verifies its SHA-256 checksum when the release includes a
 `SHA256SUMS` asset with an entry for the downloaded file. A mismatch stops installation; a missing
-checksum asset or entry does not. It selects the **Stable** channel by default, or falls back to
-Alpha when no Stable release is available in the release list.
+checksum asset or entry does not. It selects the **Stable** channel by default. Until the first
+Stable release is published, it selects **Beta** instead, which also receives release candidates
+and, later, Stable releases.
 
 - On macOS, it copies `OpenWaggle.app` to `/Applications` and removes its quarantine attribute.
 - On Linux, it installs the AppImage under `~/.local/lib/openwaggle`, installs the `openwaggle`
   command in `~/.local/bin`, and creates a `.desktop` entry.
 
-When it finishes, the script opens OpenWaggle. On macOS, if OpenWaggle is already open, the script
-quits it first and opens the new version.
+When it finishes, the script opens OpenWaggle. On macOS, if the OpenWaggle it replaces is already
+open, the script quits it first and opens the new version. An OpenWaggle opened from another
+location stays open. All installed copies share one Session Host, so if another copy is open when
+the script updates an existing install, the script stops and asks you to quit that copy first.
 
 When it updates an existing install, the script first stops OpenWaggle's background Session Host,
 as **Restart to update** does. If agent work is still running, it asks whether to wait for it, stop
@@ -84,11 +89,15 @@ downloads. For example, an Alpha install remains on Alpha even when the newest e
 happens to be a Beta or Stable build.
 
 For a one-time exact-version install, set `OPENWAGGLE_RELEASE_TAG` instead. This does not change
-your saved channel. Replace the example tag below with an existing release tag:
+your saved channel. Tags look like `v1.0.0`, `v1.0.0-rc.1`, or `v1.0.0-beta.25`; replace the
+example below with a tag listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases).
+Installing a version older than the one you have is a downgrade, which OpenWaggle does not
+support: an older version may not open data a newer one has already migrated.
 
 ```bash
+# Example tag: v1.0.0 is published when OpenWaggle 1.0 ships.
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
-  | OPENWAGGLE_RELEASE_TAG=v0.4.0 bash
+  | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
 ```
 
 ## Command-line access
@@ -111,18 +120,25 @@ openwaggle update --channel alpha
 openwaggle update --channel beta
 openwaggle update --channel stable
 # Exact-version example; choose a version published on GitHub Releases.
-openwaggle update --version 0.4.0
+# 1.0.0 is published when OpenWaggle 1.0 ships.
+openwaggle update --version 1.0.0
 ```
 
-`--check` reports availability without downloading. Without `--check`, `openwaggle update`
+`--check` reports availability without downloading, and it never changes a setting:
+`--channel beta --check` checks Beta without saving it. Without `--check`, `openwaggle update`
 downloads and installs the newest eligible release without opening the app. If OpenWaggle is
 already open, the command leaves the update to the app instead: open **Settings → General → About
 & Updates**, choose **Check now**, then **Restart to update**, so running agent work is not
 interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Before
 it installs, the command stops OpenWaggle's background Session Host as **Restart to update** does:
 if agent work is still running, it asks whether to wait for it, stop it, or cancel. Without a
-terminal to ask on, as on Windows, it waits for that work. Choosing `--channel` is persistent; choosing
-`--version` is a one-time install and can target an exact Stable or prerelease version. Release
+terminal to ask on, as on Windows, it waits for that work. Choosing `--channel` without `--check` is
+persistent; choosing `--version` is a one-time install and can target an exact Stable or prerelease
+version. `--version` refuses a version older than the installed one and exits with status 2,
+because downgrades are unsupported; the same version reinstalls it. Until the first Stable release
+is published, the Stable channel has nothing to install, so the app and `openwaggle update` report
+it as up to date rather than as a failed check. A release whose update files are still uploading
+is skipped until a later check. Release
 candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
 launch with no saved preference, an Alpha or Beta build starts on its matching channel and a
 release candidate starts on Beta; Stable remains the default otherwise. The app confirms each switch into Alpha
@@ -135,7 +151,18 @@ contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-
 
 ## System requirements
 
-- A modern operating system, such as macOS, Windows 10+, or a recent Linux distribution.
+| Platform | Minimum | Architectures |
+|----------|---------|---------------|
+| macOS | macOS 13.4 (Ventura) | Apple silicon and Intel |
+| Windows | Windows 10 | x64 |
+| Linux | glibc 2.35, for example Ubuntu 22.04, Debian 12 or Fedora 36 | x64. The AppImage is x64 only. |
+
+On macOS 12 through 13.3, OpenWaggle still opens and keeps receiving updates, but those versions are not supported. Semantic Session search and voice input need macOS 13.4 and fail on older versions. Update macOS to use them.
+
+On Linux, check your glibc version with `ldd --version`.
+
+You also need:
+
 - Access to an AI provider through an API key, sign-in, or another supported configuration. See [Providers and models](/docs/providers/overview).
 - An internet connection when using hosted models.
 

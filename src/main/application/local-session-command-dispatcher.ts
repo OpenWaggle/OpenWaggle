@@ -18,6 +18,7 @@ import {
   refreshNamedProfileCaller,
 } from './local-session-command-authorization'
 import { authorizeTargetForCaller } from './local-session-derived-authority'
+import { answerMissingTarget } from './local-session-missing-target'
 import type {
   LocalSessionMutationAdmission,
   LocalSessionObservationAdmission,
@@ -244,7 +245,7 @@ function dispatchNonHostUiLocalSessionCommandImplementation(
         return { contract: 'session-lifecycle-v2', response } as const
       }).pipe(Effect.uninterruptible)
     }).pipe(Effect.ensuring(Effect.sync(admission.release)))
-  })
+  }).pipe(answerMissingTarget(commandPayload))
 }
 
 type NonHostUiLocalSessionCommandEffect = ReturnType<

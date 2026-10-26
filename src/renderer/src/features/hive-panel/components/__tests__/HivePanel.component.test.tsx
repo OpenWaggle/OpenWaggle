@@ -1,8 +1,9 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSidebarSessionActions } from '@/features/sidebar/lib'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
 type NavigateOptions = {
@@ -30,6 +31,8 @@ import {
 
 describe('HivePanel', () => {
   beforeEach(() => {
+    // These cover the By state view; the tree view has its own tests.
+    useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
     listHiveTreeSessionCatalogPage.mockReset().mockResolvedValue(hivePage([]))
     useNavigate.mockReset().mockResolvedValue(undefined)
     registerSidebarSessionActions(null)
@@ -58,19 +61,24 @@ describe('HivePanel', () => {
     expect(screen.getByText('Session')).toBeInTheDocument()
     expect(screen.getByText('Workspace')).toBeInTheDocument()
     expect(screen.getByText('State')).toBeInTheDocument()
-    // The State cell uses the group's short form.
-    expect(screen.getByText('You')).toBeInTheDocument()
+    // The State cell names the Delegation state with the same words as its group (#356).
+    const needsAttention = screen.getByRole('button', { name: /Open Worker Session: needs-you/ })
+    expect(needsAttention).toHaveTextContent('Needs attention')
+    expect(screen.queryByText('You')).toBeNull()
+    // The header names its scope: every Worker of the Hive, at every depth.
+    expect(screen.getByText('4 Workers in this Hive')).toBeInTheDocument()
     // The current Session is marked, and each row's name carries its cells for screen readers.
     const current = screen.getByRole('button', { name: /Open Worker Session: active/ })
     expect(current).toHaveAttribute('aria-current', 'true')
     expect(current).toHaveAccessibleName(
-      'Open Worker Session: active, state Working, workspace Checkout',
+      'Open Worker Session: active, spawned by queen, state Working, workspace Checkout',
     )
-    expect(screen.getByRole('group', { name: 'Needs you Hive sessions' })).toHaveTextContent(
+    expect(screen.getByRole('group', { name: 'Needs attention Hive sessions' })).toHaveTextContent(
       'needs-you',
     )
     expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('active')
-    expect(screen.getByRole('group', { name: 'Done Hive sessions' })).toHaveTextContent('done')
+    expect(screen.getByRole('group', { name: 'Closed Hive sessions' })).toHaveTextContent('done')
+    expect(screen.queryByRole('group', { name: 'Done Hive sessions' })).toBeNull()
     // Collapsed: the archived list is hidden from the accessibility tree.
     expect(screen.queryByRole('group', { name: 'Archived Hive sessions' })).toBeNull()
     expect(screen.getByText('Archived · 1')).toBeInTheDocument()
@@ -112,7 +120,7 @@ describe('HivePanel', () => {
     registerSidebarSessionActions(null)
   })
 
-  it('labels deeper members via their parent and navigates with the panel kept', async () => {
+  it('names deeper members’ parents and navigates with the panel kept', async () => {
     listHiveTreeSessionCatalogPage.mockResolvedValue(
       hivePage([
         summary('deep', {
@@ -127,7 +135,11 @@ describe('HivePanel', () => {
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
     const row = await screen.findByRole('button', { name: /Open Worker Session: deep/ })
-    expect(row).toHaveTextContent('via Mid worker')
+    // The parent is named beside the row, never truncated with the title (#356, #377); this one
+    // is on a page not read yet, so it is not a link.
+    expect(within(row).getByText('deep')).toHaveClass('line-clamp-2')
+    expect(row).toHaveAccessibleName(/^Open Worker Session: deep, spawned by Mid worker,/u)
+    expect(screen.getByText('Spawned by Mid worker (not loaded)')).toBeInTheDocument()
     fireEvent.click(row)
     expect(useNavigate).toHaveBeenCalled()
     expect(useNavigate.mock.calls[0]?.[0]?.search({ panel: 'diff' })).toMatchObject({
@@ -137,14 +149,22 @@ describe('HivePanel', () => {
 
   it('pages members with a load-more control', async () => {
     listHiveTreeSessionCatalogPage
-      .mockResolvedValueOnce(hivePage([summary('one')], 'cursor-1'))
+      .mockResolvedValueOnce(
+        hivePage([summary('one'), summary('old', { archived: true })], 'cursor-1'),
+      )
       .mockResolvedValueOnce(hivePage([summary('two')]))
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
+    // Counts of a partly read Hive are lower bounds, as in the Session Summary.
+    expect(await screen.findByText('2+ Workers in this Hive')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('1+')
+    expect(screen.getByText('Archived · 1+')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Load more Workers' }))
     expect(
       await screen.findByRole('button', { name: /Open Worker Session: two/ }),
     ).toBeInTheDocument()
+    expect(screen.getByText('3 Workers in this Hive')).toBeInTheDocument()
+    expect(screen.getByText('Archived · 1')).toBeInTheDocument()
   })
 
   it('keeps loaded rows and retries only the page that failed', async () => {

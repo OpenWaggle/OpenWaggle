@@ -49,18 +49,28 @@ export interface SessionsToolSource {
   readonly toolCallId?: string
 }
 
-function catalogFilter(
-  input: Extract<SessionsToolParameters, { action: 'list' | 'search' }>,
-  source: SessionsToolSource,
-) {
+type CatalogScopedInput = Extract<
+  SessionsToolParameters,
+  { action: 'list' | 'search' | 'delegations_list' | 'delegations_conflicts' }
+>
+
+/**
+ * `current` (the default) is the caller's project with every worktree of it: the Host maps the
+ * working directory to its project. `project` names another project explicitly, which the Host
+ * authorizes as a target; the caller's own project is the same as `current`, so a Worker, whose
+ * reach is its Hive, is not refused it.
+ */
+function catalogFilter(input: CatalogScopedInput, source: SessionsToolSource) {
   const catalogScope = input.catalogScope ?? 'current'
   if (catalogScope === 'all') return {}
-  if (catalogScope === 'project') {
-    const projectPath = input.projectPath ?? source.projectPath
-    if (!projectPath) throw new Error('Project catalog scope requires a canonical project path.')
-    return { projectPath }
+  if (
+    catalogScope === 'project' &&
+    input.projectPath !== undefined &&
+    input.projectPath !== source.projectPath
+  ) {
+    return { projectPath: input.projectPath }
   }
-  return { workingPath: source.workingDirectory ?? process.cwd() }
+  return { workingPath: source.workingDirectory ?? source.projectPath ?? process.cwd() }
 }
 
 function catalogPayload(
@@ -75,7 +85,9 @@ function catalogPayload(
           limit: input.limit ?? DEFAULT_LIST_LIMIT,
           ...(input.cursor ? { cursor: input.cursor } : {}),
           ...filter,
-          ...(input.archived === undefined ? {} : { archived: input.archived }),
+          ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
+          // Like search, list leaves archived Sessions out unless asked for only those.
+          archived: input.archived ?? false,
         }
       : {
           operation: 'search' as const,
@@ -154,25 +166,12 @@ function itemsPayload(
 type DelegationListInput = Extract<SessionsToolParameters, { action: 'delegations_list' }>
 type DelegationConflictsInput = Extract<SessionsToolParameters, { action: 'delegations_conflicts' }>
 
-function delegationCatalogFilter(
-  input: DelegationListInput | DelegationConflictsInput,
-  source: SessionsToolSource,
-) {
-  if (input.catalogScope === 'all') return {}
-  if (input.catalogScope === 'project') {
-    const projectPath = input.projectPath ?? source.projectPath
-    if (!projectPath) throw new Error('Project catalog scope requires a canonical project path.')
-    return { projectPath }
-  }
-  return { workingPath: source.workingDirectory ?? process.cwd() }
-}
-
 function delegationListQuery(input: DelegationListInput, source: SessionsToolSource) {
   return {
     operation: 'delegations-list' as const,
     limit: input.limit ?? DEFAULT_LIST_LIMIT,
     ...(input.cursor ? { cursor: input.cursor } : {}),
-    ...delegationCatalogFilter(input, source),
+    ...catalogFilter(input, source),
     ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
     ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
     ...(input.states ? { states: [...new Set(input.states)] } : {}),
@@ -184,7 +183,7 @@ function delegationConflictsQuery(input: DelegationConflictsInput, source: Sessi
     operation: 'delegations-conflicts' as const,
     limit: input.limit ?? DEFAULT_LIST_LIMIT,
     ...(input.cursor ? { cursor: input.cursor } : {}),
-    ...delegationCatalogFilter(input, source),
+    ...catalogFilter(input, source),
     ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
     ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
     ...(input.delegationId ? { delegationId: input.delegationId } : {}),

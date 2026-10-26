@@ -1,7 +1,7 @@
 import * as Layer from 'effect/Layer'
 import { SqliteHiveWorkerCleanupRepositoryLive } from './adapters/sqlite-hive-worker-cleanup-repository'
 import { SqliteSessionOrganizationRepositoryLive } from './adapters/sqlite-session-organization-repository'
-import { HiveWorkerCleanupLive } from './application/hive-worker-cleanup-service'
+import { HiveWorkerCleanupLive } from './application/hive-worker-cleanup-layer'
 import { ActionKernelServicesLive } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { AppDatabaseLive } from './services/database-service'

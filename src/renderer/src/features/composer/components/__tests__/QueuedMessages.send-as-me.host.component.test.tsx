@@ -172,7 +172,7 @@ describe('"Send as me" from a queue paused for a message that needs attention', 
           effect: 'queue-updated',
           queueState: 'running',
           queueRevision: 9,
-          followUpIds: ['follow-up-1'],
+          remainingFollowUpIds: ['follow-up-1'],
           stateRevision: 4,
         }),
       )

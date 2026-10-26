@@ -279,4 +279,6 @@ export interface ScheduledTaskStatusSummary {
   readonly name: string
   readonly kind: ScheduledTaskKind
   readonly nextRunAt: number | null
+  /** Whether `nextRunAt` may be up to ±5 minutes off the schedule (hourly or slower, ADR 0057). */
+  readonly jittered: boolean
 }

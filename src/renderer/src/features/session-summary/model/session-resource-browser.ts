@@ -172,6 +172,20 @@ export function resourceProvenanceLabel(
     .exhaustive()
 }
 
+const LOCAL_RESOURCE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u
+
+/**
+ * The local file a resource row may Open or Reveal, or null when it offers neither (#356).
+ *
+ * Only an available resource has one: an unavailable resource is exactly one whose file could
+ * not be read, so opening its recorded path fails, and a path recorded for something that was
+ * never a file (a docs topic's website image path) looks like an absolute path but is not one.
+ */
+export function resourceOriginalPath(resource: SessionResource, locator: string | null) {
+  if (!resource.available) return null
+  return locator && LOCAL_RESOURCE_PATH.test(locator) ? locator : null
+}
+
 export function buildSessionResourceBranchNames(branches: readonly SessionBranch[]) {
   return new Map(branches.map((branch) => [String(branch.id), branch.name] as const))
 }

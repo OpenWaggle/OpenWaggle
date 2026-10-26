@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
-import { useState } from 'react'
+import { type DragEvent, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
 
@@ -12,14 +12,15 @@ interface QueuedMessageReorderHandleProps {
   readonly label: string
   readonly onMoveUp: (() => void) | null
   readonly onMoveDown: (() => void) | null
-  readonly onDragStart: () => void
+  readonly onDragStart: (event: DragEvent<HTMLElement>) => void
   readonly onDragEnd: () => void
 }
 
 /**
  * Drag handle and keyboard route for Follow-up reordering.
  *
- * Dragging the grip is the pointer route. Dragging alone fails WCAG 2.2 SC 2.1.1 Keyboard and
+ * Dragging the grip is the pointer route; the whole row is what moves under the pointer, not the
+ * grip (`setQueuedMessageDragImage`). Dragging alone fails WCAG 2.2 SC 2.1.1 Keyboard and
  * SC 2.5.7 Dragging Movements, so activating the same grip opens a menu with Move up / Move
  * down, as the Pinned sidebar section does through its row menu.
  */
@@ -58,7 +59,7 @@ export function QueuedMessageReorderHandle({
             setMenuOpen(false)
             event.dataTransfer.effectAllowed = 'move'
             event.dataTransfer.setData(QUEUED_MESSAGE_DRAG_TYPE, followUpId)
-            onDragStart()
+            onDragStart(event)
           }}
           onDragEnd={onDragEnd}
           className="flex h-5 w-3.5 cursor-grab items-center justify-center rounded text-text-tertiary hover:text-text-secondary active:cursor-grabbing"

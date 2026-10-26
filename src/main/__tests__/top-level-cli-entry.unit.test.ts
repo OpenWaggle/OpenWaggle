@@ -96,6 +96,23 @@ describe('top-level CLI entry', () => {
     stderr.mockRestore()
   })
 
+  it('answers a former group asked for JSON with only the JSON error envelope (#351)', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    expect(startTopLevelCli(['sessions', 'list', '--json'], environment)).toEqual({
+      kind: 'handled',
+    })
+
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(2))
+    const written = stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+    expect(JSON.parse(written)).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'usage', message: "unknown command 'sessions list'. It is now 'hive list'." },
+    })
+    stderr.mockRestore()
+  })
+
   it('opens the desktop app, optionally on a project', () => {
     expect(startTopLevelCli([], environment)).toEqual({ kind: 'gui' })
     expect(startTopLevelCli(['app'], environment)).toEqual({

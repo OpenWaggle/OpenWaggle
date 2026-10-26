@@ -53,4 +53,10 @@ export interface LocalSessionCallerIdentity {
   readonly baseProfileScope?: LocalSessionProfileScope
   /** Live Session ids admitted by the base profile scope; derived grants remain capability-bound. */
   readonly eventAdmissionSessionIds?: readonly string[]
+  /**
+   * Grants an `openwaggle mcp serve --profile` server holds on top of the named profile. The Host
+   * intersects them with the profile's live policy each time it refreshes the caller, so they
+   * can only narrow it.
+   */
+  readonly profileNarrowing?: LocalSessionProfileAuthority
 }

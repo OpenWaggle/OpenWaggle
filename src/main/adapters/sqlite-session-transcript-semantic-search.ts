@@ -79,6 +79,7 @@ function loadSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]
       COALESCE(session_spawn_lineage.parent_session_id, legacy_lineage.parent_session_id)
         AS parent_session_id,
       session_spawn_lineage.hive_root_session_id,
+      session_spawn_lineage.depth AS spawn_depth,
       ((SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
         WHERE direct_lineage.parent_session_id = sessions.id)
        + (SELECT COUNT(*) FROM session_lineage AS historical_lineage

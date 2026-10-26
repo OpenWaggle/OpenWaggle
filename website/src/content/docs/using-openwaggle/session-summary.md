@@ -147,13 +147,11 @@ If the provider creates the request but OpenWaggle cannot record it under Output
 
 ## Following a Hive
 
-A Hive is a group of related sessions working on one task. The parent, called the Queen, can delegate work to Worker sessions. The Summary shows only the opened session's immediate parent and direct Workers, not every descendant.
+A Hive is a group of related sessions working on one task. The parent, called the Queen, can delegate work to Worker sessions.
 
-Workers are grouped as **Active**, **Review**, **Done**, and **Archived**. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. This does not mean its Run has stopped. Open the Worker session to check whether it is still running. Accepted or cancelled work appears under Done. Finished Workers you never interacted with are archived automatically and move to **Archived**. Use the restore button beside an archived Worker to return it to the sidebar.
+For a Queen or a Worker, the Summary shows one **Hive** row. It counts the opened session's direct Workers and how many of them **need attention**, are **ready for review**, are **active**, or are **closed** (accepted or cancelled), for example `3 direct Workers · 3 ready for review`. These are the same groups the Hive panel uses. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. It does not mean the Worker's Run has stopped. A count followed by `+` covers only the Workers loaded so far, in a Hive with more than 50 direct Workers.
 
-Select a row to open that session. The section opens automatically while work is active, needs attention, or awaits review. For a Queen, it collapses shortly after all direct work is accepted or cancelled unless you have chosen to keep it expanded. Your manual choice is remembered.
-
-Large Hives have **Load more workers**. Counts still cover the whole direct Hive, and a failed page can be retried without losing rows already shown. Live updates refresh the list; a reconnect may restart it at the first page.
+**Open in Hive panel** lists every session of the Hive, at every depth. The panel's header counts all of them, so it can show more Workers than this row.
 
 See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) for delegating and reviewing work.
 

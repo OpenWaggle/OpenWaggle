@@ -9,7 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
 import { ActionCatalogService } from '../../ports/action-catalog-service'
 import { ActionRunService } from '../../ports/action-run-service'
+import { GitWorktreeService } from '../../ports/git-worktree-service'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
+import { TerminalService } from '../../ports/terminal-service'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-authorization'
 import { manageProjectActions } from '../action-management'
@@ -66,6 +68,8 @@ describe('native action management authority', () => {
           ),
           Effect.provideService(ActionCatalogService, fromPartial({ read })),
           Effect.provideService(ActionRunService, fromPartial({ start })),
+          Effect.provideService(GitWorktreeService, fromPartial({})),
+          Effect.provideService(TerminalService, fromPartial({})),
           Effect.provideService(
             WorkspacePreparationService,
             fromPartial({ read: preparationRead, inspectWorkspaceGeneration }),

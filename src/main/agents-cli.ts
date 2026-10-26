@@ -24,8 +24,9 @@ import {
 } from './agents-cli-options'
 import { writeAgentsCliError, writeAgentsCliResult } from './agents-cli-output'
 import { AGENTS_CLI_USAGE } from './agents-cli-usage'
+import { asUsageErrorsSync, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
-import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
+import { CommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
@@ -198,7 +199,7 @@ async function executeAgentDefinitionCommand(input: {
     ...(input.beforeImportApply ? { beforeImportApply: input.beforeImportApply } : {}),
   })
   if (mutation) {
-    await writeAgentsCliResult(mutation, json, stdout)
+    await writeAgentsCliResult(command, mutation, json, stdout)
     return EXIT.SUCCESS
   }
   if (command === 'validate') {
@@ -214,6 +215,7 @@ async function executeAgentDefinitionCommand(input: {
       await input.loadSemanticCatalog({ projectPath: project, userHome: home }),
     )
     await writeAgentsCliResult(
+      command,
       {
         valid: validation.valid,
         name: definition.name,
@@ -235,10 +237,15 @@ async function executeAgentDefinitionCommand(input: {
       definition,
       await input.loadSemanticCatalog({ projectPath: project, userHome: home }),
     )
-    await writeAgentsCliResult({ ...definition, semanticValidation: validation }, json, stdout)
+    await writeAgentsCliResult(
+      command,
+      { ...definition, semanticValidation: validation },
+      json,
+      stdout,
+    )
     return validation.valid ? EXIT.SUCCESS : EXIT.FAILURE
   }
-  throw new Error(`Unsupported Agent definitions command: ${command}.`)
+  throw new CommandCliUsageError(`Unsupported Agent definitions command: ${command}.`)
 }
 
 export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}) {
@@ -257,7 +264,7 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
       await stdout(AGENTS_CLI_USAGE)
       return EXIT.SUCCESS
     }
-    validateAgentsCliOptions(command, arguments_)
+    asUsageErrorsSync(() => validateAgentsCliOptions(command, arguments_))
     if (command === 'help') {
       await stdout(AGENTS_CLI_USAGE)
       return EXIT.SUCCESS
@@ -273,10 +280,6 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
       ...(io.beforeImportApply ? { beforeImportApply: io.beforeImportApply } : {}),
     })
   } catch (error) {
-    writeAgentsCliError(error, hasFlag(arguments_, 'json'), stderr)
-    return isCommandCliUsageError(error) ||
-      (error instanceof Error && error.message.includes('required'))
-      ? EXIT.USAGE
-      : EXIT.FAILURE
+    return cliExitCodeForKind(writeAgentsCliError(error, hasFlag(arguments_, 'json'), stderr))
   }
 }

@@ -1,3 +1,4 @@
+import type { UsageStatisticsEnvironmentBlock } from '../usage-statistics/enablement'
 import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
@@ -101,6 +102,10 @@ export interface IpcIntegrationInvokeChannelMap
   'app:get-native-admission-issue': {
     args: []
     return: string | null
+  }
+  'app:get-usage-statistics-block': {
+    args: []
+    return: UsageStatisticsEnvironmentBlock | null
   }
   'app:recover-native-admission': {
     args: []

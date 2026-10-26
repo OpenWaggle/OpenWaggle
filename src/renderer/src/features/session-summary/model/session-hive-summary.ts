@@ -1,19 +1,25 @@
 import {
+  type HiveDelegationGroup,
   type HiveRelationsPage,
   type HiveSession,
-  hiveStateNeedsAttention,
+  hiveDelegationGroup,
 } from '@/queries/session-hive-contract'
 
-/** A live Worker the Hive is still waiting on: not archived, historical, done or in review. */
-function isActiveWorker(worker: HiveSession) {
-  if (worker.archived || worker.lineage?.historical) return false
-  const state = worker.lineage?.delegationState
-  return state !== 'accepted' && state !== 'cancelled' && state !== 'ready_for_review'
+/** A Spawn-lineage Worker; legacy task-runner Workers are not in the Hive panel's groups. */
+function isGroupedWorker(worker: HiveSession) {
+  return worker.lineage?.historical !== true
 }
 
 /**
- * The Session Hub's one-row Hive summary (ADR 0051): the Session's role and the Hive's shape.
- * Workers themselves are listed only by the Hive panel.
+ * The Session Hub's one-row Hive summary (ADR 0051): the Session's role and the shape of its
+ * direct Workers.
+ *
+ * Every count names its scope (#356): `directCount` is this Session's own Workers, which the
+ * sidebar's lineage glyph also counts, while the Hive panel's header counts the whole Hive. The
+ * direct Workers are counted by the Hive panel's groups, so a Worker waiting for review is never
+ * hidden behind "0 active". An archived Worker keeps its group: archiving changes only where the
+ * panel lists it. Workers are listed 50 per page; `partial` says the counts cover only the pages
+ * read so far.
  */
 export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined) {
   const first = pages?.[0]
@@ -22,13 +28,21 @@ export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined
   const workersById = new Map(
     pages?.flatMap((page) => page.workers.map((worker) => [worker.id, worker] as const)),
   )
-  const activeWorkers = [...workersById.values()].filter(isActiveWorker)
+  const counts: Record<HiveDelegationGroup, number> = {
+    'needs-attention': 0,
+    'ready-for-review': 0,
+    active: 0,
+    closed: 0,
+  }
+  for (const worker of workersById.values()) {
+    if (!isGroupedWorker(worker)) continue
+    counts[hiveDelegationGroup(worker.lineage?.delegationState)] += 1
+  }
+  const directCount = Math.max(lineage.directWorkerCount, workersById.size)
   return {
     lineage,
-    activeCount: Math.max(lineage.activeDirectWorkerCount, activeWorkers.length),
-    totalCount: Math.max(lineage.directWorkerCount, workersById.size),
-    attention: activeWorkers.some((worker) =>
-      hiveStateNeedsAttention(worker.lineage?.delegationState),
-    ),
+    directCount,
+    counts,
+    partial: workersById.size < directCount,
   }
 }

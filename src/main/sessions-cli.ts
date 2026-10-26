@@ -1,5 +1,6 @@
 import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { sessionIdsFromReferences } from '@shared/utils/session-link'
+import { asUsageErrors, asUsageErrorsSync } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -129,7 +130,13 @@ function commandPayload(
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   resolvedPayload: ReturnType<typeof buildSessionsCliPayload> | undefined,
 ) {
-  if (command === 'watch' || command === 'exports-watch') return undefined
+  if (command === 'watch' || command === 'exports-watch') {
+    // Streams build their requests later; read their arguments now, with the other usage checks.
+    watchCursor(arguments_)
+    if (command === 'watch') sessionIdsFromReferences(arguments_.positionals, 'Session ID')
+    else requiredSessionId(arguments_.positionals[0])
+    return undefined
+  }
   return resolvedPayload ?? buildSessionsCliPayload(command, arguments_)
 }
 
@@ -143,7 +150,7 @@ export async function runSessionsCli(args: readonly string[]) {
       await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
     }
-    validateSessionsCliOptions(command, unresolvedArguments)
+    asUsageErrorsSync(() => validateSessionsCliOptions(command, unresolvedArguments))
     if (command === 'help') {
       await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
@@ -151,14 +158,19 @@ export async function runSessionsCli(args: readonly string[]) {
     if (isLocalHiveCliCommand(command)) {
       return await runAgentDefinitionDiscoveryCommand(command, unresolvedArguments)
     }
-    const resolvedInput = await resolveSessionsCliMessageInput(command, unresolvedArguments)
-    const arguments_ = resolvedInput.arguments
-    validateSessionsCliOutputMode({
-      json: hasFlag(arguments_, 'json'),
-      jsonl: hasFlag(arguments_, 'jsonl'),
-      stream: isStreamingCommand(command, arguments_),
+    // Reading the command line: whatever it rejects is a usage error (exit 2).
+    const { arguments_, payload } = await asUsageErrors(async () => {
+      const resolvedInput = await resolveSessionsCliMessageInput(command, unresolvedArguments)
+      validateSessionsCliOutputMode({
+        json: hasFlag(resolvedInput.arguments, 'json'),
+        jsonl: hasFlag(resolvedInput.arguments, 'jsonl'),
+        stream: isStreamingCommand(command, resolvedInput.arguments),
+      })
+      return {
+        arguments_: resolvedInput.arguments,
+        payload: commandPayload(command, resolvedInput.arguments, resolvedInput.payload),
+      }
     })
-    const payload = commandPayload(command, arguments_, resolvedInput.payload)
     const clientInput = await createLocalSessionCliClientInput(arguments_)
     return await runSessionCommand(command, arguments_, clientInput, payload)
   } catch (error) {

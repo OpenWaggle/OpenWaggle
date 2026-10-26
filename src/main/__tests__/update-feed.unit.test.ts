@@ -1,11 +1,35 @@
 import { describe, expect, it, vi } from 'vitest'
-import { configureUpdaterFeed, isVersionEligibleForChannel } from '../update-feed'
+import {
+  compareReleaseVersions,
+  configureUpdaterFeed,
+  isVersionEligibleForChannel,
+  type UpdateFeedRuntime,
+  updaterMetadataAssetName,
+} from '../update-feed'
 
-function response(releases: readonly { readonly tag_name: string }[]) {
+const MAC_ARM64: UpdateFeedRuntime = { platform: 'darwin', arch: 'arm64' }
+const ALL_METADATA = [
+  'latest-mac.yml',
+  'beta-mac.yml',
+  'alpha-mac.yml',
+  'latest-linux.yml',
+  'beta-linux.yml',
+  'alpha-linux.yml',
+  'latest.yml',
+  'beta.yml',
+  'alpha.yml',
+].map((name) => ({ name }))
+
+interface ReleaseFixture {
+  readonly tag_name: string
+  readonly assets?: readonly { readonly name: string }[]
+}
+
+function response(releases: readonly ReleaseFixture[]) {
   return {
     ok: true,
     status: 200,
-    json: () => Promise.resolve(releases),
+    json: () => Promise.resolve(releases.map((release) => ({ assets: ALL_METADATA, ...release }))),
   }
 }
 
@@ -142,6 +166,71 @@ describe('update feed selection', () => {
         url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.9.0/',
       }),
     )
+  })
+
+  it('reports no release, not an error, when Stable has no release yet', async () => {
+    const fetchReleases = vi
+      .fn()
+      .mockResolvedValue(response([{ tag_name: 'v1.0.0-rc.1' }, { tag_name: 'v1.0.0-beta.25' }]))
+    const setFeedURL = vi.fn()
+
+    await expect(
+      configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases, MAC_ARM64),
+    ).resolves.toEqual({ type: 'no-release' })
+    expect(setFeedURL).not.toHaveBeenCalledWith(expect.objectContaining({ provider: 'generic' }))
+  })
+
+  it('skips a newer release whose channel metadata is not uploaded yet', async () => {
+    const fetchReleases = vi.fn().mockResolvedValue(
+      response([
+        // Published moments ago: the installers are still uploading, so beta-mac.yml is missing.
+        {
+          tag_name: 'v1.0.0-beta.26',
+          assets: [{ name: 'openwaggle-1.0.0-beta.26-arm64.dmg' }, { name: 'beta-linux.yml' }],
+        },
+        { tag_name: 'v1.0.0-beta.25' },
+      ]),
+    )
+    const setFeedURL = vi.fn()
+
+    await expect(
+      configureUpdaterFeed({ setFeedURL }, 'beta', fetchReleases, MAC_ARM64),
+    ).resolves.toEqual({ type: 'release', tag: 'v1.0.0-beta.25' })
+    expect(setFeedURL).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.0-beta.25/',
+      }),
+    )
+  })
+
+  it('reports no release when no eligible release has its channel metadata yet', async () => {
+    const fetchReleases = vi
+      .fn()
+      .mockResolvedValue(response([{ tag_name: 'v1.0.0-beta.1', assets: [] }]))
+
+    await expect(
+      configureUpdaterFeed({ setFeedURL: vi.fn() }, 'beta', fetchReleases, MAC_ARM64),
+    ).resolves.toEqual({ type: 'no-release' })
+  })
+
+  it('names the metadata file electron-updater requests on each platform', () => {
+    expect(updaterMetadataAssetName('stable', { platform: 'darwin', arch: 'x64' })).toBe(
+      'latest-mac.yml',
+    )
+    expect(updaterMetadataAssetName('beta', { platform: 'linux', arch: 'x64' })).toBe(
+      'beta-linux.yml',
+    )
+    expect(updaterMetadataAssetName('beta', { platform: 'linux', arch: 'arm64' })).toBe(
+      'beta-linux-arm64.yml',
+    )
+    expect(updaterMetadataAssetName('alpha', { platform: 'win32', arch: 'x64' })).toBe('alpha.yml')
+  })
+
+  it('orders versions semantically and rejects tags it cannot parse', () => {
+    expect(compareReleaseVersions('v1.0.0-beta.20', '1.0.0-beta.25')).toBeLessThan(0)
+    expect(compareReleaseVersions('1.0.0-rc.1', '1.0.0-beta.25')).toBeGreaterThan(0)
+    expect(compareReleaseVersions('v1.0.0', '1.0.0')).toBe(0)
+    expect(compareReleaseVersions('nightly', '1.0.0')).toBeUndefined()
   })
 
   it('never offers an older Beta to a Beta user on a newer RC', () => {

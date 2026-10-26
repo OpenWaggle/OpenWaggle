@@ -42,6 +42,17 @@ describe('Usage statistics enablement', () => {
     expect(state.current()).toEqual({ enabled: false, reason })
   })
 
+  it('reports a build or environment opt-out for the Settings switch, whatever the Setting', () => {
+    expect(releasedState().environmentBlock()).toBeNull()
+    expect(releasedState({ DO_NOT_TRACK: '1' }).environmentBlock()).toBe('do-not-track')
+    const automated = releasedState({ OPENWAGGLE_AUTOMATION: '1' })
+    automated.publishSetting(false)
+    expect(automated.environmentBlock()).toBe('automation')
+    expect(
+      createUsageStatisticsEnablementState({ buildChannel: 'dev', env: {} }).environmentBlock(),
+    ).toBe('dev-build')
+  })
+
   it('never enables a Dev build', () => {
     const state = createUsageStatisticsEnablementState({ buildChannel: 'dev', env: {} })
     state.publishSetting(true)

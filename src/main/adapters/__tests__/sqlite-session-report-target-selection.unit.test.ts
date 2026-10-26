@@ -231,6 +231,9 @@ describe('SQLite Session report target selection', () => {
         const denied = yield* reports.execute(
           reportInput({ type: 'session', sessionId: 'explicit-denied' }, authority, 'denied'),
         )
+        const unknown = yield* reports.execute(
+          reportInput({ type: 'session', sessionId: 'never-existed' }, authority, 'unknown'),
+        )
         const authorized = yield* reports.execute(
           reportInput(
             { type: 'session', sessionId: 'explicit-authorized' },
@@ -265,6 +268,7 @@ describe('SQLite Session report target selection', () => {
         return {
           candidates,
           denied,
+          unknown,
           authorized,
           upstream,
           directWorker,
@@ -281,6 +285,7 @@ describe('SQLite Session report target selection', () => {
       effect: 'rejected',
       code: 'target_not_authorized',
     })
+    expect(result.unknown.outcome).toMatchObject({ effect: 'rejected', code: 'session_not_found' })
     expect(result.authorized.outcome).toMatchObject({
       effect: 'accepted-report',
       targetSessionIds: ['explicit-authorized'],

@@ -109,6 +109,18 @@ export class SessionHostEventSubscription {
     })
   }
 
+  /**
+   * Drops every queued delivery but keeps a terminal one. For a consumer that re-reads canonical
+   * state on any delivery, the events queued behind the one it is handling only ask for the same
+   * read again; dropping them keeps a burst from filling the queue and forcing a resync.
+   */
+  discardPending(): void {
+    this.releaseAggregateBytes(this.pendingBytes)
+    this.pending.length = 0
+    this.pendingEventCount = 0
+    this.pendingBytes = 0
+  }
+
   close(): void {
     if (this.terminal) return
     this.releaseAggregateBytes(this.pendingBytes)

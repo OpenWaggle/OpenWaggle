@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { runSessionTerminalCommand, watchSessionTerminalCommand } from '@/features/terminal'
 import { configureSourceControl } from '@/queries/source-control'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { sessionTerminalShell } from '@/shared/lib/terminal-shell'
 import { openWorkspaceWebLink } from '@/shell/open-workspace-web-link'
@@ -124,7 +125,7 @@ export function useSourceControlAttentionActions(input: SourceControlAttentionAc
 
   const openWebsite = (url: string) => {
     void openWorkspaceWebLink(input.terminal?.ownerKey ?? '', url).catch((cause: unknown) => {
-      showToast(cause instanceof Error ? cause.message : 'Could not open this link.', 'error')
+      showToast(ipcFailureMessage(cause, 'Could not open this link.'), 'error')
     })
   }
 

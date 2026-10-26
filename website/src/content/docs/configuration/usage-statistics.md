@@ -21,6 +21,8 @@ To turn off both usage statistics and error reports, do any one of these:
 
 OpenWaggle also sends nothing while the `CI` variable is set, which CI services do, or when `OPENWAGGLE_AUTOMATION=1` marks an automated test launch. There is no command-line switch.
 
+When the build or one of these variables turns statistics off, the Settings switch shows off and cannot be changed, and it names the reason. It reads the desktop app's own environment. Your saved choice is kept for when the reason no longer holds.
+
 An environment variable applies only to the processes started with it, including a Session Host that one of those processes starts. A Session Host that is already running, or one the desktop app started, keeps its own environment. An app opened from the Dock, the Start menu, or a desktop launcher usually does not see variables from your shell profile. If you are not sure a variable reached every process, use the Settings switch.
 
 Turning statistics off also deletes the statistics waiting on your machine to be sent, as described in [When statistics are sent](#when-statistics-are-sent). It removes OpenWaggle's [provider labels](#provider-requests), but it does not stop [update checks](#update-checks).

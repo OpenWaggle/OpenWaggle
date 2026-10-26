@@ -28,8 +28,7 @@ function scopedOptions(): OpenWaggleMcpServeOptions {
     grants: new Set(),
     workspaceRoots: [allowedRoot],
     sessionIds: new Set(['session-explicit']),
-    profile: 'test',
-    authorizationCeiling: 'ask-for-approval',
+    identity: { kind: 'owner', label: 'test', authorizationCeiling: 'ask-for-approval' },
     userDataRoot: '/tmp/openwaggle-test',
     version: 'test',
   }
@@ -236,5 +235,27 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
       /Scheduled tasks are not available through the Hive MCP adapter/,
     )
     expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers an unknown Session and one outside the server scope with the Host codes (#351)', async () => {
+    const payload = buildMcpSessionPayloadV2({ operation: 'status', sessionId: 'session-target' })
+    const answer = (outcome: object) => async () => ({ response: { outcome } })
+
+    await expect(
+      prepareMcpSessionTargetScope(
+        scopedOptions(),
+        answer({ operation: 'read', error: { code: 'session_not_found', message: 'Not found.' } }),
+        payload,
+      ),
+    ).rejects.toThrow('session_not_found: Session "session-target" was not found.')
+    await expect(
+      prepareMcpSessionTargetScope(
+        scopedOptions(),
+        answer({ operation: 'read', session: { projectPath: path.join(privateRoot, 'p') } }),
+        payload,
+      ),
+    ).rejects.toThrow(
+      'target_scope_denied: Session "session-target" is outside this server\'s --workspace and --session scope.',
+    )
   })
 })

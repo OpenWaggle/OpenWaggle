@@ -18,10 +18,13 @@ export function ScrollToBottomButton({
    * Hidden means gone for input too. The wrapper faded out but the button kept
    * `pointer-events-auto`, so an invisible control over the bottom of the transcript swallowed
    * clicks meant for the rows beneath it and stayed in the tab order.
+   *
+   * `inert` alone hides it: it removes the subtree from the accessibility tree and the tab order,
+   * and moves focus out. `aria-hidden` on top of it warned in the console whenever the pill hid
+   * while focused, which is exactly what clicking it does (#356).
    */
   return (
     <div
-      aria-hidden={!visible}
       inert={!visible}
       className={cn(
         'pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2',

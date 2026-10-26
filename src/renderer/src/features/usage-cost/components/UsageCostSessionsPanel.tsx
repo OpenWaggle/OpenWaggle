@@ -67,15 +67,23 @@ export function UsageCostSessionsPanel({
         <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-bg-secondary">
           {sessions.slice(0, MAX_VISIBLE_SESSIONS).map((session) => (
             <li key={session.file} className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm text-text-secondary">
-                  {formatTimestampLabel(session.startedAtMs)}
-                  <span className="ml-2 rounded bg-bg-tertiary px-1.5 py-0.5 text-xs text-text-tertiary">
+              {/* The title leads: a date, a badge and a project name alone left a dozen rows
+                  that could not be told apart (#356). */}
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span
+                  className="truncate text-sm text-text-secondary"
+                  title={session.title ?? undefined}
+                >
+                  {session.title ?? 'Untitled session'}
+                </span>
+                <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-tertiary">
+                  <span className="shrink-0">{formatTimestampLabel(session.startedAtMs)}</span>
+                  <span className="shrink-0 rounded bg-bg-tertiary px-1.5 py-0.5">
                     {ORIGIN_LABELS[session.origin]}
                   </span>
-                </span>
-                <span className="truncate text-xs text-text-tertiary">
-                  {session.projectLabel ?? session.displayCwd ?? 'No working directory recorded'}
+                  <span className="min-w-0 truncate">
+                    {session.projectLabel ?? session.displayCwd ?? 'No working directory recorded'}
+                  </span>
                 </span>
               </span>
               <span className="shrink-0 text-xs tabular-nums text-text-tertiary">

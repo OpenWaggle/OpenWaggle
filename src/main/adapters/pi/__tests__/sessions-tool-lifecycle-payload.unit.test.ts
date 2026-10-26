@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { buildSessionsToolPayload } from '../sessions-tool-extension'
 
 describe('Pi-native Hive tool lifecycle payload', () => {
+  it('passes a spawn title to the Worker it creates', () => {
+    expect(
+      buildSessionsToolPayload(
+        { action: 'spawn', objective: 'Review the diff', title: 'Review PR 352' },
+        { sessionId: 'session-queen', runId: 'run-current' },
+      ),
+    ).toMatchObject({
+      request: { command: { operation: 'spawn', title: 'Review PR 352' } },
+    })
+  })
+
   it('binds Worker spawn to the current durable Session and exact parent Run', () => {
     expect(
       buildSessionsToolPayload(

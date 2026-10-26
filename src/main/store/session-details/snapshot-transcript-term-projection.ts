@@ -10,6 +10,7 @@ import {
 } from '../../services/session-transcript-term-incremental-projection'
 import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import { describeError } from '../../utils/describe-error'
+import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { continuesImmediately, firstKeys, REPAIR_BATCH_SIZE } from './transcript-term-repair-policy'
 
 const logger = createLogger('session-transcript-terms')
@@ -148,7 +149,9 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
         Effect.as(null),
         Effect.catchAll((error) => Effect.succeed<unknown>(error)),
       )
+    yield* yieldToEventLoop
     yield* input.reconcile
+    yield* yieldToEventLoop
     const applyFailure =
       prepareFailure ??
       (yield* sql

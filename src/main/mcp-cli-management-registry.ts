@@ -1,4 +1,3 @@
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import { MCP_EXPOSURE_VALUES, type McpConfigFileScope } from '@shared/types/mcp-configuration'
 import {
   MCP_REGISTRY_PACKAGE_TYPES,
@@ -6,6 +5,7 @@ import {
   type McpRegistryInstallResultView,
   type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
+import { mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError, type McpManagementArguments } from './mcp-cli-management-arguments'
 import {
   MCP_MANAGEMENT_EXIT,
@@ -37,7 +37,7 @@ function registryUrl(args: McpManagementArguments) {
 }
 
 function printJson(input: McpManagementCommandInput, value: unknown) {
-  input.context.output.log(JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES))
+  input.context.output.log(mcpCliJsonResponse('registry', value))
 }
 
 async function searchCommand(input: McpManagementCommandInput, query: readonly string[]) {

@@ -25,6 +25,9 @@ export type UsageStatisticsDisabledReason =
   | 'ci'
   | 'automation'
 
+/** A reason that holds whatever the Settings switch says: the build or the environment. */
+export type UsageStatisticsEnvironmentBlock = Exclude<UsageStatisticsDisabledReason, 'setting'>
+
 export type UsageStatisticsEnablement =
   | { readonly enabled: true }
   | { readonly enabled: false; readonly reason: UsageStatisticsDisabledReason }
@@ -59,4 +62,16 @@ export function resolveUsageStatisticsEnablement(
   if (isSet(input.env.CI)) return { enabled: false, reason: 'ci' }
   if (!input.settingEnabled) return { enabled: false, reason: 'setting' }
   return { enabled: true }
+}
+
+/**
+ * Why this build or environment sends nothing whatever the Setting says, or null when the Setting
+ * decides. The Settings switch shows it off and disabled with this reason (#356).
+ */
+export function resolveUsageStatisticsEnvironmentBlock(
+  input: Omit<UsageStatisticsEnablementInput, 'settingEnabled'>,
+): UsageStatisticsEnvironmentBlock | null {
+  const resolved = resolveUsageStatisticsEnablement({ ...input, settingEnabled: true })
+  if (resolved.enabled || resolved.reason === 'setting') return null
+  return resolved.reason
 }

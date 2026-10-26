@@ -4,6 +4,7 @@ import {
   useOpenWorkspaceFile,
 } from '@/features/workspace-files'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { openWorkspaceWebLink } from '@/shell/open-workspace-web-link'
 import { useUIStore } from '@/shell/ui-store'
 import type { TerminalPaneModel } from '../components/terminal-pane-model'
@@ -139,10 +140,7 @@ export function useTerminalPaneUiActions(options: TerminalPaneUiActionOptions) {
 
   const openPort = (url: string) => {
     void openWorkspaceWebLink(pane.runtimeOwnerKey, url).catch((error: unknown) => {
-      showToast(
-        error instanceof Error ? error.message : 'Port preview could not be opened.',
-        'error',
-      )
+      showToast(ipcFailureMessage(error, 'Port preview could not be opened.'), 'error')
     })
   }
 
