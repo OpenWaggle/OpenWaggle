@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
+import { CliError } from '../cli-error'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionClientTimeoutError,
+} from '../session-host/local-session-client-protocol-error'
 
 const mocks = vi.hoisted(() => ({
   createClientInput: vi.fn(),
@@ -109,7 +113,7 @@ describe('Hive CLI Delegation structured failure exit status', () => {
   it.each([
     {
       name: 'credential lookup',
-      error: new Error('Profile credential file could not be read.'),
+      error: new CliError('authentication', 'Profile credential file could not be read.'),
       exitCode: 3,
       kind: 'authentication',
     },
@@ -121,15 +125,25 @@ describe('Hive CLI Delegation structured failure exit status', () => {
     },
     {
       name: 'Host timeout',
-      error: new Error('Session Host timed out.'),
+      error: new LocalSessionClientTimeoutError('Session Host timed out.'),
       exitCode: 7,
       kind: 'timeout',
     },
     {
       name: 'Host unavailability',
-      error: new Error('connect ECONNREFUSED'),
+      error: Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+        syscall: 'connect',
+      }),
       exitCode: 8,
       kind: 'host_unavailable',
+    },
+    {
+      // A kind comes from the error's type, never its wording (#351).
+      name: 'untyped failure that mentions credentials',
+      error: new Error('The credential destination timed out: host not found.'),
+      exitCode: 1,
+      kind: 'internal',
     },
   ])(
     'preserves the JSON error contract for $name before a result',

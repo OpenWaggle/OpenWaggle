@@ -109,19 +109,16 @@ describe('top-level CLI routing', () => {
     })
   })
 
-  it.each([['sessions', 'list', '--all'], ['sessions'], ['delegations', 'list']])(
-    'refuses the former %s group and names hive (ADR 0053)',
-    (...argv) => {
-      expect(route(argv)).toEqual({
-        kind: 'usage-error',
-        message: `unknown command '${argv[0]}'. It is now 'hive'.`,
-      })
-      expect(route(['help', argv[0] ?? ''])).toEqual({
-        kind: 'usage-error',
-        message: `no help topic '${argv[0]}'.`,
-      })
-    },
-  )
+  it('refuses the former groups and names hive (ADR 0053)', () => {
+    expect(route(['sessions'])).toEqual({
+      kind: 'usage-error',
+      message: "unknown command 'sessions'. It is now 'hive'.",
+    })
+    expect(route(['help', 'delegations'])).toEqual({
+      kind: 'usage-error',
+      message: "no help topic 'delegations'.",
+    })
+  })
 
   it('reports an unknown word without a suggestion when nothing is close', () => {
     expect(route(['frobnicate'])).toEqual({
@@ -207,7 +204,7 @@ describe('top-level CLI routing', () => {
       const shadowing = path.join(WORKING_DIRECTORY, group)
       expect(route([group, 'list'], { [shadowing]: 'directory' })).toEqual({
         kind: 'usage-error',
-        message: `unknown command '${group}'. It is now 'hive'.`,
+        message: `unknown command '${group} list'. It is now 'hive ${group === 'sessions' ? 'list' : 'delegations-list'}'.`,
       })
       expect(route([group], { [shadowing]: 'directory' })).toEqual({
         kind: 'usage-error',

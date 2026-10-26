@@ -30,7 +30,7 @@ const root: HiveSession = {
 }
 
 describe('buildHiveTreeModel', () => {
-  it('groups the hive into Needs you, Review, Active, Done and Archived', () => {
+  it('groups the hive into Needs attention, Ready for review, Active, Closed and Archived', () => {
     const model = buildHiveTreeModel({
       root,
       members: [
@@ -47,22 +47,22 @@ describe('buildHiveTreeModel', () => {
       currentSessionId: 'root',
     })
 
-    expect(model.groups.needsYou.map((row) => String(row.session.id))).toEqual([
+    expect(model.groups.needsAttention.map((row) => String(row.session.id))).toEqual([
       'needs-you',
       'revision',
     ])
-    expect(model.groups.review.map((row) => String(row.session.id))).toEqual(['review'])
+    expect(model.groups.readyForReview.map((row) => String(row.session.id))).toEqual(['review'])
     expect(model.groups.active.map((row) => String(row.session.id))).toEqual([
       'active',
       'waiting',
       'unassigned',
     ])
-    expect(model.groups.done.map((row) => String(row.session.id))).toEqual(['done', 'cancelled'])
+    expect(model.groups.closed.map((row) => String(row.session.id))).toEqual(['done', 'cancelled'])
     expect(model.groups.archived.map((row) => String(row.session.id))).toEqual(['archived'])
     expect(model.memberCount).toBe(9)
   })
 
-  it('labels members below the first level via their parent, direct Workers not', () => {
+  it('names each member’s parent, and which ones are direct Workers of the Queen', () => {
     const deepChild: HiveSession = {
       ...member('deep', 'working'),
       lineage: {
@@ -79,30 +79,55 @@ describe('buildHiveTreeModel', () => {
       currentSessionId: null,
     })
 
-    expect(model.groups.active.map((row) => row.via)).toEqual([null, 'Mid worker'])
+    expect(model.groups.active.map((row) => [row.parent?.title, row.parent?.isQueen])).toEqual([
+      ['root', true],
+      ['Mid worker', false],
+    ])
+    expect(model.groups.active[1]?.parent).toMatchObject({ id: 'mid', loaded: false })
   })
 
-  it('labels no row via its parent when the Queen is unreadable, because depth is unknown', () => {
+  it('names no parent when the Queen is unreadable, because depth is unknown', () => {
     const model = buildHiveTreeModel({
       root: null,
       members: [member('direct', 'working', { parentTitle: 'root' })],
       currentSessionId: null,
     })
-    expect(model.groups.active[0]?.via).toBeNull()
+    expect(model.groups.active[0]?.parent).toBeNull()
   })
 })
 
 describe('hiveRowStateLabel', () => {
+  it('names every Delegation state with one label, the one the domain uses', () => {
+    const labels = (
+      [
+        'working',
+        'waiting',
+        'needs_attention',
+        'ready_for_review',
+        'revision_requested',
+        'accepted',
+        'cancelled',
+      ] as const
+    ).map((state) => hiveRowStateLabel(member('a', state), 'Idle').label)
+    expect(labels).toEqual([
+      'Working',
+      'Waiting',
+      'Needs attention',
+      'Ready for review',
+      'Revision requested',
+      'Accepted',
+      'Cancelled',
+    ])
+  })
+
   it('prefers the Delegation state and flags attention', () => {
     expect(hiveRowStateLabel(member('a', 'needs_attention'), 'Idle')).toEqual({
       label: 'Needs attention',
-      short: 'You',
       needsAttention: true,
       hint: 'This Worker needs your input before it can continue.',
     })
     expect(hiveRowStateLabel(member('a', 'ready_for_review'), 'Idle')).toEqual({
       label: 'Ready for review',
-      short: 'Review',
       needsAttention: false,
       hint: 'The Worker finished and waits for the Queen to review its result.',
     })
@@ -111,7 +136,6 @@ describe('hiveRowStateLabel', () => {
   it('falls back to the run status for Workers without a Delegation state', () => {
     expect(hiveRowStateLabel(member('a', null), 'Working')).toEqual({
       label: 'Working',
-      short: 'Working',
       needsAttention: false,
       hint: 'Live Session status: Working',
     })

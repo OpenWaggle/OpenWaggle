@@ -173,7 +173,7 @@ describe('Hive tree catalog', () => {
     expect(next.nextCursor).toBeUndefined()
   })
 
-  it('counts Needs you Workers only: live, needing the user, by Delegation state', async () => {
+  it('counts Needs attention Workers only: live, needing the user, by Delegation state', async () => {
     const queen = await createSession({ projectPath: '/repo/hive', piSessionId: 'pi-count-queen' })
     const states = ['needs_attention', 'revision_requested', 'ready_for_review', 'needs_attention']
     const workers = []
@@ -202,7 +202,7 @@ describe('Hive tree catalog', () => {
     await runStoreEffect(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        // An archived Worker leaves Needs you, whatever its Delegation state.
+        // An archived Worker leaves Needs attention, whatever its Delegation state.
         yield* sql`UPDATE sessions SET archived = 1 WHERE id = ${archivedWorker.id}`
       }),
     )

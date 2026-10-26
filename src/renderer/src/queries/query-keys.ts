@@ -15,6 +15,8 @@ export const queryKeys = {
   sessionHiveTree: (id: SessionId) => ['sessionHives', id, 'tree'] as const,
   extensionPackages: extensionPackagesQueryKey,
   sessions: ['sessions'] as const,
+  /** The GUI process's build or environment opt-out; fixed for the process's life. */
+  usageStatisticsBlock: ['usageStatisticsBlock'] as const,
   session: (id: SessionId | null) => ['session', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,
   extensionCommands: (

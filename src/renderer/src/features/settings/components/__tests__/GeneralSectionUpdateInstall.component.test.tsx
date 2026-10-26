@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UpdateStatus } from '@shared/types/updater'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const { getUpdateStatusMock } = vi.hoisted(() => ({ getUpdateStatusMock: vi.fn() }))
 
@@ -14,6 +15,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     installUpdate: vi.fn(async () => undefined),
     updateSettings: vi.fn(async () => ({ ok: true })),
     getSettings: vi.fn(async () => DEFAULT_SETTINGS),
+    getUsageStatisticsBlock: vi.fn(async () => null),
     getCliShimStatus: vi.fn(async () => ({
       management: 'user-shim',
       state: 'installed',
@@ -41,7 +43,7 @@ describe('GeneralSection update install', () => {
       version: '0.3.0',
     } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(
       await screen.findByText(/^Installing v0\.3\.0\. .* reopens when it is done$/),
@@ -57,7 +59,7 @@ describe('GeneralSection update install', () => {
       installFailure: 'Version 0.3.0 did not finish installing. Restart to update to try again.',
     } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(
       await screen.findByText(

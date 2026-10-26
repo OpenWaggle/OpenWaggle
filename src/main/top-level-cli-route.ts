@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { editDistance } from './top-level-cli-edit-distance'
+import { renamedGroupMessage } from './top-level-cli-renamed-groups'
 import { routeSessionLinkLaunch, type SessionLinkLaunchRoute } from './top-level-cli-session-link'
 
 /** Command groups owned by an existing `*-cli-entry.ts` module. */
@@ -31,10 +32,6 @@ const HELP_FLAGS = new Set(['-h', '--help'])
  * The groups ADR 0053 renamed to `hive`. They are not accepted: the command fails as unknown and
  * names its replacement.
  */
-const RENAMED_GROUPS: Readonly<Record<string, string>> = {
-  sessions: 'hive',
-  delegations: 'hive',
-}
 
 /** Hive subcommands a user may type without the `hive` group. */
 const HIVE_SUBCOMMAND_HINTS = new Set([
@@ -99,7 +96,12 @@ export type TopLevelCliRoute =
       readonly command: TopLevelCliCommand
       readonly argv: readonly string[]
     }
-  | { readonly kind: 'usage-error'; readonly message: string }
+  | {
+      readonly kind: 'usage-error'
+      readonly message: string
+      /** Report as a `--json` error envelope instead of usage text (#351). */
+      readonly machine?: boolean
+    }
 
 function isGroup(value: string): value is TopLevelCliGroup {
   return TOP_LEVEL_CLI_GROUPS.some((group) => group === value)
@@ -161,13 +163,15 @@ function resolveUserPath(value: string, environment: TopLevelCliEnvironment) {
   return path.resolve(environment.workingDirectory, value)
 }
 
-function renamedGroupMessage(value: string) {
-  const renamed = RENAMED_GROUPS[value]
-  return renamed ? `unknown command '${value}'. It is now '${renamed}'.` : undefined
+function renamedGroupRoute(argv: readonly string[]): TopLevelCliRoute | undefined {
+  const message = renamedGroupMessage(argv)
+  if (!message) return undefined
+  const machine = argv.includes('--json') || argv.includes('--jsonl')
+  return { kind: 'usage-error', message, ...(machine ? { machine } : {}) }
 }
 
 function unknownCommand(value: string) {
-  const renamed = renamedGroupMessage(value)
+  const renamed = renamedGroupMessage([value])
   if (renamed) return renamed
   const suggestion = suggestTopLevelCommand(value)
   if (suggestion) return `unknown command '${value}'. Did you mean '${suggestion}'?`
@@ -301,8 +305,8 @@ export function routeTopLevelCli(
   if (isGroup(first)) return routeGroup(first, argv)
   if (isCommand(first)) return { kind: 'command', command: first, argv: argv.slice(1) }
   // A renamed group is refused before a same-named folder can open; `./sessions` still opens it.
-  const renamed = renamedGroupMessage(first)
-  if (renamed) return { kind: 'usage-error', message: renamed }
+  const renamed = renamedGroupRoute(argv)
+  if (renamed) return renamed
   if (HELP_TOKENS.has(first)) return routeHelp(argv)
   if (VERSION_TOKENS.has(first)) {
     return argv.length === 1

@@ -36,3 +36,36 @@ export function localSessionClientProtocolError(
     retryable === undefined ? undefined : { retryable },
   )
 }
+
+/** The Session Host cannot be reached, started, or spoken to by this client. */
+export class LocalSessionHostUnavailableError extends Error {
+  override readonly name = 'LocalSessionHostUnavailableError'
+}
+
+/** The Session Host did not answer within the client's wait. */
+export class LocalSessionClientTimeoutError extends Error {
+  override readonly name = 'LocalSessionClientTimeoutError'
+}
+
+/** An older Session Host is handing over to this version and is not serving requests yet. */
+export class LocalSessionHostUpgradePendingError extends Error {
+  readonly code = 'host_upgrade_pending'
+
+  constructor(
+    readonly hostInstanceId: string,
+    readonly blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[],
+    readonly blockingOperations: readonly {
+      readonly operationId: string
+      readonly operation: string
+      readonly targetScope: string
+    }[],
+  ) {
+    const blockerCount = blockingRuns.length + blockingOperations.length
+    super(
+      blockerCount === 0
+        ? 'The existing Local Session Host is releasing ownership for a safe version handoff.'
+        : `The existing Local Session Host is draining ${blockerCount} active ${blockerCount === 1 ? 'operation' : 'operations'} before a safe version handoff.`,
+    )
+    this.name = 'LocalSessionHostUpgradePendingError'
+  }
+}

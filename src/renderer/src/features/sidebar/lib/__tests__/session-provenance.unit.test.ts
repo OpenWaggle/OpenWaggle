@@ -184,12 +184,12 @@ describe('buildSessionProvenance', () => {
     expect(
       describeSessionRow({
         indicators: [],
-        lineageDescription: 'Worker Session · Parent: Release Queen · 2 direct Workers',
+        lineageDescription: 'Worker Session · Spawned by Release Queen · 2 direct Workers',
         projectLabel: '',
         stateLabel: 'Working',
         gitDivergence: null,
         hasInterruptedRun: false,
       }),
-    ).toBe('Working · Worker Session · Parent: Release Queen · 2 direct Workers')
+    ).toBe('Working · Worker Session · Spawned by Release Queen · 2 direct Workers')
   })
 })

@@ -68,7 +68,7 @@ Use **Check now** to check again. A downloaded update installs only when you cho
 
 After **Restart to update**, the update shows as installing while OpenWaggle stops its background Session Host and quits. It reopens on its own once the update is installed, usually within a few seconds; opening it yourself before then makes the install fail. On macOS an update cannot install while another OpenWaggle process is still running, such as `openwaggle mcp serve` used by another agent or `openwaggle hive wait` in a terminal. If an update did not install, OpenWaggle says why once that update is ready to install again, shortly after it next opens; close the other process and choose **Restart to update** again.
 
-**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
+**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. In a Dev build, an automated test launch, or when `DO_NOT_TRACK`, `PI_TELEMETRY` or `CI` turns statistics off, the switch shows off, cannot be changed, and says why; your saved choice applies again once that no longer holds. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
 
 ### Command-line availability
 

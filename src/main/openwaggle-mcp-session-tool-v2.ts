@@ -12,7 +12,10 @@ import {
   queryMcpAgentDefinitions,
 } from './openwaggle-mcp-agent-definitions-v2'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
-import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from './openwaggle-mcp-session-input-v2'
+import {
+  buildMcpSessionPayloadV2,
+  sessionInputSchemaForGrantsV2,
+} from './openwaggle-mcp-session-input-v2'
 import {
   filterMcpSessionQueryResult,
   prepareMcpSessionTargetScope,
@@ -31,13 +34,18 @@ import { assertFilesystemWriteScope } from './utils/filesystem-write-scope'
 export {
   buildMcpSessionPayloadV2,
   type SessionToolInputV2,
+  sessionInputSchemaForGrantsV2,
   sessionInputSchemaV2,
 } from './openwaggle-mcp-session-input-v2'
 
-function requireGrant(options: OpenWaggleMcpServeOptions, grant: SessionCapability) {
+function requireGrant(
+  options: OpenWaggleMcpServeOptions,
+  operation: string,
+  grant: SessionCapability,
+) {
   if (!options.grants.has(grant)) {
     throw new Error(
-      `The caller profile ${JSON.stringify(options.profile)} lacks ${grant}. Restart with --grant ${grant} after reviewing the requested authority.`,
+      `This MCP server was started without --grant ${grant}, which ${operation} needs. Restart it with --grant ${grant} after reviewing the authority you grant.`,
     )
   }
 }
@@ -172,14 +180,22 @@ function payloadProjectPath(payload: LocalSessionCommandPayload) {
   return 'projectPath' in query ? query.projectPath : undefined
 }
 
+/**
+ * The server's own grants and scope. With `--owner` they are the whole authority, taken from the
+ * local desktop user; with `--profile` they narrow the access profile, and the Session Host keeps
+ * only what both allow. A profile keeps its own authorization ceiling: the server sends `yolo`,
+ * which the Host lowers to the profile's.
+ */
 export function mcpTransientAuthority(
   options: OpenWaggleMcpServeOptions,
-  payload: LocalSessionCommandPayload,
+  payload?: LocalSessionCommandPayload,
 ): LocalSessionProfileAuthority {
-  const projectPath = payloadProjectPath(payload)
+  const projectPath = payload ? payloadProjectPath(payload) : undefined
+  const identity = options.identity
+  const name = identity.kind === 'owner' ? identity.label : identity.profile
   return {
-    profileId: `mcp:${options.profile}`,
-    profileName: options.profile,
+    profileId: identity.kind === 'owner' ? `mcp:${name}` : `mcp-profile:${name}`,
+    profileName: name,
     capabilities: [...options.grants],
     scope: {
       workspaceRoots: options.workspaceRoots,
@@ -188,8 +204,24 @@ export function mcpTransientAuthority(
       ...(projectPath ? { projectPaths: [projectPath] } : {}),
       ...(options.sessionIds.size > 0 ? { sessionIds: [...options.sessionIds] } : {}),
     },
-    authorizationCeiling: options.authorizationCeiling,
+    authorizationCeiling: identity.kind === 'owner' ? identity.authorizationCeiling : 'yolo',
   }
+}
+
+/** How the server authenticates to the Session Host for one call. */
+export function mcpSessionHostIdentity(
+  options: OpenWaggleMcpServeOptions,
+  payload?: LocalSessionCommandPayload,
+) {
+  const transientAuthority = mcpTransientAuthority(options, payload)
+  return options.identity.kind === 'owner'
+    ? { clientKind: 'mcp' as const, transientAuthority }
+    : {
+        clientKind: 'mcp' as const,
+        profile: options.identity.profile,
+        profileCredential: options.identity.credential,
+        transientAuthority,
+      }
 }
 
 export { filterMcpSessionQueryResult } from './openwaggle-mcp-session-scope-v2'
@@ -208,22 +240,25 @@ export function assertMcpOriginProvenance(
   }
 }
 
-export function registerOpenWaggleSessionToolV2(
-  server: OpenWaggleMcpServer,
+export type McpSessionHostExecutor = (
+  payload: LocalSessionCommandPayload,
+) => ReturnType<typeof executeLocalSessionCommand>
+
+export function createMcpSessionHostExecutor(
   options: OpenWaggleMcpServeOptions,
   client: { readonly userDataRoot: string; readonly version: string },
-) {
-  const paths = prepareLocalSessionHostPaths(
-    resolveLocalSessionHostPaths({ userDataRoot: client.userDataRoot }),
-  )
-  const execute = async (payload: LocalSessionCommandPayload) => {
+): McpSessionHostExecutor {
+  let paths: ReturnType<typeof prepareLocalSessionHostPaths> | undefined
+  return async (payload) => {
+    paths ??= prepareLocalSessionHostPaths(
+      resolveLocalSessionHostPaths({ userDataRoot: client.userDataRoot }),
+    )
     const preparedPaths = await paths
     const connection = {
       paths: preparedPaths,
-      clientKind: 'mcp' as const,
       clientVersion: client.version,
       workingDirectory: options.workspaceRoots[0] ?? process.cwd(),
-      transientAuthority: mcpTransientAuthority(options, payload),
+      ...mcpSessionHostIdentity(options, payload),
     }
     await ensureLocalSessionHost(connection)
     return executeLocalSessionCommand({
@@ -232,13 +267,26 @@ export function registerOpenWaggleSessionToolV2(
       payload,
     })
   }
+}
+
+export function registerOpenWaggleSessionToolV2(
+  server: OpenWaggleMcpServer,
+  options: OpenWaggleMcpServeOptions,
+  client: {
+    readonly userDataRoot: string
+    readonly version: string
+    /** Replaces the Session Host connection; used by conformance tests. */
+    readonly execute?: McpSessionHostExecutor
+  },
+) {
+  const execute = client.execute ?? createMcpSessionHostExecutor(options, client)
+  const grants = [...options.grants].sort()
   server.registerTool(
     HIVE_MCP_TOOL_NAME,
     {
       title: 'OpenWaggle Hive',
-      description:
-        "Session Control v2 for durable OpenWaggle Sessions and Runs. Each operation is the openwaggle hive CLI subcommand of the same name. Discovery defaults to all Sessions within the caller's granted workspaces and Session ids; projectPath narrows it. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.",
-      inputSchema: sessionInputSchemaV2,
+      description: `Session Control v2 for durable OpenWaggle Sessions and Runs. Each operation is the openwaggle hive CLI subcommand of the same name. Only the operations this server's grants allow are listed (${grants.length > 0 ? grants.join(', ') : 'no Session grants'}). Discovery defaults to all Sessions within the caller's granted workspaces and Session ids; projectPath narrows it. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.`,
+      inputSchema: sessionInputSchemaForGrantsV2(options.grants),
     },
     async (input) => {
       if (isMcpAgentDefinitionOperation(input.operation)) {
@@ -248,7 +296,9 @@ export function registerOpenWaggleSessionToolV2(
       }
       let payload: LocalSessionCommandPayload = buildMcpSessionPayloadV2(input)
       assertMcpOriginProvenance(options, payload)
-      for (const capability of requiredCapabilities(payload)) requireGrant(options, capability)
+      for (const capability of requiredCapabilities(payload)) {
+        requireGrant(options, input.operation, capability)
+      }
       payload = await prepareMcpSessionFilesystemScope(options, payload)
       const scopedPayload = await prepareMcpSessionTargetScope(options, execute, payload)
       const result = assertSuccessfulMcpSessionResult(await execute(scopedPayload))

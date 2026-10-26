@@ -32,6 +32,7 @@ function session(
 ): UsageCostScanSession {
   return {
     sessionId: null,
+    title: null,
     cwd: null,
     resolvedProjectPath: null,
     origin: 'other-pi-clients',
@@ -198,6 +199,21 @@ describe('aggregateUsageCostView', () => {
 })
 
 describe('selectUsageCostSessions', () => {
+  it("carries each session's title to its row", () => {
+    const rows = selectUsageCostSessions(
+      viewInput([
+        session({
+          file: '/titled.jsonl',
+          title: 'Checkout flake',
+          records: [record({ timestampMs: NOW.getTime() - DAY_MS / 2 })],
+        }),
+      ]),
+      { ...QUERY },
+      NOW,
+    )
+    expect(rows.map((row) => row.title)).toEqual(['Checkout flake'])
+  })
+
   it('narrows to sessions matching every drill-down dimension', () => {
     const today = NOW.getTime() - 60 * 60 * 1000
     const input = viewInput([

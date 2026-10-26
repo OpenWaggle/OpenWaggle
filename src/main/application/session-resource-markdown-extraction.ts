@@ -8,10 +8,14 @@ import {
   type CapturedLink,
   type CapturedLocalImage,
   type CapturedResourceOrder,
+  LOCAL_FILE_MARKDOWN_IMAGES,
+  type MarkdownImageOrigin,
   SESSION_RESOURCE_EXTRACTION_LIMITS,
 } from './session-resource-extraction-types'
 
 const HTTP_URL_PATTERN = /^https?:\/\//iu
+/** `/screenshots/x.png`, but not a protocol-relative `//host/x.png`. */
+const ROOT_RELATIVE_PATH_PATTERN = /^\/(?!\/)/u
 const markdownParser = unified().use(remarkParse)
 
 function supportedHttpUrl(value: string) {
@@ -133,11 +137,16 @@ function localImageFilePath(url: string): string | null {
   return isAbsolute ? url : null
 }
 
+function isImageNode(candidate: Readonly<Record<string, unknown>>) {
+  return candidate.type === 'image' || candidate.type === 'imageReference'
+}
+
 function localImage(
   candidate: Readonly<Record<string, unknown>>,
   knownDefinitions: ReadonlyMap<string, string>,
+  imageOrigin: MarkdownImageOrigin,
 ): CapturedLocalImage | null {
-  if (candidate.type !== 'image' && candidate.type !== 'imageReference') return null
+  if (imageOrigin.kind !== 'local-file' || !isImageNode(candidate)) return null
   const url = markdownUrl(candidate, knownDefinitions)
   if (!url || url.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
   const filePath = localImageFilePath(url)
@@ -147,18 +156,36 @@ function localImage(
   return { filePath, mimeType, title: label(candidate) || path.basename(filePath) }
 }
 
+/** A website image path as its absolute URL; every other destination is returned unchanged. */
+function resolvedImageUrl(
+  url: string,
+  candidate: Readonly<Record<string, unknown>>,
+  imageOrigin: MarkdownImageOrigin,
+) {
+  if (imageOrigin.kind !== 'website' || !isImageNode(candidate)) return url
+  if (!ROOT_RELATIVE_PATH_PATTERN.test(url)) return url
+  try {
+    return new URL(url, imageOrigin.origin).href
+  } catch {
+    return url
+  }
+}
+
 function httpLink(
   candidate: Readonly<Record<string, unknown>>,
   knownDefinitions: ReadonlyMap<string, string>,
+  imageOrigin: MarkdownImageOrigin,
 ): CapturedLink | null {
-  const url = markdownUrl(candidate, knownDefinitions)
-  if (!url || !HTTP_URL_PATTERN.test(url)) return null
+  const destination = markdownUrl(candidate, knownDefinitions)
+  if (!destination) return null
+  const url = resolvedImageUrl(destination, candidate, imageOrigin)
+  if (!HTTP_URL_PATTERN.test(url)) return null
   const normalizedUrl = supportedHttpUrl(url)
   if (!normalizedUrl) return null
   return {
     url: normalizedUrl,
     title: label(candidate) || normalizedUrl,
-    image: candidate.type === 'image' || candidate.type === 'imageReference',
+    image: isImageNode(candidate),
   }
 }
 
@@ -167,6 +194,7 @@ export function collectMarkdownResources(
   images: CapturedImage[],
   links: CapturedLink[],
   order: CapturedResourceOrder[],
+  imageOrigin: MarkdownImageOrigin = LOCAL_FILE_MARKDOWN_IMAGES,
 ) {
   if (
     images.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages &&
@@ -179,7 +207,7 @@ export function collectMarkdownResources(
   while (pending.length > 0) {
     const candidate = pending.pop()
     if (!isRecord(candidate)) continue
-    const image = localImage(candidate, knownDefinitions)
+    const image = localImage(candidate, knownDefinitions, imageOrigin)
     if (image && images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
       order.push({ kind: 'image', index: images.length })
       images.push(image)
@@ -187,7 +215,7 @@ export function collectMarkdownResources(
       continue
     }
     if (links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
-      const link = httpLink(candidate, knownDefinitions)
+      const link = httpLink(candidate, knownDefinitions, imageOrigin)
       if (link) {
         order.push({ kind: 'link', index: links.length })
         links.push(link)

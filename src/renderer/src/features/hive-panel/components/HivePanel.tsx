@@ -5,17 +5,20 @@ import {
   useInfiniteQuery,
 } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ChessQueen, ChevronDown, ChevronRight, X } from 'lucide-react'
-import { useId, useState } from 'react'
+import { ChessQueen, X } from 'lucide-react'
 import {
   type HiveTreePage,
   hiveTreeMembers,
   hiveTreeRoot,
   sessionHiveTreeQueryOptions,
 } from '@/queries/session-hive-tree'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { buildHiveTreeModel, type HiveTreeRow } from '../lib/hive-tree-model'
-import { HIVE_ROW_GRID_STYLE, HiveTreeListItem } from './HiveTreeRow'
+import { buildHiveTreeModel } from '../lib/hive-tree-model'
+import { buildHiveTreeItems, type HiveTreeItem } from '../lib/hive-tree-structure'
+import { useHivePanelViewStore } from '../state/hive-panel-view-store'
+import { HiveColumnHeader, HiveStateView, loadedCount } from './HiveStateView'
+import { HiveTreeView } from './HiveTreeView'
 
 export interface HivePanelProps {
   readonly sessionId: string | null
@@ -28,21 +31,22 @@ type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage, unknown>,
 /**
  * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0051).
  *
- * It is the home of Worker Sessions that are not Pinned. Opening a member from it navigates with
- * the panel still requested, so the user can move across the Hive without the panel closing.
+ * It is the home of Worker Sessions that are not Pinned. Its default view is a tree, each Worker
+ * under the Session that spawned it; "By state" groups the same rows by Delegation state (#377).
+ * Opening a member from it navigates with the panel still requested, so the user can move across
+ * the Hive without the panel closing.
  */
 export function HivePanel({ sessionId, onClose }: HivePanelProps) {
   const query = useInfiniteQuery({
     ...sessionHiveTreeQueryOptions(SessionId(sessionId ?? '')),
     enabled: sessionId !== null,
   })
-  const model = buildHiveTreeModel({
-    root: hiveTreeRoot(query.data?.pages),
-    members: hiveTreeMembers(query.data?.pages),
-    currentSessionId: sessionId,
-  })
-  const root = model.root
+  const root = hiveTreeRoot(query.data?.pages)
+  const members = hiveTreeMembers(query.data?.pages)
+  const model = buildHiveTreeModel({ root, members, currentSessionId: sessionId })
+  const view = useHivePanelViewStore((state) => state.view)
   const navigate = useNavigate()
+  const partial = query.hasNextPage
 
   function openSession(target: string) {
     void navigate({
@@ -54,96 +58,128 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
 
   return (
     <section className="flex h-full min-w-0 flex-col bg-diff-bg" aria-label="Hive">
-      <HivePanelHeader memberCount={model.memberCount} onClose={onClose} />
+      <HivePanelHeader memberCount={model.memberCount} partial={partial} onClose={onClose} />
+      {root !== null ? <HivePanelToolbar /> : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {model.root !== null ? <HiveColumnHeader /> : null}
+        {root !== null ? <HiveColumnHeader /> : null}
         <HiveTreeLoadState query={query} />
-        {root !== null ? (
-          <HiveTreeListItem
-            row={{ session: root, via: null }}
-            isCurrent={sessionId !== null && String(root.id) === sessionId}
-            onOpen={() => openSession(String(root.id))}
-            isRoot
+        {view === 'tree' ? (
+          <HiveTreeBody
+            root={root}
+            members={members}
+            currentSessionId={sessionId}
+            onOpen={openSession}
           />
-        ) : null}
-        {model.root !== null && model.memberCount === 0 && !query.isFetching ? (
+        ) : (
+          <HiveStateView
+            model={model}
+            currentSessionId={sessionId}
+            partial={partial}
+            onOpen={openSession}
+          />
+        )}
+        {root !== null && model.memberCount === 0 && !query.isFetching ? (
           <p className="px-2 py-1.5 text-xs text-text-tertiary">No Workers yet.</p>
         ) : null}
-        <HiveTreeGroup
-          label="Needs you"
-          rows={model.groups.needsYou}
-          onOpen={openSession}
-          currentSessionId={sessionId}
-        />
-        <HiveTreeGroup
-          label="Review"
-          rows={model.groups.review}
-          onOpen={openSession}
-          currentSessionId={sessionId}
-        />
-        <HiveTreeGroup
-          label="Active"
-          rows={model.groups.active}
-          onOpen={openSession}
-          currentSessionId={sessionId}
-        />
-        <HiveTreeGroup
-          label="Done"
-          rows={model.groups.done}
-          onOpen={openSession}
-          currentSessionId={sessionId}
-        />
-        <HiveArchivedGroup
-          // Its open state belongs to one Hive: moving within the Hive keeps it, another resets it.
-          key={String(model.root?.id ?? '')}
-          rows={model.groups.archived}
-          onOpen={openSession}
-          currentSessionId={sessionId}
-        />
         <HiveLoadMore query={query} />
       </div>
     </section>
   )
 }
 
-/**
- * The one column header over the whole list (ADR 0051 review): it anchors the Workspace and
- * State cells so they read as columns, not stray words. Rows and this header share one grid;
- * the header's padding matches the rows', actions gutter included, so the columns line up.
- */
-function HiveColumnHeader() {
+/** The tree view with the panel's remembered collapsed rows and archived toggle. */
+function HiveTreeBody({
+  root,
+  members,
+  currentSessionId,
+  onOpen,
+}: {
+  readonly root: ReturnType<typeof hiveTreeRoot>
+  readonly members: ReturnType<typeof hiveTreeMembers>
+  readonly currentSessionId: string | null
+  readonly onOpen: (sessionId: string) => void
+}) {
+  const showArchived = useHivePanelViewStore((state) => state.showArchived)
+  const collapsed = useHivePanelViewStore((state) => state.collapsed)
+  const setCollapsed = useHivePanelViewStore((state) => state.setCollapsed)
+  const items = buildHiveTreeItems({
+    root,
+    members,
+    showArchived,
+    collapsed: new Set(Object.keys(collapsed)),
+  })
   return (
-    // Visual only: every row's accessible name already carries its Workspace and state.
-    <div
-      aria-hidden="true"
-      className="pt-1 pr-9 pb-1 pl-2 text-xs font-semibold uppercase tracking-wide text-text-muted"
-      style={HIVE_ROW_GRID_STYLE}
-    >
-      <span>Session</span>
-      <span className="text-right" title="Workspace: the checkout or worktree each Session runs in">
-        Workspace
-      </span>
-      <span className="text-right" title="State: where each Session's Delegation or Run stands">
-        State
-      </span>
+    <HiveTreeView
+      items={items}
+      currentSessionId={currentSessionId}
+      onOpen={onOpen}
+      onToggle={(item: HiveTreeItem) =>
+        setCollapsed(String(item.session.id), item.expanded === true)
+      }
+    />
+  )
+}
+
+const TOGGLE_CLASS =
+  'rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-bg-hover hover:text-text-primary'
+
+function toggleClass(pressed: boolean) {
+  return cn(
+    TOGGLE_CLASS,
+    pressed ? 'border-accent/60 text-text-primary' : 'border-border text-text-secondary',
+  )
+}
+
+/** The view toggles: "By state" for the state groups, "Show archived" for the tree (#377). */
+function HivePanelToolbar() {
+  const view = useHivePanelViewStore((state) => state.view)
+  const showArchived = useHivePanelViewStore((state) => state.showArchived)
+  const setView = useHivePanelViewStore((state) => state.setView)
+  const setShowArchived = useHivePanelViewStore((state) => state.setShowArchived)
+  const byState = view === 'by-state'
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-1.5 border-b border-border px-3 py-1.5">
+      {byState ? null : (
+        <Button
+          variant="unstyled"
+          aria-pressed={showArchived}
+          className={toggleClass(showArchived)}
+          onClick={() => setShowArchived(!showArchived)}
+        >
+          Show archived
+        </Button>
+      )}
+      <Button
+        variant="unstyled"
+        aria-pressed={byState}
+        className={toggleClass(byState)}
+        onClick={() => setView(byState ? 'tree' : 'by-state')}
+      >
+        By state
+      </Button>
     </div>
   )
 }
 
 function HivePanelHeader({
   memberCount,
+  partial,
   onClose,
 }: {
   readonly memberCount: number
+  /** More pages of the Hive exist, so the count covers only those read so far. */
+  readonly partial: boolean
   readonly onClose: () => void
 }) {
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
       <ChessQueen aria-hidden="true" className="size-3.5 text-accent" />
       <span className="flex-1 text-sm font-medium text-text-primary">Hive</span>
+      {/* The whole Hive at every depth, unlike the Session Summary's direct-Worker count. */}
       {memberCount > 0 ? (
         <span className="text-xs text-text-tertiary">
-          {memberCount} {memberCount === 1 ? 'Worker' : 'Workers'}
+          {loadedCount(memberCount, partial)} {memberCount === 1 && !partial ? 'Worker' : 'Workers'}{' '}
+          in this Hive
         </span>
       ) : null}
       <Button
@@ -193,88 +229,6 @@ function HiveTreeLoadState({ query }: { readonly query: HiveTreeQuery }) {
       >
         Retry Hive
       </Button>
-    </div>
-  )
-}
-
-function HiveTreeGroup({
-  label,
-  rows,
-  onOpen,
-  currentSessionId,
-}: {
-  readonly label: string
-  readonly rows: readonly HiveTreeRow[]
-  readonly onOpen: (sessionId: string) => void
-  readonly currentSessionId: string | null
-}) {
-  if (rows.length === 0) return null
-  return (
-    <fieldset aria-label={`${label} Hive sessions`} className="m-0 min-w-0 border-0 p-0">
-      <div className="px-2 pb-0.5 pt-1 text-xs font-medium tracking-wide text-text-muted uppercase">
-        {label}
-      </div>
-      {rows.map((row) => (
-        <HiveTreeListItem
-          key={String(row.session.id)}
-          row={row}
-          isCurrent={currentSessionId !== null && String(row.session.id) === currentSessionId}
-          onOpen={() => onOpen(String(row.session.id))}
-        />
-      ))}
-    </fieldset>
-  )
-}
-
-function HiveArchivedGroup({
-  rows,
-  onOpen,
-  currentSessionId,
-}: {
-  readonly rows: readonly HiveTreeRow[]
-  readonly onOpen: (sessionId: string) => void
-  readonly currentSessionId: string | null
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const listId = useId()
-  if (rows.length === 0) return null
-  return (
-    <div>
-      <Button
-        variant="unstyled"
-        className="flex min-h-7 items-center gap-1 rounded px-2 text-xs font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
-        // The visible text is the name, so the count reaches screen readers; aria-expanded says
-        // whether the group is open.
-        aria-expanded={expanded}
-        aria-controls={listId}
-        onClick={() => setExpanded((current) => !current)}
-      >
-        {expanded ? (
-          <ChevronDown aria-hidden="true" className="size-3" />
-        ) : (
-          <ChevronRight aria-hidden="true" className="size-3" />
-        )}
-        Archived · {rows.length}
-      </Button>
-      {/* The list stays in the DOM, hidden while collapsed, so aria-controls always resolves;
-          its rows mount only when shown. The toggle row is its only visible label. */}
-      <fieldset
-        id={listId}
-        hidden={!expanded}
-        aria-label="Archived Hive sessions"
-        className="m-0 min-w-0 border-0 p-0"
-      >
-        {expanded
-          ? rows.map((row) => (
-              <HiveTreeListItem
-                key={String(row.session.id)}
-                row={row}
-                isCurrent={currentSessionId !== null && String(row.session.id) === currentSessionId}
-                onOpen={() => onOpen(String(row.session.id))}
-              />
-            ))
-          : null}
-      </fieldset>
     </div>
   )
 }

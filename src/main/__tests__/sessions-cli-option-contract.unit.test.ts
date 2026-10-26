@@ -241,8 +241,10 @@ describe('Hive CLI option contract', () => {
     expect(validate(['authorization-set', 'session', 'inherit'])).not.toThrow()
     expect(validate(['exports-watch', 'session', 'operation'])).not.toThrow()
     expect(validate(['agent-definitions-search', 'code', 'review', '--json'])).not.toThrow()
-    expect(validate(['agent-definitions-list', '--profile', 'helper'])).toThrow(
-      'Unsupported option for hive agent-definitions-list: --profile',
-    )
+    // The group-level client options apply to discovery too (#351).
+    expect(validate(['agent-definitions-list', '--profile', 'helper'])).not.toThrow()
+    expect(
+      validate(['agent-definitions-search', 'x', '--profile-credential-file', 'f']),
+    ).not.toThrow()
   })
 })

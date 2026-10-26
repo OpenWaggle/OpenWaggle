@@ -93,4 +93,30 @@ describe('exact-version update', () => {
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('reports a release that does not exist as not_found, with its kind (#351)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 404 })),
+    )
+
+    await expect(installExactVersion(parsed, 'v99.0.0', true)).rejects.toMatchObject({
+      kind: 'not_found',
+      message: 'OpenWaggle release v99.0.0 was not found.',
+    })
+  })
+
+  it('keeps a rate limit or server error apart from a missing release', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 403 })),
+    )
+
+    const failure = await installExactVersion(parsed, 'v1.0.0', true).catch(
+      (error: unknown) => error,
+    )
+
+    expect(failure).not.toHaveProperty('kind')
+    expect(failure).toMatchObject({ message: expect.stringContaining('failed with HTTP 403') })
+  })
 })

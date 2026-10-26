@@ -44,8 +44,8 @@ export function Sidebar() {
   const actions = buildSidebarActions(controller, markUnread)
 
   return (
+    // inert alone: aria-hidden too warned when the sidebar hid around a focused button (#356).
     <div
-      aria-hidden={sidebarHidden ? true : undefined}
       inert={sidebarHidden ? true : undefined}
       className={cn(
         'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',

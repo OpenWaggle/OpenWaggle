@@ -3,6 +3,7 @@ import { lstat, open, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { safeStorage } from 'electron'
+import { CliError } from '../cli-error'
 import type {
   ProfileCredentialDestination,
   ProfileCredentialDestinationMetadata,
@@ -101,7 +102,10 @@ export async function recoverInstalledCredential(input: {
   const credential = decodeCredentialContent(input.destination, targetFile.content)
   validateProfileCredential(credential)
   if (credentialFingerprint(credential) !== receipt.fingerprint) {
-    throw new Error('The credential destination changed after this idempotent operation.')
+    throw new CliError(
+      'conflict',
+      'The credential destination changed after this idempotent operation.',
+    )
   }
   return credential
 }
@@ -127,7 +131,10 @@ export async function assertReplaceable(targetPath: string, replace: boolean) {
     }
     if (!stats.isFile()) throw new Error('Credential destination is not a regular file.')
     if (!replace) {
-      throw new Error('Credential destination already exists. Use --replace to update it.')
+      throw new CliError(
+        'conflict',
+        'Credential destination already exists. Use --replace to update it.',
+      )
     }
     return credentialDestinationIdentity(targetPath)
   } catch (error) {

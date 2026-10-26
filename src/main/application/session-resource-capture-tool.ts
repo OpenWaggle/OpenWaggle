@@ -1,5 +1,9 @@
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
+import {
+  OPENWAGGLE_DOCS_TOOL_NAME,
+  OPENWAGGLE_WEBSITE_ORIGIN,
+} from '@shared/constants/openwaggle-docs'
 import type { SessionId } from '@shared/types/brand'
 import type { ToolCallResult } from '@shared/types/tools'
 import { isRecord } from '@shared/utils/validation'
@@ -7,6 +11,10 @@ import * as Effect from 'effect/Effect'
 import { captureMetadataResource } from './session-resource-capture-metadata'
 import { occurrenceId, sha256 } from './session-resource-capture-shared'
 import { collectExplicitResources } from './session-resource-extraction'
+import {
+  LOCAL_FILE_MARKDOWN_IMAGES,
+  type MarkdownImageOrigin,
+} from './session-resource-extraction-types'
 
 const MAX_WEB_SEARCHES_PER_TOOL = 32
 const MAX_WEB_SEARCH_QUERY_CHARACTERS = 4_096
@@ -60,6 +68,8 @@ interface ToolMetadataCaptureInput {
 export interface CapturedToolOutputGroup {
   readonly label: string
   readonly result: unknown
+  /** What a Markdown image path in the result's text names. */
+  readonly markdownImages: MarkdownImageOrigin
 }
 
 function capturedToolIdentity(name: string): CapturedToolIdentity {
@@ -72,11 +82,39 @@ export function toolResultResourceLabel(toolResult: ToolCallResult) {
   return capturedToolIdentity(name).title
 }
 
+/** The topic's source from the tool's details, which Pi keeps both beside and inside the result. */
+function docsTopicSource(toolResult: ToolCallResult) {
+  const result = isRecord(toolResult.result) ? toolResult.result : null
+  for (const details of [toolResult.details, result?.details]) {
+    if (isRecord(details) && typeof details.source === 'string') return details.source
+  }
+  return null
+}
+
+/**
+ * A docs topic only references its images; the tool did not create them (#356). An OpenWaggle
+ * topic's root-relative image paths are pages of the website. Pi and extension docs name no
+ * website, and none of their image paths is a file this Session produced, so they are skipped.
+ */
+function toolMarkdownImages(toolResult: ToolCallResult): MarkdownImageOrigin {
+  if (toolResult.name.trim() !== OPENWAGGLE_DOCS_TOOL_NAME) return LOCAL_FILE_MARKDOWN_IMAGES
+  return docsTopicSource(toolResult) === 'openwaggle'
+    ? { kind: 'website', origin: OPENWAGGLE_WEBSITE_ORIGIN }
+    : { kind: 'none' }
+}
+
 export function toolResultOutputGroups(
   toolResult: ToolCallResult,
 ): readonly CapturedToolOutputGroup[] {
   const label = toolResultResourceLabel(toolResult)
-  return label ? [{ label, result: toolResult.result }] : []
+  return label
+    ? [{ label, result: toolResult.result, markdownImages: toolMarkdownImages(toolResult) }]
+    : []
+}
+
+/** The images, links and sites of one tool output group. */
+export function collectToolOutputGroupResources(group: CapturedToolOutputGroup) {
+  return collectExplicitResources(group.result, group.markdownImages)
 }
 
 export function toolResultOccurrenceId(input: {
@@ -139,7 +177,7 @@ function captureExplicitSites(
   occurrenceKey: string,
 ) {
   return Effect.gen(function* () {
-    const resources = collectExplicitResources(group.result)
+    const resources = collectToolOutputGroupResources(group)
     for (const [index, site] of resources.sites.entries()) {
       yield* captureMetadataResource({
         sessionId: input.sessionId,
@@ -237,7 +275,11 @@ export function captureToolResultMetadata(input: ToolMetadataCaptureInput) {
     yield* captureWebSearches(input, toolName)
     yield* captureExplicitSites(
       input,
-      { label: identity.title, result: input.toolResult.result },
+      {
+        label: identity.title,
+        result: input.toolResult.result,
+        markdownImages: toolMarkdownImages(input.toolResult),
+      },
       String(input.toolResult.id),
     )
     yield* captureFileResource(input, toolName)

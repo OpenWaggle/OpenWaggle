@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UpdateStatus } from '@shared/types/updater'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 // --- Hoisted mock handles ---
 const {
@@ -33,6 +34,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     installUpdate: installUpdateMock,
     updateSettings: updateSettingsMock,
     getSettings: vi.fn(async () => DEFAULT_SETTINGS),
+    getUsageStatisticsBlock: vi.fn(async () => null),
     getCliShimStatus: getCliShimStatusMock,
     showConfirm: showConfirmMock,
   },
@@ -46,13 +48,7 @@ import { GeneralSection } from '../sections/GeneralSection'
 const setCompactionThresholdPercentMock = vi.fn()
 
 function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
-  })
-  return { promise, resolve, reject }
+  return Promise.withResolvers<T>()
 }
 
 describe('GeneralSection', () => {
@@ -89,7 +85,7 @@ describe('GeneralSection', () => {
   })
 
   it('renders the app version after it resolves', async () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => {
       expect(screen.getByText(/OpenWaggle v0\.2\.0/)).toBeInTheDocument()
@@ -104,7 +100,7 @@ describe('GeneralSection', () => {
       onPath: true,
       detail: 'Another file already uses this path. OpenWaggle will not replace it.',
     })
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('/tmp/openwaggle')
     expect(screen.getByRole('alert')).toHaveTextContent('will not replace it')
@@ -119,7 +115,7 @@ describe('GeneralSection', () => {
       commandPath: '/tmp/openwaggle',
       onPath: false,
     })
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('command is not installed')
     expect(screen.getByRole('alert')).toHaveTextContent('/tmp/openwaggle')
@@ -127,7 +123,7 @@ describe('GeneralSection', () => {
 
   it('hides the passive packaged-CLI notice in a source build', async () => {
     getCliShimStatusMock.mockResolvedValue(null)
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => expect(getCliShimStatusMock).toHaveBeenCalledOnce())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -141,7 +137,7 @@ describe('GeneralSection', () => {
       onPath: false,
       detail: 'CLI setup is still running. Reopen Settings to check again.',
     })
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('CLI setup is still running')
   })
@@ -154,14 +150,14 @@ describe('GeneralSection', () => {
       onPath: false,
       detail: 'Existing OpenWaggle app link. Re-run the app installer if the app moves.',
     })
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('OpenWaggle process PATH')
     expect(screen.getByRole('alert')).toHaveTextContent('Your terminal may differ')
   })
 
   it('offers the global automatic compaction threshold as a compact number stepper', () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     const threshold = screen.getByRole('spinbutton', {
       name: 'Automatic compaction threshold',
@@ -181,7 +177,7 @@ describe('GeneralSection', () => {
   it('serializes threshold writes so an in-flight failure cannot race a newer value', async () => {
     const firstWrite = deferred<void>()
     setCompactionThresholdPercentMock.mockReturnValueOnce(firstWrite.promise)
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     const threshold = screen.getByRole('spinbutton', {
       name: 'Automatic compaction threshold',
@@ -207,13 +203,13 @@ describe('GeneralSection', () => {
   })
 
   it('renders the "About & Updates" section heading', () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
     expect(screen.getByText('About & Updates')).toBeInTheDocument()
     expect(screen.queryByText('Agent definitions')).not.toBeInTheDocument()
   })
 
   it('persists the in-app browser destination from the accessible link setting', async () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     expect(screen.getByRole('radio', { name: 'System browser' })).toHaveAttribute(
       'aria-checked',
@@ -231,7 +227,7 @@ describe('GeneralSection', () => {
   })
 
   it('renders the "Check now" button when status is idle', async () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     // The idle status is set synchronously via the initial useState, so the
     // button should be present immediately (before the async getUpdateStatus resolves)
@@ -239,7 +235,7 @@ describe('GeneralSection', () => {
   })
 
   it('delegates manual update channel resolution to the Session Host', async () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /check now/i }))
 
@@ -249,7 +245,7 @@ describe('GeneralSection', () => {
   })
 
   it('persists the update channel through the shared settings store', async () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Update channel' }), {
       target: { value: 'alpha' },
@@ -268,7 +264,7 @@ describe('GeneralSection', () => {
 
   it('keeps the current update channel when Alpha confirmation is declined', async () => {
     showConfirmMock.mockResolvedValue(false)
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Update channel' }), {
       target: { value: 'alpha' },
@@ -286,7 +282,7 @@ describe('GeneralSection', () => {
       version: '0.3.0',
     } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /restart to update/i })).toBeInTheDocument()
@@ -300,7 +296,7 @@ describe('GeneralSection', () => {
       version: '0.3.0',
     } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     fireEvent.click(await screen.findByRole('button', { name: /restart to update/i }))
 
@@ -312,7 +308,7 @@ describe('GeneralSection', () => {
   it('shows "Check now" button when status is not-available', async () => {
     getUpdateStatusMock.mockResolvedValue({ type: 'not-available' } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /check now/i })).toBeInTheDocument()
@@ -325,7 +321,7 @@ describe('GeneralSection', () => {
       message: 'network timeout',
     } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /check now/i })).toBeInTheDocument()
@@ -335,7 +331,7 @@ describe('GeneralSection', () => {
   it('hides action buttons while checking or downloading', async () => {
     getUpdateStatusMock.mockResolvedValue({ type: 'checking' } satisfies UpdateStatus)
 
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /check now/i })).not.toBeInTheDocument()
@@ -344,12 +340,12 @@ describe('GeneralSection', () => {
   })
 
   it('renders the "Latest version" label in the status row', () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
     expect(screen.getByText('Latest version')).toBeInTheDocument()
   })
 
   it('subscribes to live update status events via onUpdateStatus', () => {
-    render(<GeneralSection />)
+    renderWithQueryClient(<GeneralSection />)
     expect(onUpdateStatusMock).toHaveBeenCalledOnce()
   })
 
@@ -357,7 +353,7 @@ describe('GeneralSection', () => {
     const unsubscribe = vi.fn()
     onUpdateStatusMock.mockReturnValue(unsubscribe)
 
-    const { unmount } = render(<GeneralSection />)
+    const { unmount } = renderWithQueryClient(<GeneralSection />)
     unmount()
 
     expect(unsubscribe).toHaveBeenCalledOnce()

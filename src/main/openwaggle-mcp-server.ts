@@ -4,14 +4,27 @@ import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@sha
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { z } from 'zod'
 import { routedCliStdoutStream } from './cli-stdout'
+import { refusedCredentialError } from './local-session-cli-client'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
-import { registerOpenWaggleSessionToolV2 } from './openwaggle-mcp-session-tool-v2'
+import {
+  type McpSessionHostExecutor,
+  mcpSessionHostIdentity,
+  registerOpenWaggleSessionToolV2,
+} from './openwaggle-mcp-session-tool-v2'
+import { openLocalSessionConnection } from './session-host/local-session-client-connection'
+import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
+import {
+  prepareLocalSessionHostPaths,
+  refreshLocalSessionHostEndpoint,
+  resolveLocalSessionHostPaths,
+} from './session-host/local-session-paths'
 
 export {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
+  type OpenWaggleMcpServeIdentity,
   type OpenWaggleMcpServeOptions,
 } from './openwaggle-mcp-server-policy'
 
@@ -34,8 +47,13 @@ function registerServerResources(server: McpServer, options: OpenWaggleMcpServeO
           uri: uri.href,
           mimeType: 'application/json',
           text: JSON.stringify({
-            profile: options.profile,
-            authorizationCeiling: options.authorizationCeiling,
+            ...(options.identity.kind === 'owner'
+              ? { authority: 'owner', authorizationCeiling: options.identity.authorizationCeiling }
+              : {
+                  authority: 'profile',
+                  profile: options.identity.profile,
+                  authorizationCeiling: 'profile',
+                }),
             grants: [...options.grants].sort(),
             workspaceRoots: options.workspaceRoots,
             exportRoots: options.exportRoots ?? [],
@@ -77,7 +95,10 @@ function registerServerPrompt(server: McpServer) {
   )
 }
 
-function createOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
+export function createOpenWaggleMcpServer(
+  options: OpenWaggleMcpServeOptions,
+  dependencies: { readonly execute?: McpSessionHostExecutor } = {},
+) {
   const server = new McpServer(
     { name: 'OpenWaggle', version: options.version },
     {
@@ -97,11 +118,44 @@ function createOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
   registerOpenWaggleSessionToolV2(server, options, {
     userDataRoot: options.userDataRoot,
     version: options.version,
+    ...(dependencies.execute ? { execute: dependencies.execute } : {}),
   })
   return server
 }
 
+/**
+ * A profile server authenticates once before it serves, so a revoked or unknown profile or a
+ * wrong credential stops it at startup instead of failing every call (#350). Every call still
+ * authenticates again, so a later revocation is enforced too.
+ */
+export async function verifyServeIdentity(options: OpenWaggleMcpServeOptions) {
+  const identity = options.identity
+  if (identity.kind !== 'profile') return
+  const paths = await prepareLocalSessionHostPaths(
+    resolveLocalSessionHostPaths({ userDataRoot: options.userDataRoot }),
+  )
+  const connection = {
+    paths,
+    clientVersion: options.version,
+    workingDirectory: options.workspaceRoots[0] ?? process.cwd(),
+    ...mcpSessionHostIdentity(options),
+  }
+  try {
+    await ensureLocalSessionHost(connection)
+    const opened = await openLocalSessionConnection({
+      ...connection,
+      paths: await refreshLocalSessionHostEndpoint(paths),
+    })
+    opened.socket.destroy()
+  } catch (cause) {
+    // Only a refused credential is the profile's fault; a Host that is starting, handing over,
+    // or slow keeps its own kind, as in the CLI.
+    throw refusedCredentialError({ profile: identity.profile }, cause)
+  }
+}
+
 export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
+  await verifyServeIdentity(options)
   const factory = () => createOpenWaggleMcpServer(options)
   const reportError = (error: Error) =>
     options.stderr?.write(`OpenWaggle MCP server error: ${error.message}\n`)

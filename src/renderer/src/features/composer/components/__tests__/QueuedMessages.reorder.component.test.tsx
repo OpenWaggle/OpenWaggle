@@ -10,6 +10,7 @@ import { queueItem, snapshotOf } from '../../hooks/__tests__/queued-message-edit
 import { MOVE_NOT_APPLIED_MESSAGE } from '../../hooks/useQueuedMessageReorder'
 import { QUEUED_MESSAGE_DRAG_TYPE } from '../QueuedMessageReorderHandle'
 import { QueuedMessages } from '../QueuedMessages'
+import { makeDataTransfer } from './queued-message-drag.test-support'
 
 const queueMock = vi.hoisted(() => {
   const mock: { snapshot: SessionFollowUpQueueSnapshot } & Record<
@@ -43,21 +44,12 @@ function renderDock() {
 }
 
 function rowFor(text: string) {
-  const row = screen.getByText(text).closest('li')
+  // Within the list: the drag image is a copy of a row, in the document until the next task.
+  const row = within(screen.getByRole('list', { name: 'Queued messages' }))
+    .getByText(text)
+    .closest('li')
   if (!row) throw new Error(`No queued row for ${text}`)
   return row
-}
-
-function makeDataTransfer() {
-  const data = new Map<string, string>()
-  return {
-    effectAllowed: 'none',
-    get types() {
-      return [...data.keys()]
-    },
-    setData: (type: string, value: string) => data.set(type, value),
-    getData: (type: string) => data.get(type) ?? '',
-  }
 }
 
 describe('QueuedMessages reordering', () => {
