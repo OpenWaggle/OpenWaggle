@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { app } from 'electron'
+import { CliError } from './cli-error'
 import { launchExternalApplication } from './desktop-ui'
 import { getEnvWithOverrides } from './env'
 
@@ -20,7 +21,7 @@ export async function releaseForTag(tag: string) {
     `https://api.github.com/repos/OpenWaggle/OpenWaggle/releases/tags/${encodeURIComponent(tag)}`,
     { headers: { accept: 'application/vnd.github+json' } },
   )
-  if (!response.ok) throw new Error(`OpenWaggle release ${tag} was not found.`)
+  if (!response.ok) throw new CliError('not_found', `OpenWaggle release ${tag} was not found.`)
   return decodeUnknownOrThrow(releaseSchema, await response.json())
 }
 

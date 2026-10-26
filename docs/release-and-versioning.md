@@ -174,7 +174,8 @@ The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
 
 Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
 receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
-non-downgrade version itself, then points the updater at that release's metadata, so RC does not
+non-downgrade version whose platform channel metadata (such as `beta-mac.yml`) is already
+uploaded, then points the updater at that release's metadata, so RC does not
 depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
 RC build with no saved preference defaults to Beta. Release packaging publishes the matching
 metadata aliases for every eligible automatic channel because electron-builder does not generate
@@ -184,7 +185,11 @@ authoritative channel before installing a downloaded release and invalidates a r
 longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
 downloads pass through the explicit, authoritative restart action. The shell installer persists its
 selected policy channel as a one-time Session Host intent instead of inferring future policy from
-the downloaded artifact's version.
+the downloaded artifact's version. With no Stable release yet it selects Beta, so an install during
+Beta or RC never saves Alpha. A channel with no eligible release, such as Stable before `1.0.0`, is
+reported as up to date rather than as a failed check. `openwaggle update --check` never changes
+the saved channel, and `openwaggle update --version` refuses a version older than the installed
+one.
 
 ### Differential update downloads
 
