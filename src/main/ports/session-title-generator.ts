@@ -17,6 +17,8 @@ export interface SessionTitleGenerationRequest {
   readonly titleModel: Exclude<SessionTitleModelSetting, 'off'>
   readonly systemPrompt: string
   readonly prompt: string
+  /** A person waits for this title: try a model its provider refused a short while ago (#357). */
+  readonly retryRefusedModels?: boolean
 }
 
 export interface SessionTitleGenerationResponse {

@@ -72,6 +72,13 @@ function isEventPayload(value: Record<string, unknown>) {
   if (value.kind === 'default-thinking-level-changed') {
     return THINKING_LEVELS.some((level) => level === value.level)
   }
+  if (value.kind === 'session-title-model-refused') {
+    return (
+      typeof value.model === 'string' &&
+      typeof value.reason === 'string' &&
+      typeof value.retryAt === 'number'
+    )
+  }
   if (typeof value.kind !== 'string' || typeof value.sessionId !== 'string') return false
   return sessionEventValidators[value.kind]?.(value) ?? false
 }

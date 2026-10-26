@@ -298,7 +298,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ### Renderer polish from the beta.25 QA (#356, October 2026)
 
-- A Markdown image destination means what its author meant (`MarkdownImageOrigin` in `session-resource-extraction-types.ts`). Agents write local screenshots as plain absolute paths, but an `openwaggle_docs` topic writes its screenshots root-relative (`/screenshots/hive-sessions.png`), which are website pages; the installed docs bundle does not ship them. Backfill read them as local files, failed, and stored unavailable "Created by openwaggle_docs" outputs with no locator, whose Open called `shell:open-path` on `/screenshots/…`. `toolResultOutputGroups` now resolves an OpenWaggle topic's images against `OPENWAGGLE_WEBSITE_ORIGIN` (an image source the tool read) and ignores local image paths in Pi and extension topics (`details.source`). Every caller reads a tool group through `collectToolOutputGroupResources`, so live capture, backfill slots and display order agree. Migration 72 deletes the stored rows and resets those Sessions' backfill state.
+- A Markdown image destination means what its author meant (`MarkdownImageOrigin` in `session-resource-extraction-types.ts`). Agents write local screenshots as plain absolute paths, but an `openwaggle_docs` topic writes its screenshots root-relative (`/screenshots/hive-sessions.png`), which are website pages; the installed docs bundle does not ship them. Backfill read them as local files, failed, and stored unavailable "Created by openwaggle_docs" outputs with no locator, whose Open called `shell:open-path` on `/screenshots/…`. `toolResultOutputGroups` now resolves an OpenWaggle topic's images against `OPENWAGGLE_WEBSITE_ORIGIN` (an image source the tool read) and ignores local image paths in Pi and extension topics (`details.source`). Every caller reads a tool group through `collectToolOutputGroupResources`, so live capture, backfill slots and display order agree. Migration 73 (after #366's 72) deletes the stored rows and resets those Sessions' backfill state.
 - An unavailable resource offers neither Open nor Reveal (`resourceOriginalPath` returns a path only for an available one): its file could not be read, and a recorded path may not be a file at all.
 - Electron rejects a failed `invoke` with `Error invoking remote method '<channel>': Error: <message>`. Show `ipcFailureMessage(cause, fallback)` (or `ipcErrorMessage`), never `cause.message`. `shell:open-path`, `shell:reveal-path` and `shell:open-external` check the path or URL first and fail with words for the user, logging the system's reason; a non-disruptive automation block keeps its own message.
 - Chromium's accessibility tree (CDP `Accessibility.getFullAXTree`, so also the DevTools MCP snapshot) reports `valuemax 0` for every spinbutton without a maximum, a native `<input type="number" min="1">` included. `NumberStepper` already omits `aria-valuemax` without a maximum (`FormControls.component.test.tsx`); do not invent a maximum to hide the 0.
@@ -1724,6 +1724,69 @@ skill and extension resource scans (`loadSkills`, `collectSkillEntries`, jiti), 
 than one long stall. An earlier
 4.4-hour Host silence (desktop heartbeat failing every 5 s, no Host log lines, no crash report,
 machine awake) stayed unexplained.
+
+### Run settlement blocked the Host for seconds: per-node discovery rebuilds and inline WAL checkpoints (#357, October 2026)
+
+Every beta.25 "Session Host event loop stalled" line (1.6 to 3.5 s) ended 20 ms before a Worker
+Run's `session_runs` row settled. Reproduced by persisting real Worker snapshots (200 to 417 nodes)
+into a copy of the 2.1 GB user database: `persistSessionSnapshot` blocked 2.4 to 4.1 s and resource
+capture another 0.2 to 0.6 s, each as one synchronous stretch. Causes, in order of cost:
+- `session_node_search_insert`/`_update`/`session_node_discovery_search_delete` rebuilt the Session's
+  lexical discovery row per node, and that row's insert trigger rebuilds its term postings and
+  signatures (about 9 ms a node on that database; 97% of the snapshot). A Worker's first snapshot
+  inserts all of its Run's nodes at once. Migration 72 guards the rebuild with
+  `session_lexical_discovery_deferrals`; `withDeferredLexicalDiscoveryRefresh` holds a row during
+  snapshot reconciliation and rebuilds once. Any other writer still rebuilds per node. The deferral
+  row only lives inside the snapshot's transaction. The trigger list itself creates the table
+  (`CREATE TABLE IF NOT EXISTS`), because migration 50 and the baseline recreate the triggers too.
+- SQLite checkpoints inside the commit that grows the WAL past 1,000 pages: 200 to 500 ms on that
+  database, usually the snapshot commit. `runWalCheckpointBackground` (Host only) sets
+  `wal_autocheckpoint = 0` once a worker thread with its own better-sqlite3 connection (same addon,
+  so one SQLite library and its POSIX locks; never `node:sqlite` for the same file) runs PASSIVE
+  checkpoints every second. If the worker cannot start or stops, autocheckpoint goes back to 1,000.
+- better-sqlite3 is synchronous and Effect resumes fibers through microtasks, so a chain of
+  statements never lets sockets or timers run. `makeEventLoopSlicer`/`yieldToEventLoop`
+  (`src/main/utils/event-loop-slice.ts`) return to the event loop via `node:timers` `setImmediate`
+  (test fake timers do not replace it) between node writes, term-index steps and captured messages.
+  Yielding inside `sql.withTransaction` is safe: other fibers wait for the connection semaphore.
+After: the longest stretch was 36 to 116 ms with ten Workers loading the machine (load average 15),
+the longest single statement (the one discovery rebuild of a 591-term objective) 20 to 40 ms in the
+sqlite3 CLI. A fresh APFS clone (`cp -c`) of the database has a cold page cache, so the first
+measurement on a clone reads high.
+
+### Expired provider credentials, refused Title models, empty legacy files (#357, October 2026)
+
+- AWS SSO expiry ("Token is expired. To refresh this SSO session run 'aws sso login'...") ended Runs
+  with code `unknown`. `isExpiredCredentialMessage` (shared classifier) maps SSO, STS
+  `ExpiredTokenException` and OAuth sign-in expiry to `session-expired` ("Provider credentials
+  expired"), before the 401/403 rule. The AWS SDK refreshes an SSO token from its cached refresh
+  token at most once per 30 s per SSO session (`lastRefreshAttemptTimes`); a request made meanwhile
+  fails at once, so several Runs starting together all failed but one. Pi builds a new
+  `BedrockRuntimeClient` per request, so `withExpiredCredentialRetry` (installed on both Bedrock
+  stream functions in `pi-bundled-bedrock.ts`) re-sends a request that failed on expired
+  credentials before it streamed anything, once, after 2 s. Bedrock emits `start` only after
+  `client.send` returns, so a credential failure is always the first event.
+- The Title model fallback to the Session model already existed; what was missing was memory.
+  Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an
+  `AccessDeniedException` first. `TitleModelRefusals` (Host-wide, `pi-title-model-refusals.ts`)
+  pauses a refused model for background titles for 30 minutes (Regenerate still tries it) and sends
+  the sessionless Host event `session-title-model-refused` once per model; the desktop shows a toast
+  (`useTitleModelRefusalNotice`, mounted before `useSessionHostRefresh` because the lifecycle test
+  harness keeps only the last `onSessionHostEvent` handler). Clients that do not know an event kind
+  skip it past its cursor (`decideSessionHostEvent`), so new sessionless kinds are additive.
+- Log lines carry `HH:mm:ss.mmmZ`. Each entry records its time when it is logged, and the
+  buffered batch (written on the next tick) goes to the file of each line's own UTC day: stamping
+  and routing at write time put a 23:59:59.999Z line into the next day's file with the flush time.
+  Logger tests must fake `Date` while they assert; one that restored real timers first passed only
+  on the day it was written.
+- A 0-byte `openwaggle.db` (no WAL frames) is absent for restore and cutover
+  (`legacy-database-file.ts`). It blocked `recovery restore-pre-cutover`, and on a fresh install
+  the cutover tried to migrate it and failed with "no such table: _migrations". `recovery status`
+  lists leftover `openwaggle.db` and top-level `session-host.sqlite` under `legacy`.
+- Caution, not fixed: `session-host-upgrade-blockers.ts` opens the live Host database with
+  `node:sqlite` inside the Host process, which also holds it through better-sqlite3. Two SQLite
+  copies in one process do not share POSIX lock bookkeeping; closing one file descriptor drops the
+  other library's locks on that file.
 
 ## Website documentation routing
 
