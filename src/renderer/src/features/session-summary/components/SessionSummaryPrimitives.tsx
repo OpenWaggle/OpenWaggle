@@ -164,7 +164,8 @@ export function SessionSummaryLinkSection({
 }) {
   const content = (
     <>
-      <span aria-hidden="true" className="flex shrink-0">
+      {/* The leading icon belongs to the title line; only the trailing icon centres on the row. */}
+      <span aria-hidden="true" className="flex h-5 shrink-0 items-center self-start">
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
