@@ -5,6 +5,7 @@ import { attachmentOccurrenceId } from './session-resource-capture-attachment'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
 import { linkOccurrenceId } from './session-resource-capture-link'
 import {
+  collectToolOutputGroupResources,
   toolResultCompletionOccurrenceIds,
   toolResultOccurrenceId,
   toolResultOutputGroups,
@@ -38,7 +39,7 @@ export function backfillProgressOccurrenceSelectors(
     const toolImages = message.parts.flatMap((part) =>
       part.type === 'tool-result'
         ? toolResultOutputGroups(part.toolResult).flatMap(
-            (group) => collectExplicitResources(group.result).images,
+            (group) => collectToolOutputGroupResources(group).images,
           )
         : [],
     )
@@ -105,7 +106,7 @@ export function backfillCandidateOccurrenceIds(
         ...toolResultCompletionOccurrenceIds({ sessionId, nodeId, toolResult: part.toolResult }),
       )
       for (const group of groups) {
-        const links = collectExplicitResources(group.result).links
+        const links = collectToolOutputGroupResources(group).links
         for (const [localIndex, link] of links.entries()) {
           ids.push(
             linkOccurrenceId({

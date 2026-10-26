@@ -75,6 +75,8 @@ export interface UsageCostProjectRow extends UsageCostBucket {
 
 export interface UsageCostSessionRow extends UsageCostBucket {
   readonly sessionId: string | null
+  /** The Pi session's latest `/name`, else its first prompt, shortened; `null` when it has neither. */
+  readonly title: string | null
   /** Absolute session file path; the drill-down key. */
   readonly file: string
   /** Display label of the session's owning project, or `null`. */

@@ -201,7 +201,8 @@ describe('Sidebar project actions', () => {
     const { container } = render(<Sidebar />)
     const sidebarWrapper = container.firstElementChild
 
-    expect(sidebarWrapper).toHaveAttribute('aria-hidden', 'true')
+    // inert alone: aria-hidden on an ancestor of the focused Settings button warns (#356).
+    expect(sidebarWrapper).not.toHaveAttribute('aria-hidden')
     expect(sidebarWrapper).toHaveAttribute('inert')
     expect(sidebarWrapper).toHaveClass('pointer-events-none', 'w-0')
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull()
@@ -213,7 +214,8 @@ describe('Sidebar project actions', () => {
     const { container } = render(<Sidebar />)
     const sidebarWrapper = container.firstElementChild
 
-    expect(sidebarWrapper).toHaveAttribute('aria-hidden', 'true')
+    // inert alone: aria-hidden on an ancestor of the focused Settings button warns (#356).
+    expect(sidebarWrapper).not.toHaveAttribute('aria-hidden')
     expect(sidebarWrapper).toHaveAttribute('inert')
     expect(sidebarWrapper).toHaveClass('pointer-events-none', 'w-0')
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull()

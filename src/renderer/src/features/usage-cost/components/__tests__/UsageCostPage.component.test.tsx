@@ -1,5 +1,5 @@
 import type { UsageCostSessionRow, UsageCostView } from '@shared/types/usage-cost'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { UsageCostPage, type UsageCostPageState } from '../UsageCostPage'
 
@@ -69,6 +69,7 @@ const VIEW: UsageCostView = {
 const SESSIONS: readonly UsageCostSessionRow[] = [
   {
     sessionId: 'session-1',
+    title: 'Fix the flaky checkout test',
     file: '/sessions/a.jsonl',
     projectLabel: 'Alpha',
     displayCwd: '~/Projects/alpha',
@@ -104,6 +105,30 @@ function baseState(overrides: Partial<UsageCostPageState> = {}): UsageCostPageSt
 }
 
 describe('UsageCostPage', () => {
+  it('leads each Session row with its title, so the rows can be told apart', () => {
+    render(<UsageCostPage onBack={vi.fn()} state={baseState()} />)
+
+    const sessions = screen.getByRole('region', { name: 'Sessions' })
+    const row = within(sessions).getByText('Fix the flaky checkout test').closest('li')
+    expect(row).toHaveTextContent('OpenWaggle')
+    expect(row).toHaveTextContent('Alpha')
+  })
+
+  it('names an untitled Session by when it started', () => {
+    const untitled = SESSIONS.map((row) => ({ ...row, title: null }))
+    render(<UsageCostPage onBack={vi.fn()} state={baseState({ sessions: untitled })} />)
+
+    const sessions = screen.getByRole('region', { name: 'Sessions' })
+    expect(within(sessions).getByText('Untitled session')).toBeInTheDocument()
+  })
+
+  it('counts Sessions by token use, which is not spending when the spend is $0.00', () => {
+    render(<UsageCostPage onBack={vi.fn()} state={baseState()} />)
+
+    expect(screen.getByText('with token use in range')).toBeInTheDocument()
+    expect(screen.queryByText('with spending in range')).toBeNull()
+  })
+
   it('renders summary cards, the daily chart, and both breakdowns', () => {
     render(<UsageCostPage onBack={vi.fn()} state={baseState()} />)
 

@@ -4,6 +4,8 @@ import {
   type CapturedLink,
   type CapturedResourceOrder,
   type CapturedSite,
+  LOCAL_FILE_MARKDOWN_IMAGES,
+  type MarkdownImageOrigin,
   SESSION_RESOURCE_EXTRACTION_LIMITS,
 } from './session-resource-extraction-types'
 import { collectMarkdownResources } from './session-resource-markdown-extraction'
@@ -15,6 +17,7 @@ export {
   type CapturedLocalImage,
   type CapturedResourceOrder,
   type CapturedSite,
+  type MarkdownImageOrigin,
   SESSION_RESOURCE_EXTRACTION_LIMITS,
 } from './session-resource-extraction-types'
 
@@ -155,7 +158,14 @@ function enqueueRecord(
   return scheduled + children.length
 }
 
-export function collectExplicitResources(value: unknown) {
+/**
+ * Every explicit image, link and site in a message part or tool result. `imageOrigin` says what a
+ * Markdown image path in its text names; see {@link MarkdownImageOrigin}.
+ */
+export function collectExplicitResources(
+  value: unknown,
+  imageOrigin: MarkdownImageOrigin = LOCAL_FILE_MARKDOWN_IMAGES,
+) {
   const images: CapturedImage[] = []
   const links: CapturedLink[] = []
   const sites: CapturedSite[] = []
@@ -169,7 +179,9 @@ export function collectExplicitResources(value: unknown) {
     const candidate = pending.pop()
     if (typeof candidate === 'string') {
       const consumed = Math.min(candidate.length, remainingTextCharacters)
-      if (consumed > 0) collectMarkdownResources(candidate.slice(0, consumed), images, links, order)
+      if (consumed > 0) {
+        collectMarkdownResources(candidate.slice(0, consumed), images, links, order, imageOrigin)
+      }
       remainingTextCharacters -= consumed
       continue
     }

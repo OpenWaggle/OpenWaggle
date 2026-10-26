@@ -80,17 +80,18 @@ describe('SessionResourcesPanel source actions', () => {
     expect(useUIStore.getState().resourceViewer).toBeNull()
   })
 
-  it('opens and retries the original path for an unavailable attachment', async () => {
+  it('offers no Open or Reveal for an unavailable attachment, only Retry', async () => {
     apiMocks.list.mockResolvedValue([
       imageResource('missing-image', 'missing.png', '/input/missing.png', false),
     ])
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
 
-    fireEvent.click(await screen.findByText('missing.png'))
-
-    await waitFor(() => expect(apiMocks.openPath).toHaveBeenCalledWith('/input/missing.png'))
-    expect(useUIStore.getState().resourceViewer).toBeNull()
-    expect(screen.getByText('Unavailable · Open original')).toBeInTheDocument()
+    const resourceRow = (await screen.findByText('missing.png')).closest('button')
+    expect(resourceRow).toBeDisabled()
+    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open original missing.png' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reveal original missing.png' })).toBeNull()
+    expect(apiMocks.openPath).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry missing.png' }))
     await waitFor(() =>
@@ -141,6 +142,73 @@ describe('SessionResourcesPanel source actions', () => {
     const resourceRow = (await screen.findByText('invalid-generated.png')).closest('button')
     expect(resourceRow).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Retry invalid-generated.png' })).toBeNull()
+  })
+
+  it('never offers Open for an unavailable image whose occurrence names a website path', async () => {
+    apiMocks.list.mockResolvedValue([
+      {
+        ...imageResource(
+          'docs-image',
+          'A Queen Session in the sidebar',
+          '',
+          false,
+          false,
+          'unavailable-image:session-one:node-one:0',
+        ),
+        locator: null,
+        isSource: false,
+        isOutput: true,
+        occurrences: [
+          {
+            id: 'docs-occurrence',
+            nodeId: 'node-one',
+            branchId: null,
+            actor: 'tool',
+            activity: 'created',
+            label: 'openwaggle_docs',
+            locator: '/screenshots/hive-sessions.png',
+            createdAt: 1,
+          },
+        ],
+      },
+    ])
+    renderWithQueryClient(
+      <SessionResourcesPanel
+        sessionId="session-one"
+        target={{ view: 'outputs' }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const resourceRow = (await screen.findByText('A Queen Session in the sidebar')).closest(
+      'button',
+    )
+    expect(resourceRow).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /^Open original/u })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Reveal original/u })).toBeNull()
+    fireEvent.click(screen.getByText('A Queen Session in the sidebar'))
+    expect(apiMocks.openPath).not.toHaveBeenCalled()
+  })
+
+  it('shows the reason for a failed Open without the IPC transport prefix', async () => {
+    apiMocks.list.mockResolvedValue([
+      imageResource('managed-local', 'managed-local.png', '/input/managed-local.png', true, true),
+    ])
+    apiMocks.openPath.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'shell:open-path': Error: managed-local.png isn't there anymore. It may have been moved or deleted.",
+      ),
+    )
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open original managed-local.png' }))
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toMatchObject({
+        message: "managed-local.png isn't there anymore. It may have been moved or deleted.",
+        variant: 'error',
+      }),
+    )
   })
 
   it('opens an available local file from its primary row and reports failures', async () => {

@@ -3,6 +3,7 @@ import { act, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { useSessionHiveInvalidation } from '@/features/session-summary'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 import { HivePanel } from '../HivePanel'
 
 const { listHiveTreeSessionCatalogPage, onSessionHostEvent, onSessionHostResyncRequired } =
@@ -40,6 +41,8 @@ function Harness() {
 }
 
 beforeEach(() => {
+  // These cover the By state view; the tree view has its own tests.
+  useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
   listHiveTreeSessionCatalogPage.mockReset()
   onSessionHostEvent.mockReset().mockReturnValue(vi.fn())
   onSessionHostResyncRequired.mockReset().mockReturnValue(vi.fn())

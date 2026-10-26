@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { trackBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import {
   isWorkspaceOwnerHandoffPending,
   subscribeWorkspaceOwnerHandoff,
@@ -34,7 +35,7 @@ const activePresentations = new Map<string, symbol>()
 function reportExternalFallbackFailure(options: NativeViewOptions, error: unknown) {
   options.onError(
     error instanceof Error
-      ? `Preview and system browser failed: ${error.message}`
+      ? `Preview and system browser failed: ${ipcFailureMessage(error, 'no reason was given.')}`
       : 'Preview and system browser could not open the link.',
   )
 }
