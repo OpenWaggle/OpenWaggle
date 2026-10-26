@@ -8,6 +8,8 @@ interface Props {
   ogImageAlt?: string;
   type?: 'website' | 'article';
   noIndex?: boolean;
+  /** False for a page with no URL of its own, such as the 404 page served at any missing path. */
+  canonical?: boolean;
   jsonLd?: readonly JsonLd[];
 }
 
@@ -17,6 +19,7 @@ const {
   ogImage = DEFAULT_OG_IMAGE,
   type = 'website',
   noIndex = false,
+  canonical = true,
   jsonLd = [],
 } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -32,7 +35,7 @@ const ogImageAlt = Astro.props.ogImageAlt ?? (isDefaultImage ? DEFAULT_OG_IMAGE_
 
 <title>{title}</title>
 <meta name="description" content={description} />
-<link rel="canonical" href={canonicalURL} />
+{canonical && <link rel="canonical" href={canonicalURL} />}
 <meta name="theme-color" content="#141619" />
 <meta name="robots" content={noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large, max-snippet:-1'} />
 <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
@@ -48,7 +51,7 @@ const ogImageAlt = Astro.props.ogImageAlt ?? (isDefaultImage ? DEFAULT_OG_IMAGE_
 
 <!-- Open Graph -->
 <meta property="og:type" content={type} />
-<meta property="og:url" content={canonicalURL} />
+{canonical && <meta property="og:url" content={canonicalURL} />}
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
 <meta property="og:image" content={ogImageURL} />

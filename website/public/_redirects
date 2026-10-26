@@ -1,3 +1,6 @@
 /docs /docs/getting-started/first-run/ 301
 /docs/developer-workflow/sessions-cli /docs/developer-workflow/hive-cli/ 301
 /docs/developer-workflow/sessions-cli/ /docs/developer-workflow/hive-cli/ 301
+# `curl -fsSL https://openwaggle.ai/install.sh | bash` must get the script, never the site's HTML.
+# 302, not 301, so caches keep no permanent answer if the installer's home changes.
+/install.sh https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh 302
