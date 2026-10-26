@@ -4,6 +4,7 @@ import { UPDATER_TIMING } from '@shared/constants/time'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
+import type { UpdateFeedSelection } from './update-feed'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 import * as install from './update-install-tracker'
 import { getUpdateStatus, setUpdateStatus as setStatus } from './update-status'
@@ -39,9 +40,7 @@ function configureUpdateChannel(channel: UpdateChannel) {
 }
 
 function logUpdateCheckError(error: unknown) {
-  logger.error('Update check failed', {
-    message: error instanceof Error ? error.message : String(error),
-  })
+  logger.error('Update check failed', { message: updateCheckErrorMessage(error) })
 }
 
 function updateCheckErrorMessage(error: unknown) {
@@ -62,7 +61,8 @@ async function waitForDownload(downloadPromise: Promise<unknown> | null | undefi
   }
 }
 
-async function runUpdaterCheck(generation: number) {
+async function runUpdaterCheck(generation: number, selection?: UpdateFeedSelection) {
+  if (selection?.type === 'no-release') return setStatus({ type: 'not-available' })
   const result = await autoUpdater.checkForUpdates()
   if (!result?.isUpdateAvailable) return
   if (generation !== checkGeneration) {
@@ -88,10 +88,10 @@ function startUpdaterCheck(channel: UpdateChannel, generation: number) {
   try {
     const configured = configureUpdaterFeed(autoUpdater, channel)
     operation = configured
-      ? configured.then(() => {
+      ? configured.then((selection) => {
           if (generation !== checkGeneration) return
           acceptUpdaterEvents = true
-          return runUpdaterCheck(generation)
+          return runUpdaterCheck(generation, selection)
         })
       : (() => {
           acceptUpdaterEvents = true

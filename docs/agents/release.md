@@ -19,7 +19,13 @@ The desktop app, `openwaggle update`, and `scripts/install.sh` use the same chan
 - Alpha accepts Alpha, Beta, RC, and Stable releases.
 - Channel changes never authorize an automatic downgrade.
 - `--version` and `OPENWAGGLE_RELEASE_TAG` are exact, one-time selections and do not change the
-persisted channel.
+persisted channel. `openwaggle update --version` refuses a version older than the installed one
+(exit 2); downgrades are unsupported.
+- `openwaggle update --check` is read-only: with `--channel` it checks that channel without saving it.
+- With no Stable release yet, `install.sh` defaults to Beta, never Alpha, and a Stable check reports
+  "up to date", not an error.
+- A release counts only once it has the platform's channel metadata asset (for example
+  `beta-mac.yml`), so a check during the asset upload falls back to the previous release.
 
 The shell installer writes the selected automatic channel into the canonical released-app
 user-data directory. The authoritative Session Host consumes that one-time intent before serving
