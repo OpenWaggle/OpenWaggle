@@ -82,6 +82,36 @@ describe('one not-found answer and scoped Delegation filters (#351)', () => {
     await expect(run(delegationsList({ parentSessionId: 'queen-a' }))).resolves.toBe('authorized')
   })
 
+  it('refuses list --parent outside the scope, like delegations-list (#352)', async () => {
+    // Built as a value, so it compiles before and after the list query declares the field.
+    const listQuery = { operation: 'list' as const, limit: 10, parentSessionId: 'queen-b' }
+    const list = (query: typeof listQuery) =>
+      ({
+        contract: 'session-query-v2',
+        request: { contractVersion: 2, requestId: 'list', query },
+      }) as const
+    const discoverCaller = {
+      ...scopedCaller,
+      profileAuthority: {
+        ...scopedCaller.profileAuthority,
+        capabilities: ['sessions:discover' as const],
+      },
+    }
+    const runList = (query: typeof listQuery) =>
+      Effect.runPromise(
+        authorizeLocalSessionCommand({ caller: discoverCaller, payload: list(query) }).pipe(
+          Effect.as('authorized' as const),
+          Effect.catchAll((error) => Effect.succeed(error)),
+          Effect.provide(layer),
+        ),
+      )
+
+    await expect(runList(listQuery)).resolves.toEqual(
+      new LocalSessionCommandAuthorizationError({ code: 'target_scope_denied' }),
+    )
+    await expect(runList({ ...listQuery, parentSessionId: 'queen-a' })).resolves.toBe('authorized')
+  })
+
   it('answers an unknown Session with session_not_found for every contract', async () => {
     await expect(run(delegationsList({ parentSessionId: 'session-unknown' }))).resolves.toEqual({
       contract: 'session-query-v2',
