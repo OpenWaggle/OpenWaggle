@@ -1,3 +1,4 @@
+import type { DragEvent } from 'react'
 import type { QueuedMessageAnchor } from '../lib/queued-message-order'
 import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 
@@ -8,13 +9,13 @@ export interface QueuedMessageRowActions {
   readonly onAdopt: (followUpId: string) => void
   readonly onEdit: (followUpId: string) => void
   readonly onMove: (followUpId: string, anchor: QueuedMessageAnchor) => void
-  /** Drag bookkeeping lives outside React state: re-rendering mid-gesture cancels the drag. */
-  readonly onDragStart: (followUpId: string) => void
+  /**
+   * Starts dragging `followUpId` from its grip: the whole row becomes the drag image and stays in
+   * place as a placeholder. Drag bookkeeping lives outside React state: re-rendering mid-gesture
+   * cancels the drag. The list, not the row, handles where the message is dropped.
+   */
+  readonly onDragStart: (followUpId: string, event: DragEvent<HTMLElement>) => void
   readonly onDragEnd: () => void
-  /** Where the dragged message would land relative to `followUpId`, or null for no drop. */
-  readonly dropAnchor: (followUpId: string) => QueuedMessageAnchor | null
-  /** Drops the dragged message onto `followUpId`'s row. */
-  readonly onDropOn: (followUpId: string) => void
 }
 
 export interface QueuedMessageRowEditState {
