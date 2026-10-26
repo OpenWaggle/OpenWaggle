@@ -46,4 +46,14 @@ The beta.25 QA found one Delegation state under five names and "Done" under thre
 - The State cell shows the Delegation state's full label (Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, Cancelled) instead of a short form such as "You".
 - A Queen's sidebar line says `1 needs attention`, matching the group and the rail tooltip.
 - Each count names its scope: the panel header counts the whole Hive (`12 Workers in this Hive`), and the Session Hub's Hive row counts direct Workers by group (`3 direct Workers · 3 ready for review`). The sidebar's Worker count stays the direct count, named in its tooltip.
-- A title takes up to two lines and `via ⟨parent⟩` is its own line under it, so neither a long title nor a shared title start hides which Worker a row is. The State cell wraps its longer labels.
+- A title takes up to two lines and `via ⟨parent⟩` is its own line under it (superseded by the next amendment: `Spawned by ⟨parent⟩`), so neither a long title nor a shared title start hides which Worker a row is. The State cell wraps its longer labels.
+
+## Amendment: a tree by default (#377, 1.0.0-rc.1)
+
+The rc.1 QA found that `via ⟨parent⟩` did not show a Hive's shape: a Worker's own Workers read as unrelated rows, and a parent on a later page left its children labelled with a title the panel could not show. This amends the decision above that Workers "are labelled `via ⟨parent⟩` rather than indented". The panel still lists the whole Hive from its Queen, the groups and state names of the first amendment are unchanged, and each row keeps its own State cell.
+
+- **The default view is a tree.** Each Worker sits under the Session that spawned it, indented with a connector; siblings are ordered by creation time. A parent has a disclosure and `n Workers`. Rows start expanded and a collapse is remembered per Session; a collapsed parent shows a dot and a roll-up of its live descendants that need attention or are ready for review. Indentation stops at four levels, and deeper rows carry a depth badge (`L5`).
+- **Archived Workers are hidden from the tree** and counted on their parent (`n archived`). **Show archived** brings them back in place, dimmed. An archived Worker with live children is always shown, so no live Worker loses its parent.
+- **By state** keeps the grouped view of the first amendment. Its rows name their parent as `Spawned by ⟨parent⟩`, a link that moves focus to the parent's row. That replaces `via ⟨parent⟩` everywhere: the sidebar's Pinned Worker line and tooltip and the Session Summary's Hive row say **Spawned by** too.
+- **The tree is a WAI-ARIA tree**: a flat `treeitem` list with level, position and expanded state, one row in the tab order, arrow keys to move, expand and collapse, Home and End, Enter to open.
+- **Paging stays as it is.** A Worker whose parent is on a page not loaded yet sits at the top level as `Spawned by ⟨parent⟩ (not loaded)` and moves under its parent when that page loads.

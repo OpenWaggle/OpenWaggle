@@ -90,6 +90,12 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
         {/* The counts get a line of their own under the name, so they wrap instead of crowding. */}
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-sm font-medium text-text-primary">Hive</span>
+          {/* A Worker names its parent in the words every Hive surface uses (#377). */}
+          {model.lineage.role === 'worker' && model.lineage.parentTitle ? (
+            <span className="truncate text-xs text-text-tertiary">
+              Spawned by {model.lineage.parentTitle}
+            </span>
+          ) : null}
           {model.directCount > 0 ? <HiveSummaryCounts model={model} /> : null}
         </span>
         {/* Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them. */}

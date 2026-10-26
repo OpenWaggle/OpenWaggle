@@ -6,6 +6,7 @@ import { registerSidebarSessionActions } from '@/features/sidebar/lib'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
 const unarchiveSession = vi.hoisted(() => vi.fn())
@@ -28,6 +29,8 @@ import { hivePage, sessionActionsStub, summary, workerLineage } from './hive-pan
 
 describe('HivePanel archived group', () => {
   beforeEach(() => {
+    // These cover the By state view; the tree view has its own tests.
+    useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
     listHiveTreeSessionCatalogPage.mockReset().mockResolvedValue(hivePage([]))
     unarchiveSession.mockReset()
     useNavigate.mockReset().mockResolvedValue(undefined)

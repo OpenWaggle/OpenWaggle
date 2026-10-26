@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSidebarSessionActions } from '@/features/sidebar/lib'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
 type NavigateOptions = {
@@ -30,6 +31,8 @@ import {
 
 describe('HivePanel', () => {
   beforeEach(() => {
+    // These cover the By state view; the tree view has its own tests.
+    useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
     listHiveTreeSessionCatalogPage.mockReset().mockResolvedValue(hivePage([]))
     useNavigate.mockReset().mockResolvedValue(undefined)
     registerSidebarSessionActions(null)
@@ -68,7 +71,7 @@ describe('HivePanel', () => {
     const current = screen.getByRole('button', { name: /Open Worker Session: active/ })
     expect(current).toHaveAttribute('aria-current', 'true')
     expect(current).toHaveAccessibleName(
-      'Open Worker Session: active, state Working, workspace Checkout',
+      'Open Worker Session: active, spawned by queen, state Working, workspace Checkout',
     )
     expect(screen.getByRole('group', { name: 'Needs attention Hive sessions' })).toHaveTextContent(
       'needs-you',
@@ -117,7 +120,7 @@ describe('HivePanel', () => {
     registerSidebarSessionActions(null)
   })
 
-  it('labels deeper members via their parent and navigates with the panel kept', async () => {
+  it('names deeper members’ parents and navigates with the panel kept', async () => {
     listHiveTreeSessionCatalogPage.mockResolvedValue(
       hivePage([
         summary('deep', {
@@ -132,9 +135,11 @@ describe('HivePanel', () => {
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
     const row = await screen.findByRole('button', { name: /Open Worker Session: deep/ })
-    // Depth is its own visible line, so a long title cannot truncate it away (#356).
+    // The parent is named beside the row, never truncated with the title (#356, #377); this one
+    // is on a page not read yet, so it is not a link.
     expect(within(row).getByText('deep')).toHaveClass('line-clamp-2')
-    expect(within(row).getByText('via Mid worker')).not.toBe(within(row).getByText('deep'))
+    expect(row).toHaveAccessibleName(/^Open Worker Session: deep, spawned by Mid worker,/u)
+    expect(screen.getByText('Spawned by Mid worker (not loaded)')).toBeInTheDocument()
     fireEvent.click(row)
     expect(useNavigate).toHaveBeenCalled()
     expect(useNavigate.mock.calls[0]?.[0]?.search({ panel: 'diff' })).toMatchObject({

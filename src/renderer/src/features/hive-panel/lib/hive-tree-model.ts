@@ -6,16 +6,25 @@ import {
   hiveDelegationGroup,
   hiveStateNeedsAttention,
 } from '@/queries/session-hive-contract'
+import { buildHiveLineageIndex, type HiveLineageEntry } from './hive-lineage-index'
 
-/**
- * One row of the Hive panel, derived without hooks so grouping stays a pure function.
- *
- * `via` is the Worker's parent title for members below the first level: the panel lists the
- * whole Hive flat, and ADR 0051 labels depth with text rather than indentation.
- */
+/** The parent a Hive panel row names: "Spawned by ‹title›" (#377). */
+export interface HiveRowParent {
+  readonly id: string
+  readonly title: string
+  /** False while the parent's page has not arrived. */
+  readonly loaded: boolean
+  /** The parent is the Queen, whose row is always on top. */
+  readonly isQueen: boolean
+  /** Titles from the Queen down to the parent, for the row's tooltip. */
+  readonly ancestry: readonly string[]
+}
+
+/** One row of the Hive panel's By state view, derived without hooks so grouping stays pure. */
 export interface HiveTreeRow {
   readonly session: HiveSession
-  readonly via: string | null
+  /** null for the Queen, and while the Queen is unreadable (depth is then unknown). */
+  readonly parent: HiveRowParent | null
 }
 
 export interface HiveTreeGroups {
@@ -33,14 +42,25 @@ export interface HiveTreeModel {
   readonly memberCount: number
 }
 
-function rowFor(session: HiveSession, rootId: string | null): HiveTreeRow {
-  const parentId = session.lineage?.parentSessionId
-  const parentTitle = session.lineage?.parentTitle
-  const via =
-    rootId !== null && parentId != null && String(parentId) !== rootId
-      ? (parentTitle ?? null)
-      : null
-  return { session, via }
+function rowFor(
+  session: HiveSession,
+  rootId: string | null,
+  lineage: ReadonlyMap<string, HiveLineageEntry>,
+): HiveTreeRow {
+  const entry = lineage.get(String(session.id))
+  if (rootId === null || entry === undefined || entry.parentId === null) {
+    return { session, parent: null }
+  }
+  return {
+    session,
+    parent: {
+      id: entry.parentId,
+      title: entry.parentTitle ?? '…',
+      loaded: entry.parentLoaded,
+      isQueen: entry.parentId === rootId,
+      ancestry: entry.ancestry,
+    },
+  }
 }
 
 /**
@@ -55,6 +75,7 @@ export function buildHiveTreeModel(input: {
   readonly currentSessionId: string | null
 }): HiveTreeModel {
   const rootId = input.root === null ? null : String(input.root.id)
+  const lineage = buildHiveLineageIndex({ root: input.root, members: input.members })
   const groups: Record<HiveDelegationGroup, HiveTreeRow[]> = {
     'needs-attention': [],
     'ready-for-review': [],
@@ -63,7 +84,7 @@ export function buildHiveTreeModel(input: {
   }
   const archived: HiveTreeRow[] = []
   for (const member of input.members) {
-    const row = rowFor(member, rootId)
+    const row = rowFor(member, rootId, lineage)
     if (member.archived === true) archived.push(row)
     else groups[hiveDelegationGroup(member.lineage?.delegationState)].push(row)
   }

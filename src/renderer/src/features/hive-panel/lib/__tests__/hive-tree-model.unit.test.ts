@@ -62,7 +62,7 @@ describe('buildHiveTreeModel', () => {
     expect(model.memberCount).toBe(9)
   })
 
-  it('labels members below the first level via their parent, direct Workers not', () => {
+  it('names each member’s parent, and which ones are direct Workers of the Queen', () => {
     const deepChild: HiveSession = {
       ...member('deep', 'working'),
       lineage: {
@@ -79,16 +79,20 @@ describe('buildHiveTreeModel', () => {
       currentSessionId: null,
     })
 
-    expect(model.groups.active.map((row) => row.via)).toEqual([null, 'Mid worker'])
+    expect(model.groups.active.map((row) => [row.parent?.title, row.parent?.isQueen])).toEqual([
+      ['root', true],
+      ['Mid worker', false],
+    ])
+    expect(model.groups.active[1]?.parent).toMatchObject({ id: 'mid', loaded: false })
   })
 
-  it('labels no row via its parent when the Queen is unreadable, because depth is unknown', () => {
+  it('names no parent when the Queen is unreadable, because depth is unknown', () => {
     const model = buildHiveTreeModel({
       root: null,
       members: [member('direct', 'working', { parentTitle: 'root' })],
       currentSessionId: null,
     })
-    expect(model.groups.active[0]?.via).toBeNull()
+    expect(model.groups.active[0]?.parent).toBeNull()
   })
 })
 
