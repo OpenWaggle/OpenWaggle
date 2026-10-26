@@ -279,7 +279,10 @@ describe('ChatTranscript Session states', () => {
   it('keeps a hidden scroll-to-bottom control out of input and the accessibility tree', () => {
     render(<ChatTranscript section={createSection(rowsOf(5))} />)
 
-    // It used to stay clickable while invisible, over the bottom of the transcript.
-    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).not.toBeInTheDocument()
+    // It used to stay clickable while invisible, over the bottom of the transcript. `inert` keeps
+    // it out of input and the accessibility tree; jsdom does not apply inert, so check for it.
+    const control = screen.getByRole('button', { name: 'Scroll to bottom' })
+    expect(control.closest('[inert]')).not.toBeNull()
+    expect(control.closest('[aria-hidden="true"]')).toBeNull()
   })
 })
