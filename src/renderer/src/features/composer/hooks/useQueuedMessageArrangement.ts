@@ -84,10 +84,12 @@ export function useQueuedMessageArrangement(
   }, [renderedOrder])
 
   // A dragged message that leaves the queue mid-drag (delivered, withdrawn elsewhere) takes its
-  // grip with it, and Chromium's dragend on a detached node never reaches React: end the drag here.
+  // grip with it, and so does a queue left with one message (no grips, nowhere to drop). Chromium's
+  // dragend on a detached node never reaches React, so the drag ends here.
   useLayoutEffect(() => {
     const draggedId = draggedIdRef.current
-    if (!draggedId || renderedOrder.split('\n').includes(draggedId)) return
+    const rendered = renderedOrder.split('\n')
+    if (!draggedId || (rendered.length > 1 && rendered.includes(draggedId))) return
     draggedIdRef.current = null
     dropRef.current = null
     clearDragFeedback(listRef.current)

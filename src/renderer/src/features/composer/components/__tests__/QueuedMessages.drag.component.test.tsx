@@ -269,6 +269,22 @@ describe('QueuedMessages drag feedback', () => {
       expect(queueMock.reorder).not.toHaveBeenCalled()
     })
 
+    it('ends the drag when the queue is left with only the dragged message', () => {
+      const { rerender } = renderDock()
+      const dataTransfer = makeDataTransfer()
+
+      fireDrag('dragStart', grip('first'), dataTransfer)
+      fireDrag('dragOver', rowFor('third'), dataTransfer)
+      // The others were delivered: a lone message has no grip, so its dragend never reaches React.
+      queueMock.snapshot = snapshotOf([queueItem({ id: 'a', text: 'first' })], 5)
+      rerender(
+        <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={vi.fn()} />,
+      )
+
+      expect(rowFor('first')).not.toHaveAttribute('data-drag-source')
+      expect(dropTargets()).toEqual([])
+    })
+
     it('does not reuse a cancelled drag for a later drop', () => {
       renderDock()
       const dataTransfer = makeDataTransfer()
