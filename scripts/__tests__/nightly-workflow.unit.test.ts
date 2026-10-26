@@ -84,4 +84,17 @@ describe('nightly packaged canary workflow', () => {
     expect(job).toContain('run: pnpm test:unit')
     expect(job).toContain('runs-on: ubuntu-latest')
   })
+
+  it('pins the west-of-UTC job to the same action versions as the packaged canary', () => {
+    const start = WORKFLOW.indexOf('  unit-west-of-utc:')
+    const canary = WORKFLOW.indexOf('  packaged-canary:')
+    const pins = (text: string) =>
+      [...text.matchAll(/uses:\s*([\w-]+\/[\w-]+)@([0-9a-f]{40})/gu)]
+        .map((match) => `${match[1]}@${match[2]}`)
+        .sort()
+    const westPins = pins(WORKFLOW.slice(start, canary))
+    const canaryPins = new Set(pins(WORKFLOW.slice(canary)))
+    expect(westPins.length).toBeGreaterThan(0)
+    for (const pin of westPins) expect(canaryPins).toContain(pin)
+  })
 })
