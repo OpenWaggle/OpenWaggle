@@ -59,3 +59,7 @@ The rc.1 QA found that `via ⟨parent⟩` did not show a Hive's shape: a Worker'
 - **By state** keeps the grouped view of the first amendment. Its rows name their parent as `Spawned by ⟨parent⟩`, a link that moves focus to the parent's row. That replaces `via ⟨parent⟩` everywhere: the sidebar's Pinned Worker line and tooltip and the Session Summary's Hive row say **Spawned by** too.
 - **The tree is a WAI-ARIA tree**: a flat `treeitem` list with level, position and expanded state, one row in the tab order, arrow keys to move, expand and collapse, Home and End, Enter to open.
 - **Paging stays as it is.** A Worker whose parent is on a page not loaded yet sits at the top level as `Spawned by ⟨parent⟩ (not loaded)` and moves under its parent when that page loads.
+
+## Amendment: the Hub's Hive row is one control (#382, 1.0.0-rc.1)
+
+The **Open in Hive panel** text button at the end of the Session Hub's Hive row was the row's only clickable part, and it wrapped badly in a narrow Summary. The whole row is now one button that opens the Hive panel, with a trailing panel icon (tooltip "Open Hive panel") in place of the text, and an accessible name that repeats the row's counts. The row still only summarizes, and a historical Hive's row, which the panel can't list, stays non-interactive.
