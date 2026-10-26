@@ -110,6 +110,26 @@ describe('HiveSummarySection', () => {
     await waitFor(() => expect(region).toHaveTextContent('60 direct Workers · 1+ closed'))
   })
 
+  it('names the Session that spawned a Worker, in the Hive panel’s words', async () => {
+    const current = worker('working')
+    getSessionHiveRelations.mockResolvedValue(
+      hiveRelations({
+        ...current,
+        lineage: {
+          role: 'worker',
+          parentSessionId: SessionId('queen'),
+          parentTitle: 'Queen session',
+          directWorkerCount: 0,
+          activeDirectWorkerCount: 0,
+          delegationState: 'working',
+        },
+      }),
+    )
+    renderHive('worker')
+
+    expect(await screen.findByText('Spawned by Queen session')).toBeInTheDocument()
+  })
+
   it('does not offer the Hive panel for a historical Hive it cannot list', async () => {
     getSessionHiveRelations.mockResolvedValue(
       hiveRelations({

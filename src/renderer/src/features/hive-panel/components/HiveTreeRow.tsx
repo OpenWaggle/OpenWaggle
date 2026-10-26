@@ -1,98 +1,28 @@
-import { SessionId } from '@shared/types/brand'
-import { IDLE_ROW_COLOR_VAR } from '@shared/types/session-status'
-import { ChessQueen, Pickaxe } from 'lucide-react'
-import { useState } from 'react'
 import { SessionTitleInput, useSessionTitleRename } from '@/features/session-title'
-import { useSessionStore } from '@/features/sessions/state'
-import { SessionItemContextMenu } from '@/features/sidebar/components'
-import { usePinnedSessionsStore } from '@/features/sidebar/state'
-import { useUnarchiveSessionMutation } from '@/queries/archived-sessions'
-import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
-import { useUIStore } from '@/shell/ui-store'
-import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
-import { useHiveSessionState } from '../hooks/useHiveSessionState'
-import type { HiveTreeRow } from '../lib/hive-tree-model'
+import type { HiveRowParent, HiveTreeRow } from '../lib/hive-tree-model'
+import {
+  HIVE_ROW_CLASS,
+  HIVE_ROW_GRID_STYLE,
+  HivePinnedBadge,
+  HiveRowGlyphs,
+  HiveRowMenu,
+  HiveRowTitle,
+  HiveStateCell,
+  HiveWorkspaceCell,
+  hiveRowAccessibleName,
+  useHiveRowView,
+  useRowMenu,
+} from './HiveRowParts'
 
+export { HIVE_ROW_GRID_STYLE } from './HiveRowParts'
+
+/** The attribute the By state view finds a row by, to select a row's parent (#377). */
+export const HIVE_ROW_ID_ATTRIBUTE = 'data-hive-row'
 /**
- * The Hive rows are a three-column table (ADR 0051 review): Session, Workspace, State — with one
- * column header over the whole list, so the trailing cells read as columns rather than stray
- * words. The header and every row share this grid; the Session column takes the rest. Inline
- * rather than Tailwind classes because the dev Tailwind source snapshot only regenerates on a
- * dev-server restart, and the columns must be tunable without one.
- */
-/*
- * Rows reserve a right gutter (`pr-9`) for the ⋯ actions button, and the column header reserves the
- * same, so the right-aligned State column never runs under the button and nothing shifts when the
- * button appears on hover.
- */
-export const HIVE_ROW_GRID_STYLE = {
-  display: 'grid',
-  // The State cell shows the Delegation state's full label (#356) and wraps the longer ones.
-  gridTemplateColumns: 'minmax(0, 1fr) 72px 80px',
-  columnGap: '8px',
-} as const satisfies React.CSSProperties
-
-/** The row's ⋯ menu state and openers. */
-function useRowMenu() {
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ x: 0, y: 0 })
-  return {
-    open,
-    pos,
-    close: () => setOpen(false),
-    openAtPointer(event: React.MouseEvent) {
-      event.preventDefault()
-      setPos({ x: event.clientX, y: event.clientY })
-      setOpen(true)
-    },
-    openUnderButton(event: React.MouseEvent<HTMLButtonElement>) {
-      event.stopPropagation()
-      const rect = event.currentTarget.getBoundingClientRect()
-      setPos({ x: rect.left, y: rect.bottom })
-      setOpen(true)
-    },
-  }
-}
-
-const ROW_CLASS =
-  'min-h-9 w-full items-center rounded-md py-1.5 pr-9 pl-2 text-left transition-colors group-hover:bg-bg-hover'
-
-/** Everything a Hive row shows, from its Session and the live stores it subscribes to. */
-function useHiveRowView(row: HiveTreeRow, isRoot: boolean) {
-  const session = row.session
-  const sessionId = SessionId(String(session.id))
-  const { statusColor, state } = useHiveSessionState(session)
-  const isPinned = usePinnedSessionsStore((store) =>
-    store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
-  )
-  return {
-    session,
-    sessionId,
-    via: row.via,
-    isPinned,
-    statusColor: statusColor ?? IDLE_ROW_COLOR_VAR,
-    state,
-    role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
-    // projectName takes the last segment of either separator, so Windows paths shorten too.
-    workspace: session.worktreePath ? projectName(session.worktreePath) : 'Checkout',
-  }
-}
-
-type HiveRowView = ReturnType<typeof useHiveRowView>
-
-/**
- * The row's accessible name. It carries every cell, because a name set on the row replaces its
- * content for assistive technology: without the state and Workspace here, they would be silent.
- */
-function hiveRowAccessibleName(view: HiveRowView) {
-  const via = view.via === null ? '' : `, via ${view.via}`
-  const pinned = view.isPinned ? ', pinned' : ''
-  return `Open ${view.role.label} Session: ${view.session.title}${via}${pinned}, state ${view.state.label}, workspace ${view.workspace}`
-}
-
-/**
- * One Hive panel row: state, Workspace placement, and the sidebar's own ⋯ menu (ADR 0051).
+ * One row of the Hive panel's By state view: state, Workspace placement, and the sidebar's own ⋯
+ * menu (ADR 0051). A row below the first level names its parent as a link that selects the
+ * parent's row, and its tooltip shows the whole chain from the Queen (#377).
  *
  * The menu is the same `SessionItemContextMenu` the sidebar renders, registered by the Sidebar,
  * so every action behaves identically in both places. Rename edits the title in place, as in the
@@ -103,23 +33,29 @@ export function HiveTreeListItem({
   row,
   isCurrent,
   onOpen,
+  onSelectParent,
   isRoot = false,
 }: {
   readonly row: HiveTreeRow
   readonly isCurrent: boolean
   readonly onOpen: () => void
+  readonly onSelectParent?: (parentId: string) => void
   /** The hive root is the Queen even when it has no lineage row of its own (ADR 0030). */
   readonly isRoot?: boolean
 }) {
-  const view = useHiveRowView(row, isRoot)
+  const view = useHiveRowView(row.session, isRoot)
   const menu = useRowMenu()
   const rename = useSessionTitleRename(view.sessionId, view.session.title)
+  const parent = row.parent
+  // The whole chain from the Queen, this row included: `Queen › Worker › Worker`.
+  const ancestry =
+    parent === null ? undefined : [...parent.ancestry, view.session.title].join(' › ')
 
   return (
     <div className="group relative">
       {rename.isEditing ? (
         // An input cannot live inside the row's button, so the editing row is a plain grid.
-        <div className={ROW_CLASS} style={HIVE_ROW_GRID_STYLE}>
+        <div className={HIVE_ROW_CLASS} style={HIVE_ROW_GRID_STYLE}>
           <span className="flex min-w-0 items-center">
             <SessionTitleInput rename={rename} className="text-sm" />
           </span>
@@ -131,147 +67,59 @@ export function HiveTreeListItem({
           ref={rename.returnFocusRef}
           type="button"
           variant="unstyled"
-          className={ROW_CLASS}
+          className={HIVE_ROW_CLASS}
           style={HIVE_ROW_GRID_STYLE}
+          data-hive-row={String(view.session.id)}
+          title={ancestry}
           aria-current={isCurrent ? 'true' : undefined}
-          aria-label={hiveRowAccessibleName(view)}
+          aria-label={hiveRowAccessibleName(view, parent?.title ?? null)}
           onClick={onOpen}
           onContextMenu={menu.openAtPointer}
         >
-          <HiveSessionCell view={view} />
+          <span className="flex min-w-0 items-center gap-1.5">
+            <HiveRowGlyphs view={view} />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <HiveRowTitle view={view} />
+            </span>
+            <HivePinnedBadge view={view} />
+          </span>
           <HiveWorkspaceCell view={view} />
           <HiveStateCell view={view} />
         </Button>
       )}
+      {rename.isEditing ? null : <HiveSpawnedBy parent={parent} onSelect={onSelectParent} />}
       {/* No row actions while renaming: the input owns the row, as in the sidebar. */}
       {rename.isEditing ? null : <HiveRowMenu view={view} menu={menu} onRename={rename.start} />}
     </div>
   )
 }
 
-function HiveSessionCell({ view }: { readonly view: HiveRowView }) {
-  const Icon = view.role.Icon
-  return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <Icon
-        aria-hidden="true"
-        className={
-          view.state.needsAttention
-            ? 'size-3.5 shrink-0 text-warning'
-            : 'size-3.5 shrink-0 text-text-tertiary'
-        }
-      />
-      <span
-        aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: view.statusColor }}
-      />
-      {/* Depth gets its own line: appended to the title, it was truncated away. A title takes up
-          to two lines, so Workers whose titles share a long start still read apart (#356). */}
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span
-          className="line-clamp-2 break-words text-sm text-text-secondary"
-          title={view.session.title}
-        >
-          {view.session.title}
-        </span>
-        {view.via !== null ? (
-          <span className="truncate text-xs text-text-tertiary">via {view.via}</span>
-        ) : null}
-      </span>
-      {view.isPinned ? (
-        <span className="shrink-0 rounded border border-border-light bg-bg-tertiary px-1 py-0.5 text-xs text-text-tertiary">
-          Pinned
-        </span>
-      ) : null}
-    </span>
-  )
-}
-
-function HiveWorkspaceCell({ view }: { readonly view: HiveRowView }) {
-  return (
-    <span
-      className="truncate text-right text-xs text-text-tertiary"
-      title={
-        view.session.worktreePath
-          ? `Workspace: ${view.session.worktreePath}`
-          : 'Workspace: the project checkout'
-      }
-    >
-      {view.workspace}
-    </span>
-  )
-}
-
-function HiveStateCell({ view }: { readonly view: HiveRowView }) {
-  return (
-    <span
-      className={
-        view.state.needsAttention
-          ? 'line-clamp-2 text-right text-xs text-warning'
-          : 'line-clamp-2 text-right text-xs text-text-tertiary'
-      }
-      title={view.state.hint}
-    >
-      {view.state.label}
-    </span>
-  )
-}
-
-/** The row's ⋯ menu, hidden until a Sidebar has registered the shared session actions. */
-function HiveRowMenu({
-  view,
-  menu,
-  onRename,
+/**
+ * "Spawned by ‹parent›" under a row below the first level (#377). It is a link to the parent's
+ * row while that row is loaded, and plain text until its page arrives. It sits beside the row's
+ * button rather than inside it, because a button cannot hold another control.
+ */
+function HiveSpawnedBy({
+  parent,
+  onSelect,
 }: {
-  readonly view: HiveRowView
-  readonly menu: ReturnType<typeof useRowMenu>
-  readonly onRename: () => void
+  readonly parent: HiveRowParent | null
+  readonly onSelect: ((parentId: string) => void) | undefined
 }) {
-  const actions = useHivePanelSessionActions()
-  const unarchive = useUnarchiveSessionMutation()
-  const showToast = useUIStore((state) => state.showToast)
-  if (actions === null) return null
-  const { sessionId, session } = view
-
-  function unarchiveSession() {
-    menu.close()
-    void unarchive
-      .mutateAsync(sessionId)
-      .then(() => useSessionStore.getState().loadSessions())
-      .catch((error: unknown) => {
-        // The row stays archived and keeps offering Unarchive; say why it did not move.
-        const reason = error instanceof Error ? error.message : String(error)
-        showToast(`Unable to unarchive ${session.title}: ${reason}`, 'error')
-      })
-  }
+  if (parent === null || parent.isQueen) return null
   return (
-    <>
-      <Button
-        type="button"
-        variant="unstyled"
-        aria-label={`Open session actions for ${session.title}`}
-        onClick={menu.openUnderButton}
-        className="absolute top-1/2 right-1.5 hidden size-6 -translate-y-1/2 items-center justify-center rounded-md text-text-secondary hover:bg-bg-tertiary group-hover:flex group-focus-within:flex"
-      >
-        ⋯
-      </Button>
-      <SessionItemContextMenu
-        open={menu.open}
-        position={menu.pos}
-        sessionId={sessionId}
-        isPinned={view.isPinned}
-        actions={actions}
-        archived={session.archived === true}
-        commands={{ rename: onRename, moveUp: null, moveDown: null, restore: unarchiveSession }}
-        onClose={menu.close}
-      />
-    </>
+    <div className="-mt-1.5 pr-9 pb-1 pl-10 text-xs text-text-tertiary">
+      {parent.loaded && onSelect ? (
+        <Button
+          variant="unstyled"
+          className="max-w-full truncate text-left text-text-tertiary underline-offset-2 hover:text-text-secondary hover:underline"
+          onClick={() => onSelect(parent.id)}
+        >
+          Spawned by {parent.title}
+        </Button>
+      ) : (
+        <span className="block truncate">Spawned by {parent.title} (not loaded)</span>
+      )}
+    </div>
   )
-}
-
-/** The row's role glyph and label, from the lineage role. */
-function hiveRolePresentation(session: { readonly lineage?: { readonly role?: string } | null }) {
-  const isQueen = session.lineage?.role === 'queen'
-  return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
 }

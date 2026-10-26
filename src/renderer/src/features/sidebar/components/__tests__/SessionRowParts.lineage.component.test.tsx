@@ -41,8 +41,8 @@ describe('Session row lineage glyphs', () => {
     )
 
     expect(
-      screen.getByRole('img', { name: 'Worker Session · Parent: Release Queen' }),
-    ).toHaveAttribute('title', 'Worker Session · Parent: Release Queen')
+      screen.getByRole('img', { name: 'Worker Session · Spawned by Release Queen' }),
+    ).toHaveAttribute('title', 'Worker Session · Spawned by Release Queen')
   })
 
   it('keeps a recursive Worker role and shows its direct Worker count', () => {
@@ -57,9 +57,27 @@ describe('Session row lineage glyphs', () => {
     )
 
     const indicator = screen.getByRole('img', {
-      name: 'Worker Session · Parent: Release Queen · 2 direct Workers',
+      name: 'Worker Session · Spawned by Release Queen · 2 direct Workers',
     })
     expect(indicator).toHaveTextContent('2')
     expect(indicator).toHaveClass('pointer-events-none')
+  })
+
+  it('names the parent of a pinned Worker in the Hive panel’s words', () => {
+    render(
+      <SessionLineageIndicator
+        session={session({
+          role: 'worker',
+          parentSessionId: SessionId('session-queen'),
+          parentTitle: 'Release Queen',
+          directWorkerCount: 0,
+          activeDirectWorkerCount: 0,
+        })}
+        showParent
+      />,
+    )
+
+    expect(screen.getByText('Spawned by Release Queen')).toBeInTheDocument()
+    expect(screen.queryByText(/via /u)).toBeNull()
   })
 })

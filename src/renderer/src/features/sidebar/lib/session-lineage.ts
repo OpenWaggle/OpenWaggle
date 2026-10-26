@@ -24,7 +24,8 @@ export function sessionLineagePresentation(
     }
   }
   if (lineage?.role === 'worker') {
-    const parent = lineage.parentTitle ? ` · Parent: ${lineage.parentTitle}` : ''
+    // The parent in the words every Hive surface uses (#377).
+    const parent = lineage.parentTitle ? ` · Spawned by ${lineage.parentTitle}` : ''
     const agent = lineage.agentDefinitionName ? ` · Agent: ${lineage.agentDefinitionName}` : ''
     return {
       role: lineage.role,

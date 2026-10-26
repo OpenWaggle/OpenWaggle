@@ -65,6 +65,8 @@ export interface HiveLineage {
 export interface HiveSession {
   readonly id: SessionId
   readonly title: string
+  /** Siblings in the Hive panel's tree are ordered by creation (#377). */
+  readonly createdAt?: number
   readonly archived?: boolean
   readonly lineage?: HiveLineage
   /** Where the Session works, shown as the row's Workspace placement (ADR 0051). */

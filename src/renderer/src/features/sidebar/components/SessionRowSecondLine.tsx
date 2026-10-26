@@ -184,7 +184,7 @@ export function SessionLineageIndicator({
         <span className="text-xs tabular-nums">{lineage.workerCount}</span>
       ) : null}
       {showParent && lineage.role === 'worker' && session.lineage?.parentTitle ? (
-        <span className="min-w-0 truncate">via {session.lineage.parentTitle}</span>
+        <span className="min-w-0 truncate">Spawned by {session.lineage.parentTitle}</span>
       ) : null}
     </span>
   )
