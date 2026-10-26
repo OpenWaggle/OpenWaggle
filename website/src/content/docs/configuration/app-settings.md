@@ -115,6 +115,8 @@ Use **Settings > Shortcuts** for both app keyboard bindings and Project Action b
 
 You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
 
+![Settings > Worktrees: the session environment mode, then the main checkout and two managed worktrees, each with its path, branch and the session that works in it](/screenshots/settings-worktrees.png)
+
 The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. Each row shows the folder, its branch, and the session that owns a managed worktree, or a local session that works in it. Search by path, branch, or session title to find a worktree in a long list. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list.
 
 **Remove** asks before it deletes anything. The confirmation names the folder, its branch, and its session, and warns when the branch has commits that are not on any remote. The branch itself is kept. Normal removal refuses uncommitted changes or locks.

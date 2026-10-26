@@ -1,283 +1,229 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
-import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
-import type { OpenWaggleApi } from '@shared/types/ipc'
+import { stopElectronQaSessionHost } from './electron-qa-shutdown'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
 import {
-  HIVE_QUEEN_TITLE,
+  captureCodingAgent,
+  captureGitWorkflow,
+  captureSessionTree,
+} from './website-screenshot-conversation-captures'
+import { captureBrowserPreview } from './website-screenshot-browser-capture'
+import {
   PROJECT_NAME,
-  seedHiveExample,
+  seedBrowserSession,
   seedMarketingSession,
-  THREAD_LIST_MATCHER,
-  THREAD_TITLE,
 } from './website-screenshot-fixture'
-
-declare global {
-  interface Window {
-    readonly api: OpenWaggleApi
-  }
-}
+import {
+  captureHiveNextActor,
+  captureHiveTree,
+  captureScheduledTasks,
+  captureSessionResources,
+  captureSessionSummary,
+  captureSettingsWorktrees,
+} from './website-screenshot-hive-captures'
+import { seedHiveExample } from './website-screenshot-hive-fixture'
+import {
+  publishScreenshots,
+  selectedScreenshots,
+  type WebsiteScreenshot,
+} from './website-screenshot-manifest'
+import {
+  createScreenshotProject,
+  SCREENSHOT_WORKTREE_IDS,
+  type ScreenshotProject,
+} from './website-screenshot-project'
+import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
+import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
 const WINDOW_WIDTH_PX = 1600
 const WINDOW_HEIGHT_PX = 1000
-const UI_SETTLE_DELAY_MS = 350
-const GIT_READY_TIMEOUT_MS = 120_000
-const execFileAsync = promisify(execFile)
-const HERO_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hero-screenshot.png')
-const CODING_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-coding-agent.png')
-const GIT_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-git-workflow.png')
-const EXTENSIBLE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-extensible.png')
-const SESSION_TREE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'session-tree-panel.png')
-const HIVE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hive-sessions.png')
+/** The scratch profile's parent on macOS and Linux: its short paths show in Settings > Worktrees. */
+const POSIX_TEMP_DIR = '/tmp'
+/** `node` and the script path come before the user's arguments. */
+const USER_ARGUMENT_OFFSET = 2
 
-async function launchApp(
-  userDataDir: string,
-  projectPath: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-  console.info('[website-shots] launching app')
+const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>> = {
+  'hive-sessions.png': captureHiveTree,
+  'hive-next-actor.png': captureHiveNextActor,
+  'session-summary.png': captureSessionSummary,
+  'session-resources.png': captureSessionResources,
+  'scheduled-tasks.png': captureScheduledTasks,
+  'settings-worktrees.png': captureSettingsWorktrees,
+  'feature-coding-agent.png': captureCodingAgent,
+  'feature-git-workflow.png': captureGitWorkflow,
+  'session-tree-panel.png': captureSessionTree,
+  'feature-browser-preview.png': captureBrowserPreview,
+}
+
+interface ScratchProfile {
+  readonly root: string
+  readonly userDataDir: string
+  readonly homeDir: string
+}
+
+async function launchApp(profile: ScratchProfile, projectPath: string) {
+  console.info('[website-shots] launching the built app, hidden')
   const app = await launchOpenWaggleElectron({
     cwd: projectPath,
     appPath: ROOT_DIR,
-    userDataDir,
+    userDataDir: profile.userDataDir,
+    homeDir: profile.homeDir,
     hidden: true,
   })
   const page = await app.firstWindow()
-
   await app.evaluate(
     async ({ BrowserWindow }, { width, height }) => {
-      const window = BrowserWindow.getAllWindows()[0]
-      window?.setBounds({ width, height })
+      BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
     },
     { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX },
   )
-
   await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-  console.info('[website-shots] app ready')
+  const runtime = await page.evaluate(() => ({
+    hasApi: typeof window.api.getSessionDetail === 'function',
+    isElectron: navigator.userAgent.includes('Electron'),
+  }))
+  if (!runtime.hasApi || !runtime.isElectron) {
+    throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
+  }
   return { app, page }
 }
 
-async function restartApp(
-  currentApp: ElectronApplication,
-  userDataDir: string,
-  projectPath: string,
-) {
-  await currentApp.close()
-  return launchApp(userDataDir, projectPath)
-}
-
 async function configureProject(page: Page, projectPath: string) {
-  console.info('[website-shots] configuring project path', projectPath)
   await page.evaluate(
     async ({ nextProjectPath, projectName }) => {
       await window.api.updateSettings({
         projectPath: nextProjectPath,
         recentProjects: [nextProjectPath],
-        projectDisplayNames: {
-          [nextProjectPath]: projectName,
-        },
+        projectDisplayNames: { [nextProjectPath]: projectName },
       })
     },
     { nextProjectPath: projectPath, projectName: PROJECT_NAME },
   )
 }
 
-async function waitForUi(page: Page) {
-  await page.waitForTimeout(UI_SETTLE_DELAY_MS)
+/** Seeds the Host database the first launch created, then restarts so the GUI reads it fresh. */
+async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProject) {
+  const first = await launchApp(profile, project.projectPath)
+  await configureProject(first.page, project.projectPath)
+  await seedMarketingSession(profile.userDataDir, project.projectPath)
+  await seedBrowserSession(profile.userDataDir, project.projectPath)
+  const hive = await seedHiveExample(profile.userDataDir, project)
+  await first.app.close()
+  const launched = await launchApp(profile, project.projectPath)
+  await createScheduledTasks(
+    launched.page,
+    scheduledTaskFixtures({
+      queenSessionId: hive.queenSessionId,
+      projectPath: project.projectPath,
+      now: new Date(),
+    }),
+  )
+  await launched.page.reload()
+  await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+  return launched
 }
 
-async function waitForGitStatus(page: Page) {
-  const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
-  await diffToggle.waitFor({ timeout: GIT_READY_TIMEOUT_MS })
-  await expect(diffToggle).toHaveAttribute('data-git-status-state', 'ready', {
-    timeout: GIT_READY_TIMEOUT_MS,
+function observeRendererErrors(page: Page) {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text())
   })
-}
-
-async function createScreenshotProject(root: string) {
-  await fs.mkdir(root, { recursive: true })
-  await execFileAsync('git', ['init', '--initial-branch=main'], { cwd: root })
-  const readmePath = path.join(root, 'README.md')
-  await fs.writeFile(readmePath, '# OpenWaggle screenshot fixture\n', 'utf8')
-  await execFileAsync('git', ['add', 'README.md'], { cwd: root })
-  await execFileAsync(
-    'git',
-    [
-      '-c',
-      'user.name=OpenWaggle Screenshot Fixture',
-      '-c',
-      'user.email=screenshots@openwaggle.local',
-      'commit',
-      '-m',
-      'chore: seed screenshot fixture',
-    ],
-    { cwd: root },
-  )
-  await fs.writeFile(
-    readmePath,
-    '# OpenWaggle screenshot fixture\n\nDocument the pending release review.\n',
-    'utf8',
-  )
-}
-
-async function openThread(page: Page, threadTitle: string) {
-  console.info('[website-shots] opening thread', threadTitle)
-  const thread = page.getByText(THREAD_LIST_MATCHER).first()
-  await thread.waitFor()
-  await thread.click()
-  await waitForUi(page)
-}
-
-async function captureHeroScreenshot(page: Page) {
-  console.info('[website-shots] capturing hero screenshot')
-  await page.getByRole('button', { name: 'New session' }).first().click()
-  await waitForUi(page)
-  await page.locator('header').click()
-  await waitForGitStatus(page)
-  await waitForUi(page)
-  await page.screenshot({ path: HERO_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
-}
-
-async function captureCodingScreenshot(page: Page) {
-  console.info('[website-shots] capturing coding screenshot')
-  await openThread(page, THREAD_TITLE)
-  await waitForGitStatus(page)
-  await page.screenshot({ path: CODING_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
-}
-
-async function captureGitScreenshot(page: Page) {
-  console.info('[website-shots] capturing git screenshot')
-  await openThread(page, THREAD_TITLE)
-  await waitForGitStatus(page)
-  await page.getByRole('button', { name: 'Toggle diff panel' }).click()
-  await page.getByRole('button', { name: /Stage all/ }).waitFor()
-  await page.locator('.diff-chrome').waitFor({ timeout: GIT_READY_TIMEOUT_MS })
-  await waitForUi(page)
-  await page.screenshot({ path: GIT_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
-}
-
-async function captureExtensibleScreenshot(page: Page) {
-  console.info('[website-shots] capturing extensibility screenshot')
-  // MCP lives in Settings now, reached through the settings nav rather than a top-level button.
-  await page.getByRole('button', { name: 'Settings' }).first().click()
-  await page.getByRole('button', { name: 'MCP' }).first().click()
-  await waitForUi(page)
-  await page.screenshot({ path: EXTENSIBLE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
+  return errors
 }
 
 /**
- * The Session Tree panel, used by the session-tree documentation page.
- *
- * Captured here rather than by hand so all documentation images are reproducible from one command and
- * cannot drift apart as the UI changes.
+ * The scratch profile's parent. Its path shows in Settings > Worktrees and the Hive, so it uses
+ * the plain system temporary directory rather than an agent's long per-Session scratch path.
  */
-async function captureSessionTreeScreenshot(page: Page) {
-  console.info('[website-shots] capturing session tree screenshot')
-  await openThread(page, THREAD_TITLE)
-  await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
-  await page.getByRole('region', { name: 'Session Tree' }).waitFor()
-  await waitForGitStatus(page)
-  await waitForUi(page)
-  await page.screenshot({ path: SESSION_TREE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
-  await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
-  await waitForUi(page)
+function scratchBase() {
+  return process.platform === 'win32' ? os.tmpdir() : POSIX_TEMP_DIR
 }
 
-/** The Queen, Worker sidebar rows, and reciprocal Hive navigation used by the Hive guide. */
-async function captureHiveScreenshot(page: Page, qaEvidenceDir: string) {
-  console.info('[website-shots] capturing Hive screenshot')
-  await page.getByText(HIVE_QUEEN_TITLE, { exact: true }).first().click()
-  await page.locator('header').getByText('Queen', { exact: true }).waitFor()
-  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
-  const openSummary = page.getByRole('button', { name: 'Open Session Summary' })
-  if (await openSummary.isVisible()) await openSummary.click()
-  await page.getByRole('complementary', { name: 'Session Summary' }).waitFor()
-  const hive = page.getByRole('region', { name: 'Hive' })
-  await hive.waitFor()
-
-  const expandButton = hive.getByRole('button', { name: 'Expand Hive' })
-  if (await expandButton.isVisible()) await expandButton.click()
-
-  await hive.getByText('Verify queue and steering behavior').waitFor()
-  await waitForGitStatus(page)
-  await waitForUi(page)
-  await page.screenshot({ path: HIVE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
-  await fs.copyFile(HIVE_SCREENSHOT_PATH, path.join(qaEvidenceDir, 'queen-session-summary.png'))
-
-  await hive.getByRole('button', { name: /Open Worker Session: Verify queue and steering behavior/ }).click()
-  await page.locator('header').getByText('Worker', { exact: true }).waitFor()
-  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
-  const openWorkerSummary = page.getByRole('button', { name: 'Open Session Summary' })
-  if (await openWorkerSummary.isVisible()) await openWorkerSummary.click()
-  const workerHive = page.getByRole('region', { name: 'Hive' })
-  await workerHive.waitFor()
-  const expandWorkerHive = workerHive.getByRole('button', { name: 'Expand Hive' })
-  if (await expandWorkerHive.isVisible()) await expandWorkerHive.click()
-  await page.screenshot({ path: path.join(qaEvidenceDir, 'worker-parent-navigation.png'), animations: 'disabled', scale: 'css' })
-  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).waitFor()
-  await waitForUi(page)
-  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).click()
-  await page.locator('header').getByText('Queen', { exact: true }).waitFor()
+async function evidenceDirectory() {
+  const base = process.env.OPENWAGGLE_EVIDENCE_DIR
+  if (base) {
+    const directory = path.join(base, `website-screenshots-${Date.now()}`)
+    await fs.mkdir(directory, { recursive: true })
+    return directory
+  }
+  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-website-shots-evidence-'))
 }
 
-async function main() {
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-website-shots-'))
-  const qaEvidenceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-hive-qa-'))
-  console.info('[website-shots] Hive QA evidence', qaEvidenceDir)
-  const requestedProjectPath = path.join(userDataDir, PROJECT_NAME)
-  await fs.mkdir(SCREENSHOT_OUTPUT_DIR, { recursive: true })
-  await createScreenshotProject(requestedProjectPath)
-  const projectPath = await fs.realpath(requestedProjectPath)
-
-  let currentApp: ElectronApplication | null = null
-
-  try {
-    let launched = await launchApp(userDataDir, projectPath)
-    currentApp = launched.app
-
-    await configureProject(launched.page, projectPath)
-    await seedMarketingSession(userDataDir, projectPath)
-    await seedHiveExample(userDataDir, projectPath)
-
-    console.info('[website-shots] restarting app to pick up seeded state')
-    launched = await restartApp(launched.app, userDataDir, projectPath)
-    currentApp = launched.app
-    const qaErrors: string[] = []
-    launched.page.on('pageerror', (error) => qaErrors.push(error.message))
-    launched.page.on('console', (message) => {
-      if (message.type() === 'error') qaErrors.push(message.text())
-    })
-    const runtime = await launched.page.evaluate(() => ({
-      hasApi: typeof window.api.getSessionDetail === 'function',
-      isElectron: navigator.userAgent.includes('Electron'),
-    }))
-    if (!runtime.hasApi || !runtime.isElectron) {
-      throw new Error('Hive screenshot QA did not launch the Electron app with its preload API.')
+async function runCaptures(context: CaptureContext, screenshots: readonly WebsiteScreenshot[]) {
+  for (const screenshot of screenshots) {
+    try {
+      await CAPTURES[screenshot](context)
+    } catch (error) {
+      await recordFailureEvidence(context, screenshot.replace(/\.png$/, ''))
+      throw error
     }
-
-    await captureHiveScreenshot(launched.page, qaEvidenceDir)
-    await captureHeroScreenshot(launched.page)
-    await captureCodingScreenshot(launched.page)
-    await captureGitScreenshot(launched.page)
-    await captureSessionTreeScreenshot(launched.page)
-    await captureExtensibleScreenshot(launched.page)
-    if (qaErrors.length > 0) {
-      throw new Error(`Screenshot QA observed console errors: ${qaErrors.join(' | ')}`)
-    }
-    console.info('[website-shots] screenshot capture complete')
-  } finally {
-    await currentApp?.close().catch(() => undefined)
-    await fs.rm(userDataDir, { recursive: true, force: true })
   }
 }
 
+async function main() {
+  const screenshots = selectedScreenshots(process.argv.slice(USER_ARGUMENT_OFFSET))
+  const root = await fs.realpath(await fs.mkdtemp(path.join(scratchBase(), 'openwaggle-shots-')))
+  const profile = {
+    root,
+    userDataDir: path.join(root, 'user-data'),
+    homeDir: path.join(root, 'home'),
+  }
+  // Captures land here first and replace the website's images only when every one succeeded.
+  const stagingDir = path.join(root, 'screenshots')
+  await fs.mkdir(stagingDir)
+  const evidenceDir = await evidenceDirectory()
+  console.info('[website-shots] scratch profile', root)
+  console.info('[website-shots] evidence', evidenceDir)
+  let app: ElectronApplication | null = null
+  try {
+    const project = await createScreenshotProject({
+      rootDir: ROOT_DIR,
+      projectPath: path.join(root, PROJECT_NAME),
+      homeDir: profile.homeDir,
+      worktreeIds: SCREENSHOT_WORKTREE_IDS,
+    })
+    const launched = await launchSeededApp(profile, project)
+    app = launched.app
+    const rendererErrors = observeRendererErrors(launched.page)
+    await runCaptures(
+      { app, page: launched.page, outputDir: stagingDir, evidenceDir },
+      screenshots,
+    )
+    if (rendererErrors.length > 0) {
+      throw new Error(`Screenshot capture saw renderer errors: ${rendererErrors.join(' | ')}`)
+    }
+    await publishScreenshots({ stagingDir, outputDir: SCREENSHOT_OUTPUT_DIR, screenshots })
+    console.info('[website-shots] screenshot capture complete')
+  } finally {
+    await app?.close().catch(() => undefined)
+    await releaseScratchProfile(profile)
+  }
+}
+
+/**
+ * The Session Host is detached from the GUI and would keep the profile's SQLite files open, so it
+ * is stopped first. A Host that did not stop keeps its profile: deleting files a live Host holds
+ * open is worse than leaving a scratch directory behind.
+ */
+async function releaseScratchProfile(profile: ScratchProfile) {
+  try {
+    await stopElectronQaSessionHost(profile.userDataDir)
+  } catch (error) {
+    console.error(`[website-shots] Session Host shutdown failed; kept ${profile.root}`, error)
+    process.exitCode = 1
+    return
+  }
+  await fs.rm(profile.root, { recursive: true, force: true })
+}
+
 void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.stack ?? error.message : String(error)
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
   console.error(message)
   process.exitCode = 1
 })

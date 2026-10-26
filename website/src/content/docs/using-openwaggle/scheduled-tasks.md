@@ -22,6 +22,8 @@ The Session Host runs Scheduled tasks. It keeps running while any task is enable
 | **Settings > Scheduled tasks** | Every task in every project, with **Background start**. |
 | **Scheduled** in the Session Summary | The Heartbeats that run in this Session, or the Launch schedule that started it. Hover a row to see the next run. Right-click it for **Run now**, **Pause**, **Edit** and **Delete**. |
 
+![The Scheduled panel beside a Session: two Heartbeats into this Session, one of them paused, and a weekday Launch schedule for the project, each with its schedule and next run](/screenshots/scheduled-tasks.png)
+
 Opening a task shows its settings and run history in the place you opened it. Editing it, or choosing **New task**, replaces the detail with the editor in that same place.
 
 ## Create a task

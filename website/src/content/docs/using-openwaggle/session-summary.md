@@ -11,6 +11,8 @@ Session Summary brings together the current session's working directory, Git act
 2. Click **Open Session Summary** in the header. If a right sidebar is open, close it first.
 3. Choose **Changes** to review file edits, or **Show all** under **Sources** or **Outputs** to browse resources.
 
+![The Session Summary of a Queen Session, floating over its conversation: Environment, two Scheduled Heartbeats, the Hive row counting Workers that need you, wait for the Queen, are working or are closed, and Outputs with the image the agent produced](/screenshots/session-summary.png)
+
 The Summary floats over the conversation rather than narrowing it. It may open automatically when there is enough room. Use the header button to hide it again. Sessions in a [Hive](/docs/using-openwaggle/hives-and-sessions), or with workspace action or preparation activity, can show it before their first message.
 
 ## What the Summary shows
@@ -158,6 +160,8 @@ See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) for delegati
 ## Browsing Sources and Outputs
 
 Select **Show all** under Sources or Outputs to open the Resource Browser on the right. It groups resources by kind and shows who provided, read, created, or updated each item, along with its conversation branch.
+
+![Sources & outputs on the right of a conversation: an image, a file the agent read, a link you provided, the tools it used and a web search, each with who provided or read it and its branch](/screenshots/session-resources.png)
 
 Selecting a non-image item in the Summary opens the browser with that item selected. Selecting an image opens the image viewer. The browser replaces the floating Summary; closing it restores the Summary when it was previously open.
 
