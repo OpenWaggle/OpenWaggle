@@ -273,6 +273,16 @@ describe('shell-handler', () => {
       expect(mockShellOpenPath).not.toHaveBeenCalled()
     })
 
+    it('says a path under a file is gone too', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-path')
+
+      await expect(handler?.({}, path.join(existingFile, 'inner.png'))).rejects.toThrow(
+        /^inner\.png isn't there anymore\./u,
+      )
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+    })
+
     it("maps shell.openPath's own failure to a message for the user", async () => {
       mockShellOpenPath.mockResolvedValueOnce('Failed to open path')
       registerShellHandlers()

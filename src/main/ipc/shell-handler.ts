@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { app, clipboard } from 'electron'
 import {
@@ -41,11 +42,22 @@ function unopenedPathMessage(targetPath: string) {
   return `Couldn't open ${path.basename(targetPath)}. No app on this computer opened it.`
 }
 
-/** Fails with the user's message when nothing exists at `targetPath`. */
+/** What `stat` reports for a path that names nothing: the path or one of its folders is gone. */
+const MISSING_PATH_CODES: ReadonlySet<unknown> = new Set(['ENOENT', 'ENOTDIR'])
+
+/**
+ * Fails with the user's message when nothing exists at `targetPath`. Any other `stat` failure,
+ * such as a denied permission, leaves the decision to the system's own open or reveal.
+ */
 function requireExistingPath(targetPath: string) {
   return Effect.tryPromise(() => stat(targetPath)).pipe(
     Effect.asVoid,
-    Effect.mapError(() => new Error(missingPathMessage(targetPath))),
+    Effect.catchAll((failure) => {
+      const code = isRecord(failure.error) ? failure.error.code : undefined
+      return MISSING_PATH_CODES.has(code)
+        ? Effect.fail(new Error(missingPathMessage(targetPath)))
+        : Effect.void
+    }),
   )
 }
 
