@@ -2,6 +2,16 @@
 import Button from '@/components/ui/Button.astro';
 import HoneycombBackground from '@/components/HoneycombBackground.astro';
 import ProductDemo from '@/components/landing/ProductDemo.astro';
+import { releaseStageLabel } from '@/lib/release-stage';
+import appPackage from '../../../../package.json';
+
+interface Props {
+  /** The released app version; defaults to the root package.json that each release PR bumps. */
+  version?: string;
+}
+
+const { version = appPackage.version } = Astro.props;
+const stage = releaseStageLabel(version);
 ---
 
 <section class="relative isolate overflow-hidden">
@@ -28,7 +38,7 @@ import ProductDemo from '@/components/landing/ProductDemo.astro';
       <p class="inline-flex items-center gap-2 rounded-full border border-border-light bg-bg-secondary px-4 py-1.5 text-xs font-medium text-text-secondary">
         <span class="h-2 w-2 rounded-full bg-success" aria-hidden="true"></span>
         Desktop coding agent
-        <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-accent">ALPHA</span>
+        {stage && <span data-release-stage class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">{stage}</span>}
       </p>
       <h1 class="mt-7 text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight md:text-[64px]">
         One agent codes.
