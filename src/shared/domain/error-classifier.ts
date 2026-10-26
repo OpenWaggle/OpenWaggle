@@ -29,8 +29,9 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'session-expired': {
-    userMessage: 'Session expired',
-    suggestion: 'Sign in again to refresh your provider session.',
+    userMessage: 'Provider credentials expired',
+    suggestion:
+      'Renew them, then try again. For an AWS SSO profile, run aws sso login for that profile. For a provider you signed in to, sign in again in Settings > Connections.',
     retryable: false,
   },
   'insufficient-credits': {
@@ -171,6 +172,28 @@ function isAuthError(lower: string) {
   )
 }
 
+const EXPIRED_CREDENTIAL_PATTERNS = [
+  'session expired',
+  'sign in again',
+  // AWS SSO token provider: "Token is expired. To refresh this SSO session run 'aws sso login'..."
+  'token is expired',
+  'aws sso login',
+  // AWS STS credentials past their expiry (`ExpiredTokenException`, HTTP 403).
+  'expiredtoken',
+  'security token included in the request is expired',
+  'token has expired',
+  'credentials have expired',
+] as const
+
+/**
+ * Provider credentials that expired and must be renewed, such as an AWS SSO session behind
+ * Amazon Bedrock (#357). Checked before the generic authentication rule, which an STS expiry's
+ * HTTP 403 would otherwise match as an invalid API key.
+ */
+export function isExpiredCredentialMessage(message: string) {
+  return containsAny(message.toLowerCase(), EXPIRED_CREDENTIAL_PATTERNS)
+}
+
 function isRuntimePackageManagerError(lower: string) {
   return containsAny(lower, ['failed to run npm', 'invalid npmcommand', 'npm root -g'])
 }
@@ -231,12 +254,12 @@ const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [
     matches: isInsufficientCreditsError,
   },
   {
-    code: 'api-key-invalid',
-    matches: isAuthError,
+    code: 'session-expired',
+    matches: isExpiredCredentialMessage,
   },
   {
-    code: 'session-expired',
-    matches: (lower) => containsAny(lower, ['session expired', 'sign in again']),
+    code: 'api-key-invalid',
+    matches: isAuthError,
   },
   {
     code: 'runtime-package-manager-unavailable',

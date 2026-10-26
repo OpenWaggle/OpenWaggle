@@ -18,11 +18,13 @@ describe('makeErrorInfo', () => {
     expect(info.retryable).toBe(true)
   })
 
-  it('builds session-expired info with auth guidance', () => {
+  it('builds session-expired info with renewal guidance', () => {
     const info = makeErrorInfo('session-expired', 'Session expired. Please sign in again.')
     expect(info.code).toBe('session-expired')
-    expect(info.userMessage).toBe('Session expired')
-    expect(info.suggestion).toBe('Sign in again to refresh your provider session.')
+    expect(info.userMessage).toBe('Provider credentials expired')
+    expect(info.suggestion).toBe(
+      'Renew them, then try again. For an AWS SSO profile, run aws sso login for that profile. For a provider you signed in to, sign in again in Settings > Connections.',
+    )
     expect(info.retryable).toBe(false)
   })
 })
@@ -44,6 +46,25 @@ describe('classifyErrorMessage', () => {
     ['Session expired. Please sign in again.', 'session-expired'],
     ['Session expired for Anthropic. Please sign in again.', 'session-expired'],
     ['Anthropic token refresh failed. Please sign in again.', 'session-expired'],
+    // AWS SSO token provider (@aws-sdk/token-providers), seen on Amazon Bedrock (#357).
+    [
+      "Token is expired. To refresh this SSO session run 'aws sso login' with the corresponding profile.",
+      'session-expired',
+    ],
+    [
+      'The SSO session associated with this profile has expired or is otherwise invalid. To refresh this SSO session run aws sso login with the corresponding profile.',
+      'session-expired',
+    ],
+    // STS credentials past their expiry, which AWS answers with HTTP 403.
+    [
+      'ExpiredTokenException: The security token included in the request is expired',
+      'session-expired',
+    ],
+    [
+      '403 ExpiredTokenException: The security token included in the request is expired',
+      'session-expired',
+    ],
+    ['The provided token has expired.', 'session-expired'],
   ])('classifies session expiry "%s" as %s', (message, expectedCode) => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)

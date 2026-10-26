@@ -11,6 +11,7 @@ const EVENT_CAPABILITY = {
   'session-list-changed': 'sessions:discover',
   'semantic-discovery-readiness-changed': 'sessions:discover',
   'default-thinking-level-changed': 'sessions:discover',
+  'session-title-model-refused': 'sessions:discover',
 } as const satisfies Record<SessionHostEventPayload['kind'], SessionCapability>
 
 export function requiredCapabilityForSessionEvent(payload: SessionHostEventPayload) {

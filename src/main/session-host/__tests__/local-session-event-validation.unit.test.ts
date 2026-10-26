@@ -118,3 +118,28 @@ describe('decideSessionHostEvent', () => {
     expect(decideSessionHostEvent('event')).toEqual({ action: 'invalid' })
   })
 })
+
+describe('Title model refusal event validation', () => {
+  const refusal = {
+    cursor: { hostInstanceId: 'host-1', sequence: 2 },
+    timestamp: 10,
+    payload: {
+      kind: 'session-title-model-refused',
+      model: 'amazon-bedrock/eu.anthropic.claude-haiku',
+      reason: 'AccessDeniedException: Model access is denied',
+      retryAt: 1_800_000,
+    },
+  }
+
+  it('relays a well-formed refusal', () => {
+    expect(decideSessionHostEvent(refusal)).toMatchObject({ action: 'relay' })
+  })
+
+  it('skips a refusal without its model', () => {
+    const { model: _model, ...payload } = refusal.payload
+    expect(decideSessionHostEvent({ ...refusal, payload })).toEqual({
+      action: 'skip',
+      cursor: refusal.cursor,
+    })
+  })
+})

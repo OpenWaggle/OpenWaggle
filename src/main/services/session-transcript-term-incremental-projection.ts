@@ -1,5 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { yieldToEventLoop } from '../utils/event-loop-slice'
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 import { stageIncrementalSessionTranscriptTermChanges } from './session-transcript-term-incremental-changes'
 
@@ -287,10 +288,15 @@ export function applyIncrementalSessionTranscriptTerms(
 ) {
   if (nodeIds.length === 0) return Effect.void
   return Effect.gen(function* () {
+    // Each step is one or two statements over a whole Run's terms; let the event loop run between.
     yield* captureNodeTerms(sql, AFTER_TABLE, sessionId, nodeIds)
+    yield* yieldToEventLoop
     yield* stageIncrementalSessionTranscriptTermChanges(sql)
+    yield* yieldToEventLoop
     yield* stageEvidence(sql, sessionId)
+    yield* yieldToEventLoop
     yield* applyTermCounts(sql, sessionId)
+    yield* yieldToEventLoop
     yield* publishTermMetadata(sql, sessionId)
   })
 }
