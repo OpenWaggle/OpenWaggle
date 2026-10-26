@@ -56,6 +56,65 @@ describe('Git push destination resolution', () => {
       ok: true,
       upstream: { remote: 'fork', branch: 'feature' },
       usedFallbackRemote: false,
+      replacesUpstream: false,
+    })
+  })
+
+  it.each([
+    ['unset', null],
+    ['simple', 'simple\n'],
+  ] as const)(
+    'publishes under the branch name when push.default is %s and the upstream name differs',
+    async (_label, pushDefault) => {
+      /*
+       * `git worktree add -b <branch> <path> origin/main` tracks origin/main. Git's simple mode
+       * refuses that push; OpenWaggle publishes `<remote>/<branch>` and moves the upstream there,
+       * which cannot write main (issue #353).
+       */
+      routeGit({
+        'for-each-ref --format=%(push:remotename) refs/heads/feature': result(0, 'origin\n'),
+        ...(pushDefault ? { 'config --get-all push.default': result(0, pushDefault) } : {}),
+        'for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/feature':
+          result(0, 'origin\0refs/heads/main\n'),
+      })
+
+      await expect(readPushRef('/repo', 'feature')).resolves.toEqual({
+        ok: true,
+        upstream: { remote: 'origin', branch: 'feature' },
+        usedFallbackRemote: false,
+        replacesUpstream: true,
+      })
+    },
+  )
+
+  it('keeps a same-named simple upstream without replacing it', async () => {
+    routeGit({
+      'for-each-ref --format=%(push:remotename) refs/heads/feature': result(0, 'origin\n'),
+      'for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/feature':
+        result(0, 'origin\0refs/heads/feature\n'),
+    })
+
+    await expect(readPushRef('/repo', 'feature')).resolves.toEqual({
+      ok: true,
+      upstream: { remote: 'origin', branch: 'feature' },
+      usedFallbackRemote: false,
+      replacesUpstream: false,
+    })
+  })
+
+  it('treats push.default=upstream with no upstream as a first push of the branch', async () => {
+    routeGit({
+      'for-each-ref --format=%(push:remotename) refs/heads/feature': result(0),
+      'config --get-all push.default': result(0, 'upstream\n'),
+      'for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/feature':
+        result(0),
+    })
+
+    await expect(readPushRef('/repo', 'feature', 'origin')).resolves.toEqual({
+      ok: true,
+      upstream: { remote: 'origin', branch: 'feature' },
+      usedFallbackRemote: true,
+      replacesUpstream: false,
     })
   })
 
@@ -99,6 +158,7 @@ describe('Git push destination resolution', () => {
       ok: true,
       upstream: { remote: 'upstream', branch: 'feature' },
       usedFallbackRemote: true,
+      replacesUpstream: false,
     })
   })
 

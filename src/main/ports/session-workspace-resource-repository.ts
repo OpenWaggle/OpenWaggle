@@ -16,6 +16,20 @@ export interface ManagedWorktreeRemovalCandidate {
   readonly workingPath: string
 }
 
+/** One Session and the Workspace it is bound to, for deciding whether a worktree is in use. */
+export interface WorkspaceOccupant {
+  readonly sessionId: string
+  readonly title: string
+  readonly archived: boolean
+  readonly activeRun: boolean
+  readonly sessionProjectPath: string | null
+  readonly workspace: {
+    readonly id: string
+    readonly kind: SessionWorkspaceResource['kind']
+    readonly workingPath: string
+  } | null
+}
+
 export type ManagedWorktreeRemovalAdmission =
   | {
       readonly status: 'reserved'
@@ -49,6 +63,8 @@ export interface SessionWorkspaceResourceRepositoryShape {
     readonly projectPath: string
     readonly workingPath: string
   }) => Effect.Effect<ManagedWorktreeRemovalAdmission, Error>
+  /** Sessions that can keep a worktree in use (see `listWorkspaceOccupants`). */
+  readonly listWorkspaceOccupants: () => Effect.Effect<readonly WorkspaceOccupant[], Error>
   readonly finalizeManagedWorktreeRemoval: (input: {
     readonly resourceId: string
     readonly createdReservation: boolean

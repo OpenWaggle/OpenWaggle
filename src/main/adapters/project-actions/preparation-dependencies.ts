@@ -33,4 +33,6 @@ export interface PreparationDependencies {
     projectPath: string,
     candidatePath: string,
   ) => Promise<LinkedWorktreeCheck>
+  /** Ids of local Workspaces, whose stored preparations Host start clears of a birth flag. */
+  readonly listLocalWorkspaceIds?: () => Promise<ReadonlySet<string>>
 }

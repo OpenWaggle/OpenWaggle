@@ -6,6 +6,7 @@ import {
   type SessionWorkspaceResource,
   SessionWorkspaceResourceRepository,
 } from '../ports/session-workspace-resource-repository'
+import { listWorkspaceOccupants } from './sqlite-workspace-occupants'
 
 interface WorkspaceRow {
   readonly id: string
@@ -190,6 +191,7 @@ export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
             repositoryError('Failed to reserve managed worktree removal.', cause),
           ),
         ),
+      listWorkspaceOccupants: () => listWorkspaceOccupants(sql),
       finalizeManagedWorktreeRemoval: (input) =>
         finalizeManagedWorktreeRemoval(sql, input).pipe(
           Effect.mapError((cause) =>
