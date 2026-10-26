@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import {
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
@@ -14,9 +15,13 @@ describe('useWorkspaceLifecycle Session link shortcut', () => {
     ReturnType<typeof loadUseWorkspaceLifecycle>
   >['useWorkspaceLifecycle']
 
-  beforeEach(async () => {
-    resetWorkspaceLifecycleMocks()
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
+    resetWorkspaceLifecycleMocks()
   })
 
   it('copies the link of the Session the route shows', () => {

@@ -33,8 +33,8 @@ const nativeRouter: ExtensionFactory = (pi) => {
   })
 }
 
-afterEach(() => {
-  cleanupOpenWagglePiSessions()
+afterEach(async () => {
+  await cleanupOpenWagglePiSessions()
   cleanupNativeSessions()
   vi.unstubAllGlobals()
 })

@@ -1,8 +1,9 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { queryKeys } from '@/queries/query-keys'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { useUIStore } from '../ui-store'
 import {
   getWorkspaceLifecycleMocks,
@@ -19,9 +20,13 @@ describe('useWorkspaceLifecycle', () => {
     ReturnType<typeof loadUseWorkspaceLifecycle>
   >['useWorkspaceLifecycle']
 
-  beforeEach(async () => {
-    resetWorkspaceLifecycleMocks()
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
+    resetWorkspaceLifecycleMocks()
   })
 
   it("binds project action shortcuts to the open Session's project, not the stale preference", () => {

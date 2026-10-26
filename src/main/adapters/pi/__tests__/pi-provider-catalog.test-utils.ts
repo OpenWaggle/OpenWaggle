@@ -2,12 +2,16 @@ import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { onTestFinished } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 
 export { existsSync, fs, path }
 
+/** A temporary project removed when the calling test finishes. */
 export async function createTempProject() {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
+  onTestFinished(() => fs.rm(projectPath, { recursive: true, force: true }))
+  return projectPath
 }
 
 export async function writeSkill(projectPath: string, root: string, id: string) {

@@ -43,12 +43,12 @@ The hidden QA profile selects the current worktree as its project and starts wit
 
 1. Check that port 9223 is free. Fail before Electron starts if it is occupied.
 2. Serialize lease recovery and acquisition across launcher processes.
-3. Create an ephemeral user-data directory and per-run automation identity.
-4. Start Electron with a minimal allowlisted environment, automation mode enabled, and the single-instance lock disabled.
+3. Create an ephemeral user-data directory and per-run automation identity. The app's `HOME` and `PI_CODING_AGENT_DIR` live inside that profile too, so it never migrates or reads the real `~/.openwaggle` and `~/.pi/agent` files.
+4. Start Electron with a minimal allowlisted environment, automation mode enabled, the single-instance lock disabled, and Chromium's `--use-mock-keychain` (plus `--password-store=basic` on Linux), which the GUI forwards to its Session Host, so neither reaches the real credential store. Automation starts no server that a project MCP file defines (the repository's `.mcp.json` points `chrome-devtools-mcp` at port 9223); `OPENWAGGLE_AUTOMATION_PROJECT_MCP=1` starts them.
 5. Wait for CDP, the preload bridge, and the matching automation identity before accepting the page.
 6. Register the current worktree as the selected project and forward Electron logs while QA runs.
-7. On child exit, `SIGINT`, or `SIGTERM`, attempt evidence capture and always continue through connection and process-tree cleanup.
-8. Remove the ephemeral profile only after the Electron process tree has stopped. Windows uses `taskkill /T /F`; POSIX uses the detached process group.
+7. On child exit, `SIGINT`, or `SIGTERM`, attempt evidence capture and always continue through connection, process-tree, and Session Host cleanup.
+8. Remove the ephemeral profile only after the Electron process tree and its Session Host have stopped. Windows uses `taskkill /T /F`; POSIX uses the detached process group. The Session Host is detached from both, so the launcher then drains it through the authenticated version-handoff path and clears the profile while holding the Host's ownership (`scripts/qa/session-host-shutdown.ts`).
 9. On startup, quarantine and discard stale launcher metadata only when its recorded process is dead.
 
 The Electron DevTools MCP configuration connects to `127.0.0.1:9223`. Dynamic port switching is outside this design because the connector binds its browser URL when the MCP server starts. Port 9223 is exclusive, so simultaneous hidden CDP QA sessions fail fast rather than share or silently switch ports. A per-run identity in the renderer URL prevents the launcher from accepting another OpenWaggle process if a process binds the port between preflight and Electron startup.

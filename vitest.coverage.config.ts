@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
+import {
+  COMPONENT_TIER_TIMEOUTS,
+  NODE_TIER_TIMEOUTS,
+  TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
+} from './scripts/test-support/vitest-tier-options'
 
 /**
  * Component tests need a lightweight SVGR replacement because jsdom cannot
@@ -35,6 +41,7 @@ export default defineConfig({
     },
   },
   test: {
+    globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -63,7 +70,9 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
+          // The unit and integration tiers' deadlines, which instrumentation needs even more.
+          ...NODE_TIER_TIMEOUTS,
+          env: { ...ISOLATED_SOURCE_CONTROL_CLI_ENV, ...TEST_TIME_ZONE_ENV },
           include: ['src/**/*.unit.test.ts', 'src/**/*.integration.test.ts', 'scripts/**/*.unit.test.ts'],
           setupFiles: [
             'scripts/test-support/isolate-user-home.ts',
@@ -76,6 +85,8 @@ export default defineConfig({
         test: {
           name: 'component',
           environment: 'jsdom',
+          ...COMPONENT_TIER_TIMEOUTS,
+          env: TEST_TIME_ZONE_ENV,
           include: ['src/**/*.component.test.tsx'],
           setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
         },

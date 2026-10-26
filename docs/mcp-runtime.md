@@ -143,8 +143,16 @@ per-project switches of that project (`home-project-state.ts`), which would chan
   `mcp-runtime-config.ts`).
 - `projectConfig`: `<project>/.openwaggle/mcp.json`, so Pi's "enable/disable in this project"
   writes a per-project override into OpenWaggle's file.
-- `errors`: file parse errors and invalid entries.
+- `errors`: file parse errors and invalid entries, and the automation notice below.
 - `autoEnableCodemode`.
+
+Under non-disruptive automation (`OPENWAGGLE_AUTOMATION=1`) the connectable merge leaves out
+every server whose defining file is a project file (`.mcp.json`, `.pi/mcp.json`,
+`.openwaggle/mcp.json`), unless `OPENWAGGLE_AUTOMATION_PROJECT_MCP=1` asks for them
+(`connectsProjectMcpServers` in `mcp-automation-policy.ts`). Hidden QA runs on the developer's
+own checkout, and this repository's `.mcp.json` runs `npx -y chrome-devtools-mcp` against the QA
+app's own CDP port. Project overrides of global servers still apply, the management view still
+lists the project servers, and `mcpLeftOutServerNotice` names the policy for one of them.
 
 Session-level MCP off and an Agent definition's MCP allowlist are applied here for the configured
 servers, and again for servers Pi extensions register (`pi.registerMcpServer`), which never pass

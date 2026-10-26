@@ -1,6 +1,3 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -11,6 +8,7 @@ import { isSessionModelRunnable } from '../../../application/session-model-avail
 import { ExtensionLifecycleRepository } from '../../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../../ports/extension-project-overrides-repository'
+import { temporaryTestDirectory } from '../../../test-support/temporary-test-directory'
 import { withPiSession } from '../agent-kernel/session-runtime'
 import { createPiProjectModelRuntime } from '../pi-provider-catalog'
 import { ProviderServiceLive } from '../pi-provider-service'
@@ -24,11 +22,8 @@ const PHYSICAL_MODEL = 'fallback-provider/offline-model'
 const REMOVED_VIRTUAL_MODEL = SupportedModelId('router/auto')
 
 async function projectWithPhysicalModel() {
-  vi.stubEnv(
-    'PI_CODING_AGENT_DIR',
-    await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-agent-')),
-  )
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-virtual-fallback-'))
+  vi.stubEnv('PI_CODING_AGENT_DIR', await temporaryTestDirectory('openwaggle-pi-agent-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-virtual-fallback-')
   await writeProviderExtension(projectPath, 'fallback-provider')
   return projectPath
 }

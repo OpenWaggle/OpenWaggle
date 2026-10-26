@@ -63,6 +63,31 @@ describe('Playwright Electron launch mode', () => {
     }
   })
 
+  it('forwards the caller Pi agent directory so a scratch one reaches the app', () => {
+    const previous = process.env.PI_CODING_AGENT_DIR
+    process.env.PI_CODING_AGENT_DIR = '/tmp/qa-scratch/pi-agent'
+    try {
+      expect(buildSafeElectronEnvironment({})).toMatchObject({
+        PI_CODING_AGENT_DIR: '/tmp/qa-scratch/pi-agent',
+      })
+    } finally {
+      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR
+      else process.env.PI_CODING_AGENT_DIR = previous
+    }
+  })
+
+  it('lets a launcher override an inherited location', () => {
+    const previous = process.env.HOME
+    process.env.HOME = '/Users/maintainer'
+    try {
+      expect(buildSafeElectronEnvironment({ HOME: '/tmp/qa-profile/qa-home' })).toMatchObject({
+        HOME: '/tmp/qa-profile/qa-home',
+      })
+    } finally {
+      process.env.HOME = previous
+    }
+  })
+
   it('forwards the Host temp directory so a QA app leaves the agent scratch directory', () => {
     const previous = process.env.OPENWAGGLE_HOST_TMPDIR
     process.env.OPENWAGGLE_HOST_TMPDIR = '/var/folders/host/T'

@@ -5,7 +5,7 @@ import { fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { fromAny } from '@total-typescript/shoehorn'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
   createOpenWaggleAgentSessionFromServices,
@@ -14,7 +14,9 @@ import {
 } from '../pi-session-lifecycle'
 
 async function createTempProject() {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-session-lifecycle-'))
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-session-lifecycle-'))
+  onTestFinished(() => fs.rm(projectPath, { recursive: true, force: true }))
+  return projectPath
 }
 
 describe('Pi session lifecycle', () => {
