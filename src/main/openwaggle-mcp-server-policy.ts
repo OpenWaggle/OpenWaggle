@@ -1,11 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { SessionId } from '@shared/types/brand'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
-import * as Effect from 'effect/Effect'
-import { sessionAllowed } from './openwaggle-mcp-workspace-policy'
-import { SessionProjectionRepository } from './ports/session-projection-repository'
-import { runAppEffect } from './runtime'
 
 export {
   assertProjectAllowed,
@@ -17,6 +12,25 @@ export const OPENWAGGLE_MCP_SERVE_GRANTS = SESSION_CAPABILITIES
 
 export type OpenWaggleMcpServeGrant = SessionCapability
 
+/**
+ * Whose authority an `mcp serve` process holds (#350). `owner` is the local desktop user's,
+ * narrowed to the server's grants and scope. `profile` authenticates as a named access profile
+ * with its own credential; the Session Host intersects the profile's live policy with the
+ * server's grants and scope, so a revoked, unknown, or out-of-scope profile reaches nothing.
+ */
+export type OpenWaggleMcpServeIdentity =
+  | {
+      readonly kind: 'owner'
+      /** Names the transient caller, e.g. `local-stdio`; not an access profile. */
+      readonly label: string
+      readonly authorizationCeiling: AgentAuthorizationMode
+    }
+  | {
+      readonly kind: 'profile'
+      readonly profile: string
+      readonly credential: string
+    }
+
 export interface OpenWaggleMcpServeOptions {
   readonly transport: 'stdio' | 'streamable-http'
   readonly httpPort?: number
@@ -26,10 +40,9 @@ export interface OpenWaggleMcpServeOptions {
   readonly exportRoots?: readonly string[]
   readonly attachmentRoots?: readonly string[]
   readonly sessionIds: ReadonlySet<string>
-  /** Immutable session identity bound by the server owner to this caller profile. */
+  /** Immutable session identity bound by the server owner to this server. */
   readonly originSessionId?: string
-  readonly profile: string
-  readonly authorizationCeiling: AgentAuthorizationMode
+  readonly identity: OpenWaggleMcpServeIdentity
   readonly userDataRoot: string
   readonly version: string
   readonly stderr?: Pick<NodeJS.WriteStream, 'write'>
@@ -46,27 +59,6 @@ export function toolResult(value: unknown, isError = false) {
     structuredContent,
     ...(isError ? { isError: true as const } : {}),
   }
-}
-
-export function requireGrant(options: OpenWaggleMcpServeOptions, grant: OpenWaggleMcpServeGrant) {
-  if (!options.grants.has(grant)) {
-    throw new Error(
-      `The caller profile ${JSON.stringify(options.profile)} lacks ${grant}. Restart with --grant ${grant} after reviewing the requested authority.`,
-    )
-  }
-}
-
-export async function loadGrantedSession(options: OpenWaggleMcpServeOptions, sessionId: string) {
-  const session = await runAppEffect(
-    Effect.gen(function* () {
-      const sessions = yield* SessionProjectionRepository
-      return yield* sessions.getOptional(SessionId(sessionId))
-    }),
-  )
-  if (!session || !sessionAllowed(options, session)) {
-    throw new Error(`Session ${JSON.stringify(sessionId)} was not found in the granted scope.`)
-  }
-  return session
 }
 
 export type OpenWaggleMcpServer = McpServer

@@ -19,6 +19,7 @@ import {
   markReportsDelivered,
   observeReportWaitCondition,
 } from './sqlite-session-report-delivery'
+import { namesUnknownReportTarget } from './sqlite-session-report-target-existence'
 import {
   loadAuthorizedReportCandidates,
   type ReportSourceRow,
@@ -153,6 +154,9 @@ function executeReport(sql: SqlClient.SqlClient, input: ExecuteSessionReportInpu
       }
       if (input.request.command.input.text.trim().length === 0) {
         return yield* rejectReport(sql, input, requestJson, source.session_id, 'report_empty')
+      }
+      if (yield* namesUnknownReportTarget(sql, input.request.command.target)) {
+        return yield* rejectReport(sql, input, requestJson, source.session_id, 'session_not_found')
       }
       const authorizedCandidates = yield* loadAuthorizedReportCandidates(sql, {
         source,

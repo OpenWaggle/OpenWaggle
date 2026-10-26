@@ -31,7 +31,8 @@ describe('Recovery CLI entry failures', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
     expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
-      error: { message: 'Electron failed to start.' },
+      type: 'error',
+      error: { kind: 'internal', message: 'Electron failed to start.' },
     })
   })
 
@@ -43,7 +44,8 @@ describe('Recovery CLI entry failures', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
     expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
-      error: { message: 'Storage path is unavailable.' },
+      type: 'error',
+      error: { kind: 'internal', message: 'Storage path is unavailable.' },
     })
   })
 })

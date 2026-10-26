@@ -1,5 +1,7 @@
 import { app } from 'electron'
+import { CLI_EXIT, CliError } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
+import { CommandCliUsageError } from './command-cli-option-contract'
 import { isDesktopAppRunning } from './desktop-instance-probe'
 import { stopHostForUpdate } from './host-cli'
 import { formatHostUpdateStopReport } from './host-update-stop'
@@ -11,11 +13,11 @@ import {
 } from './update-cli-installers'
 import { compareReleaseVersions } from './update-feed'
 
-export const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
+export const EXIT = CLI_EXIT
 const RELEASE_TAG_PATTERN = /^v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u
 
 /** A refusal caused by the command line itself; `openwaggle update` exits with status 2. */
-export class UpdateCliUsageError extends Error {}
+export class UpdateCliUsageError extends CommandCliUsageError {}
 
 export function normalizeVersion(value: string) {
   const tag = value.startsWith('v') ? value : `v${value}`
@@ -35,8 +37,12 @@ const DESKTOP_OPEN_EXACT_VERSION_MESSAGE =
  */
 export async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
   const report = await stopHostForUpdate(parsed)
-  if (report.state === 'cancelled') throw new Error('Update cancelled. OpenWaggle was not changed.')
-  if (report.state === 'desktop-open') throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  // The state refuses the install, as `host stop --update` exits 6 for it (#351).
+  if (report.state === 'cancelled') {
+    throw new CliError('conflict', 'Update cancelled. OpenWaggle was not changed.')
+  }
+  if (report.state === 'desktop-open')
+    throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   // The Windows installer closes what is left, and an AppImage is replaced as one file.
   if (report.state === 'timed-out' || report.state === 'refused' || report.state === 'replaced') {
     process.stderr.write(`${formatHostUpdateStopReport(report)}\n`)
@@ -76,7 +82,7 @@ export async function installExactVersion(
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   // Installing over a running app would stop its active agent runs without asking.
-  if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  if (isDesktopAppRunning(app)) throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
     const installer = await prepareWindowsInstaller(tag)
     await stopSessionHostBeforeInstall(parsed).catch(async (error: unknown) => {

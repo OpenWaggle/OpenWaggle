@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { CliError } from '../cli-error'
 import type { ProfileCredentialDestination } from './profile-credential-destination'
 import {
   assertReplaceable,
@@ -36,12 +37,16 @@ async function matchesInstalledCredential(
     path.dirname(input.targetPath),
     path.basename(input.targetPath),
   )
-  if (!target.content) throw new Error('Credential destination changed during preparation.')
+  if (!target.content)
+    throw new CliError('conflict', 'Credential destination changed during preparation.')
   const targetCredential = decodeCredentialContent(input.destination, target.content)
   if (credentialFingerprint(targetCredential) === credentialFingerprint(input.selectedCredential)) {
     return true
   }
-  throw new Error('Credential destination already exists. Use --replace to update it.')
+  throw new CliError(
+    'conflict',
+    'Credential destination already exists. Use --replace to update it.',
+  )
 }
 
 export async function validateCredentialDestination(input: CredentialPreflightInput) {

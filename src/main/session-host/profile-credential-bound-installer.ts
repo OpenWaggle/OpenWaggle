@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
+import { CliError } from '../cli-error'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -125,7 +126,7 @@ export function profileCredentialInstallerFailure(input: {
     // either artifact behind; neither outcome is safe to infer from its exit code.
     return new ProfileCredentialInstallerRecoveryError([pendingPath, displacedPath])
   }
-  return new Error('The credential destination changed after it was prepared.')
+  return new CliError('conflict', 'The credential destination changed after it was prepared.')
 }
 
 export async function installCredentialInBoundDirectory(input: {
@@ -146,7 +147,7 @@ export async function installCredentialInBoundDirectory(input: {
     const directoryStats = await directoryHandle.stat()
     const canonicalDirectory = await fs.realpath(input.directory)
     if (`${directoryStats.dev}:${directoryStats.ino}` !== input.directoryIdentity) {
-      throw new Error('The credential destination changed after it was prepared.')
+      throw new CliError('conflict', 'The credential destination changed after it was prepared.')
     }
     await input.beforeSpawn?.()
     const child = spawn(
@@ -179,7 +180,7 @@ export async function installCredentialInBoundDirectory(input: {
         currentStats.dev !== directoryStats.dev ||
         currentStats.ino !== directoryStats.ino
       ) {
-        throw new Error('The credential destination changed after it was prepared.')
+        throw new CliError('conflict', 'The credential destination changed after it was prepared.')
       }
       await releaseValidatedChild({
         child,

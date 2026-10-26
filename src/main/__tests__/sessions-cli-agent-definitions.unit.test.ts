@@ -65,7 +65,9 @@ describe('Hive CLI Agent-definition discovery', () => {
     expect(stdout).toEqual([])
     expect(parsedError()).toEqual({
       schemaVersion: 1,
+      type: 'error',
       error: {
+        kind: 'usage',
         message:
           "Unsupported OpenWaggle Agents command: list. Use 'openwaggle hive agent-definitions-list'.",
       },
@@ -86,7 +88,13 @@ describe('Hive CLI Agent-definition discovery', () => {
       return runAgentDefinitionDiscoveryCommand(
         parsed.positionals[0] ?? '',
         { ...parsed, positionals: parsed.positionals.slice(1) },
-        { cwd, home, stdout: (value) => void stdout.push(value), resolveProject },
+        {
+          cwd,
+          home,
+          stdout: (value) => void stdout.push(value),
+          resolveProject,
+          verifyCaller: async () => undefined,
+        },
       )
     }
     const listed = async (cwd: string, args: readonly string[] = []) => {
@@ -139,6 +147,7 @@ describe('Hive CLI Agent-definition discovery', () => {
           cwd: project,
           home,
           stdout: (value) => void stdout.push(value),
+          verifyCaller: async () => undefined,
           resolveProject: fakeProjectResolver({
             projects: [project],
             settingsError: new Error('OpenWaggle could not read the saved settings database.'),

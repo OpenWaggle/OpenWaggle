@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => '0.0.0') } }))
+vi.mock('../env', () => ({ env: {} }))
 
 const { parseMcpCliArguments } = await import('../mcp-cli-arguments')
-const { parseServeIdentity } = await import('../mcp-cli')
+const { parseServeIdentity } = await import('../mcp-cli-serve-identity')
 
 function identity(origin: string) {
-  return parseServeIdentity(parseMcpCliArguments(['--stdio', '--origin-session', origin]), true)
+  return parseServeIdentity(
+    parseMcpCliArguments(['--stdio', '--owner', '--origin-session', origin]),
+    true,
+  )
 }
 
 describe('mcp serve --origin-session', () => {

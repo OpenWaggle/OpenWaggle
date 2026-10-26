@@ -1,8 +1,9 @@
 import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { writeCliStdout } from './cli-stdout'
-import { validateCommandCliOptions } from './command-cli-option-contract'
+import { CommandCliUsageError, validateCommandCliOptions } from './command-cli-option-contract'
 import { env } from './env'
+import { refuseAccessProfile, waitTimeout } from './host-cli-stop-options'
 import { runHostStart } from './host-start-cli'
 import {
   cancelUpdateOnInterrupt,
@@ -13,11 +14,10 @@ import {
   stopSessionHostForUpdate,
 } from './host-update-stop'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
-import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
+import { hasFlag, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { SESSION_CLI_EXIT, sessionCliExitCodeForError } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { refreshLocalSessionHostEndpoint } from './session-host/local-session-paths'
-import { positiveInteger } from './sessions-cli-arguments'
 import { sessionsCliResponseText, writeSessionsCliError } from './sessions-cli-output'
 import {
   defaultStatusCliDependencies,
@@ -58,7 +58,9 @@ Options:
 
 const STOP_OPTIONS = ['wait', 'timeout-ms', 'json', 'update'] as const
 const BOOLEAN_OPTIONS = new Set(['wait', 'json', 'update'])
-export const HOST_STOP_DEFAULT_TIMEOUT_MS = 120_000
+
+export { HOST_STOP_DEFAULT_TIMEOUT_MS } from './host-cli-stop-options'
+
 const HOST_STOP_POLL_INTERVAL_MS = 250
 
 type ClientInput = LocalSessionCliClientInput
@@ -143,28 +145,13 @@ async function waitForExit(
   return 'timed-out'
 }
 
-/** How long `--wait` waits, or `undefined` without `--wait`. Checked before the Host is asked. */
-function waitTimeout(parsed: ParsedArguments) {
-  if (!hasFlag(parsed, 'wait')) {
-    if (parsed.options.has('timeout-ms'))
-      throw new Error('--wait must be given to use --timeout-ms.')
-    return undefined
-  }
-  const timeoutMs = option(parsed, 'timeout-ms')
-  return timeoutMs ? positiveInteger(timeoutMs, '--timeout-ms') : HOST_STOP_DEFAULT_TIMEOUT_MS
-}
-
 export async function stopHost(
   parsed: ParsedArguments,
   dependencies: HostCliDependencies = defaultDependencies,
   profile: string | undefined = env.OPENWAGGLE_PROFILE,
 ): Promise<HostStopReport> {
   const timeoutMs = waitTimeout(parsed)
-  if (profile) {
-    throw new Error(
-      "'host stop' requires the local user's authorization and cannot use an access profile. Unset OPENWAGGLE_PROFILE and try again.",
-    )
-  }
+  refuseAccessProfile(profile)
   const input = await dependencies.status.prepareClientInput(parsed)
   const probe = await probeRunningHost(input, dependencies.status.probe)
   if (probe.state === 'not-running') return { state: 'not-running' }
@@ -243,15 +230,11 @@ export async function stopHostForUpdate(
   profile: string | undefined = env.OPENWAGGLE_PROFILE,
 ): Promise<HostUpdateStopReport> {
   if (parsed.options.has('wait') || parsed.options.has('timeout-ms')) {
-    throw new Error(
+    throw new CommandCliUsageError(
       '--update does not accept --wait or --timeout-ms; it always waits for the Host to exit.',
     )
   }
-  if (profile) {
-    throw new Error(
-      "'host stop' requires the local user's authorization and cannot use an access profile. Unset OPENWAGGLE_PROFILE and try again.",
-    )
-  }
+  refuseAccessProfile(profile)
   const client = await dependencies.status.prepareClientInput(parsed)
   return cancelUpdateOnInterrupt(() => stopSessionHostForUpdate(dependencies.updateStop(client)))
 }
@@ -319,7 +302,9 @@ export async function runHostCli(
   if (command === 'start') return runHostStart(rest, dependencies)
   return sessionCliExitCodeForError(
     writeSessionsCliError(
-      new Error(`Unsupported OpenWaggle host command: ${command}. Expected status or stop.`),
+      new CommandCliUsageError(
+        `Unsupported OpenWaggle host command: ${command}. Expected status or stop.`,
+      ),
       false,
     ),
   )
