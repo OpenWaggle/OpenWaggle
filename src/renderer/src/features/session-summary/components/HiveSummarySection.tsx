@@ -74,7 +74,7 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
 
   if (!model)
     return query.isError ? (
-      <section aria-label="Hive" className="border-t border-border px-3 py-2">
+      <section aria-label="Hive" className="border-t border-border px-3 py-2 first:border-t-0">
         <p role="alert" className="text-sm text-text-secondary">
           Unable to load this session's Hive.
         </p>

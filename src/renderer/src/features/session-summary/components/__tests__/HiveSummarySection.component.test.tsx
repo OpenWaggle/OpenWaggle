@@ -263,6 +263,8 @@ describe('HiveSummarySection', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       "Unable to load this session's Hive.",
     )
+    // The failure takes the loaded row's place, divider included.
+    expect(screen.getByRole('region', { name: 'Hive' }).className).toContain('first:border-t-0')
     getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0)))
     fireEvent.click(screen.getByRole('button', { name: 'Retry Hive' }))
     // The loaded row replaces the failure: wait for its control, not the region both share.

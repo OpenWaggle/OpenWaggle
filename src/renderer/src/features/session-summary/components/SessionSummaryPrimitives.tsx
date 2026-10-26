@@ -132,6 +132,12 @@ export function SessionSummaryRow({
 const SECTION_ROW_CLASS = 'flex min-h-10 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left'
 
 /**
+ * A fact's separator width and the list's left shift that clips it at each line start. They are
+ * one length: change them together, or every wrapped line starts indented or cut.
+ */
+const FACT_SEPARATOR = { width: 'w-3', shift: '-ml-3' } as const
+
+/**
  * Where a link section goes: `label` is the destination (the trailing icon's tooltip) and
  * `accessibleName` the whole row's name, which repeats what the row shows.
  */
@@ -181,6 +187,8 @@ export function SessionSummaryLinkSection({
       ) : (
         <Button
           variant="unstyled"
+          // Keyboard focus only: the row stays focused after a click, and `focus:` would keep it
+          // painted as if hovered (MEMORY.md, "A focused row keeps its focus").
           className={cn(
             SECTION_ROW_CLASS,
             'group cursor-pointer transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',
@@ -219,10 +227,13 @@ export function SessionSummaryFacts({
   if (items.length === 0) return null
   return (
     <span className="block overflow-hidden text-xs text-text-tertiary">
-      <span className="-ml-3 flex flex-wrap">
+      <span className={cn(FACT_SEPARATOR.shift, 'flex flex-wrap')}>
         {items.map((item) => (
           <span key={item.key} data-summary-fact="" className="flex min-w-0 max-w-full">
-            <span aria-hidden="true" className="w-3 shrink-0 text-center whitespace-pre">
+            <span
+              aria-hidden="true"
+              className={cn(FACT_SEPARATOR.width, 'shrink-0 text-center whitespace-pre')}
+            >
               {' · '}
             </span>
             <span className={cn('min-w-0 truncate', item.className)}>{item.text}</span>
