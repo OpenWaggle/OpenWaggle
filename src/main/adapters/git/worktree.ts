@@ -225,10 +225,16 @@ async function createGitWorktreeUnlocked(
     }
   }
 
+  /*
+   * `--no-track`: started from a remote-tracking ref such as `origin/main`, Git's default
+   * branch.autoSetupMerge makes the new branch track that base. push.default=simple then refuses
+   * the push (the names differ) and push.default=upstream sends it to main. The branch gets its
+   * own upstream, `<remote>/<branch>`, from its first push instead (issue #353).
+   */
   const addArgs =
     branchExists.code === 0
       ? ['worktree', 'add', worktreePath, branch]
-      : ['worktree', 'add', '-b', branch, worktreePath, baseRef]
+      : ['worktree', 'add', '--no-track', '-b', branch, worktreePath, baseRef]
 
   const result = await runWorktreeGit(projectPath, addArgs, options.signal)
   throwIfGitAborted(options.signal, result)

@@ -30,7 +30,7 @@ Choose **New task** in the Scheduled panel or in Settings, or **+** in the Sessi
 
 1. **Prompt**: what the agent should do each time. The task takes its name from the start of the prompt until you give it one.
 2. **Runs**: **Into a Session** for a Heartbeat, or **New Session each time** for a Launch schedule.
-3. **When**: the schedule and its time zone. The editor shows the next three times it would fire.
+3. **When**: the schedule and its time zone. The editor shows the next three times it would fire. For **Every…** schedules it also shows the shortest allowed interval: 5 minutes for a Heartbeat, 15 for a Launch schedule.
 4. The collapsed line under it sets an end date, a maximum number of runs and notifications.
 
 You can also ask an agent: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own Session through its `hive` tool. It creates a task only when you ask for recurring work. Work it can finish in the current turn, it finishes there instead. Agents connected over MCP (`openwaggle mcp serve`) cannot manage Scheduled tasks: their access ends when the MCP server stops, so a later run would have no access left to check.
@@ -48,7 +48,21 @@ A Heartbeat fires at most every 5 minutes and a Launch schedule at most every 15
 
 Recurrence rules follow RFC 5545 without `DTSTART`, `UNTIL`, or `COUNT`. Use the task's end date or maximum number of runs to stop it instead.
 
-Tasks that run hourly or less often fire within 5 minutes of their time, so many tasks set for 09:00 do not all reach your provider in the same second. The run history shows the planned time beside the actual one.
+Tasks that run hourly or less often fire within 5 minutes of their time, so many tasks set for 09:00 do not all reach your provider in the same second. A daily 10:00 task can fire at 09:58:59. Wherever OpenWaggle shows the next run of such a task, it says so: **± up to 5 min** in the app, `(±5 min)` in the command line, and `nextRunJitter` in the agent's `hive` tool. The run history shows the planned time beside the actual one.
+
+A task's next run, last run and run history show times to the second with the offset from UTC, such as `2026-10-26 09:58:59 +01:00`. The offset tells apart the two runs of an hour that repeats when clocks go back.
+
+## Run history
+
+Each run says what fired it:
+
+| Trigger | Meaning |
+| --- | --- |
+| Scheduled | The task's schedule came due. |
+| Catch-up | The task came due while the Host was not running or the machine slept. One catch-up covers every missed time, and the history says how many it covered. |
+| Run now | Someone chose **Run now** (or `openwaggle schedules run`, or `schedule_run_now`). It fires at once, not at a time the schedule names. |
+
+The task's **Last run** line, `openwaggle schedules list` and `show`, and the agent's `schedule_list` and `schedule_read` name the trigger of the last run too, so a manual run is never mistaken for a misfire.
 
 ## When a task cannot fire
 

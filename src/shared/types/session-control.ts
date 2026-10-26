@@ -13,6 +13,7 @@ import type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 import type {
+  FollowUpQueuePauseReason,
   SessionControlQueueAdoptCommand,
   SessionControlQueueEditBeginCommand,
   SessionControlQueueEditCancelCommand,
@@ -207,6 +208,10 @@ export type SessionControlMutationOutcome =
       readonly effect: 'queued-follow-up'
       readonly sessionId: string
       readonly followUpId: string
+      /** Absent only in outcomes recorded before 1.0.0-rc.1. */
+      readonly queueState?: 'running' | 'paused'
+      /** Why a paused queue holds the Follow-up, when the Host recorded it. */
+      readonly pauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly stateRevision: number
     }
@@ -271,6 +276,10 @@ export type SessionControlMutationOutcome =
       readonly effect: 'queued-follow-up'
       readonly sessionId: string
       readonly followUpId: string
+      /** Absent only in outcomes recorded before 1.0.0-rc.1. */
+      readonly queueState?: 'running' | 'paused'
+      /** Why a paused queue holds the Follow-up, when the Host recorded it. */
+      readonly pauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly stateRevision: number
     }

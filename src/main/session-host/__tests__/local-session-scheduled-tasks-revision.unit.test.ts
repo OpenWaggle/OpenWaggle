@@ -17,7 +17,7 @@ const listCommand = {
 describe('Local Session Scheduled tasks protocol revision', () => {
   it('sends Scheduled task commands only to a revision-26 Host', () => {
     const command = decodeLocalSessionCommandPayload(listCommand)
-    expect(supportedRevisionsForCommand(command)).toEqual([26])
+    expect(supportedRevisionsForCommand(command)).toEqual([27])
     expect(() => decodeLocalSessionCommandPayloadForRevision(command, 25)).toThrow(/revision 26/)
     expect(decodeLocalSessionCommandPayloadForRevision(command, 26)).toEqual(command)
   })

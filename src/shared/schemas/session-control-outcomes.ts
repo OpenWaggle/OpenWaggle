@@ -4,6 +4,7 @@ import {
   SESSION_CONTROL_MUTATION_OPERATIONS,
   type SessionControlMutationOutcome,
 } from '@shared/types/session-control'
+import { FOLLOW_UP_QUEUE_PAUSE_REASONS } from '@shared/types/session-control-queue'
 import {
   delegationAmendmentProposedOutcomeSchema,
   delegationClaimsUpdatedOutcomeSchema,
@@ -41,6 +42,8 @@ const followUpQueuedOutcomeSchema = Schema.Struct({
   effect: Schema.Literal('queued-follow-up'),
   sessionId: Schema.String,
   followUpId: Schema.String,
+  queueState: Schema.optional(Schema.Literal('running', 'paused')),
+  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
@@ -58,6 +61,8 @@ const messageQueuedFollowUpOutcomeSchema = Schema.Struct({
   effect: Schema.Literal('queued-follow-up'),
   sessionId: Schema.String,
   followUpId: Schema.String,
+  queueState: Schema.optional(Schema.Literal('running', 'paused')),
+  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
@@ -167,7 +172,8 @@ const queueUpdatedOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   queueState: Schema.Literal('running', 'paused'),
   queueRevision: stateRevisionSchema,
-  followUpIds: Schema.Array(Schema.String),
+  remainingFollowUpIds: Schema.Array(Schema.String),
+  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
   stateRevision: stateRevisionSchema,
 })
 
@@ -184,6 +190,7 @@ const queueResumeStartedRunOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   runId: Schema.String,
   followUpId: Schema.String,
+  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
