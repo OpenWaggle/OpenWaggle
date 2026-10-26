@@ -4,10 +4,10 @@ import { ChessQueen, Pickaxe } from 'lucide-react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import type { HiveNextActorGroup } from '@/queries/session-hive-next-actor'
 import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
-import { cn } from '@/shared/lib/cn'
 import { showRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
 import { hiveSummaryModel } from '../model/session-hive-summary'
+import { SessionSummaryFacts, SessionSummaryLinkSection } from './SessionSummaryPrimitives'
 
 type HiveSummary = NonNullable<ReturnType<typeof hiveSummaryModel>>
 
@@ -35,40 +35,37 @@ const COUNT_SEGMENTS: readonly {
   { group: 'closed', text: (count) => `${count} closed`, className: 'text-text-tertiary' },
 ]
 
-/** "3 direct Workers · 1 needs you · 2 waiting for Queen": the scope, then each group. */
-function HiveSummaryCounts({ model }: { readonly model: HiveSummary }) {
+/** "3 direct Workers", "1 needs you", "2 waiting for Queen": the scope, then each group. */
+function hiveCountItems(model: HiveSummary) {
+  if (model.directCount === 0) return []
   const suffix = model.partial ? '+' : ''
-  return (
-    <span className="text-xs text-text-tertiary">
-      <span className="whitespace-nowrap">
-        {model.directCount} direct {model.directCount === 1 ? 'Worker' : 'Workers'}
-      </span>
-      {COUNT_SEGMENTS.map((segment) => {
-        const count = model.counts[segment.group]
-        if (count === 0) return null
-        return (
-          <span key={segment.group}>
-            {' · '}
-            <span className={cn('whitespace-nowrap', segment.className)}>
-              {segment.text(
-                `${String(count)}${suffix}`,
-                count === 1 && !model.partial,
-                model.title,
-              )}
-            </span>
-          </span>
-        )
-      })}
-    </span>
-  )
+  const scope = {
+    key: 'direct',
+    text: `${String(model.directCount)} direct ${model.directCount === 1 ? 'Worker' : 'Workers'}`,
+  }
+  const groups = COUNT_SEGMENTS.flatMap((segment) => {
+    const count = model.counts[segment.group]
+    if (count === 0) return []
+    return [
+      {
+        key: segment.group,
+        text: segment.text(`${String(count)}${suffix}`, count === 1 && !model.partial, model.title),
+        className: segment.className,
+      },
+    ]
+  })
+  return [scope, ...groups]
 }
+
+const OPEN_HIVE_PANEL = 'Open Hive panel'
 
 /**
  * The Session Hub's Hive section: one summary row (ADR 0051).
  *
  * The Hub cannot be shown beside the Right panel, so it no longer lists Workers — a second list
  * would vanish the moment the panel opened and could only drift from it. The row reports the
- * Hive's shape and opens the Hive panel, which is the only place Workers are listed.
+ * Hive's shape, and the whole row opens the Hive panel, which is the only place Workers are
+ * listed (#382).
  */
 export function HiveSummarySection({ sessionId }: { readonly sessionId: string }) {
   const query = useInfiniteQuery(sessionHiveRelationsQueryOptions(SessionId(sessionId)))
@@ -88,34 +85,38 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
     ) : null
 
   const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
+  // A Worker names its parent in the words every Hive surface uses (#377).
+  const parentTitle = model.lineage.role === 'worker' ? model.lineage.parentTitle : undefined
+  const counts = hiveCountItems(model)
+  const accessibleName = [
+    OPEN_HIVE_PANEL,
+    ...(parentTitle ? [`spawned by ${parentTitle}`] : []),
+    ...counts.map((item) => item.text),
+  ].join(', ')
 
   return (
-    <section className="border-t border-border" aria-label="Hive">
-      <div className="flex min-h-10 items-center gap-2 px-3 py-1.5">
-        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
-        {/* The counts get a line of their own under the name, so they wrap instead of crowding. */}
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-sm font-medium text-text-primary">Hive</span>
-          {/* A Worker names its parent in the words every Hive surface uses (#377). */}
-          {model.lineage.role === 'worker' && model.lineage.parentTitle ? (
-            <span className="truncate text-xs text-text-tertiary">
-              Spawned by {model.lineage.parentTitle}
-            </span>
+    <SessionSummaryLinkSection
+      label="Hive"
+      icon={<Icon className="size-3.5 text-accent" />}
+      title="Hive"
+      details={
+        <>
+          {parentTitle ? (
+            <span className="truncate text-xs text-text-tertiary">Spawned by {parentTitle}</span>
           ) : null}
-          {model.directCount > 0 ? <HiveSummaryCounts model={model} /> : null}
-        </span>
-        {/* Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them. */}
-        {model.lineage.historical === true ? null : (
-          <Button
-            variant="unstyled"
-            className="shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            aria-label="Open in Hive panel"
-            onClick={() => showRightPanelSurface('hive')}
-          >
-            Open in Hive panel
-          </Button>
-        )}
-      </div>
-    </section>
+          <SessionSummaryFacts items={counts} />
+        </>
+      }
+      // Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them.
+      target={
+        model.lineage.historical === true
+          ? undefined
+          : {
+              label: OPEN_HIVE_PANEL,
+              accessibleName,
+              onOpen: () => showRightPanelSurface('hive'),
+            }
+      }
+    />
   )
 }

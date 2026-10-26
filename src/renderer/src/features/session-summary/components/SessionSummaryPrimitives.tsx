@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, PanelRight } from 'lucide-react'
 import { Fragment, type Key, type ReactNode, type Ref, useId, useState } from 'react'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
 const INITIAL_VISIBLE_ITEMS = 6
@@ -124,6 +125,110 @@ export function SessionSummaryRow({
         </span>
       )}
     </>
+  )
+}
+
+/** The header row's geometry, shared by a disclosure header and a link section's row. */
+const SECTION_ROW_CLASS = 'flex min-h-10 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left'
+
+/**
+ * Where a link section goes: `label` is the destination (the trailing icon's tooltip) and
+ * `accessibleName` the whole row's name, which repeats what the row shows.
+ */
+export interface SessionSummaryLinkTarget {
+  readonly label: string
+  readonly accessibleName: string
+  readonly onOpen: () => void
+}
+
+/**
+ * A Summary section that is a single row standing for a surface shown elsewhere, such as the
+ * Hive panel. It sits where a section header sits and reads like one: the icon, a title line,
+ * and optional detail lines under it. With a `target` the whole row is one button that opens
+ * it, with the same full-row hover and a trailing panel icon; it holds no other control.
+ * Without one the row is plain content and has no icon.
+ */
+export function SessionSummaryLinkSection({
+  label,
+  icon,
+  title,
+  details,
+  target,
+}: {
+  /** The region's name. */
+  readonly label: string
+  readonly icon: ReactNode
+  readonly title: string
+  readonly details?: ReactNode
+  readonly target?: SessionSummaryLinkTarget
+}) {
+  const content = (
+    <>
+      <span aria-hidden="true" className="flex shrink-0">
+        {icon}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium text-text-primary">{title}</span>
+        {details}
+      </span>
+    </>
+  )
+  return (
+    <section aria-label={label} className="border-t border-border first:border-t-0">
+      {target === undefined ? (
+        <div className={SECTION_ROW_CLASS}>{content}</div>
+      ) : (
+        <Button
+          variant="unstyled"
+          className={cn(
+            SECTION_ROW_CLASS,
+            'group cursor-pointer transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',
+          )}
+          aria-label={target.accessibleName}
+          onClick={target.onOpen}
+        >
+          {content}
+          <span
+            title={target.label}
+            className="grid size-6 shrink-0 place-items-center text-text-muted transition-colors group-hover:text-text-secondary group-focus-visible:text-text-secondary"
+          >
+            <PanelRight aria-hidden="true" className="size-3.5" />
+          </span>
+        </Button>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Short facts under a link section's title ("3 direct Workers · 1 needs you"). Each one is a
+ * single unbreakable item that shortens with an ellipsis when it alone is wider than the row,
+ * and the items wrap only between each other. Every item leads with its separator, and the list
+ * is shifted left by one separator inside a clipping box, so a line never starts with a dot.
+ */
+export function SessionSummaryFacts({
+  items,
+}: {
+  readonly items: readonly {
+    readonly key: string
+    readonly text: string
+    readonly className?: string
+  }[]
+}) {
+  if (items.length === 0) return null
+  return (
+    <span className="block overflow-hidden text-xs text-text-tertiary">
+      <span className="-ml-3 flex flex-wrap">
+        {items.map((item) => (
+          <span key={item.key} data-summary-fact="" className="flex min-w-0 max-w-full">
+            <span aria-hidden="true" className="w-3 shrink-0 text-center whitespace-pre">
+              {' · '}
+            </span>
+            <span className={cn('min-w-0 truncate', item.className)}>{item.text}</span>
+          </span>
+        ))}
+      </span>
+    </span>
   )
 }
 
