@@ -27,8 +27,9 @@ import { useHiveSessionState } from '../hooks/useHiveSessionState'
  */
 export const HIVE_ROW_GRID_STYLE = {
   display: 'grid',
-  // The State cell says who acts next and why (issue 380), and wraps the longer labels.
-  gridTemplateColumns: 'minmax(0, 1fr) 72px 112px',
+  // The State cell says who acts next and why (issue 380); it wraps, never truncates, because a
+  // label such as "Run failed, ‹parent› notified" names the parent and must be read whole.
+  gridTemplateColumns: 'minmax(0, 1fr) 72px 104px',
   columnGap: '8px',
 } as const satisfies React.CSSProperties
 
@@ -169,7 +170,7 @@ export function HiveStateCell({ view }: { readonly view: HiveRowView }) {
   return (
     <span
       className={cn(
-        'line-clamp-2 text-right text-xs',
+        'break-words text-right text-xs',
         view.state.needsYou ? 'text-warning' : 'text-text-tertiary',
       )}
       title={view.state.hint}
