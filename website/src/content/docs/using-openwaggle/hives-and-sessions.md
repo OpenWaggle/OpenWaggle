@@ -58,15 +58,15 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `hive
 |---|---|
 | **Create** | Create an idle independent root Session. It has no initial Run. |
 | **Launch** | Atomically create an independent root Session and start its first Run. |
-| **Spawn** | Atomically create and start a Worker beneath a parent, including its lineage and Delegation Contract. |
+| **Spawn** | Atomically create and start a Worker beneath a parent, including its lineage and Delegation Contract. An optional title names it; without one it is titled from its objective. |
 | **Fork** | Create a new Session from a stable point in an existing transcript. |
 | **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. An idle Session whose queue is paused still starts the message; the paused Follow-ups stay queued. |
 | **Start** | Start a new Run on an idle Session. It never queues behind an active Run. |
-| **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. |
+| **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. A Follow-up sent to an idle Session whose queue is paused waits in the queue; the result says so with `queueState` and, when known, `pauseReason`. |
 | **Steer** | Append guidance to one exact active Run without interrupting it. It requires that Run's identity. |
 | **Replace** | Interrupt one exact active Run and start the supplied message as a new Run. |
 | **Promote** | Remove one queued Follow-up and deliver it as Steering to the exact active Run. |
-| **Withdraw** | Remove a pending Follow-up before delivery. |
+| **Withdraw** | Remove a pending Follow-up before delivery. The result lists the Follow-ups it removed as `withdrawnFollowUpIds` and those still queued as `remainingFollowUpIds`. |
 | **Reorder** | Change pending Follow-up order against an expected queue revision. |
 | **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. A failed, interrupted, or timed-out Run pauses the queue only for Follow-ups accepted before the Run ended; one accepted after that starts at settlement. `queue list` reports why a paused queue paused. |
 | **Interrupt** | Stop one exact active Run without starting another. |
@@ -75,6 +75,8 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `hive
 | **Report** | Deliver explicit context upstream, to the Queen, or to a named Worker without starting or steering a Run. |
 | **Handoff** | Move a Session to another authorized Workspace binding. |
 | **Export** | Stream or create a Markdown, JSONL, or bundle artifact from an authorized transcript scope. |
+
+Stopping or interrupting a Run before the agent wrote anything leaves no empty reply in the transcript; whatever it had already written stays.
 
 Pi's internal steering queue is an adapter detail. The durable **Follow-up queue** above is the product queue: it survives renderer disconnects and host recovery, can remain pending after the active Run, and is delivered one entry at a time when resumed.
 
@@ -96,7 +98,7 @@ Session capabilities constrain the native `hive` tool and authenticated Session 
 
 ## Delegation lifecycle
 
-Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost.
+Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself stays under **Needs you** when that Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result. Once the parent answers, a later Run that completes with a reply is captured for review as usual.
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
 
@@ -104,13 +106,17 @@ Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable
 
 When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, reviewing its delegation yourself (accepting, cancelling, reopening, or asking for a revision), branching its conversation, and renaming, archiving, or restoring it, whether from the app or the CLI. Any Worker you have interacted with stays out of cleanup; interacting does not add it to the sidebar, only pinning does. A pinned Worker is not archived while it is pinned. Archiving is recorded as the parent agent's action, and nothing is deleted.
 
-Reading a Worker's transcript is not interaction, but OpenWaggle leaves a Worker alone while it is open in the app, and while it has a terminal, a browser preview, or a running project service that archiving would stop. It checks again the next time a run in the Hive finishes.
+Reading a Worker's transcript is not interaction, but OpenWaggle leaves a Worker alone while it is open in the app, and while it has a terminal, a browser preview, or a running project service that archiving would stop. A Worker you leave while it runs stops counting as open once its run ends. OpenWaggle checks a Worker it kept this way again on its own, 15 seconds later and then at growing intervals up to every 5 minutes, so closing the Worker is enough; you do not need to start another run. Whatever its workspace, a shared checkout or its own worktree, a finished Worker is archived the same way.
 
 Archived Workers stay listed under **Archived · n** in the Hive panel and in **Settings > Archived items**. Choose **Unarchive session** from an archived row's menu in the Hive panel, or **Restore** in Settings, to bring it back and continue the conversation. Work sent to a Worker that cleanup archived restores it in the same step, so it is back among the Hive panel's live rows and out of its **Archived** list while it runs. That covers a message, Follow-up, `start`, steer, or replace, and reopening or asking for a revision of its delegation, whether you do it or an agent does. The restore is recorded as whoever sent the work. OpenWaggle does not archive a Worker you restored again. A Worker an agent restored stays visible until its delegation is accepted or cancelled again; after that, cleanup can archive it once more. A Worker that you or an agent archived explicitly stays archived when it gets new work, and the parent agent can restore it with `unarchive`.
 
 ## How hosted agents coordinate
 
 An agent running inside OpenWaggle uses its native `hive` tool. It can list or search available Agent definitions, then spawn a Worker with a specific objective, an optional definition, and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.
+
+By default `list`, `search`, and `delegations_list` look at the caller's current project: its main checkout and every worktree of it, so a Queen finds a Worker that runs in a new worktree. `catalogScope: "project"` with a `projectPath` looks at another project, and `catalogScope: "all"` at every Session the caller can reach. A Worker's discovery stays inside its grant, which never reaches past its own Hive; asking for another project is refused with `target_scope_denied`. `list` leaves archived Sessions out, as `search` does; `archived: true` lists only archived ones, and `parentSessionId` lists only that Session's direct Workers. `delegations_list` shows Delegations in every state, newest first, unless `states` narrows it. Each listed or read Session reports its `depth` in its Hive, `0` for a root.
+
+The native tool offers each agent only the actions its Session's grant allows, and its instructions name only those. A call to any other action fails with the capability it needs, for example `capability_denied: the hive action fork requires sessions:create and sessions:read`.
 
 After spawning, the parent can use `wait` for a bounded observation, read the Worker's Session or Delegation history, and review its submitted revision. The native tool's `wait` is not a permanent subscription; external CLI/MCP clients can use `watch` for a continuing event stream. The parent may ask for revision or accept the submission. An agent can use `report` to pass context to its parent, the Queen, or another Worker without starting a Run in the recipient. A user can ask a Worker to report a finding upstream; no separate reporting UI is required.
 

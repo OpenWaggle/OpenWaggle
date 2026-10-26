@@ -5,7 +5,28 @@ const RELEASES_PER_PAGE = 100
 const MAX_RELEASE_PAGES = 100
 const RELEASE_TAG_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
-const releaseListSchema = Schema.Array(Schema.Struct({ tag_name: Schema.String }))
+const releaseListSchema = Schema.Array(
+  Schema.Struct({
+    tag_name: Schema.String,
+    assets: Schema.Array(Schema.Struct({ name: Schema.String })),
+  }),
+)
+
+type ListedRelease = (typeof releaseListSchema.Type)[number]
+
+/** The platform and architecture whose update metadata a feed must offer. */
+export interface UpdateFeedRuntime {
+  readonly platform: NodeJS.Platform
+  readonly arch: string
+}
+
+/**
+ * Which release the updater now reads, or that no eligible release offers update metadata for this
+ * platform yet: Stable before 1.0, or a release whose assets are still uploading.
+ */
+export type UpdateFeedSelection =
+  | { readonly type: 'release'; readonly tag: string }
+  | { readonly type: 'no-release' }
 
 type FeedConfiguration =
   | {
@@ -59,7 +80,7 @@ function parseReleaseVersion(tag: string): ParsedReleaseVersion | undefined {
   }
 }
 
-function compareReleaseVersions(left: ParsedReleaseVersion, right: ParsedReleaseVersion) {
+function compareParsedVersions(left: ParsedReleaseVersion, right: ParsedReleaseVersion) {
   for (let index = 0; index < left.core.length; index += 1) {
     const difference = (left.core[index] ?? 0) - (right.core[index] ?? 0)
     if (difference !== 0) return difference
@@ -84,19 +105,50 @@ export function isVersionEligibleForChannel(version: string, channel: UpdateChan
   return parsed !== undefined && isEligibleReleaseChannel(parsed.channel, channel)
 }
 
-function newestEligibleRelease(tags: readonly string[], channel: UpdateChannel) {
-  let selected: ParsedReleaseVersion | undefined
-  for (const tag of tags) {
-    const parsed = parseReleaseVersion(tag)
-    if (!parsed || !isEligibleReleaseChannel(parsed.channel, channel)) continue
-    if (!selected || compareReleaseVersions(parsed, selected) > 0) selected = parsed
-  }
-  if (!selected) throw new Error(`No ${channel}-eligible OpenWaggle release is available.`)
-  return selected.tag
+/**
+ * Orders two release versions (`v` optional): negative when `left` is older, 0 when equal, and
+ * undefined when either is not a release version.
+ */
+export function compareReleaseVersions(left: string, right: string) {
+  const parsedLeft = parseReleaseVersion(left)
+  const parsedRight = parseReleaseVersion(right)
+  if (!parsedLeft || !parsedRight) return undefined
+  return compareParsedVersions(parsedLeft, parsedRight)
 }
 
-async function fetchAllReleaseTags(fetchReleases: UpdateReleaseFetcher) {
-  const tags: string[] = []
+/** The channel metadata file electron-updater requests (its `Provider.getCustomChannelName`). */
+export function updaterMetadataAssetName(channel: UpdateChannel, runtime: UpdateFeedRuntime) {
+  const feed = updaterFeedChannel(channel)
+  if (runtime.platform === 'darwin') return `${feed}-mac.yml`
+  if (runtime.platform === 'linux') {
+    return `${feed}-linux${runtime.arch === 'x64' ? '' : `-${runtime.arch}`}.yml`
+  }
+  return `${feed}.yml`
+}
+
+/**
+ * The newest eligible release that already has this platform's channel metadata. A release is
+ * listed as soon as it is published, before its assets finish uploading; reading its metadata then
+ * would fail with HTTP 404, so such a release is skipped until a later check.
+ */
+function newestEligibleRelease(
+  releases: readonly ListedRelease[],
+  channel: UpdateChannel,
+  runtime: UpdateFeedRuntime,
+) {
+  const metadataAsset = updaterMetadataAssetName(channel, runtime)
+  let selected: ParsedReleaseVersion | undefined
+  for (const release of releases) {
+    const parsed = parseReleaseVersion(release.tag_name)
+    if (!parsed || !isEligibleReleaseChannel(parsed.channel, channel)) continue
+    if (!release.assets.some((asset) => asset.name === metadataAsset)) continue
+    if (!selected || compareParsedVersions(parsed, selected) > 0) selected = parsed
+  }
+  return selected?.tag
+}
+
+async function fetchAllReleases(fetchReleases: UpdateReleaseFetcher) {
+  const listed: ListedRelease[] = []
   for (let page = 1; page <= MAX_RELEASE_PAGES; page += 1) {
     const response = await fetchReleases(
       `https://api.github.com/repos/OpenWaggle/OpenWaggle/releases?per_page=${RELEASES_PER_PAGE}&page=${page}`,
@@ -106,8 +158,8 @@ async function fetchAllReleaseTags(fetchReleases: UpdateReleaseFetcher) {
       throw new Error(`OpenWaggle could not list releases (HTTP ${response.status}).`)
     }
     const releases = decodeUnknownOrThrow(releaseListSchema, await response.json())
-    tags.push(...releases.map((release) => release.tag_name))
-    if (releases.length < RELEASES_PER_PAGE) return tags
+    listed.push(...releases)
+    if (releases.length < RELEASES_PER_PAGE) return listed
   }
   throw new Error(`OpenWaggle release history exceeds ${MAX_RELEASE_PAGES} pages.`)
 }
@@ -118,15 +170,17 @@ export function configureUpdaterFeed(
   updater: UpdateFeedTarget,
   channel: UpdateChannel,
   fetchReleases: UpdateReleaseFetcher = fetchReleaseList,
-) {
+  runtime: UpdateFeedRuntime = process,
+): Promise<UpdateFeedSelection> {
   updater.setFeedURL({
     provider: 'github',
     owner: 'OpenWaggle',
     repo: 'OpenWaggle',
     channel: updaterFeedChannel(channel),
   })
-  return fetchAllReleaseTags(fetchReleases).then((tags) => {
-    const tag = newestEligibleRelease(tags, channel)
+  return fetchAllReleases(fetchReleases).then((releases): UpdateFeedSelection => {
+    const tag = newestEligibleRelease(releases, channel, runtime)
+    if (tag === undefined) return { type: 'no-release' }
     updater.setFeedURL({
       provider: 'generic',
       url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
@@ -135,5 +189,6 @@ export function configureUpdaterFeed(
       // (blockmap) downloads must use single ranges, as electron-updater's GitHub provider does.
       useMultipleRangeRequest: false,
     })
+    return { type: 'release', tag }
   })
 }

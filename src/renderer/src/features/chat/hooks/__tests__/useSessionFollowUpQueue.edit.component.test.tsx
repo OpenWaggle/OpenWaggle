@@ -147,7 +147,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       sessionId: SESSION_ID,
       queueState: 'running',
       queueRevision: 9,
-      followUpIds: ['follow-up-1'],
+      remainingFollowUpIds: ['follow-up-1'],
       stateRevision: 10,
     })
     await act(() =>
@@ -202,7 +202,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       sessionId: SESSION_ID,
       queueState: 'running',
       queueRevision: 9,
-      followUpIds: ['follow-up-1'],
+      remainingFollowUpIds: ['follow-up-1'],
       stateRevision: 10,
     })
     apiMocks.querySessionControl.mockRejectedValueOnce(new Error('Host unavailable'))
@@ -262,7 +262,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       sessionId: SESSION_ID,
       queueState: 'running',
       queueRevision: 8,
-      followUpIds: ['follow-up-1'],
+      remainingFollowUpIds: ['follow-up-1'],
       stateRevision: 9,
     })
 

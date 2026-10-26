@@ -4,6 +4,7 @@ import type {
   PersistSessionSnapshotInput,
   ProjectedSessionNodeInput,
 } from '../../ports/session-repository'
+import { makeEventLoopSlicer } from '../../utils/event-loop-slice'
 import { nodeProjectionChanged, searchProjectionChanged } from './snapshot-transcript-term-changes'
 import type { SessionNodeRow } from './types'
 
@@ -138,6 +139,8 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
       yield* Effect.dieMessage(`reconcileSnapshotNodes (${input.sessionId}): ${orderProblem}`)
     }
 
+    // A Run's snapshot can write hundreds of nodes, each through the search triggers.
+    const slice = makeEventLoopSlicer()
     const parkedIds = nodesToPark(input)
     const parked = new Set(parkedIds)
     yield* parkNodeOrders(input.sql, input.sessionId, parkedIds)
@@ -156,12 +159,14 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
         next,
         updateSearchProjection: restoreParkedOrder || searchProjectionChanged(existing, next),
       })
+      yield* slice
     }
     for (const existing of input.existingNodes) {
       if (!retainedIds.has(existing.id)) {
         yield* input.sql`
           DELETE FROM session_nodes WHERE id = ${existing.id} AND session_id = ${input.sessionId}
         `
+        yield* slice
       }
     }
     for (const node of input.nodes) {
@@ -172,6 +177,7 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
         branchHintByNodeId: input.branchHintByNodeId,
         node,
       })
+      yield* slice
     }
   })
 }

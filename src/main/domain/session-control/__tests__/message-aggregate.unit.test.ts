@@ -88,6 +88,7 @@ describe('Session Control adaptive Message aggregate', () => {
         effect: 'queued-follow-up',
         sessionId,
         followUpId,
+        queueState: 'running',
         queueRevision: 5,
         stateRevision: 10,
       },

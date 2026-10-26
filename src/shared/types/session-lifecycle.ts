@@ -93,6 +93,8 @@ export interface SpawnWorkerSessionCommand {
   readonly operation: 'spawn'
   readonly parentSessionId: string
   readonly expectedParentRunId: string
+  /** A manual title; without one the Worker is titled from its objective. */
+  readonly title?: string
   readonly workspace?: SpawnWorkspaceSelection
   readonly specialization?: SessionExecutionSpecialization
   readonly runAuthorizationOverride?: AgentAuthorizationMode

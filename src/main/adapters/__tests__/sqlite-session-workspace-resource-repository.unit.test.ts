@@ -129,4 +129,59 @@ describe('SQLite Session Workspace removal admission', () => {
 
     expect(result._tag).toBe('Left')
   })
+  it('lists the Sessions that can keep a worktree in use, with their Workspace', async () => {
+    const layer = makeLayer(path.join(temporaryRoot, 'occupants.sqlite'))
+    const occupants = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionWorkspaceResourceRepository
+        yield* sql`
+          INSERT INTO workspace_resources (
+            id, project_path, kind, working_path, lifecycle_state,
+            worktree_start_from_origin, created_at, updated_at
+          ) VALUES
+            (${'managed-archived'}, ${'/project'}, ${'managed-worktree'}, ${'/wt/archived'},
+              ${'ready'}, ${0}, ${1}, ${1}),
+            (${'local-archived'}, ${'/other'}, ${'local'}, ${'/other'},
+              ${'ready'}, ${0}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO sessions (id, pi_session_id, project_path, title, archived, created_at, updated_at)
+          VALUES
+            (${'session-archived-owner'}, ${'pi-archived-owner'}, ${'/project'}, ${'Owner'}, ${1}, ${1}, ${1}),
+            (${'session-archived-local'}, ${'pi-archived-local'}, ${'/project'}, ${'Gone'}, ${1}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+          VALUES (${'session-archived-owner'}, ${'managed-archived'}, ${1}),
+            (${'session-archived-local'}, ${'local-archived'}, ${1})
+        `
+        return yield* repository.listWorkspaceOccupants()
+      }).pipe(Effect.provide(layer)),
+    )
+
+    // An archived local Session with no Run can neither block nor own a worktree, so it is left out.
+    expect([...occupants].sort((a, b) => a.sessionId.localeCompare(b.sessionId))).toEqual([
+      {
+        sessionId: 'session-archived-owner',
+        title: 'Owner',
+        archived: true,
+        activeRun: false,
+        sessionProjectPath: '/project',
+        workspace: {
+          id: 'managed-archived',
+          kind: 'managed-worktree',
+          workingPath: '/wt/archived',
+        },
+      },
+      {
+        sessionId: 'session-parent',
+        title: 'Parent',
+        archived: false,
+        activeRun: true,
+        sessionProjectPath: '/project',
+        workspace: { id: 'workspace-parent', kind: 'local', workingPath: '/project' },
+      },
+    ])
+  })
 })

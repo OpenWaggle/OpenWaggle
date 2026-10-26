@@ -20,6 +20,21 @@ catalogs:
 # (docs/dependency-updates.md).
 saveExact: true
 
+# Install the native optional packages (sharp, keyring, clipboard, ...) for both CPU architectures.
+# One macOS run packages the arm64 and the x64 app, so the arm64 release runner must also install
+# the x64 builds; without this the Intel app shipped only arm64 binaries (#349). electron-builder
+# drops the other architecture from each pack (scripts/electron-builder-native-prebuilds.ts), and
+# scripts/check-native-platform-floor.ts fails a pack that misses one.
+supportedArchitectures:
+  os:
+    - current
+  cpu:
+    - current
+    - arm64
+    - x64
+  libc:
+    - current
+
 # Supply-chain hardening: delay installs until a release has had time to be
 # vetted, and never accept weakening trust signals (provenance/signatures).
 minimumReleaseAge: 10080

@@ -68,5 +68,13 @@ export const actionManagementRequestSchema: Schema.Schema<ActionManagementReques
       afterOffset: Schema.Number.pipe(Schema.int(), Schema.nonNegative(), Schema.finite()),
     }),
     Schema.Struct({ type: Schema.Literal('stop'), runId: identifier }),
+    Schema.Struct({ type: Schema.Literal('worktree-usage') }),
+    Schema.Struct({
+      type: Schema.Literal('worktree-removal-preview'),
+      path: Schema.String.pipe(
+        Schema.minLength(1),
+        Schema.maxLength(ACTION_DEFINITION_LIMITS.PATH_LENGTH),
+      ),
+    }),
   ),
 })

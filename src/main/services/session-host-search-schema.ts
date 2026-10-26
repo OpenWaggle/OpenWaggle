@@ -1,7 +1,8 @@
 import { SESSION_DELEGATION_SEARCH_SCHEMA_STATEMENTS } from './session-host-delegation-search-schema'
 import {
-  refreshSessionLexicalDiscoverySql,
+  refreshSessionLexicalDiscoveryUnlessDeferredSql,
   SESSION_DISCOVERY_SEARCH_ROW_SCHEMA_STATEMENTS,
+  SESSION_LEXICAL_DISCOVERY_DEFERRAL_SCHEMA_STATEMENT,
 } from './session-host-discovery-search-schema'
 import { SESSION_DISCOVERY_SEMANTIC_SCHEMA_STATEMENTS } from './session-host-discovery-semantic-schema'
 import { SESSION_NODE_SEARCH_ROW_SCHEMA_STATEMENTS } from './session-host-node-search-row-schema'
@@ -33,7 +34,12 @@ export const SESSION_NODE_SEARCH_DELETE_TRIGGER_SCHEMA_STATEMENT = `
   END
 `
 
+/**
+ * The node triggers, with the table they read to skip the discovery rebuild during a bulk write.
+ * Every migration that recreates them runs this whole list, so the table always exists first.
+ */
 export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
+  SESSION_LEXICAL_DISCOVERY_DEFERRAL_SCHEMA_STATEMENT,
   `
   CREATE TRIGGER session_node_search_insert AFTER INSERT ON session_nodes BEGIN
     INSERT INTO session_node_search (session_id, node_id, content)
@@ -48,7 +54,7 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
     VALUES (new.session_id, ${NEW_TRANSCRIPT_SEARCHABLE})
     ON CONFLICT(session_id) DO UPDATE SET
       searchable_node_count = searchable_node_count + excluded.searchable_node_count;
-    ${refreshSessionLexicalDiscoverySql('new.session_id')}
+    ${refreshSessionLexicalDiscoveryUnlessDeferredSql('new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -80,8 +86,8 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
     VALUES (new.session_id, ${NEW_TRANSCRIPT_SEARCHABLE})
     ON CONFLICT(session_id) DO UPDATE SET
       searchable_node_count = searchable_node_count + excluded.searchable_node_count;
-    ${refreshSessionLexicalDiscoverySql('new.session_id')}
-    ${refreshSessionLexicalDiscoverySql('old.session_id', 'old.session_id <> new.session_id')}
+    ${refreshSessionLexicalDiscoveryUnlessDeferredSql('new.session_id')}
+    ${refreshSessionLexicalDiscoveryUnlessDeferredSql('old.session_id', 'old.session_id <> new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -97,7 +103,7 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
   SESSION_NODE_SEARCH_DELETE_TRIGGER_SCHEMA_STATEMENT,
   `
   CREATE TRIGGER session_node_discovery_search_delete AFTER DELETE ON session_nodes BEGIN
-    ${refreshSessionLexicalDiscoverySql('old.session_id')}
+    ${refreshSessionLexicalDiscoveryUnlessDeferredSql('old.session_id')}
     UPDATE session_transcript_semantic_scopes
     SET source_revision = source_revision + 1
     WHERE session_id = old.session_id;

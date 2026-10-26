@@ -192,6 +192,21 @@ describe('Hive Worker cleanup and live desktop state', () => {
     expect(result).toEqual({ archived: 0, stoppedWorkspaces: [] })
   })
 
+  it('archives an accepted idle Worker that is alone in its own new worktree', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHiveWorker(sql)
+        // The new-worktree shape of issue #352: the Worker is its Workspace's only binding.
+        yield* bindWorkerWorkspace(sql, ['worker'])
+        yield* reconcileHiveWorkerCleanup(SessionId('queen'))
+        return yield* archivedState(sql, 'worker')
+      }).pipe(Effect.provide(service.store('own-worktree'))),
+    )
+
+    expect(result).toBe(1)
+  })
+
   it('archives a Worker whose running service stays alive for another Session', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {

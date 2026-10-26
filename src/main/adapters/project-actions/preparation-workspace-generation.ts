@@ -68,17 +68,24 @@ export async function readPreparationWorkspaceIdentity(workspacePath: string) {
   }
 }
 
-/** A new preparation with nothing run yet, tied to the folder at the path or to a pending birth. */
+/**
+ * A new preparation with nothing run yet, tied to the folder at the path when there is one.
+ *
+ * At the project path it records no folder and no pending birth. A local Workspace runs there
+ * and never has a worktree birth; a managed worktree that does not exist yet also uses the project
+ * path, and `prepareBirth` marks its birth pending right before `git worktree add` runs. Writing
+ * `awaitingWorktreeBirth` here claimed a pending birth for every local Workspace (issue #353).
+ */
 export async function freshPreparationState(
   workspace: ActionRunWorkspace,
   snapshot: StoredWorkspacePreparation['snapshot'],
   revision: number,
   previous: StoredWorkspacePreparation | null = null,
 ): Promise<StoredWorkspacePreparation> {
-  const identity =
-    workspace.workspacePath === workspace.projectPath
-      ? null
-      : await readPreparationWorkspaceIdentity(workspace.workspacePath)
+  const atProjectPath = workspace.workspacePath === workspace.projectPath
+  const identity = atProjectPath
+    ? null
+    : await readPreparationWorkspaceIdentity(workspace.workspacePath)
   return {
     workspaceId: workspace.workspaceId,
     revision,
@@ -86,9 +93,11 @@ export async function freshPreparationState(
     setup: EMPTY_PREPARATION_EXECUTION,
     cleanup: EMPTY_PREPARATION_EXECUTION,
     environment: {},
-    ...(identity
-      ? { workspaceIdentity: identity }
-      : { awaitingWorktreeBirth: true, awaitingWorktreeBirthSince: Date.now() }),
+    ...(identity ? { workspaceIdentity: identity } : {}),
+    // A missing worktree folder is still a pending birth: only the project path is never one.
+    ...(!identity && !atProjectPath
+      ? { awaitingWorktreeBirth: true, awaitingWorktreeBirthSince: Date.now() }
+      : {}),
     // Choosing another profile for the same folder keeps the setup a run's birth still owes.
     ...(identity && owesRunBirthSetup(previous) ? { runBirthSetupOwed: true as const } : {}),
   }

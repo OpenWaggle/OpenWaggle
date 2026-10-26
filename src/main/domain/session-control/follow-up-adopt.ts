@@ -39,7 +39,7 @@ export type AdoptFollowUpResult =
         readonly sessionId: SessionControlSessionState['sessionId']
         readonly queueState: 'running' | 'paused'
         readonly queueRevision: number
-        readonly followUpIds: readonly string[]
+        readonly remainingFollowUpIds: readonly string[]
         readonly stateRevision: number
       }
     }
@@ -135,7 +135,7 @@ export function adoptFollowUp(input: {
       sessionId: next.sessionId,
       queueState: next.followUpQueue.state,
       queueRevision,
-      followUpIds: items.map((candidate) => candidate.id),
+      remainingFollowUpIds: items.map((candidate) => candidate.id),
       stateRevision,
     },
   }
