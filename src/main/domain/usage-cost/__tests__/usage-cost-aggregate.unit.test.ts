@@ -112,13 +112,16 @@ describe('aggregateUsageCostView', () => {
   })
 
   it('buckets days in local time and attributes tool results to the Pi tools bucket', () => {
-    // 22:30 UTC on Oct 13 is 00:30 on Oct 14 in a UTC+2 machine clock: the local
-    // day crosses the UTC day boundary, so the bucket must not follow UTC days.
-    const afterLocalMidnight = Date.UTC(2026, 9, 13, 22, 30)
+    // Half an hour either side of local midnight, both before NOW in every time zone. East of
+    // UTC both fall on the UTC day of Oct 13, and west of it on Oct 14, so only local-day
+    // bucketing puts them on two days, Oct 13 and Oct 14.
+    const beforeLocalMidnight = new Date(2026, 9, 13, 23, 30).getTime()
+    const afterLocalMidnight = new Date(2026, 9, 14, 0, 30).getTime()
     const input = viewInput([
       session({
         file: '/a.jsonl',
         records: [
+          record({ timestampMs: beforeLocalMidnight }),
           record({ timestampMs: afterLocalMidnight }),
           record({
             timestampMs: afterLocalMidnight,
@@ -130,8 +133,8 @@ describe('aggregateUsageCostView', () => {
     ])
 
     const view = aggregateUsageCostView(input, QUERY, NOW)
-    expect(view.days).toHaveLength(1)
-    expect(view.days[0]?.day).toBe(localDayKey(afterLocalMidnight, NOW))
+    expect(view.days.map((day) => day.day)).toEqual(['2026-10-13', '2026-10-14'])
+    expect(localDayKey(afterLocalMidnight, NOW)).toBe('2026-10-14')
     const tools = view.models.find((model) => model.modelId === USAGE_COST_TOOLS_MODEL_ID)
     expect(tools).toBeDefined()
     expect(view.models[0]?.modelId).not.toBe(USAGE_COST_TOOLS_MODEL_ID)

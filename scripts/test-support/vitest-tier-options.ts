@@ -33,3 +33,20 @@ export const NODE_TIER_TIMEOUTS = {
 
 /** The component tier keeps Vitest's default deadlines. */
 export const COMPONENT_TIER_TIMEOUTS = {} as const
+
+/**
+ * The zone every test runs in. Tests that read local dates passed on UTC CI and failed on a
+ * machine far from UTC: one usage-cost test failed at UTC+14 on main. Pinning one zone far from UTC
+ * makes every run, on every machine and in the required CI jobs, see local and UTC days disagree
+ * for most of the day. UTC+14 (no DST) is as far east as zones go; the nightly workflow runs the
+ * unit tier again at `America/Adak` (UTC-10, with DST) through `OPENWAGGLE_TEST_TIME_ZONE`, for
+ * mistakes only a zone west of UTC shows. A test that needs another zone stubs `TZ` itself.
+ */
+export const DEFAULT_TEST_TIME_ZONE = 'Pacific/Kiritimati'
+
+export function testTimeZone(environment: NodeJS.ProcessEnv = process.env) {
+  return environment.OPENWAGGLE_TEST_TIME_ZONE || DEFAULT_TEST_TIME_ZONE
+}
+
+/** The `test.env` entry that pins it; the machine's own `TZ` does not reach the tests. */
+export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const

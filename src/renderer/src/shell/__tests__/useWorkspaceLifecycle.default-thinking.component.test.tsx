@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import {
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
@@ -13,9 +14,13 @@ describe("useWorkspaceLifecycle and Pi's default thinking level", () => {
     ReturnType<typeof loadUseWorkspaceLifecycle>
   >['useWorkspaceLifecycle']
 
-  beforeEach(async () => {
-    resetWorkspaceLifecycleMocks()
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
+    resetWorkspaceLifecycleMocks()
   })
 
   it("refreshes this window's draft thinking picker when another window changes the default", async () => {

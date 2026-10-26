@@ -1,4 +1,4 @@
-# Nightly cross-platform packaged-app canary.
+# Nightly cross-platform packaged-app canary, and the unit tier in a zone west of UTC.
 #
 # E2E was removed from CI (ADR 0033): per-PR gating relies on unit + integration
 # + MCP conformance, mirroring pingdotgg/t3code. This scheduled canary is the
@@ -27,6 +27,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Every Vitest config pins the tests to Pacific/Kiritimati (UTC+14), so every pre-push and CI
+  # run sees local and UTC days disagree (scripts/test-support/vitest-tier-options.ts). This runs
+  # the unit tier on the other side of UTC, where a local-date mistake shows differently, and
+  # through a DST zone.
+  unit-west-of-utc:
+    name: Unit tests at America/Adak
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENWAGGLE_TEST_TIME_ZONE: America/Adak
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Unit tests
+        run: pnpm test:unit
+
   packaged-canary:
     name: Packaged canary ${{ matrix.label }}
     strategy:

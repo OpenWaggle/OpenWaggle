@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { testTimeZone } from '../test-support/vitest-tier-options'
 
 /*
  * Tests must never see the real user's home: a dev run once migrated a maintainer's real
@@ -96,5 +97,20 @@ describe('Vitest config isolation', () => {
         hookTimeout: 60_000,
       })
     }
+  })
+
+  /*
+   * Tests that read local dates passed on UTC CI and failed on a machine far from UTC, so every
+   * config runs its tests in one zone far from UTC, on every machine.
+   */
+  it.each([
+    ['unit', () => testOptions('vitest.unit.config.ts')],
+    ['integration', () => testOptions('vitest.integration.config.ts')],
+    ['component', () => testOptions('vitest.component.config.ts')],
+    ['default', () => testOptions('vitest.config.ts')],
+    ['coverage node project', () => coverageProject('node')],
+    ['coverage component project', () => coverageProject('component')],
+  ])('pins the time zone in the %s config', async (_name, load) => {
+    expect(field(field(await load(), 'env'), 'TZ')).toBe(testTimeZone())
   })
 })

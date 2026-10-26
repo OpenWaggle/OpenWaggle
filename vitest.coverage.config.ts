@@ -7,6 +7,7 @@ import {
   COMPONENT_TIER_TIMEOUTS,
   NODE_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
 
 /**
@@ -71,7 +72,7 @@ export default defineConfig({
           environment: 'node',
           // The unit and integration tiers' deadlines, which instrumentation needs even more.
           ...NODE_TIER_TIMEOUTS,
-          env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
+          env: { ...ISOLATED_SOURCE_CONTROL_CLI_ENV, ...TEST_TIME_ZONE_ENV },
           include: ['src/**/*.unit.test.ts', 'src/**/*.integration.test.ts', 'scripts/**/*.unit.test.ts'],
           setupFiles: [
             'scripts/test-support/isolate-user-home.ts',
@@ -85,6 +86,7 @@ export default defineConfig({
           name: 'component',
           environment: 'jsdom',
           ...COMPONENT_TIER_TIMEOUTS,
+          env: TEST_TIME_ZONE_ENV,
           include: ['src/**/*.component.test.tsx'],
           setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
         },

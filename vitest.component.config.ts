@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config'
 import {
   COMPONENT_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
 
 /**
@@ -53,6 +54,7 @@ export default defineConfig({
     environment: 'jsdom',
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     ...COMPONENT_TIER_TIMEOUTS,
+    env: TEST_TIME_ZONE_ENV,
     include: ['src/**/*.component.test.tsx', 'packages/**/*.component.test.tsx'],
     setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
     coverage: {

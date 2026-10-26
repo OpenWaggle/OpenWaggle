@@ -64,4 +64,14 @@ describe('nightly packaged canary workflow', () => {
       'SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json',
     )
   })
+
+  it('runs the unit tier west of UTC, opposite the zone every config pins', () => {
+    const job = WORKFLOW.slice(
+      WORKFLOW.indexOf('  unit-west-of-utc:'),
+      WORKFLOW.indexOf('  packaged-canary:'),
+    )
+    expect(job).toContain('OPENWAGGLE_TEST_TIME_ZONE: America/Adak')
+    expect(job).toContain('run: pnpm test:unit')
+    expect(job).toContain('runs-on: ubuntu-latest')
+  })
 })

@@ -4,6 +4,7 @@ import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control
 import {
   NODE_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
 
 export default defineConfig({
@@ -23,7 +24,7 @@ export default defineConfig({
       'scripts/test-support/isolate-user-home.ts',
       'src/main/test-support/isolate-user-mcp-files.ts',
     ],
-    env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
+    env: { ...ISOLATED_SOURCE_CONTROL_CLI_ENV, ...TEST_TIME_ZONE_ENV },
     include: ['src/**/*.integration.test.ts', 'scripts/**/*.integration.test.ts'],
     ...NODE_TIER_TIMEOUTS,
     coverage: {
