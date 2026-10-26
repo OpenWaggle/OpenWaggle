@@ -138,6 +138,23 @@ function delegationGuideline(permits: Permits) {
   return undefined
 }
 
+/** What `nextActor` means, for anyone who reads Session summaries or Delegations (ADR 0059). */
+function nextActorGuideline(permits: Permits) {
+  if (
+    permitted(permits, ['list', 'search', 'read', 'delegations_list', 'delegations_read'])
+      .length === 0
+  ) {
+    return undefined
+  }
+  return [
+    'Every Session summary and Delegation with a Delegation state also carries nextActor, who acts next on that Worker:',
+    'user when only the person can unblock it (a parked approval or question, or stuck: it failed or asked for help and its parent has no active Run and nothing queued),',
+    'parent when its parent agent acts next (review its result, see its failed Run, or answer its request for help),',
+    'worker when it is working or revising, and none once its Delegation is accepted or cancelled.',
+    'A Delegation state the Host set for a failed Run clears when a new Run starts; a request for help clears when its parent delivers anything to it.',
+  ].join(' ')
+}
+
 function cleanupGuideline(permits: Permits) {
   if (!permits('delegation_accept') && !permits('delegation_cancel')) return undefined
   const resuming = permitted(permits, ['start', 'follow_up', 'steer', 'replace'])
@@ -188,6 +205,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
+    nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('search') || permits('items')
       ? 'Search before reading broad history, and page transcript items deliberately.'
