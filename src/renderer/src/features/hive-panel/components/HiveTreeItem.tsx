@@ -175,6 +175,8 @@ function HiveTreeDisclosure({
       onClick={(event) => {
         event.stopPropagation()
         onToggle()
+        // Keep focus on the row, where the tree's keys work, not on this pointer-only control.
+        event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus()
       }}
     >
       <Icon aria-hidden="true" className="size-3.5" />
@@ -200,10 +202,11 @@ function HiveTreeItemMeta({
           className={cn('size-1.5 shrink-0 rounded-full', attention ? 'bg-warning' : 'bg-info')}
         />
       )}
+      {/* A separator ends the part before it, so a wrapped line never starts with one. */}
       {meta.map((part, index) => (
         <span key={part} className="flex items-center gap-x-1.5 whitespace-nowrap">
-          {index > 0 ? <span aria-hidden="true">·</span> : null}
           <span>{part}</span>
+          {index < meta.length - 1 ? <span aria-hidden="true">·</span> : null}
         </span>
       ))}
       {item.orphanParentTitle === null ? null : (

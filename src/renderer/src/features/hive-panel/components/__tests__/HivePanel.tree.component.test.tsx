@@ -118,6 +118,8 @@ describe('HivePanel tree view', () => {
     expect(item('a')).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('treeitem', { name: /Session: a1\b/u })).toBeNull()
     expect(within(item('a')).getByText('1 needs attention')).toBeInTheDocument()
+    // The pointer-only disclosure hands focus back to its row, where the tree's keys work.
+    expect(item('a')).toHaveFocus()
 
     view.unmount()
     await renderHive()
