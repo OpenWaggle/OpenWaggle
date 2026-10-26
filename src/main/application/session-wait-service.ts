@@ -1,7 +1,7 @@
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import {
   isSessionlessHostEvent,
-  type SessionHostEventDelivery,
+  type SessionHostEventEnvelope,
 } from '@shared/types/session-host-event'
 import type {
   SessionQueryRequest,
@@ -22,6 +22,7 @@ import {
 import { SessionWaitService } from '../ports/session-wait-service'
 import { getSessionHostEventRuntime } from '../session-host/session-host-events'
 import { waitForSessionExport } from './session-export-wait'
+import { throwIfAborted, waitForSessionHostCondition } from './session-host-condition-wait'
 import { acquireWaitLiveness } from './session-host-run-admission'
 
 type WaitRequest = SessionQueryRequest & {
@@ -92,63 +93,31 @@ function matchingSessionIds(request: WaitRequest, states: readonly SessionWaitSt
   })
 }
 
-function nextWithTimeout(
-  subscription: { readonly next: () => Promise<SessionHostEventDelivery> },
-  timeoutMs: number,
-  signal?: AbortSignal,
-) {
-  return new Promise<SessionHostEventDelivery | { readonly status: 'timeout' }>(
-    (resolve, reject) => {
-      if (signal?.aborted) {
-        reject(abortError(signal))
-        return
-      }
-      let settled = false
-      const finish = (callback: () => void) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        signal?.removeEventListener('abort', onAbort)
-        callback()
-      }
-      const onAbort = () => finish(() => reject(abortError(signal)))
-      const timer = setTimeout(() => finish(() => resolve({ status: 'timeout' })), timeoutMs)
-      signal?.addEventListener('abort', onAbort, { once: true })
-      subscription.next().then(
-        (delivery) => finish(() => resolve(delivery)),
-        (error) => finish(() => reject(error)),
-      )
-    },
-  )
-}
-
-function abortError(signal?: AbortSignal) {
-  return signal?.reason instanceof Error ? signal.reason : new Error('aborted')
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError(signal)
-}
-
-function isTargetDelivery(request: WaitRequest, delivery: SessionHostEventDelivery) {
-  if (delivery.status !== 'event') return false
-  const payload = delivery.event.payload
-  if (isSessionlessHostEvent(payload)) return false
-  return request.query.targets.some((target) => target.sessionId === payload.sessionId)
-}
-
 function targetEventFilter(request: WaitRequest) {
   const targetSessionIds = new Set(request.query.targets.map((target) => target.sessionId))
-  return (event: Extract<SessionHostEventDelivery, { readonly status: 'event' }>['event']) =>
+  return (event: SessionHostEventEnvelope) =>
     !isSessionlessHostEvent(event.payload) && targetSessionIds.has(event.payload.sessionId)
 }
 
-function closeWaitSubscription(
-  subscription:
-    | ReturnType<ReturnType<typeof getSessionHostEventRuntime>['eventHub']['subscribeAfter']>
-    | undefined,
-) {
-  if (subscription?.status === 'ready') subscription.subscription.close()
+function waitResponse(request: WaitRequest, states: readonly SessionWaitState[]) {
+  const matchedSessionIds = matchingSessionIds(request, states)
+  return response(request, {
+    operation: 'wait',
+    timedOut: matchedSessionIds.length === 0,
+    matchedSessionIds,
+    cursor: getSessionHostEventRuntime().eventHub.cursor(),
+    states,
+  })
+}
+
+function sessionNotFound(request: WaitRequest) {
+  return response(request, {
+    operation: 'wait',
+    error: {
+      code: 'session_not_found',
+      message: 'One or more target Sessions were not found.',
+    },
+  })
 }
 
 async function wait(
@@ -164,106 +133,33 @@ async function wait(
   const runtime = getSessionHostEventRuntime()
   const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()
-  let subscription: ReturnType<typeof runtime.eventHub.subscribeAfter> | undefined
   try {
-    let states = await readStates(repository, reports, input, input.request)
-    if (!states) {
+    const states = await readStates(repository, reports, input, input.request)
+    if (!states) return sessionNotFound(input.request)
+    if (
+      matchingSessionIds(input.request, states).length > 0 ||
+      input.request.query.timeoutMs === 0
+    ) {
+      return waitResponse(input.request, states)
+    }
+    const observation = await waitForSessionHostCondition({
+      eventHub: runtime.eventHub,
+      after: input.request.query.after ?? snapshotCursor,
+      accepts: targetEventFilter(input.request),
+      read: () => readStates(repository, reports, input, input.request),
+      matches: (observed) => matchingSessionIds(input.request, observed).length > 0,
+      deadline: Date.now() + input.request.query.timeoutMs,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    if (observation.status === 'missing') return sessionNotFound(input.request)
+    if (observation.status === 'host-stopped') {
       return response(input.request, {
         operation: 'wait',
-        error: {
-          code: 'session_not_found',
-          message: 'One or more target Sessions were not found.',
-        },
+        error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
       })
     }
-    let matchedSessionIds = matchingSessionIds(input.request, states)
-    if (matchedSessionIds.length > 0 || input.request.query.timeoutMs === 0) {
-      return response(input.request, {
-        operation: 'wait',
-        timedOut: matchedSessionIds.length === 0,
-        matchedSessionIds,
-        cursor: runtime.eventHub.cursor(),
-        states,
-      })
-    }
-    subscription = runtime.eventHub.subscribeAfter(
-      input.request.query.after ?? snapshotCursor,
-      targetEventFilter(input.request),
-    )
-    if (subscription.status === 'resync-required') {
-      return response(input.request, {
-        operation: 'wait',
-        error: {
-          code: 'resync_required',
-          message: `Session event resynchronization is required: ${subscription.reason}.`,
-        },
-      })
-    }
-    const deadline = Date.now() + input.request.query.timeoutMs
-    while (true) {
-      const remaining = Math.max(0, deadline - Date.now())
-      const delivery = await nextWithTimeout(subscription.subscription, remaining, input.signal)
-      if (delivery.status === 'timeout') {
-        const observedStates = await readStates(repository, reports, input, input.request)
-        if (!observedStates) {
-          return response(input.request, {
-            operation: 'wait',
-            error: {
-              code: 'session_not_found',
-              message: 'One or more target Sessions were not found.',
-            },
-          })
-        }
-        states = observedStates
-        matchedSessionIds = matchingSessionIds(input.request, states)
-        return response(input.request, {
-          operation: 'wait',
-          timedOut: matchedSessionIds.length === 0,
-          matchedSessionIds,
-          cursor: runtime.eventHub.cursor(),
-          states,
-        })
-      }
-      if (delivery.status === 'resync-required') {
-        return response(input.request, {
-          operation: 'wait',
-          error: {
-            code: 'resync_required',
-            message: `Session event resynchronization is required: ${delivery.reason}.`,
-          },
-        })
-      }
-      if (delivery.status === 'closed') {
-        return response(input.request, {
-          operation: 'wait',
-          error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
-        })
-      }
-      if (!isTargetDelivery(input.request, delivery)) continue
-      const observedStates = await readStates(repository, reports, input, input.request)
-      if (!observedStates) {
-        return response(input.request, {
-          operation: 'wait',
-          error: {
-            code: 'session_not_found',
-            message: 'One or more target Sessions were not found.',
-          },
-        })
-      }
-      states = observedStates
-      matchedSessionIds = matchingSessionIds(input.request, states)
-      if (matchedSessionIds.length > 0) {
-        return response(input.request, {
-          operation: 'wait',
-          timedOut: false,
-          matchedSessionIds,
-          cursor: runtime.eventHub.cursor(),
-          states,
-        })
-      }
-    }
+    return waitResponse(input.request, observation.value)
   } finally {
-    closeWaitSubscription(subscription)
     releaseLiveness()
   }
 }

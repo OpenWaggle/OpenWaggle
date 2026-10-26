@@ -1781,6 +1781,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Several child completions may be batched into one compact **Orchestration update** while their complete results remain readable from each child.
 - A **Session wait** accepts one or more target identities, requested conditions, recent **Session event cursors**, and a bounded timeout, then returns compact current state and updated cursors for every target.
 - A **Session wait** wakes when the first target reaches a requested condition and does not wake for every streaming event.
+- A **Session wait** owns its event subscription and its **Session resynchronization**: an unavailable cursor or a slow-consumer drop makes it reload canonical state and keep waiting, so it never returns `resync_required` to its caller.
 - The GUI consumes a **Session subscription**, while **Session watch** exposes the same authorized feed through the CLI.
 - **Session discovery** searches title, initial objective, and current preview through **Session discovery text**, while **Transcript search** is an explicit broader operation.
 - A Session without an explicit title receives a generated **Session title**: a root from its first message after showing a **Provisional title**, a Worker from its Delegation objective at Spawn. Only a root may receive **Title refinement**.
