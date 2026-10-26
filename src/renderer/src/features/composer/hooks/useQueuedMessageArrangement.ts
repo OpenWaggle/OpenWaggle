@@ -1,10 +1,20 @@
 import type { SessionId } from '@shared/types/brand'
+import type { DragEvent } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
+import {
+  clearDragFeedback,
+  clearDropLine,
+  markDragSource,
+  QUEUED_MESSAGE_ROW_SELECTOR,
+  queuedRowAt,
+  setQueuedMessageDragImage,
+  showDropLine,
+} from '../lib/queued-message-drag'
 import { dropAnchor, type QueuedMessageAnchor } from '../lib/queued-message-order'
 import { useQueuedMessageReorder } from './useQueuedMessageReorder'
 
-const ROW_SELECTOR = '[data-qa="queued-message-row"]'
+const ROW_SELECTOR = QUEUED_MESSAGE_ROW_SELECTOR
 const GRIP_SELECTOR = '[data-qa="queued-message-grip"]'
 
 interface PendingFocus {
@@ -34,10 +44,18 @@ function focusWhenPlaced(list: HTMLElement | null, pending: PendingFocus) {
   return true
 }
 
+/** Whether the pointer left the list, not just moved between its rows or into the gap between them. */
+function leftList(list: HTMLElement | null, event: DragEvent<HTMLElement>) {
+  const next = event.relatedTarget
+  return !(next instanceof Node && (list?.contains(next) ?? false))
+}
+
 /**
  * Reordering in the queue dock: drag bookkeeping, moves, focus, and the move announcement.
  *
- * The dragged id is kept in a ref, not state: re-rendering a row mid-gesture cancels the drag.
+ * The dragged id and the drop the line shows are kept in refs, not state: re-rendering a row
+ * mid-gesture cancels the drag. The list owns the drop: the line stays on the last row the
+ * pointer was over while it crosses the gap between rows, and a drop lands where the line is.
  */
 export function useQueuedMessageArrangement(
   sessionId: SessionId | null,
@@ -46,6 +64,7 @@ export function useQueuedMessageArrangement(
 ) {
   const { move } = useQueuedMessageReorder(sessionId, onToast)
   const draggedIdRef = useRef<string | null>(null)
+  const dropRef = useRef<QueuedMessageAnchor | null>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const pendingFocusRef = useRef<PendingFocus | null>(null)
   // The nonce re-keys the announcement, so the same words are read again for a second move.
@@ -79,9 +98,22 @@ export function useQueuedMessageArrangement(
     }))
   }
 
-  function anchorFor(targetId: string) {
+  function endDrag() {
+    draggedIdRef.current = null
+    dropRef.current = null
+    clearDragFeedback(listRef.current)
+  }
+
+  /** Points the drop at the row under the pointer; over the gap between rows it stays put. */
+  function aimDrop(event: DragEvent<HTMLElement>) {
     const draggedId = draggedIdRef.current
-    return draggedId ? dropAnchor(visibleIds, draggedId, targetId) : null
+    const list = listRef.current
+    const row = queuedRowAt(list, event.target)
+    if (!draggedId || !list || !row) return
+    const anchor = dropAnchor(visibleIds, draggedId, row.dataset.followUpId ?? '')
+    dropRef.current = anchor
+    if (anchor) showDropLine(list, row, anchor.position)
+    else clearDropLine(list)
   }
 
   return {
@@ -89,18 +121,36 @@ export function useQueuedMessageArrangement(
     announcement,
     onMove: (followUpId: string, anchor: QueuedMessageAnchor) =>
       void moveAndFocus(followUpId, anchor),
-    onDragStart: (followUpId: string) => {
+    onDragStart: (followUpId: string, event: DragEvent<HTMLElement>) => {
       draggedIdRef.current = followUpId
+      dropRef.current = null
+      const row = queuedRowAt(listRef.current, event.currentTarget)
+      if (!row) return
+      setQueuedMessageDragImage(event.dataTransfer, row, event)
+      markDragSource(row)
     },
-    onDragEnd: () => {
-      draggedIdRef.current = null
-    },
-    dropAnchor: anchorFor,
-    onDropOn: (targetId: string) => {
-      const draggedId = draggedIdRef.current
-      const anchor = anchorFor(targetId)
-      draggedIdRef.current = null
-      if (draggedId && anchor) void moveAndFocus(draggedId, anchor)
+    // Also how a drag cancelled with Escape or dropped outside the list ends: with no move.
+    onDragEnd: endDrag,
+    listDragHandlers: {
+      onDragOver: (event: DragEvent<HTMLUListElement>) => {
+        aimDrop(event)
+        if (!draggedIdRef.current || !dropRef.current) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+      },
+      onDragLeave: (event: DragEvent<HTMLUListElement>) => {
+        if (!leftList(listRef.current, event)) return
+        dropRef.current = null
+        clearDropLine(listRef.current)
+      },
+      onDrop: (event: DragEvent<HTMLUListElement>) => {
+        const draggedId = draggedIdRef.current
+        const anchor = dropRef.current
+        if (!draggedId || !anchor) return
+        event.preventDefault()
+        endDrag()
+        void moveAndFocus(draggedId, anchor)
+      },
     },
   }
 }

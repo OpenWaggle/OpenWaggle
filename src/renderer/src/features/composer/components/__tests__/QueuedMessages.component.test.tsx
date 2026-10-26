@@ -276,7 +276,7 @@ describe('QueuedMessages', () => {
         onToast={noOpToast}
       />,
     )
-    expect(screen.getByText('2 attachment(s)')).toBeInTheDocument()
+    expect(screen.getByText('2 attachments')).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('Dismiss'))
     expect(queueMock.withdraw).toHaveBeenCalledWith('follow-up-1')
   })

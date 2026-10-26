@@ -134,6 +134,8 @@ If an approval request appears, check the proposed action and its target. Choose
 
 You can send an ordinary message while the agent is busy. It waits as a follow-up rather than starting a second task at the same time. For changes already made to files, use the [diff panel](/docs/developer-workflow/git-integration#diff-panel) to review them and send corrections.
 
+Queued follow-ups wait above the message box, in the order they will be sent. To reorder them, drag a message by its grip, the dots at its left edge: the whole message follows the pointer, its place in the list stays dimmed, and a line shows where it will land. Press `Esc` or drop it outside the list to leave the order as it was. You can also click the grip, or focus it and press `Enter`, and choose **Move up** or **Move down**.
+
 ## Native Pi tools
 
 Pi is the agent engine used by OpenWaggle. Its usual starting file and shell tools are:
