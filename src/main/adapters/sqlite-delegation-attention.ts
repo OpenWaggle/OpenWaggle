@@ -22,6 +22,7 @@ interface AttentionContractRow {
 const PARENT_DELIVERIES: ReadonlyMap<string, string> = new Map([
   ['follow-up', 'a Follow-up'],
   ['message', 'a message'],
+  ['start', 'a message that started a Run'],
   ['steer', 'steering'],
   ['promote', 'a promoted Follow-up'],
   ['replace', 'a replacement message'],
@@ -142,7 +143,7 @@ function agentSessionOf(callerId: string) {
 
 /**
  * The parent's agent delivered something to the Worker that asked it for help: a Follow-up, a
- * message, steering, a promotion or a replacement. The request is answered, so the Worker works
+ * message (`message` or `start`), steering, a promotion or a replacement. The request is answered, so the Worker works
  * again (ADR 0059). A revision request moves the state itself; a failed Run waits for a new Run.
  */
 export function clearWorkerRequestOnParentDelivery(

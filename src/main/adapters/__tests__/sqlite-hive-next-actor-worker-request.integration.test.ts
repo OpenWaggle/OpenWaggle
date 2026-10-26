@@ -1,5 +1,7 @@
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { startSessionRun } from '../../application/session-control-service'
 import { clearWorkerRequestOnParentDelivery } from '../sqlite-delegation-attention'
 import {
   closeHiveNextActorHost,
@@ -54,6 +56,27 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     })
   })
 
+  it('clears a Worker’s request for help when the parent starts a Run on it', async () => {
+    await withHost((sql) => setWorkerState(sql, 'needs_attention'))
+    const started = await withHost(() =>
+      startSessionRun({
+        callerId: 'session-agent:queen:run-q',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-parent-start',
+          idempotencyKey: 'parent-start',
+          command: {
+            operation: 'start',
+            sessionId: 'worker',
+            input: { text: 'Here are the credentials.', attachmentIds: [] },
+          },
+        },
+      }),
+    )
+    expect(started.outcome.effect).toBe('started-run')
+    expect(await withHost(readDelegation)).toMatchObject({ state: 'working', cause: null })
+  })
+
   it('clears a Worker’s request for help when it sets itself back to working', async () => {
     await withHost((sql) => setWorkerState(sql, 'needs_attention'))
     await withHost((sql) => setWorkerState(sql, 'working'))
@@ -64,7 +87,7 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     })
   })
 
-  it('treats steering, a promotion and a replacement from the parent as delivery, and nothing else', async () => {
+  it('treats steering, a promotion, a replacement and a start from the parent as delivery, and nothing else', async () => {
     const cleared = await withHost((sql) =>
       Effect.gen(function* () {
         const results: Record<string, boolean> = {}
@@ -76,6 +99,7 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
           ['steer', 'session-agent:queen:run-q'],
           ['promote', 'session-agent:queen:run-q'],
           ['replace', 'session-agent:queen:run-q'],
+          ['start', 'session-agent:queen:run-q'],
         ] as const
         for (const [operation, callerId] of attempts) {
           yield* setWorkerState(sql, 'needs_attention')
@@ -98,6 +122,7 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
       'steer by session-agent:queen:run-q': true,
       'promote by session-agent:queen:run-q': true,
       'replace by session-agent:queen:run-q': true,
+      'start by session-agent:queen:run-q': true,
     })
   })
 })
