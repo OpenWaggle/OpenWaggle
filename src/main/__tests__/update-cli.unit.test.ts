@@ -54,6 +54,7 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: false,
     getAppPath: () => '/workspace/OpenWaggle',
+    getVersion: () => '1.0.0-beta.25',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
     on: appOnMock,
@@ -75,6 +76,7 @@ vi.mock('../update-feed', async (importOriginal) => ({
 }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
+  assertCliAgentMayUseOwnerAuthority: vi.fn(),
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))
@@ -90,17 +92,24 @@ describe('update CLI', () => {
     updater.allowDowngrade = false
     updater.autoDownload = true
     executeLocalSessionCommandMock.mockImplementation(
-      ({ payload }: { readonly payload: { readonly request: { readonly operation: string } } }) =>
+      ({
+        payload,
+      }: {
+        readonly payload: {
+          readonly request: { readonly operation: string; readonly channel?: string }
+        }
+      }) =>
         Promise.resolve({
           contract: 'local-update-v1',
           response: {
             contractVersion: 1,
-            updateChannel: payload.request.operation === 'set-channel' ? 'alpha' : 'stable',
+            updateChannel: payload.request.channel ?? 'stable',
           },
         }),
     )
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v1.0.0-beta.25' })
     requestSingleInstanceLockMock.mockReturnValue(true)
     stopHostForUpdateMock.mockResolvedValue({ state: 'stopped', activeRuns: 0 })
   })
@@ -119,10 +128,10 @@ describe('update CLI', () => {
     expect(writeCliStdoutMock).toHaveBeenCalledWith(expect.stringContaining('openwaggle update'))
   })
 
-  it('persists an explicit channel and checks its matching updater feed', async () => {
+  it('checks an explicit channel without saving it', async () => {
     checkForUpdatesMock.mockResolvedValue({
       isUpdateAvailable: true,
-      updateInfo: { version: '0.5.0-alpha.2' },
+      updateInfo: { version: '1.0.0-rc.1' },
     })
 
     await expect(runUpdateCli(['--channel', 'alpha', '--check'])).resolves.toEqual({
@@ -130,8 +139,29 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
+    // --check is read-only: the saved channel is neither changed nor needed.
+    expect(executeLocalSessionCommandMock).not.toHaveBeenCalled()
+    expect(createClientMock).not.toHaveBeenCalled()
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'alpha')
+    expect(updater.channel).toBe('alpha')
+    expect(updater.allowPrerelease).toBe(true)
+    expect(updater.allowDowngrade).toBe(false)
+    expect(updater.autoDownload).toBe(false)
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      'OpenWaggle 1.0.0-rc.1 is available on the alpha channel. The saved update channel was not changed.\n',
+    )
+  })
+
+  it('persists an explicit channel when it updates from it', async () => {
+    await expect(runUpdateCli(['--channel', 'alpha'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+
     // No pinned revision: the command offers those it can be sent at, the Host's current one.
-    expect(createClientMock).toHaveBeenCalledWith(expect.anything())
+    expect(createClientMock).toHaveBeenCalledWith(expect.anything(), {
+      agentRefusal: expect.stringContaining('Ask the user to run openwaggle update'),
+    })
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.not.objectContaining({ supportedRevisions: expect.anything() }),
     )
@@ -143,12 +173,23 @@ describe('update CLI', () => {
         },
       }),
     )
-    expect(updater.channel).toBe('alpha')
-    expect(updater.allowPrerelease).toBe(true)
-    expect(updater.allowDowngrade).toBe(false)
-    expect(updater.autoDownload).toBe(false)
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'alpha')
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
-      'OpenWaggle 0.5.0-alpha.2 is available on the alpha channel.\n',
+      'OpenWaggle is up to date on the alpha channel.\n',
+    )
+  })
+
+  it.each([
+    [['--channel', 'stable', '--check'], ' The saved update channel was not changed.'],
+    [['--channel', 'stable'], ''],
+  ])('reports Stable before its first release as up to date: %j', async (args, unsaved) => {
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'no-release' })
+
+    await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
+
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      `OpenWaggle is up to date on the stable channel: no release is available on it yet.${unsaved}\n`,
     )
   })
 
@@ -233,23 +274,19 @@ describe('update CLI', () => {
     )
   })
 
-  it('checks an exact version without changing the saved channel', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ tag_name: 'v0.4.0', assets: [] }),
-        }),
-      ),
-    )
+  it('refuses a downgrade with a usage error before contacting GitHub', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
 
-    await expect(runUpdateCli(['--version', '0.4.0', '--check'])).resolves.toEqual({
-      exitCode: 0,
+    await expect(runUpdateCli(['--version', '1.0.0-beta.20', '--check'])).resolves.toEqual({
+      exitCode: 2,
       updaterOwnsExit: false,
     })
-    expect(createClientMock).not.toHaveBeenCalled()
-    expect(writeCliStdoutMock).toHaveBeenCalledWith('OpenWaggle v0.4.0 is available.\n')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).not.toHaveBeenCalled()
+    expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/^error \[usage\]: .*Downgrades/u))
   })
 
   it('distinguishes invalid arguments from update failures', async () => {

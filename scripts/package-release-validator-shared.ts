@@ -5,7 +5,7 @@ export const DIRECT_NODE = 'node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
 
 const APPROVED_ACTIONS = [
   { name: 'actions/attest-build-provenance', sha: '977bb373ede98d70efdf65b84cb5f73e068dcc2a', version: 'v3' },
-  { name: 'actions/cache', sha: '0057852bfaa89a56745cba8c7296529d2fc39830', version: 'v4' },
+  { name: 'actions/cache', sha: 'caa296126883cff596d87d8935842f9db880ef25', version: 'v5' },
   { name: 'actions/checkout', sha: 'df4cb1c069e1874edd31b4311f1884172cec0e10', version: 'v6' },
   { name: 'actions/download-artifact', sha: '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c', version: 'v8' },
   { name: 'actions/setup-node', sha: '48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e', version: 'v6' },
@@ -16,7 +16,7 @@ const APPROVED_ACTIONS = [
     version: RELEASE_PLEASE_CONTRACT.actionVersion,
   },
   { name: 'oven-sh/setup-bun', sha: '0c5077e51419868618aeaa5fe8019c62421857d6', version: 'v2' },
-  { name: 'pnpm/action-setup', sha: 'b906affcce14559ad1aafd4ab0e942779e9f58b1', version: 'v4' },
+  { name: 'pnpm/action-setup', sha: 'ea17c68df8912ef543352723c149a84f56e3d413', version: 'v6' },
 ] as const
 
 /*

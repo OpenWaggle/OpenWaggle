@@ -16,7 +16,10 @@ vi.mock('../../hooks/useOpenScheduledSession', () => ({
 
 import { ScheduledTaskDetail } from '../ScheduledTaskDetail'
 
-const TASK = scheduledTask({ timeZone: 'UTC' })
+const TASK = scheduledTask({
+  timeZone: 'UTC',
+  lastRun: scheduledTaskRun({ id: 'run-3', trigger: 'run-now' }),
+})
 const RUNS = [
   scheduledTaskRun({ id: 'run-3', trigger: 'run-now', sessionId: 'session-launched' }),
   scheduledTaskRun({
@@ -62,6 +65,23 @@ describe('Scheduled task detail', () => {
     expect(mocks.openSession).toHaveBeenCalledWith('session-launched')
   })
 
+  it('shows the last run’s trigger, and the next run to the second with its offset and jitter', async () => {
+    renderDetail()
+
+    const lastRun = (await screen.findByText('Last run')).nextElementSibling
+    expect(lastRun?.textContent).toMatch(/^Last run Started · Run now · .*9:01:30.*GMT/)
+    const when = screen.getByText('When').nextElementSibling
+    expect(when?.textContent).toMatch(/\(.*9:00:00.*GMT(\+0)? ± up to 5 min\)/)
+  })
+
+  it('names the enable switch after what its checked state means', async () => {
+    renderDetail()
+
+    const toggle = await screen.findByRole('switch', { name: 'Task enabled' })
+    expect(toggle).toBeChecked()
+    expect(screen.queryByRole('switch', { name: /Pause|Resume/ })).toBeNull()
+  })
+
   it('runs, pauses and deletes the task from its header', async () => {
     const { onDeleted } = renderDetail()
 
@@ -73,7 +93,7 @@ describe('Scheduled task detail', () => {
       ),
     )
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Pause this task' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Task enabled' }))
     await vi.waitFor(() =>
       expect(mocks.execute).toHaveBeenCalledWith(
         { operation: 'update', taskId: TASK.id, patch: { enabled: false } },

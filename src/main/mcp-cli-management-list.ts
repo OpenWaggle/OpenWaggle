@@ -1,10 +1,10 @@
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpConfigFileScope,
   McpConfigurationView,
   McpConfiguredServerView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
+import { mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError } from './mcp-cli-management-arguments'
 import {
   MCP_MANAGEMENT_EXIT,
@@ -106,13 +106,7 @@ export async function listCommand({
   const failed =
     view.errors.length > 0 || reports.some((entry) => entry.enabled && entry.state !== 'connected')
   if (args.flags.has('json')) {
-    context.output.log(
-      JSON.stringify(
-        { servers: reports, errors: view.errors },
-        null,
-        MCP_CONFIG.JSON_INDENT_SPACES,
-      ),
-    )
+    context.output.log(mcpCliJsonResponse('list', { servers: reports, errors: view.errors }))
   } else {
     if (reports.length === 0 && view.errors.length === 0) {
       context.output.log('No MCP servers configured. Add one with: openwaggle mcp add')

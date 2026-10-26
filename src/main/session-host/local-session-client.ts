@@ -15,6 +15,7 @@ import {
   openLocalSessionConnection,
   writeLocalSessionFrame,
 } from './local-session-client-connection'
+import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
 import { decodeLocalSessionCommandResponse } from './local-session-client-response'
 
 export {
@@ -118,7 +119,7 @@ export async function executeLocalSessionCommand(input: {
   try {
     const minimumRevision = requiredLocalSessionCommandRevision(input.payload)
     if (minimumRevision !== undefined && negotiation.revision < minimumRevision) {
-      throw new Error(unsupportedRevisionMessage(input.payload))
+      throw new LocalSessionHostUnavailableError(unsupportedRevisionMessage(input.payload))
     }
     const requestId = randomUUID()
     await writeLocalSessionFrame(socket, {

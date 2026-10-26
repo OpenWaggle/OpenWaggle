@@ -142,6 +142,9 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
           validateRemoval: () =>
             EffectModule.succeed({ ok: true, message: 'safe', path: WORKTREE_PATH }),
           inspectLinkedWorktree: () => EffectModule.dieMessage('not used'),
+          list: () => EffectModule.succeed({ worktrees: [] }),
+          countUnpublishedCommits: () => EffectModule.succeed(null),
+          applicationCheckout: () => EffectModule.succeed(null),
         }),
         Layer.succeed(
           SessionWorkspaceResourceRepository,
@@ -154,6 +157,7 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
                 createdReservation: true,
               }),
             finalizeManagedWorktreeRemoval: () => EffectModule.void,
+            listWorkspaceOccupants: () => EffectModule.succeed([]),
           }),
         ),
       ),

@@ -47,7 +47,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -568,7 +568,7 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -647,6 +647,9 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Check macOS native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+
       - name: Verify macOS signing and notarization
         shell: bash
         env:
@@ -668,6 +671,16 @@ jobs:
               spctl --assess --type execute --verbose "$app"
             fi
           done
+          # The DMG users download is signed, notarized and stapled itself, not only the app inside.
+          dmgs=(dist/*.dmg)
+          [ "${#dmgs[@]}" -eq 2 ]
+          for dmg in "${dmgs[@]}"; do
+            codesign --verify --strict --verbose=2 "$dmg"
+            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+              xcrun stapler validate "$dmg"
+              spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+            fi
+          done
 
       - name: Prepare macOS update channels
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
@@ -675,7 +688,7 @@ jobs:
       - name: Smoke packaged macOS PTY runtime
         run: pnpm packaged-app:smoke
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: macos-artifacts
           path: |
@@ -689,13 +702,16 @@ jobs:
     name: Build Linux
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
+    # Native modules link against the build host's glibc and libstdc++. Ubuntu 22.04 (glibc 2.35)
+    # is the supported Linux floor (scripts/supported-platform-floor.ts); ubuntu-latest (24.04)
+    # made node-pty need glibc 2.38 in 1.0.0-beta.25.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -723,13 +739,16 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
+      - name: Check Linux native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+
       - name: Prepare Linux update channels
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
 
       - name: Smoke packaged Linux PTY runtime
         run: pnpm packaged-app:smoke
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-artifacts
           path: |
@@ -747,7 +766,7 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -775,6 +794,9 @@ jobs:
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
 
+      - name: Check Windows native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+
       - name: Prepare Windows update channels
         shell: bash
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
@@ -782,7 +804,7 @@ jobs:
       - name: Smoke packaged Windows PTY runtimes
         run: pnpm packaged-app:smoke
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-artifacts
           path: |
@@ -814,12 +836,12 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         if: matrix.platform == 'windows'
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -919,7 +941,7 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts
 
@@ -944,15 +966,61 @@ jobs:
             -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      # softprops publishes a prerelease before it uploads, so beta.25's update checks briefly got a
+      # 404 for beta-mac.yml. Upload to a draft, verify it, then publish. A rerun after publication
+      # leaves the published release alone and only verifies it.
+      - name: Find an already published release
+        id: existing-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)" = "false" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload GitHub Release as a draft
+        if: steps.existing-release.outputs.published != 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
-          draft: false
+          draft: true
           prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
           make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
           # Prereleases use generated notes; Stable uses its CHANGELOG.md entry.
           generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}
           body_path: ${{ !contains(needs.version.outputs.new_version, '-') && format('{0}/release-notes.md', runner.temp) || '' }}
           files: release/*
+
+      - name: Verify draft release assets
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release
+
+      - name: Publish GitHub Release
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+          RELEASE_PRERELEASE: ${{ contains(needs.version.outputs.new_version, '-') }}
+          # Only Stable app releases become the repository's Latest release.
+          RELEASE_LATEST: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
+        run: |
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --prerelease="$RELEASE_PRERELEASE" --latest="$RELEASE_LATEST"
+
+      - name: Verify published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release --published

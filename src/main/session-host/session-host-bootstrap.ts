@@ -123,19 +123,15 @@ export async function startAppSessionHost(input: {
           processId: process.pid,
         })
       }
-      const cursorResolution = resolveLocalSessionCommandCursor(decodedPayload, resolveEventCursor)
-      const result =
-        cursorResolution.status === 'resync-required'
-          ? cursorResolution.result
-          : await input.runEffect(
-              dispatchLocalSessionCommand({
-                caller,
-                negotiatedRevision,
-                payload: cursorResolution.payload,
-                signal,
-                beforeProfileRefresh: releaseAdmissionReader,
-              }),
-            )
+      const result = await input.runEffect(
+        dispatchLocalSessionCommand({
+          caller,
+          negotiatedRevision,
+          payload: resolveLocalSessionCommandCursor(decodedPayload, resolveEventCursor),
+          signal,
+          beforeProfileRefresh: releaseAdmissionReader,
+        }),
+      )
       const exposedResult = exposeLocalSessionCommandResultCursor(result, exposeEventCursor)
       return exposedResult.contract === 'session-query-v2'
         ? { ...exposedResult, response: { ...exposedResult.response, eventCursor } }

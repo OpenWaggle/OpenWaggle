@@ -21,5 +21,5 @@ export {
   useShowScheduledTasks,
 } from './hooks/useShowScheduledTasks'
 export { describeSchedule } from './lib/schedule-presets'
-export { formatAbsoluteTime, nextRunText } from './lib/task-format'
+export { nextRunAbsoluteText, nextRunText } from './lib/task-format'
 export { heartbeatsForSession, launchScheduleForSession } from './lib/task-groups'

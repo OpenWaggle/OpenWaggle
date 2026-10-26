@@ -3,53 +3,32 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import type { LocalSessionCursorResolution } from './local-session-event-cursor-projection'
 
-export type LocalSessionCommandCursorResolution =
-  | { readonly status: 'ready'; readonly payload: LocalSessionCommandPayload }
-  | {
-      readonly status: 'resync-required'
-      readonly result: Extract<LocalSessionCommandResult, { readonly contract: 'session-query-v2' }>
-    }
-
+/**
+ * Maps the caller's opaque `after` cursor of a `wait` or `exports-wait` to the Host's own cursor.
+ *
+ * A wait reads the canonical state before it subscribes, so `after` only decides which events
+ * wake it early, never what it answers. A cursor the Host can no longer resolve (restarted Host,
+ * expired or foreign cursor) is therefore dropped rather than answered with `resync_required`:
+ * the caller has nothing to resynchronize, and the wait starts from the current state instead.
+ */
 export function resolveLocalSessionCommandCursor(
   payload: LocalSessionCommandPayload,
   resolve: (cursor: SessionHostEventCursor) => LocalSessionCursorResolution,
-): LocalSessionCommandCursorResolution {
-  if (payload.contract !== 'session-query-v2') return { status: 'ready', payload }
+): LocalSessionCommandPayload {
+  if (payload.contract !== 'session-query-v2') return payload
   const query = payload.request.query
   if ((query.operation !== 'wait' && query.operation !== 'exports-wait') || !query.after) {
-    return { status: 'ready', payload }
+    return payload
   }
   const resolution = resolve(query.after)
-  if (resolution.status === 'ready') {
-    return {
-      status: 'ready',
-      payload: {
-        ...payload,
-        request: {
-          ...payload.request,
-          query: { ...query, after: resolution.cursor },
-        },
-      },
-    }
-  }
+  const { after: _rejected, ...withoutAfter } = query
   return {
-    status: 'resync-required',
-    result: {
-      contract: 'session-query-v2',
-      response: {
-        contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-        requestId: payload.request.requestId,
-        outcome: {
-          operation: query.operation,
-          error: {
-            code: 'resync_required',
-            message: `Session event resynchronization is required: ${resolution.reason}.`,
-          },
-        },
-      },
+    ...payload,
+    request: {
+      ...payload.request,
+      query: resolution.status === 'ready' ? { ...query, after: resolution.cursor } : withoutAfter,
     },
   }
 }

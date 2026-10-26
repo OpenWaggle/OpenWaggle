@@ -166,6 +166,7 @@ function buildPushTargetIdentity(
           remote,
           branch: pushRefResult.upstream.branch,
           pushUrls: pushDestination.pushUrls,
+          replacesUpstream: pushRefResult.replacesUpstream,
         }
       : null
   return {
@@ -179,6 +180,7 @@ function buildPushTargetIdentity(
       remote,
       pushDestination.fetchUrl,
       pushDestination.pushUrls,
+      pushRefResult.replacesUpstream,
     ]),
     pushTargetRef,
     pushTargetIsDefaultRef,

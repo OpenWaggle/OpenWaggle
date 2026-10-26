@@ -1,3 +1,56 @@
+diff --git a/out/dmg.js b/out/dmg.js
+index 3b16e02c0377cb327461283cf6a4e90e0cc3c6ff..0a6ac6298c375a9a6e66ee118809a6c26db103b2 100644
+--- a/out/dmg.js
++++ b/out/dmg.js
+@@ -42,7 +42,13 @@ class DmgTarget extends app_builder_lib_1.Target {
+             await packager.packagerOptions.effectiveOptionComputed({ licenseData });
+         }
+         if (this.options.sign === true) {
+-            await this.signDmg(artifactPath);
++            // OpenWaggle patch: electron-builder notarizes the app inside the DMG but never the DMG
++            // itself, so Gatekeeper had nothing stapled to check when a user opened the download.
++            // Notarize and staple a DMG this build signed, the way the pkg target does, before the
++            // blockmap and update metadata record its size and checksum.
++            if (await this.signDmg(artifactPath)) {
++                await this.packager.helper.notarizeIfProvided(artifactPath);
++            }
+         }
+         const safeArtifactName = packager.computeSafeArtifactName(artifactName, "dmg");
+         const updateInfo = this.options.writeUpdateInfo === false ? null : await (0, differentialUpdateInfoBuilder_1.createBlockmap)(artifactPath, this, packager, safeArtifactName);
+@@ -58,14 +64,14 @@ class DmgTarget extends app_builder_lib_1.Target {
+     }
+     async signDmg(artifactPath) {
+         if (!(0, macCodeSign_1.isSignAllowed)(false)) {
+-            return;
++            return false;
+         }
+         const packager = this.packager;
+         const qualifier = packager.platformSpecificBuildOptions.identity;
+         // explicitly disabled if set to null
+         if (qualifier === null) {
+             // macPackager already somehow handle this situation, so, here just return
+-            return;
++            return false;
+         }
+         const keychainFile = (await packager.codeSigningInfo.value).keychainFile;
+         const certificateType = "Developer ID Application";
+@@ -73,7 +79,7 @@ class DmgTarget extends app_builder_lib_1.Target {
+         if (identity == null) {
+             identity = await (0, macCodeSign_1.findIdentity)("Mac Developer", qualifier, keychainFile);
+             if (identity == null) {
+-                return;
++                return false;
+             }
+         }
+         const args = ["--sign", identity.hash];
+@@ -82,6 +88,7 @@ class DmgTarget extends app_builder_lib_1.Target {
+         }
+         args.push(artifactPath);
+         await (0, builder_util_1.exec)("codesign", args);
++        return true;
+     }
+     computeVolumeName(arch, custom) {
+         const appInfo = this.packager.appInfo;
 diff --git a/out/dmgUtil.js b/out/dmgUtil.js
 index 490d088acde7a303001a013390dbe445fc15d5e5..bf35bfbcdb8c24be6e9c6b0fb034e1cb13fa9cfd 100644
 --- a/out/dmgUtil.js

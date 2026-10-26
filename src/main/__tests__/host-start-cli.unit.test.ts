@@ -12,7 +12,7 @@ function dependencies(state: 'running' | 'gone', output: string[]) {
     status: {
       probe: async () => {
         if (state === 'gone') throw Object.assign(new Error('gone'), { code: 'ECONNREFUSED' })
-        return { hostInstanceId: 'host-1', revision: 26 }
+        return { hostInstanceId: 'host-1', revision: 27 }
       },
     },
     writeStdout: async (text: string) => {

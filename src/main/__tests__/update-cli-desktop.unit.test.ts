@@ -54,6 +54,7 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: false,
     getAppPath: () => '/workspace/OpenWaggle',
+    getVersion: () => '0.3.0',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
     on: appOnMock,
@@ -75,6 +76,7 @@ vi.mock('../update-feed', async (importOriginal) => ({
 }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
+  assertCliAgentMayUseOwnerAuthority: vi.fn(),
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))
@@ -101,6 +103,7 @@ describe('update CLI with the desktop app', () => {
     )
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v0.4.1' })
     requestSingleInstanceLockMock.mockReturnValue(true)
     stopHostForUpdateMock.mockResolvedValue({ state: 'stopped', activeRuns: 0 })
   })
@@ -146,9 +149,10 @@ describe('update CLI with the desktop app', () => {
     })
     stopHostForUpdateMock.mockResolvedValue({ state: 'cancelled', activeRuns: 1 })
 
-    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 1, updaterOwnsExit: false })
+    // A conflict (exit 6), as `host stop --update` reports a cancel (#351).
+    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 6, updaterOwnsExit: false })
     expect(process.stderr.write).toHaveBeenCalledWith(
-      'error: Update cancelled. OpenWaggle was not changed.\n',
+      'error [conflict]: Update cancelled. OpenWaggle was not changed.\n',
     )
     expect(quitAndInstallMock).not.toHaveBeenCalled()
   })
@@ -199,11 +203,11 @@ describe('update CLI with the desktop app', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
 
     await expect(runUpdateCli(['--version', '0.4.0'])).resolves.toEqual({
-      exitCode: 1,
+      exitCode: 6,
       updaterOwnsExit: false,
     })
     expect(stderr).toHaveBeenCalledWith(
-      expect.stringContaining('OpenWaggle is open. Quit it first'),
+      expect.stringContaining('error [conflict]: OpenWaggle is open. Quit it first'),
     )
     expect(spawnMock).not.toHaveBeenCalled()
   })

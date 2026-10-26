@@ -71,7 +71,12 @@ describe('openwaggle mcp registry', () => {
       version: '2.0.0',
       registryUrl: 'https://mirror.example',
     })
-    expect(JSON.parse(result.logs)).toEqual(WEATHER)
+    expect(JSON.parse(result.logs)).toEqual({
+      schemaVersion: 1,
+      type: 'response',
+      command: 'mcp registry',
+      result: WEATHER,
+    })
   })
 
   it("adds a server to OpenWaggle's global file and names the secrets it needs", async () => {

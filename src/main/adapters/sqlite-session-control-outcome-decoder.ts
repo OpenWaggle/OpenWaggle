@@ -25,5 +25,15 @@ export function decodeStoredSessionControlMutationOutcome(json: string) {
           receipt: { delivery: 'unavailable' },
         }),
     )
+    .with(
+      {
+        effect: 'queue-updated',
+        followUpIds: P.array(P.string),
+        remainingFollowUpIds: P.optional(P.undefined),
+      },
+      // Before 1.0.0-rc.1 the queue-updated outcome called the remaining queue `followUpIds`.
+      ({ followUpIds, ...outcome }) =>
+        decodeSessionControlMutationOutcome({ ...outcome, remainingFollowUpIds: followUpIds }),
+    )
     .otherwise(decodeSessionControlMutationOutcome)
 }

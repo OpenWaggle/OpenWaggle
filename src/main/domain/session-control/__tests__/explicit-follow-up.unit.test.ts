@@ -44,8 +44,38 @@ describe('Session Control explicit Follow-up', () => {
         effect: 'queued-follow-up',
         sessionId,
         followUpId,
+        queueState: 'running',
         queueRevision: 4,
         stateRevision: 7,
+      },
+    })
+  })
+
+  it('tells the caller when an idle Session queues the Follow-up behind a paused queue', () => {
+    const result = applyExplicitFollowUp({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 2,
+        run: { state: 'idle' },
+        followUpQueue: { state: 'paused', revision: 1, items: [], pauseReason: 'host-lost' },
+      },
+      runId: RunId('run-next'),
+      followUpId: FollowUpId('follow-up-next'),
+      intent: {
+        text: 'Continue.',
+        attachmentIds: [],
+        callerId: 'session-agent:queen',
+        acceptedAt: 10,
+        idempotencyKey: 'follow-up-paused',
+      },
+    })
+
+    expect(result).toMatchObject({
+      accepted: true,
+      outcome: {
+        effect: 'queued-follow-up',
+        queueState: 'paused',
+        pauseReason: 'host-lost',
       },
     })
   })

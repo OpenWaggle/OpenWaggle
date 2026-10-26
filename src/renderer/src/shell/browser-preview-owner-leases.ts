@@ -34,9 +34,47 @@ function enqueue(operation: () => Promise<void>) {
   return next
 }
 
+function reportReleaseFailure(error: unknown) {
+  useUIStore
+    .getState()
+    .showToast(
+      error instanceof Error ? error.message : 'Browser preview owner cleanup failed.',
+      'error',
+    )
+}
+
+function hasReleasableOwner() {
+  for (const ownerKey of managedOwners) {
+    if (!retainsOwner(ownerKey)) return true
+  }
+  return false
+}
+
+let retentionWatchInstalled = false
+
+/**
+ * A Session left while its Run was active, or while it kept browser tabs, stays registered. Release
+ * it as soon as that retention ends, not at the next navigation: while it is registered the Host
+ * counts the Session as open in the app, so Hive cleanup keeps a finished Worker (issue #352).
+ */
+function watchRetentionEnd() {
+  if (retentionWatchInstalled) return
+  retentionWatchInstalled = true
+  const releaseIfIdle = () => {
+    if (hasReleasableOwner()) void enqueue(releaseIdleOwners).catch(reportReleaseFailure)
+  }
+  useBackgroundRunStore.subscribe((state, previous) => {
+    if (state.activeRunIds !== previous.activeRunIds) releaseIfIdle()
+  })
+  useWorkspacePanelStore.subscribe((state, previous) => {
+    if (state.groups !== previous.groups) releaseIfIdle()
+  })
+}
+
 /** Navigation owns a lease; previews and agent runs retain it after navigation. */
 export function acquireBrowserPreviewOwner(ownerKey: string) {
   if (ownerKey.length === 0) return { ready: Promise.resolve(), release: () => {} }
+  watchRetentionEnd()
   mountedOwners.set(ownerKey, (mountedOwners.get(ownerKey) ?? 0) + 1)
   let released = false
   const ready = enqueue(async () => {
@@ -55,14 +93,7 @@ export function acquireBrowserPreviewOwner(ownerKey: string) {
       const count = (mountedOwners.get(ownerKey) ?? 1) - 1
       if (count === 0) mountedOwners.delete(ownerKey)
       else mountedOwners.set(ownerKey, count)
-      void enqueue(releaseIdleOwners).catch((error: unknown) => {
-        useUIStore
-          .getState()
-          .showToast(
-            error instanceof Error ? error.message : 'Browser preview owner cleanup failed.',
-            'error',
-          )
-      })
+      void enqueue(releaseIdleOwners).catch(reportReleaseFailure)
     },
   }
 }

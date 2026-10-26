@@ -1,8 +1,8 @@
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpImportApplyResultView,
   McpImportPreviewView,
 } from '@shared/types/mcp-configuration-operations'
+import { mcpCliJsonResponse } from './mcp-cli-io'
 import {
   McpCliUsageError,
   mcpCliConflictPolicy,
@@ -115,9 +115,7 @@ export async function importCommand(input: McpManagementCommandInput): Promise<M
   const json = args.flags.has('json')
   if (!args.flags.has('apply')) {
     context.output.log(
-      json
-        ? JSON.stringify(preview, null, MCP_CONFIG.JSON_INDENT_SPACES)
-        : previewLines(preview).join('\n'),
+      json ? mcpCliJsonResponse('import', preview) : previewLines(preview).join('\n'),
     )
     if (!json && preview.candidates.length > 0) {
       // The same project and tools, so applying imports what this preview listed.
@@ -143,16 +141,12 @@ export async function importCommand(input: McpManagementCommandInput): Promise<M
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
   context.output.log(
-    JSON.stringify(
-      {
-        imported: result.imported,
-        skipped: result.skipped,
-        secrets: result.secrets,
-        existingSecrets: result.existingSecrets,
-      },
-      null,
-      MCP_CONFIG.JSON_INDENT_SPACES,
-    ),
+    mcpCliJsonResponse('import', {
+      imported: result.imported,
+      skipped: result.skipped,
+      secrets: result.secrets,
+      existingSecrets: result.existingSecrets,
+    }),
   )
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }

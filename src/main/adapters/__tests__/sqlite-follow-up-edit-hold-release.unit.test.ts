@@ -73,6 +73,7 @@ describe('Follow-up edit holds do not strand a queue', () => {
       operation: 'queue-withdraw',
       effect: 'started-run',
       followUpId: 'next',
+      withdrawnFollowUpIds: ['held'],
     })
     expect(result.after.run).toMatchObject({ state: 'starting', intent: { text: 'Text of next' } })
   })

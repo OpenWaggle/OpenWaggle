@@ -1,12 +1,11 @@
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionExportOperationSummary } from '@shared/types/session-export-operation'
-import type { SessionHostEventDelivery } from '@shared/types/session-host-event'
 import type { SessionQueryRequest, SessionQueryResponse } from '@shared/types/session-query'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import type { SessionQueryRepositoryShape } from '../ports/session-query-repository'
 import { getSessionHostEventRuntime } from '../session-host/session-host-events'
-import type { SessionHostEventSubscription } from './session-host-event-hub'
+import { throwIfAborted, waitForSessionHostCondition } from './session-host-condition-wait'
 import { acquireWaitLiveness } from './session-host-run-admission'
 
 type ExportWaitRequest = SessionQueryRequest & {
@@ -61,114 +60,20 @@ function exportIsTerminal(operation: SessionExportOperationSummary) {
   )
 }
 
-function nextWithTimeout(
-  subscription: { readonly next: () => Promise<SessionHostEventDelivery> },
-  timeoutMs: number,
-  signal?: AbortSignal,
-) {
-  return new Promise<SessionHostEventDelivery | { readonly status: 'timeout' }>(
-    (resolve, reject) => {
-      if (signal?.aborted) {
-        reject(abortError(signal))
-        return
-      }
-      let settled = false
-      const finish = (callback: () => void) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        signal?.removeEventListener('abort', onAbort)
-        callback()
-      }
-      const onAbort = () => finish(() => reject(abortError(signal)))
-      const timer = setTimeout(() => finish(() => resolve({ status: 'timeout' })), timeoutMs)
-      signal?.addEventListener('abort', onAbort, { once: true })
-      subscription.next().then(
-        (delivery) => finish(() => resolve(delivery)),
-        (error) => finish(() => reject(error)),
-      )
-    },
-  )
+function exportResponse(request: ExportWaitRequest, operation: SessionExportOperationSummary) {
+  return response(request, {
+    operation: 'exports-wait',
+    timedOut: !exportIsTerminal(operation),
+    cursor: getSessionHostEventRuntime().eventHub.cursor(),
+    export: operation,
+  })
 }
 
-function abortError(signal?: AbortSignal) {
-  return signal?.reason instanceof Error ? signal.reason : new Error('aborted')
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError(signal)
-}
-
-async function waitForTerminalExport(input: {
-  readonly repository: SessionQueryRepositoryShape
-  readonly authority?: LocalSessionProfileAuthority
-  readonly resolveObservationAuthority?: () => Promise<LocalSessionProfileAuthority | undefined>
-  readonly signal?: AbortSignal
-  readonly request: ExportWaitRequest
-  readonly subscription: SessionHostEventSubscription
-}) {
-  const runtime = getSessionHostEventRuntime()
-  const deadline = Date.now() + input.request.query.timeoutMs
-  while (true) {
-    const delivery = await nextWithTimeout(
-      input.subscription,
-      Math.max(0, deadline - Date.now()),
-      input.signal,
-    )
-    if (delivery.status === 'timeout') {
-      const observedOperation = await readExportOperation(input.repository, input, input.request)
-      if (!observedOperation) {
-        return response(input.request, {
-          operation: 'exports-wait',
-          error: { code: 'export_not_found', message: 'Session export operation not found.' },
-        })
-      }
-      return response(input.request, {
-        operation: 'exports-wait',
-        timedOut: !exportIsTerminal(observedOperation),
-        cursor: runtime.eventHub.cursor(),
-        export: observedOperation,
-      })
-    }
-    if (delivery.status === 'resync-required') {
-      return response(input.request, {
-        operation: 'exports-wait',
-        error: {
-          code: 'resync_required',
-          message: `Session event resynchronization is required: ${delivery.reason}.`,
-        },
-      })
-    }
-    if (delivery.status === 'closed') {
-      return response(input.request, {
-        operation: 'exports-wait',
-        error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
-      })
-    }
-    if (delivery.status === 'cursor-advanced') continue
-    const payload = delivery.event.payload
-    if (
-      payload.kind !== 'session-export-changed' ||
-      payload.exportOperationId !== input.request.query.exportOperationId
-    ) {
-      continue
-    }
-    const observedOperation = await readExportOperation(input.repository, input, input.request)
-    if (!observedOperation) {
-      return response(input.request, {
-        operation: 'exports-wait',
-        error: { code: 'export_not_found', message: 'Session export operation not found.' },
-      })
-    }
-    if (exportIsTerminal(observedOperation)) {
-      return response(input.request, {
-        operation: 'exports-wait',
-        timedOut: false,
-        cursor: runtime.eventHub.cursor(),
-        export: observedOperation,
-      })
-    }
-  }
+function exportNotFound(request: ExportWaitRequest) {
+  return response(request, {
+    operation: 'exports-wait',
+    error: { code: 'export_not_found', message: 'Session export operation not found.' },
+  })
 }
 
 export async function waitForSessionExport(
@@ -183,52 +88,35 @@ export async function waitForSessionExport(
   const runtime = getSessionHostEventRuntime()
   const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()
-  let subscription: ReturnType<typeof runtime.eventHub.subscribeAfter> | undefined
   try {
     throwIfAborted(input.signal)
     const operation = await readExportOperation(repository, input, input.request)
-    if (!operation) {
-      return response(input.request, {
-        operation: 'exports-wait',
-        error: { code: 'export_not_found', message: 'Session export operation not found.' },
-      })
-    }
+    if (!operation) return exportNotFound(input.request)
     if (exportIsTerminal(operation) || input.request.query.timeoutMs === 0) {
-      return response(input.request, {
-        operation: 'exports-wait',
-        timedOut: !exportIsTerminal(operation),
-        cursor: runtime.eventHub.cursor(),
-        export: operation,
-      })
+      return exportResponse(input.request, operation)
     }
-    subscription = runtime.eventHub.subscribeAfter(
-      input.request.query.after ?? snapshotCursor,
-      (event) =>
+    const query = input.request.query
+    const observation = await waitForSessionHostCondition({
+      eventHub: runtime.eventHub,
+      after: query.after ?? snapshotCursor,
+      accepts: (event) =>
         event.payload.kind === 'session-export-changed' &&
-        event.payload.sessionId === input.request.query.sessionId &&
-        event.payload.exportOperationId === input.request.query.exportOperationId,
-    )
-    if (subscription.status === 'resync-required') {
+        event.payload.sessionId === query.sessionId &&
+        event.payload.exportOperationId === query.exportOperationId,
+      read: () => readExportOperation(repository, input, input.request),
+      matches: exportIsTerminal,
+      deadline: Date.now() + query.timeoutMs,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    if (observation.status === 'missing') return exportNotFound(input.request)
+    if (observation.status === 'host-stopped') {
       return response(input.request, {
         operation: 'exports-wait',
-        error: {
-          code: 'resync_required',
-          message: `Session event resynchronization is required: ${subscription.reason}.`,
-        },
+        error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
       })
     }
-    return await waitForTerminalExport({
-      repository,
-      ...(input.authority ? { authority: input.authority } : {}),
-      ...(input.resolveObservationAuthority
-        ? { resolveObservationAuthority: input.resolveObservationAuthority }
-        : {}),
-      ...(input.signal ? { signal: input.signal } : {}),
-      request: input.request,
-      subscription: subscription.subscription,
-    })
+    return exportResponse(input.request, observation.value)
   } finally {
-    if (subscription?.status === 'ready') subscription.subscription.close()
     releaseLiveness()
   }
 }

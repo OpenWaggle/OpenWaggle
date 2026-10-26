@@ -1,4 +1,4 @@
-import { AlertTriangle, Pencil } from 'lucide-react'
+import { AlertTriangle, Paperclip, Pencil } from 'lucide-react'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { cn } from '@/shared/lib/cn'
 import { QueuedMessageReorderHandle } from './QueuedMessageReorderHandle'
@@ -32,8 +32,34 @@ function attentionCopy(item: SessionFollowUpQueueItem, sendsNow: boolean) {
 
 const ACCESSIBLE_LABEL_LENGTH = 60
 
+function attachmentsLabel(count: number) {
+  return count === 1 ? '1 attachment' : `${String(count)} attachments`
+}
+
 function itemLabel(item: SessionFollowUpQueueItem) {
-  return item.text || `${String(item.attachmentCount)} attachment(s)`
+  return item.text || attachmentsLabel(item.attachmentCount)
+}
+
+/*
+ * Drag feedback, driven by attributes `queued-message-drag.ts` sets on the row. The source row
+ * stays in place dimmed, with a dashed outline, as a placeholder. The drop line sits in the gap on
+ * the side where the message will land (gap-1 between rows, so 3px out centres the 2px line),
+ * which puts it above the first row or below the last at the ends. Outlines and pseudo-elements
+ * never shift layout; forced colors repaint backgrounds, so the line uses `Highlight` there.
+ */
+const DRAG_FEEDBACK_CLASS = [
+  'data-[drag-source=true]:opacity-40 data-[drag-source=true]:outline-1 data-[drag-source=true]:outline-dashed data-[drag-source=true]:-outline-offset-1 data-[drag-source=true]:outline-text-tertiary',
+  'data-[drop-target]:before:pointer-events-none data-[drop-target]:before:absolute data-[drop-target]:before:inset-x-1 data-[drop-target]:before:h-0.5 data-[drop-target]:before:rounded-full data-[drop-target]:before:bg-accent forced-colors:data-[drop-target]:before:bg-[Highlight]',
+  'data-[drop-target=before]:before:-top-0.75 data-[drop-target=after]:before:-bottom-0.75',
+].join(' ')
+
+function AttachmentsIndicator({ count }: { readonly count: number }) {
+  return (
+    <span className="flex items-center gap-1 text-xs text-text-tertiary">
+      <Paperclip aria-hidden="true" className="size-3 shrink-0" />
+      {attachmentsLabel(count)}
+    </span>
+  )
 }
 
 /** A short name for the row's controls; the full message is already on screen. */
@@ -66,13 +92,9 @@ function BeingEditedMarker() {
   )
 }
 
-function clearDropTarget(element: HTMLElement) {
-  element.removeAttribute('data-drop-target')
-}
-
 /**
- * One queued message. The whole row is a drop target; only its grip starts a drag. The drop line
- * sits on the side where the message will land. Drag feedback lives on the DOM node, not in state,
+ * One queued message. Only its grip starts a drag, which leaves the row's buttons and text
+ * selection alone; the list handles the drop. Drag feedback lives on the DOM node, not in state,
  * because re-rendering mid-gesture cancels the drag.
  */
 export function QueuedMessageRow({
@@ -94,23 +116,9 @@ export function QueuedMessageRow({
     <li
       data-qa="queued-message-row"
       data-follow-up-id={item.id}
-      onDragOver={(event) => {
-        const anchor = actions.dropAnchor(item.id)
-        if (!anchor) return
-        event.preventDefault()
-        event.currentTarget.dataset.dropTarget = anchor.position
-      }}
-      onDragLeave={(event) => clearDropTarget(event.currentTarget)}
-      onDrop={(event) => {
-        clearDropTarget(event.currentTarget)
-        if (!actions.dropAnchor(item.id)) return
-        event.preventDefault()
-        actions.onDropOn(item.id)
-      }}
       className={cn(
-        'flex items-center gap-2 rounded-lg px-2.5 py-2',
-        'data-[drop-target=before]:shadow-[inset_0_2px_0_var(--color-accent)]',
-        'data-[drop-target=after]:shadow-[inset_0_-2px_0_var(--color-accent)]',
+        'relative flex items-center gap-2 rounded-lg px-2.5 py-2',
+        DRAG_FEEDBACK_CLASS,
         attention ? 'border border-warning/20 bg-warning/5' : 'bg-bg/50',
       )}
     >
@@ -126,12 +134,20 @@ export function QueuedMessageRow({
           onMoveDown={
             nextId ? () => actions.onMove(item.id, { position: 'after', followUpId: nextId }) : null
           }
-          onDragStart={() => actions.onDragStart(item.id)}
+          onDragStart={(event) => actions.onDragStart(item.id, event)}
           onDragEnd={actions.onDragEnd}
         />
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="whitespace-pre-wrap text-xs leading-normal text-text-muted">{label}</div>
+        <div
+          data-qa="queued-message-text"
+          className="whitespace-pre-wrap text-xs leading-normal text-text-muted"
+        >
+          {label}
+        </div>
+        {item.text && item.attachmentCount > 0 ? (
+          <AttachmentsIndicator count={item.attachmentCount} />
+        ) : null}
         <QueueIntentBadges item={item} />
         {item.editHold ? <BeingEditedMarker /> : null}
         {attention ? (

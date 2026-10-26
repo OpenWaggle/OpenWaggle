@@ -203,6 +203,7 @@ describe('Session Control application service', () => {
       effect: 'queued-follow-up',
       sessionId,
       followUpId: FollowUpId('follow-up-next'),
+      queueState: 'running',
       queueRevision: 4,
       stateRevision: 9,
     })

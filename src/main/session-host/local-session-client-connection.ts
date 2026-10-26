@@ -8,6 +8,9 @@ import {
 } from '@shared/types/local-session-protocol'
 import {
   LocalSessionClientProtocolError,
+  LocalSessionClientTimeoutError,
+  LocalSessionHostUnavailableError,
+  LocalSessionHostUpgradePendingError,
   localSessionClientProtocolError,
 } from './local-session-client-protocol-error'
 import { isWindowsPipe } from './local-session-endpoint'
@@ -20,27 +23,7 @@ import {
 
 export const LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS = 10_000
 
-export class LocalSessionHostUpgradePendingError extends Error {
-  readonly code = 'host_upgrade_pending'
-
-  constructor(
-    readonly hostInstanceId: string,
-    readonly blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[],
-    readonly blockingOperations: readonly {
-      readonly operationId: string
-      readonly operation: string
-      readonly targetScope: string
-    }[],
-  ) {
-    const blockerCount = blockingRuns.length + blockingOperations.length
-    super(
-      blockerCount === 0
-        ? 'The existing Local Session Host is releasing ownership for a safe version handoff.'
-        : `The existing Local Session Host is draining ${blockerCount} active ${blockerCount === 1 ? 'operation' : 'operations'} before a safe version handoff.`,
-    )
-    this.name = 'LocalSessionHostUpgradePendingError'
-  }
-}
+export { LocalSessionHostUpgradePendingError } from './local-session-client-protocol-error'
 
 export class LocalSessionHostConnectionClosedError extends Error {
   readonly code = 'ECONNRESET'
@@ -105,7 +88,9 @@ export class LocalSessionFrameReader {
           : setTimeout(() => {
               this.waiter = null
               this.socket.pause()
-              reject(new Error('Timed out waiting for the Local Session Host.'))
+              reject(
+                new LocalSessionClientTimeoutError('Timed out waiting for the Local Session Host.'),
+              )
             }, timeoutMs)
       this.waiter = (value) => {
         if (timer) clearTimeout(timer)
@@ -244,7 +229,9 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
           negotiation.blockingOperations,
         )
       }
-      throw new Error('The Local Session Host has no compatible transport revision.')
+      throw new LocalSessionHostUnavailableError(
+        'The Local Session Host has no compatible transport revision.',
+      )
     }
     return { socket, reader, negotiation, timeoutMs }
   } catch (error) {
@@ -291,7 +278,9 @@ function connect(endpoint: string, timeoutMs: number, signal?: AbortSignal) {
     const timer = setTimeout(() => {
       settle()
       socket.destroy()
-      reject(new Error('Timed out connecting to the Local Session Host.'))
+      reject(
+        new LocalSessionHostUnavailableError('Timed out connecting to the Local Session Host.'),
+      )
     }, timeoutMs)
     socket.once('connect', () => {
       clearTimeout(timer)

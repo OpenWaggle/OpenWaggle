@@ -34,6 +34,16 @@ describe('nightly packaged canary workflow', () => {
     )
   })
 
+  it('checks the native platform floor after packaging, on the release build hosts', () => {
+    const packaging = WORKFLOW.indexOf('- name: Package installers')
+    const guard = WORKFLOW.indexOf('- name: Check native platform floor')
+    const smoke = WORKFLOW.indexOf('- name: Smoke packaged runtime')
+    expect(guard).toBeGreaterThan(packaging)
+    expect(smoke).toBeGreaterThan(guard)
+    expect(WORKFLOW).toContain('run: pnpm exec tsx scripts/check-native-platform-floor.ts')
+    expect(WORKFLOW).toMatch(/- label: Linux\n(?:\s+#.*\n)*\s+runner: ubuntu-22\.04\n/u)
+  })
+
   it('pins every third-party action to a commit SHA, like the other workflows', () => {
     const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1])
     expect(actionUses.length).toBeGreaterThan(0)

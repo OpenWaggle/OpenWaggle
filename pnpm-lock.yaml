@@ -53,7 +53,7 @@ overrides:
 patchedDependencies:
   '@earendil-works/pi-ai@1.4.0': 44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4
   '@earendil-works/pi-coding-agent@1.4.0': 5ca901cf19533b46fc2265cfa42b85569fefd168ceb33ecd969e41aa60bb38b3
-  dmg-builder@26.17.0: 7902be02545dfae21534afb3c29f21bf60ec84977363a0856e42af21ee40b03c
+  dmg-builder@26.17.0: 0c1a8a4cfcc58bc25217acf6b36638da9e8279b4ceaa526c90d3820104fda321
   node-pty@1.1.0: 74077b861173245cdcb2d2f92715b7a5a2195e447f964a73b65f6f7292b7d0fe
 
 importers:
@@ -500,18 +500,6 @@ importers:
       '@mariozechner/clipboard-win32-x64-msvc':
         specifier: 0.3.9
         version: 0.3.9
-      recheck-linux-x64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-macos-arm64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-macos-x64:
-        specifier: 4.5.0
-        version: 4.5.0
-      recheck-windows-x64:
-        specifier: 4.5.0
-        version: 4.5.0
 
   packages/extension-react:
     dependencies:
@@ -7070,26 +7058,6 @@ packages:
     resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
     engines: {node: '>= 20.19.0'}
 
-  recheck-linux-x64@4.5.0:
-    resolution: {integrity: sha512-52kXsR/v+IbGIKYYFZfSZcgse/Ci9IA2HnuzrtvRRcfODkcUGe4n72ESQ8nOPwrdHFg9i4j9/YyPh1HWWgpJ6A==}
-    cpu: [x64]
-    os: [linux]
-
-  recheck-macos-arm64@4.5.0:
-    resolution: {integrity: sha512-qIyK3dRuLkORQvv0b59fZZRXweSmjjWaoA4K8Kgifz0anMBH4pqsDV6plBlgjcRmW9yC12wErIRzifREaKnk2w==}
-    cpu: [arm64]
-    os: [darwin]
-
-  recheck-macos-x64@4.5.0:
-    resolution: {integrity: sha512-1wp/eiLxcjC/Ex4wurlrS/LGzt8IiF4TiK5sEjldu4HVAKdNCnnmsS9a5vFpfcikDz4ZuZlLlTi1VbQTxHlwZg==}
-    cpu: [x64]
-    os: [darwin]
-
-  recheck-windows-x64@4.5.0:
-    resolution: {integrity: sha512-ekBKwAp0oKkMULn5zgmHEYLwSJfkfb95AbTtbDkQazNkqYw9PRD/mVyFUR6Ff2IeRyZI0gxy+N2AKBISWydhug==}
-    cpu: [x64]
-    os: [win32]
-
   recma-build-jsx@1.0.0:
     resolution: {integrity: sha512-8GtdyqaBcDfva+GUKDr3nev3VpKAhup1+RvkMvUxURHpW7QyIvk9F5wz7Vzo06CEMSilw6uArgRqhpiUcWp8ew==}
 
@@ -11745,7 +11713,7 @@ snapshots:
       chromium-pickle-js: 0.2.0
       ci-info: 4.3.1
       debug: 4.4.3(supports-color@7.2.0)
-      dmg-builder: 26.17.0(patch_hash=7902be02545dfae21534afb3c29f21bf60ec84977363a0856e42af21ee40b03c)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
+      dmg-builder: 26.17.0(patch_hash=0c1a8a4cfcc58bc25217acf6b36638da9e8279b4ceaa526c90d3820104fda321)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       dotenv: 16.6.1
       dotenv-expand: 11.0.7
       ejs: 3.1.10
@@ -12429,7 +12397,7 @@ snapshots:
       minimatch: 3.1.5
       p-limit: 3.1.0
 
-  dmg-builder@26.17.0(patch_hash=7902be02545dfae21534afb3c29f21bf60ec84977363a0856e42af21ee40b03c)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0):
+  dmg-builder@26.17.0(patch_hash=0c1a8a4cfcc58bc25217acf6b36638da9e8279b4ceaa526c90d3820104fda321)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0):
     dependencies:
       app-builder-lib: 26.17.0(dmg-builder@26.17.0)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       builder-util: 26.16.0(supports-color@7.2.0)
@@ -12530,7 +12498,7 @@ snapshots:
       builder-util-runtime: 9.7.0(supports-color@7.2.0)
       chalk: 4.1.2
       ci-info: 4.4.0
-      dmg-builder: 26.17.0(patch_hash=7902be02545dfae21534afb3c29f21bf60ec84977363a0856e42af21ee40b03c)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
+      dmg-builder: 26.17.0(patch_hash=0c1a8a4cfcc58bc25217acf6b36638da9e8279b4ceaa526c90d3820104fda321)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       simple-update-notifier: 2.0.0
@@ -15301,18 +15269,6 @@ snapshots:
       util-deprecate: 1.0.2
 
   readdirp@5.1.1: {}
-
-  recheck-linux-x64@4.5.0:
-    optional: true
-
-  recheck-macos-arm64@4.5.0:
-    optional: true
-
-  recheck-macos-x64@4.5.0:
-    optional: true
-
-  recheck-windows-x64@4.5.0:
-    optional: true
 
   recma-build-jsx@1.0.0:
     dependencies:
