@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import { attentionCauseSql, parentWillActSql } from '../../adapters/sqlite-hive-next-actor-facts'
 import { runStoreEffect } from '../store-runtime'
 import {
   attachArchivedBranchState,
@@ -114,6 +115,9 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
       , delegation_contracts.id AS delegation_id
       , COALESCE(delegation_contracts.state, legacy_lineage.delegation_state)
         AS delegation_state
+      , ${sql.literal(attentionCauseSql('delegation_contracts'))} AS attention_cause
+      , CASE WHEN delegation_contracts.id IS NULL THEN NULL
+          ELSE ${sql.literal(parentWillActSql('delegation_contracts'))} END AS parent_will_act
       , session_derivations.source_session_id
       , source_sessions.title AS source_title
       , session_derivations.source_node_id

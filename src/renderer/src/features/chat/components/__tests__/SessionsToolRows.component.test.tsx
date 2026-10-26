@@ -39,7 +39,7 @@ function hivePage() {
         },
       },
     ],
-    attentionCount: 0,
+    needsYouCount: 0,
   }
 }
 

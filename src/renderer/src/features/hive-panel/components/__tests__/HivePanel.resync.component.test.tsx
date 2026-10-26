@@ -50,9 +50,9 @@ beforeEach(() => {
 
 it('restarts the Hive tree at its first page after a Host resync', async () => {
   listHiveTreeSessionCatalogPage
-    .mockResolvedValueOnce({ root: queen, members: [], attentionCount: 0, nextCursor: 'tree-2' })
-    .mockResolvedValueOnce({ root: queen, members: [worker], attentionCount: 0 })
-    .mockResolvedValueOnce({ root: queen, members: [worker], attentionCount: 0 })
+    .mockResolvedValueOnce({ root: queen, members: [], needsYouCount: 0, nextCursor: 'tree-2' })
+    .mockResolvedValueOnce({ root: queen, members: [worker], needsYouCount: 0 })
+    .mockResolvedValueOnce({ root: queen, members: [worker], needsYouCount: 0 })
   renderWithQueryClient(<Harness />)
   // Read the second page, so there is a continuation page to discard.
   const loadMore = await screen.findByRole('button', { name: 'Load more Workers' })

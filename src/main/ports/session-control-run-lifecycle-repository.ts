@@ -7,11 +7,23 @@ import type { SessionControlRepositoryError } from '../errors'
 
 export type SessionControlTerminalRunStatus = SessionRunTerminalStatus
 
+/**
+ * A Delegation whose Host-set `needs_attention` a new Run cleared (ADR 0059): the Worker's parent
+ * and the Worker publish a list change so every Hive view refreshes.
+ */
+export interface SessionControlDelegationAttentionCleared {
+  readonly delegationId: string
+  readonly parentSessionId: SessionId
+  readonly workerSessionId: SessionId
+  readonly state: 'working' | 'revision_requested'
+}
+
 export type SessionControlRunActivationResult =
   | {
       readonly accepted: true
       readonly stateRevision: number
       readonly intent: SessionControlRunIntent
+      readonly attentionCleared?: SessionControlDelegationAttentionCleared
     }
   | {
       readonly accepted: false

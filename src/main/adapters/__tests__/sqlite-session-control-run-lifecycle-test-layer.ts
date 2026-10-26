@@ -19,6 +19,8 @@ import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-sessio
 export function makeSessionControlRunLifecycleTestLayer(
   databasePath: string,
   identities: Partial<SessionControlIdentityServiceShape> = {},
+  /** Reopen a database an earlier layer created, as a restarted Host does. */
+  options: { readonly reopen?: boolean } = {},
 ) {
   const sqlite = SqliteClient.layer({
     filename: databasePath,
@@ -27,6 +29,7 @@ export function makeSessionControlRunLifecycleTestLayer(
   const schema = Layer.effectDiscard(
     Effect.gen(function* () {
       const sql = yield* SqlClientTag
+      if (options.reopen) return
       yield* sql.unsafe('CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)')
       yield* sql.unsafe(`CREATE TABLE settings_store (
         key TEXT PRIMARY KEY,

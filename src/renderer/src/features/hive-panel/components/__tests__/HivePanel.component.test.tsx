@@ -90,7 +90,7 @@ describe('HivePanel', () => {
     listHiveTreeSessionCatalogPage.mockResolvedValue({
       root: summary('queen', { lineage: undefined }),
       members: [summary('active', { lineage: { ...workerLineage, delegationState: 'working' } })],
-      attentionCount: 0,
+      needsYouCount: 0,
     })
     renderWithQueryClient(<HivePanel sessionId="elsewhere" onClose={vi.fn()} />)
 

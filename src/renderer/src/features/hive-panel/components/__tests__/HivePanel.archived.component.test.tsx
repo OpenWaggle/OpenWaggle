@@ -91,7 +91,7 @@ describe('HivePanel archived group', () => {
       Promise.resolve(
         id === 'queen'
           ? hivePage([archived('old-a', 'queen')])
-          : { root: otherQueen, members: [archived('old-b', 'other-queen')], attentionCount: 0 },
+          : { root: otherQueen, members: [archived('old-b', 'other-queen')], needsYouCount: 0 },
       ),
     )
     function Switcher() {

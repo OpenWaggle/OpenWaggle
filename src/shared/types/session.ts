@@ -4,6 +4,7 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
+import type { HiveAttentionCause, HivePendingRequest } from './hive-next-actor'
 import type { SupportedModelId } from './llm'
 import type { DelegationState } from './session-collaboration'
 import type { ThinkingLevel } from './settings'
@@ -35,6 +36,13 @@ export interface SessionLineageSummary {
   readonly agentDefinitionName?: string
   readonly delegationId?: string
   readonly delegationState?: DelegationState
+  /** Why the Delegation is `needs_attention`; present only in that state (ADR 0059). */
+  readonly attentionCause?: HiveAttentionCause
+  /**
+   * Whether the parent will pick this Worker up without the person: it has an active Run or a
+   * running queue with a Follow-up to deliver. Read live for a Host Delegation (ADR 0059).
+   */
+  readonly parentWillAct?: boolean
   /** Navigation-only ancestry from the retired MCP task runner, never Host authority. */
   readonly historical?: boolean
 }
@@ -81,6 +89,8 @@ export interface SessionSummary {
   readonly latestRun?: SessionLatestRunSummary
   /** Creation time of the oldest outstanding non-notify agent interaction. */
   readonly pendingInteractionAt?: number
+  /** What the outstanding interactions ask of the person; an approval outranks a question. */
+  readonly pendingInteractionKind?: HivePendingRequest
   /** Host time when the pending-interaction set was sampled, including when it was empty. */
   readonly pendingInteractionSnapshotAt?: number
   /**

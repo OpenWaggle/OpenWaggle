@@ -45,7 +45,7 @@ export const workerLineage: SessionLineageSummary = {
 }
 
 export function hivePage(members: readonly SessionSummary[], nextCursor?: string) {
-  return { root: queen, members, attentionCount: 0, ...(nextCursor ? { nextCursor } : {}) }
+  return { root: queen, members, needsYouCount: 0, ...(nextCursor ? { nextCursor } : {}) }
 }
 
 /** The Sidebar's session actions, as Hive panel rows receive them. */

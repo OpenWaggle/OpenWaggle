@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/archived-items'
 import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
   SessionCatalogPage,
@@ -108,10 +109,12 @@ export interface SessionRepositoryShape {
     limit: number,
     cursor?: string,
   ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
+  /** `pendingRequests` are the Host's parked requests, for the Hive's Needs you count (ADR 0059). */
   readonly listHiveTreeCatalogPage: (
     sessionId: SessionId,
     limit: number,
     cursor?: string,
+    pendingRequests?: ReadonlyMap<string, HivePendingRequest>,
   ) => Effect.Effect<HiveTreeSessionCatalogPage, SessionProjectionRepositoryError>
   readonly listArchivedBranchCatalogPage: (
     limit: number,

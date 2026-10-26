@@ -2,6 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
+import { markRunFailedAttention } from './sqlite-delegation-attention'
 
 interface WorkerDelegationRow {
   readonly id: string
@@ -9,7 +10,7 @@ interface WorkerDelegationRow {
   readonly state: string
   readonly current_specification_revision: number
   readonly latest_submission_revision: number
-  /** 1 when the Worker set `needs_attention` itself during the settling Run (latest change). */
+  /** 1 when the Worker asked for help (`worker_request`) during the settling Run. */
   readonly explicit_needs_attention: number
 }
 
@@ -20,26 +21,20 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
     SELECT contracts.id, contracts.parent_session_id, contracts.state,
       contracts.current_specification_revision,
       COALESCE(MAX(submissions.revision), 0) AS latest_submission_revision,
-      (contracts.state = ${'needs_attention'} AND EXISTS (
-        SELECT 1 FROM delegation_state_transitions AS transitions
-        WHERE transitions.id = (
-            SELECT MAX(latest.id) FROM delegation_state_transitions AS latest
-            WHERE latest.delegation_id = contracts.id
-          )
-          AND transitions.to_state = ${'needs_attention'}
-          AND transitions.actor_session_id = contracts.child_session_id
-          -- Set during the settling Run: after the parent answers, a later Run settles as usual.
-          AND transitions.created_at >= COALESCE(
-            (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
-          )
-          -- A failed Run's needs_attention writes no transition row, only an orchestration update.
-          AND NOT EXISTS (
-            SELECT 1 FROM session_orchestration_updates AS host_updates
-            WHERE host_updates.worker_session_id = contracts.child_session_id
-              AND host_updates.delegation_id = contracts.id
-              AND host_updates.state = ${'needs_attention'}
-              AND host_updates.created_at > transitions.created_at
-          )
+      (contracts.state = ${'needs_attention'}
+        AND contracts.attention_cause = ${'worker_request'}
+        AND EXISTS (
+          SELECT 1 FROM delegation_state_transitions AS transitions
+          WHERE transitions.id = (
+              SELECT MAX(latest.id) FROM delegation_state_transitions AS latest
+              WHERE latest.delegation_id = contracts.id
+            )
+            AND transitions.to_state = ${'needs_attention'}
+            -- Set during the settling Run: an earlier request the parent left unanswered settles
+            -- as usual once a later Run completes with text.
+            AND transitions.created_at >= COALESCE(
+              (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+            )
       )) AS explicit_needs_attention
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
@@ -85,13 +80,16 @@ function settleUnsuccessfulWorker(
     if (!['working', 'waiting', 'revision_requested'].includes(input.contract.state)) {
       return undefined
     }
-    yield* sql`
-      UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${input.now}
-      WHERE id = ${input.contract.id}
-    `
     const summary =
       input.summary ??
       `Worker Run ${input.settlement.runId} ${input.settlement.terminalStatus} and needs attention.`
+    yield* markRunFailedAttention(sql, {
+      delegationId: input.contract.id,
+      workerSessionId: input.settlement.sessionId,
+      fromState: input.contract.state,
+      summary,
+      now: input.now,
+    })
     const updateId = `orchestration:${input.contract.id}:${input.settlement.runId}:needs-attention`
     yield* insertOrchestrationUpdate(sql, {
       updateId,
@@ -163,7 +161,8 @@ function settleCompletedWorker(
       )
     `
     yield* sql`
-      UPDATE delegation_contracts SET state = ${'ready_for_review'}, updated_at = ${input.now}
+      UPDATE delegation_contracts
+      SET state = ${'ready_for_review'}, attention_cause = NULL, updated_at = ${input.now}
       WHERE id = ${input.contract.id}
     `
     const updateId = `orchestration:${input.contract.id}:${input.settlement.runId}:ready-for-review`

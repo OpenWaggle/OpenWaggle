@@ -165,17 +165,23 @@ describe('Hive tree catalog', () => {
     const page = await listHiveTreeSessionCatalogPage(queen.id, 1)
     expect(page.members.map((session) => session.id)).toEqual([second.id])
     expect(page.nextCursor).toBeDefined()
-    // The attention total covers the whole Hive, not just the page that was read.
-    expect(page.attentionCount).toBe(1)
+    // The Needs you total covers the whole Hive, not just the page that was read.
+    expect(page.needsYouCount).toBe(1)
 
     const next = await listHiveTreeSessionCatalogPage(queen.id, 1, page.nextCursor)
     expect(next.members.map((session) => session.id)).toEqual([first.id])
     expect(next.nextCursor).toBeUndefined()
   })
 
-  it('counts Needs attention Workers only: live, needing the user, by Delegation state', async () => {
+  it('counts Needs you only: parked requests and stuck Workers, by the next-actor rule (#380)', async () => {
     const queen = await createSession({ projectPath: '/repo/hive', piSessionId: 'pi-count-queen' })
-    const states = ['needs_attention', 'revision_requested', 'ready_for_review', 'needs_attention']
+    const states = [
+      'needs_attention',
+      'revision_requested',
+      'ready_for_review',
+      'needs_attention',
+      'working',
+    ]
     const workers = []
     for (const [index, state] of states.entries()) {
       const child = await spawnChild({
@@ -191,24 +197,57 @@ describe('Hive tree catalog', () => {
           yield* sql`
             INSERT INTO delegation_contracts (
               id, parent_session_id, child_session_id, state,
-              current_specification_revision, created_at, updated_at
-            ) VALUES (${`contract-count-${String(index)}`}, ${queen.id}, ${child.id}, ${state}, ${1}, ${1}, ${1})
+              current_specification_revision, created_at, updated_at, attention_cause
+            ) VALUES (
+              ${`contract-count-${String(index)}`}, ${queen.id}, ${child.id}, ${state},
+              ${1}, ${1}, ${1}, ${state === 'needs_attention' ? 'run_failed' : null}
+            )
           `
         }),
       )
     }
     const archivedWorker = workers[3]
-    if (archivedWorker === undefined) throw new Error('missing seeded Worker')
+    const parkedWorker = workers[4]
+    if (archivedWorker === undefined || parkedWorker === undefined) {
+      throw new Error('missing seeded Worker')
+    }
     await runStoreEffect(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        // An archived Worker leaves Needs attention, whatever its Delegation state.
+        // An archived Worker leaves Needs you, whatever its Delegation state.
         yield* sql`UPDATE sessions SET archived = 1 WHERE id = ${archivedWorker.id}`
       }),
     )
 
-    const page = await listHiveTreeSessionCatalogPage(queen.id, 50)
-    // needs_attention + revision_requested; ready_for_review and the archived Worker do not count.
-    expect(page.attentionCount).toBe(2)
+    // The idle Queen will not pick the failed Worker up: it is stuck. Revising and review are not
+    // the person's to act on.
+    expect((await listHiveTreeSessionCatalogPage(queen.id, 50)).needsYouCount).toBe(1)
+
+    // A Worker's parked approval and the Queen's own parked question need the person too.
+    const parked = new Map([
+      [String(parkedWorker.id), 'approval' as const],
+      [String(queen.id), 'question' as const],
+    ])
+    expect(
+      (await listHiveTreeSessionCatalogPage(queen.id, 50, undefined, parked)).needsYouCount,
+    ).toBe(3)
+
+    // Once the Queen runs, the failed Worker waits for her instead of the person.
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES (${'run-queen-active'}, ${queen.id}, ${'active'}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES (${queen.id}, ${1}, ${'run-queen-active'}, ${'running'}, ${0}, ${1})
+          ON CONFLICT(session_id) DO UPDATE SET active_run_id = excluded.active_run_id
+        `
+      }),
+    )
+    expect((await listHiveTreeSessionCatalogPage(queen.id, 50)).needsYouCount).toBe(0)
   })
 })

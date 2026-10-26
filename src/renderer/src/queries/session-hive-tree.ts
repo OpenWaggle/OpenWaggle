@@ -18,7 +18,7 @@ export interface HiveTreePage {
   readonly root: HiveSession | null
   readonly members: readonly HiveSession[]
   /** Members across every page whose Delegation needs the user; each page reports the total. */
-  readonly attentionCount: number
+  readonly needsYouCount: number
   readonly nextCursor?: string
 }
 
@@ -72,7 +72,7 @@ export function hiveTreeMembers(
  * as of its own read; the last page is the most recently read, so its total is the freshest.
  */
 export function hiveTreeNeedsAttention(pages: readonly HiveTreePage[] | undefined): boolean {
-  return (pages?.at(-1)?.attentionCount ?? 0) > 0
+  return (pages?.at(-1)?.needsYouCount ?? 0) > 0
 }
 
 export function hiveTreeRoot(pages: readonly HiveTreePage[] | undefined): HiveSession | null {

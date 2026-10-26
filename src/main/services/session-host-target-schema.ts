@@ -137,7 +137,8 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
     )),
     current_specification_revision INTEGER NOT NULL CHECK (current_specification_revision > 0),
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    attention_cause TEXT CHECK (attention_cause IN ('run_failed', 'worker_request'))
   )
   `,
   `

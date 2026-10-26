@@ -138,8 +138,11 @@ describe('SQLite Session Control Worker settlement', () => {
               ${'worker'}, ${'session-agent:worker'}, ${duringRun}
             )
           `
+          // What the Worker's own delegation_state writes (ADR 0059).
           yield* sql`
-            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${duringRun}
+            UPDATE delegation_contracts
+            SET state = ${'needs_attention'}, attention_cause = ${'worker_request'},
+              updated_at = ${duringRun}
             WHERE id = ${'delegation-worker'}
           `
         }),
@@ -166,7 +169,9 @@ describe('SQLite Session Control Worker settlement', () => {
             )
           `
           yield* sql`
-            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${earlier}
+            UPDATE delegation_contracts
+            SET state = ${'needs_attention'}, attention_cause = ${'worker_request'},
+              updated_at = ${earlier}
             WHERE id = ${'delegation-worker'}
           `
         }),
@@ -190,7 +195,8 @@ describe('SQLite Session Control Worker settlement', () => {
             )
           `
           yield* sql`
-            UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${3000}
+            UPDATE delegation_contracts
+            SET state = ${'needs_attention'}, attention_cause = ${'run_failed'}, updated_at = ${3000}
             WHERE id = ${'delegation-worker'}
           `
           yield* sql`

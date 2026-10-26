@@ -1,3 +1,4 @@
+import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationState } from './session-collaboration'
 
 export type SessionLineageRole = 'queen' | 'worker' | 'independent'
@@ -60,6 +61,11 @@ export interface SessionQuerySummary {
   readonly agentDefinitionName?: string
   readonly delegationId?: string
   readonly delegationState?: DelegationState
+  /**
+   * Who acts next on this Worker (ADR 0059): `user`, `parent`, `worker` or `none`. Present
+   * whenever `delegationState` is, derived at read time by the rule the Hive panel uses.
+   */
+  readonly nextActor?: HiveNextActor
   /** Historical MCP ancestry does not grant Session Host delegation authority. */
   readonly historical?: boolean
   readonly discoveryEvidence?: SessionDiscoveryEvidence
