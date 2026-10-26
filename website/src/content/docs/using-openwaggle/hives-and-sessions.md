@@ -13,9 +13,9 @@ Each Worker is a saved, independent session with its own transcript, active run,
 
 For two agents taking sequential turns in the *same* conversation, use [Waggle Mode](/docs/using-openwaggle/waggle-mode) instead.
 
-![A Queen Session in the sidebar with its Hive listed in the Hive panel on the right](/screenshots/hive-sessions.png)
+![A Queen Session with the Hive panel open on the right: a tree of its Workers, one under the Worker that spawned it, each with its workspace and a State that says who acts next](/screenshots/hive-sessions.png)
 
-_The Queen stays in the left sidebar; the Hive panel on the right lists the whole Hive from the Queen down._
+_The Queen stays in the left sidebar; the Hive panel on the right lists the whole Hive from the Queen down, each Worker under the Session that spawned it._
 
 ## Try a Hive
 
@@ -37,6 +37,10 @@ Open the **Hive** panel from the chess queen icon on the Panel rail (or select t
 ### Who acts next
 
 Each row's **State** says who acts next and why. **By next actor** groups the same Sessions that way, each deeper row naming its parent as **Spawned by** with a link to it:
+
+![The Hive panel's By next actor view: a Needs you group with a stuck Worker, Waiting for groups for the Queen and for a Worker with a Worker of its own, then Working and Closed, with archived Workers folded at the end](/screenshots/hive-next-actor.png)
+
+_**By next actor** groups the Hive into Needs you, Waiting for ‹parent› (one group per parent), Working and Closed._
 
 | Group | Who acts next | What a row says |
 | --- | --- | --- |

@@ -66,6 +66,13 @@ export interface SeedHiveWorkerInput extends SeedSessionInput {
     | 'accepted'
     | 'cancelled'
   readonly agentDefinitionName?: string
+  /** Why a `needs_attention` Worker needs it (migration 74); absent reads as a failed Run. */
+  readonly attentionCause?: 'run_failed' | 'worker_request'
+  /**
+   * The index of an earlier Worker in the same seed that spawned this one; absent means the
+   * Queen did. Lets a fixture show the Hive tree below its first level.
+   */
+  readonly parentWorkerIndex?: number
 }
 
 export interface SeedHiveResult {
@@ -480,37 +487,56 @@ export async function seedHive(
       seedSessionRow(database, row, workerInput, userDataDir)
       return { row, input: workerInput }
     })
-    const parentRunId = `e2e-parent-run-${queen.id}`
     database.exec('BEGIN')
     try {
-      database
-        .prepare(
-          `INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
-           VALUES (?, ?, 'completed', NULL, ?, ?)`,
-        )
-        .run(parentRunId, queen.id, queen.createdAt, queenInput.updatedAt)
-      for (const { row, input } of workers) {
+      const parentRunIds = new Map<string, string>()
+      const parentRunId = (parent: SessionRowFixture, updatedAt: number) => {
+        const existing = parentRunIds.get(parent.id)
+        if (existing) return existing
+        const runId = `e2e-parent-run-${parent.id}`
+        database
+          .prepare(
+            `INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+             VALUES (?, ?, 'completed', NULL, ?, ?)`,
+          )
+          .run(runId, parent.id, parent.createdAt, updatedAt)
+        parentRunIds.set(parent.id, runId)
+        return runId
+      }
+      const depths = new Map<string, number>([[queen.id, 0]])
+      for (const [index, { row, input }] of workers.entries()) {
+        const parent = workerParent(queen, workers, index)
+        const depth = (depths.get(parent.id) ?? 0) + 1
+        depths.set(row.id, depth)
         const delegationId = `e2e-delegation-${row.id}`
         database
           .prepare(
             `INSERT INTO session_spawn_lineage (
                child_session_id, parent_session_id, parent_run_id,
                hive_root_session_id, depth, created_at
-             ) VALUES (?, ?, ?, ?, 1, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?)`,
           )
-          .run(row.id, queen.id, parentRunId, queen.id, row.createdAt)
+          .run(
+            row.id,
+            parent.id,
+            parentRunId(parent, queenInput.updatedAt),
+            queen.id,
+            depth,
+            row.createdAt,
+          )
         database
           .prepare(
             `INSERT INTO delegation_contracts (
-               id, parent_session_id, child_session_id, state,
+               id, parent_session_id, child_session_id, state, attention_cause,
                current_specification_revision, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
           )
           .run(
             delegationId,
-            queen.id,
+            parent.id,
             row.id,
             input.delegationState,
+            input.delegationState === 'needs_attention' ? (input.attentionCause ?? null) : null,
             row.createdAt,
             input.updatedAt,
           )
@@ -555,6 +581,18 @@ export async function seedHive(
   } finally {
     database.close()
   }
+}
+
+function workerParent(
+  queen: SessionRowFixture,
+  workers: readonly { readonly row: SessionRowFixture; readonly input: SeedHiveWorkerInput }[],
+  index: number,
+): SessionRowFixture {
+  const parentIndex = workers[index]?.input.parentWorkerIndex
+  if (parentIndex === undefined) return queen
+  const parent = parentIndex < index ? workers[parentIndex] : undefined
+  if (!parent) throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  return parent.row
 }
 
 /** Seed the Host Run and branch projection together so exact filters agree with sidebar rows. */

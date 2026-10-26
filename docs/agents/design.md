@@ -63,6 +63,7 @@ Important surfaces:
 - Do not duplicate user-facing docs in `docs/agents/`; link to `website/src/content/docs/`. OpenWaggle docs are still single-source in website docs; packaged builds may generate Pi-style package-local agent-facing docs from the full docs set and installed Pi docs.
 - For renderer changes, follow `.agents/standards.md` and validate with `.agents/verification.md`.
 - For high-impact UI changes, use `frontend-design` or `interface-design` only when the task asks for design work or a new interface.
+- Website screenshots come only from `pnpm website:capture-screenshots` (`scripts/capture-website-screenshots.ts`), never by hand: it builds the app, starts it hidden with a scratch HOME, Pi agent directory and user data, seeds fixture data only, and writes every file in `website/public/screenshots/`. A UI change that alters a screenshotted surface regenerates it in the same PR (`pnpm website:capture-screenshots -- --only <name>` for one), and reviews each new image against the old one. `scripts/website-screenshot-manifest.ts` lists the files; a unit test keeps it equal to the directory, and `website/src/lib/__tests__/screenshot-references.test.ts` requires every image to be referenced with alt text and the Hive images to use the next-actor group names.
 
 ## References
 

@@ -1,26 +1,8 @@
-import { seedHive, seedSingleSession } from './support/session-fixtures'
+import { seedSingleSession } from './support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
 export const THREAD_TITLE = 'review this waggle fix before merge'
 export const THREAD_LIST_MATCHER = /review this waggle/i
-export const HIVE_QUEEN_TITLE = 'Prepare the Sessions release'
-
-const HIVE_WORKERS = [
-  {
-    title: 'Verify queue and steering behavior',
-    delegationState: 'ready_for_review' as const,
-    agentDefinitionName: 'release-verifier',
-  },
-  {
-    title: 'Check CLI and GUI synchronization',
-    delegationState: 'working' as const,
-  },
-  {
-    title: 'Review the Hive user guide',
-    delegationState: 'accepted' as const,
-  },
-] as const
-
 const THREAD_PROMPT =
   'I just fixed the waggle streaming regression. Please review the changes, challenge the risky parts, and tell me whether this branch is ready to merge.'
 const WAGGLE_MAX_TURNS_SAFETY = 5
@@ -30,8 +12,6 @@ const FIRST_CRITIC_OFFSET_MS = 5_000
 const SECOND_ADVOCATE_OFFSET_MS = 4_000
 const SECOND_CRITIC_OFFSET_MS = 3_000
 const FINAL_ADVOCATE_OFFSET_MS = 2_000
-const HIVE_USER_MESSAGE_OFFSET_MS = 2_000
-const HIVE_ASSISTANT_MESSAGE_OFFSET_MS = 1_000
 const SECOND_ADVOCATE_TURN_NUMBER = 2
 const SECOND_CRITIC_TURN_NUMBER = 3
 const FINAL_ADVOCATE_TURN_NUMBER = 4
@@ -175,47 +155,11 @@ function buildMarketingMessages(now: number) {
   ]
 }
 
-function buildHiveQueenMessages(now: number) {
-  return [
-    {
-      id: 'website-hive-user-1',
-      role: 'user',
-      createdAt: now - HIVE_USER_MESSAGE_OFFSET_MS,
-      parts: [
-        {
-          type: 'text',
-          text: 'Create a Hive to prepare the Sessions release. Delegate queue semantics, CLI synchronization, and documentation review to separate Workers.',
-        },
-      ],
-    },
-    {
-      id: 'website-hive-assistant-1',
-      role: 'assistant',
-      model: 'gpt-5.4',
-      createdAt: now - HIVE_ASSISTANT_MESSAGE_OFFSET_MS,
-      parts: [
-        {
-          type: 'text',
-          text: [
-            'The Hive is running with three Worker Sessions:',
-            '',
-            '- Queue and steering verification is ready for review.',
-            '- CLI and GUI synchronization is still in progress.',
-            '- The Hive user guide review is complete.',
-            '',
-            'I will review the Worker reports here and ask for revisions if any evidence is missing.',
-          ].join('\n'),
-        },
-      ],
-    },
-  ]
-}
-
 export async function seedMarketingSession(userDataDir: string, projectPath: string) {
   console.info('[website-shots] seeding marketing session')
   const now = Date.now()
 
-  await seedSingleSession(userDataDir, {
+  return seedSingleSession(userDataDir, {
     title: THREAD_TITLE,
     projectPath,
     updatedAt: now,
@@ -244,23 +188,47 @@ export async function seedMarketingSession(userDataDir: string, projectPath: str
   })
 }
 
-export async function seedHiveExample(userDataDir: string, projectPath: string) {
-  console.info('[website-shots] seeding Hive example')
-  const now = Date.now()
+export const BROWSER_THREAD_TITLE = 'Review the dashboard'
+const BROWSER_USER_OFFSET_MS = 2_000
+const BROWSER_ASSISTANT_OFFSET_MS = 1_000
 
-  await seedHive(
-    userDataDir,
-    {
-      title: HIVE_QUEEN_TITLE,
-      projectPath,
-      updatedAt: now,
-      messages: buildHiveQueenMessages(now),
-    },
-    HIVE_WORKERS.map((worker, index) => ({
-      ...worker,
-      projectPath,
-      updatedAt: now - index - 1,
-      messages: [],
-    })),
-  )
+/** The Session the Browser preview screenshot opens its preview in. */
+export async function seedBrowserSession(userDataDir: string, projectPath: string) {
+  const now = Date.now()
+  return seedSingleSession(userDataDir, {
+    title: BROWSER_THREAD_TITLE,
+    projectPath,
+    updatedAt: now - BROWSER_USER_OFFSET_MS,
+    messages: [
+      {
+        id: 'website-browser-user-1',
+        role: 'user',
+        createdAt: now - BROWSER_USER_OFFSET_MS,
+        parts: [
+          {
+            type: 'text',
+            text: "Let's review the dashboard in the browser. I want to check the layout before we make more changes.",
+          },
+        ],
+      },
+      {
+        id: 'website-browser-assistant-1',
+        role: 'assistant',
+        model: 'gpt-5.4',
+        createdAt: now - BROWSER_ASSISTANT_OFFSET_MS,
+        parts: [
+          {
+            type: 'text',
+            text: [
+              'Use the browser beside this conversation to inspect the page.',
+              '',
+              'You can select an element, capture a region, or draw on the page and attach it to your next message.',
+              '',
+              'What would you like to adjust?',
+            ].join('\n'),
+          },
+        ],
+      },
+    ],
+  })
 }
