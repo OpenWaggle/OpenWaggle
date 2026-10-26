@@ -1,8 +1,8 @@
-import { DatabaseSync } from 'node:sqlite'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Statement from '@effect/sql/Statement'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import Database from 'better-sqlite3'
 import * as Effect from 'effect/Effect'
 import { expect } from 'vitest'
 import type { DiscoverySearchRequest } from '../sqlite-session-discovery-window'
@@ -32,7 +32,7 @@ export function nativeScoreCalls(
   filename: string,
   captured: { readonly query: string; readonly parameters: readonly unknown[] },
 ) {
-  const database = new DatabaseSync(filename, { readOnly: true })
+  const database = new Database(filename, { readonly: true })
   let groups = 0
   let fallback = 0
   try {

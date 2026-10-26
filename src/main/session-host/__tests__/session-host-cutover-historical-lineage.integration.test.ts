@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -25,7 +25,7 @@ describe('Session Host historical Hive cutover', () => {
   })
 
   it('retains released MCP Worker ancestry without inventing a Host grant or parent Run', async () => {
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       source.exec(`
         CREATE TABLE session_lineage (
@@ -53,7 +53,7 @@ describe('Session Host historical Hive cutover', () => {
       fakeEmbeddingModel,
     )
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target

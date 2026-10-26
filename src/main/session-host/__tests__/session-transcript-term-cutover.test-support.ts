@@ -1,8 +1,8 @@
-import { DatabaseSync } from 'node:sqlite'
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../../services/session-host-transcript-term-schema'
+import { type HostSqliteDatabase, openHostSqliteDatabase } from '../host-sqlite-database'
 
-export function createTranscriptTermCutoverDatabase() {
-  const database = new DatabaseSync(':memory:')
+export function createTranscriptTermCutoverDatabase(): HostSqliteDatabase {
+  const database = openHostSqliteDatabase(':memory:')
   database.exec(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE sessions (id TEXT PRIMARY KEY);

@@ -1,7 +1,7 @@
-import type { DatabaseSync } from 'node:sqlite'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
-export function validateTranscriptTermCounts(database: DatabaseSync) {
+export function validateTranscriptTermCounts(database: HostSqliteDatabase) {
   const nodeRows = queryCutoverRecord(
     database,
     `SELECT

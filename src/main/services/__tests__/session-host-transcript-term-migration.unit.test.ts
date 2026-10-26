@@ -1,29 +1,31 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION } from '../session-host-transcript-term-migration'
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../session-host-transcript-term-schema'
 
-function applyMigration(database: DatabaseSync) {
+function applyMigration(database: Database.Database) {
   for (const statement of SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION.statements) {
     database.exec(statement)
   }
 }
 
-function termColumns(database: DatabaseSync) {
+function termColumns(database: Database.Database) {
   return database
-    .prepare("SELECT name FROM pragma_table_info('session_transcript_terms') ORDER BY cid")
+    .prepare<[], Record<string, unknown>>(
+      "SELECT name FROM pragma_table_info('session_transcript_terms') ORDER BY cid",
+    )
     .all()
 }
 
 describe('Session Host transcript term normalization migration', () => {
-  const databases: DatabaseSync[] = []
+  const databases: Database.Database[] = []
 
   afterEach(() => {
     for (const database of databases.splice(0)) database.close()
   })
 
   it('removes persisted frequency state while preserving an alpha catalog', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     databases.push(database)
     database.exec(`
       PRAGMA foreign_keys = ON;
@@ -78,7 +80,7 @@ describe('Session Host transcript term normalization migration', () => {
   })
 
   it('also applies after the current alpha target schema', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     databases.push(database)
     database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
     for (const statement of SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS) database.exec(statement)

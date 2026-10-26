@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -27,7 +27,7 @@ describe('Session Host cutover execution-profile validation', () => {
       Date.now(),
       fakeEmbeddingModel,
     )
-    const target = new DatabaseSync(targetDatabasePath)
+    const target = openHostSqliteDatabase(targetDatabasePath)
     try {
       target
         .prepare(`UPDATE session_execution_profiles SET profile_json = ?`)

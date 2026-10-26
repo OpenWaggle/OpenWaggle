@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
@@ -50,7 +50,7 @@ interface PackagedStartupScenarioDependencies {
 }
 
 function seedLegacyDatabase(databasePath: string) {
-  const database = new DatabaseSync(databasePath)
+  const database = new Database(databasePath)
   try {
     database.exec(`
       PRAGMA foreign_keys = ON;

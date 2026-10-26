@@ -1,5 +1,5 @@
-import { DatabaseSync } from 'node:sqlite'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
+import { type HostSqliteDatabase, openHostSqliteDatabase } from '../host-sqlite-database'
 
 export const fakeEmbeddingModel: SessionEmbeddingModel = {
   metadata: { id: 'test/e5', revision: 'test-revision', dimensions: 3, dtype: 'f32' },
@@ -7,7 +7,7 @@ export const fakeEmbeddingModel: SessionEmbeddingModel = {
   embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
 }
 
-export function readCutoverCatalogEvidence(database: DatabaseSync) {
+export function readCutoverCatalogEvidence(database: HostSqliteDatabase) {
   const match = (table: 'session_project_search' | 'session_catalog_search', query: string) =>
     database.prepare(`SELECT session_id FROM ${table} WHERE ${table} MATCH ?`).all(query)
   return {
@@ -36,7 +36,7 @@ export function readCutoverCatalogEvidence(database: DatabaseSync) {
 }
 
 export function seedLegacyDatabase(databasePath: string, runtimeJson = '{"model":"test"}') {
-  const database = new DatabaseSync(databasePath)
+  const database = openHostSqliteDatabase(databasePath)
   try {
     database.exec(`
       PRAGMA foreign_keys = ON;

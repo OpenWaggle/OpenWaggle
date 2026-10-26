@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { validateSessionReportReferenceCatalog } from '../session-host-report-reference-catalog'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
@@ -51,7 +51,7 @@ describe('Session Host report-reference cutover', () => {
       const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
       const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
       seedLegacyDatabase(sourceDatabasePath)
-      const source = new DatabaseSync(sourceDatabasePath)
+      const source = openHostSqliteDatabase(sourceDatabasePath)
       try {
         source.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(title, 'session-root')
       } finally {
@@ -63,7 +63,7 @@ describe('Session Host report-reference cutover', () => {
         1_000,
         fakeEmbeddingModel,
       )
-      const target = new DatabaseSync(targetDatabasePath)
+      const target = openHostSqliteDatabase(targetDatabasePath)
       try {
         const migratedSession = target
           .prepare(`SELECT title FROM sessions WHERE id = 'session-root'`)

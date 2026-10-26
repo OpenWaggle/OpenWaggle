@@ -1,8 +1,11 @@
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY } from '../src/main/domain/session-semantic-discovery-storage-policy'
+import {
+  type HostSqliteDatabase,
+  openHostSqliteDatabase,
+} from '../src/main/session-host/host-sqlite-database'
 import { runSessionHostCutover } from '../src/main/session-host/session-host-cutover'
 import { sessionDiscoveryBenchmarkPassed } from './benchmark-session-discovery-assertions'
 import { benchmarkSessionDiscoveryModel } from './benchmark-session-discovery-model'
@@ -27,7 +30,7 @@ const COMMON_TERM_INCREMENTAL_LIMIT_MS = 1_000
 const BYTES_PER_MEBIBYTE = 1_048_576
 const BENCHMARK_NOW = 1_000
 function populateSkewedMessages(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   input: ReturnType<typeof sessionDiscoveryBenchmarkMode>,
   baseMessageCount: number,
 ) {
@@ -68,7 +71,7 @@ function populateSkewedMessages(
     )
 }
 
-function populate(database: DatabaseSync, input: ReturnType<typeof sessionDiscoveryBenchmarkMode>) {
+function populate(database: HostSqliteDatabase, input: ReturnType<typeof sessionDiscoveryBenchmarkMode>) {
   database.exec('BEGIN IMMEDIATE')
   database
     .prepare(`
@@ -183,7 +186,7 @@ async function main() {
   const targetDatabasePath = path.join(root, 'session-host', 'session-host.sqlite')
   const recoveryDatabasePath = path.join(root, 'openwaggle.pre-session-host-v2.db')
   try {
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     const seedStartedAt = performance.now()
     try {
       initializeSessionDiscoveryBenchmarkSource(source)
@@ -208,7 +211,7 @@ async function main() {
     const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkSessionDiscoveryModel)
     reportSessionDiscoveryBenchmarkPhase('discovery backfill', backfills.discovery.elapsedMs)
     reportSessionDiscoveryBenchmarkPhase('transcript backfill', backfills.transcript.elapsedMs)
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     const corpus = sessionDiscoveryBenchmarkCounts(target)
     target.close()
     const lastProject = String(mode.projectCount - 1).padStart(PROJECT_ID_WIDTH, '0')

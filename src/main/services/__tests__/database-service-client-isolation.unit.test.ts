@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
+import Database from 'better-sqlite3'
 import * as Effect from 'effect/Effect'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +28,7 @@ describe('attached GUI database isolation', () => {
     appState.userDataRoot = temporaryRoot
     const canonicalPath = join(temporaryRoot, 'session-host', 'session-host.sqlite')
     await mkdir(dirname(canonicalPath), { recursive: true })
-    const canonical = new DatabaseSync(canonicalPath)
+    const canonical = new Database(canonicalPath)
     canonical.exec('CREATE TABLE sentinel (value TEXT NOT NULL)')
     canonical.close()
 
@@ -51,7 +51,7 @@ describe('attached GUI database isolation', () => {
       await runtime.dispose()
     }
 
-    const reopened = new DatabaseSync(canonicalPath, { readOnly: true })
+    const reopened = new Database(canonicalPath, { readonly: true })
     try {
       const migrations = reopened
         .prepare("SELECT count(*) AS count FROM sqlite_master WHERE name = '_migrations'")

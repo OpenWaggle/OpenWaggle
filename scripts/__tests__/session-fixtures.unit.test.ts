@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
@@ -40,7 +40,7 @@ describe('interrupted E2E Session fixtures', () => {
       },
       { title: 'Stuck beta', projectPath: '/beta', updatedAt: 10, messages: [], interruptedRun: true },
     ])
-    const database = new DatabaseSync(getDatabasePath(userDataDir))
+    const database = new Database(getDatabasePath(userDataDir))
     try {
       expect(
         database
@@ -86,7 +86,7 @@ describe('interrupted E2E Session fixtures', () => {
       messages: [],
       interruptedRun: true,
     })
-    const database = new DatabaseSync(getDatabasePath(userDataDir))
+    const database = new Database(getDatabasePath(userDataDir))
     try {
       expect(
         database
@@ -110,7 +110,7 @@ describe('interrupted E2E Session fixtures', () => {
       title: 'Worktree fixture', projectPath, environmentMode: 'worktree', worktreePath,
       updatedAt: 10, messages: [],
     })
-    const database = new DatabaseSync(getDatabasePath(userDataDir))
+    const database = new Database(getDatabasePath(userDataDir))
     try {
       expect(database.prepare(`SELECT resources.kind, resources.working_path
         FROM session_workspace_bindings AS binding
@@ -122,7 +122,7 @@ describe('interrupted E2E Session fixtures', () => {
   })
 
   it('rolls back the canonical Run when its branch projection cannot be seeded', async () => {
-    const database = new DatabaseSync(getDatabasePath(userDataDir))
+    const database = new Database(getDatabasePath(userDataDir))
     try {
       database.exec(`
         CREATE TRIGGER reject_interrupted_fixture BEFORE INSERT ON session_active_runs

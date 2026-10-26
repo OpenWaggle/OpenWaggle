@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
+import Database from 'better-sqlite3'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
@@ -43,14 +43,14 @@ function snapshot(tools: readonly string[]) {
 }
 
 function databaseWith(rows: readonly { id: string; profile: string; snapshot?: string | null }[]) {
-  const database = new DatabaseSync(':memory:')
+  const database = new Database(':memory:')
   database.exec(PROFILE_TABLE)
   const insert = database.prepare('INSERT INTO session_execution_profiles VALUES (?, ?, ?, 1)')
   for (const row of rows) insert.run(row.id, row.profile, row.snapshot ?? null)
   return database
 }
 
-function migrate(database: DatabaseSync) {
+function migrate(database: Database.Database) {
   for (const statement of HIVE_TOOL_NAME_MIGRATION_STATEMENTS) database.exec(statement)
 }
 
@@ -60,9 +60,9 @@ interface StoredRow {
   readonly resolved_agent_snapshot_json: string | null
 }
 
-function storedRows(database: DatabaseSync) {
+function storedRows(database: Database.Database) {
   return database
-    .prepare(
+    .prepare<[], Record<string, unknown>>(
       'SELECT session_id, profile_json, resolved_agent_snapshot_json FROM session_execution_profiles ORDER BY session_id',
     )
     .all()
