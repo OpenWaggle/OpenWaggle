@@ -125,7 +125,11 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
           variant: 'success',
           action: {
             label: 'Reveal file',
-            onClick: () => void api.revealBrowserPreviewArtifact(artifact.path),
+            onClick: () =>
+              runVoid(
+                () => api.revealBrowserPreviewArtifact(artifact.path),
+                'Preview artifact could not be revealed.',
+              ),
           },
         })
       })
@@ -168,7 +172,11 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
             variant: 'success',
             action: {
               label: 'Reveal file',
-              onClick: () => void api.revealBrowserPreviewArtifact(artifact.path),
+              onClick: () =>
+                runVoid(
+                  () => api.revealBrowserPreviewArtifact(artifact.path),
+                  'Preview artifact could not be revealed.',
+                ),
             },
           })
         })

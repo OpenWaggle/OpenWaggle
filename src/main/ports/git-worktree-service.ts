@@ -1,5 +1,6 @@
 import type {
   GitWorktreeCreatePayload,
+  GitWorktreeListResult,
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
 } from '@shared/types/git'
@@ -30,6 +31,12 @@ export interface GitWorktreeServiceShape {
     projectPath: string,
     candidatePath: string,
   ) => Effect.Effect<LinkedWorktreeCheck, Error>
+  /** Every worktree of the repository, as `git worktree list` reports them. */
+  readonly list: (projectPath: string) => Effect.Effect<GitWorktreeListResult>
+  /** Commits on a worktree's HEAD that no remote-tracking ref has; null when unknown. */
+  readonly countUnpublishedCommits: (worktreePath: string) => Effect.Effect<number | null>
+  /** The checkout the running app was started from (a development build), or null. */
+  readonly applicationCheckout: () => Effect.Effect<string | null>
 }
 
 export class GitWorktreeService extends Context.Tag('@openwaggle/GitWorktreeService')<

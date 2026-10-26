@@ -132,6 +132,12 @@ async function openFrameExternalUrl(url: string) {
   }
 }
 
+function unregisterExtensionFrameLogged(frameId: string, registrationId: string) {
+  void api
+    .unregisterExtensionFrame({ frameId, registrationId })
+    .catch((error: unknown) => logger.warn('Unregister failed', { error: String(error) }))
+}
+
 function registerProtocolFrame(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly frame: HTMLIFrameElement
@@ -148,10 +154,7 @@ function registerProtocolFrame(input: {
     })
     .then((result) => {
       if (!input.isActive()) {
-        void api.unregisterExtensionFrame({
-          frameId: input.frameId,
-          registrationId: result.registrationId,
-        })
+        unregisterExtensionFrameLogged(input.frameId, result.registrationId)
         return
       }
 
@@ -171,10 +174,7 @@ function registerProtocolFrame(input: {
 
   return () => {
     if (registrationId !== null) {
-      void api.unregisterExtensionFrame({
-        frameId: input.frameId,
-        registrationId,
-      })
+      unregisterExtensionFrameLogged(input.frameId, registrationId)
     }
   }
 }

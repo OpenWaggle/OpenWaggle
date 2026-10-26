@@ -65,6 +65,7 @@ function workspaceRepository(input: {
       Effect.sync(() => mocks.finalizeRemoval(finalization)),
     getById: () => Effect.succeed(null),
     getBound: () => Effect.succeed(input.boundWorkspace ?? null),
+    listWorkspaceOccupants: () => Effect.succeed([]),
   })
 }
 
@@ -91,6 +92,9 @@ function operationLayer(
         validateRemoval: (projectPath, payload) =>
           Effect.promise(() => mocks.validateRemoval(projectPath, payload)),
         inspectLinkedWorktree: () => Effect.succeed('not-a-worktree'),
+        list: () => Effect.succeed({ worktrees: [] }),
+        countUnpublishedCommits: () => Effect.succeed(null),
+        applicationCheckout: () => Effect.succeed(null),
       }),
     ),
   )

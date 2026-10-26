@@ -111,7 +111,8 @@ const mocks: TerminalPaneMocks = vi.hoisted(() => {
     },
     openTerminal: vi.fn(),
     restartTerminal: vi.fn(),
-    resizeTerminal: vi.fn(),
+    // The geometry controller debounces resize, so a test can end before the last one fires.
+    resizeTerminal: vi.fn(() => Promise.resolve(undefined)),
     clearTerminal: vi.fn(),
     detachTerminal: vi.fn(),
     closeTerminal: vi.fn(),

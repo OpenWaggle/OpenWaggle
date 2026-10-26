@@ -195,7 +195,7 @@ printf '[Desktop Entry]\\nName=OpenWaggle\\nX-AppImage-Version=1.0.0-beta.9\\n' 
 
   it('quits the app, then stops its Host, then replaces it on macOS', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
-    const quit = source.indexOf('  quit_running_mac_app\n')
+    const quit = source.indexOf('  quit_running_mac_app "${INSTALLED_APP_PATH}"\n')
     const stop = source.indexOf('  stop_session_host_for_update "${INSTALLED_APP_PATH}')
     const replace = source.indexOf('  rm -rf "${INSTALLED_APP_PATH}"')
 

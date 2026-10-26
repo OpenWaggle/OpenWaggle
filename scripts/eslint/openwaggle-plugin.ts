@@ -10,6 +10,7 @@ import { noInfiniteForLoopRule } from './rules/no-infinite-for-loop'
 import { noRawRendererButtonsRule } from './rules/no-raw-renderer-buttons'
 import { noReactLegacyPatternsRule } from './rules/no-react-legacy-patterns'
 import { noShoehornOutsideTestsRule } from './rules/no-shoehorn-outside-tests'
+import { noUncaughtVoidIpcRule } from './rules/no-uncaught-void-ipc'
 import { preferInferredInternalReturnTypesRule } from './rules/prefer-inferred-internal-return-types'
 import { rendererImportBoundariesRule } from './rules/renderer-import-boundaries-rule'
 import { rendererDesignTokenGuardrailsRule } from './rules/renderer-design-token-guardrails'
@@ -33,6 +34,7 @@ export const openwagglePlugin: ESLint.Plugin = {
     'no-raw-renderer-buttons': noRawRendererButtonsRule,
     'no-react-legacy-patterns': noReactLegacyPatternsRule,
     'no-shoehorn-outside-tests': noShoehornOutsideTestsRule,
+    'no-uncaught-void-ipc': noUncaughtVoidIpcRule,
     'prefer-inferred-internal-return-types': preferInferredInternalReturnTypesRule,
     'renderer-import-boundaries': rendererImportBoundariesRule,
     'renderer-design-token-guardrails': rendererDesignTokenGuardrailsRule,

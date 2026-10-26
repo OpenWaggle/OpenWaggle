@@ -250,7 +250,7 @@ describe('vcs-status-service', () => {
       })
     })
 
-    it('rejects a failed upstream read instead of changing the apparent push target', async () => {
+    it('keeps the status and reports an unknown push target when the push destination read fails', async () => {
       routeGit({
         'symbolic-ref --quiet --short HEAD': gitResult(0, 'feature\n'),
         'for-each-ref --format=%(push:remotename) refs/heads/feature': gitResult(
@@ -265,10 +265,14 @@ describe('vcs-status-service', () => {
         '-c core.quotePath=false diff --cached --numstat -z': gitResult(0, ''),
       })
 
-      await expect(getLocalVcsStatus('/repo')).resolves.toEqual({
-        ok: false,
-        code: 'unknown',
-        message: 'Could not read the Git push destination: spawn git EAGAIN',
+      /*
+       * The push target alone must not fail the status: that hid the Session Summary Git row
+       * behind "Retry Git status" (issue #353). Unknown counts as the default branch, so a push
+       * still confirms, and the gate reads the destination again before it runs.
+       */
+      await expect(getLocalVcsStatus('/repo')).resolves.toMatchObject({
+        ok: true,
+        status: { refName: 'feature', pushTargetRef: null, pushTargetIsDefaultRef: true },
       })
     })
   })

@@ -9,12 +9,16 @@ import {
   forceIncludePiPackageAsset,
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
+import { foreignNativePrebuildExclusions } from './scripts/electron-builder-native-prebuilds'
 import { resolveMacSigning } from './scripts/mac-signing'
+import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
- * identity — name, appId, icon — is resolved once here from the build context;
- * userData follows productName automatically at runtime. electron-builder loads
+ * identity — name, appId, icon — is resolved once here from the build context.
+ * productName does not decide userData: every release channel shares the
+ * canonical `openwaggle` userData directory, and only dev builds rename the app
+ * to isolate theirs (src/main/apply-build-identity.ts). electron-builder loads
  * `.ts` config via jiti and consumes this default export; it validates the shape
  * at runtime. Left untyped: electron-builder re-exports its `Configuration` type
  * from the transitive `app-builder-lib`, which does not resolve under this repo's
@@ -113,6 +117,8 @@ const config = {
     // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
+    // Native prebuilds for other platforms and architectures (scripts/electron-builder-native-prebuilds.ts).
+    ...foreignNativePrebuildExclusions(),
   ],
   extraResources: [
     // Ship the channel icon as the runtime icon resource so the Windows/Linux
@@ -130,12 +136,20 @@ const config = {
     // APPLE_* credentials; dev builds stay unsigned. RC and Stable fail closed without both.
     ...resolveMacSigning(identity.channel),
     icon: icons.mac,
+    // LSMinimumSystemVersion: the oldest macOS that can launch the app, below the supported 13.4
+    // floor so an auto-updated macOS 12 install still opens (scripts/supported-platform-floor.ts).
+    minimumSystemVersion: SUPPORTED_PLATFORM_FLOOR.macos.launchVersion,
     // Keep artifact filenames keyed to the lowercase package name (not the
     // channel-specific productName) so install.sh and release verification match.
     artifactName: '${name}-${version}-${arch}.${ext}',
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     target: ['dmg', 'zip'],
+  },
+  // Sign the DMG itself; the dmg-builder patch then notarizes and staples it (an unsigned build
+  // skips both). Before 1.0.0-rc.1 only the app inside the DMG was signed and notarized.
+  dmg: {
+    sign: true,
   },
   win: {
     icon: icons.win,
