@@ -97,13 +97,13 @@ function useDebouncedContentQuery(query: string) {
 function useCancelProjectContentSearch(projectPath: string | null, query: string) {
   useEffect(() => {
     if (!projectPath || query.trim().length > 0) return
-    void api.cancelWorkspaceContentSearch(projectPath)
+    void api.cancelWorkspaceContentSearch(projectPath).catch(() => undefined)
   }, [projectPath, query])
 
   useEffect(() => {
     if (!projectPath) return
     return () => {
-      void api.cancelWorkspaceContentSearch(projectPath)
+      void api.cancelWorkspaceContentSearch(projectPath).catch(() => undefined)
     }
   }, [projectPath])
 }

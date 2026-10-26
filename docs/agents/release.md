@@ -46,16 +46,21 @@ Use the Release workflow's `target_version` dispatch for a deliberate promotion 
 prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
 explicit target. It still produces the ordinary version-only release PR and never bypasses the
 maintainer merge gate.
+Pass the bare version without a leading `v`, and pause `feat:`/`fix:` merges to `main` until the
+dispatched PR merges; see the `target_version` dispatch notes in `docs/release-and-versioning.md` for the
+competing-PR race and how to recover from it.
 
 Release automation is GitHub-based:
 
 - CI runs typecheck, lint, and tests on PRs and pushes to `main`.
 - Release workflow derives version bumps from Conventional Commit-style release-eligible commits.
-- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and leaves the green PR open for a maintainer. Strict-base drift updates the branch and repeats CI, but automation never merges the PR. A maintainer's protected merge starts a second run that verifies the exact version-only commit and associated same-repository release PR, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Preparation runs coalesce, but publication runs use the immutable merge SHA as their concurrency key so a later `main` push cannot replace a queued release. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
+- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and leaves the green PR open for a maintainer. Strict-base drift updates the branch and repeats CI, but automation never merges the PR. A maintainer's protected merge starts a second run that verifies the exact version-only commit and associated same-repository release PR, creates only its tag, then builds platform artifacts, uploads them and their checksums to a draft GitHub Release, verifies the draft (`scripts/verify-release-assets.ts`), and only then publishes it. Preparation runs coalesce, but publication runs use the immutable merge SHA as their concurrency key so a later `main` push cannot replace a queued release. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
 macOS artifacts are Developer ID signed and notarized; the release workflow refuses to build RC and Stable macOS artifacts without the signing secrets. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
+
+Supported platforms are a covered surface with stated minimums: macOS 13.4, Windows 10 x64, and Linux x64 with glibc 2.35. `scripts/supported-platform-floor.ts` holds the thresholds, and `scripts/check-native-platform-floor.ts` runs after every release and nightly build and fails when a packaged native binary needs a newer OS. Keep the Linux build on `ubuntu-22.04` and `LSMinimumSystemVersion` at 12.0. See "Supported platform minimums" in `docs/release-and-versioning.md` for the exception that lets a minimum rise in a minor version.
 
 ## When To Load The Release Skill
 

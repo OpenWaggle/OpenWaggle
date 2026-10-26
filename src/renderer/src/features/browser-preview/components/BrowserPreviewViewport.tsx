@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 import type { BrowserPreviewTab } from '../browser-preview-model'
 import { useBrowserPreviewViewportResize } from '../hooks/useBrowserPreviewViewportResize'
 import { BrowserPreviewViewportResizeHandles } from './BrowserPreviewViewportResizeHandles'
@@ -29,6 +30,7 @@ export function BrowserPreviewViewport({
 }: BrowserPreviewViewportProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
+  const showToast = useUIStore((state) => state.showToast)
   useEffect(() => {
     const canvas = canvasRef.current
     if (canvas === null) return
@@ -100,7 +102,17 @@ export function BrowserPreviewViewport({
             <Button size="sm" variant="secondary" onClick={onRetry}>
               Retry
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => void api.openExternal(tab.url)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                void api
+                  .openExternal(tab.url)
+                  .catch((error: unknown) =>
+                    showToast(error instanceof Error ? error.message : String(error), 'error'),
+                  )
+              }
+            >
               Open in browser
             </Button>
           </div>
