@@ -32,8 +32,9 @@ function queen(activeDirectWorkerCount: number, directWorkerCount = 1): SessionS
 }
 
 function worker(
-  state: 'working' | 'ready_for_review' | 'accepted' | 'needs_attention',
+  state: 'working' | 'ready_for_review' | 'accepted' | 'needs_attention' | 'revision_requested',
   id = 'worker',
+  facts: { readonly parentWillAct?: boolean } = {},
 ): SessionSummary {
   return {
     id: SessionId(id),
@@ -47,6 +48,7 @@ function worker(
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
       delegationState: state,
+      ...facts,
     },
   }
 }
@@ -71,22 +73,43 @@ describe('HiveSummarySection', () => {
 
     expect(await screen.findByRole('region', { name: 'Hive' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Hive' })).toHaveTextContent(
-      '1 direct Worker · 1 active',
+      '1 direct Worker · 1 working',
     )
     expect(screen.queryByText('Worker session')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Open in Hive panel' }))
     expect(showRightPanelSurface).toHaveBeenCalledWith('hive')
   })
 
-  it('reports attention in the warning colour', async () => {
-    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('needs_attention')]))
+  it('reports only Needs you in the warning colour (#380)', async () => {
+    // The Queen is idle with nothing queued: the failed Worker is stuck.
+    getSessionHiveRelations.mockResolvedValue(
+      hiveRelations(queen(2, 2), [
+        worker('needs_attention', 'stuck'),
+        worker('revision_requested', 'revising'),
+      ]),
+    )
     renderHive('queen')
 
-    const attention = await screen.findByText('1 needs attention')
-    expect(attention.className).toContain('text-warning')
+    const needsYou = await screen.findByText('1 needs you')
+    expect(needsYou.className).toContain('text-warning')
+    // Revising at the Queen's request is the Worker's to do, not the person's.
+    expect(screen.getByRole('region', { name: 'Hive' })).toHaveTextContent(
+      '2 direct Workers · 1 needs you · 1 working',
+    )
   })
 
-  it('names its scope and surfaces Workers waiting for review instead of "0 active"', async () => {
+  it('counts a failure the running Queen will pick up as waiting for her, not as Needs you', async () => {
+    getSessionHiveRelations.mockResolvedValue(
+      hiveRelations(queen(1), [worker('needs_attention', 'failed', { parentWillAct: true })]),
+    )
+    renderHive('queen')
+
+    const waiting = await screen.findByText('1 waiting for Queen session')
+    expect(waiting.className).not.toContain('text-warning')
+    expect(screen.queryByText(/needs? you/u)).toBeNull()
+  })
+
+  it('names its scope and counts Workers waiting for review as waiting for the parent', async () => {
     getSessionHiveRelations.mockResolvedValue(
       hiveRelations(queen(0, 3), [
         worker('ready_for_review', 'one'),
@@ -97,9 +120,10 @@ describe('HiveSummarySection', () => {
     renderHive('queen')
 
     const region = await screen.findByRole('region', { name: 'Hive' })
-    await waitFor(() => expect(region).toHaveTextContent('3 direct Workers · 3 ready for review'))
-    expect(region).not.toHaveTextContent('active')
-    expect(screen.getByText('3 ready for review').className).toContain('text-info-text')
+    await waitFor(() =>
+      expect(region).toHaveTextContent('3 direct Workers · 3 waiting for Queen session'),
+    )
+    expect(region).not.toHaveTextContent('working')
   })
 
   it('marks counts as lower bounds while more Workers are unread', async () => {

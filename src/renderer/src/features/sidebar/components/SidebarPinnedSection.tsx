@@ -8,6 +8,7 @@ import {
   type PinnedSessionRow,
   type PinnedSortMode,
 } from '../lib/pinned-sessions'
+import type { QueenWorkerAttention } from '../lib/worker-attention'
 import type { SidebarSessionActions } from '../model'
 import { SessionListItem, type SessionRowHighlight } from './SessionListItem'
 import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
@@ -56,7 +57,7 @@ interface SidebarPinnedSectionProps {
   readonly displayProjectName: (path: string) => string
   readonly sessionActions: SidebarSessionActions
   /** Per-Queen hidden-Worker attention, shown on Queen rows' second line (ADR 0051). */
-  readonly workerAttentionOf: (queenId: string) => number
+  readonly workerAttentionOf: (queenId: string) => QueenWorkerAttention
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }
 
@@ -152,7 +153,7 @@ export function SidebarPinnedSection({
                 : ''
             }
             sessionActions={sessionActions}
-            workerAttentionCount={workerAttentionOf(String(row.session.id))}
+            workerAttention={workerAttentionOf(String(row.session.id))}
             onReorder={onReorder}
           />
         ))}
@@ -187,7 +188,7 @@ function PinnedSessionListItem({
   highlight,
   projectLabel,
   sessionActions,
-  workerAttentionCount,
+  workerAttention,
   onReorder,
 }: {
   readonly row: PinnedSessionRow
@@ -197,7 +198,7 @@ function PinnedSessionListItem({
   readonly projectLabel: string
   readonly sessionActions: SidebarSessionActions
   /** How many of this Queen's hidden Workers need the user (ADR 0051). */
-  readonly workerAttentionCount: number
+  readonly workerAttention: QueenWorkerAttention
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }) {
   const sessionId = SessionId(String(row.session.id))
@@ -214,7 +215,7 @@ function PinnedSessionListItem({
       highlight={highlight}
       actions={sessionActions}
       isPinned
-      workerAttentionCount={workerAttentionCount}
+      workerAttention={workerAttention}
       pinnedRow={{
         projectLabel,
         // The row's position in the whole section, not its position among the rendered rows.

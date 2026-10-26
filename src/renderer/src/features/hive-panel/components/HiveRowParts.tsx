@@ -27,8 +27,8 @@ import { useHiveSessionState } from '../hooks/useHiveSessionState'
  */
 export const HIVE_ROW_GRID_STYLE = {
   display: 'grid',
-  // The State cell shows the Delegation state's full label (#356) and wraps the longer ones.
-  gridTemplateColumns: 'minmax(0, 1fr) 72px 80px',
+  // The State cell says who acts next and why (#380), and wraps the longer labels.
+  gridTemplateColumns: 'minmax(0, 1fr) 72px 112px',
   columnGap: '8px',
 } as const satisfies React.CSSProperties
 
@@ -108,7 +108,7 @@ export function hiveRowAccessibleName(
   return parts.join(', ')
 }
 
-/** The role glyph, coloured when the row needs the user, and the live status dot. */
+/** The role glyph, coloured when the row needs you, and the live status dot. */
 export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
   const Icon = view.role.Icon
   return (
@@ -117,7 +117,7 @@ export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
         aria-hidden="true"
         className={cn(
           'size-3.5 shrink-0',
-          view.state.needsAttention ? 'text-warning' : 'text-text-tertiary',
+          view.state.needsYou ? 'text-warning' : 'text-text-tertiary',
         )}
       />
       <span
@@ -170,7 +170,7 @@ export function HiveStateCell({ view }: { readonly view: HiveRowView }) {
     <span
       className={cn(
         'line-clamp-2 text-right text-xs',
-        view.state.needsAttention ? 'text-warning' : 'text-text-tertiary',
+        view.state.needsYou ? 'text-warning' : 'text-text-tertiary',
       )}
       title={view.state.hint}
     >

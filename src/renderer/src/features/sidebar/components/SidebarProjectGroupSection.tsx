@@ -190,7 +190,7 @@ function ProjectSessionRow({
           collapsed: disclosure.rowsCollapsed,
           onToggle: () => branchActions.toggle(session.id, !disclosure.rowsCollapsed),
         }}
-        workerAttentionCount={state.workerAttentionOf(String(session.id))}
+        workerAttention={state.workerAttentionOf(String(session.id))}
         showLineageParent={state.narrowed && session.lineage?.role === 'worker'}
       />
       <SidebarBranchRows sessionId={String(session.id)} rows={branchRows} actions={branchActions} />

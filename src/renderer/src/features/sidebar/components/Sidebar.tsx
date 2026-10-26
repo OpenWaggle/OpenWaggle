@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
 import { useSidebarController } from '../hooks/useSidebarController'
+import { queenWorkerAttention } from '../lib/worker-attention'
 import {
   SidebarBrandArea,
   SidebarPrimaryActions,
@@ -39,7 +40,7 @@ export function Sidebar() {
     projectPath: controller.projectPath,
     narrowed: controller.narrowed,
     workerAttentionOf: (queenId: string) =>
-      controller.workerAttentionByQueen.get(String(queenId)) ?? 0,
+      queenWorkerAttention(controller.workerAttentionByQueen, String(queenId)),
   }
   const actions = buildSidebarActions(controller, markUnread)
 

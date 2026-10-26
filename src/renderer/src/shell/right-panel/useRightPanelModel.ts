@@ -12,7 +12,7 @@ import { useProject, useSessionProjectPath, useSessions } from '@/features/sessi
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { terminalOwnerContext } from '@/features/terminal'
-import { hiveTreeNeedsAttention, sessionHiveTreeQueryOptions } from '@/queries/session-hive-tree'
+import { hiveTreeNeedsYou, sessionHiveTreeQueryOptions } from '@/queries/session-hive-tree'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
@@ -51,7 +51,8 @@ function lineageInHive(
 }
 
 /**
- * Whether any live Worker of the active Session's Hive needs the user (ADR 0051).
+ * Whether anything in the active Session's Hive needs you (ADR 0059): a parked approval or
+ * question, the Queen's included, or a Worker no agent will pick up. Nothing else lights the dot.
  *
  * Only queried while the Session is in a Hive, so an ordinary chat adds no reads.
  */
@@ -61,7 +62,7 @@ function useHiveAttention(sessionId: string | null, enabled: boolean) {
     enabled: enabled && sessionId !== null,
   })
   // The Host counts the whole Hive, so Workers past the first page still light the dot.
-  return enabled && hiveTreeNeedsAttention(query.data?.pages)
+  return enabled && hiveTreeNeedsYou(query.data?.pages)
 }
 
 export type RightPanelSurfaceGlyph =

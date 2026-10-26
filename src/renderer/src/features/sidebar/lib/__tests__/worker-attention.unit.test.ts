@@ -8,7 +8,12 @@ import { hiveHomeQueenId, workerAttentionByQueen } from '../worker-attention'
 function worker(
   id: string,
   delegationState: HiveDelegationState,
-  extra: { readonly archived?: boolean; readonly historical?: boolean } = {},
+  extra: {
+    readonly archived?: boolean
+    readonly historical?: boolean
+    readonly parent?: string
+    readonly parentWillAct?: boolean
+  } = {},
 ): SessionSummary {
   return {
     id: SessionId(id),
@@ -19,8 +24,9 @@ function worker(
     ...(extra.archived === undefined ? {} : { archived: extra.archived }),
     lineage: {
       role: 'worker',
-      parentSessionId: SessionId('parent'),
+      parentSessionId: SessionId(extra.parent ?? 'parent'),
       hiveRootSessionId: SessionId('queen'),
+      ...(extra.parentWillAct === undefined ? {} : { parentWillAct: extra.parentWillAct }),
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
       delegationState,
@@ -30,22 +36,31 @@ function worker(
 }
 
 describe('workerAttentionByQueen', () => {
-  it('counts Workers that need the user by row state or by Delegation state', () => {
-    const states = new Map<string, SidebarRowState>([['parked', 'awaiting-input']])
+  it('counts only Needs you, and the Queen’s own Workers waiting for her (#380)', () => {
+    const states = new Map<string, SidebarRowState>([
+      ['parked', 'awaiting-input'],
+      ['errored', 'error'],
+    ])
     const counts = workerAttentionByQueen(
       [
         worker('parked', 'working'),
-        worker('needs', 'needs_attention'),
+        // Stuck: its parent is idle with nothing queued.
+        worker('stuck', 'needs_attention', { parentWillAct: false }),
+        // The Queen is running, so she picks this failure up: waiting for her, not the person.
+        worker('failed', 'needs_attention', { parent: 'queen', parentWillAct: true }),
+        worker('review', 'ready_for_review', { parent: 'queen' }),
+        // Waiting for a Worker parent, not the Queen: her line does not count it.
+        worker('deep-review', 'ready_for_review'),
         worker('revise', 'revision_requested'),
-        worker('busy', 'working'),
-        worker('review', 'ready_for_review'),
+        // A failed Run alone is the parent's to see, even with a red live status.
+        worker('errored', 'working'),
         worker('gone', 'needs_attention', { archived: true }),
       ],
       (session) => states.get(String(session.id)) ?? 'idle',
       new Set(),
     )
-    // Keyed by the Hive root, not the direct parent; archived and calm Workers do not count.
-    expect([...counts]).toEqual([['queen', 3]])
+    // Keyed by the Hive root, not the direct parent.
+    expect([...counts]).toEqual([['queen', { needYou: 2, waiting: 2 }]])
   })
 
   it('skips Workers that are not hidden in the Hive panel: pinned or historical', () => {
@@ -58,7 +73,7 @@ describe('workerAttentionByQueen', () => {
       () => 'idle',
       new Set(['pinned']),
     )
-    expect([...counts]).toEqual([['queen', 1]])
+    expect([...counts]).toEqual([['queen', { needYou: 1, waiting: 0 }]])
   })
 })
 

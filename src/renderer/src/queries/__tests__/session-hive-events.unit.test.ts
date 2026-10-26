@@ -82,3 +82,31 @@ it('does not subscribe to fabricated missing-method fallbacks', () => {
   expect(fabricatedMethod).not.toHaveBeenCalled()
   dispose()
 })
+
+it('reads the Hive again when a Run parks or answers a request for the person (#380)', async () => {
+  const invalidate = vi.fn()
+  let receive: (event: HiveHostEvent) => void = vi.fn()
+  subscribeSessionHiveUpdates(
+    {
+      onSessionHostEvent: (callback) => {
+        receive = callback
+        return vi.fn()
+      },
+    },
+    { invalidate, resync: vi.fn() },
+  )
+  const emit = (sequence: number, type: string) =>
+    receive({
+      cursor: { hostInstanceId: 'host-a', sequence },
+      payload: { kind: 'session-transport', event: { type } },
+    })
+  emit(1, 'message_update')
+  await Promise.resolve()
+  expect(invalidate).not.toHaveBeenCalled()
+  emit(2, 'agent_interaction_request')
+  await Promise.resolve()
+  expect(invalidate).toHaveBeenCalledTimes(1)
+  emit(3, 'agent_interaction_resolved')
+  await Promise.resolve()
+  expect(invalidate).toHaveBeenCalledTimes(2)
+})

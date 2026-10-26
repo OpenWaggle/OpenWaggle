@@ -41,8 +41,8 @@ function Harness() {
 }
 
 beforeEach(() => {
-  // These cover the By state view; the tree view has its own tests.
-  useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
+  // These cover the By next actor view; the tree view has its own tests.
+  useHivePanelViewStore.setState({ view: 'by-next-actor', showArchived: false, collapsed: {} })
   listHiveTreeSessionCatalogPage.mockReset()
   onSessionHostEvent.mockReset().mockReturnValue(vi.fn())
   onSessionHostResyncRequired.mockReset().mockReturnValue(vi.fn())

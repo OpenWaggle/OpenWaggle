@@ -5,6 +5,7 @@ import { useSessionTitleRename } from '@/features/session-title'
 import { cn } from '@/shared/lib/cn'
 import { useSessionRowDescription } from '../hooks/useSessionRowDescription'
 import { useSessionRowStatus } from '../hooks/useSessionRowStatus'
+import { NO_QUEEN_WORKER_ATTENTION, type QueenWorkerAttention } from '../lib/worker-attention'
 import type { SidebarSessionActions } from '../model'
 import { SessionItemContextMenu } from './SessionItemContextMenu'
 import {
@@ -71,7 +72,7 @@ interface SessionListItemProps {
   readonly isPinned?: boolean
   readonly pinnedRow?: SessionPinnedRowState
   /** How many of this Queen's hidden Workers need the user (ADR 0051); Queen rows only. */
-  readonly workerAttentionCount?: number
+  readonly workerAttention?: QueenWorkerAttention
   /** Name the Worker's parent on line two: pinned rows always, narrowed rows for flat Workers. */
   readonly showLineageParent?: boolean
   /**
@@ -92,11 +93,11 @@ interface SessionListItemProps {
 function resolveHiveRowMeta(input: {
   readonly session: SessionSummary
   readonly isPinnedRow: boolean
-  readonly workerAttentionCount: number
+  readonly workerAttention: QueenWorkerAttention
   readonly showLineageParent: boolean
 }) {
   return {
-    workerAttentionCount: input.workerAttentionCount,
+    workerAttention: input.workerAttention,
     showParent:
       input.showLineageParent || (input.isPinnedRow && input.session.lineage?.role === 'worker'),
   }
@@ -161,7 +162,7 @@ export function SessionListItem({
   branchDisclosure,
   isPinned = false,
   pinnedRow,
-  workerAttentionCount = 0,
+  workerAttention = NO_QUEEN_WORKER_ATTENTION,
   showLineageParent = false,
   rowProps,
 }: SessionListItemProps) {
@@ -173,7 +174,7 @@ export function SessionListItem({
   const hiveMeta = resolveHiveRowMeta({
     session,
     isPinnedRow: pinned.isPinnedRow,
-    workerAttentionCount,
+    workerAttention,
     showLineageParent,
   })
   const rowDescription = useSessionRowDescription({
@@ -239,7 +240,7 @@ export function SessionListItem({
           phaseLabel={status.isInFlight ? status.phase : null}
           projectLabel={pinned.projectLabel}
           shortcutIndex={pinned.shortcutIndex}
-          workerAttentionCount={hiveMeta.workerAttentionCount}
+          workerAttention={hiveMeta.workerAttention}
           showLineageParent={hiveMeta.showParent}
         />
       </span>

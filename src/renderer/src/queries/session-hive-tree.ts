@@ -17,7 +17,7 @@ import type { HiveSession } from './session-hive-contract'
 export interface HiveTreePage {
   readonly root: HiveSession | null
   readonly members: readonly HiveSession[]
-  /** Members across every page whose Delegation needs the user; each page reports the total. */
+  /** Members and the Queen, across every page, that need you; each page reports the total. */
   readonly needsYouCount: number
   readonly nextCursor?: string
 }
@@ -68,10 +68,11 @@ export function hiveTreeMembers(
 }
 
 /**
- * Whether any live member, on any page, needs the user. Every page carries the Hive-wide total
- * as of its own read; the last page is the most recently read, so its total is the freshest.
+ * Whether anything in the Hive, on any page, needs you (ADR 0059). Every page carries the
+ * Hive-wide total as of its own read; the last page is the most recently read, so its total is
+ * the freshest.
  */
-export function hiveTreeNeedsAttention(pages: readonly HiveTreePage[] | undefined): boolean {
+export function hiveTreeNeedsYou(pages: readonly HiveTreePage[] | undefined): boolean {
   return (pages?.at(-1)?.needsYouCount ?? 0) > 0
 }
 

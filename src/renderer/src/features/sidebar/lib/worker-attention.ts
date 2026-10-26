@@ -1,21 +1,29 @@
 import type { SessionSummary } from '@shared/types/session'
-import { hiveStateNeedsAttention } from '@/queries/session-hive-contract'
-import { isAttentionState, type SidebarRowState } from './sidebar-row-state'
+import { hiveMemberNextActor } from '@/queries/session-hive-next-actor'
+import type { SidebarRowState } from './sidebar-row-state'
+
+/** What a Queen's sidebar line reports about her hidden Workers (ADR 0059). */
+export interface QueenWorkerAttention {
+  /** Workers only the person can unblock: "n need you", in the attention colour. */
+  readonly needYou: number
+  /** Her direct Workers waiting for her: a muted "n waiting for ‹Queen›", no dot. */
+  readonly waiting: number
+}
+
+export const NO_QUEEN_WORKER_ATTENTION: QueenWorkerAttention = { needYou: 0, waiting: 0 }
 
 /**
- * Per-Queen count of hidden (unpinned, Spawn-lineage) Workers that need the user, keyed by Hive root (ADR 0051).
- *
- * A Worker counts when its row state needs a person (the vocabulary the status chips use, which
- * covers a parked request) or when its Delegation state puts it in the Hive panel's Needs attention
- * group, so the Queen's line never misses a Worker the panel or the rail dot reports. It can
- * report more: a parked request leaves the Delegation state alone, so the rail dot stays dark.
+ * Per-Queen counts of hidden (unpinned, Spawn-lineage) Workers by who acts next, keyed by Hive
+ * root (ADR 0051, ADR 0059). The rule is the Hive panel's, so the Queen's line never disagrees
+ * with its Needs you group or the rail dot. A Worker's live row state supplies its parked request;
+ * a failed Run alone is not the person's to act on unless no agent will pick it up.
  */
 export function workerAttentionByQueen(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
   pinnedSessionIds: ReadonlySet<string>,
 ) {
-  const byQueen = new Map<string, number>()
+  const byQueen = new Map<string, QueenWorkerAttention>()
   for (const session of sessions) {
     if (session.archived === true) continue
     // A pinned Worker is not hidden: its own Pinned row already shows its state.
@@ -24,15 +32,30 @@ export function workerAttentionByQueen(
     if (lineage?.role !== 'worker') continue
     // Legacy task-runner Workers are not Spawn lineage, so they are not in the Hive panel.
     if (lineage.historical === true) continue
-    const needsUser =
-      isAttentionState(stateOf(session)) || hiveStateNeedsAttention(lineage.delegationState)
-    if (!needsUser) continue
     const queenId = lineage.hiveRootSessionId ?? lineage.parentSessionId
     if (queenId === undefined) continue
+    const state = stateOf(session)
+    const next = hiveMemberNextActor(session, state === 'interrupted' ? 'idle' : state)
+    const needsYou = next?.nextActor === 'user'
+    // "Waiting for ‹Queen›" names her, so it counts only the Workers she spawned herself.
+    const waitsForQueen =
+      next?.nextActor === 'parent' && String(lineage.parentSessionId ?? '') === String(queenId)
+    if (!needsYou && !waitsForQueen) continue
     const key = String(queenId)
-    byQueen.set(key, (byQueen.get(key) ?? 0) + 1)
+    const current = byQueen.get(key) ?? NO_QUEEN_WORKER_ATTENTION
+    byQueen.set(key, {
+      needYou: current.needYou + (needsYou ? 1 : 0),
+      waiting: current.waiting + (waitsForQueen ? 1 : 0),
+    })
   }
   return byQueen
+}
+
+export function queenWorkerAttention(
+  byQueen: ReadonlyMap<string, QueenWorkerAttention>,
+  queenId: string,
+): QueenWorkerAttention {
+  return byQueen.get(queenId) ?? NO_QUEEN_WORKER_ATTENTION
 }
 
 /**

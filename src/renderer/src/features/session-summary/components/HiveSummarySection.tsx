@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChessQueen, Pickaxe } from 'lucide-react'
-import type { HiveDelegationGroup } from '@/queries/session-hive-contract'
+import { useSessionStatusStore } from '@/features/sessions/state'
+import type { HiveNextActorGroup } from '@/queries/session-hive-next-actor'
 import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
 import { cn } from '@/shared/lib/cn'
 import { showRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
@@ -11,30 +12,30 @@ import { hiveSummaryModel } from '../model/session-hive-summary'
 type HiveSummary = NonNullable<ReturnType<typeof hiveSummaryModel>>
 
 /**
- * Each group's words and colour, loudest first. They are the Hive panel's groups, so the row and
- * the panel describe a Worker the same way (#356).
+ * Each group's words and colour, loudest first. They are the Hive panel's groups by who acts next
+ * (ADR 0059), so the row and the panel describe a Worker the same way. Only Needs you takes the
+ * attention colour; a Worker waiting for this Session needs nothing from the person.
  */
 const COUNT_SEGMENTS: readonly {
-  readonly group: HiveDelegationGroup
-  readonly text: (count: string, one: boolean) => string
+  readonly group: HiveNextActorGroup
+  readonly text: (count: string, one: boolean, title: string) => string
   readonly className: string
 }[] = [
   {
-    group: 'needs-attention',
-    text: (count, one) => `${count} ${one ? 'needs' : 'need'} attention`,
+    group: 'needs-you',
+    text: (count, one) => `${count} ${one ? 'needs' : 'need'} you`,
     className: 'text-warning',
   },
   {
-    group: 'ready-for-review',
-    text: (count) => `${count} ready for review`,
-    // Info, not warning: the next step is the parent's review, not something gone wrong.
-    className: 'text-info-text',
+    group: 'waiting',
+    text: (count, _one, title) => `${count} waiting for ${title}`,
+    className: 'text-text-secondary',
   },
-  { group: 'active', text: (count) => `${count} active`, className: 'text-text-secondary' },
+  { group: 'working', text: (count) => `${count} working`, className: 'text-text-secondary' },
   { group: 'closed', text: (count) => `${count} closed`, className: 'text-text-tertiary' },
 ]
 
-/** "3 direct Workers · 3 ready for review": the scope first, then every group that has one. */
+/** "3 direct Workers · 1 needs you · 2 waiting for Queen": the scope, then each group. */
 function HiveSummaryCounts({ model }: { readonly model: HiveSummary }) {
   const suffix = model.partial ? '+' : ''
   return (
@@ -49,7 +50,11 @@ function HiveSummaryCounts({ model }: { readonly model: HiveSummary }) {
           <span key={segment.group}>
             {' · '}
             <span className={cn('whitespace-nowrap', segment.className)}>
-              {segment.text(`${String(count)}${suffix}`, count === 1 && !model.partial)}
+              {segment.text(
+                `${String(count)}${suffix}`,
+                count === 1 && !model.partial,
+                model.title,
+              )}
             </span>
           </span>
         )
@@ -67,7 +72,8 @@ function HiveSummaryCounts({ model }: { readonly model: HiveSummary }) {
  */
 export function HiveSummarySection({ sessionId }: { readonly sessionId: string }) {
   const query = useInfiniteQuery(sessionHiveRelationsQueryOptions(SessionId(sessionId)))
-  const model = hiveSummaryModel(query.data?.pages)
+  const statuses = useSessionStatusStore((state) => state.statuses)
+  const model = hiveSummaryModel(query.data?.pages, (id) => statuses.get(SessionId(id)))
 
   if (!model)
     return query.isError ? (

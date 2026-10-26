@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
-import { HIVE_DELEGATION_GROUP_LABELS } from '@/queries/session-hive-contract'
+import { HIVE_NEEDS_YOU_LABEL, hiveWaitingGroupLabel } from '@/queries/session-hive-next-actor'
 import { Button } from '@/shared/ui/Button'
 import type { HiveTreeModel, HiveTreeRow } from '../lib/hive-tree-model'
 import { HIVE_ROW_GRID_STYLE, HIVE_ROW_ID_ATTRIBUTE, HiveTreeListItem } from './HiveTreeRow'
@@ -42,8 +42,9 @@ interface StateViewRows {
 }
 
 /**
- * The Hive panel's By state view (ADR 0051, #356, #377): the Queen, then the members grouped by
- * Delegation state. A row below the first level links to its parent; selecting the link moves
+ * The Hive panel's By next actor view (ADR 0059): the Queen, then the members grouped by who
+ * acts next: Needs you, Waiting for ‹parent›, Working, Closed. A Queen with her own parked request
+ * moves into Needs you. A row below the first level links to its parent; selecting the link moves
  * focus to the parent's row.
  */
 export function HiveStateView({
@@ -70,7 +71,7 @@ export function HiveStateView({
   const shared: StateViewRows = { onOpen, onSelectParent: selectParent, currentSessionId, partial }
   return (
     <div ref={listRef}>
-      {root !== null ? (
+      {root !== null && !model.rootNeedsYou ? (
         <HiveTreeListItem
           row={{ session: root, parent: null }}
           isCurrent={currentSessionId !== null && String(root.id) === currentSessionId}
@@ -79,25 +80,21 @@ export function HiveStateView({
         />
       ) : null}
       <HiveTreeGroup
-        label={HIVE_DELEGATION_GROUP_LABELS['needs-attention']}
-        rows={model.groups.needsAttention}
+        label={HIVE_NEEDS_YOU_LABEL}
+        rows={model.groups.needsYou}
         shared={shared}
+        rootId={root === null ? null : String(root.id)}
       />
-      <HiveTreeGroup
-        label={HIVE_DELEGATION_GROUP_LABELS['ready-for-review']}
-        rows={model.groups.readyForReview}
-        shared={shared}
-      />
-      <HiveTreeGroup
-        label={HIVE_DELEGATION_GROUP_LABELS.active}
-        rows={model.groups.active}
-        shared={shared}
-      />
-      <HiveTreeGroup
-        label={HIVE_DELEGATION_GROUP_LABELS.closed}
-        rows={model.groups.closed}
-        shared={shared}
-      />
+      {model.groups.waiting.map((group) => (
+        <HiveTreeGroup
+          key={group.parentId}
+          label={hiveWaitingGroupLabel(group.parentTitle)}
+          rows={group.rows}
+          shared={shared}
+        />
+      ))}
+      <HiveTreeGroup label="Working" rows={model.groups.working} shared={shared} />
+      <HiveTreeGroup label="Closed" rows={model.groups.closed} shared={shared} />
       <HiveArchivedGroup
         // Its open state belongs to one Hive: moving within the Hive keeps it, another resets it.
         key={String(root?.id ?? '')}
@@ -111,9 +108,12 @@ export function HiveStateView({
 function HiveStateRows({
   rows,
   shared,
+  rootId = null,
 }: {
   readonly rows: readonly HiveTreeRow[]
   readonly shared: StateViewRows
+  /** The Queen, when she is in this group: her row keeps the Queen's role. */
+  readonly rootId?: string | null
 }) {
   return rows.map((row) => (
     <HiveTreeListItem
@@ -124,6 +124,7 @@ function HiveStateRows({
       }
       onOpen={() => shared.onOpen(String(row.session.id))}
       onSelectParent={shared.onSelectParent}
+      isRoot={rootId !== null && String(row.session.id) === rootId}
     />
   ))
 }
@@ -132,10 +133,12 @@ function HiveTreeGroup({
   label,
   rows,
   shared,
+  rootId = null,
 }: {
   readonly label: string
   readonly rows: readonly HiveTreeRow[]
   readonly shared: StateViewRows
+  readonly rootId?: string | null
 }) {
   if (rows.length === 0) return null
   return (
@@ -144,7 +147,7 @@ function HiveTreeGroup({
         <span>{label}</span>
         <span className="tabular-nums">{loadedCount(rows.length, shared.partial)}</span>
       </div>
-      <HiveStateRows rows={rows} shared={shared} />
+      <HiveStateRows rows={rows} shared={shared} rootId={rootId} />
     </fieldset>
   )
 }

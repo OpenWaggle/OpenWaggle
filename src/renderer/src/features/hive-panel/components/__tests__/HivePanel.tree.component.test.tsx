@@ -49,7 +49,7 @@ function child(
   })
 }
 
-/** Queen → a, b; a → a1 (needs attention), a2 (archived); b → b1, b2 (ready for review). */
+/** Queen → a, b; a → a1 (stuck: a is idle), a2 (archived); b → b1, b2 (ready for review). */
 const threeLevelHive = [
   child('b2', 'b', 9, { state: 'ready_for_review' }),
   child('a2', 'a', 6, { state: 'accepted', archived: true }),
@@ -92,7 +92,9 @@ describe('HivePanel tree view', () => {
       ['2', expect.stringMatching(/^Open Worker Session: a, spawned by queen,/u)],
       [
         '3',
-        expect.stringMatching(/^Open Worker Session: a1, spawned by a, state Needs attention/u),
+        expect.stringMatching(
+          /^Open Worker Session: a1, spawned by a, state Stuck — no agent will pick it up/u,
+        ),
       ],
       ['2', expect.stringMatching(/^Open Worker Session: b, spawned by queen,/u)],
       ['3', expect.stringMatching(/^Open Worker Session: b1, spawned by b,/u)],
@@ -111,13 +113,14 @@ describe('HivePanel tree view', () => {
     expect(screen.queryByRole('treeitem', { name: /Session: a2\b/u })).toBeNull()
   })
 
-  it('collapses a Worker, rolls up who needs the user, and remembers it', async () => {
+  it('collapses a Worker, rolls up who needs you, and remembers it', async () => {
     const view = await renderHive()
 
     fireEvent.click(within(item('a')).getByRole('button', { name: 'Collapse a' }))
     expect(item('a')).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('treeitem', { name: /Session: a1\b/u })).toBeNull()
-    expect(within(item('a')).getByText('1 needs attention')).toBeInTheDocument()
+    expect(within(item('a')).getByText('1 needs you')).toHaveClass('text-warning')
+    expect(item('a')).toHaveAccessibleName(expect.stringContaining('1 needs you'))
     // The pointer-only disclosure hands focus back to its row, where the tree's keys work.
     expect(item('a')).toHaveFocus()
 
@@ -126,6 +129,16 @@ describe('HivePanel tree view', () => {
     expect(item('a')).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(within(item('a')).getByRole('button', { name: 'Expand a' }))
     expect(item('a1')).toBeInTheDocument()
+  })
+
+  it('rolls up Workers waiting for an agent as a muted count, with no dot (#380)', async () => {
+    await renderHive()
+
+    fireEvent.click(within(item('b')).getByRole('button', { name: 'Collapse b' }))
+    const waiting = within(item('b')).getByText('1 waiting')
+    expect(waiting).not.toHaveClass('text-warning')
+    expect(within(item('b')).queryByText(/needs? you/u)).toBeNull()
+    expect(item('b').querySelector('.bg-warning')).toBeNull()
   })
 
   it('brings archived Workers back in place, dimmed, with Show archived', async () => {
@@ -188,12 +201,16 @@ describe('HivePanel tree view', () => {
     expect(item('late-child')).not.toHaveTextContent('not loaded')
   })
 
-  it('keeps the state-grouped view as By state, linking each deeper row to its parent', async () => {
+  it('groups by next actor with By next actor, linking each deeper row to its parent', async () => {
     await renderHive()
 
-    const byState = screen.getByRole('button', { name: 'By state' })
-    fireEvent.click(byState)
-    expect(byState).toHaveAttribute('aria-pressed', 'true')
+    const byNextActor = screen.getByRole('button', { name: 'By next actor' })
+    fireEvent.click(byNextActor)
+    expect(byNextActor).toHaveAttribute('aria-pressed', 'true')
+    // Each parent that acts next heads its own group.
+    expect(screen.getByRole('group', { name: 'Waiting for b Hive sessions' })).toHaveTextContent(
+      'b2',
+    )
     expect(screen.queryByRole('tree')).toBeNull()
     const deep = screen.getByRole('button', { name: /Open Worker Session: a1, spawned by a,/u })
     expect(deep).toHaveAttribute('title', 'queen › a › a1')
