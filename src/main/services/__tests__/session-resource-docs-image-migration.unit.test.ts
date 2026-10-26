@@ -133,9 +133,11 @@ describe('session-resource-docs-image migration', () => {
     }
   })
 
-  it('is the newest beta migration, and one this binary supports', () => {
-    expect(V1_BETA_MIGRATIONS.at(-1)).toBe(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION.id)
+  it('is a beta migration this binary supports', () => {
+    expect(V1_BETA_MIGRATIONS).toContain(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      SESSION_RESOURCE_DOCS_IMAGE_MIGRATION.id,
+    )
     expect(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION.name).toBe(
       'session-resource-docs-image-references',
     )

@@ -41,8 +41,8 @@ function Harness() {
 }
 
 beforeEach(() => {
-  // These cover the By state view; the tree view has its own tests.
-  useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
+  // These cover the By next actor view; the tree view has its own tests.
+  useHivePanelViewStore.setState({ view: 'by-next-actor', showArchived: false, collapsed: {} })
   listHiveTreeSessionCatalogPage.mockReset()
   onSessionHostEvent.mockReset().mockReturnValue(vi.fn())
   onSessionHostResyncRequired.mockReset().mockReturnValue(vi.fn())
@@ -50,9 +50,9 @@ beforeEach(() => {
 
 it('restarts the Hive tree at its first page after a Host resync', async () => {
   listHiveTreeSessionCatalogPage
-    .mockResolvedValueOnce({ root: queen, members: [], attentionCount: 0, nextCursor: 'tree-2' })
-    .mockResolvedValueOnce({ root: queen, members: [worker], attentionCount: 0 })
-    .mockResolvedValueOnce({ root: queen, members: [worker], attentionCount: 0 })
+    .mockResolvedValueOnce({ root: queen, members: [], needsYouCount: 0, nextCursor: 'tree-2' })
+    .mockResolvedValueOnce({ root: queen, members: [worker], needsYouCount: 0 })
+    .mockResolvedValueOnce({ root: queen, members: [worker], needsYouCount: 0 })
   renderWithQueryClient(<Harness />)
   // Read the second page, so there is a continuation page to discard.
   const loadMore = await screen.findByRole('button', { name: 'Load more Workers' })

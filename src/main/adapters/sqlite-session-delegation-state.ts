@@ -24,6 +24,8 @@ export function updateDelegationState(
     if (command.reason.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'transition_reason_required')
     }
+    // The Worker's own needs_attention asks its parent for help (ADR 0059); any other state it
+    // sets, `working` included, ends that request.
     yield* sql`
       INSERT INTO delegation_state_transitions (
         delegation_id, from_state, to_state, reason,
@@ -34,7 +36,10 @@ export function updateDelegationState(
       )
     `
     yield* sql`
-      UPDATE delegation_contracts SET state = ${command.state}, updated_at = ${input.now}
+      UPDATE delegation_contracts
+      SET state = ${command.state},
+        attention_cause = ${command.state === 'needs_attention' ? 'worker_request' : null},
+        updated_at = ${input.now}
       WHERE id = ${contract.id}
     `
     return updatedDelegationOutcome(

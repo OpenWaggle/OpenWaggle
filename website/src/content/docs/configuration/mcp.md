@@ -265,6 +265,8 @@ The `openwaggle_hive` tool exposes the Session Control v2 vocabulary used by the
 - exports: `export`, `export-create`, `export-cancel`, `exports-list`, `exports-read`, and `exports-wait`.
 - Agent definitions: `agent-definitions-list` and `agent-definitions-search` (with `message` as the query). They return names and descriptions, never instructions, for a directory inside the caller's `--workspace` grants (the first grant by default), and need no further grant. A session's managed worktree, or a folder inside one, reads that session's project; any other folder, a subfolder of a project included, reads only itself. Definitions turned off for that project are left out, as they are for the agent.
 
+Session summaries and Delegations that carry a Delegation state (`list`, `search`, `read`, `delegations-list`, `delegations-read`) also carry `nextActor`: `user`, `parent`, `worker` or `none`, who acts next on that Worker, derived by the rule the Hive panel uses. The [Hive CLI](/docs/developer-workflow/hive-cli#queue-requests-and-coordination) guide lists what each value means.
+
 Scheduled tasks are not available over MCP: a server's grants last only as long as its process, and a Scheduled task needs a lasting creator. Use [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) or the agent's `hive` tool.
 
 Idempotency keys that start with `pi-session-discovery:` are reserved for the Sessions OpenWaggle creates for discovered Pi sessions; a lifecycle `create` that uses one is refused with `reserved_idempotency_key`.

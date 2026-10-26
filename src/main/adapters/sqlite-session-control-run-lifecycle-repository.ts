@@ -20,6 +20,7 @@ import {
   settleDeferredWorkerDelegation,
   takeDeferredWorkerSettlement,
 } from './sqlite-deferred-worker-settlement'
+import { clearRunFailedAttention } from './sqlite-delegation-attention'
 import {
   externalRunAdmission,
   replaceWithExternal,
@@ -79,10 +80,16 @@ function activate(
         }
         const now = Date.now()
         yield* persistSessionControlState(sql, result.state, now)
+        const attentionCleared = yield* clearRunFailedAttention(sql, {
+          workerSessionId: input.sessionId,
+          runId: input.runId,
+          now,
+        })
         return {
           accepted: true,
           stateRevision: result.state.revision,
           intent: state.run.intent,
+          ...(attentionCleared ? { attentionCleared } : {}),
         } as const
       }),
     )
@@ -110,11 +117,18 @@ function startExternal(
         yield* persistSessionControlState(sql, started.state, Date.now())
         const activated = activateStartingRun(started.state, input.runId)
         if (!activated.accepted) return activated
-        yield* persistSessionControlState(sql, activated.state, Date.now())
+        const now = Date.now()
+        yield* persistSessionControlState(sql, activated.state, now)
+        const attentionCleared = yield* clearRunFailedAttention(sql, {
+          workerSessionId: input.sessionId,
+          runId: input.runId,
+          now,
+        })
         return {
           accepted: true,
           stateRevision: activated.state.revision,
           intent: input.intent,
+          ...(attentionCleared ? { attentionCleared } : {}),
         } as const
       }),
     )

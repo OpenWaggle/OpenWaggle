@@ -246,7 +246,10 @@ describe('Session deletion dependency safety', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql`
-          INSERT INTO delegation_contracts VALUES (
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (
             ${'audit'}, ${parent.session.id}, ${worker.session.id}, ${'working'}, ${1}, ${1}, ${1}
           )
         `
@@ -270,7 +273,10 @@ describe('Session deletion dependency safety', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql`
-          INSERT INTO delegation_contracts VALUES (
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (
             ${'racing-audit'}, ${parent.session.id}, ${worker.session.id},
             ${'working'}, ${1}, ${1}, ${1}
           )

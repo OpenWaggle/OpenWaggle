@@ -1,3 +1,4 @@
+import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationClaimTarget, DelegationState } from './session-collaboration'
 
 export const DELEGATION_CONFLICT_KINDS = ['live-overlap', 'merge-overlap'] as const
@@ -11,6 +12,8 @@ export interface DelegationQuerySummary {
   readonly parentSessionId: string
   readonly workerSessionId: string
   readonly state: DelegationState
+  /** Who acts next on the Worker (ADR 0059), derived at read time. */
+  readonly nextActor?: HiveNextActor
   readonly objective: string
   readonly currentSpecificationRevision: number
   readonly latestSubmissionRevision: number

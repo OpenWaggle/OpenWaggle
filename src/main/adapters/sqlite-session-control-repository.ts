@@ -10,6 +10,7 @@ import {
   type SessionControlRepositoryShape,
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
   deliverAfterQueueDecision,
@@ -198,6 +199,12 @@ function executeMutation(
             })
         if (admittedDecision.accepted) {
           yield* persistSessionControlState(sql, admittedDecision.state, now)
+          yield* clearWorkerRequestOnParentDelivery(sql, {
+            workerSessionId: targetScope,
+            callerId: input.callerId,
+            operation,
+            now,
+          })
         }
         yield* sql`
         INSERT INTO session_operations (

@@ -1,12 +1,17 @@
 import type { HiveSession } from '@/queries/session-hive-contract'
-import { hiveDelegationGroup } from '@/queries/session-hive-contract'
+import { hiveMemberNextActor } from '@/queries/session-hive-next-actor'
+import type { HiveStatusOf } from './hive-tree-model'
 
 /** Rows deeper than this keep the same indentation and show an `L5`-style badge (#377). */
 export const HIVE_TREE_MAX_INDENT = 4
 
+/**
+ * What a collapsed row says about its live descendants (ADR 0059): how many need you, and, muted,
+ * how many wait for an agent above them.
+ */
 export interface HiveTreeRollUp {
-  readonly needsAttention: number
-  readonly readyForReview: number
+  readonly needsYou: number
+  readonly waiting: number
 }
 
 /** One visible row of the Hive tree, in display order (WAI-ARIA flat tree, #377). */
@@ -31,7 +36,7 @@ export interface HiveTreeItem {
   readonly expanded: boolean | null
   /** Archived Workers hidden below this row while "Show archived" is off. */
   readonly archivedCount: number
-  /** Live descendants that need the user, shown only while this row is collapsed. */
+  /** Live descendants that need you or wait for an agent, shown only while collapsed. */
   readonly rollUp: HiveTreeRollUp | null
   readonly dimmed: boolean
   /** The parent's title while its page is not loaded; the row sits at the top level. */
@@ -110,24 +115,24 @@ interface Subtree {
 }
 
 /** Facts about each node's descendants, computed once bottom-up. */
-function summarize(node: TreeNode, facts: Map<TreeNode, Subtree>): Subtree {
+function summarize(node: TreeNode, facts: Map<TreeNode, Subtree>, statusOf: HiveStatusOf): Subtree {
   let hasLive = false
   let size = 0
-  let needsAttention = 0
-  let readyForReview = 0
+  let needsYou = 0
+  let waiting = 0
   for (const child of node.children) {
-    const below = summarize(child, facts)
+    const below = summarize(child, facts, statusOf)
     const live = child.session.archived !== true
     hasLive ||= live || below.hasLive
     size += 1 + below.size
-    needsAttention += below.rollUp.needsAttention
-    readyForReview += below.rollUp.readyForReview
+    needsYou += below.rollUp.needsYou
+    waiting += below.rollUp.waiting
     if (!live) continue
-    const group = hiveDelegationGroup(child.session.lineage?.delegationState)
-    if (group === 'needs-attention') needsAttention += 1
-    if (group === 'ready-for-review') readyForReview += 1
+    const next = hiveMemberNextActor(child.session, statusOf(String(child.session.id)))
+    if (next?.nextActor === 'user') needsYou += 1
+    if (next?.nextActor === 'parent') waiting += 1
   }
-  const subtree = { hasLive, size, rollUp: { needsAttention, readyForReview } }
+  const subtree = { hasLive, size, rollUp: { needsYou, waiting } }
   facts.set(node, subtree)
   return subtree
 }
@@ -142,11 +147,12 @@ export function buildHiveTreeItems(input: {
   readonly members: readonly HiveSession[]
   readonly showArchived: boolean
   readonly collapsed: ReadonlySet<string>
+  readonly statusOf?: HiveStatusOf
 }): readonly HiveTreeItem[] {
   if (input.root === null) return []
   const rootNode = buildNodes(input.root, input.members)
   const facts = new Map<TreeNode, Subtree>()
-  summarize(rootNode, facts)
+  summarize(rootNode, facts, input.statusOf ?? (() => undefined))
   const isShown = (node: TreeNode) =>
     node.session.archived !== true || input.showArchived || facts.get(node)?.hasLive === true
   const items: HiveTreeItem[] = []
@@ -181,10 +187,7 @@ export function buildHiveTreeItems(input: {
       childCount: shownChildren.length,
       expanded,
       archivedCount,
-      rollUp:
-        expanded === false && rollUp && rollUp.needsAttention + rollUp.readyForReview > 0
-          ? rollUp
-          : null,
+      rollUp: expanded === false && rollUp && rollUp.needsYou + rollUp.waiting > 0 ? rollUp : null,
       dimmed: node.session.archived === true,
       orphanParentTitle: node.orphanParentTitle,
     })

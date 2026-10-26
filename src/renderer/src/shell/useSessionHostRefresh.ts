@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
@@ -10,7 +11,7 @@ import {
 } from '@/features/chat/hooks'
 import { useBackgroundRunStore } from '@/features/chat/state'
 import type { useSessions } from '@/features/sessions/hooks'
-import { useSessionStatusStore } from '@/features/sessions/state'
+import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
 import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
@@ -51,6 +52,26 @@ function acceptsHostEvent(cursor: HostCursor, previous: HostCursor | null) {
     : null
 }
 
+/**
+ * Whether a Worker in `needs_attention` is stuck depends on its parent's Run and queue, read when
+ * the Worker's summary is (ADR 0059). So when a parent's state changes, its loaded Workers in that
+ * state are read again too, and the Queen's sidebar line follows the parent live.
+ */
+export function withStuckCandidateWorkers(
+  sessionIds: ReadonlySet<string>,
+  sessions: readonly SessionSummary[],
+) {
+  const workers = sessions
+    .filter(
+      (session) =>
+        session.lineage?.delegationState === 'needs_attention' &&
+        session.lineage.parentSessionId !== undefined &&
+        sessionIds.has(String(session.lineage.parentSessionId)),
+    )
+    .map((session) => String(session.id))
+  return [...new Set([...sessionIds, ...workers])]
+}
+
 function takePendingSessionHostRefresh(
   pending: PendingSessionHostRefresh,
   activeSessionId: ChatLifecycle['activeSessionId'],
@@ -59,7 +80,10 @@ function takePendingSessionHostRefresh(
   const refresh = {
     catalog: pending.catalog,
     archivedBranches: pending.archivedBranches,
-    catalogSessionIds: [...pending.sessionIds].map(SessionId),
+    catalogSessionIds: withStuckCandidateWorkers(
+      pending.sessionIds,
+      useSessionStore.getState().sessions,
+    ).map(SessionId),
     queueSessionIds: [...pending.queueSessionIds],
     refreshActiveSession,
     refreshActiveTree: Boolean(

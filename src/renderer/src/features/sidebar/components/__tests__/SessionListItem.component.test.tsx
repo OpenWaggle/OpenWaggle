@@ -112,23 +112,44 @@ describe('SessionListItem', () => {
     )
   })
 
-  it("reports hidden Workers that need attention on a Queen row, in the Hive panel's words", () => {
+  it('reports hidden Workers that need you, and a muted count waiting for the Queen (issue 380)', () => {
     const queen = makeSession({
+      title: 'Queen',
       lineage: { role: 'queen', directWorkerCount: 3, activeDirectWorkerCount: 2 },
     })
     const { rerender } = render(
-      <SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={2} />,
+      <SessionListItem
+        session={queen}
+        actions={NOOP_ACTIONS}
+        workerAttention={{ needYou: 2, waiting: 1 }}
+      />,
+    )
+    const needYou = document.querySelector('[data-qa="sidebar-row-worker-attention"]')
+    expect(needYou?.textContent).toBe('2 need you')
+    expect(needYou).toHaveClass('text-warning')
+    const waiting = document.querySelector('[data-qa="sidebar-row-worker-waiting"]')
+    expect(waiting?.textContent).toBe('1 waiting for Queen')
+    expect(waiting).not.toHaveClass('text-warning')
+
+    rerender(
+      <SessionListItem
+        session={queen}
+        actions={NOOP_ACTIONS}
+        workerAttention={{ needYou: 1, waiting: 0 }}
+      />,
     )
     expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
-      '2 need attention',
+      '1 needs you',
     )
+    expect(document.querySelector('[data-qa="sidebar-row-worker-waiting"]')).toBeNull()
 
-    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={1} />)
-    expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
-      '1 needs attention',
+    rerender(
+      <SessionListItem
+        session={queen}
+        actions={NOOP_ACTIONS}
+        workerAttention={{ needYou: 0, waiting: 0 }}
+      />,
     )
-
-    rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={0} />)
     expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')).toBeNull()
   })
 

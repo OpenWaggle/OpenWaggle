@@ -1,6 +1,7 @@
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { DelegationState } from '@shared/types/session-collaboration'
+import { decodeAttentionCause } from '../../adapters/sqlite-hive-next-actor-facts'
 
 export interface SessionLineageRow {
   readonly session_id: string
@@ -14,6 +15,9 @@ export interface SessionLineageRow {
   readonly historical_lineage: number
   readonly delegation_id: string | null
   readonly delegation_state: DelegationState | null
+  readonly attention_cause: string | null
+  /** 1 or 0 for a Host Delegation; null for retired task-runner lineage. */
+  readonly parent_will_act: number | null
   readonly source_session_id: string | null
   readonly source_title: string | null
   readonly source_node_id: string | null
@@ -32,6 +36,15 @@ function profileAgentDefinitionName(profileJson: string | null) {
       : undefined
   } catch {
     return undefined
+  }
+}
+
+/** What the next-actor rule needs from the Host (ADR 0059); live parts are added by the caller. */
+function nextActorFacts(row: SessionLineageRow) {
+  const attentionCause = decodeAttentionCause(row.attention_cause)
+  return {
+    ...(attentionCause ? { attentionCause } : {}),
+    ...(row.parent_will_act === null ? {} : { parentWillAct: row.parent_will_act === 1 }),
   }
 }
 
@@ -79,6 +92,7 @@ export function attachSessionLineage(
         ...(definitionName ? { agentDefinitionName: definitionName } : {}),
         ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
         ...(row.delegation_state ? { delegationState: row.delegation_state } : {}),
+        ...nextActorFacts(row),
         ...(row.historical_lineage ? { historical: true } : {}),
       },
     }

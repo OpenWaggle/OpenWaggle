@@ -1,6 +1,20 @@
 import type { SessionControlMutationResponse } from '@shared/types/session-control'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 
+/**
+ * The Host cleared a Delegation's `needs_attention` (ADR 0059): a new Run started after a failed
+ * one, or the parent answered a Worker's request for help. Like every Delegation state change,
+ * the parent and the Worker publish a list change, so their Hive views refresh.
+ */
+export function publishDelegationAttentionCleared(
+  cleared: { readonly parentSessionId: string; readonly workerSessionId: string } | undefined,
+) {
+  if (cleared === undefined) return
+  for (const sessionId of [cleared.parentSessionId, cleared.workerSessionId]) {
+    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+  }
+}
+
 function publishSessionStateChange(outcome: SessionControlMutationResponse['outcome']) {
   if (!('stateRevision' in outcome)) return
   publishSessionHostEvent({

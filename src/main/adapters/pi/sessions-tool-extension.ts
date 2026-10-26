@@ -286,7 +286,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       name: HIVE_TOOL_NAME,
       label: 'Hive',
       description:
-        'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends.',
+        'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends. Session summaries and Delegations with a Delegation state carry nextActor: user, parent, worker, or none.',
       promptSnippet:
         'Use hive to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
       promptGuidelines: sessionsToolPromptGuidelines(

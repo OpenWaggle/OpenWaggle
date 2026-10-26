@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { ChessQueen, X } from 'lucide-react'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import {
   type HiveTreePage,
   hiveTreeMembers,
@@ -14,7 +15,7 @@ import {
 } from '@/queries/session-hive-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { buildHiveTreeModel } from '../lib/hive-tree-model'
+import { buildHiveTreeModel, type HiveStatusOf } from '../lib/hive-tree-model'
 import { buildHiveTreeItems, type HiveTreeItem } from '../lib/hive-tree-structure'
 import { useHivePanelViewStore } from '../state/hive-panel-view-store'
 import { HiveColumnHeader, HiveStateView, loadedCount } from './HiveStateView'
@@ -32,7 +33,7 @@ type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage, unknown>,
  * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0051).
  *
  * It is the home of Worker Sessions that are not Pinned. Its default view is a tree, each Worker
- * under the Session that spawned it; "By state" groups the same rows by Delegation state (#377).
+ * under the Session that spawned it; "By next actor" groups the same rows by who acts next (issue 380).
  * Opening a member from it navigates with the panel still requested, so the user can move across
  * the Hive without the panel closing.
  */
@@ -43,7 +44,10 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
   })
   const root = hiveTreeRoot(query.data?.pages)
   const members = hiveTreeMembers(query.data?.pages)
-  const model = buildHiveTreeModel({ root, members, currentSessionId: sessionId })
+  // Live statuses keep a parked request and a starting Run current between Hive reads.
+  const statuses = useSessionStatusStore((state) => state.statuses)
+  const statusOf = (id: string) => statuses.get(SessionId(id))
+  const model = buildHiveTreeModel({ root, members, currentSessionId: sessionId, statusOf })
   const view = useHivePanelViewStore((state) => state.view)
   const navigate = useNavigate()
   const partial = query.hasNextPage
@@ -69,6 +73,7 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
             members={members}
             currentSessionId={sessionId}
             onOpen={openSession}
+            statusOf={statusOf}
           />
         ) : (
           <HiveStateView
@@ -93,11 +98,13 @@ function HiveTreeBody({
   members,
   currentSessionId,
   onOpen,
+  statusOf,
 }: {
   readonly root: ReturnType<typeof hiveTreeRoot>
   readonly members: ReturnType<typeof hiveTreeMembers>
   readonly currentSessionId: string | null
   readonly onOpen: (sessionId: string) => void
+  readonly statusOf: HiveStatusOf
 }) {
   const showArchived = useHivePanelViewStore((state) => state.showArchived)
   const collapsed = useHivePanelViewStore((state) => state.collapsed)
@@ -107,6 +114,7 @@ function HiveTreeBody({
     members,
     showArchived,
     collapsed: new Set(Object.keys(collapsed)),
+    statusOf,
   })
   return (
     <HiveTreeView
@@ -130,16 +138,16 @@ function toggleClass(pressed: boolean) {
   )
 }
 
-/** The view toggles: "By state" for the state groups, "Show archived" for the tree (#377). */
+/** The view toggles: "By next actor" for the groups (issue 380), "Show archived" for the tree (#377). */
 function HivePanelToolbar() {
   const view = useHivePanelViewStore((state) => state.view)
   const showArchived = useHivePanelViewStore((state) => state.showArchived)
   const setView = useHivePanelViewStore((state) => state.setView)
   const setShowArchived = useHivePanelViewStore((state) => state.setShowArchived)
-  const byState = view === 'by-state'
+  const grouped = view === 'by-next-actor'
   return (
     <div className="flex shrink-0 items-center justify-end gap-1.5 border-b border-border px-3 py-1.5">
-      {byState ? null : (
+      {grouped ? null : (
         <Button
           variant="unstyled"
           aria-pressed={showArchived}
@@ -151,11 +159,11 @@ function HivePanelToolbar() {
       )}
       <Button
         variant="unstyled"
-        aria-pressed={byState}
-        className={toggleClass(byState)}
-        onClick={() => setView(byState ? 'tree' : 'by-state')}
+        aria-pressed={grouped}
+        className={toggleClass(grouped)}
+        onClick={() => setView(grouped ? 'tree' : 'by-next-actor')}
       >
-        By state
+        By next actor
       </Button>
     </div>
   )

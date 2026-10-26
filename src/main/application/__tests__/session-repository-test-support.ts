@@ -8,7 +8,7 @@ export const emptySessionCatalogMethods = {
   hasActiveProjectPath: () => Effect.succeed(false),
   listByIds: () => Effect.succeed([]),
   listHiveCatalogPage: () => Effect.succeed({ context: [], workers: [] }),
-  listHiveTreeCatalogPage: () => Effect.succeed({ root: null, members: [], attentionCount: 0 }),
+  listHiveTreeCatalogPage: () => Effect.succeed({ root: null, members: [], needsYouCount: 0 }),
   listArchivedBranchCatalogPage: () => Effect.succeed({ sessions: [] }),
   queryArchivedItems: () =>
     Effect.succeed({

@@ -3,6 +3,7 @@ import {
   SESSION_RESOURCE_MIGRATIONS,
 } from './database-session-resource-migrations'
 import {
+  DELEGATION_ATTENTION_CAUSE_MIGRATION_ID,
   HIVE_TOOL_NAME_MIGRATION_ID,
   PI_SESSION_ADOPTION_MIGRATION_ID,
   PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
@@ -114,6 +115,7 @@ const currentIdentities = [
     id: SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
     name: 'session-resource-docs-image-references',
   },
+  { id: DELEGATION_ATTENTION_CAUSE_MIGRATION_ID, name: 'delegation-attention-cause' },
 ]
 
 export interface MigrationIdentity {
