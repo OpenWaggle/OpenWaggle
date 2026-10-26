@@ -30,6 +30,8 @@ The `overrides` in `pnpm-workspace.yaml` are not checked. Several of them are vu
 floors, such as `"js-yaml@^4": ^4.3.2`, which force a transitive dependency up to a fixed release
 and on purpose still accept its later patches. Other overrides pin a transitive version exactly
 because two packages must agree on it, as with `better-sqlite3` and the TanStack Router packages.
+The `better-sqlite3` override also keeps a single SQLite build in the Session Host process; see
+[One SQLite library](system-architecture.md#one-sqlite-library).
 
 The Pi runtime is one matched release in the `pi-runtime` catalog. `pnpm check:pi-runtime`
 checks the matched set, the patches, and the root pins of `quickjs-wasi` and Photon to the

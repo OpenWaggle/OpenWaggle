@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -13,6 +12,7 @@ import {
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
 } from '../../services/session-host-schema-identity'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 
 const fakeEmbeddingModel: SessionEmbeddingModel = {
@@ -22,7 +22,7 @@ const fakeEmbeddingModel: SessionEmbeddingModel = {
 }
 
 function seedLegacyDatabase(databasePath: string, revision: number, completeLedger = false) {
-  const database = new DatabaseSync(databasePath)
+  const database = openHostSqliteDatabase(databasePath)
   try {
     database.exec(`
       CREATE TABLE _migrations (
@@ -136,7 +136,7 @@ describe('Session Host cutover from older legacy revisions', () => {
         ),
       ).resolves.toMatchObject({ status: 'migrated', sessionCount: 1, nodeCount: 1 })
 
-      const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+      const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
       try {
         expect(
           target
@@ -186,7 +186,7 @@ describe('Session Host cutover from older legacy revisions', () => {
       Effect.runPromise(runAppDatabaseMigrations.pipe(Effect.provide(runtimeDatabase))),
     ).resolves.toBeUndefined()
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target
@@ -210,7 +210,7 @@ describe('Session Host cutover from older legacy revisions', () => {
     const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
     const recoveryDatabasePath = path.join(temporaryRoot, 'pre-cutover-openwaggle.sqlite')
     seedLegacyDatabase(sourceDatabasePath, 20)
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       // An unreleased build numbered a Host migration into the legacy database; the row must not
       // collide with the Host baseline identity the cutover records.
@@ -229,7 +229,7 @@ describe('Session Host cutover from older legacy revisions', () => {
       ),
     ).resolves.toMatchObject({ status: 'migrated' })
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target

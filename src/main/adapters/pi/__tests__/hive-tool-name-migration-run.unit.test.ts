@@ -1,6 +1,6 @@
-import { DatabaseSync } from 'node:sqlite'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
+import Database from 'better-sqlite3'
 import { describe, expect, it, vi } from 'vitest'
 import { HIVE_TOOL_NAME_MIGRATION_STATEMENTS } from '../../../services/hive-tool-name-migration'
 import { resolveSessionRunExecution } from '../../session-run-execution-profile'
@@ -70,7 +70,7 @@ async function runTools(profileJson: string) {
 
 /** A Session created before ADR 0053 from an Agent definition whose `tools` listed `sessions`. */
 function storedProfile() {
-  const database = new DatabaseSync(':memory:')
+  const database = new Database(':memory:')
   database.exec(`CREATE TABLE session_execution_profiles (
     session_id TEXT PRIMARY KEY,
     profile_json TEXT NOT NULL,
@@ -87,7 +87,9 @@ function storedProfile() {
   )
   const read = () =>
     String(
-      database.prepare('SELECT profile_json FROM session_execution_profiles').get()?.profile_json,
+      database
+        .prepare<[], Record<string, unknown>>('SELECT profile_json FROM session_execution_profiles')
+        .get()?.profile_json,
     )
   return { database, read }
 }

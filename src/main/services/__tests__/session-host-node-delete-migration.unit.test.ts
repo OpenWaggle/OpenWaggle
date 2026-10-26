@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Statement from '@effect/sql/Statement'
 import { SqliteClient } from '@effect/sql-sqlite-node'
+import Database from 'better-sqlite3'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateSessionHostCompletionSeal } from '../../session-host/session-host-completion-seal'
@@ -47,8 +47,8 @@ interface MigrationRow {
 let temporaryRoot = ''
 
 function expectValidCompletionSeal() {
-  const database = new DatabaseSync(path.join(temporaryRoot, 'node-delete-migration.sqlite'), {
-    readOnly: true,
+  const database = new Database(path.join(temporaryRoot, 'node-delete-migration.sqlite'), {
+    readonly: true,
   })
   try {
     expect(() => validateSessionHostCompletionSeal(database)).not.toThrow()

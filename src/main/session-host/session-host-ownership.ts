@@ -1,11 +1,12 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { setTimeout } from 'node:timers/promises'
+import Database from 'better-sqlite3'
 
 const OWNERSHIP_HANDOFF_RETRY_MS = 5
 const OWNERSHIP_HANDOFF_TIMEOUT_MS = 1000
-const SQLITE_BUSY = 5
+/** Fail at once on a held lock; the retry loop below owns the waiting. */
+const NO_BUSY_TIMEOUT_MS = 0
 
 export interface AcquireSessionHostOwnershipOptions {
   readonly timeoutMs?: number
@@ -21,8 +22,12 @@ export function isSessionHostOwnershipHeld(error: unknown) {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ELOCKED'
 }
 
+/*
+ * Opened with better-sqlite3, the library of the Host's database connection, so a Host process
+ * links one SQLite. This module imports nothing local: a test runs it in a plain Node child.
+ */
 function tryAcquireOwnershipDatabase(ownershipPath: string) {
-  const database = new DatabaseSync(ownershipPath)
+  const database = new Database(ownershipPath, { timeout: NO_BUSY_TIMEOUT_MS })
   try {
     // Exclusive locking mode retains the OS file lock across commits until this connection closes.
     // Unlike an mtime lease, a stopped JS event loop cannot lose it and process death releases it.
@@ -35,7 +40,7 @@ function tryAcquireOwnershipDatabase(ownershipPath: string) {
     return database
   } catch (cause) {
     database.close()
-    if (cause instanceof Error && 'errcode' in cause && cause.errcode === SQLITE_BUSY) return null
+    if (cause instanceof Database.SqliteError && cause.code === 'SQLITE_BUSY') return null
     throw cause
   }
 }
@@ -64,7 +69,9 @@ export async function acquireSessionHostOwnership(
   return {
     targetPath,
     release: () => {
-      releasePromise ??= Promise.resolve().then(() => ownedDatabase.close())
+      releasePromise ??= Promise.resolve().then(() => {
+        ownedDatabase.close()
+      })
       return releasePromise
     },
   }

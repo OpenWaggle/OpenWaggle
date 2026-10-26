@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { PI_SESSION_DISCOVERY_CREATE_MIGRATION } from '../pi-session-discovery-create-migration'
 
 describe('Pi session discovery create migration', () => {
   it('adds the table of creates discovery sent, one row per key', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     try {
       for (const statement of PI_SESSION_DISCOVERY_CREATE_MIGRATION.statements) {
         database.exec(statement)

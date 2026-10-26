@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import type { DatabaseSync } from 'node:sqlite'
 import {
   type AgentAuthorizationMode,
   isAgentAuthorizationMode,
@@ -8,6 +7,7 @@ import {
 import { DEFAULT_SETTINGS, DEFAULT_THINKING_LEVEL, THINKING_LEVELS } from '@shared/types/settings'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import {
   cutoverRecord,
   cutoverTableExists,
@@ -46,7 +46,7 @@ function stableResourceId(kind: string, identity: string) {
   return `workspace-${digest}`
 }
 
-function legacySetting(database: DatabaseSync, key: string): unknown {
+function legacySetting(database: HostSqliteDatabase, key: string): unknown {
   if (!cutoverTableExists(database, 'settings_store')) return undefined
   const valueJson = queryCutoverRecord(
     database,
@@ -62,7 +62,7 @@ function legacySetting(database: DatabaseSync, key: string): unknown {
   }
 }
 
-function legacyExecutionDefaults(database: DatabaseSync) {
+function legacyExecutionDefaults(database: HostSqliteDatabase) {
   const selectedModel = legacySetting(database, 'selectedModel')
   const thinkingLevel = legacySetting(database, 'thinkingLevel')
   const resolvedThinkingLevel = THINKING_LEVELS.find((candidate) => candidate === thinkingLevel)
@@ -91,7 +91,7 @@ const LEGACY_SESSION_COLUMN_NORMALIZATIONS = [
  * schema that predates the worktree or authorization columns instead of requiring intermediate
  * OpenWaggle releases to be installed first.
  */
-export function normalizeLegacySessionColumns(database: DatabaseSync) {
+export function normalizeLegacySessionColumns(database: HostSqliteDatabase) {
   if (!cutoverTableExists(database, 'sessions')) return
   const columns = new Set(
     database
@@ -192,7 +192,7 @@ function decodeLegacyActiveRun(value: unknown): LegacyActiveRunRow {
   }
 }
 
-function readLegacyRows(database: DatabaseSync) {
+function readLegacyRows(database: HostSqliteDatabase) {
   const sessionValues: unknown = database
     .prepare(`
     SELECT id, project_path, environment_mode, worktree_path, worktree_base_ref,
@@ -214,7 +214,7 @@ function readLegacyRows(database: DatabaseSync) {
   }
 }
 
-export function populateSessionHostTarget(database: DatabaseSync, now: number) {
+export function populateSessionHostTarget(database: HostSqliteDatabase, now: number) {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_session_active_runs_status_session
     ON session_active_runs (status, session_id)

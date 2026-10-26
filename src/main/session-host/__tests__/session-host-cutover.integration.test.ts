@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import {
   fakeEmbeddingModel,
@@ -30,7 +30,7 @@ describe('Session Host full cutover', () => {
 
   it('builds and validates the target beside the source, then retains one recovery copy', async () => {
     seedLegacyDatabase(sourceDatabasePath)
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       source.prepare('UPDATE session_nodes SET content_json = ? WHERE id = ?').run(
         JSON.stringify({
@@ -55,7 +55,7 @@ describe('Session Host full cutover', () => {
     await expect(fs.access(sourceDatabasePath)).rejects.toThrow()
     await expect(fs.access(recoveryDatabasePath)).resolves.toBeUndefined()
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target
@@ -139,7 +139,7 @@ describe('Session Host full cutover', () => {
       ),
     ).resolves.toMatchObject({ status: 'migrated', sessionCount: 1, nodeCount: 1 })
 
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       expect(
         target.prepare('SELECT COUNT(*) AS count FROM session_discovery_embeddings').get(),
@@ -159,7 +159,7 @@ describe('Session Host full cutover', () => {
       Date.now(),
       fakeEmbeddingModel,
     )
-    const target = new DatabaseSync(targetDatabasePath)
+    const target = openHostSqliteDatabase(targetDatabasePath)
     try {
       target
         .prepare(`UPDATE session_execution_profiles SET profile_json = ?`)
@@ -184,7 +184,7 @@ describe('Session Host full cutover', () => {
       Date.now(),
       fakeEmbeddingModel,
     )
-    const target = new DatabaseSync(targetDatabasePath)
+    const target = openHostSqliteDatabase(targetDatabasePath)
     try {
       target.prepare(`UPDATE sessions SET title = 'Updated before shutdown'`).run()
     } finally {
@@ -202,7 +202,7 @@ describe('Session Host full cutover', () => {
 
   it('assigns an unmaterialized legacy worktree plan one canonical Workspace path and branch', async () => {
     seedLegacyDatabase(sourceDatabasePath)
-    const source = new DatabaseSync(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
     try {
       source
         .prepare(`
@@ -221,7 +221,7 @@ describe('Session Host full cutover', () => {
       Date.now(),
       fakeEmbeddingModel,
     )
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })
     try {
       const value = target
         .prepare(`

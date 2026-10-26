@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { migrationIdentitySchema } from '@shared/schemas/migration-ledger'
 import {
@@ -14,6 +13,7 @@ import {
   SESSION_HOST_SCHEMA_REVISION,
   SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../services/session-host-schema-identity'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
 function nonNegativeInteger(value: unknown): value is number {
@@ -53,7 +53,7 @@ function validHighWatermark(revision: unknown, value: unknown) {
  * O(1) startup validation for an already-installed target. The seal is written only after the
  * staging database passes full validation, in the same transaction as the migration ledger row.
  */
-export function validateSessionHostCompletionSeal(database: DatabaseSync) {
+export function validateSessionHostCompletionSeal(database: HostSqliteDatabase) {
   const rows = decodeUnknownOrThrow(
     Schema.Array(migrationIdentitySchema),
     database

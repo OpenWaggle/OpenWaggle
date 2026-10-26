@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS,
@@ -7,11 +7,11 @@ import {
 } from '../session-host-export-schema'
 import { SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION } from '../session-host-export-selected-path-migration'
 
-function applyStatements(database: DatabaseSync, statements: readonly string[]) {
+function applyStatements(database: Database.Database, statements: readonly string[]) {
   for (const statement of statements) database.exec(statement)
 }
 
-function prepareDependencies(database: DatabaseSync) {
+function prepareDependencies(database: Database.Database) {
   database.exec(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE sessions (id TEXT PRIMARY KEY);
@@ -26,14 +26,14 @@ function prepareDependencies(database: DatabaseSync) {
 }
 
 describe('Session Host export selected-path migration', () => {
-  const databases: DatabaseSync[] = []
+  const databases: Database.Database[] = []
 
   afterEach(() => {
     for (const database of databases.splice(0)) database.close()
   })
 
   it('keeps the control export schema independent of the Session node projection', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     databases.push(database)
     database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
 
@@ -49,7 +49,7 @@ describe('Session Host export selected-path migration', () => {
   })
 
   it('defers sparse path checkpoints instead of blocking migration on a path backfill', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     databases.push(database)
     prepareDependencies(database)
     database.exec(`
@@ -117,7 +117,7 @@ describe('Session Host export selected-path migration', () => {
   })
 
   it('is safe to apply after the fresh target schema already created the tables', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     databases.push(database)
     prepareDependencies(database)
     applyStatements(database, SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS)

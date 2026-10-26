@@ -1,6 +1,6 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS } from '../services/session-host-discovery-term-population'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
@@ -9,7 +9,7 @@ const CUTOVER_INITIAL_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('ini
 const CUTOVER_PREVIEW_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('preview_node')
 const NODE_SEARCH_SESSION_INDEX = 'idx_session_node_search_rows_session'
 
-function populateNodeSearchRows(database: DatabaseSync) {
+function populateNodeSearchRows(database: HostSqliteDatabase) {
   const hasSessionIndex =
     queryCutoverRecord(
       database,
@@ -35,7 +35,7 @@ function populateNodeSearchRows(database: DatabaseSync) {
   }
 }
 
-export function populateSessionSearchCatalog(database: DatabaseSync) {
+export function populateSessionSearchCatalog(database: HostSqliteDatabase) {
   database.exec(`
     INSERT INTO session_title_search (session_id, title) SELECT id, title FROM sessions;
     INSERT INTO session_project_search (session_id, project_path)

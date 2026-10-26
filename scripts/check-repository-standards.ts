@@ -24,6 +24,7 @@ import {
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
+import { collectSqliteLibraryViolations } from './standards/sqlite-library'
 import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
 export { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
@@ -126,6 +127,7 @@ async function collectViolationsForFile(file: string) {
     ...collectSessionSummaryColumnViolations(file, contents),
     ...collectSyntaxRenderingViolations(file, contents),
     ...collectExactDependencyVersionViolations(file, contents),
+    ...collectSqliteLibraryViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 

@@ -1,5 +1,5 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
 const CUTOVER_NODE_BATCH_SIZE = 1_024
@@ -32,7 +32,7 @@ const INITIAL_CUTOVER_CURSOR: CutoverCursor = {
   nodeId: '',
 }
 
-function prepareBatchTables(database: DatabaseSync) {
+function prepareBatchTables(database: HostSqliteDatabase) {
   database.exec(`
     CREATE TABLE temp.${CUTOVER_SESSION_IDS_TABLE} (
       session_id TEXT PRIMARY KEY,
@@ -62,7 +62,7 @@ function prepareBatchTables(database: DatabaseSync) {
   `)
 }
 
-function recreateBatchSearchTables(database: DatabaseSync) {
+function recreateBatchSearchTables(database: HostSqliteDatabase) {
   database.exec(`
     DROP TABLE IF EXISTS temp.${CUTOVER_VOCABULARY_TABLE};
     DROP TABLE IF EXISTS temp.${CUTOVER_SEARCH_TABLE};
@@ -73,7 +73,7 @@ function recreateBatchSearchTables(database: DatabaseSync) {
   `)
 }
 
-function clearBatchTables(database: DatabaseSync) {
+function clearBatchTables(database: HostSqliteDatabase) {
   recreateBatchSearchTables(database)
   database.exec(`
     DELETE FROM temp.${CUTOVER_SOURCE_TABLE};
@@ -82,7 +82,7 @@ function clearBatchTables(database: DatabaseSync) {
   `)
 }
 
-function stageBatch(database: DatabaseSync, cursor: CutoverCursor) {
+function stageBatch(database: HostSqliteDatabase, cursor: CutoverCursor) {
   database
     .prepare(
       `WITH candidates AS MATERIALIZED (
@@ -166,7 +166,7 @@ function stageBatch(database: DatabaseSync, cursor: CutoverCursor) {
   }
 }
 
-function populateBatch(database: DatabaseSync) {
+function populateBatch(database: HostSqliteDatabase) {
   database.exec(`
     UPDATE session_transcript_term_documents
     SET token_count = token_count + (
@@ -190,7 +190,7 @@ function populateBatch(database: DatabaseSync) {
   `)
 }
 
-function validateBatch(database: DatabaseSync) {
+function validateBatch(database: HostSqliteDatabase) {
   const documentMismatch = queryCutoverRecord(
     database,
     `WITH expected AS (
@@ -242,7 +242,7 @@ function validateBatch(database: DatabaseSync) {
   }
 }
 
-function dropBulkLoadIndexes(database: DatabaseSync) {
+function dropBulkLoadIndexes(database: HostSqliteDatabase) {
   const existingNames = new Set<string>()
   for (const index of TRANSCRIPT_TERM_SECONDARY_INDEXES) {
     const exists = queryCutoverRecord(
@@ -258,13 +258,13 @@ function dropBulkLoadIndexes(database: DatabaseSync) {
   return existingNames
 }
 
-function restoreBulkLoadIndexes(database: DatabaseSync, names: ReadonlySet<string>) {
+function restoreBulkLoadIndexes(database: HostSqliteDatabase, names: ReadonlySet<string>) {
   for (const index of TRANSCRIPT_TERM_SECONDARY_INDEXES) {
     if (names.has(index.name)) database.exec(index.sql)
   }
 }
 
-function dropBatchTables(database: DatabaseSync) {
+function dropBatchTables(database: HostSqliteDatabase) {
   database.exec(`
     DROP TABLE IF EXISTS temp.${CUTOVER_VOCABULARY_TABLE};
     DROP TABLE IF EXISTS temp.${CUTOVER_SEARCH_TABLE};
@@ -275,7 +275,7 @@ function dropBatchTables(database: DatabaseSync) {
 }
 
 /** Builds the exact unicode61 term catalog in bounded node and content-byte batches. */
-export function populateSessionTranscriptTermCatalog(database: DatabaseSync) {
+export function populateSessionTranscriptTermCatalog(database: HostSqliteDatabase) {
   dropBatchTables(database)
   const deferredIndexes = dropBulkLoadIndexes(database)
   prepareBatchTables(database)
