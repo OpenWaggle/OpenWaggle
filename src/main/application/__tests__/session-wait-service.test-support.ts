@@ -1,3 +1,4 @@
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import type { SessionWaitTarget } from '@shared/types/session-wait'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -6,7 +7,7 @@ import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { SessionReportRepository } from '../../ports/session-report-repository'
 import { SessionWaitService } from '../../ports/session-wait-service'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
-import { SessionHostEventHub } from '../session-host-event-hub'
+import { SessionHostEventHub, type SessionHostEventHubOptions } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
 import { SessionWaitServiceLive } from '../session-wait-service'
 
@@ -16,7 +17,15 @@ type SessionState = {
   readonly pendingFollowUpCount: number
 }
 
-export function createSessionWaitTestHarness() {
+export interface SessionWaitTestHarnessOptions {
+  /** Event hub limits, lowered to force the slow-consumer path. */
+  readonly eventHub?: Omit<SessionHostEventHubOptions, 'hostInstanceId'>
+  /** Runs inside each status read after it captured the state, as Host events can arrive mid-read. */
+  readonly onStatusRead?: (sessionId: string) => void
+}
+
+export function createSessionWaitTestHarness(options: SessionWaitTestHarnessOptions = {}) {
+  let statusReads = 0
   const states = new Map<string, SessionState>()
   const exportStatuses = new Map<string, 'queued' | 'running' | 'completed'>()
   const deliveredReports = new Set<string>()
@@ -28,7 +37,7 @@ export function createSessionWaitTestHarness() {
       readonly sourceSessionId: string
     }
   >()
-  const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-wait' })
+  const eventHub = new SessionHostEventHub({ ...options.eventHub, hostInstanceId: 'host-wait' })
   const liveness = new SessionHostLiveness({
     idleGracePeriodMs: 60_000,
     requestShutdown: vi.fn(),
@@ -69,7 +78,9 @@ export function createSessionWaitTestHarness() {
         })
       }
       if (request.query.operation !== 'status') throw new Error('Expected status query.')
+      statusReads += 1
       const state = states.get(request.query.sessionId)
+      options.onStatusRead?.(request.query.sessionId)
       return Effect.succeed({
         contractVersion: 2 as const,
         requestId: request.requestId,
@@ -147,6 +158,26 @@ export function createSessionWaitTestHarness() {
     )
   }
 
+  function waitForIdleAfter(sessionId: string, timeoutMs: number, after: SessionHostEventCursor) {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SessionWaitService
+        return yield* service.wait({
+          request: {
+            contractVersion: 2,
+            requestId: 'wait-after-request',
+            query: {
+              operation: 'wait',
+              targets: [{ sessionId, condition: 'idle' }],
+              timeoutMs,
+              after,
+            },
+          },
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
   function waitForIdle(
     sessionId: string,
     timeoutMs: number,
@@ -209,8 +240,10 @@ export function createSessionWaitTestHarness() {
     eventHub,
     liveness,
     waitForIdle,
+    waitForIdleAfter,
     waitForExport,
     waitForTarget,
+    statusReads: () => statusReads,
     close: () => {
       releaseRuntime()
       eventHub.close()
