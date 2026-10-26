@@ -49,6 +49,9 @@ describe('InlineVisualization brokers', () => {
     unregisterFollowUpDispatcher?.()
     unregisterFollowUpDispatcher = null
     for (const mock of Object.values(apiMock)) mock.mockReset()
+    // The unmount that cleanup triggers keeps racing the reset, so the fire-and-forget
+    // unregister stays a promise even after it.
+    apiMock.unregisterInlineVisualizationFrame.mockResolvedValue(undefined)
     clearInlineVisualizationStatesForTests()
   })
 

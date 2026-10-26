@@ -18,6 +18,7 @@ import { copySessionLink } from '@/features/sessions/commands'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
+import { useUIStore } from '@/shell/ui-store'
 import type { SidebarSessionActions } from '../model'
 
 interface SessionItemContextMenuProps {
@@ -95,6 +96,7 @@ export function SessionItemContextMenu({
 }: SessionItemContextMenuProps) {
   const { moveUp, moveDown, restore } = commands
   const titleRegeneration = useSessionTitleRegeneration(sessionId)
+  const showToast = useUIStore((state) => state.showToast)
 
   function closeAfter(action: () => void) {
     action()
@@ -103,9 +105,14 @@ export function SessionItemContextMenu({
 
   function confirmDelete() {
     onClose()
-    void api.showConfirm('Delete this session?', 'This cannot be undone.').then((confirmed) => {
-      if (confirmed) actions.delete(sessionId)
-    })
+    void api
+      .showConfirm('Delete this session?', 'This cannot be undone.')
+      .then((confirmed) => {
+        if (confirmed) actions.delete(sessionId)
+      })
+      .catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : String(error), 'error')
+      })
   }
 
   return (
