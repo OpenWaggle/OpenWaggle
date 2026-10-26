@@ -3,6 +3,7 @@ import type { AgentErrorInfo } from '@shared/types/errors'
 import type { FeedbackCategory, FeedbackPayload, GhCliStatus } from '@shared/types/feedback'
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -119,7 +120,7 @@ export function useFeedback(
         .with({ success: false }, (result) => setError(result.error ?? 'Failed to create issue.'))
         .exhaustive()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
+      setError(ipcFailureMessage(err, 'An unexpected error occurred.'))
     } finally {
       setSubmitting(false)
     }
@@ -134,7 +135,7 @@ export function useFeedback(
       showToast('Issue body copied to clipboard')
       closeFeedbackModal()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to copy feedback.')
+      setError(ipcFailureMessage(err, 'Failed to copy feedback.'))
     }
   }
 

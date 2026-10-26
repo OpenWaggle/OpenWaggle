@@ -143,7 +143,6 @@ async function buildLocalVcsStatus(
     primaryRemote,
     shouldResolvePushDestination,
   )
-  if (!push.ok) return { ok: false, code: 'unknown', message: push.message }
   const remoteUrl = primaryRemote?.url ?? null
   const sourceControl = await localSourceControlState(projectPath, primaryRemote)
 

@@ -112,7 +112,7 @@ describe('SessionListItem', () => {
     )
   })
 
-  it('reports hidden Workers that need input on a Queen row', () => {
+  it("reports hidden Workers that need attention on a Queen row, in the Hive panel's words", () => {
     const queen = makeSession({
       lineage: { role: 'queen', directWorkerCount: 3, activeDirectWorkerCount: 2 },
     })
@@ -120,12 +120,12 @@ describe('SessionListItem', () => {
       <SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={2} />,
     )
     expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
-      '2 need input',
+      '2 need attention',
     )
 
     rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={1} />)
     expect(document.querySelector('[data-qa="sidebar-row-worker-attention"]')?.textContent).toBe(
-      '1 needs input',
+      '1 needs attention',
     )
 
     rerender(<SessionListItem session={queen} actions={NOOP_ACTIONS} workerAttentionCount={0} />)

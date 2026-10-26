@@ -62,13 +62,13 @@ Below the controls, select a project to read its agent definitions or enable and
 
 **Pi sessions** lists your projects with what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. The choice is yours only. It is stored in your OpenWaggle settings, not in the project, so others working on the project choose for themselves.
 
-**About & Updates** shows your installed version and update channel. Until you choose a channel, a Stable build follows Stable, an Alpha or Beta build follows its own channel, and a release candidate follows Beta. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
+**About & Updates** shows your installed version and update channel. Until you choose a channel, a Stable build follows Stable, an Alpha or Beta build follows its own channel, and a release candidate follows Beta. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade. Until the first Stable release is published, Stable has nothing to install and shows that you are up to date.
 
 Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
 
 After **Restart to update**, the update shows as installing while OpenWaggle stops its background Session Host and quits. It reopens on its own once the update is installed, usually within a few seconds; opening it yourself before then makes the install fail. On macOS an update cannot install while another OpenWaggle process is still running, such as `openwaggle mcp serve` used by another agent or `openwaggle hive wait` in a terminal. If an update did not install, OpenWaggle says why once that update is ready to install again, shortly after it next opens; close the other process and choose **Restart to update** again.
 
-**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
+**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. In a Dev build, an automated test launch, or when `DO_NOT_TRACK`, `PI_TELEMETRY` or `CI` turns statistics off, the switch shows off, cannot be changed, and says why; your saved choice applies again once that no longer holds. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
 
 ### Command-line availability
 
@@ -115,9 +115,13 @@ Use **Settings > Shortcuts** for both app keyboard bindings and Project Action b
 
 You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
 
-The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list or **Remove** on a linked worktree. Normal removal refuses uncommitted changes or locks.
+The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. Each row shows the folder, its branch, and the session that owns a managed worktree, or a local session that works in it. Search by path, branch, or session title to find a worktree in a long list. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list.
 
-If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
+**Remove** asks before it deletes anything. The confirmation names the folder, its branch, and its session, and warns when the branch has commits that are not on any remote. The branch itself is kept. Normal removal refuses uncommitted changes or locks.
+
+**Remove** is unavailable, and OpenWaggle refuses the removal, while the worktree is in use: when it is the opened project's checkout or the checkout a development build of OpenWaggle runs from, when a session that is not archived or has an active run works in it, when a Project Action is running in it, or when a terminal is open in it. The row says which. Archive the session, stop its run if an archived session still has one, stop the action, or close the terminal first. **Force remove** does not bypass this check.
+
+If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. Each of these removals asks for confirmation first as well. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
 
 ## Connections
 
@@ -184,5 +188,7 @@ Sidebar sort order, collapsed projects, and the Pinned section's sort are rememb
 | macOS | `~/Library/Logs/OpenWaggle/` |
 | Windows | `%APPDATA%\OpenWaggle\logs\` |
 | Linux | `~/.config/OpenWaggle/logs/` |
+
+The desktop app writes `openwaggle-YYYY-MM-DD.log` there. The background session service, which runs agent work, writes `openwaggle-host-YYYY-MM-DD.log` to the `logs` folder of the application-data directory, beside `session-host/`. Each line starts with its time in UTC, such as `16:54:22.855Z`, and the date in the file name is the UTC date too.
 
 The error display can open the logs directory when agent work fails. Review logs for secrets and private project details before sharing them.

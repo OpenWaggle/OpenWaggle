@@ -139,4 +139,89 @@ describe('Session Host explicit recovery', () => {
       (await fs.readdir(temporaryRoot)).some((name) => name.startsWith('.openwaggle-restore-')),
     ).toBe(false)
   })
+
+  async function migrateSeededLegacyDatabase(paths: LocalSessionHostPaths) {
+    seedEmptyLegacyDatabase(paths.legacyDatabasePath)
+    await runSessionHostCutover(
+      {
+        sourceDatabasePath: paths.legacyDatabasePath,
+        targetDatabasePath: paths.databasePath,
+        recoveryDatabasePath: paths.recoveryDatabasePath,
+      },
+      Date.now(),
+      fakeEmbeddingModel,
+    )
+  }
+
+  it('restores over a 0-byte legacy database file, which holds nothing', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await migrateSeededLegacyDatabase(paths)
+    await fs.writeFile(paths.legacyDatabasePath, '')
+
+    await expect(
+      restorePreCutoverDatabase(paths, 4_000, fakeEmbeddingModel),
+    ).resolves.toMatchObject({ status: 'restored', migration: { status: 'migrated' } })
+    await expect(fs.access(paths.legacyDatabasePath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('still refuses a legacy database path that holds data', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await migrateSeededLegacyDatabase(paths)
+    await fs.writeFile(paths.legacyDatabasePath, 'not empty')
+
+    await expect(restorePreCutoverDatabase(paths, 5_000, fakeEmbeddingModel)).rejects.toThrow(
+      'Legacy database path is already occupied',
+    )
+    expect(await fs.readFile(paths.legacyDatabasePath, 'utf8')).toBe('not empty')
+  })
+
+  it('refuses a 0-byte legacy database whose WAL still holds its data', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await migrateSeededLegacyDatabase(paths)
+    await fs.writeFile(paths.legacyDatabasePath, '')
+    await fs.writeFile(`${paths.legacyDatabasePath}-wal`, 'frames')
+
+    await expect(restorePreCutoverDatabase(paths, 6_000, fakeEmbeddingModel)).rejects.toThrow(
+      'Legacy database path is already occupied',
+    )
+  })
+
+  it('reports leftover legacy files at the top of the app data folder', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await migrateSeededLegacyDatabase(paths)
+    await fs.writeFile(paths.legacyDatabasePath, '')
+    const strayHostDatabase = path.join(temporaryRoot, 'session-host.sqlite')
+    await fs.writeFile(strayHostDatabase, '')
+
+    await expect(sessionHostRecoveryStatus(paths)).resolves.toMatchObject({
+      legacy: [
+        { path: paths.legacyDatabasePath, exists: true, sizeBytes: 0, empty: true },
+        { path: strayHostDatabase, exists: true, sizeBytes: 0, empty: true },
+      ],
+    })
+  })
+
+  it('reports no legacy files when there are none', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await migrateSeededLegacyDatabase(paths)
+
+    await expect(sessionHostRecoveryStatus(paths)).resolves.toMatchObject({ legacy: [] })
+  })
+
+  it('treats a 0-byte legacy database as a fresh install at cutover', async () => {
+    const paths = pathsFor(temporaryRoot)
+    await fs.writeFile(paths.legacyDatabasePath, '')
+
+    await expect(
+      runSessionHostCutover(
+        {
+          sourceDatabasePath: paths.legacyDatabasePath,
+          targetDatabasePath: paths.databasePath,
+          recoveryDatabasePath: paths.recoveryDatabasePath,
+        },
+        Date.now(),
+        fakeEmbeddingModel,
+      ),
+    ).resolves.toEqual({ status: 'fresh-install' })
+  })
 })

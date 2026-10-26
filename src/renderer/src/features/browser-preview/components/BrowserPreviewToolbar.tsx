@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 import type { BrowserPreviewTab } from '../browser-preview-model'
 import type { BrowserPreviewAdvancedControls } from '../hooks/useBrowserPreviewAdvancedControls'
 import type { BrowserPreviewControls } from '../hooks/useBrowserPreviewControls'
@@ -29,6 +30,7 @@ export function BrowserPreviewToolbar({
   tab,
 }: BrowserPreviewToolbarProps) {
   const secure = tab.url.startsWith('https:')
+  const showToast = useUIStore((state) => state.showToast)
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
       <Button
@@ -101,7 +103,13 @@ export function BrowserPreviewToolbar({
         variant="ghost"
         aria-label="Open in system browser"
         title="Open in system browser"
-        onClick={() => void api.openExternal(tab.url)}
+        onClick={() =>
+          void api
+            .openExternal(tab.url)
+            .catch((error: unknown) =>
+              showToast(error instanceof Error ? error.message : String(error), 'error'),
+            )
+        }
       >
         <ExternalLink className="size-3.5" />
       </Button>

@@ -1,5 +1,6 @@
 import type { VcsChangeRequestDetails } from '@shared/types/git'
 import { ExternalLink, GitMerge } from 'lucide-react'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { openWorkspaceWebLink } from '@/shell/open-workspace-web-link'
@@ -62,10 +63,7 @@ export function ChangeRequestWebsiteButton({
       variant="secondary"
       onClick={() => {
         void openWorkspaceWebLink(ownerKey, url).catch((cause: unknown) => {
-          showToast(
-            cause instanceof Error ? cause.message : 'Could not open this request.',
-            'error',
-          )
+          showToast(ipcFailureMessage(cause, 'Could not open this request.'), 'error')
         })
       }}
       leftIcon={<ExternalLink className="size-3.5" aria-hidden="true" />}

@@ -7,11 +7,9 @@ import {
 import * as Cause from 'effect/Cause'
 import * as Data from 'effect/Data'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import { createLogger } from '../logger'
 import { ActionRunService } from '../ports/action-run-service'
 import { DesktopServiceBroker } from '../ports/desktop-service-broker'
-import { HiveWorkerCleanup } from '../ports/hive-worker-cleanup'
 import {
   HIVE_CLEANUP_IDEMPOTENCY_PREFIX,
   type HiveWorkerCleanupCandidate,
@@ -23,6 +21,7 @@ import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-r
 import { TerminalService } from '../ports/terminal-service'
 import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
 import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
+import type { HiveWorkerCleanupPass } from './hive-worker-cleanup-retries'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import { publishControlResponse } from './session-control-event-projection'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
@@ -132,7 +131,10 @@ function archiveEligibleWorker(workerSessionId: SessionId) {
         sessionId: workerSessionId,
         includeDirectWorkers: false,
       })).find((candidate) => candidate.workerSessionId === workerSessionId)
-      if (!current || hasLiveWorkerActivity(workerSessionId)) return undefined
+      if (!current) return { status: 'ineligible' } as const
+      if (hasLiveWorkerActivity(workerSessionId)) {
+        return { status: 'kept', reason: 'live-activity' } as const
+      }
       const envelope = cleanupEnvelope(current)
       const organization = yield* SessionOrganizationRepository
       const admission = yield* organization.prepareArchive({
@@ -142,7 +144,9 @@ function archiveEligibleWorker(workerSessionId: SessionId) {
           command: { operation: 'archive', sessionId: workerSessionId },
         },
       })
-      if (admission.status === 'completed') return admission.response
+      if (admission.status === 'completed') {
+        return { status: 'archived', response: admission.response } as const
+      }
       // Unfenced first look: a Worker the user is using is skipped without taking the desktop
       // fence, which would briefly hold admission for the user's terminals and previews.
       const precheck = yield* keepWhenBusy(
@@ -166,18 +170,25 @@ function archiveEligibleWorker(workerSessionId: SessionId) {
                 requireNoLiveDesktopState(workerSessionId),
               ),
             )
-      if (result.status === 'kept') {
-        logger.debug('Hive cleanup kept a finished Worker', {
-          workerSessionId,
-          reason: result.reason,
-        })
-        return undefined
-      }
+      if (result.status === 'kept') return result
       publishControlResponse(result.response)
-      return result.response
+      return { status: 'archived', response: result.response } as const
     }),
   )
 }
+
+/** Why a finished Worker stayed unarchived. Desktop reasons clear without any Host trigger. */
+export type HiveWorkerKeptReason =
+  | HiveWorkerKept['reason']
+  | 'live-activity'
+  | 'ineligible'
+  | 'parent-authority-revoked'
+
+const DESKTOP_KEPT_REASONS: ReadonlySet<HiveWorkerKeptReason> = new Set([
+  'open-terminal',
+  'open-in-app',
+  'running-service',
+])
 
 /**
  * Hive cleanup phase: archive finished Workers the user never interacted with, attributed to the
@@ -185,6 +196,11 @@ function archiveEligibleWorker(workerSessionId: SessionId) {
  * Failures are logged per Worker and never escape; every trigger re-derives eligibility.
  */
 export function reconcileHiveWorkerCleanup(sessionId: SessionId) {
+  return reconcileHiveWorkerCleanupPass(sessionId).pipe(Effect.map((pass) => pass.archived))
+}
+
+/** One cleanup pass, also naming the Workers that live desktop state kept. */
+export function reconcileHiveWorkerCleanupPass(sessionId: SessionId) {
   return Effect.gen(function* () {
     const repository = yield* HiveWorkerCleanupRepository
     const candidates = yield* repository.findEligibleWorkers({
@@ -192,8 +208,9 @@ export function reconcileHiveWorkerCleanup(sessionId: SessionId) {
       includeDirectWorkers: true,
     })
     const archived: SessionControlMutationResponse[] = []
+    const keptByDesktop: SessionId[] = []
     for (const candidate of candidates) {
-      const response = yield* archiveEligibleWorker(candidate.workerSessionId).pipe(
+      const result = yield* archiveEligibleWorker(candidate.workerSessionId).pipe(
         Effect.catchAllCause((cause) =>
           Effect.sync(() => {
             logger.warn('Hive cleanup could not archive a finished Worker', {
@@ -201,15 +218,25 @@ export function reconcileHiveWorkerCleanup(sessionId: SessionId) {
               parentSessionId: candidate.parentSessionId,
               cause: Cause.pretty(cause),
             })
-            return undefined
+            return { status: 'failed' } as const
           }),
         ),
       )
+      if (result.status === 'kept') {
+        logger.info('Hive cleanup kept a finished Worker', {
+          workerSessionId: candidate.workerSessionId,
+          parentSessionId: candidate.parentSessionId,
+          reason: result.reason,
+        })
+        if (DESKTOP_KEPT_REASONS.has(result.reason)) keptByDesktop.push(candidate.workerSessionId)
+        continue
+      }
+      const response = result.status === 'archived' ? result.response : undefined
       if (response && !response.replayed && response.outcome.effect === 'session-archived') {
         archived.push(response)
       }
     }
-    return archived
+    return { archived, keptByDesktop } satisfies HiveWorkerCleanupPass
   })
 }
 
@@ -241,56 +268,3 @@ export function restoreHiveWorkerForCommand(input: {
     return response
   })
 }
-
-type HiveWorkerCleanupDependencies =
-  | Effect.Effect.Context<ReturnType<typeof reconcileHiveWorkerCleanup>>
-  | Effect.Effect.Context<ReturnType<typeof restoreHiveWorkerForCommand>>
-
-/**
- * `background` (the Host default) forks each pass so Run settlement and Delegation review never
- * wait on archive teardown. `inline` completes the pass before returning, for deterministic tests.
- * Restoration for a resuming command always runs inline: it is part of that command.
- */
-export function makeHiveWorkerCleanupLayer(strategy: 'background' | 'inline' = 'background') {
-  return Layer.effect(
-    HiveWorkerCleanup,
-    Effect.gen(function* () {
-      const context = yield* Effect.context<HiveWorkerCleanupDependencies>()
-      return HiveWorkerCleanup.of({
-        requestReconciliation: (sessionId) => {
-          const pass = reconcileHiveWorkerCleanup(sessionId).pipe(
-            Effect.provide(context),
-            Effect.catchAllCause((cause) =>
-              Effect.sync(() => {
-                logger.warn('Hive cleanup pass failed', {
-                  sessionId,
-                  cause: Cause.pretty(cause),
-                })
-              }),
-            ),
-            Effect.asVoid,
-          )
-          return strategy === 'inline' ? pass : pass.pipe(Effect.forkDaemon, Effect.asVoid)
-        },
-        restoreForCommand: (input) =>
-          restoreHiveWorkerForCommand(input).pipe(
-            Effect.provide(context),
-            Effect.catchAllCause((cause) =>
-              Effect.sync(() => {
-                logger.warn(
-                  'Could not restore a Hive cleanup-archived Worker for a resuming command',
-                  {
-                    sessionId: input.sessionId,
-                    cause: Cause.pretty(cause),
-                  },
-                )
-              }),
-            ),
-            Effect.asVoid,
-          ),
-      })
-    }),
-  )
-}
-
-export const HiveWorkerCleanupLive = makeHiveWorkerCleanupLayer()

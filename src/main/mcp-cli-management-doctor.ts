@@ -1,10 +1,10 @@
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpConfigFileView,
   McpConfigurationView,
   McpConfiguredServerView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
+import { mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError } from './mcp-cli-management-arguments'
 import {
   MCP_MANAGEMENT_EXIT,
@@ -125,7 +125,7 @@ export async function doctorCommand({
     servers.every((server) => !server.enabled || server.state === 'connected')
   if (args.flags.has('json')) {
     const report = { ok, files: view.files, errors: view.errors, servers }
-    context.output.log(JSON.stringify(report, null, MCP_CONFIG.JSON_INDENT_SPACES))
+    context.output.log(mcpCliJsonResponse('doctor', report))
   } else {
     const errors =
       view.errors.length > 0

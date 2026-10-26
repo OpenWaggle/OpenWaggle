@@ -163,7 +163,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       isOpenStarted: () => openStarted,
       open: startOpen,
       resize: () => {
-        void api.resizeTerminal(ownerKey, terminalId, term.cols, term.rows)
+        void api.resizeTerminal(ownerKey, terminalId, term.cols, term.rows).catch(() => undefined)
       },
       resizeDebounceMs: TERMINAL.RESIZE_DEBOUNCE_MS,
     })

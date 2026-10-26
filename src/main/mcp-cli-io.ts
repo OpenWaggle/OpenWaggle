@@ -1,4 +1,5 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
+import { sessionsCliResponseText } from './sessions-cli-output'
 
 const MAX_STDIN_SECRET_BYTES = 1_000_000
 
@@ -24,4 +25,9 @@ export function formatMcpCliOutput(value: unknown, json: boolean) {
     : typeof value === 'string'
       ? value
       : JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
+}
+
+/** `openwaggle mcp … --json` answers in the Hive CLI envelope, like every other command (#351). */
+export function mcpCliJsonResponse(command: string, value: unknown) {
+  return sessionsCliResponseText(`mcp ${command}`, value, true).trimEnd()
 }

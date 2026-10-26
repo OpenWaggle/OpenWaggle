@@ -4,6 +4,7 @@ import {
   changeRequestOpenDestinationQueryOptions,
   useSourceControlQueryFreshness,
 } from '@/queries/source-control'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { openWorkspaceWebLink } from '@/shell/open-workspace-web-link'
 import { useUIStore } from '@/shell/ui-store'
 import type { ChangeRequestOpener } from './ChangeRequestLinkRow'
@@ -35,7 +36,7 @@ export function useChangeRequestOpener(input: ChangeRequestOpenerInput): ChangeR
     openInInspector: input.onOpenInspector,
     openOnWebsite: (url) => {
       void openWorkspaceWebLink(input.sessionId ?? '', url).catch((cause: unknown) => {
-        showToast(cause instanceof Error ? cause.message : 'Could not open this request.', 'error')
+        showToast(ipcFailureMessage(cause, 'Could not open this request.'), 'error')
       })
     },
   }

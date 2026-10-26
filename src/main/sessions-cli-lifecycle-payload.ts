@@ -92,6 +92,7 @@ export function spawnLifecyclePayload(arguments_: ParsedArguments): LocalSession
         operation: 'spawn',
         parentSessionId: requiredSessionId(arguments_.positionals[0], 'Parent Session ID'),
         expectedParentRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
+        ...(option(arguments_, 'title') ? { title: option(arguments_, 'title') } : {}),
         ...(workspace ? { workspace } : {}),
         ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
         ...(authorization ? { runAuthorizationOverride: authorization } : {}),

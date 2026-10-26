@@ -37,7 +37,8 @@ export function UsageCostSummaryCards({
         <SummaryCard
           label="Sessions"
           value={String(sessionCount)}
-          detail="with spending in range"
+          // Counted by token use: a Session can have tokens and no recorded or estimated spend.
+          detail="with token use in range"
         />
       </div>
       {totals.unpricedTokens > 0 ? (

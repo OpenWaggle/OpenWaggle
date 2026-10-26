@@ -18,6 +18,7 @@ import {
   SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
   SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
 } from '../services/session-host-target-schema'
+import { legacyDatabaseFileState } from './legacy-database-file'
 import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
 import {
   normalizeLegacyMigrationLedger,
@@ -70,8 +71,9 @@ export function sessionHostTargetExists(paths: SessionHostCutoverPaths) {
   return exists(paths.targetDatabasePath)
 }
 
-export function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
-  return exists(paths.sourceDatabasePath)
+/** Whether there is a legacy database to migrate; a 0-byte file holds nothing (#357). */
+export async function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
+  return (await legacyDatabaseFileState(paths.sourceDatabasePath)) === 'present'
 }
 
 function applyTargetSchema(database: DatabaseSync) {
@@ -272,7 +274,7 @@ export async function runSessionHostCutover(
         `Session Host cutover is incomplete: recovery database exists without an active or staged database: ${paths.recoveryDatabasePath}`,
       )
     }
-    if (!(await exists(paths.sourceDatabasePath))) return { status: 'fresh-install' }
+    if (!(await sessionHostSourceExists(paths))) return { status: 'fresh-install' }
     await rm(stagingPath, { force: true })
     await copySourceToStaging(paths.sourceDatabasePath, stagingPath)
     const prepared = prepareStagingDatabase(stagingPath, now)

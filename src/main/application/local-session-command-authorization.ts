@@ -11,6 +11,7 @@ import { LocalSessionCommandAuthorizationError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SettingsService } from '../services/settings-service'
 import { authorizeLocalSessionCommandCapabilities } from './local-session-capability-authorization'
+import { authorizeDelegationFilterTargets } from './local-session-delegation-filter-authorization'
 import {
   authorizeTargetForCaller,
   derivedAuthorityForTarget,
@@ -273,6 +274,7 @@ export function authorizeLocalSessionCommand(input: {
       (yield* authorizeWaitTargets(input.caller, payload))
     )
       return
+    yield* authorizeDelegationFilterTargets(input.caller, payload)
     if (isUnscopedSessionDiscovery(payload)) return
     if (
       payload.contract === 'session-control-v2' &&

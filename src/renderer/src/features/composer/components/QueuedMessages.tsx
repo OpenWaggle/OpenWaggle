@@ -191,8 +191,6 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onMove: arrangement.onMove,
     onDragStart: arrangement.onDragStart,
     onDragEnd: arrangement.onDragEnd,
-    dropAnchor: arrangement.dropAnchor,
-    onDropOn: arrangement.onDropOn,
   }
 
   // "Send as me" on the first message starts it at once only when the Host would (`sendAsMeStartsNow`).
@@ -234,6 +232,9 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
 
               <ul
                 ref={arrangement.listRef}
+                onDragOver={arrangement.listDragHandlers.onDragOver}
+                onDragLeave={arrangement.listDragHandlers.onDragLeave}
+                onDrop={arrangement.listDragHandlers.onDrop}
                 aria-label="Queued messages"
                 className="flex flex-col gap-1"
               >

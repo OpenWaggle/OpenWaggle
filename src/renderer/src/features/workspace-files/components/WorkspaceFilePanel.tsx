@@ -102,7 +102,11 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
           onCopyRelativePath: () => void navigator.clipboard.writeText(input.relativePath),
           onReveal: () => {
             if (input.projectPath)
-              void api.revealWorkspaceEntry(input.projectPath, input.relativePath)
+              void api
+                .revealWorkspaceEntry(input.projectPath, input.relativePath)
+                .catch((error: unknown) =>
+                  showToast(error instanceof Error ? error.message : String(error), 'error'),
+                )
           },
           onClose: input.onClose,
         }}

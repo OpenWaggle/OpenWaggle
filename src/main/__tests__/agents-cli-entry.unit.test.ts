@@ -29,10 +29,11 @@ describe('Agent CLI Electron entrypoint errors', () => {
   })
 
   it.each([
-    { args: ['agents', 'list'], expected: 'error: agent entry failed\n' },
+    { args: ['agents', 'list'], expected: 'error [internal]: agent entry failed\n' },
     {
       args: ['agents', 'list', '--json'],
-      expected: '{"schemaVersion":1,"error":{"message":"agent entry failed"}}\n',
+      expected:
+        '{"schemaVersion":1,"type":"error","error":{"kind":"internal","message":"agent entry failed"}}\n',
     },
   ])('preserves the requested output mode for $args', async ({ args, expected }) => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)

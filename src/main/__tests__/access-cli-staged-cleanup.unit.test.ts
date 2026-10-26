@@ -122,7 +122,12 @@ describe('Access CLI staged credential cleanup', () => {
       .mocked(process.stdout.write)
       .mock.calls.map(([chunk]) => String(chunk))
       .join('')
-    expect(JSON.parse(output)).toMatchObject(REJECTED_RESPONSE.response)
+    expect(JSON.parse(output)).toMatchObject({
+      schemaVersion: 1,
+      type: 'response',
+      command: 'access profiles create',
+      result: REJECTED_RESPONSE.response,
+    })
     expect(output).not.toContain('test-bearer-secret')
   })
 

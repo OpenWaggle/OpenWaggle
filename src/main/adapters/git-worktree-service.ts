@@ -1,8 +1,15 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { app } from 'electron'
 import { GitWorktreeService } from '../ports/git-worktree-service'
-import { createGitWorktree, removeGitWorktree, validateGitWorktreeRemoval } from './git/worktree'
+import {
+  createGitWorktree,
+  listGitWorktrees,
+  removeGitWorktree,
+  validateGitWorktreeRemoval,
+} from './git/worktree'
 import { inspectLinkedWorktree } from './git/worktree-membership'
+import { checkoutTopLevel, countUnpublishedCommits } from './git/worktree-usage-git'
 
 export const GitWorktreeServiceLive = Layer.succeed(
   GitWorktreeService,
@@ -16,5 +23,13 @@ export const GitWorktreeServiceLive = Layer.succeed(
         try: () => inspectLinkedWorktree(projectPath, candidatePath),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
+    list: (projectPath) => Effect.promise(() => listGitWorktrees(projectPath)),
+    countUnpublishedCommits: (worktreePath) =>
+      Effect.promise(() => countUnpublishedCommits(worktreePath)),
+    // A packaged app runs from its bundle, which is no checkout, so this is null there.
+    applicationCheckout: () =>
+      Effect.promise(() =>
+        app.isPackaged ? Promise.resolve(null) : checkoutTopLevel(app.getAppPath()),
+      ),
   }),
 )

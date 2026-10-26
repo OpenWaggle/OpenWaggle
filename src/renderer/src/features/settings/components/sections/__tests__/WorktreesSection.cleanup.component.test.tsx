@@ -28,6 +28,31 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { WorktreesSection } from '../WorktreesSection'
 
+/** Every removal asks first (issue #353); these tests confirm it as the user does. */
+async function confirmRemoval(name = 'Remove worktree') {
+  const confirm = await screen.findByRole('button', { name })
+  await waitFor(() => expect(confirm).toBeEnabled())
+  fireEvent.click(confirm)
+}
+
+/** Answers the Host's usage and preview reads for a free worktree, then defers to `respond`. */
+function withFreeWorktree(
+  respond: (request: ActionManagementRequest) => Promise<ActionManagementResult>,
+) {
+  return async (request: ActionManagementRequest): Promise<ActionManagementResult> => {
+    if (request.operation.type === 'worktree-usage')
+      return { type: 'worktree-usage', worktrees: [] }
+    if (request.operation.type === 'worktree-removal-preview')
+      return {
+        type: 'worktree-removal-preview',
+        usage: { path: '/worktree', sessions: [], blockers: [] },
+        branch: 'feature',
+        unpublishedCommitCount: 0,
+      }
+    return respond(request)
+  }
+}
+
 it('shows retained cleanup recovery when Settings reopens without another removal attempt', async () => {
   const preparation = fromPartial<WorkspacePreparation>({
     workspaceId: 'workspace',
@@ -35,10 +60,12 @@ it('shows retained cleanup recovery when Settings reopens without another remova
     snapshot: { definitions: [] },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+        : { type: 'preparation', preparation },
+    ),
   )
   renderWithQueryClient(<WorktreesSection />)
   expect(await screen.findByRole('button', { name: 'Retry cleanup' })).toBeInTheDocument()
@@ -52,13 +79,15 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
     snapshot: { definitions: [] },
     cleanup: { status: 'succeeded', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? {
-          type: 'retained-preparation',
-          workspaces: [{ path: '/worktree', preparation, generationMismatch: true }],
-        }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? {
+            type: 'retained-preparation',
+            workspaces: [{ path: '/worktree', preparation, generationMismatch: true }],
+          }
+        : { type: 'preparation', preparation },
+    ),
   )
   mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
 
@@ -67,6 +96,7 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
   expect(screen.queryByRole('button', { name: 'Retry cleanup' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByText('Delete anyway…'))
   fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
+  await confirmRemoval()
   await waitFor(() =>
     expect(mocks.remove).toHaveBeenCalledWith('/project', {
       path: '/worktree',
@@ -82,21 +112,23 @@ it('shows why the Host could not match the checkout', async () => {
     snapshot: { definitions: [] },
     cleanup: { status: 'succeeded', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? {
-          type: 'retained-preparation',
-          workspaces: [
-            {
-              path: '/worktree',
-              preparation,
-              generationMismatch: true,
-              generationMismatchMessage:
-                'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /worktree. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
-            },
-          ],
-        }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? {
+            type: 'retained-preparation',
+            workspaces: [
+              {
+                path: '/worktree',
+                preparation,
+                generationMismatch: true,
+                generationMismatchMessage:
+                  'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /worktree. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
+              },
+            ],
+          }
+        : { type: 'preparation', preparation },
+    ),
   )
   mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
 
@@ -107,6 +139,7 @@ it('shows why the Host could not match the checkout', async () => {
   expect(screen.queryByRole('button', { name: 'Retry cleanup' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByText('Delete anyway…'))
   fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
+  await confirmRemoval()
   await waitFor(() =>
     expect(mocks.remove).toHaveBeenCalledWith('/project', {
       path: '/worktree',
@@ -122,10 +155,12 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
     snapshot: { definitions: [] },
     cleanup: { status: 'succeeded', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+        : { type: 'preparation', preparation },
+    ),
   )
   mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
 
@@ -135,6 +170,7 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
   fireEvent.click(screen.getByText('Force remove…'))
   expect(screen.getByText(/uncommitted changes or is locked/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+  await confirmRemoval('Force remove worktree')
   await waitFor(() =>
     expect(mocks.remove).toHaveBeenCalledWith('/project', {
       path: '/worktree',
@@ -145,7 +181,9 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
 })
 
 it('offers force removal when Git refuses a dirty worktree before cleanup starts', async () => {
-  mocks.manage.mockResolvedValue({ type: 'retained-preparation', workspaces: [] })
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async () => ({ type: 'retained-preparation', workspaces: [] })),
+  )
   mocks.remove
     .mockReset()
     .mockResolvedValueOnce({ ok: false, code: 'dirty-worktree', message: 'Worktree is dirty.' })
@@ -153,9 +191,11 @@ it('offers force removal when Git refuses a dirty worktree before cleanup starts
 
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+  await confirmRemoval()
   await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(1))
   fireEvent.click(screen.getByText('Force remove…'))
   fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+  await confirmRemoval('Force remove worktree')
   await waitFor(() =>
     expect(mocks.remove).toHaveBeenLastCalledWith('/project', {
       path: '/worktree',
@@ -181,10 +221,12 @@ it('leaves a failed or refused cleanup reason to the row instead of a brief toas
     snapshot: { definitions: [] },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+        : { type: 'preparation', preparation },
+    ),
   )
   mocks.remove.mockResolvedValue({
     ok: false,
@@ -194,6 +236,7 @@ it('leaves a failed or refused cleanup reason to the row instead of a brief toas
   })
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await confirmRemoval()
   await waitFor(() =>
     expect(useUIStore.getState().toastMessage).toBe(
       'The worktree was kept. The reason is shown under it.',
@@ -211,17 +254,20 @@ it('puts the full reason in the toast when the list cannot show it', async () =>
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
   let retainedCalls = 0
-  mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type !== 'retained-preparation') return { type: 'preparation', preparation }
-    retainedCalls += 1
-    if (retainedCalls > 1) throw new Error('Host unavailable')
-    return { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-  })
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) => {
+      if (operation.type !== 'retained-preparation') return { type: 'preparation', preparation }
+      retainedCalls += 1
+      if (retainedCalls > 1) throw new Error('Host unavailable')
+      return { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+    }),
+  )
   const message =
     'Workspace cleanup is failed. cleanup exited with code 1. The worktree was retained.'
   mocks.remove.mockResolvedValue({ ok: false, code: 'cleanup-failed', preparation, message })
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await confirmRemoval()
   await waitFor(() => expect(useUIStore.getState().toastMessage).toBe(message))
 })
 
@@ -233,10 +279,12 @@ it('names the reason when removal itself fails', async () => {
     snapshot: { definitions: [] },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
-  mocks.manage.mockImplementation(async ({ operation }) =>
-    operation.type === 'retained-preparation'
-      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-      : { type: 'preparation', preparation },
+  mocks.manage.mockImplementation(
+    withFreeWorktree(async ({ operation }) =>
+      operation.type === 'retained-preparation'
+        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+        : { type: 'preparation', preparation },
+    ),
   )
   mocks.remove.mockRejectedValue(
     new Error(
@@ -245,6 +293,7 @@ it('names the reason when removal itself fails', async () => {
   )
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
+  await confirmRemoval()
   await waitFor(() =>
     expect(useUIStore.getState().toastMessage).toBe(
       'Could not remove the worktree: This worktree cannot be checked against its saved preparation: /worktree could not be read (EACCES). Check that you can open this folder and the folders above it, then try again.',

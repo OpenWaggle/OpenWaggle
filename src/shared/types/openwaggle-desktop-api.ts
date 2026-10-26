@@ -1,3 +1,5 @@
+import type { UsageStatisticsEnvironmentBlock } from '../usage-statistics/enablement'
+
 /** Result of a user-attested desktop tools recovery (ADR 0049). */
 export type DesktopNativeRecoveryOutcome =
   | { readonly outcome: 'recovered' }
@@ -7,4 +9,6 @@ export type DesktopNativeRecoveryOutcome =
 export interface OpenWaggleDesktopApi {
   getDesktopNativeAdmissionIssue(): Promise<string | null>
   recoverDesktopNativeAdmission(): Promise<DesktopNativeRecoveryOutcome>
+  /** Why this GUI process never sends Usage statistics whatever the Setting says (#356). */
+  getUsageStatisticsBlock(): Promise<UsageStatisticsEnvironmentBlock | null>
 }

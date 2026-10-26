@@ -4,6 +4,7 @@ import { lstat, open, readdir, readFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { isEnoent } from '@shared/utils/node-error'
 import { safeStorage } from 'electron'
+import { CliError } from '../cli-error'
 
 const PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
 export const PROFILE_CREDENTIAL_FILE_MAX_BYTES = 1024
@@ -59,7 +60,16 @@ export async function readStoredProfileCredential(input: {
   readonly stateRoot: string
   readonly profileName: string
 }) {
-  const encrypted = await readFile(storedProfileCredentialPath(input.stateRoot, input.profileName))
+  const encrypted = await readFile(
+    storedProfileCredentialPath(input.stateRoot, input.profileName),
+  ).catch((cause: unknown) => {
+    if (!isEnoent(cause)) throw cause
+    throw new CliError(
+      'authentication',
+      `No stored credential for access profile ${JSON.stringify(input.profileName)}. Create or rotate the profile with --credential-store, or pass its credential with --profile-credential-file <path>.`,
+      { cause },
+    )
+  })
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
@@ -106,24 +116,51 @@ function ignoreMissingCredentialFile(error: unknown) {
   if (!isEnoent(error)) throw error
 }
 
+function removeProfileEntries(directory: string, profileIdentity: string, suffix = '') {
+  return readdir(directory)
+    .then((entries) =>
+      Promise.all(
+        entries
+          .filter((entry) => entry.startsWith(`${profileIdentity}.`) && entry.endsWith(suffix))
+          .map((entry) => unlink(path.join(directory, entry)).catch(ignoreMissingCredentialFile)),
+      ),
+    )
+    .catch(ignoreMissingCredentialFile)
+}
+
+/**
+ * Removes what a revoked profile leaves on this machine: its stored credential, its installation
+ * receipts, and the `.consumed` markers of its staged credentials (#351). A `.pending` credential
+ * stays: it is a recovery artifact the user may still need.
+ */
 export function removeStoredProfileCredential(input: {
   readonly stateRoot: string
   readonly profileName: string
 }) {
   const profileIdentity = createHash('sha256').update(input.profileName).digest('hex')
-  const receipts = path.join(input.stateRoot, 'profile-credential-receipts')
   return Promise.all([
-    unlink(storedProfileCredentialPath(input.stateRoot, input.profileName)).catch(
-      ignoreMissingCredentialFile,
+    removeStoredProfileCredentialCopy(input),
+    removeProfileEntries(
+      path.join(input.stateRoot, 'profile-credential-receipts'),
+      profileIdentity,
     ),
-    readdir(receipts)
-      .then((entries) =>
-        Promise.all(
-          entries
-            .filter((entry) => entry.startsWith(`${profileIdentity}.`))
-            .map((entry) => unlink(path.join(receipts, entry)).catch(ignoreMissingCredentialFile)),
-        ),
-      )
-      .catch(ignoreMissingCredentialFile),
+    removeProfileEntries(
+      path.join(input.stateRoot, 'profile-credential-staging'),
+      profileIdentity,
+      '.consumed',
+    ),
   ]).then(() => undefined)
+}
+
+/**
+ * Removes only the credential-store copy, as when a rotation moved the profile's credential to a
+ * file: the old copy would otherwise stay the default for `--profile` and fail (#351).
+ */
+export function removeStoredProfileCredentialCopy(input: {
+  readonly stateRoot: string
+  readonly profileName: string
+}) {
+  return unlink(storedProfileCredentialPath(input.stateRoot, input.profileName)).catch(
+    ignoreMissingCredentialFile,
+  )
 }

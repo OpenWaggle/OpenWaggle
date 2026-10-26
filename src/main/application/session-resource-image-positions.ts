@@ -1,6 +1,9 @@
 import type { Message } from '@shared/types/agent'
 import type { ToolCallResult } from '@shared/types/tools'
-import { toolResultOutputGroups } from './session-resource-capture-tool'
+import {
+  collectToolOutputGroupResources,
+  toolResultOutputGroups,
+} from './session-resource-capture-tool'
 import { collectExplicitResources } from './session-resource-extraction'
 
 type CollectedResources = ReturnType<typeof collectExplicitResources>
@@ -43,7 +46,7 @@ export function assistantMessageResourcePlan(message: Message) {
   for (const part of message.parts) {
     if (part.type === 'tool-result') {
       const groups = toolResultOutputGroups(part.toolResult).map((group) => {
-        const resources = collectExplicitResources(group.result)
+        const resources = collectToolOutputGroupResources(group)
         const positions = imageDisplayPositions(resources, nextOrder)
         nextOrder = positions.nextOrder
         return { label: group.label, resources, positions }

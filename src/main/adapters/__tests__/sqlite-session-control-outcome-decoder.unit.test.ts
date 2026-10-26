@@ -48,3 +48,23 @@ describe.each([
     expect(() => decodeStoredSessionControlMutationOutcome(JSON.stringify(fields))).toThrow()
   })
 })
+
+describe('historical queue-updated outcome decoding', () => {
+  it('reads the old followUpIds list as the remaining queue', () => {
+    const stored = {
+      operation: 'queue-withdraw',
+      effect: 'queue-updated',
+      sessionId: 'session',
+      queueState: 'paused',
+      queueRevision: 4,
+      followUpIds: ['kept'],
+      stateRevision: 9,
+    }
+    const { followUpIds: _legacy, ...rest } = stored
+
+    expect(decodeStoredSessionControlMutationOutcome(JSON.stringify(stored))).toEqual({
+      ...rest,
+      remainingFollowUpIds: ['kept'],
+    })
+  })
+})

@@ -15,7 +15,7 @@ From 1.0.0 on, version numbers follow semver for a defined set of covered surfac
 - Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool. An existing contract version keeps its meaning.
 - The Agent-definition schema. A definition that is valid in 1.0.0 stays valid in 1.x.
 - Scheduled tasks: the `openwaggle schedules` command, the `schedules:read` and `schedules:manage` capabilities, the `schedule_*` actions of the agent's `hive` tool, and Background start.
-- Supported platforms: macOS, Windows x64 and Linux x64.
+- Supported platforms: macOS 13.4 or later on Apple silicon and Intel, Windows 10 or later on x64, and Linux x64 with glibc 2.35 or later, such as Ubuntu 22.04, Debian 12 and Fedora 36. A minimum can rise in a minor version only once the OS vendor has ended support for that version, or when a supported Electron release requires it, and the release notes say so.
 
 The extension host contract follows the `@openwaggle/extension-sdk` package's own versions. Pi extensions, skills and prompts follow Pi's compatibility. UI layout, wording, default settings and keyboard shortcuts can change in any release. The full rules are in [Release, versioning and CI/CD](https://github.com/OpenWaggle/OpenWaggle/blob/main/docs/release-and-versioning.md#v1-compatibility-promise).
 
@@ -37,6 +37,7 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - Quitting the app never installs a downloaded update. An update installs only when you choose Restart to update, run `openwaggle update`, or run the install script.
 - If an update did not install, OpenWaggle tells you the next time it opens. On macOS, when OpenWaggle was still running during the install, the message says so and names the usual causes: reopening the app too soon, or an `openwaggle` command such as `openwaggle mcp serve`.
 - Updates download only the parts of the app that changed, after the first update following a manual install.
+- On Intel Macs, image processing, the clipboard and browser cookie import work. The 1.0.0 betas shipped only the Apple silicon builds of those components.
 - macOS builds are signed and notarized. The Dock icon now fits macOS's rounded-square shape instead of sitting on a grey tile.
 - The install script (`curl … | bash`) opens OpenWaggle when it finishes, unless you are on SSH, in CI, without a display, or pass `--no-launch`. Before it replaces an installed app, it asks about running agent work the same way Restart to update does.
 - `openwaggle update` never installs under an open app. With the app open, it tells you to use Restart to update instead.
@@ -132,6 +133,7 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ### Known limitations
 
+- System requirements: macOS 13.4, Windows 10 (x64) or Linux x64 with glibc 2.35. On macOS 12 through 13.3 OpenWaggle still opens and updates, but semantic Session search and voice input don't work there. The 1.0.0 beta builds for Linux needed glibc 2.38 for the terminal and Project Actions; 1.0.0 runs them on Ubuntu 22.04 and Debian 12.
 - Windows installers are not signed yet. Windows SmartScreen shows a warning the first time you install.
 - Linux AppImages are not signed.
 - 0.x macOS builds were unsigned, and macOS installs an update only when it is signed by the same team as the running app. If you are still on a 0.x build, install 1.0.0 by hand once, from GitHub Releases or with the install script. Updates after that install from the app.

@@ -6,10 +6,10 @@ import type { JsonValue } from '@shared/types/json'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
+import { assistantMessageProjection } from './assistant-message-projection'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
-  piAssistantContentToParts,
   piToolResultContentToPart,
   piUserContentToDisplayParts,
 } from './message-parts'
@@ -17,7 +17,6 @@ import { visibleWaggleUserMessageProjection } from './visible-waggle-user-messag
 
 type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
 type PiUserMessage = Extract<PiMessageEntry['message'], { role: 'user' }>
-type PiAssistantMessage = Extract<PiMessageEntry['message'], { role: 'assistant' }>
 type PiToolResultMessage = Extract<PiMessageEntry['message'], { role: 'toolResult' }>
 type PiBranchSummaryMessage = Extract<PiMessageEntry['message'], { role: 'branchSummary' }>
 type PiCompactionSummaryMessage = Extract<PiMessageEntry['message'], { role: 'compactionSummary' }>
@@ -68,25 +67,6 @@ function userMessageProjection(
       null,
     ),
     metadataJson: '{}',
-  }
-}
-
-function assistantMessageProjection(value: PiAssistantMessage): PiEntryProjection {
-  return {
-    kind: 'assistant_message',
-    role: 'assistant',
-    contentJson: buildMessageNodeContentJson(
-      piAssistantContentToParts(value.content),
-      createModelRef(value.provider, value.model),
-    ),
-    metadataJson: buildRawNodeContentJson({
-      api: value.api,
-      provider: value.provider,
-      model: value.model,
-      usage: toJsonValue(value.usage),
-      stopReason: value.stopReason,
-      errorMessage: value.errorMessage ?? null,
-    }),
   }
 }
 

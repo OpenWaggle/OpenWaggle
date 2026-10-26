@@ -5,6 +5,7 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
+import type { TSchema } from 'typebox'
 import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
@@ -12,12 +13,11 @@ import { executeSessionToolCommand } from '../../session-host/session-tool-gatew
 import { describeError } from '../../utils/describe-error'
 import { assertFilesystemWriteScope } from '../../utils/filesystem-write-scope'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
-import { sessionsToolSchemaForCapabilities } from './sessions-tool-capability-schema'
 import {
-  assertSessionsToolActionArguments,
-  flattenSessionsToolParameters,
-  sessionsToolParameterVariants,
-} from './sessions-tool-flat-schema'
+  assertSessionsToolActionPermitted,
+  sessionsToolSchemaForGrant,
+} from './sessions-tool-capability-schema'
+import { assertSessionsToolActionArguments } from './sessions-tool-flat-schema'
 import { sessionsToolPromptGuidelines } from './sessions-tool-guidelines'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
@@ -228,7 +228,7 @@ function sendSessionsToolCommand(
 }
 
 async function executeSessionsToolCall(
-  rawParams: SessionsToolParameters,
+  rawParams: unknown,
   input: SessionsToolExtensionInput,
   ctx: ExtensionContext,
   toolCallId: string,
@@ -276,21 +276,29 @@ function failedToolResult(error: unknown) {
 }
 
 export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
+  const grant = {
+    capabilities: input.sessionCapabilities,
+    modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
+  }
   return (pi) => {
-    pi.registerTool<ReturnType<typeof flattenSessionsToolParameters>, unknown>({
+    // Typed as a plain schema: arguments stay unknown until assertSessionsToolActionArguments.
+    pi.registerTool<TSchema, unknown>({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
       description:
         'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends.',
       promptSnippet:
         'Use hive to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
-      promptGuidelines: sessionsToolPromptGuidelines(input.sessionCapabilities),
-      parameters: input.sessionCapabilities
-        ? sessionsToolSchemaForCapabilities({
-            capabilities: input.sessionCapabilities,
-            modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
-          })
-        : flattenSessionsToolParameters(sessionsToolParameterVariants),
+      promptGuidelines: sessionsToolPromptGuidelines(
+        input.sessionCapabilities,
+        grant.modelMultiAgentEnabled,
+      ),
+      parameters: sessionsToolSchemaForGrant(grant),
+      // Runs before schema validation, so an action outside the grant is refused by name.
+      prepareArguments: (args) => {
+        assertSessionsToolActionPermitted(args, grant)
+        return args
+      },
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
         try {

@@ -54,6 +54,8 @@ export interface SessionQuerySummary {
   readonly lineageRole: SessionLineageRole
   readonly parentSessionId?: string
   readonly hiveRootSessionId?: string
+  /** Spawn depth in the Hive: 0 for a root Session. Absent for historical lineage. */
+  readonly depth?: number
   readonly directWorkerCount: number
   readonly agentDefinitionName?: string
   readonly delegationId?: string

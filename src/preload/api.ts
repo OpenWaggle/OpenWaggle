@@ -314,6 +314,7 @@ export const api: OpenWaggleApi = {
   getUpdateStatus: invoke('updater:get-status'),
   getAppVersion: invoke('app:get-version'),
   getDesktopNativeAdmissionIssue: invoke('app:get-native-admission-issue'),
+  getUsageStatisticsBlock: invoke('app:get-usage-statistics-block'),
   recoverDesktopNativeAdmission: invoke('app:recover-native-admission'),
   onUpdateStatus: on('updater:status-changed'),
 }

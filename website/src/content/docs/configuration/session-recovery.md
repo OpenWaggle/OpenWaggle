@@ -17,6 +17,8 @@ Start with the problem you can see. Read the error or pending request before ret
 
 **Configured outside OpenWaggle** means credentials were found through environment variables, cloud credentials, or custom provider configuration. You do not need to paste another key just to change this status. For a project-specific provider, check that the intended project is selected.
 
+If a run ends with **Provider credentials expired**, renew them and send your message again. For Amazon Bedrock with an AWS SSO profile, run `aws sso login` for that profile. For a provider you signed in to through the browser, sign in again in **Settings > Connections**. OpenWaggle makes an Amazon Bedrock request that failed on expired credentials once more after two seconds before it ends the run, so a token that another request refreshed in the meantime still works.
+
 If the provider is connected but the request fails, read the error for account access, billing, quota, rate limits, or network problems. A successful login does not grant access to every model. See [Providers and models](/docs/providers/overview), [API key authentication](/docs/providers/api-key-auth), or [Browser sign-in](/docs/providers/oauth-auth).
 
 ## A session is waiting instead of answering
@@ -86,6 +88,8 @@ openwaggle recovery status --json
 
 The result shows the active database and recovery-copy paths, sizes, timestamps, and whether the active schema is compatible. Inspecting status does not start another database owner. A fresh installation may have no pre-upgrade recovery copy.
 
+`legacy` lists old database files left at the top of the application-data directory: `openwaggle.db` and `session-host.sqlite`. Current versions do not write either. A file with `"empty": true` is 0 bytes and holds nothing; restoration and the upgrade treat it as absent. A file with data at `openwaggle.db` blocks restoration until you move it aside.
+
 Save the result and back up important work before deciding to restore. The database recovery copy is not a backup of your Git checkout or worktrees.
 
 ## Restore explicitly
@@ -100,7 +104,7 @@ openwaggle recovery restore-pre-cutover --yes --json
 
 The command requires exclusive database ownership. If it reports an ownership conflict, stop the remaining OpenWaggle work or clients before retrying. Do not delete lock or ownership files to force access.
 
-Before replacement, OpenWaggle preserves the current active database as a timestamped artifact. It then migrates the recovery copy again. If restoration fails, it puts the current active database back.
+Before replacement, OpenWaggle preserves the current active database as a timestamped artifact. An empty `openwaggle.db` in the way is removed first. It then migrates the recovery copy again. If restoration fails, it puts the current active database back.
 
 Sessions and changes created after the original migration are not present in the restored history. OpenWaggle never performs this restoration automatically after a crash, failed agent request, or validation error.
 
@@ -124,10 +128,10 @@ Search by meaning needs an additional background index. It can report `preparing
 
 ## Command errors
 
-With `--json`, failures write this shape to standard error:
+With `--json`, results use the same envelope as the [Hive CLI](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes), `{"schemaVersion":1,"type":"response","command":"recovery status","result":...}` on standard output, and failures write this shape to standard error:
 
 ```json
-{"schemaVersion":1,"error":{"message":"..."}}
+{"schemaVersion":1,"type":"error","error":{"kind":"usage","message":"..."}}
 ```
 
-This includes invalid options, missing `--yes`, ownership conflicts, and filesystem or migration errors. Usage errors exit with code `2`; other failures exit with code `1`. Read the message before retrying, especially when it names a database or recovery path.
+This includes invalid options, missing `--yes`, ownership conflicts, and filesystem or migration errors. Without `--json`, a failure prints `error [<kind>]: <message>`. Usage errors, including a missing `--yes`, exit with code `2`; other failures exit with the code of their kind, `1` for most. Read the message before retrying, especially when it names a database or recovery path.

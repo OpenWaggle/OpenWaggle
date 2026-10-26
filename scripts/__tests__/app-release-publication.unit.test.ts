@@ -15,6 +15,34 @@ describe('desktop app release publication', () => {
     expect(WORKFLOW).toContain(
       "make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}",
     )
+    expect(WORKFLOW).toContain(
+      "RELEASE_LATEST: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}",
+    )
+  })
+
+  it('uploads to a draft, verifies it, and only then publishes', () => {
+    const steps = [
+      '- name: Find an already published release',
+      '- name: Upload GitHub Release as a draft',
+      '- name: Verify draft release assets',
+      '- name: Publish GitHub Release',
+      '- name: Verify published release assets',
+    ].map((step) => WORKFLOW.indexOf(step))
+    expect(steps.every((index) => index > 0)).toBe(true)
+    expect([...steps].sort((left, right) => left - right)).toEqual(steps)
+    const upload = WORKFLOW.slice(steps[1], steps[2])
+    expect(upload).toContain('draft: true')
+    expect(WORKFLOW).not.toContain('draft: false')
+    expect(WORKFLOW.slice(steps[2], steps[3])).toContain('scripts/verify-release-assets.ts')
+    expect(WORKFLOW.slice(steps[3], steps[4])).toContain(
+      'gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false',
+    )
+    expect(WORKFLOW.slice(steps[3], steps[4])).toContain('--latest="$RELEASE_LATEST"')
+    expect(WORKFLOW.slice(steps[4])).toContain('--dir release --published')
+    // A rerun after publication only verifies; it never re-uploads over a published release.
+    for (const step of [upload, WORKFLOW.slice(steps[2], steps[3]), WORKFLOW.slice(steps[3], steps[4])]) {
+      expect(step).toContain("if: steps.existing-release.outputs.published != 'true'")
+    }
   })
 
   it('guards every Stable version before a release PR exists and again before tagging', () => {
@@ -39,6 +67,18 @@ describe('desktop app release publication', () => {
       "generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}",
     )
     expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
+  })
+
+  it('verifies that both DMGs are signed, notarized and stapled, not only the apps', () => {
+    const verify = WORKFLOW.slice(
+      WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
+      WORKFLOW.indexOf('name: Prepare macOS update channels'),
+    )
+    expect(verify).toContain('dmgs=(dist/*.dmg)')
+    expect(verify).toContain('[ "${#dmgs[@]}" -eq 2 ]')
+    expect(verify).toContain('codesign --verify --strict --verbose=2 "$dmg"')
+    expect(verify).toContain('xcrun stapler validate "$dmg"')
+    expect(verify).toContain('spctl --assess --type open --context context:primary-signature --verbose "$dmg"')
   })
 
   it('refuses to build unsigned release candidate or Stable macOS artifacts', () => {

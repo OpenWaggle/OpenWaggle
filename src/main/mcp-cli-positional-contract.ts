@@ -6,7 +6,7 @@ const COMMAND_ARGUMENTS: Readonly<
     { readonly minimum: number; readonly maximum: number; readonly allowPassthrough?: boolean }
   >
 > = {
-  help: { minimum: 0, maximum: 0 },
+  help: { minimum: 0, maximum: 1 },
   serve: { minimum: 0, maximum: 0 },
 }
 
