@@ -51,6 +51,7 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   ],
   spawn: [
     ...MESSAGE_INPUT_OPTIONS,
+    'title',
     'attach',
     'expected-run',
     'workspace',
@@ -105,7 +106,7 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'reply-to',
     ...IDEMPOTENCY,
   ],
-  list: ['project', 'all', 'archived', 'limit', 'cursor'],
+  list: ['project', 'all', 'parent', 'archived', 'limit', 'cursor'],
   search: [
     'project',
     'all',

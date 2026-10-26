@@ -86,6 +86,7 @@ const sessionQuerySchema = Schema.Union(
       ),
     ),
     workingPath: Schema.optional(pathValue),
+    parentSessionId: Schema.optional(sessionInputIdSchema),
     searchText: Schema.optional(searchText),
   }),
   Schema.Struct({

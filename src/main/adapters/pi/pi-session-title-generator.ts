@@ -23,6 +23,7 @@ import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
 import { loadWithProjectExtensions } from './pi-project-runtime-load'
 import { createPiRuntimeServices } from './pi-provider-catalog'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
+import { isTitleModelRefusal, TitleModelRefusals } from './pi-title-model-refusals'
 
 const logger = createLogger('pi-session-title-generator')
 
@@ -152,18 +153,36 @@ type TitleModelRuntime = (projectPath: string | null) => Promise<TitleModelRegis
 async function generateTitle(
   request: SessionTitleGenerationRequest,
   modelRuntime: TitleModelRuntime,
+  refusals: TitleModelRefusals,
 ) {
   const registry = await modelRuntime(request.projectPath)
   try {
-    return await requestFromCandidates(registry.modelRuntime, request)
+    return await requestFromCandidates(registry.modelRuntime, request, refusals)
   } finally {
     registry.release()
   }
 }
 
+/**
+ * The candidates a request tries. Background requests skip a model its provider refused a short
+ * while ago, unless it is the only one; a person asking for a title tries it again.
+ */
+function unpausedCandidates(
+  candidates: readonly PiModel[],
+  request: SessionTitleGenerationRequest,
+  refusals: TitleModelRefusals,
+) {
+  if (request.retryRefusedModels) return candidates
+  const unpaused = candidates.filter(
+    (model) => !refusals.isPaused(createModelRef(model.provider, model.id)),
+  )
+  return unpaused.length > 0 ? unpaused : candidates.slice(-1)
+}
+
 async function requestFromCandidates(
   runtime: ModelRuntime,
   request: SessionTitleGenerationRequest,
+  refusals: TitleModelRefusals,
 ) {
   const candidates = await candidateModels(runtime, request)
   if (candidates.length === 0) {
@@ -173,18 +192,18 @@ async function requestFromCandidates(
     })
   }
   let lastError: unknown
-  for (const model of candidates) {
+  for (const model of unpausedCandidates(candidates, request, refusals)) {
+    const modelRef = createModelRef(model.provider, model.id)
     try {
       const text = await requestTitle(runtime, model, request)
-      if (text)
-        return { text, modelRef: SupportedModelId(createModelRef(model.provider, model.id)) }
+      refusals.clear(modelRef)
+      if (text) return { text, modelRef: SupportedModelId(modelRef) }
       lastError = new Error('The Title model returned an empty reply.')
     } catch (error) {
       lastError = error
-      logger.warn('Title model request failed', {
-        model: createModelRef(model.provider, model.id),
-        error: error instanceof Error ? error.message : String(error),
-      })
+      const message = error instanceof Error ? error.message : String(error)
+      logger.warn('Title model request failed', { model: modelRef, error: message })
+      if (isTitleModelRefusal(message)) refusals.record(modelRef, message)
     }
   }
   throw new SessionTitleGenerationError({
@@ -194,11 +213,18 @@ async function requestFromCandidates(
   })
 }
 
-export function createPiSessionTitleGenerator(deps: { readonly modelRuntime: TitleModelRuntime }) {
+/** One per Host, so every Session's background titles skip a model its provider refused. */
+const hostTitleModelRefusals = new TitleModelRefusals()
+
+export function createPiSessionTitleGenerator(deps: {
+  readonly modelRuntime: TitleModelRuntime
+  readonly refusals?: TitleModelRefusals
+}) {
+  const refusals = deps.refusals ?? hostTitleModelRefusals
   return SessionTitleGenerator.of({
     generate: (request) =>
       Effect.tryPromise({
-        try: () => generateTitle(request, deps.modelRuntime),
+        try: () => generateTitle(request, deps.modelRuntime, refusals),
         catch: (cause) =>
           cause instanceof SessionTitleGenerationError
             ? cause

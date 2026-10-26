@@ -1,8 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { InlineVisualizationContext } from '@shared/types/agent'
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { WaggleInvocation } from '@shared/types/waggle'
-import { type FollowUpQueue, type FollowUpQueueItem, mutateFollowUpQueue } from './follow-up-queue'
+import {
+  type FollowUpQueue,
+  type FollowUpQueueItem,
+  mutateFollowUpQueue,
+  queuedFollowUpQueueState,
+} from './follow-up-queue'
 import { planMessageSubmission, type SessionRunAvailability } from './message-submission'
 import {
   type RunStartSettings,
@@ -117,6 +123,8 @@ export type AdaptiveMessageOutcome =
       readonly effect: 'queued-follow-up'
       readonly sessionId: SessionId
       readonly followUpId: FollowUpId
+      readonly queueState: 'running' | 'paused'
+      readonly pauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly stateRevision: number
     }
@@ -228,6 +236,7 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
           effect: 'queued-follow-up',
           sessionId: input.state.sessionId,
           followUpId: input.identities.followUpId,
+          ...queuedFollowUpQueueState(queueResult.queue),
           queueRevision: queueResult.queue.revision,
           stateRevision: nextRevision,
         },

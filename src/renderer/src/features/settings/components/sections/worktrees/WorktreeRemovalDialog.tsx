@@ -1,0 +1,149 @@
+import type { RepositoryPath } from '@shared/types/brand'
+import type { WorktreeRemovalPreview } from '@shared/types/worktree-usage'
+import { queryOptions, useQuery } from '@tanstack/react-query'
+import { useId } from 'react'
+import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { Button } from '@/shared/ui/Button'
+import { ModalDialog } from '@/shared/ui/ModalDialog'
+import { Spinner } from '@/shared/ui/Spinner'
+
+/** One requested removal: the plain Remove, Delete anyway (skip cleanup), or Force remove. */
+export interface WorktreeRemovalRequest {
+  readonly path: string
+  readonly skipCleanup: boolean
+  readonly force: boolean
+}
+
+async function readRemovalPreview(
+  repositoryPath: RepositoryPath,
+  worktreePath: string,
+): Promise<WorktreeRemovalPreview> {
+  const result = await api.manageProjectActions({
+    scope: { projectPath: repositoryPath },
+    operation: { type: 'worktree-removal-preview', path: worktreePath },
+  })
+  if (result.type !== 'worktree-removal-preview') {
+    throw new Error('Unexpected worktree removal preview.')
+  }
+  return result
+}
+
+function removalPreviewQueryOptions(repositoryPath: RepositoryPath, worktreePath: string) {
+  return queryOptions({
+    queryKey: ['worktree-removal-preview', repositoryPath, worktreePath],
+    queryFn: () => readRemovalPreview(repositoryPath, worktreePath),
+    // Always read fresh: the confirmation is only as good as its newest facts.
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  })
+}
+
+function removalTitle(request: WorktreeRemovalRequest) {
+  if (request.force) return 'Force remove this worktree?'
+  if (request.skipCleanup) return 'Delete this worktree without its cleanup?'
+  return 'Remove this worktree?'
+}
+
+function removalConsequence(request: WorktreeRemovalRequest) {
+  if (request.force)
+    return 'Its folder is deleted even if it has uncommitted changes or is locked, and workspace cleanup is skipped. This cannot be undone.'
+  if (request.skipCleanup)
+    return 'Its folder is deleted without running the workspace cleanup. This cannot be undone.'
+  return 'Its folder is deleted. Git refuses if it has uncommitted changes. The branch is kept.'
+}
+
+function unpublishedWarning(preview: WorktreeRemovalPreview) {
+  const count = preview.unpublishedCommitCount
+  if (count === null)
+    return 'OpenWaggle could not check whether this branch has commits that are not on a remote.'
+  if (count === 0) return null
+  const commits = count === 1 ? '1 commit that is' : `${String(count)} commits that are`
+  if (preview.branch === null)
+    return `The detached HEAD has ${commits} not on any remote. With no branch, that work may be lost once the worktree is gone; create a branch for it first.`
+  return `${preview.branch} has ${commits} not on any remote. The branch is kept, but push it first if you need that work elsewhere.`
+}
+
+function PreviewDetails({ preview }: { readonly preview: WorktreeRemovalPreview }) {
+  const warning = unpublishedWarning(preview)
+  const owners = preview.usage.sessions.filter((session) => session.owner)
+  return (
+    <div className="mt-3 space-y-2 text-xs leading-5">
+      <p className="text-text-secondary">Branch: {preview.branch ?? 'detached'}</p>
+      {owners.map((session) => (
+        <p key={session.sessionId} className="text-text-secondary">
+          Session: {session.title}
+          {session.archived ? ' (archived)' : ''}
+        </p>
+      ))}
+      {warning ? (
+        <p role="alert" className="text-warning">
+          {warning}
+        </p>
+      ) : null}
+      {preview.usage.blockers.length > 0 ? (
+        <div role="alert" className="text-error-text">
+          <p>It cannot be removed now:</p>
+          <ul className="list-disc pl-4">
+            {preview.usage.blockers.map((blocker) => (
+              <li key={blocker.kind}>{blocker.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * Confirms a worktree removal with what it would lose (issue #353). The Host checks again
+ * when it removes, so the confirmation can only be stricter than the removal, never looser.
+ */
+export function WorktreeRemovalDialog(props: {
+  readonly repositoryPath: RepositoryPath
+  readonly request: WorktreeRemovalRequest
+  readonly onConfirm: (request: WorktreeRemovalRequest) => void
+  readonly onClose: () => void
+}) {
+  const titleId = useId()
+  const preview = useQuery(removalPreviewQueryOptions(props.repositoryPath, props.request.path))
+  const blocked = preview.data === undefined || preview.data.usage.blockers.length > 0
+  return (
+    <ModalDialog labelledBy={titleId} onClose={props.onClose}>
+      <div className="p-5">
+        <h2 id={titleId} className="text-sm font-semibold text-text-primary">
+          {removalTitle(props.request)}
+        </h2>
+        <p className="mt-2 font-mono text-xs break-all text-text-primary">{props.request.path}</p>
+        <p className="mt-2 text-xs leading-5 text-text-secondary">
+          {removalConsequence(props.request)}
+        </p>
+        {preview.isPending ? (
+          <p className="mt-3 flex items-center gap-2 text-xs text-text-tertiary">
+            <Spinner size="sm" /> Checking the worktree…
+          </p>
+        ) : preview.isError ? (
+          <p role="alert" className="mt-3 text-xs text-error-text">
+            Could not check this worktree: {ipcErrorMessage(preview.error)}
+          </p>
+        ) : (
+          <PreviewDetails preview={preview.data} />
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={blocked}
+            onClick={() => props.onConfirm(props.request)}
+          >
+            {props.request.force ? 'Force remove worktree' : 'Remove worktree'}
+          </Button>
+        </div>
+      </div>
+    </ModalDialog>
+  )
+}

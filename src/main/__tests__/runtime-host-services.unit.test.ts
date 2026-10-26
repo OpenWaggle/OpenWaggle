@@ -42,6 +42,9 @@ vi.mock('../application/extension-trusted-main-activation-service', () => ({
   activateTrustedMainExtensionsForActiveProjectSafely: () => recorded('trusted extensions'),
 }))
 
+vi.mock('../adapters/sqlite-wal-checkpoint-background', () => ({
+  runWalCheckpointBackground: () => recorded('wal checkpoints'),
+}))
 vi.mock('../adapters/sqlite-legacy-provider-rename-migration', () => ({
   migrateLegacyProviderReferences: recorded('provider references'),
 }))
@@ -96,6 +99,8 @@ describe('Host background services', () => {
     expect(started.indexOf('scheduled tasks')).toBeGreaterThan(started.indexOf('tool gateway'))
     // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0051).
     expect(started).toContain('pi session discovery')
+    // WAL checkpoints leave the Host's event loop before any service writes (#357).
+    expect(started[0]).toBe('wal checkpoints')
     // Old MCP sign-ins read the keychain, which can stall for minutes: not part of Host start.
     expect(started).not.toContain('mcp sign-ins')
   })

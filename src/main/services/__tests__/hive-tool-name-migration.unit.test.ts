@@ -175,7 +175,9 @@ describe('Hive tool name migration (ADR 0053)', () => {
   })
 
   it('is a migration this binary supports', () => {
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(HIVE_TOOL_NAME_MIGRATION.id)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      HIVE_TOOL_NAME_MIGRATION.id,
+    )
     expect(HIVE_TOOL_NAME_MIGRATION.name).toBe('hive-tool-name')
   })
 })

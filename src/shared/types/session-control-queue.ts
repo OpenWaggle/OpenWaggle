@@ -182,7 +182,10 @@ export type SessionControlQueueOutcome =
       readonly sessionId: string
       readonly queueState: 'running' | 'paused'
       readonly queueRevision: number
-      readonly followUpIds: readonly string[]
+      /** The Follow-ups still queued after the change, in delivery order. */
+      readonly remainingFollowUpIds: readonly string[]
+      /** `queue-withdraw` only: the Follow-ups this call removed. */
+      readonly withdrawnFollowUpIds?: readonly string[]
       readonly stateRevision: number
     }
   | {
@@ -201,6 +204,8 @@ export type SessionControlQueueOutcome =
       readonly sessionId: string
       readonly runId: string
       readonly followUpId: string
+      /** `queue-withdraw` only: the Follow-ups this call removed. */
+      readonly withdrawnFollowUpIds?: readonly string[]
       readonly queueRevision: number
       readonly stateRevision: number
     }

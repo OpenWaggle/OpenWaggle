@@ -53,6 +53,30 @@ describe('SQLite Session lifecycle title persistence', () => {
     ])
   })
 
+  it('keeps a title given to spawn as a manual Worker title', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-lifecycle-title-'))
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'spawn-titled.sqlite'))
+    const input = spawnLifecycleInput(4)
+    const rows = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({
+          ...input,
+          request: {
+            ...input.request,
+            command: { ...input.request.command, title: '  Review PR 352  ' },
+          },
+        })
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly title: string; readonly title_source: string }>`
+          SELECT title, title_source FROM sessions WHERE id = ${'session-worker'}
+        `
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(rows).toEqual([{ title: 'Review PR 352', title_source: 'manual' }])
+  })
+
   it('records an explicit title as manual and an untitled root as default', async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-lifecycle-title-'))
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'sources.sqlite'))

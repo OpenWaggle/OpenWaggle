@@ -31,7 +31,7 @@ import { SessionReportDeliveryService } from '../../ports/session-report-deliver
 import { SessionReportRepository } from '../../ports/session-report-repository'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
 import { activeRuns, hasAnyActiveRun } from '../active-session-runs'
-import { makeHiveWorkerCleanupLayer } from '../hive-worker-cleanup-service'
+import { makeHiveWorkerCleanupLayer } from '../hive-worker-cleanup-layer'
 import { executeSessionControlMutation } from '../session-control-command-service'
 import { startSessionRun } from '../session-control-service'
 import { executeSessionDelegationMutation } from '../session-delegation-service'

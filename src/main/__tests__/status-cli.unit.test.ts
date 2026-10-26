@@ -1,6 +1,7 @@
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import type { ScheduledTask } from '@shared/types/scheduled-task'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +18,7 @@ vi.mock('../session-host/local-session-client', async () => ({
 
 const { formatDuration, formatStatusReport, mapWithConcurrency, readStatusReport, runStatusCli } =
   await import('../status-cli')
+const { cliWallClockTime } = await import('../cli-wall-clock-time')
 const { LocalSessionHostUpgradePendingError } = await import(
   '../session-host/local-session-client-connection'
 )
@@ -242,6 +244,50 @@ describe('openwaggle status', () => {
     expect(text.split('\n').filter((line) => line.startsWith('Active runs'))).toEqual([
       'Active runs: 1',
     ])
+  })
+
+  it('shows when each enabled Scheduled task fires next, with its offset and jitter', async () => {
+    const daily: ScheduledTask['schedule'] = { kind: 'daily', at: '10:00' }
+    const tasks = [
+      { id: 't-daily', name: 'Triage', schedule: daily },
+      { id: 't-often', name: 'CI', schedule: { kind: 'interval' as const, everyMinutes: 15 } },
+      { id: 't-off', name: 'Off', enabled: false, schedule: daily },
+    ].map((task) =>
+      fromPartial<ScheduledTask>({
+        kind: 'heartbeat',
+        enabled: true,
+        timeZone: 'UTC',
+        endsAt: null,
+        nextRunAt: Date.UTC(2026, 9, 26, 8, 58, 59),
+        nextNominalAt: Date.UTC(2026, 9, 26, 9, 0),
+        createdAt: 0,
+        ...task,
+      }),
+    )
+    const report = await readStatusReport(
+      noArguments,
+      dependencies({
+        snapshotActiveRuns: async () => [],
+        listScheduledTasks: async () =>
+          fromPartial({
+            contract: 'scheduled-tasks-v1',
+            response: { outcome: { effect: 'listed', tasks } },
+          }),
+      }),
+    )
+
+    expect('scheduledTasks' in report && report.scheduledTasks).toEqual([
+      expect.objectContaining({ id: 't-daily', jittered: true }),
+      expect.objectContaining({ id: 't-often', jittered: false }),
+    ])
+    const lines = formatStatusReport(report, NOW).split('\n')
+    // The machine's zone, with seconds and UTC offset: `2026-10-26 09:58:59 +01:00 Europe/Madrid`.
+    const next = cliWallClockTime(Date.UTC(2026, 9, 26, 8, 58, 59))
+    expect(next).toMatch(/^2026-10-2\d \d\d:\d\d:59 [+-]\d\d:\d\d \S+$/)
+    expect(lines.find((line) => line.includes('t-daily'))?.endsWith(`next ${next} (±5 min))`)).toBe(
+      true,
+    )
+    expect(lines.find((line) => line.includes('t-often'))?.endsWith(`next ${next})`)).toBe(true)
   })
 
   it('formats elapsed time compactly', () => {

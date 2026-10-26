@@ -1,3 +1,7 @@
+import {
+  isTaskScheduleJittered,
+  SCHEDULED_TASK_JITTER_TEXT,
+} from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
   ScheduledTask,
   ScheduledTaskRun,
@@ -40,45 +44,78 @@ function taskTarget(task: ScheduledTask) {
     : `Launch schedule in ${task.target.projectPath} (${task.target.workspace})`
 }
 
-function taskLine(task: ScheduledTask) {
+/** Hourly-or-slower tasks fire within ±5 minutes of their time (ADR 0057). */
+function nextRun(task: ScheduledTask) {
+  const jitter =
+    task.nextRunAt !== null && isTaskScheduleJittered(task)
+      ? ` (${SCHEDULED_TASK_JITTER_TEXT})`
+      : ''
+  return `next ${time(task.nextRunAt, task.timeZone)}${jitter}`
+}
+
+/** When a run fired and why: `schedule`, `catch-up`, or `run-now`, which fires at no set time. */
+function runFiring(run: ScheduledTaskRun, timeZone: string | undefined) {
+  return `${time(run.firedAt, timeZone)} ${run.trigger} ${run.status}`
+}
+
+function taskLine(task: ScheduledTask, options: { readonly lastRun: boolean }) {
   const state = task.attention ? 'needs attention' : task.enabled ? 'on' : 'paused'
   const waiting = task.waitingSince !== null ? ' · waiting for its Session' : ''
-  return `${task.id}  ${task.name}  [${state}]  ${describeTaskSchedule(task.schedule)} (${task.timeZone})  next ${time(task.nextRunAt, task.timeZone)}${waiting}`
+  const last =
+    options.lastRun && task.lastRun ? `  last ${runFiring(task.lastRun, task.timeZone)}` : ''
+  return `${task.id}  ${task.name}  [${state}]  ${describeTaskSchedule(task.schedule)} (${task.timeZone})  ${nextRun(task)}${waiting}${last}`
+}
+
+function lastRunLine(task: ScheduledTask) {
+  const run = task.lastRun
+  if (!run) return '  Last run: none'
+  const session = run.sessionId ? ` → ${run.sessionId}` : ''
+  return `  Last run: ${runFiring(run, task.timeZone)}${session}`
 }
 
 function taskDetails(task: ScheduledTask) {
   return [
-    taskLine(task),
+    taskLine(task, { lastRun: false }),
     `  ${taskTarget(task)}`,
     `  Created by ${task.creator.label}; ${String(task.runCount)} run(s); notifies ${task.notificationPolicy}`,
+    lastRunLine(task),
     ...(task.attention ? [`  Attention: ${task.attention.message}`] : []),
     `  Prompt: ${task.prompt.split('\n')[0] ?? ''}`,
   ].join('\n')
 }
 
-function runLine(run: ScheduledTaskRun) {
+function runLine(run: ScheduledTaskRun, timeZone?: string) {
   const detail = run.reason ? ` (${run.reason}${run.message ? `: ${run.message}` : ''})` : ''
   const session = run.sessionId ? ` → ${run.sessionId}` : ''
   const missed = run.missedCount > 0 ? ` +${String(run.missedCount)} missed` : ''
-  return `${time(run.firedAt)}  ${run.trigger}${missed}  ${run.status}${detail}${session}`
+  return `${time(run.firedAt, timeZone)}  ${run.trigger}${missed}  ${run.status}${detail}${session}`
 }
 
-function humanResponse(response: ScheduledTasksResponse) {
+/**
+ * The human-readable text of one `openwaggle schedules` response. `runsTimeZone` is the zone a
+ * run page is shown in, which the page itself does not name; the machine's by default.
+ */
+export function formatSchedulesCliResponse(
+  response: ScheduledTasksResponse,
+  runsTimeZone?: string,
+) {
   const outcome = response.outcome
   if (outcome.effect === 'listed') {
     return outcome.tasks.length === 0
       ? 'No Scheduled tasks.'
-      : outcome.tasks.map(taskLine).join('\n')
+      : outcome.tasks.map((task) => taskLine(task, { lastRun: true })).join('\n')
   }
   if (outcome.effect === 'read') {
     const runs =
       outcome.runs.length === 0
         ? ['  No runs yet.']
-        : outcome.runs.map((run) => `  ${runLine(run)}`)
+        : outcome.runs.map((run) => `  ${runLine(run, outcome.task.timeZone)}`)
     return [taskDetails(outcome.task), 'Runs:', ...runs].join('\n')
   }
   if (outcome.effect === 'runs-listed') {
-    return outcome.runs.length === 0 ? 'No runs.' : outcome.runs.map(runLine).join('\n')
+    return outcome.runs.length === 0
+      ? 'No runs.'
+      : outcome.runs.map((run) => runLine(run, runsTimeZone)).join('\n')
   }
   if (outcome.effect === 'created') return `Created ${taskDetails(outcome.task)}`
   if (outcome.effect === 'updated') return `Updated ${taskDetails(outcome.task)}`
@@ -107,6 +144,7 @@ export function writeSchedulesCliResponses(
   command: string,
   responses: readonly ScheduledTasksResponse[],
   json: boolean,
+  runsTimeZone?: string,
 ) {
   if (command === 'export') {
     const exported = responses.flatMap(exportedTasks)
@@ -123,6 +161,6 @@ export function writeSchedulesCliResponses(
         null,
         JSON_INDENT_SPACES,
       )
-    : responses.map(humanResponse).join('\n')
+    : responses.map((response) => formatSchedulesCliResponse(response, runsTimeZone)).join('\n')
   return writeCliStdout(`${output}\n`)
 }
