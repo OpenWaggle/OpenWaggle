@@ -63,8 +63,12 @@ function listPayload(
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
         ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
-        ...(hasFlag(arguments_, 'archived') ? { archived: true } : {}),
+        // Like search, list leaves archived Sessions out; --archived lists only those.
+        archived: hasFlag(arguments_, 'archived'),
         ...catalogPathScope(arguments_, workingDirectory),
+        ...(option(arguments_, 'parent')
+          ? { parentSessionId: requiredSessionId(option(arguments_, 'parent'), '--parent') }
+          : {}),
       },
     },
   }

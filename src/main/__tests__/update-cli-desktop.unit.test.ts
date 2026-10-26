@@ -54,6 +54,7 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: false,
     getAppPath: () => '/workspace/OpenWaggle',
+    getVersion: () => '0.3.0',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
     on: appOnMock,
@@ -101,6 +102,7 @@ describe('update CLI with the desktop app', () => {
     )
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v0.4.1' })
     requestSingleInstanceLockMock.mockReturnValue(true)
     stopHostForUpdateMock.mockResolvedValue({ state: 'stopped', activeRuns: 0 })
   })

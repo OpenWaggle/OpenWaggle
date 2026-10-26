@@ -29,7 +29,8 @@ export type ApplyQueueMutationResult =
         readonly sessionId: SessionControlSessionState['sessionId']
         readonly queueState: 'running' | 'paused'
         readonly queueRevision: number
-        readonly followUpIds: readonly string[]
+        readonly remainingFollowUpIds: readonly string[]
+        readonly withdrawnFollowUpIds?: readonly string[]
         readonly stateRevision: number
       }
     }
@@ -125,7 +126,10 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
       sessionId: input.state.sessionId,
       queueState: queueResult.queue.state,
       queueRevision: queueResult.queue.revision,
-      followUpIds: queueResult.queue.items.map((item) => item.id),
+      remainingFollowUpIds: queueResult.queue.items.map((item) => item.id),
+      ...(input.mutation.type === 'withdraw'
+        ? { withdrawnFollowUpIds: [...input.mutation.followUpIds] }
+        : {}),
       stateRevision: nextRevision,
     },
   }

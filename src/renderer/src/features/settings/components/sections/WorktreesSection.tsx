@@ -1,16 +1,24 @@
 import { RepositoryPath } from '@shared/types/brand'
-import type { GitWorktreeInfo } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
-import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
-import { useCallback, useEffect, useState } from 'react'
-import { WorkspaceCleanupFailure } from '@/features/project-actions'
+import { Search } from 'lucide-react'
+import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { TextInput } from '@/shared/ui/TextInput'
 import { useUIStore } from '@/shell/ui-store'
+import {
+  type PreparedWorktree,
+  useProjectWorktrees,
+  worktreeMatchesSearch,
+} from './worktrees/use-project-worktrees'
+import {
+  WorktreeRemovalDialog,
+  type WorktreeRemovalRequest,
+} from './worktrees/WorktreeRemovalDialog'
+import { WorktreeRow } from './worktrees/WorktreeRow'
 
 const logger = createRendererLogger('settings')
 
@@ -22,12 +30,6 @@ const MODE_LABELS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], string> = 
 const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], string> = {
   local: 'Sessions edit files directly in the opened checkout.',
   worktree: 'Each session runs in a dedicated Session worktree isolated from the checkout.',
-}
-
-type PreparedWorktree = GitWorktreeInfo & {
-  readonly preparation?: WorkspacePreparation
-  readonly generationMismatch?: boolean
-  readonly generationMismatchMessage?: string
 }
 
 /**
@@ -45,62 +47,44 @@ function removalFailureToast(
     : result.message
 }
 
-function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
-  const [worktrees, setWorktrees] = useState<readonly PreparedWorktree[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  /** Resolves to the rows it rendered, so a caller can tell what the user now sees. */
-  const refresh = useCallback(async (): Promise<readonly PreparedWorktree[]> => {
-    if (!repositoryPath) {
-      setWorktrees([])
-      return []
-    }
-    setIsLoading(true)
-    setError(null)
-    try {
-      const [listed, preparationResult] = await Promise.allSettled([
-        api.listGitWorktrees(repositoryPath),
-        api.manageProjectActions({
-          scope: { projectPath: repositoryPath },
-          operation: { type: 'retained-preparation' },
-        }),
-      ])
-      if (listed.status === 'rejected') throw listed.reason
-      const retained = preparationResult.status === 'fulfilled' ? preparationResult.value : null
-      if (preparationResult.status === 'rejected')
-        setError(`Could not load cleanup recovery: ${ipcErrorMessage(preparationResult.reason)}`)
-      if (retained && retained.type !== 'retained-preparation')
-        throw new Error('Unexpected preparation response.')
-      const preparations = new Map(
-        retained?.workspaces.map((workspace) => [workspace.path, workspace]) ?? [],
-      )
-      const rows = listed.value.worktrees.map((worktree) => {
-        const recovery = preparations.get(worktree.path)
-        return {
-          ...worktree,
-          preparation: recovery?.preparation,
-          generationMismatch: recovery?.generationMismatch,
-          generationMismatchMessage: recovery?.generationMismatchMessage,
-        }
-      })
-      setWorktrees(rows)
-      return rows
-    } catch (error) {
-      logger.warn('Failed to list worktrees', { error: String(error) })
-      setError(`Could not list worktrees: ${String(error)}`)
-      setWorktrees([])
-      return []
-    } finally {
-      setIsLoading(false)
-    }
-  }, [repositoryPath])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  return { worktrees, isLoading, refresh, error }
+function WorktreeSearch(props: {
+  readonly value: string
+  readonly onChange: (value: string) => void
+  readonly shown: number
+  readonly total: number
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative min-w-56 flex-1">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-tertiary"
+        />
+        <TextInput
+          type="search"
+          inputSize="sm"
+          aria-label="Search worktrees"
+          placeholder="Search paths, branches and Sessions…"
+          autoComplete="off"
+          spellCheck={false}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && props.value) {
+              event.stopPropagation()
+              props.onChange('')
+            }
+          }}
+          className="pl-8"
+        />
+      </div>
+      <span className="text-xs text-text-tertiary" aria-live="polite">
+        {props.shown === props.total
+          ? `${String(props.total)} worktrees`
+          : `${String(props.shown)} of ${String(props.total)} worktrees`}
+      </span>
+    </div>
+  )
 }
 
 export function WorktreesSection() {
@@ -109,25 +93,29 @@ export function WorktreesSection() {
   const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
   const { worktrees, isLoading, refresh, error } = useProjectWorktrees(repositoryPath)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
+  const [pendingRemoval, setPendingRemoval] = useState<WorktreeRemovalRequest | null>(null)
+  const [search, setSearch] = useState('')
   const showToast = useUIStore((state) => state.showToast)
+  const visible = worktrees.filter((worktree) => worktreeMatchesSearch(worktree, search))
 
-  async function handleRemove(worktreePath: string, skipCleanup = false, force = false) {
+  async function handleRemove(request: WorktreeRemovalRequest) {
     if (!repositoryPath) return
-    setRemovingPath(worktreePath)
+    setPendingRemoval(null)
+    setRemovingPath(request.path)
     try {
       const result = await api.removeGitWorktree(repositoryPath, {
-        path: worktreePath,
-        ...(skipCleanup ? { skipCleanup: true } : {}),
-        ...(force ? { force: true } : {}),
+        path: request.path,
+        ...(request.skipCleanup ? { skipCleanup: true } : {}),
+        ...(request.force ? { force: true } : {}),
       })
       if (!result.ok) {
         /*
-         * Say why. Removal is deliberately refused for a dirty or locked worktree - the common case
-         * for a session that is mid-work - and sending the typed message only to the log meant the
-         * row stayed put with no explanation, which reads as a broken button.
+         * Say why. Removal is deliberately refused for a dirty, locked or in-use worktree - the
+         * common case for a session that is mid-work - and sending the typed message only to the
+         * log meant the row stayed put with no explanation, which reads as a broken button.
          */
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
-        showToast(removalFailureToast(result, await refresh(), worktreePath), 'error')
+        showToast(removalFailureToast(result, await refresh(), request.path), 'error')
       } else await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
@@ -161,67 +149,42 @@ export function WorktreesSection() {
             {isLoading ? 'Loading worktrees…' : 'No worktrees for this repository.'}
           </p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border bg-bg">
-            {worktrees.map((worktree) => (
-              <div
-                key={worktree.path}
-                className="flex flex-wrap items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
+          <>
+            <WorktreeSearch
+              value={search}
+              onChange={setSearch}
+              shown={visible.length}
+              total={worktrees.length}
+            />
+            {visible.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No worktrees match this search.</p>
+            ) : (
+              <ul
+                aria-label="Worktrees"
+                className="overflow-hidden rounded-lg border border-border bg-bg"
               >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-primary">
-                    {formatWorktreePathForDisplay(worktree.path)}
-                    {worktree.isMain ? ' (main)' : ''}
-                  </span>
-                  <span className="text-xs text-text-tertiary">
-                    {worktree.branch ?? 'detached'}
-                  </span>
-                </div>
-                {!worktree.isMain && (
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    disabled={removingPath === worktree.path}
-                    onClick={() => void handleRemove(worktree.path)}
-                  >
-                    Remove
-                  </Button>
-                )}
-                {projectPath && worktree.preparation ? (
-                  <div className="w-full">
-                    <WorkspaceCleanupFailure
-                      projectPath={projectPath}
-                      initial={worktree.preparation}
-                      generationMismatch={worktree.generationMismatch}
-                      generationMismatchMessage={worktree.generationMismatchMessage}
-                      busy={removingPath === worktree.path}
-                      onRetry={() => void handleRemove(worktree.path)}
-                      onDeleteAnyway={() => void handleRemove(worktree.path, true)}
-                      onForceRemove={() => void handleRemove(worktree.path, true, true)}
-                    />
-                  </div>
-                ) : !worktree.isMain ? (
-                  <details className="w-full border-t border-border pt-2">
-                    <summary className="cursor-pointer text-xs text-error-text">
-                      Force remove…
-                    </summary>
-                    <p className="my-2 text-xs text-text-tertiary">
-                      Skip workspace cleanup and remove this worktree even if it has uncommitted
-                      changes or is locked. This cannot be undone.
-                    </p>
-                    <Button
-                      variant="danger"
-                      disabled={removingPath === worktree.path}
-                      onClick={() => void handleRemove(worktree.path, true, true)}
-                    >
-                      Force remove
-                    </Button>
-                  </details>
-                ) : null}
-              </div>
-            ))}
-          </div>
+                {visible.map((worktree) => (
+                  <WorktreeRow
+                    key={worktree.path}
+                    projectPath={projectPath}
+                    worktree={worktree}
+                    busy={removingPath === worktree.path}
+                    onRequestRemoval={setPendingRemoval}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
+      {repositoryPath && pendingRemoval ? (
+        <WorktreeRemovalDialog
+          repositoryPath={repositoryPath}
+          request={pendingRemoval}
+          onConfirm={(request) => void handleRemove(request)}
+          onClose={() => setPendingRemoval(null)}
+        />
+      ) : null}
     </div>
   )
 }

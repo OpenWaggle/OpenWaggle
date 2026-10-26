@@ -4,7 +4,7 @@ import { validateReleaseCiPolicy } from '../release-ci-policy'
 
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
+const PNPM_ACTION_SETUP = 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6'
 
 const dispatchIdentityGuard = `      - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -84,7 +84,7 @@ describe('release CI policy', () => {
     const weakenedWorkflow = compliantWorkflow
       .replace('permissions:\n  contents: read\n', '')
       .replaceAll(ACTION_CHECKOUT, 'actions/checkout@v6')
-      .replaceAll(PNPM_ACTION_SETUP, 'pnpm/action-setup@v4')
+      .replaceAll(PNPM_ACTION_SETUP, 'pnpm/action-setup@v6')
       .replaceAll(ACTION_SETUP_NODE, 'actions/setup-node@v6')
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toEqual(

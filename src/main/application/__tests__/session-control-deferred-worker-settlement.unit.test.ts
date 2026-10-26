@@ -28,7 +28,7 @@ function layer(settle: () => Effect.Effect<unknown>, cleanups: string[]) {
             sessionId: WORKER,
             queueState: 'running' as const,
             queueRevision: 2,
-            followUpIds: [],
+            remainingFollowUpIds: [],
             stateRevision: 3,
           },
         }),
