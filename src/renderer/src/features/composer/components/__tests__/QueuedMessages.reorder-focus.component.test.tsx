@@ -5,6 +5,7 @@ import type { SessionFollowUpQueueItem, SessionFollowUpQueueSnapshot } from '@/f
 import { useOptimisticSteerStore } from '@/features/chat/state'
 import { queueItem, snapshotOf } from '../../hooks/__tests__/queued-message-edit.test-support'
 import { QueuedMessages } from '../QueuedMessages'
+import { makeDataTransfer } from './queued-message-drag.test-support'
 
 /** A queue whose reorder really reorders it and re-renders, like the Host and the query cache. */
 const queueMock = vi.hoisted(() => {
@@ -166,14 +167,7 @@ describe('QueuedMessages reorder focus', () => {
   it('keeps focus on a message dragged down', async () => {
     blurWhenFocusedNodeMoves()
     renderDock()
-    const data = new Map<string, string>()
-    const types: string[] = []
-    const dataTransfer = {
-      effectAllowed: 'none',
-      types,
-      setData: (type: string, value: string) => data.set(type, value),
-      getData: (type: string) => data.get(type) ?? '',
-    }
+    const dataTransfer = makeDataTransfer()
     const target = () => screen.getByText('third').closest('li')
     grip('first').focus()
     const ordersWhenGripFocused = recordOrderWhenGripFocused()
