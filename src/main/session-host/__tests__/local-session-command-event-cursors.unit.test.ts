@@ -97,40 +97,35 @@ describe('Local Session command event cursors', () => {
 
       expect(resolve).toHaveBeenCalledWith(externalCursor)
       expect(resolution).toMatchObject({
-        status: 'ready',
-        payload: { request: { query: { operation, after: internalCursor } } },
+        request: { query: { operation, after: internalCursor } },
       })
     },
   )
 
-  it('returns a typed resync outcome without forwarding a rejected cursor', () => {
-    const resolution = resolveLocalSessionCommandCursor(
-      waitPayload('wait', externalCursor),
-      () => ({
-        status: 'resync-required',
-        reason: 'cursor-expired',
-        cursor: rotatedCursor,
-      }),
-    )
+  it.each([
+    ['wait', 'cursor-expired'],
+    ['wait', 'host-restarted'],
+    ['exports-wait', 'cursor-ahead'],
+  ] as const)(
+    'drops a rejected %s cursor (%s) instead of answering resync_required',
+    (operation, reason) => {
+      const payload = waitPayload(operation, externalCursor)
 
-    expect(resolution).toEqual({
-      status: 'resync-required',
-      result: {
-        contract: 'session-query-v2',
-        response: {
-          contractVersion: 2,
-          requestId: 'request-wait',
-          outcome: {
-            operation: 'wait',
-            error: {
-              code: 'resync_required',
-              message: 'Session event resynchronization is required: cursor-expired.',
-            },
-          },
-        },
-      },
-    })
-  })
+      const resolution = resolveLocalSessionCommandCursor(payload, () => ({
+        status: 'resync-required',
+        reason,
+        cursor: rotatedCursor,
+      }))
+
+      if (resolution.contract !== 'session-query-v2') {
+        throw new Error('Expected a Session query payload.')
+      }
+      const query = resolution.request.query
+      expect(query).toMatchObject({ operation, timeoutMs: 100 })
+      expect(query).not.toHaveProperty('after')
+      expect(JSON.stringify(resolution)).not.toContain('resync')
+    },
+  )
 
   it.each(['wait', 'exports-wait'] as const)('exposes an opaque %s outcome cursor', (operation) => {
     const expose = vi.fn(() => rotatedCursor)

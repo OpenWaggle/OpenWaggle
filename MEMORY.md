@@ -1647,6 +1647,28 @@ raw deltas ride on the next emitted event, and the tail after the last re-parse 
 `toolcall_end`'s exact input. That cut it to 436 events and 4 MB (renderer apply 830 ms -> 4 ms).
 A Pi provider that mutated `arguments` in place would freeze the live preview until the call ends.
 
+### A Session wait owns its own resynchronization (issue #370, October 2026)
+
+With about 25 Hive Sessions streaming, the `hive` tool's `wait` returned `resync_required`
+(`slow-consumer`) at once on three 30-minute waits in a row. `wait` and `exports-wait` hold a
+filtered `SessionHostEventHub` subscription (256 events, 4 MiB each, 32 MiB across every
+subscriber) and re-read status after each target event; events arriving during that read queue
+up, and a burst, a large `toolcall_delta`, or a hub whose aggregate budget other slow subscribers
+hold drops the subscription. The wait then handed the drop to an agent that has no cursor.
+`waitForSessionHostCondition` (`application/session-host-condition-wait.ts`) now owns it: on an
+unreplayable start cursor or a drop it subscribes again at the current cursor, then re-reads the
+canonical state (subscribe first, read second, so nothing between is missed), and keeps the same
+deadline. A delivered event discards the rest of the queue (`discardPending`), since they only ask
+for the same read. Back-to-back resyncs back off from 50 ms doubling to 1 s: without it a drop on
+every read is a microtask loop that starved the event loop (a 400 ms wait did 10,463 reads and an
+abort could not land). The events stay wake-ups only: every answer comes from the read, which
+re-resolves the caller's live authority, so a revoked caller still fails closed after a resync.
+`resolveLocalSessionCommandCursor` drops a caller's unresolvable `after` (`hive wait
+--after-host/--after-sequence`) instead of answering `resync_required`; `after` never changed what
+a wait answers, only what woke it. `resync_required` stays in the shared error union for export
+continuation, `hive watch` and `exports-watch`, which do hand cursors to their callers.
+`session-wait-service-resync.unit.test.ts` forces each drop by lowering hub capacities.
+
 ### A replace must not wait on its Run while holding the attachment transition
 
 The Session Control dispatcher holds a Session's attachment transition for a whole non-interrupt
