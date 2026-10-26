@@ -108,6 +108,7 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
           rows={model.groups.archived}
           onOpen={openSession}
           currentSessionId={sessionId}
+          partial={query.hasNextPage}
         />
         <HiveLoadMore query={query} />
       </div>
@@ -252,10 +253,12 @@ function HiveArchivedGroup({
   rows,
   onOpen,
   currentSessionId,
+  partial,
 }: {
   readonly rows: readonly HiveTreeRow[]
   readonly onOpen: (sessionId: string) => void
   readonly currentSessionId: string | null
+  readonly partial: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
@@ -276,7 +279,7 @@ function HiveArchivedGroup({
         ) : (
           <ChevronRight aria-hidden="true" className="size-3" />
         )}
-        Archived · {rows.length}
+        Archived · {loadedCount(rows.length, partial)}
       </Button>
       {/* The list stays in the DOM, hidden while collapsed, so aria-controls always resolves;
           its rows mount only when shown. The toggle row is its only visible label. */}

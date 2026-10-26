@@ -144,18 +144,22 @@ describe('HivePanel', () => {
 
   it('pages members with a load-more control', async () => {
     listHiveTreeSessionCatalogPage
-      .mockResolvedValueOnce(hivePage([summary('one')], 'cursor-1'))
+      .mockResolvedValueOnce(
+        hivePage([summary('one'), summary('old', { archived: true })], 'cursor-1'),
+      )
       .mockResolvedValueOnce(hivePage([summary('two')]))
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
     // Counts of a partly read Hive are lower bounds, as in the Session Summary.
-    expect(await screen.findByText('1+ Workers in this Hive')).toBeInTheDocument()
+    expect(await screen.findByText('2+ Workers in this Hive')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('1+')
+    expect(screen.getByText('Archived · 1+')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Load more Workers' }))
     expect(
       await screen.findByRole('button', { name: /Open Worker Session: two/ }),
     ).toBeInTheDocument()
-    expect(screen.getByText('2 Workers in this Hive')).toBeInTheDocument()
+    expect(screen.getByText('3 Workers in this Hive')).toBeInTheDocument()
+    expect(screen.getByText('Archived · 1')).toBeInTheDocument()
   })
 
   it('keeps loaded rows and retries only the page that failed', async () => {
