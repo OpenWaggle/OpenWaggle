@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { migrateHivePanelView } from '../hive-panel-view-store'
 
 describe('migrateHivePanelView', () => {
-  it('opens a remembered "By state" choice as "By next actor" (#380)', () => {
+  it('opens a remembered "By state" choice as "By next actor" (issue 380)', () => {
     expect(
       migrateHivePanelView({ view: 'by-state', showArchived: true, collapsed: { a: true } }),
     ).toEqual({ view: 'by-next-actor', showArchived: true, collapsed: { a: true } })

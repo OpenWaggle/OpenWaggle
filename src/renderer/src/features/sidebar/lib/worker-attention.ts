@@ -12,6 +12,18 @@ export interface QueenWorkerAttention {
 
 export const NO_QUEEN_WORKER_ATTENTION: QueenWorkerAttention = { needYou: 0, waiting: 0 }
 
+/** A hidden Spawn-lineage Worker's Hive root, or null when the Queen's line does not count it. */
+function hiddenWorkerQueenId(session: SessionSummary, pinnedSessionIds: ReadonlySet<string>) {
+  if (session.archived === true) return null
+  // A pinned Worker is not hidden: its own Pinned row already shows its state.
+  if (pinnedSessionIds.has(String(session.id))) return null
+  const lineage = session.lineage
+  // Legacy task-runner Workers are not Spawn lineage, so they are not in the Hive panel.
+  if (lineage?.role !== 'worker' || lineage.historical === true) return null
+  const queenId = lineage.hiveRootSessionId ?? lineage.parentSessionId
+  return queenId === undefined ? null : String(queenId)
+}
+
 /**
  * Per-Queen counts of hidden (unpinned, Spawn-lineage) Workers by who acts next, keyed by Hive
  * root (ADR 0051, ADR 0059). The rule is the Hive panel's, so the Queen's line never disagrees
@@ -25,25 +37,17 @@ export function workerAttentionByQueen(
 ) {
   const byQueen = new Map<string, QueenWorkerAttention>()
   for (const session of sessions) {
-    if (session.archived === true) continue
-    // A pinned Worker is not hidden: its own Pinned row already shows its state.
-    if (pinnedSessionIds.has(String(session.id))) continue
-    const lineage = session.lineage
-    if (lineage?.role !== 'worker') continue
-    // Legacy task-runner Workers are not Spawn lineage, so they are not in the Hive panel.
-    if (lineage.historical === true) continue
-    const queenId = lineage.hiveRootSessionId ?? lineage.parentSessionId
-    if (queenId === undefined) continue
+    const queenId = hiddenWorkerQueenId(session, pinnedSessionIds)
+    if (queenId === null) continue
     const state = stateOf(session)
     const next = hiveMemberNextActor(session, state === 'interrupted' ? 'idle' : state)
     const needsYou = next?.nextActor === 'user'
     // "Waiting for ‹Queen›" names her, so it counts only the Workers she spawned herself.
     const waitsForQueen =
-      next?.nextActor === 'parent' && String(lineage.parentSessionId ?? '') === String(queenId)
+      next?.nextActor === 'parent' && String(session.lineage?.parentSessionId ?? '') === queenId
     if (!needsYou && !waitsForQueen) continue
-    const key = String(queenId)
-    const current = byQueen.get(key) ?? NO_QUEEN_WORKER_ATTENTION
-    byQueen.set(key, {
+    const current = byQueen.get(queenId) ?? NO_QUEEN_WORKER_ATTENTION
+    byQueen.set(queenId, {
       needYou: current.needYou + (needsYou ? 1 : 0),
       waiting: current.waiting + (waitsForQueen ? 1 : 0),
     })

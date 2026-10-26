@@ -76,7 +76,7 @@ describe('PanelRail', () => {
       knownRailIds: ['hive'],
       listedRailIds: ['hive'],
     })
-    // The Hive's dot means only Needs you (#380).
+    // The Hive's dot means only Needs you (issue 380).
     expect(screen.getByRole('button', { name: 'Hive · needs you' })).toBeVisible()
   })
 

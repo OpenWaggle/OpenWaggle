@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { SessionStatus } from '@shared/types/session-status'
 import type { HiveSession } from '@/queries/session-hive-contract'
 import {
@@ -44,7 +45,7 @@ export interface HiveTreeGroups {
 
 export interface HiveTreeModel {
   readonly root: HiveSession | null
-  /** The Queen's own parked request puts her row in Needs you rather than on top (#380). */
+  /** The Queen's own parked request puts her row in Needs you rather than on top (issue 380). */
   readonly rootNeedsYou: boolean
   readonly currentSessionId: string | null
   readonly groups: HiveTreeGroups
@@ -106,16 +107,17 @@ export function buildHiveTreeModel(input: {
       archived.push(row)
       continue
     }
-    const group = hiveNextActorGroup(hiveMemberNextActor(member, statusOf(String(member.id))))
-    if (group === 'needs-you') needsYou.push(row)
-    else if (group === 'working') working.push(row)
-    else if (group === 'closed') closed.push(row)
-    else {
-      const parentId = String(member.lineage?.parentSessionId ?? '')
-      const entry = waiting.get(parentId) ?? { parentTitle: hiveParentName(member), rows: [] }
-      entry.rows.push(row)
-      waiting.set(parentId, entry)
-    }
+    match(hiveNextActorGroup(hiveMemberNextActor(member, statusOf(String(member.id)))))
+      .with('needs-you', () => needsYou.push(row))
+      .with('working', () => working.push(row))
+      .with('closed', () => closed.push(row))
+      .with('waiting', () => {
+        const parentId = String(member.lineage?.parentSessionId ?? '')
+        const entry = waiting.get(parentId) ?? { parentTitle: hiveParentName(member), rows: [] }
+        entry.rows.push(row)
+        waiting.set(parentId, entry)
+      })
+      .exhaustive()
   }
   return {
     root,

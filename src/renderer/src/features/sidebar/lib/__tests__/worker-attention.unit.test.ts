@@ -36,7 +36,7 @@ function worker(
 }
 
 describe('workerAttentionByQueen', () => {
-  it('counts only Needs you, and the Queen’s own Workers waiting for her (#380)', () => {
+  it('counts only Needs you, and the Queen’s own Workers waiting for her (issue 380)', () => {
     const states = new Map<string, SidebarRowState>([
       ['parked', 'awaiting-input'],
       ['errored', 'error'],

@@ -39,7 +39,7 @@ describe('HivePanel', () => {
     registerSidebarSessionActions(null)
   })
 
-  it('groups members by who acts next, each row saying why (#380)', async () => {
+  it('groups members by who acts next, each row saying why (issue 380)', async () => {
     const worker = (
       id: string,
       lineage: Partial<typeof workerLineage>,
@@ -121,7 +121,7 @@ describe('HivePanel', () => {
     expect(screen.getByText('Archived · 1')).toBeInTheDocument()
   })
 
-  it('moves the Queen into Needs you while her own request waits (#380)', async () => {
+  it('moves the Queen into Needs you while her own request waits (issue 380)', async () => {
     listHiveTreeSessionCatalogPage.mockResolvedValue({
       ...hivePage([summary('active')]),
       root: { ...queen, pendingInteractionKind: 'approval' },

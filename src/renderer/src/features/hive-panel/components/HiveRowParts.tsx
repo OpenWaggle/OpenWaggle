@@ -27,7 +27,7 @@ import { useHiveSessionState } from '../hooks/useHiveSessionState'
  */
 export const HIVE_ROW_GRID_STYLE = {
   display: 'grid',
-  // The State cell says who acts next and why (#380), and wraps the longer labels.
+  // The State cell says who acts next and why (issue 380), and wraps the longer labels.
   gridTemplateColumns: 'minmax(0, 1fr) 72px 112px',
   columnGap: '8px',
 } as const satisfies React.CSSProperties

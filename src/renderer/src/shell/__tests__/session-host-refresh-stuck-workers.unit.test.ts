@@ -24,7 +24,7 @@ function worker(id: string, parent: string, state: 'needs_attention' | 'working'
 }
 
 describe('withStuckCandidateWorkers', () => {
-  it('reads a parent’s needs_attention Workers again when the parent changes (#380)', () => {
+  it('reads a parent’s needs_attention Workers again when the parent changes (issue 380)', () => {
     const sessions = [
       worker('failed', 'queen', 'needs_attention'),
       worker('busy', 'queen', 'working'),

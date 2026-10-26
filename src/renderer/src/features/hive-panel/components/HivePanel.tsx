@@ -33,7 +33,7 @@ type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage, unknown>,
  * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0051).
  *
  * It is the home of Worker Sessions that are not Pinned. Its default view is a tree, each Worker
- * under the Session that spawned it; "By next actor" groups the same rows by who acts next (#380).
+ * under the Session that spawned it; "By next actor" groups the same rows by who acts next (issue 380).
  * Opening a member from it navigates with the panel still requested, so the user can move across
  * the Hive without the panel closing.
  */
@@ -138,7 +138,7 @@ function toggleClass(pressed: boolean) {
   )
 }
 
-/** The view toggles: "By next actor" for the groups (#380), "Show archived" for the tree (#377). */
+/** The view toggles: "By next actor" for the groups (issue 380), "Show archived" for the tree (#377). */
 function HivePanelToolbar() {
   const view = useHivePanelViewStore((state) => state.view)
   const showArchived = useHivePanelViewStore((state) => state.showArchived)

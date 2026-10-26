@@ -112,7 +112,7 @@ describe('SessionListItem', () => {
     )
   })
 
-  it('reports hidden Workers that need you, and a muted count waiting for the Queen (#380)', () => {
+  it('reports hidden Workers that need you, and a muted count waiting for the Queen (issue 380)', () => {
     const queen = makeSession({
       title: 'Queen',
       lineage: { role: 'queen', directWorkerCount: 3, activeDirectWorkerCount: 2 },

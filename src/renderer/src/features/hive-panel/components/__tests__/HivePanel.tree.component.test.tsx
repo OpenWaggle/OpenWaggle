@@ -131,7 +131,7 @@ describe('HivePanel tree view', () => {
     expect(item('a1')).toBeInTheDocument()
   })
 
-  it('rolls up Workers waiting for an agent as a muted count, with no dot (#380)', async () => {
+  it('rolls up Workers waiting for an agent as a muted count, with no dot (issue 380)', async () => {
     await renderHive()
 
     fireEvent.click(within(item('b')).getByRole('button', { name: 'Collapse b' }))

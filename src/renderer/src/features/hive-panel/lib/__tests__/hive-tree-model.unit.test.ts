@@ -42,7 +42,7 @@ const root: HiveSession = {
 }
 
 describe('buildHiveTreeModel', () => {
-  it('groups the Hive by who acts next: Needs you, Waiting for ‹parent›, Working, Closed (#380)', () => {
+  it('groups the Hive by who acts next: Needs you, Waiting for ‹parent›, Working, Closed (issue 380)', () => {
     const failed = { attentionCause: 'run_failed' as const }
     const model = buildHiveTreeModel({
       root,
@@ -135,7 +135,7 @@ describe('buildHiveTreeModel', () => {
 })
 
 describe('hiveRowStateLabel', () => {
-  it('says why, in the issue’s words, naming the parent where it acts next (#380)', () => {
+  it('says why, in the issue’s words, naming the parent where it acts next (issue 380)', () => {
     const labelOf = (session: HiveSession, live?: Parameters<typeof hiveRowStateLabel>[2]) =>
       hiveRowStateLabel(session, 'Idle', live).label
     const queenChild = { parentTitle: 'Queen' }

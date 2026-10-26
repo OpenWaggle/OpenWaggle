@@ -83,7 +83,7 @@ it('does not subscribe to fabricated missing-method fallbacks', () => {
   dispose()
 })
 
-it('reads the Hive again when a Run parks or answers a request for the person (#380)', async () => {
+it('reads the Hive again when a Run parks or answers a request for the person (issue 380)', async () => {
   const invalidate = vi.fn()
   let receive: (event: HiveHostEvent) => void = vi.fn()
   subscribeSessionHiveUpdates(

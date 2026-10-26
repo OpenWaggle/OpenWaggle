@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 
-/** The Hive panel's two views: the tree by parent (#377), or the groups by next actor (#380). */
+/** The Hive panel's two views: the tree by parent (#377), or the groups by next actor (issue 380). */
 export type HivePanelView = 'tree' | 'by-next-actor'
 
 interface HivePanelViewState {
@@ -53,7 +53,7 @@ function rememberedCollapsed(value: unknown): Readonly<Record<string, true>> {
 
 /**
  * Reads a version-0 store: a remembered "By state" choice opens "By next actor", the view that
- * replaced it (#380). Anything unreadable starts from the defaults.
+ * replaced it (issue 380). Anything unreadable starts from the defaults.
  */
 export function migrateHivePanelView(persisted: unknown): PersistedHivePanelView {
   if (!isRecord(persisted)) return DEFAULT_VIEW
@@ -91,7 +91,7 @@ export const useHivePanelViewStore = create<HivePanelViewState>()(
         showArchived,
         collapsed,
       }),
-      // Version 1 renames the grouped view: "By state" became "By next actor" (#380).
+      // Version 1 renames the grouped view: "By state" became "By next actor" (issue 380).
       version: 1,
       migrate: (persisted) => migrateHivePanelView(persisted),
     },

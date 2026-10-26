@@ -20,3 +20,11 @@ export type HiveAttentionCause = (typeof HIVE_ATTENTION_CAUSES)[number]
 /** A request a Run parked for the person: an authorization approval, or any other question. */
 export const HIVE_PENDING_REQUESTS = ['approval', 'question'] as const
 export type HivePendingRequest = (typeof HIVE_PENDING_REQUESTS)[number]
+
+/** What a Worker's lineage summary carries for the next-actor rule (ADR 0059). */
+export interface HiveNextActorLineageFacts {
+  /** Why the Delegation is `needs_attention`; present only in that state. */
+  readonly attentionCause?: HiveAttentionCause
+  /** The parent has an active Run or a Follow-up to deliver, read with this row. */
+  readonly parentWillAct?: boolean
+}

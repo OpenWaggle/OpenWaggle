@@ -80,7 +80,7 @@ describe('HiveSummarySection', () => {
     expect(showRightPanelSurface).toHaveBeenCalledWith('hive')
   })
 
-  it('reports only Needs you in the warning colour (#380)', async () => {
+  it('reports only Needs you in the warning colour (issue 380)', async () => {
     // The Queen is idle with nothing queued: the failed Worker is stuck.
     getSessionHiveRelations.mockResolvedValue(
       hiveRelations(queen(2, 2), [
