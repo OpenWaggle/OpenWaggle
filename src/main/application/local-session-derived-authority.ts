@@ -13,6 +13,7 @@ import {
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
+import { narrowNamedProfileCaller } from './local-session-profile-narrowing'
 
 export interface LocalSessionAuthorizationTarget {
   readonly projectPath?: string
@@ -126,6 +127,7 @@ export function refreshNamedProfileCaller(
       })
     }),
     Effect.flatMap(expandTransientWorkspaceScope),
+    Effect.flatMap(narrowNamedProfileCaller),
     Effect.flatMap(refreshEventAdmissionSessionIds),
   )
 }

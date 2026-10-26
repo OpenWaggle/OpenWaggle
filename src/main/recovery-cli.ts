@@ -1,9 +1,9 @@
 import { app } from 'electron'
+import { asUsageErrorsSync, CLI_EXIT, CliError, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
-import { isCommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateRecoveryCliOptions } from './recovery-cli-option-contract'
-import { writeRecoveryCliError } from './recovery-cli-output'
+import { recoveryCliResultText, writeRecoveryCliError } from './recovery-cli-output'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import { resolveLocalSessionHostPaths } from './session-host/local-session-paths'
 import {
@@ -12,8 +12,7 @@ import {
   sessionHostRecoveryStatus,
 } from './session-host/session-host-recovery'
 
-const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
-const JSON_INDENT_SPACES = 2
+const EXIT = CLI_EXIT
 
 function usage() {
   return `OpenWaggle recovery
@@ -27,11 +26,8 @@ The Session Host must be stopped for restore and delete. Restore preserves the c
 database as a timestamped artifact before rebuilding from the pre-cutover recovery copy.`
 }
 
-function writeResult(value: unknown, json: boolean) {
-  if (json) {
-    return writeCliStdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
-  }
-  return writeCliStdout(`${JSON.stringify(value)}\n`)
+function writeResult(command: string, value: unknown, json: boolean) {
+  return writeCliStdout(recoveryCliResultText(command, value, json))
 }
 
 export async function runRecoveryCli(args: readonly string[]) {
@@ -40,28 +36,26 @@ export async function runRecoveryCli(args: readonly string[]) {
     const parsed = parseMcpCliArguments(args)
     const command = parsed.positionals[0]
     const arguments_ = { ...parsed, positionals: parsed.positionals.slice(1) }
-    validateRecoveryCliOptions(command, arguments_)
+    asUsageErrorsSync(() => validateRecoveryCliOptions(command, arguments_))
     if (!command || command === 'help') {
       await writeCliStdout(`${usage()}\n`)
       return EXIT.SUCCESS
     }
     const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
     if (command === 'status') {
-      await writeResult(await sessionHostRecoveryStatus(paths), json)
+      await writeResult(command, await sessionHostRecoveryStatus(paths), json)
       return EXIT.SUCCESS
     }
     if (!hasFlag(arguments_, 'yes')) {
-      writeRecoveryCliError(new Error('This operation requires explicit --yes confirmation.'), json)
-      return EXIT.USAGE
+      throw new CliError('usage', 'This operation requires explicit --yes confirmation.')
     }
     const result =
       command === 'restore-pre-cutover'
         ? await withLegacySessionWriterFence(() => restorePreCutoverDatabase(paths))
         : await deletePreCutoverDatabase(paths)
-    await writeResult(result, json)
+    await writeResult(command, result, json)
     return EXIT.SUCCESS
   } catch (error) {
-    writeRecoveryCliError(error, json)
-    return isCommandCliUsageError(error) ? EXIT.USAGE : EXIT.FAILURE
+    return cliExitCodeForKind(writeRecoveryCliError(error, json))
   }
 }

@@ -45,7 +45,11 @@ export {
   readProfileCredentialFile,
   readStoredProfileCredential,
   removeStoredProfileCredential,
+  removeStoredProfileCredentialCopy,
 } from './profile-credential-storage'
+
+import { CliError } from '../cli-error'
+
 export { ProfileCredentialCleanupError, ProfileCredentialCommitError }
 
 const OWNER_DIRECTORY_MODE = 0o700
@@ -120,9 +124,13 @@ async function persistCredentialReceipt(input: {
       !isSameReceiptDirectory(existing.directory, input.directory) ||
       existing.fingerprint !== credentialFingerprint(input.selectedCredential)
     ) {
-      throw new Error('A conflicting credential installation receipt already exists.', {
-        cause: error,
-      })
+      throw new CliError(
+        'conflict',
+        'A conflicting credential installation receipt already exists.',
+        {
+          cause: error,
+        },
+      )
     }
   } finally {
     await receiptHandle.close()

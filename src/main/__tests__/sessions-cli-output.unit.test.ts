@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
+import { CliError } from '../cli-error'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionClientTimeoutError,
+  LocalSessionHostUnavailableError,
+} from '../session-host/local-session-client-protocol-error'
 import {
   classifySessionsCliError,
   validateSessionsCliOutputMode,
@@ -53,12 +58,32 @@ describe('Hive CLI output contract', () => {
 
   it('keeps structured diagnostics on stderr and assigns stable output modes', () => {
     const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    expect(writeSessionsCliError(new Error('Session ID is required.'), true)).toBe('usage')
+    expect(writeSessionsCliError(new CliError('usage', 'Session ID is required.'), true)).toBe(
+      'usage',
+    )
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       type: 'error',
       error: { kind: 'usage' },
     })
+    // The kind comes from the error's type, never from words in its message (#351).
+    for (const message of [
+      'Session ID is required.',
+      'Credential destination already exists.',
+      'The Session was not found.',
+      'Timed out.',
+    ]) {
+      expect(classifySessionsCliError(new Error(message))).toBe('internal')
+    }
+    expect(classifySessionsCliError(new LocalSessionClientTimeoutError('slow'))).toBe('timeout')
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError('authentication_throttled', 'Throttled.'),
+      ),
+    ).toBe('authentication')
+    expect(classifySessionsCliError(new LocalSessionHostUnavailableError('gone'))).toBe(
+      'host_unavailable',
+    )
     expect(() => validateSessionsCliOutputMode({ json: true, jsonl: false, stream: true })).toThrow(
       'Streaming commands use --jsonl',
     )

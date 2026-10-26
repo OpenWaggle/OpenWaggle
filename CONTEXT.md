@@ -75,7 +75,7 @@ The sandboxed OpenWaggle-owned container and JSON-RPC bridge for standard `ui://
 _Avoid_: extension runtime, trusted webview
 
 **OpenWaggle MCP server profile**:
-The authenticated, revocable set of projects, session operations, agent capabilities, rates, and approval delegation exposed by `openwaggle mcp serve` to one caller.
+The authenticated, revocable set of projects, session operations, agent capabilities, rates, and approval delegation exposed by `openwaggle mcp serve` to one caller. It is a **CLI client profile** named with `--profile`, narrowed by the server's `--grant` and scope flags, or with `--owner` the desktop user's authority narrowed the same way; `--profile` is never a mere label.
 _Avoid_: inherited desktop permissions
 
 **Session Control**:
@@ -2683,7 +2683,7 @@ _Avoid_: Run (that is the agent execution it may produce), trigger, execution
 - Managing **Scheduled tasks** requires `schedules:manage` and reading them requires `schedules:read`; a derived spawn grant never carries either.
 - Creating a **Heartbeat** also requires `sessions:message` on its target Session, and creating a **Launch schedule** requires `sessions:create` and `sessions:start` in its project, so a **Scheduled task** never does more than its creator could do by hand.
 - An agent creates a **Scheduled task** through the **Hive tool** only when the user asks directly or a project or skill instruction authorizes it; work already in progress is finished in the current Run, not scheduled.
-- An MCP client cannot create, read or change a **Scheduled task** in v1: an `openwaggle mcp serve` process holds only transient authority that ends with the process, so no later **Scheduled task run** could revalidate it. MCP-driven agents ask the user, or use the **Hive CLI** under a **CLI client profile**.
+- An MCP client cannot create, read or change a **Scheduled task** in v1: an `openwaggle mcp serve` process's grants end with the process, so no later **Scheduled task run** could revalidate them. MCP-driven agents ask the user, or use the **Hive CLI** under a **CLI client profile**.
 - A **Scheduled task** is opened where the user is: in the **Scheduled panel** when a chat in its project is open, otherwise in **Scheduled tasks settings**; its editor replaces the detail in that same place and is never a modal.
 - A **Launch schedule**'s Sessions are ordinary sidebar Sessions marked with a scheduled provenance icon; there is no separate inbox, and no **Scheduled task run** is required to end its reply in a particular format.
 - A **Heartbeat** notifies only on failure or attention by default and a **Launch schedule** on every run; a **Scheduled task** disabled or skipped for an authority reason always produces an **Agent notification**.

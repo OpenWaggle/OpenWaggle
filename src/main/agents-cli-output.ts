@@ -1,5 +1,11 @@
+import {
+  SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
+  sessionsCliResponseText,
+  writeSessionsCliError,
+} from './sessions-cli-output'
+
 const JSON_INDENT_SPACES = 2
-export const AGENTS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
+export const AGENTS_CLI_OUTPUT_SCHEMA_VERSION = SESSIONS_CLI_OUTPUT_SCHEMA_VERSION
 
 export interface CompactAgentCatalogItem {
   readonly name: string
@@ -10,20 +16,14 @@ export interface CompactAgentCatalogItem {
   readonly diagnostic?: string
 }
 
+/** The Hive CLI envelope, `{schemaVersion, type: "response", command, result}` (#351). */
 export function writeAgentsCliResult(
+  command: string,
   value: unknown,
   json: boolean,
   stdout: (value: string) => void | Promise<void>,
 ) {
-  if (json) {
-    return stdout(
-      `${JSON.stringify(
-        { schemaVersion: AGENTS_CLI_OUTPUT_SCHEMA_VERSION, result: value },
-        null,
-        JSON_INDENT_SPACES,
-      )}\n`,
-    )
-  }
+  if (json) return stdout(sessionsCliResponseText(`agents ${command}`, value, true))
   return stdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
 }
 
@@ -32,14 +32,7 @@ export function writeAgentsCliError(
   json: boolean,
   stderr: (value: string) => void,
 ) {
-  const message = error instanceof Error ? error.message : String(error)
-  const output = json
-    ? JSON.stringify({
-        schemaVersion: AGENTS_CLI_OUTPUT_SCHEMA_VERSION,
-        error: { message },
-      })
-    : `error: ${message}`
-  stderr(`${output}\n`)
+  return writeSessionsCliError(error, json, stderr)
 }
 
 export function writeAgentsCliCatalog(
@@ -47,7 +40,8 @@ export function writeAgentsCliCatalog(
   json: boolean,
   stdout: (value: string) => void | Promise<void>,
 ) {
-  if (json) return writeAgentsCliResult(value, true, stdout)
+  if (json) return writeAgentsCliResult('list', value, true, stdout)
+  if (value.length === 0) return stdout('No Agent definitions found.\n')
   return stdout(
     `${value
       .map(

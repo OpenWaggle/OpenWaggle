@@ -9,6 +9,7 @@ import {
   type LocalSessionClientConnectionInput,
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
+import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
 import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
@@ -241,7 +242,7 @@ async function waitForCompatibleHost(
   })
   if (ready) return
   if (lastError) throw lastError
-  throw new Error('Timed out starting the Local Session Host.')
+  throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
 }
 
 async function waitForLocalSessionHostAuthority(
@@ -280,7 +281,7 @@ async function waitForLocalSessionHostAuthority(
     await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
   }
   if (upgradePendingError) throw upgradePendingError
-  throw new Error('Timed out waiting for Local Session Host authority.')
+  throw new LocalSessionHostUnavailableError('Timed out waiting for Local Session Host authority.')
 }
 
 /**
