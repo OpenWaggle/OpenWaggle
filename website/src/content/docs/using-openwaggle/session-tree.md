@@ -9,7 +9,7 @@ Use the Session tree when you want to return to an earlier point in a conversati
 
 Conversation branches are not Git branches. Changing the selected conversation path does not undo file edits or switch your repository's Git branch. Use [Git controls](/docs/developer-workflow/git-integration) to manage files and commits.
 
-![OpenWaggle Session tree showing a checkout refactor conversation with alternate branches](/screenshots/session-tree-panel.png)
+![The Session tree beside a Waggle conversation in which two agents review a fix, with its latest reply marked as the active node on the main branch](/screenshots/session-tree-panel.png)
 
 ## Opening the Session tree
 
