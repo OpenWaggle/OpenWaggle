@@ -165,7 +165,7 @@ describe('idle Follow-up Session Host run lease', () => {
                 sessionId,
                 queueState: 'running' as const,
                 queueRevision: 2,
-                followUpIds: ['held'],
+                remainingFollowUpIds: ['held'],
                 stateRevision: 3,
               },
             }

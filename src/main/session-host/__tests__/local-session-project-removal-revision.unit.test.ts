@@ -21,13 +21,13 @@ function hostUiCommand(channel: string, args: readonly unknown[]) {
 describe('Local Session project removal protocol revision', () => {
   it('sends the start of a project removal only to a revision-24 Host', () => {
     const command = hostUiCommand('sessions:begin-project-removal', ['/project'])
-    expect(supportedRevisionsForCommand(command)).toEqual([26])
+    expect(supportedRevisionsForCommand(command)).toEqual([27])
     expect(() => decodeLocalSessionCommandPayloadForRevision(command, 23)).toThrow(/revision 24/)
   })
 
   it('sends a deletion for a project removal only to a Host that keeps the Pi file listable', () => {
     const removal = hostUiCommand('sessions:delete', ['session-1', { removingProject: true }])
-    expect(supportedRevisionsForCommand(removal)).toEqual([26])
+    expect(supportedRevisionsForCommand(removal)).toEqual([27])
     expect(() => decodeLocalSessionCommandPayloadForRevision(removal, 23)).toThrow(/revision 24/)
 
     const plain = hostUiCommand('sessions:delete', ['session-1'])

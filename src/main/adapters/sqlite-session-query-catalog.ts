@@ -198,6 +198,7 @@ export function listSessions(
         COALESCE(session_spawn_lineage.parent_session_id, legacy_lineage.parent_session_id)
           AS parent_session_id,
         session_spawn_lineage.hive_root_session_id,
+        session_spawn_lineage.depth AS spawn_depth,
         ((SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
           WHERE direct_lineage.parent_session_id = sessions.id)
          + (SELECT COUNT(*) FROM session_lineage AS historical_lineage
@@ -223,6 +224,10 @@ export function listSessions(
           OR sessions.project_path = ${request.query.projectPath ?? null})
         AND ${hasProjectPath}
         AND ${workingPathFilter}
+        AND (${request.query.parentSessionId ?? null} IS NULL
+          OR session_spawn_lineage.parent_session_id = ${request.query.parentSessionId ?? null}
+          OR (session_spawn_lineage.child_session_id IS NULL
+            AND legacy_lineage.parent_session_id = ${request.query.parentSessionId ?? null}))
         AND ${hasInterruptedRun}
         AND ${hasUnreadTerminalRun}
         AND ${searchFilter}

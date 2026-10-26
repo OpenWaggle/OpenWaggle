@@ -1,4 +1,5 @@
 import type { SessionCapability } from '@shared/types/session-capability'
+import type { TSchema } from 'typebox'
 import {
   actionChoices,
   flattenSessionsToolParameters,
@@ -74,24 +75,95 @@ function variantActionName(variant: SessionsToolRuntimeVariant): string | undefi
   return actionChoices(variant.properties.action)[0]?.const
 }
 
-function permitsAction(
+const KNOWN_ACTIONS: ReadonlySet<string> = new Set(
+  sessionsToolParameterVariants.flatMap((variant) => variantActionName(variant) ?? []),
+)
+
+export interface SessionsToolActionGrant {
+  /** The Session's derived grant; undefined for a Session that has none (all actions). */
+  readonly capabilities: readonly SessionCapability[] | undefined
+  readonly modelMultiAgentEnabled: boolean
+}
+
+export type SessionsToolActionPermission =
+  | { readonly permitted: true }
+  | { readonly permitted: false; readonly reason: 'unknown-action' }
+  | { readonly permitted: false; readonly reason: 'multi-agent-disabled' }
+  | {
+      readonly permitted: false
+      readonly reason: 'capability-denied'
+      readonly required: readonly SessionCapability[]
+      readonly missing: readonly SessionCapability[]
+    }
+
+/** Whether this Session's grant can use a hive action, and if not, why. */
+export function sessionsToolActionPermission(
   action: string,
-  capabilities: ReadonlySet<SessionCapability>,
-  modelMultiAgentEnabled: boolean,
-) {
-  if ((action === 'launch' || action === 'spawn') && !modelMultiAgentEnabled) return false
-  const required = REQUIRED_CAPABILITIES.get(action)
-  return required === undefined || required.every((capability) => capabilities.has(capability))
+  grant: SessionsToolActionGrant,
+): SessionsToolActionPermission {
+  if (!KNOWN_ACTIONS.has(action)) return { permitted: false, reason: 'unknown-action' }
+  if (grant.capabilities === undefined) return { permitted: true }
+  if ((action === 'launch' || action === 'spawn') && !grant.modelMultiAgentEnabled) {
+    return { permitted: false, reason: 'multi-agent-disabled' }
+  }
+  const required = REQUIRED_CAPABILITIES.get(action) ?? []
+  const available = new Set(grant.capabilities)
+  const missing = required.filter((capability) => !available.has(capability))
+  return missing.length === 0
+    ? { permitted: true }
+    : { permitted: false, reason: 'capability-denied', required, missing }
+}
+
+export function permitsSessionsToolAction(action: string, grant: SessionsToolActionGrant) {
+  return sessionsToolActionPermission(action, grant).permitted
+}
+
+function joinCapabilities(capabilities: readonly string[], conjunction: 'and' | 'or') {
+  if (capabilities.length <= 1) return capabilities.join('')
+  return `${capabilities.slice(0, -1).join(', ')} ${conjunction} ${capabilities.at(-1)}`
+}
+
+/**
+ * The schema offers only permitted actions, so a call to another one would fail validation with
+ * a constant mismatch per action. Name what is missing instead, before validation runs.
+ */
+export function assertSessionsToolActionPermitted(
+  args: unknown,
+  grant: SessionsToolActionGrant,
+): void {
+  if (typeof args !== 'object' || args === null || !('action' in args)) return
+  const action: unknown = args.action
+  if (typeof action !== 'string') return
+  const permission = sessionsToolActionPermission(action, grant)
+  if (permission.permitted) return
+  if (permission.reason === 'unknown-action') throw new Error(`Unknown hive action "${action}".`)
+  if (permission.reason === 'multi-agent-disabled') {
+    throw new Error(
+      `capability_denied: the hive action ${action} is not available: multi-agent work is turned off for this project or model.`,
+    )
+  }
+  throw new Error(
+    `capability_denied: the hive action ${action} requires ${joinCapabilities(permission.required, 'and')}; this Session has no ${joinCapabilities(permission.missing, 'or')}.`,
+  )
 }
 
 export function sessionsToolSchemaForCapabilities(input: {
   readonly capabilities: readonly SessionCapability[]
   readonly modelMultiAgentEnabled: boolean
 }) {
-  const capabilities = new Set(input.capabilities)
   const variants = sessionsToolParameterVariants.filter((variant) => {
     const action = variantActionName(variant)
-    return action !== undefined && permitsAction(action, capabilities, input.modelMultiAgentEnabled)
+    return action !== undefined && permitsSessionsToolAction(action, input)
   })
   return flattenSessionsToolParameters(variants)
+}
+
+/** The provider schema of the hive tool; a Session without a derived grant gets every action. */
+export function sessionsToolSchemaForGrant(grant: SessionsToolActionGrant): TSchema {
+  return grant.capabilities
+    ? sessionsToolSchemaForCapabilities({
+        capabilities: grant.capabilities,
+        modelMultiAgentEnabled: grant.modelMultiAgentEnabled,
+      })
+    : flattenSessionsToolParameters(sessionsToolParameterVariants)
 }

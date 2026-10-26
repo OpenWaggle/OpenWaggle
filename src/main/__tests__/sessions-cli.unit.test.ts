@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { buildSessionsCliPayload } from '../sessions-cli'
+import { validateSessionsCliOptions } from '../sessions-cli-option-contract'
 
 function command(arguments_: readonly string[]) {
   const parsed = parseMcpCliArguments(arguments_)
@@ -94,6 +95,24 @@ describe('Hive CLI command contract', () => {
           },
         },
       },
+    })
+  })
+
+  it('passes --title to a spawned Worker', () => {
+    const spawn = command([
+      'spawn',
+      'session-parent',
+      '--text',
+      'Review',
+      '--expected-run',
+      'run-parent',
+      '--title',
+      'Review PR',
+    ])
+
+    expect(() => validateSessionsCliOptions(spawn.name, spawn.arguments)).not.toThrow()
+    expect(buildSessionsCliPayload(spawn.name, spawn.arguments)).toMatchObject({
+      request: { command: { operation: 'spawn', title: 'Review PR' } },
     })
   })
 

@@ -15,6 +15,7 @@ import { type Static, Type } from 'typebox'
 import { sessionsToolAttachmentPaths as attachmentPaths } from './sessions-tool-attachment-parameters'
 import {
   sessionsToolCatalogScope,
+  sessionsToolListArchived,
   sessionsToolProjectPath,
 } from './sessions-tool-catalog-parameters'
 import { sessionsToolCollaborationParameters } from './sessions-tool-collaboration-parameters'
@@ -103,6 +104,7 @@ export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('spawn'),
     objective: Type.String({ minLength: 1 }),
+    title: Type.Optional(sessionTitle),
     workspace,
     baseRef: Type.Optional(Type.String()),
     startFromOrigin: Type.Optional(Type.Boolean()),
@@ -241,7 +243,8 @@ export const sessionsToolParameters = Type.Union([
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),
     cursor: Type.Optional(Type.String()),
     projectPath: sessionsToolProjectPath,
-    archived: Type.Optional(Type.Boolean()),
+    parentSessionId: Type.Optional(Type.String()),
+    archived: sessionsToolListArchived,
   }),
   Type.Object({
     action: Type.Literal('search'),
