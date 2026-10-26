@@ -1,4 +1,4 @@
-import type { ScheduledTasksResponse } from '@shared/types/scheduled-task'
+import type { ScheduledTasksCommand, ScheduledTasksResponse } from '@shared/types/scheduled-task'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions, validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -102,6 +102,48 @@ function resultError(responses: readonly ScheduledTasksResponse[]) {
     : undefined
 }
 
+type SchedulesCliClient = Awaited<ReturnType<typeof createLocalSessionCliClientInput>>
+
+async function executeSchedulesCommand(
+  client: SchedulesCliClient,
+  command: ScheduledTasksCommand,
+  idempotencyKey: string | undefined,
+) {
+  const result = await executeLocalSessionCommand({
+    ...client,
+    payload: {
+      contract: 'scheduled-tasks-v1',
+      request: schedulesCliRequest(command, idempotencyKey),
+    },
+  })
+  if (result.contract !== 'scheduled-tasks-v1') {
+    throw new Error('The Session Host answered with another contract.')
+  }
+  return result.response
+}
+
+/**
+ * A run page names no zone, so `runs` reads its task's zone to show the times on the task's own
+ * clock, as `show` does. The machine's zone is the fallback; each time names its zone either way.
+ */
+async function runsTimeZone(
+  client: SchedulesCliClient,
+  commands: readonly ScheduledTasksCommand[],
+) {
+  const [command] = commands
+  if (commands.length !== 1 || command?.operation !== 'runs') return undefined
+  try {
+    const response = await executeSchedulesCommand(
+      client,
+      { operation: 'read', taskId: command.taskId },
+      undefined,
+    )
+    return response.outcome.effect === 'read' ? response.outcome.task.timeZone : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export async function runSchedulesCli(args: readonly string[]) {
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
@@ -132,19 +174,11 @@ export async function runSchedulesCli(args: readonly string[]) {
     // One at a time on purpose: an import creates its tasks in file order, so the report lines
     // up with the file and the Host never sees a burst of creates from one invocation.
     for (const scheduledCommand of commands) {
-      const result = await executeLocalSessionCommand({
-        ...client,
-        payload: {
-          contract: 'scheduled-tasks-v1',
-          request: schedulesCliRequest(scheduledCommand, idempotencyKey),
-        },
-      })
-      if (result.contract !== 'scheduled-tasks-v1') {
-        throw new Error('The Session Host answered with another contract.')
-      }
-      responses.push(result.response)
+      responses.push(await executeSchedulesCommand(client, scheduledCommand, idempotencyKey))
     }
-    await writeSchedulesCliResponses(command, responses, hasFlag(arguments_, 'json'))
+    const json = hasFlag(arguments_, 'json')
+    const timeZone = json ? undefined : await runsTimeZone(client, commands)
+    await writeSchedulesCliResponses(command, responses, json, timeZone)
     const error = resultError(responses)
     return error ? sessionCliExitCodeForError(error) : EXIT.SUCCESS
   } catch (error) {
