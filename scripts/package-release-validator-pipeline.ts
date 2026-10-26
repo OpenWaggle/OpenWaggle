@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '932640f391eca32a41be88f33e5c904f521763bbc4cc0514fa4564b18e10cf7b'
+  '62e28333660e30965d51e4a18ec1f9ae602e00d2cc9b74322bfe7f8ef2653811'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
