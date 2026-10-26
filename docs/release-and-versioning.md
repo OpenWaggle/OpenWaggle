@@ -18,7 +18,7 @@ Manual `full` CI also calls the same-commit Session Performance workflow and req
 
 Dispatched Commit Policy checks the commits after the candidate's merge base with the fetched `origin/main`. This preserves upstream-sync attribution even when `main` advances after the branch sync. Missing history, unrelated histories, or multiple merge bases fail the job; manual runs never substitute an empty range start. Merge-queue runs use their immutable event `base_sha` and synthetic merge head. Pull-request titles remain validated by pull-request CI, which has the authoritative title metadata.
 
-The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated version PR with `gh pr create`; `scripts/app-release-state.ts` validates the version transition and the version-only manifest. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. It validates the version-only change against the branch's merge base before synchronizing, then against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated version PR with `gh pr create`; `scripts/app-release-state.ts` validates the version transition and the version-only manifest. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. It validates the version-only change against the branch's merge base before synchronizing, then against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and uploads them with checksums to a draft GitHub Release. `scripts/verify-release-assets.ts` checks that the draft holds exactly the built files, each fully uploaded at its built size, with the update metadata (`*.yml`) and `SHA256SUMS.txt` byte-identical; only then does the job publish the release and verify it again. Publishing before the uploads finish let `1.0.0-beta.25`'s update checks get a 404 for `beta-mac.yml`. A rerun that finds the release already published only verifies it. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
 
 ### Required-Check Settings Runbook
 
@@ -40,7 +40,7 @@ Platform trust for v1:
   unsigned; the release workflow refuses to build RC and Stable macOS artifacts without them. The
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
-  the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
+  the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
 - The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
   Apple's verdict, and `hdiutil` needs a working disk-image device to build the DMG.
   `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call
@@ -141,7 +141,7 @@ default; there is no `post-v1` label.
 | Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
 | Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
 | Scheduled tasks (Heartbeats and Launch schedules): their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start | Yes | The task contract, `schedules:*` capabilities, `openwaggle schedules` commands and machine output, agent tool actions, and the Background start setting stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
-| Supported platforms (macOS, Windows x64, Linux x64) | Yes | Dropping a platform or raising its minimum OS version is breaking. |
+| Supported platforms: macOS 13.4 or later (Apple silicon and Intel), Windows 10 or later (x64), Linux x64 with glibc 2.35 or later | Yes | Dropping a platform or raising its stated minimum is breaking, except as described in [Supported platform minimums](#supported-platform-minimums). |
 | Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
 | Pi-owned resources (Pi extensions, skills, prompts) | No | Follow Pi's compatibility; a Pi upgrade that breaks them is not an OpenWaggle major. |
 | UI layout, copy, default settings, keybindings | No | May change in any release. |
@@ -172,6 +172,16 @@ workflow rejects equal versions, downgrades, and backwards channel movement, the
 normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
 The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
 
+Pass `target_version` as the bare version, without a leading `v`: `1.0.0-rc.1`, not
+`v1.0.0-rc.1`. The tag gets its `v` from the workflow.
+
+A dispatched transition PR does not hold `main`. If a `feat:` or `fix:` merge lands on `main`
+after the dispatch and before its PR merges, that push starts an ordinary release run, which opens
+a competing release PR for the next version of the current stage (for example `1.0.0-beta.26`
+beside the dispatched `1.0.0-rc.1`). Pause merges to `main` from the dispatch until the transition
+PR merges. If a competing PR opens anyway, close it without merging and dispatch
+`target_version` again from the new `main`, so the transition PR includes that merge.
+
 Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
 receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
 non-downgrade version itself, then points the updater at that release's metadata, so RC does not
@@ -185,6 +195,40 @@ longer eligible. Automatic install on ordinary app quit is disabled on every pla
 downloads pass through the explicit, authoritative restart action. The shell installer persists its
 selected policy channel as a one-time Session Host intent instead of inferring future policy from
 the downloaded artifact's version.
+
+### Supported platform minimums
+
+| Platform | Minimum from `1.0.0` | Guard threshold |
+|----------|----------------------|-----------------|
+| macOS | 13.4 (Ventura), Apple silicon and Intel | No Mach-O for the app's architecture needs a macOS newer than 13.4. The main executable and `LSMinimumSystemVersion` stay at 12.0. |
+| Windows | Windows 10, x64 (NSIS installer) | No x64 PE declares an OS or subsystem version newer than 10.0. |
+| Linux | x64 with glibc 2.35, for example Ubuntu 22.04, Debian 12 and Fedora 36 or later. The AppImage is x64 only. | No x64 ELF needs a symbol version newer than `GLIBC_2.35`, `GLIBCXX_3.4.30` or `CXXABI_1.3.13`, which Ubuntu 22.04 provides. |
+
+Each minimum is the oldest version on which every feature works. The thresholds live in one
+module, `scripts/supported-platform-floor.ts`, and `scripts/check-native-platform-floor.ts` reads
+every native binary in each packaged app after its build and fails the release before upload when
+one needs a newer OS. It also fails when a pack ships a binary for another platform or
+architecture, or lacks a per-platform package that one of its packages declares for the pack's own
+platform and architecture in `optionalDependencies` (such as `@img/sharp-darwin-x64`). The
+`1.0.0` betas' Intel macOS app shipped only the arm64 builds of sharp, `@napi-rs/keyring` and
+`@mariozechner/clipboard`, because the arm64 release runner installed one architecture.
+`supportedArchitectures` in `pnpm-workspace.yaml` now installs both CPU architectures, and
+`scripts/electron-builder-native-prebuilds.ts` keeps only the packed one. The
+Linux release build runs on `ubuntu-22.04`, because native modules link against the build host's
+glibc and libstdc++; `1.0.0-beta.25`, built on Ubuntu 24.04, shipped a `node-pty` that needed glibc
+2.38.
+
+macOS 12 through 13.3 can still launch the app. `LSMinimumSystemVersion` stays at 12.0 so that an
+existing macOS 12 install that updates itself is never left with an app that will not open. Those
+versions are unsupported: onnxruntime, which semantic Session search and voice input load on
+demand, needs macOS 13.4.
+
+Raising a stated minimum is breaking, with one exception. A raise is not breaking when the OS
+vendor has ended support for that version (Apple no longer ships security updates for it,
+Microsoft's end of support, or the distribution's end of standard support), or when the Electron or
+Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in
+a minor version, its release notes name it, and the previous release's notes announce it when
+possible.
 
 ### Differential update downloads
 

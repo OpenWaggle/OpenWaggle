@@ -65,7 +65,7 @@ The canonical package policy lives in `docs/release-and-versioning.md` and ADR-0
 - The `0.x` trains end without a Stable release. The first Stable release is `1.0.0`.
 - The `1.0.0` line starts at `1.0.0-beta.1`, the first signed macOS build. There is no `1.0.0-alpha.N` stage.
 - Train: `1.0.0-beta.N` -> `1.0.0-rc.N` -> `1.0.0`.
-- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR.
+- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR. Pass the bare version (`1.0.0-rc.1`, no leading `v`). Pause `feat:`/`fix:` merges to `main` until that PR merges: a merge in between opens a competing release PR for the current stage. To recover, close the competing PR and dispatch again from the new `main`.
 
 Meanings:
 
@@ -75,7 +75,9 @@ Meanings:
 
 ## Compatibility promise
 
-From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the Sessions/Delegations/Access CLIs and their machine output (additive fields allowed), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms. Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
+From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the Sessions/Delegations/Access CLIs and their machine output (additive fields allowed), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms (macOS 13.4+, Windows 10+ x64, Linux x64 with glibc 2.35+). Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
+
+Raising a stated platform minimum is breaking unless the OS vendor has ended support for that version or the Electron/Chromium upgrade that drops it is needed to stay on a supported Electron line; such a raise ships in a minor with release notes that name it, announced in the previous release's notes when possible. `LSMinimumSystemVersion` stays 12.0 so auto-updated macOS 12 installs still launch (12 to 13.3 is unsupported; onnxruntime needs 13.4). The thresholds live in `scripts/supported-platform-floor.ts`; `scripts/check-native-platform-floor.ts` fails each release build whose native binaries need a newer OS, and the Linux build stays on `ubuntu-22.04` for glibc 2.35.
 
 ## Release intent and notes
 
@@ -104,7 +106,7 @@ One release line: merges prepare the next Stable version and the maintainer sets
 
 ## Platform trust
 
-- macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
+- macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. Both the apps and the DMGs are signed, notarized and stapled; the DMG notarization lives in `patches/dmg-builder@26.17.0.patch`, so re-create it when dmg-builder changes version. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
 - The first signed macOS build was `1.0.0-beta.1`; moving to it from an unsigned `0.x` build may need a one-time manual reinstall.
 - Windows signing is post-v1 (#49). Linux AppImage is not signed.
 
@@ -141,6 +143,7 @@ Alpha  -> alpha, beta, rc, stable
 
 - Prereleases are GitHub prereleases. Only plain `X.Y.Z` app releases may be the repository's "Latest" release; package releases use `--latest=false` (#261).
 - Never retag a prerelease or edit a GitHub release to simulate promotion.
+- Upload assets to a draft release, verify it with `scripts/verify-release-assets.ts`, and publish only after that; a published release without its metadata makes update checks 404.
 - Fail closed when version, tag, release classification, or update metadata is inconsistent.
 
 ## Implementation guidance

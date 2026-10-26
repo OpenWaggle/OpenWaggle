@@ -247,10 +247,6 @@
     "@mariozechner/clipboard-darwin-arm64": "0.3.9",
     "@mariozechner/clipboard-darwin-x64": "0.3.9",
     "@mariozechner/clipboard-linux-x64-gnu": "0.3.9",
-    "@mariozechner/clipboard-win32-x64-msvc": "0.3.9",
-    "recheck-linux-x64": "4.5.0",
-    "recheck-macos-arm64": "4.5.0",
-    "recheck-macos-x64": "4.5.0",
-    "recheck-windows-x64": "4.5.0"
+    "@mariozechner/clipboard-win32-x64-msvc": "0.3.9"
   }
 }
