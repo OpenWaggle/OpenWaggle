@@ -148,10 +148,14 @@ describe('HivePanel', () => {
       .mockResolvedValueOnce(hivePage([summary('two')]))
     renderWithQueryClient(<HivePanel sessionId="queen" onClose={vi.fn()} />)
 
+    // Counts of a partly read Hive are lower bounds, as in the Session Summary.
+    expect(await screen.findByText('1+ Workers in this Hive')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Active Hive sessions' })).toHaveTextContent('1+')
     fireEvent.click(await screen.findByRole('button', { name: 'Load more Workers' }))
     expect(
       await screen.findByRole('button', { name: /Open Worker Session: two/ }),
     ).toBeInTheDocument()
+    expect(screen.getByText('2 Workers in this Hive')).toBeInTheDocument()
   })
 
   it('keeps loaded rows and retries only the page that failed', async () => {

@@ -55,7 +55,11 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
 
   return (
     <section className="flex h-full min-w-0 flex-col bg-diff-bg" aria-label="Hive">
-      <HivePanelHeader memberCount={model.memberCount} onClose={onClose} />
+      <HivePanelHeader
+        memberCount={model.memberCount}
+        partial={query.hasNextPage}
+        onClose={onClose}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {model.root !== null ? <HiveColumnHeader /> : null}
         <HiveTreeLoadState query={query} />
@@ -75,24 +79,28 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
           rows={model.groups.needsAttention}
           onOpen={openSession}
           currentSessionId={sessionId}
+          partial={query.hasNextPage}
         />
         <HiveTreeGroup
           label={HIVE_DELEGATION_GROUP_LABELS['ready-for-review']}
           rows={model.groups.readyForReview}
           onOpen={openSession}
           currentSessionId={sessionId}
+          partial={query.hasNextPage}
         />
         <HiveTreeGroup
           label={HIVE_DELEGATION_GROUP_LABELS.active}
           rows={model.groups.active}
           onOpen={openSession}
           currentSessionId={sessionId}
+          partial={query.hasNextPage}
         />
         <HiveTreeGroup
           label={HIVE_DELEGATION_GROUP_LABELS.closed}
           rows={model.groups.closed}
           onOpen={openSession}
           currentSessionId={sessionId}
+          partial={query.hasNextPage}
         />
         <HiveArchivedGroup
           // Its open state belongs to one Hive: moving within the Hive keeps it, another resets it.
@@ -131,11 +139,19 @@ function HiveColumnHeader() {
   )
 }
 
+/** A count of the Hive's loaded pages; `+` says more Workers are still unread. */
+function loadedCount(count: number, partial: boolean) {
+  return partial ? `${String(count)}+` : String(count)
+}
+
 function HivePanelHeader({
   memberCount,
+  partial,
   onClose,
 }: {
   readonly memberCount: number
+  /** More pages of the Hive exist, so the count covers only those read so far. */
+  readonly partial: boolean
   readonly onClose: () => void
 }) {
   return (
@@ -145,7 +161,8 @@ function HivePanelHeader({
       {/* The whole Hive at every depth, unlike the Session Summary's direct-Worker count. */}
       {memberCount > 0 ? (
         <span className="text-xs text-text-tertiary">
-          {memberCount} {memberCount === 1 ? 'Worker' : 'Workers'} in this Hive
+          {loadedCount(memberCount, partial)} {memberCount === 1 && !partial ? 'Worker' : 'Workers'}{' '}
+          in this Hive
         </span>
       ) : null}
       <Button
@@ -204,18 +221,20 @@ function HiveTreeGroup({
   rows,
   onOpen,
   currentSessionId,
+  partial,
 }: {
   readonly label: string
   readonly rows: readonly HiveTreeRow[]
   readonly onOpen: (sessionId: string) => void
   readonly currentSessionId: string | null
+  readonly partial: boolean
 }) {
   if (rows.length === 0) return null
   return (
     <fieldset aria-label={`${label} Hive sessions`} className="m-0 min-w-0 border-0 p-0">
       <div className="flex items-baseline gap-1.5 px-2 pb-0.5 pt-1 text-xs font-medium tracking-wide text-text-muted uppercase">
         <span>{label}</span>
-        <span className="tabular-nums">{rows.length}</span>
+        <span className="tabular-nums">{loadedCount(rows.length, partial)}</span>
       </div>
       {rows.map((row) => (
         <HiveTreeListItem
