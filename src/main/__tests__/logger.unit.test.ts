@@ -27,6 +27,7 @@ describe('file logger', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
@@ -60,11 +61,32 @@ describe('file logger', () => {
     createLogger('host').info('console line')
 
     await drainFileLogger()
-    vi.useRealTimers()
 
-    expect(getLogFilePath()).toBe(path.join(mockLogsDir, 'openwaggle-host-2026-10-25.log'))
-    expect(fs.readFileSync(getLogFilePath(), 'utf8')).toContain('16:54:22.855Z [host] zoned line\n')
+    const file = path.join(mockLogsDir, 'openwaggle-host-2026-10-25.log')
+    expect(getLogFilePath()).toBe(file)
+    expect(fs.readFileSync(file, 'utf8')).toContain('16:54:22.855Z [host] zoned line\n')
     expect(consoleLine).toHaveBeenCalledWith('16:54:22.855Z [host] console line')
+  })
+
+  it('writes a line logged just before midnight UTC to that day, with its own time', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T23:59:59.999Z'))
+    await initFileLogger(mockLogsDir, 'openwaggle-host')
+    const logger = createLogger('host')
+    logger.info('last line of the day')
+    // The buffered batch is written after the day changed.
+    vi.setSystemTime(new Date('2026-10-26T00:00:00.001Z'))
+    logger.info('first line of the next day')
+
+    await drainFileLogger()
+
+    expect(fs.readFileSync(path.join(mockLogsDir, 'openwaggle-host-2026-10-25.log'), 'utf8')).toBe(
+      '23:59:59.999Z [host] last line of the day\n',
+    )
+    expect(fs.readFileSync(path.join(mockLogsDir, 'openwaggle-host-2026-10-26.log'), 'utf8')).toBe(
+      '00:00:00.001Z [host] first line of the next day\n',
+    )
+    expect(getLogFilePath()).toBe(path.join(mockLogsDir, 'openwaggle-host-2026-10-26.log'))
   })
 
   it('does not write to file before initFileLogger is called', async () => {
@@ -77,11 +99,12 @@ describe('file logger', () => {
   })
 
   it('writes to a separate file stem for the detached Session Host', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'))
     await initFileLogger(mockLogsDir, 'openwaggle-host')
     createLogger('host').info('host line')
 
-    const dateStr = new Date().toISOString().slice(0, 10)
-    expect(getLogFilePath()).toBe(path.join(mockLogsDir, `openwaggle-host-${dateStr}.log`))
+    expect(getLogFilePath()).toBe(path.join(mockLogsDir, 'openwaggle-host-2026-10-25.log'))
   })
 
   it('prunes old Session Host logs with the GUI logs, under one retention policy', async () => {
@@ -118,12 +141,12 @@ describe('file logger', () => {
   })
 
   it('getLogFilePath returns correct date-based path', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'))
     await initFileLogger(mockLogsDir)
     createLogger('init').info('init')
 
-    const logPath = getLogFilePath()
-    const dateStr = new Date().toISOString().slice(0, 10)
-    expect(logPath).toContain(`openwaggle-${dateStr}.log`)
+    expect(getLogFilePath()).toContain('openwaggle-2026-10-25.log')
   })
 
   it('prunes old log files on init', async () => {

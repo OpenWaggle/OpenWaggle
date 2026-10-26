@@ -1762,6 +1762,11 @@ measurement on a clone reads high.
   (`useTitleModelRefusalNotice`, mounted before `useSessionHostRefresh` because the lifecycle test
   harness keeps only the last `onSessionHostEvent` handler). Clients that do not know an event kind
   skip it past its cursor (`decideSessionHostEvent`), so new sessionless kinds are additive.
+- Log lines carry `HH:mm:ss.mmmZ`. Each entry records its time when it is logged, and the
+  buffered batch (written on the next tick) goes to the file of each line's own UTC day: stamping
+  and routing at write time put a 23:59:59.999Z line into the next day's file with the flush time.
+  Logger tests must fake `Date` while they assert; one that restored real timers first passed only
+  on the day it was written.
 - A 0-byte `openwaggle.db` (no WAL frames) is absent for restore and cutover
   (`legacy-database-file.ts`). It blocked `recovery restore-pre-cutover`, and on a fresh install
   the cutover tried to migrate it and failed with "no such table: _migrations". `recovery status`
