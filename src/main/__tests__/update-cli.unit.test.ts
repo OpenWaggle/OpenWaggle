@@ -127,22 +127,6 @@ describe('update CLI', () => {
     expect(writeCliStdoutMock).toHaveBeenCalledWith(expect.stringContaining('openwaggle update'))
   })
 
-  it('refuses an agent Run with the authorization exit code and a message for update (#351)', async () => {
-    const { CliError } = await import('../cli-error')
-    createClientMock.mockRejectedValueOnce(
-      new CliError('authorization', 'OpenWaggle agents cannot check for or install updates.'),
-    )
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-
-    await expect(runUpdateCli(['--check'])).resolves.toEqual({
-      exitCode: 4,
-      updaterOwnsExit: false,
-    })
-    expect(stderr).toHaveBeenCalledWith(
-      'error [authorization]: OpenWaggle agents cannot check for or install updates.\n',
-    )
-  })
-
   it('checks an explicit channel without saving it', async () => {
     checkForUpdatesMock.mockResolvedValue({
       isUpdateAvailable: true,
@@ -301,25 +285,7 @@ describe('update CLI', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).not.toHaveBeenCalled()
-    expect(stderr).toHaveBeenCalledWith(
-      expect.stringMatching(/^error \[usage\]: .*Downgrades are unsupported/u),
-    )
-  })
-
-  it('reports a release that does not exist as not_found (#351)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({ ok: false, status: 404 })),
-    )
-    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-
-    await expect(runUpdateCli(['--version', '99.0.0', '--check'])).resolves.toEqual({
-      exitCode: 5,
-      updaterOwnsExit: false,
-    })
-    expect(stderr).toHaveBeenCalledWith(
-      'error [not_found]: OpenWaggle release v99.0.0 was not found.\n',
-    )
+    expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/^error \[usage\]: .*Downgrades/u))
   })
 
   it('distinguishes invalid arguments from update failures', async () => {

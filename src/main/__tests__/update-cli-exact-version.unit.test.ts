@@ -93,4 +93,16 @@ describe('exact-version update', () => {
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('reports a release that does not exist as not_found, with its kind (#351)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 404 })),
+    )
+
+    await expect(installExactVersion(parsed, 'v99.0.0', true)).rejects.toMatchObject({
+      kind: 'not_found',
+      message: 'OpenWaggle release v99.0.0 was not found.',
+    })
+  })
 })
