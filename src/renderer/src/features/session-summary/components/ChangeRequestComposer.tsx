@@ -2,6 +2,7 @@ import { getChangeRequestTerminology } from '@shared/utils/source-control-presen
 import { X } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useUIStore } from '@/shell/ui-store'
@@ -134,9 +135,7 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
               if (browserUrl) {
                 void api.openExternal(browserUrl).catch((cause: unknown) => {
                   showToast(
-                    cause instanceof Error
-                      ? cause.message
-                      : `Could not open this ${terminology.singular}.`,
+                    ipcFailureMessage(cause, `Could not open this ${terminology.singular}.`),
                     'error',
                   )
                 })

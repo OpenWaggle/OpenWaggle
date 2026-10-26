@@ -5,6 +5,11 @@ import {
   type SessionEmbeddingModel,
 } from '../adapters/multilingual-e5-session-embedding-model'
 import { openHostSqliteDatabase } from './host-sqlite-database'
+import {
+  legacyDatabaseFilePaths,
+  legacyDatabaseFileState,
+  removeEmptyLegacyDatabase,
+} from './legacy-database-file'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { runSessionHostCutover, SESSION_HOST_SCHEMA_REVISION } from './session-host-cutover'
 import { acquireSessionHostOwnership } from './session-host-ownership'
@@ -58,10 +63,26 @@ function activeSchema(databasePath: string) {
   }
 }
 
+/**
+ * Leftover legacy files at the top of the app data folder. `empty` ones hold nothing, and restore
+ * and cutover treat them as absent.
+ */
+async function legacyFileStatuses(paths: LocalSessionHostPaths) {
+  const statuses = await Promise.all(
+    legacyDatabaseFilePaths(paths.legacyDatabasePath).map(async (filePath) => {
+      const status = await fileStatus(filePath)
+      if (!status.exists) return null
+      return { ...status, empty: (await legacyDatabaseFileState(filePath)) === 'empty' }
+    }),
+  )
+  return statuses.filter((status) => status !== null)
+}
+
 export async function sessionHostRecoveryStatus(paths: LocalSessionHostPaths) {
-  const [active, recovery] = await Promise.all([
+  const [active, recovery, legacy] = await Promise.all([
     fileStatus(paths.databasePath),
     fileStatus(paths.recoveryDatabasePath),
+    legacyFileStatuses(paths),
   ])
   return {
     active: {
@@ -69,6 +90,7 @@ export async function sessionHostRecoveryStatus(paths: LocalSessionHostPaths) {
       ...(active.exists ? { schema: activeSchema(active.path) } : {}),
     },
     recovery,
+    legacy,
   }
 }
 
@@ -101,9 +123,12 @@ export async function restorePreCutoverDatabase(
   const restoredSourceArtifact = restoredSourceArtifactPath(paths, now)
   let activePreserved = false
   try {
-    if ((await fileStatus(paths.legacyDatabasePath)).exists) {
+    const legacy = await legacyDatabaseFileState(paths.legacyDatabasePath)
+    if (legacy === 'present') {
       throw new Error(`Legacy database path is already occupied: ${paths.legacyDatabasePath}`)
     }
+    // A 0-byte file there holds nothing; the restore installs the recovery copy in its place.
+    if (legacy === 'empty') await removeEmptyLegacyDatabase(paths.legacyDatabasePath)
     checkpoint(paths.databasePath)
     await rename(paths.databasePath, preservedActivePath)
     activePreserved = true

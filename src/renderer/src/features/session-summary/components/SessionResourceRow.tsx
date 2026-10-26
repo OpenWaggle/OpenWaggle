@@ -3,26 +3,23 @@ import type { SessionResource, SessionResourceOccurrence } from '@shared/types/s
 import { ExternalLink, File, FolderSearch, Image, Link2 } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import {
   preferredResourceOccurrence,
   resolveResourceBranchName,
+  resourceOriginalPath,
   resourceProvenanceLabel,
   type SessionResourceBranchNames,
   type SessionResourceBrowserView,
 } from '../model/session-resource-browser'
 import { SessionResourcePreview } from './SessionResourcePreview'
 
-const LOCAL_RESOURCE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u
 const RESOURCE_DATE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
 })
-
-function originalResourcePath(locator: string | null) {
-  return locator && LOCAL_RESOURCE_PATH.test(locator) ? locator : null
-}
 
 function ResourceIcon({ resource }: { readonly resource: SessionResource }) {
   if (resource.kind === 'image') return <Image className="size-4" />
@@ -31,7 +28,6 @@ function ResourceIcon({ resource }: { readonly resource: SessionResource }) {
 }
 
 function resourceStatusLabel(resource: SessionResource, originalPath: string | null) {
-  if (!resource.available && originalPath) return 'Unavailable · Open original'
   if (!resource.available) return 'Unavailable'
   if (resource.managed && originalPath) return 'Managed copy · Original available'
   if (resource.isSource && resource.isOutput) return 'Source and output'
@@ -43,9 +39,10 @@ function isResourceActionable(
   originalPath: string | null,
   locator: string | null,
 ) {
+  // An unavailable resource could not be read: there is nothing to open or show (#356).
+  if (!resource.available) return false
   if (originalPath) return true
   if (locator?.startsWith('http')) return true
-  if (!resource.available) return false
   return resource.kind === 'image' || resource.locator?.startsWith('session-resource://') === true
 }
 
@@ -58,7 +55,6 @@ async function activateSessionResource(input: {
 }) {
   const { resource, sessionId, originalPath, locator, openViewer } = input
   if (resource.kind !== 'image' && originalPath) return api.openPath(originalPath)
-  if (!resource.available && originalPath) return api.openPath(originalPath)
   if (resource.kind === 'image' && !resource.managed && locator?.startsWith('http://')) {
     return api.openExternal(locator)
   }
@@ -144,13 +140,13 @@ export function SessionResourceRow({
   const showToast = useUIStore((state) => state.showToast)
   const occurrence = preferredResourceOccurrence(resource, activePathNodeIds, view)
   const locator = occurrence?.locator ?? resource.locator
-  const originalPath = originalResourcePath(locator)
+  const originalPath = resourceOriginalPath(resource, locator)
   const statusLabel = resourceStatusLabel(resource, originalPath)
   const branchName = occurrenceBranchName(occurrence, branchNames)
 
   const actionable = isResourceActionable(resource, originalPath, locator)
   const reportActionFailure = (cause: unknown) => {
-    showToast(cause instanceof Error ? cause.message : 'Could not open this resource.', 'error')
+    showToast(ipcFailureMessage(cause, 'Could not open this resource.'), 'error')
   }
 
   return (
@@ -208,7 +204,7 @@ export function SessionResourceRow({
             <span className="block text-xs text-text-tertiary">{statusLabel}</span>
           )}
         </span>
-        {locator?.startsWith('http') ? (
+        {actionable && locator?.startsWith('http') ? (
           <ExternalLink className="size-3.5 shrink-0 text-text-tertiary" />
         ) : null}
       </Button>

@@ -8,34 +8,20 @@ import type {
   UsageCostSessionRow,
   UsageCostView,
 } from '@shared/types/usage-cost'
+import type { UsageCostRecord, UsageCostRecordTokens } from './usage-cost-record'
+
+export type { UsageCostRecord, UsageCostRecordTokens } from './usage-cost-record'
 
 /**
  * Pure Usage & Cost aggregation over scanned Pi session records. No I/O here:
  * the adapter produces `UsageCostScanSession`s, this module answers queries.
  */
 
-export interface UsageCostRecordTokens {
-  readonly input: number
-  readonly output: number
-  readonly cacheRead: number
-  readonly cacheWrite: number
-}
-
-export interface UsageCostRecord {
-  readonly timestampMs: number
-  readonly provider: string
-  readonly modelId: string
-  readonly tokens: UsageCostRecordTokens
-  readonly totalTokens: number
-  /** Cost Pi wrote into the session record, or `null` when absent. */
-  readonly recordedCostUsd: number | null
-  /** Cost computed from Pi's own model rates when the record carried none. */
-  readonly estimatedCostUsd: number | null
-}
-
 export interface UsageCostScanSession {
   readonly file: string
   readonly sessionId: string | null
+  /** The latest Pi `/name`, else the first prompt, shortened; `null` when there is neither. */
+  readonly title: string | null
   readonly cwd: string | null
   /** Owning project resolved from the cwd (a git worktree's primary repository, a temporary root, a known project), or `null` when the cwd stands alone. */
   readonly resolvedProjectPath: string | null
@@ -319,6 +305,7 @@ function sessionRowForQuery(
 
   return {
     sessionId: session.sessionId,
+    title: session.title,
     file: session.file,
     projectLabel: projectIdentityFor(session, display).label,
     displayCwd: session.cwd === null ? null : displayPath(session.cwd, display.homePath),

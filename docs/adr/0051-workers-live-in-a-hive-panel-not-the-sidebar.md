@@ -37,3 +37,13 @@ Each was prototyped and reviewed with the maintainer.
 ## Consequences
 
 The Shortcut registry gains an unassigned Hive panel command, and the command palette lists it with the other panels. The sidebar's session grouping excludes unpinned Workers while chips, roll-ups, filters and search still see them. The Hive relations query widens from one Session's parent and direct Workers to the whole Hive under its root. The user documentation changes in the Hives guide, the Session Summary page, the right panel and shortcut references, and the pinned-session behaviour notes.
+
+## Amendment: one name per state (#356, 1.0.0-rc.1)
+
+The beta.25 QA found one Delegation state under five names and "Done" under three meanings. The labels above are replaced, and the decisions are otherwise unchanged:
+
+- The groups are **Needs attention**, **Ready for review**, **Active** and **Closed**. "Done" now names only a finished Run, as in the sidebar's status chip; CONTEXT.md lists "Active/Done group" among the terms to avoid for Delegation state.
+- The State cell shows the Delegation state's full label (Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, Cancelled) instead of a short form such as "You".
+- A Queen's sidebar line says `1 needs attention`, matching the group and the rail tooltip.
+- Each count names its scope: the panel header counts the whole Hive (`12 Workers in this Hive`), and the Session Hub's Hive row counts direct Workers by group (`3 direct Workers · 3 ready for review`). The sidebar's Worker count stays the direct count, named in its tooltip.
+- A title takes up to two lines and `via ⟨parent⟩` is its own line under it, so neither a long title nor a shared title start hides which Worker a row is. The State cell wraps its longer labels.

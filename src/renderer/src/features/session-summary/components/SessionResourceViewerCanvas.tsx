@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -191,10 +192,7 @@ export function SessionResourceViewerCanvas({
               className="mt-3"
               onClick={() => {
                 void api.openExternal(resource.locator ?? '').catch((cause: unknown) => {
-                  showToast(
-                    cause instanceof Error ? cause.message : 'Could not open the image source.',
-                    'error',
-                  )
+                  showToast(ipcFailureMessage(cause, 'Could not open the image source.'), 'error')
                 })
               }}
             >

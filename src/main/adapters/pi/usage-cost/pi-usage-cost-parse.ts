@@ -17,20 +17,18 @@ import type { UsageCostEstimator } from './pi-usage-cost-scanner'
  */
 
 const OPENWAGGLE_CUSTOM_TYPE_PREFIX = 'openwaggle-'
+/** Enough of a prompt to tell sessions apart in one row; the row truncates it further. */
+const MAX_TITLE_LENGTH = 120
+const WHITESPACE_RUN = /\s+/gu
 
 export async function parseSessionFile(
   file: string,
   estimateCost: UsageCostEstimator,
 ): Promise<UsageCostScanSession> {
-  const state: {
-    sessionId: string | null
-    cwd: string | null
-    startedAtMs: number | null
-    lastActivityMs: number | null
-    origin: UsageCostSessionOrigin
-    lastModel: { provider: string; modelId: string } | null
-  } = {
+  const state: ParseState = {
     sessionId: null,
+    name: null,
+    firstPrompt: null,
     cwd: null,
     startedAtMs: null,
     lastActivityMs: null,
@@ -58,6 +56,7 @@ export async function parseSessionFile(
   return {
     file,
     sessionId: state.sessionId,
+    title: sessionTitle(state),
     cwd: state.cwd,
     // The scanner fills this in per cwd with a cache; parse stays single-file.
     resolvedProjectPath: null,
@@ -70,6 +69,9 @@ export async function parseSessionFile(
 
 interface ParseState {
   sessionId: string | null
+  /** The latest Pi `/name`; an empty name clears it, as in Pi's own session list. */
+  name: string | null
+  firstPrompt: string | null
   cwd: string | null
   startedAtMs: number | null
   lastActivityMs: number | null
@@ -77,8 +79,46 @@ interface ParseState {
   lastModel: { provider: string; modelId: string } | null
 }
 
+function shortened(text: string) {
+  const collapsed = text.replace(WHITESPACE_RUN, ' ').trim()
+  if (collapsed.length <= MAX_TITLE_LENGTH) return collapsed
+  return `${collapsed.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+}
+
+/** The text of a user message, whether Pi stored it as a string or as content blocks. */
+function userPromptText(message: { readonly [key: string]: unknown }) {
+  if (message.role !== 'user') return null
+  if (typeof message.content === 'string') return message.content
+  if (!Array.isArray(message.content)) return null
+  return message.content
+    .flatMap((part: unknown) =>
+      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
+    )
+    .join(' ')
+}
+
+/**
+ * What a Session row is called (#356): the latest Pi `/name`, else the first prompt, which is
+ * also what discovery titles an adopted `pi` session from (ADR 0051).
+ */
+function sessionTitle(state: ParseState) {
+  const title = state.name ?? state.firstPrompt
+  return title ? shortened(title) || null : null
+}
+
+function absorbTitle(state: ParseState, entry: { readonly [key: string]: unknown }) {
+  if (entry.type === 'session_info') {
+    state.name = typeof entry.name === 'string' && entry.name.trim() ? entry.name : null
+    return
+  }
+  if (state.firstPrompt !== null || entry.type !== 'message' || !isRecord(entry.message)) return
+  const text = userPromptText(entry.message)
+  if (text?.trim()) state.firstPrompt = text
+}
+
 function absorbEntry(state: ParseState, entry: { readonly [key: string]: unknown }) {
   const type = entry.type
+  absorbTitle(state, entry)
 
   if (type === 'session') {
     if (typeof entry.id === 'string') state.sessionId = entry.id

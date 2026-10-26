@@ -297,6 +297,18 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Source-control provider resolution is `services/source-control/` (ADR 0048): never decide a provider from the hostname alone. A recognised host is kept as written so `Host github.com` → `ssh.github.com:443` SSH configs do not move it; `gh` and `glab` host lists are read from their config files (`hosts.yml`, glab `config.yml`) because `gh auth status`/`glab auth status` hit the network. Tests that assert exact git command lists must allow the resolver's read-only lookups (`isSourceControlResolverRead` in the stacked-gates harness).
 - Source-control Settings are written only with `SourceControlSettingsAccess.patch` (per-entry set/null-remove, applied serially by the process that owns the database; the window sends `source-control:patch-settings` to the Host). A whole-record `settings:update` from the window raced with Host writes and dropped entries. `git ls-remote` patterns are globs matched against the end of a ref, so `refs/pull/` matched nothing; use `refs/pull/*/head`. Remote hosts are validated (`isSourceControlHostName`) before they reach a CLI argument, a settings key, or the terminal sign-in command; a crafted remote like `https://github;id;x/o/r` was otherwise typed into a shell. Writes through the gh account runner (`runWrite`) never retry as another account. Per-project source-control keys go through `projectSettingsKey` (the main checkout), or the agent and the Session Summary use different keys for the same project. Unit and integration configs point `GH_CONFIG_DIR`/`GLAB_CONFIG_DIR` at a missing directory so tests never read the developer's sign-ins.
 
+### Renderer polish from the beta.25 QA (#356, October 2026)
+
+- A Markdown image destination means what its author meant (`MarkdownImageOrigin` in `session-resource-extraction-types.ts`). Agents write local screenshots as plain absolute paths, but an `openwaggle_docs` topic writes its screenshots root-relative (`/screenshots/hive-sessions.png`), which are website pages; the installed docs bundle does not ship them. Backfill read them as local files, failed, and stored unavailable "Created by openwaggle_docs" outputs with no locator, whose Open called `shell:open-path` on `/screenshots/…`. `toolResultOutputGroups` now resolves an OpenWaggle topic's images against `OPENWAGGLE_WEBSITE_ORIGIN` (an image source the tool read) and ignores local image paths in Pi and extension topics (`details.source`). Every caller reads a tool group through `collectToolOutputGroupResources`, so live capture, backfill slots and display order agree. Migration 73 (after #366's 72) deletes the stored rows and resets those Sessions' backfill state.
+- An unavailable resource offers neither Open nor Reveal (`resourceOriginalPath` returns a path only for an available one): its file could not be read, and a recorded path may not be a file at all.
+- Electron rejects a failed `invoke` with `Error invoking remote method '<channel>': Error: <message>`. Show `ipcFailureMessage(cause, fallback)` (or `ipcErrorMessage`), never `cause.message`. `shell:open-path`, `shell:reveal-path` and `shell:open-external` check the path or URL first and fail with words for the user, logging the system's reason; a non-disruptive automation block keeps its own message.
+- Chromium's accessibility tree (CDP `Accessibility.getFullAXTree`, so also the DevTools MCP snapshot) reports `valuemax 0` for every spinbutton without a maximum, a native `<input type="number" min="1">` included. `NumberStepper` already omits `aria-valuemax` without a maximum (`FormControls.component.test.tsx`); do not invent a maximum to hide the 0.
+- Hide a region that can hold focus with `inert` alone. `aria-hidden` on an ancestor of the focused element makes Chromium warn "Blocked aria-hidden…", which the Scroll to bottom pill did on every click. jsdom does not apply `inert`, so Testing Library still finds the subtree: assert `closest('[inert]')` instead of a missing role.
+- The Hive's names and counts: groups are Needs attention, Ready for review, Active and Closed (`hiveDelegationGroup`, shared by the Hive panel and the Session Summary); State cells show the full Delegation label; "Done" is only a finished Run. The Summary counts direct Workers by group, the panel header the whole Hive, and the sidebar glyph direct Workers.
+- Usage & Cost rows are titled from the Pi file (latest `session_info` name, else the first prompt), because the view runs in the window, whose database is client-isolated: it cannot read OpenWaggle's generated titles without a Host UI channel. The Sessions card counts token use, not spending.
+- The Settings statistics switch asks the GUI process for its build or environment opt-out (`app:get-usage-statistics-block`) and shows itself off and disabled with the reason; the saved Setting is untouched.
+- In Electron QA, the DevTools MCP writes `take_screenshot` files only inside its workspace roots (the checkout): save under `node_modules/.cache/` and copy to `$OPENWAGGLE_EVIDENCE_DIR`. `scripts/support/session-fixtures.ts` seeds Sessions and Hives into a running QA profile's Host database; reload the page to see them.
+
 ### The coordination surface is named `hive` (ADR 0053, October 2026)
 
 The Pi tool, CLI group and MCP tool are `hive`, `openwaggle hive` and `openwaggle_hive` (`@shared/constants/hive`). The former `sessions`, `openwaggle sessions`, `openwaggle delegations`, `openwaggle agents list|search` and `openwaggle_sessions` names are refused, not aliased: the top-level router answers "It is now 'hive'", the Hive CLI and `openwaggle agents` name the replacement subcommand, and an Agent definition listing `sessions` gets `unknown-reference`. A transcript keeps its recorded `sessions` calls; the renderer shows them as an unrecognized (`other`) tool. Each tool action is the `hive` subcommand and MCP operation of the same name with `-` for `_`, so the CLI routes flat names (`delegation-submit`, `queue-withdraw`, `exports-wait`, `authorization-set <id> inherit`), and `mcpSessionCliOptionsV2` passes the MCP operation through as the CLI command unchanged; `hive-action-vocabulary.unit.test.ts` fails if a tool action or MCP operation has no subcommand. Scheduled tasks keep `openwaggle schedules` and have no MCP operation; `openwaggle_hive` also carries `agent-definitions-list|search`, answered in the MCP server process for a project inside the caller's workspace grants (ADR 0053 amendment). Both it and `hive agent-definitions-list|search` apply the project's `agentDefinitionTogglesByProject`, as the tool does, so they never list a definition spawn and launch refuse. `resolveAgentDefinitionProject` (`agent-definition-project.ts`) first maps the caller's directory (CLI `--project`/cwd, MCP grant; as given and its realpath) by the Host's `projectOfWorkspace` rule, shared as `projectOfWorkspacePath` in `adapters/workspace-project-authorization.ts`: an opened project is itself, a ready managed worktree stands for its Session's project, and (discovery only, `insideManagedWorktrees`) so does a directory inside one. A plain subdirectory of a project is its own project, because `create`/`launch` take projectPath as given and an MCP `--workspace /repo/src` grant must not read /repo. Without the worktree mapping a worktree matched no toggle entry. Settings are read first, so a Settings failure lists nothing. The vocabulary test lists these exceptions explicitly. App migration 71 (`hive-tool-name`) rewrites `sessions` to `hive` once in stored `session_execution_profiles.profile_json.tools` and `resolved_agent_snapshot_json.tools` (a fork intersects with the snapshot), because a Session created from a definition listing `sessions` would otherwise silently lose the Hive tool while its identity still lists `sessions:*` capabilities; that is Host-authored data, not an accepted alias. The snapshot's `contentDigest` is a SHA-256 of the parsed definition, so migrated snapshots no longer match it; nothing checks it, and a future integrity check must accept them. Internal module and identifier names (`sessions-tool-*.ts`, `sessions-cli-*.ts`, `SessionsTool*`) were left alone, and so were the `sessions:*` capabilities and the `openwaggle:sessions` export-authorization requester id, because they name the Session concept or persisted keys, not the surface. No contract revision changed: the Host protocol, Session Control/Query v2 and CLI `schemaVersion` 1 payloads are identical; only the front-door names moved.
@@ -1713,6 +1725,69 @@ skill and extension resource scans (`loadSkills`, `collectSkillEntries`, jiti), 
 than one long stall. An earlier
 4.4-hour Host silence (desktop heartbeat failing every 5 s, no Host log lines, no crash report,
 machine awake) stayed unexplained.
+
+### Run settlement blocked the Host for seconds: per-node discovery rebuilds and inline WAL checkpoints (#357, October 2026)
+
+Every beta.25 "Session Host event loop stalled" line (1.6 to 3.5 s) ended 20 ms before a Worker
+Run's `session_runs` row settled. Reproduced by persisting real Worker snapshots (200 to 417 nodes)
+into a copy of the 2.1 GB user database: `persistSessionSnapshot` blocked 2.4 to 4.1 s and resource
+capture another 0.2 to 0.6 s, each as one synchronous stretch. Causes, in order of cost:
+- `session_node_search_insert`/`_update`/`session_node_discovery_search_delete` rebuilt the Session's
+  lexical discovery row per node, and that row's insert trigger rebuilds its term postings and
+  signatures (about 9 ms a node on that database; 97% of the snapshot). A Worker's first snapshot
+  inserts all of its Run's nodes at once. Migration 72 guards the rebuild with
+  `session_lexical_discovery_deferrals`; `withDeferredLexicalDiscoveryRefresh` holds a row during
+  snapshot reconciliation and rebuilds once. Any other writer still rebuilds per node. The deferral
+  row only lives inside the snapshot's transaction. The trigger list itself creates the table
+  (`CREATE TABLE IF NOT EXISTS`), because migration 50 and the baseline recreate the triggers too.
+- SQLite checkpoints inside the commit that grows the WAL past 1,000 pages: 200 to 500 ms on that
+  database, usually the snapshot commit. `runWalCheckpointBackground` (Host only) sets
+  `wal_autocheckpoint = 0` once a worker thread with its own better-sqlite3 connection (same addon,
+  so one SQLite library and its POSIX locks; never `node:sqlite` for the same file) runs PASSIVE
+  checkpoints every second. If the worker cannot start or stops, autocheckpoint goes back to 1,000.
+- better-sqlite3 is synchronous and Effect resumes fibers through microtasks, so a chain of
+  statements never lets sockets or timers run. `makeEventLoopSlicer`/`yieldToEventLoop`
+  (`src/main/utils/event-loop-slice.ts`) return to the event loop via `node:timers` `setImmediate`
+  (test fake timers do not replace it) between node writes, term-index steps and captured messages.
+  Yielding inside `sql.withTransaction` is safe: other fibers wait for the connection semaphore.
+After: the longest stretch was 36 to 116 ms with ten Workers loading the machine (load average 15),
+the longest single statement (the one discovery rebuild of a 591-term objective) 20 to 40 ms in the
+sqlite3 CLI. A fresh APFS clone (`cp -c`) of the database has a cold page cache, so the first
+measurement on a clone reads high.
+
+### Expired provider credentials, refused Title models, empty legacy files (#357, October 2026)
+
+- AWS SSO expiry ("Token is expired. To refresh this SSO session run 'aws sso login'...") ended Runs
+  with code `unknown`. `isExpiredCredentialMessage` (shared classifier) maps SSO, STS
+  `ExpiredTokenException` and OAuth sign-in expiry to `session-expired` ("Provider credentials
+  expired"), before the 401/403 rule. The AWS SDK refreshes an SSO token from its cached refresh
+  token at most once per 30 s per SSO session (`lastRefreshAttemptTimes`); a request made meanwhile
+  fails at once, so several Runs starting together all failed but one. Pi builds a new
+  `BedrockRuntimeClient` per request, so `withExpiredCredentialRetry` (installed on both Bedrock
+  stream functions in `pi-bundled-bedrock.ts`) re-sends a request that failed on expired
+  credentials before it streamed anything, once, after 2 s. Bedrock emits `start` only after
+  `client.send` returns, so a credential failure is always the first event.
+- The Title model fallback to the Session model already existed; what was missing was memory.
+  Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an
+  `AccessDeniedException` first. `TitleModelRefusals` (Host-wide, `pi-title-model-refusals.ts`)
+  pauses a refused model for background titles for 30 minutes (Regenerate still tries it) and sends
+  the sessionless Host event `session-title-model-refused` once per model; the desktop shows a toast
+  (`useTitleModelRefusalNotice`, mounted before `useSessionHostRefresh` because the lifecycle test
+  harness keeps only the last `onSessionHostEvent` handler). Clients that do not know an event kind
+  skip it past its cursor (`decideSessionHostEvent`), so new sessionless kinds are additive.
+- Log lines carry `HH:mm:ss.mmmZ`. Each entry records its time when it is logged, and the
+  buffered batch (written on the next tick) goes to the file of each line's own UTC day: stamping
+  and routing at write time put a 23:59:59.999Z line into the next day's file with the flush time.
+  Logger tests must fake `Date` while they assert; one that restored real timers first passed only
+  on the day it was written.
+- A 0-byte `openwaggle.db` (no WAL frames) is absent for restore and cutover
+  (`legacy-database-file.ts`). It blocked `recovery restore-pre-cutover`, and on a fresh install
+  the cutover tried to migrate it and failed with "no such table: _migrations". `recovery status`
+  lists leftover `openwaggle.db` and top-level `session-host.sqlite` under `legacy`.
+- Fixed by #371: `session-host-upgrade-blockers.ts` opened the live Host database with
+  `node:sqlite` inside the Host process. It now reads through the Host's connection, and
+  `check:repository-standards` rejects `node:sqlite` outside browser import (see the
+  one-SQLite-library entry under Renderer And Session Memory).
 
 ## Website documentation routing
 

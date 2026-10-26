@@ -1,10 +1,62 @@
 import { SessionId } from '@shared/types/brand'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChessQueen, Pickaxe } from 'lucide-react'
+import type { HiveDelegationGroup } from '@/queries/session-hive-contract'
 import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
+import { cn } from '@/shared/lib/cn'
 import { showRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
 import { hiveSummaryModel } from '../model/session-hive-summary'
+
+type HiveSummary = NonNullable<ReturnType<typeof hiveSummaryModel>>
+
+/**
+ * Each group's words and colour, loudest first. They are the Hive panel's groups, so the row and
+ * the panel describe a Worker the same way (#356).
+ */
+const COUNT_SEGMENTS: readonly {
+  readonly group: HiveDelegationGroup
+  readonly text: (count: string, one: boolean) => string
+  readonly className: string
+}[] = [
+  {
+    group: 'needs-attention',
+    text: (count, one) => `${count} ${one ? 'needs' : 'need'} attention`,
+    className: 'text-warning',
+  },
+  {
+    group: 'ready-for-review',
+    text: (count) => `${count} ready for review`,
+    // Info, not warning: the next step is the parent's review, not something gone wrong.
+    className: 'text-info-text',
+  },
+  { group: 'active', text: (count) => `${count} active`, className: 'text-text-secondary' },
+  { group: 'closed', text: (count) => `${count} closed`, className: 'text-text-tertiary' },
+]
+
+/** "3 direct Workers · 3 ready for review": the scope first, then every group that has one. */
+function HiveSummaryCounts({ model }: { readonly model: HiveSummary }) {
+  const suffix = model.partial ? '+' : ''
+  return (
+    <span className="text-xs text-text-tertiary">
+      <span className="whitespace-nowrap">
+        {model.directCount} direct {model.directCount === 1 ? 'Worker' : 'Workers'}
+      </span>
+      {COUNT_SEGMENTS.map((segment) => {
+        const count = model.counts[segment.group]
+        if (count === 0) return null
+        return (
+          <span key={segment.group}>
+            {' · '}
+            <span className={cn('whitespace-nowrap', segment.className)}>
+              {segment.text(`${String(count)}${suffix}`, count === 1 && !model.partial)}
+            </span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
 
 /**
  * The Session Hub's Hive section: one summary row (ADR 0051).
@@ -33,19 +85,18 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
 
   return (
     <section className="border-t border-border" aria-label="Hive">
-      <div className="flex h-10 items-center gap-2 px-3">
-        <Icon aria-hidden="true" className="size-3.5 text-accent" />
-        <span className="flex-1 text-sm font-medium text-text-primary">Hive</span>
-        {model.totalCount > 0 ? (
-          <span className={model.attention ? 'text-xs text-warning' : 'text-xs text-text-tertiary'}>
-            {model.activeCount} active · {model.totalCount} total
-          </span>
-        ) : null}
+      <div className="flex min-h-10 items-center gap-2 px-3 py-1.5">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
+        {/* The counts get a line of their own under the name, so they wrap instead of crowding. */}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-medium text-text-primary">Hive</span>
+          {model.directCount > 0 ? <HiveSummaryCounts model={model} /> : null}
+        </span>
         {/* Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them. */}
         {model.lineage.historical === true ? null : (
           <Button
             variant="unstyled"
-            className="rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            className="shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             aria-label="Open in Hive panel"
             onClick={() => showRightPanelSurface('hive')}
           >
