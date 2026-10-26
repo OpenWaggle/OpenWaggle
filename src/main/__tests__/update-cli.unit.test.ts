@@ -76,6 +76,7 @@ vi.mock('../update-feed', async (importOriginal) => ({
 }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
+  assertCliAgentMayUseOwnerAuthority: vi.fn(),
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))
@@ -158,7 +159,9 @@ describe('update CLI', () => {
     })
 
     // No pinned revision: the command offers those it can be sent at, the Host's current one.
-    expect(createClientMock).toHaveBeenCalledWith(expect.anything())
+    expect(createClientMock).toHaveBeenCalledWith(expect.anything(), {
+      agentRefusal: expect.stringContaining('Ask the user to run openwaggle update'),
+    })
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.not.objectContaining({ supportedRevisions: expect.anything() }),
     )
@@ -283,7 +286,7 @@ describe('update CLI', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).not.toHaveBeenCalled()
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Downgrades are unsupported'))
+    expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/^error \[usage\]: .*Downgrades/u))
   })
 
   it('distinguishes invalid arguments from update failures', async () => {

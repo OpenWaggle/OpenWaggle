@@ -8,6 +8,7 @@ import { writeCliStdout, writeWritableChunk } from './cli-stdout'
 import { env } from './env'
 import { SESSION_CLI_EXIT } from './session-cli-exit-status'
 import { configureAppStoragePaths } from './session-data'
+import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './sessions-cli-output'
 import {
   type CliPathKind,
   routeTopLevelCli,
@@ -184,7 +185,15 @@ export function startTopLevelCli(
     .with('usage-error', (route) => {
       writeAndExit(
         () =>
-          writeStderr(`openwaggle: ${route.message}\n\n${topLevelCliUsage(app.getVersion())}\n`),
+          writeStderr(
+            'machine' in route && route.machine
+              ? `${JSON.stringify({
+                  schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
+                  type: 'error',
+                  error: { kind: 'usage', message: route.message },
+                })}\n`
+              : `openwaggle: ${route.message}\n\n${topLevelCliUsage(app.getVersion())}\n`,
+          ),
         SESSION_CLI_EXIT.USAGE,
       )
       return handled

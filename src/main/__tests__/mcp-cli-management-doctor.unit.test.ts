@@ -63,7 +63,9 @@ describe('openwaggle mcp doctor', () => {
     })
 
     expect(result.exitCode).toBe(0)
-    const report = JSON.parse(result.logs)
+    const envelope = JSON.parse(result.logs)
+    expect(envelope).toMatchObject({ schemaVersion: 1, type: 'response', command: 'mcp doctor' })
+    const report = envelope.result
     expect(report).toMatchObject({
       ok: true,
       errors: [],

@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
-import {
-  LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-  type LocalSessionProfileManagementCommand,
-} from '@shared/types/local-session-profile-management'
 import { app } from 'electron'
+import { buildCommand, destination, request, required } from './access-cli-command'
 import { commitAcceptedProfileCredential } from './access-cli-credential-settlement'
 import { settleAccessCliFailure } from './access-cli-failure'
 import { validateAccessCliOptions } from './access-cli-option-contract'
 import {
   AmbiguousProfileOperationError,
   accessCliRejectedOutcomeKind,
+  accessCliResponseText,
   preservedProfileCredentialError,
   writeAccessCliError,
 } from './access-cli-output'
-import { parseProfilePolicy } from './access-cli-policy'
+import { accessCliUsage } from './access-cli-usage'
+import { asUsageErrorsSync } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -24,90 +23,16 @@ import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { resolveLocalSessionHostPaths } from './session-host/local-session-paths'
 import { generateProfileCredential } from './session-host/profile-credential'
 import {
-  type ProfileCredentialDestination,
   removeStoredProfileCredential,
+  removeStoredProfileCredentialCopy,
   stageProfileCredential,
 } from './session-host/profile-credential-destination'
 
-const JSON_INDENT_SPACES = 2
 const PROFILE_ARGUMENT_OFFSET = 2
+/** Stands in for the credential while the command line is checked; never sent. */
+const UNREAD_CREDENTIAL = 'unread'
 
-export function accessCliUsage() {
-  return `OpenWaggle agent access
-
-Usage:
-  openwaggle access profiles list [--json]
-  openwaggle access profiles create <name> --capability <capability>... [scope]
-    (--credential-store|--credential-file <path>) [--replace]
-  openwaggle access profiles update <name> --capability <capability>... [scope]
-  openwaggle access profiles rotate <name> (--credential-store|--credential-file <path>) [--replace]
-  openwaggle access profiles revoke <name>
-
-Scope: --all | --project <path>... | --session <id>... | --hive <root-id>...
-  (a Session id may also be a Session link: openwaggle://sessions/<session-id>)
-Export files: --export-root <path>... (explicit read/write roots; never implied by Session scope)
-Attachments: --attachment-root <path>... (explicit file-read roots)
-Policy: --authorization ask-for-approval|yolo [--management-envelope-json <json>]
-Caller: --profile <name> [--credential-stdin|--profile-credential-file <path>]
-Common: --idempotency-key <key> --json
-Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
-fail before credentials or profiles change.`
-}
-
-function required(value: string | undefined, label: string) {
-  if (!value) throw new Error(`${label} is required.`)
-  return value
-}
-
-function destination(
-  arguments_: ReturnType<typeof parseMcpCliArguments>,
-  stateRoot: string,
-): ProfileCredentialDestination {
-  const store = hasFlag(arguments_, 'credential-store')
-  const file = option(arguments_, 'credential-file')
-  if (store === Boolean(file)) {
-    throw new Error('Choose exactly one --credential-store or --credential-file <path>.')
-  }
-  return store
-    ? { kind: 'credential-store', stateRoot }
-    : { kind: 'file', path: required(file, '--credential-file') }
-}
-
-function request(command: LocalSessionProfileManagementCommand, idempotencyKey: string) {
-  return {
-    contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-    requestId: randomUUID(),
-    idempotencyKey,
-    command,
-  }
-}
-
-function buildCommand(
-  operation: string,
-  arguments_: ReturnType<typeof parseMcpCliArguments>,
-  credential?: string,
-): LocalSessionProfileManagementCommand {
-  if (operation === 'list') return { operation }
-  const profileName = required(arguments_.positionals[0], 'Profile name')
-  if (operation === 'create') {
-    return {
-      operation,
-      name: profileName,
-      credential: required(credential, 'Credential'),
-      ...parseProfilePolicy(arguments_),
-    }
-  }
-  if (operation === 'update') return { operation, profileName, ...parseProfilePolicy(arguments_) }
-  if (operation === 'rotate') {
-    return { operation, profileName, credential: required(credential, 'Credential') }
-  }
-  if (operation === 'revoke') return { operation, profileName }
-  throw new Error(`Unsupported profile operation: ${operation}.`)
-}
-
-function writeOutput(value: unknown, json: boolean) {
-  return writeCliStdout(`${JSON.stringify(value, null, json ? JSON_INDENT_SPACES : undefined)}\n`)
-}
+export { accessCliUsage } from './access-cli-usage'
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
 
@@ -179,7 +104,18 @@ async function finalizeProfileResponse(input: {
   readonly stateRoot: string
   readonly json: boolean
   readonly idempotencyKey: string
+  readonly operation: string
+  readonly includeRevoked: boolean
 }) {
+  const writeOutput = (response: Parameters<typeof accessCliResponseText>[0]['response']) =>
+    writeCliStdout(
+      accessCliResponseText({
+        operation: input.operation,
+        response,
+        json: input.json,
+        includeRevoked: input.includeRevoked,
+      }),
+    )
   if (input.response.outcome.effect === 'rejected') {
     if (input.staged?.recoveredPending) {
       throw preservedProfileCredentialError(
@@ -188,7 +124,7 @@ async function finalizeProfileResponse(input: {
       )
     }
     await input.staged?.discard()
-    await writeOutput(input.response, input.json)
+    await writeOutput(input.response)
     return sessionCliExitCodeForError(accessCliRejectedOutcomeKind(input.response.outcome))
   }
   const staged = input.staged
@@ -203,11 +139,22 @@ async function finalizeProfileResponse(input: {
       profileName: input.response.outcome.profile.name,
     })
   }
+  if (
+    (input.response.outcome.effect === 'profile-rotated' ||
+      input.response.outcome.effect === 'profile-created') &&
+    staged?.metadata.kind === 'file'
+  ) {
+    // The credential now lives in that file; an older credential-store copy would stay the
+    // default for --profile and only fail authentication.
+    await removeStoredProfileCredentialCopy({
+      stateRoot: input.stateRoot,
+      profileName: input.response.outcome.profile.name,
+    })
+  }
   await writeOutput(
     input.staged
       ? { ...input.response, credentialDestination: input.staged.metadata }
       : input.response,
-    input.json,
   )
   return SESSION_CLI_EXIT.SUCCESS
 }
@@ -222,6 +169,11 @@ async function executeProfileOperation(input: {
   try {
     validateAccessCliOptions(operation, arguments_)
     const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
+    // Read the whole command line before staging a credential or contacting the Host.
+    asUsageErrorsSync(() => {
+      buildCommand(operation, arguments_, UNREAD_CREDENTIAL)
+      if (operation === 'create' || operation === 'rotate') destination(arguments_, paths.stateRoot)
+    })
     const idempotencyKey = option(arguments_, 'idempotency-key') ?? randomUUID()
     staged = await prepareProfileCredential({
       operation,
@@ -242,6 +194,8 @@ async function executeProfileOperation(input: {
       stateRoot: paths.stateRoot,
       json: hasFlag(arguments_, 'json'),
       idempotencyKey,
+      operation,
+      includeRevoked: hasFlag(arguments_, 'include-revoked'),
     })
   } catch (error) {
     return settleAccessCliFailure({ error, accepted, staged, json: hasFlag(arguments_, 'json') })

@@ -1,6 +1,7 @@
 import { LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT } from '@shared/types/local-session-protocol'
 import {
   type CommandCliArgumentContract,
+  CommandCliUsageError,
   validateCommandCliArguments,
 } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
@@ -72,6 +73,6 @@ const ACTIONS: Readonly<Record<string, CommandCliArgumentContract>> = {
 
 export function validateSessionsCliPositionals(command: string, arguments_: ParsedArguments) {
   const contract = DIRECT[command] ?? ACTIONS[command]
-  if (!contract) throw new Error(`Unsupported OpenWaggle Hive command: ${command}.`)
+  if (!contract) throw new CommandCliUsageError(`Unsupported OpenWaggle Hive command: ${command}.`)
   validateCommandCliArguments('OpenWaggle Hive', command, arguments_, contract)
 }

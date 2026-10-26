@@ -17,13 +17,20 @@ const POLICY_OPTIONS = [
 const DESTINATION_OPTIONS = ['credential-store', 'credential-file', 'replace'] as const
 const OPTIONS_BY_OPERATION: Readonly<Record<string, readonly string[]>> = {
   help: [],
-  list: [],
+  list: ['include-revoked'],
   create: [...POLICY_OPTIONS, ...DESTINATION_OPTIONS],
   update: POLICY_OPTIONS,
   rotate: DESTINATION_OPTIONS,
   revoke: [],
 }
-const BOOLEAN_OPTIONS = new Set(['all', 'credential-stdin', 'credential-store', 'json', 'replace'])
+const BOOLEAN_OPTIONS = new Set([
+  'all',
+  'credential-stdin',
+  'credential-store',
+  'include-revoked',
+  'json',
+  'replace',
+])
 const ARGUMENTS_BY_OPERATION = {
   help: { minimum: 0, maximum: 0 },
   list: { minimum: 0, maximum: 0 },

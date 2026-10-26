@@ -5,8 +5,10 @@ import { describeSchedule } from '../lib/schedule-presets'
 import {
   differingTimeZone,
   formatAbsoluteTime,
+  nextRunAbsoluteText,
   nextRunText,
   RUN_STATUS_LABELS,
+  RUN_TRIGGER_LABELS,
   runReasonText,
 } from '../lib/task-format'
 
@@ -15,7 +17,7 @@ export function ScheduledTaskKindIcon({ task }: { readonly task: Pick<ScheduledT
   return <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
 }
 
-/** "Every 30 minutes · Europe/Paris · Next in 12 minutes (Jan 3, 09:00)". */
+/** "Every day at 09:00 · Europe/Paris · Next in 12 minutes (Jan 3, 2026, 8:58:59 AM GMT+1 ± up to 5 min)". */
 export function ScheduledTaskScheduleLine({
   task,
   now,
@@ -24,16 +26,14 @@ export function ScheduledTaskScheduleLine({
   readonly now: number
 }) {
   const zone = differingTimeZone(task)
-  const nextAt = task.enabled && task.waitingSince === null ? task.nextRunAt : null
+  const nextAt = task.enabled && task.waitingSince === null ? nextRunAbsoluteText(task) : null
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-text-tertiary">
       <span>{describeSchedule(task.schedule)}</span>
       {zone ? <span>· {zone}</span> : null}
       <span>·</span>
       <span className={cn(!task.enabled && 'text-text-muted')}>{nextRunText(task, now)}</span>
-      {nextAt === null ? null : (
-        <span className="text-text-muted">({formatAbsoluteTime(nextAt, zone)})</span>
-      )}
+      {nextAt === null ? null : <span className="text-text-muted">({nextAt})</span>}
     </div>
   )
 }
@@ -52,13 +52,15 @@ export function ScheduledTaskRunStatus({ run }: { readonly run: ScheduledTaskRun
   )
 }
 
+/** "Last run Started · Run now · Mar 2, 2026, 9:01:30 AM GMT+1": a manual run is never a misfire. */
 export function ScheduledTaskLastRunLine({ task }: { readonly task: ScheduledTask }) {
   const run = task.lastRun
   if (!run) return <div className="text-xs text-text-muted">No runs yet</div>
   const reason = runReasonText(run)
   return (
     <div className="text-xs text-text-tertiary">
-      Last run <ScheduledTaskRunStatus run={run} /> {formatAbsoluteTime(run.firedAt)}
+      Last run <ScheduledTaskRunStatus run={run} /> · {RUN_TRIGGER_LABELS[run.trigger]} ·{' '}
+      {formatAbsoluteTime(run.firedAt, differingTimeZone(task))}
       {reason ? <span className="text-text-secondary"> — {reason}</span> : null}
     </div>
   )

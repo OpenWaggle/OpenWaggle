@@ -4,6 +4,7 @@ import type {
   AgentDefinitionScope,
 } from '@shared/types/agent-definition'
 import type { AgentDefinitionSemanticCatalogLoader } from './agents/agent-definition-management'
+import { CommandCliUsageError } from './command-cli-option-contract'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
 
 export function managementContext(input: {
@@ -14,7 +15,7 @@ export function managementContext(input: {
 }
 
 export function required(value: string | undefined, label: string) {
-  if (!value) throw new Error(`${label} is required.`)
+  if (!value) throw new CommandCliUsageError(`${label} is required.`)
   return value
 }
 
@@ -24,7 +25,7 @@ export function agentDefinitionsProjectPath(arguments_: ParsedArguments, cwd: st
 
 export function parseAgentDefinitionScope(value: string | undefined): AgentDefinitionScope {
   if (value === 'project' || value === 'portable-project' || value === 'user') return value
-  throw new Error('--scope must be project, portable-project, or user.')
+  throw new CommandCliUsageError('--scope must be project, portable-project, or user.')
 }
 
 export function parseAgentDefinitionImportSource(
@@ -41,6 +42,6 @@ export function parseAgentDefinitionImportSource(
     'opencode',
   ]
   const selected = sources.find((source) => source === value)
-  if (!selected) throw new Error(`Unsupported Agent import source: ${value}.`)
+  if (!selected) throw new CommandCliUsageError(`Unsupported Agent import source: ${value}.`)
   return selected
 }

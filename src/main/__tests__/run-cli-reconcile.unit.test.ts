@@ -1,6 +1,7 @@
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test' } }))
 vi.mock('../cli-stdout', () => ({
@@ -81,7 +82,7 @@ describe('openwaggle run reconciliation', () => {
       ...test.dependencies,
       execute: async (input: Parameters<typeof test.dependencies.execute>[0]) => {
         if (input.payload.contract !== 'session-query-v2') return test.dependencies.execute(input)
-        throw new Error('LocalSessionCommandAuthorizationError: capability_denied')
+        throw new LocalSessionClientProtocolError('capability_denied', 'Session command refused.')
       },
     }
 

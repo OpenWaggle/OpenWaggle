@@ -1,6 +1,11 @@
+import { CliError, type CliErrorKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
-import { isCommandCliUsageError } from './command-cli-option-contract'
-import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionClientTimeoutError,
+  LocalSessionHostUnavailableError,
+  LocalSessionHostUpgradePendingError,
+} from './session-host/local-session-client-protocol-error'
 
 const JSON_INDENT_SPACES = 2
 export const SESSIONS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
@@ -11,6 +16,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function humanLabel(value: string) {
   return value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+/**
+ * Fields whose raw value misleads a person: a `running` queue is one that is not paused, even
+ * when no Run is active (#351). `--json` keeps the raw values.
+ */
+const HUMAN_FIELDS: Readonly<
+  Record<string, { readonly label: string; readonly value: (entry: unknown) => string | undefined }>
+> = {
+  queueState: {
+    label: 'Follow-up Queue',
+    value: (entry) =>
+      entry === 'running' ? 'not paused' : entry === 'paused' ? 'paused' : undefined,
+  },
+  activeRunId: {
+    label: 'Active Run',
+    value: (entry) => (entry === null ? 'none (idle)' : undefined),
+  },
 }
 
 function humanOutcome(value: unknown) {
@@ -27,11 +50,13 @@ function humanOutcome(value: unknown) {
   const details = Object.entries(outcome)
     .filter(([key]) => key !== 'effect' && key !== 'operation')
     .map(([key, entry]) => {
+      const readable = HUMAN_FIELDS[key]
       const formatted =
-        typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean'
+        readable?.value(entry) ??
+        (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean'
           ? String(entry)
-          : JSON.stringify(entry, null, JSON_INDENT_SPACES)
-      return `${humanLabel(key)}: ${formatted}`
+          : JSON.stringify(entry, null, JSON_INDENT_SPACES))
+      return `${readable?.label ?? humanLabel(key)}: ${formatted}`
     })
   return [title, ...details].join('\n')
 }
@@ -66,24 +91,16 @@ export function writeSessionsCliStreamRecord(record: unknown, jsonl: boolean) {
   return writeCliStdout(jsonl ? sessionsCliStreamRecordLine(record) : `${humanOutcome(record)}\n`)
 }
 
-export type SessionsCliErrorKind =
-  | 'usage'
-  | 'authentication'
-  | 'authorization'
-  | 'not_found'
-  | 'conflict'
-  | 'timeout'
-  | 'host_unavailable'
-  | 'internal'
-
-function includesAny(message: string, fragments: readonly string[]) {
-  return fragments.some((fragment) => message.includes(fragment))
-}
+export type SessionsCliErrorKind = CliErrorKind
 
 const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
   ['authentication_failed', 'authentication'],
   ['credential_rejected', 'authentication'],
   ['profile_revoked', 'authentication'],
+  // The caller's own profile was deleted: a credential problem, like a revoked one.
+  ['profile_not_found', 'authentication'],
+  // Too many failed attempts: retry later, with the same credential.
+  ['authentication_throttled', 'authentication'],
   ['host_draining', 'host_unavailable'],
   // A Session whose Pi file cannot be used is refused until the file is back or a message
   // starts a new transcript.
@@ -113,39 +130,45 @@ export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind 
   return undefined
 }
 
-export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
-  if (error instanceof LocalSessionClientProtocolError) {
-    const kind = sessionsCliErrorKindForCode(error.code)
-    if (kind) return kind
-  }
-  if (isCommandCliUsageError(error)) return 'usage'
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
-  if (
-    includesAny(message, [
-      'required',
-      'exactly one',
-      'does not accept',
-      'unknown option',
-      'unsupported option',
-      'unsupported',
-      'must be',
-      'choose either',
-      'commands use',
-    ])
+/** A socket that could not reach the Session Host endpoint: a Node error from `connect`. */
+function isHostConnectionError(error: unknown) {
+  return (
+    error instanceof Error &&
+    Reflect.get(error, 'syscall') === 'connect' &&
+    typeof Reflect.get(error, 'code') === 'string'
   )
-    return 'usage'
-  if (includesAny(message, ['authentication', 'credential'])) return 'authentication'
-  if (includesAny(message, ['authoriz', 'capability'])) return 'authorization'
-  if (includesAny(message, ['not found', 'missing'])) return 'not_found'
-  if (includesAny(message, ['conflict', 'changed'])) return 'conflict'
-  if (includesAny(message, ['timed out', 'timeout'])) return 'timeout'
-  if (includesAny(message, ['host', 'econn', 'socket'])) {
+}
+
+/**
+ * The kind of a CLI error, from its type alone (#351). An error without a known type is
+ * `internal`: the commands raise their usage errors as typed errors, so an unexpected failure
+ * never passes for a usage mistake because of how it is worded.
+ */
+export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
+  if (error instanceof CliError) return error.kind
+  if (error instanceof LocalSessionClientProtocolError) {
+    return sessionsCliErrorKindForCode(error.code) ?? 'internal'
+  }
+  if (error instanceof LocalSessionClientTimeoutError) return 'timeout'
+  if (
+    error instanceof LocalSessionHostUnavailableError ||
+    error instanceof LocalSessionHostUpgradePendingError ||
+    isHostConnectionError(error)
+  ) {
     return 'host_unavailable'
   }
   return 'internal'
 }
 
-export function writeSessionsCliError(error: unknown, machine: boolean) {
+/**
+ * Every CLI reports a failure the same way (#351): `error [<kind>]: <message>` for people, and
+ * `{schemaVersion, type: "error", error: {kind, message}}` with `--json` or `--jsonl`.
+ */
+export function writeSessionsCliError(
+  error: unknown,
+  machine: boolean,
+  stderr: (value: string) => unknown = (value) => process.stderr.write(value),
+) {
   const kind = classifySessionsCliError(error)
   const message = error instanceof Error ? error.message : String(error)
   const output = machine
@@ -155,7 +178,7 @@ export function writeSessionsCliError(error: unknown, machine: boolean) {
         error: { kind, message },
       })
     : `error [${kind}]: ${message}`
-  process.stderr.write(`${output}\n`)
+  stderr(`${output}\n`)
   return kind
 }
 
@@ -164,8 +187,13 @@ export function validateSessionsCliOutputMode(input: {
   readonly jsonl: boolean
   readonly stream: boolean
 }) {
-  if (input.json && input.jsonl) throw new Error('Choose either --json or --jsonl, not both.')
-  if (input.stream && input.json) throw new Error('Streaming commands use --jsonl, not --json.')
-  if (!input.stream && input.jsonl)
-    throw new Error('Single-response commands use --json, not --jsonl.')
+  if (input.json && input.jsonl) {
+    throw new CliError('usage', 'Choose either --json or --jsonl, not both.')
+  }
+  if (input.stream && input.json) {
+    throw new CliError('usage', 'Streaming commands use --jsonl, not --json.')
+  }
+  if (!input.stream && input.jsonl) {
+    throw new CliError('usage', 'Single-response commands use --json, not --jsonl.')
+  }
 }

@@ -14,9 +14,9 @@ import {
 import { type ReactNode, useState } from 'react'
 import {
   describeSchedule,
-  formatAbsoluteTime,
   heartbeatsForSession,
   launchScheduleForSession,
+  nextRunAbsoluteText,
   nextRunText,
   useDeleteScheduledTask,
   useOpenScheduledTask,
@@ -33,10 +33,11 @@ import { SessionSummarySection } from './SessionSummaryPrimitives'
 const MENU_POPOVER_CLASS = 'w-56 overflow-hidden p-1.5'
 
 function nextRunTooltip(task: ScheduledTask) {
-  if (!task.enabled || task.nextRunAt === null || task.waitingSince !== null) {
+  const next = nextRunAbsoluteText(task)
+  if (!task.enabled || next === null || task.waitingSince !== null) {
     return nextRunText(task, Date.now())
   }
-  return `Next run: ${formatAbsoluteTime(task.nextRunAt)}`
+  return `Next run: ${next}`
 }
 
 function MenuItem({
