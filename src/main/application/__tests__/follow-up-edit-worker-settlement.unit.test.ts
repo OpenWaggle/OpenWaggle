@@ -43,7 +43,7 @@ const UPDATED = response({
   sessionId: 'worker',
   queueState: 'running',
   queueRevision: 5,
-  followUpIds: [],
+  remainingFollowUpIds: [],
   stateRevision: 9,
 })
 

@@ -63,7 +63,7 @@ const QUEUE_UPDATED = {
   effect: 'queue-updated',
   queueState: 'paused',
   queueRevision: 5,
-  followUpIds: ['follow-up-1'],
+  remainingFollowUpIds: ['follow-up-1'],
   stateRevision: 6,
 }
 
