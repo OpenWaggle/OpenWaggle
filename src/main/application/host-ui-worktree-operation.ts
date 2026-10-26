@@ -17,6 +17,7 @@ import { WorkspacePreparationService } from '../ports/workspace-preparation-serv
 import { resolveSessionWorktreeBranch } from '../services/git/session-branch-resolution'
 import { invalidateGitStatusCache } from '../services/git-status-cache'
 import { removePreparedWorktree } from './prepared-worktree-removal'
+import { worktreeRemovalBlockers } from './worktree-usage'
 
 export const worktreeCreatePayloadSchema = Schema.Struct({
   path: Schema.String,
@@ -78,7 +79,9 @@ function captureWorktreePreparation(
       projectPath,
       workspacePath: workspace.pending ? projectPath : workspace.workingPath,
     }
-    if (checkoutExists) yield* preparation.capture(scope)
+    // A pending Workspace has no folder of its own yet, so this create is its birth. Capture
+    // records no pending birth at the project path (issue #353); only prepareBirth does.
+    if (checkoutExists && !workspace.pending) yield* preparation.capture(scope)
     else yield* preparation.prepareBirth({ ...scope, workspacePath: projectPath })
   })
 }
@@ -170,6 +173,19 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
     const gitWorktrees = yield* GitWorktreeService
+    /*
+     * Settings lists every worktree of the repository. Refuse one that a Session, a Project
+     * Action, a terminal, the open project or the running app uses, whatever the list showed
+     * when it was rendered; force only overrides Git's dirty and locked refusals (issue #353).
+     */
+    const blockers = yield* worktreeRemovalBlockers(projectPath, payload.path)
+    if (blockers.length > 0) {
+      return {
+        ok: false,
+        code: 'worktree-in-use',
+        message: `This worktree is in use. ${blockers.map((blocker) => blocker.message).join(' ')}`,
+      } satisfies GitWorktreeMutationResult
+    }
     return yield* removePreparedWorktree(
       projectPath,
       payload,

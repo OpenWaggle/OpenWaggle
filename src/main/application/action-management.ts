@@ -11,6 +11,7 @@ import { WorkspaceProjectAuthorization } from '../ports/workspace-project-author
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { listRetainedPreparation } from './retained-workspace-preparation'
 import { manageWorkspacePreparation } from './workspace-preparation-management'
+import { listWorktreeUsage, previewWorktreeRemoval } from './worktree-usage'
 
 export function resolveActionManagementWorkspace(scope: ActionManagementScope) {
   return Effect.gen(function* () {
@@ -63,6 +64,16 @@ export function manageProjectActions(rawRequest: unknown) {
           ),
       )
       .with({ type: 'retained-preparation' }, () => listRetainedPreparation(workspace.projectPath))
+      .with({ type: 'worktree-usage' }, () =>
+        listWorktreeUsage(workspace.projectPath).pipe(
+          Effect.map((worktrees) => ({ type: 'worktree-usage', worktrees }) as const),
+        ),
+      )
+      .with({ type: 'worktree-removal-preview' }, ({ path }) =>
+        previewWorktreeRemoval(workspace.projectPath, path).pipe(
+          Effect.map((preview) => ({ type: 'worktree-removal-preview', ...preview }) as const),
+        ),
+      )
       .with({ type: 'catalog' }, () =>
         catalog
           .read({

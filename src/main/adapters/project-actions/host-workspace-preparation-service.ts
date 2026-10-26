@@ -53,6 +53,12 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
       acquireLiveness: () => getSessionHostEventRuntime().liveness.acquire('action-run'),
       inspectLinkedWorktree: (projectPath, candidatePath) =>
         Effect.runPromise(gitWorktrees.inspectLinkedWorktree(projectPath, candidatePath)),
+      listLocalWorkspaceIds: () =>
+        Effect.runPromise(
+          sql<{ readonly id: string }>`
+            SELECT id FROM workspace_resources WHERE kind = ${'local'}
+          `.pipe(Effect.map((rows) => new Set(rows.map((row) => row.id)))),
+        ),
     })
     yield* Effect.addFinalizer(() =>
       attempt(async () => {

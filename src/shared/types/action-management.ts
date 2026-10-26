@@ -1,6 +1,7 @@
 import type { ActionCatalog, ActionCatalogEdit, ProjectTaskDiscovery } from './action-definitions'
 import type { ActionOutputSnapshot, ActionRun } from './action-runs'
 import type { PreparationOperation, WorkspacePreparation } from './workspace-preparation'
+import type { WorktreeRemovalPreview, WorktreeUsage } from './worktree-usage'
 
 /** The Host derives the workspace from the Session; clients cannot supply an arbitrary cwd. */
 export interface ActionManagementScope {
@@ -25,6 +26,9 @@ export type ActionManagementOperation =
     }
   | { readonly type: 'output'; readonly runId: string; readonly afterOffset: number }
   | { readonly type: 'stop'; readonly runId: string }
+  /** Settings > Worktrees: which Session uses each worktree and what blocks its removal. */
+  | { readonly type: 'worktree-usage' }
+  | { readonly type: 'worktree-removal-preview'; readonly path: string }
 
 export interface ActionManagementRequest {
   readonly scope: ActionManagementScope
@@ -47,5 +51,7 @@ export type ActionManagementResult =
   | { readonly type: 'catalog'; readonly catalog: ActionCatalog }
   | { readonly type: 'discovery'; readonly discovery: ProjectTaskDiscovery }
   | { readonly type: 'runs'; readonly runs: readonly ActionRun[] }
+  | { readonly type: 'worktree-usage'; readonly worktrees: readonly WorktreeUsage[] }
+  | ({ readonly type: 'worktree-removal-preview' } & WorktreeRemovalPreview)
   | { readonly type: 'run'; readonly run: ActionRun }
   | { readonly type: 'output'; readonly output: ActionOutputSnapshot }

@@ -137,7 +137,7 @@ describe('worktree service', () => {
       const addCall = runGitMock.mock.calls
         .map((call) => call[1])
         .find((args: readonly string[]) => args[0] === 'worktree' && args[1] === 'add')
-      expect(addCall).toEqual(['worktree', 'add', '-b', 'ow/new', '/wt/x', 'main'])
+      expect(addCall).toEqual(['worktree', 'add', '--no-track', '-b', 'ow/new', '/wt/x', 'main'])
     })
 
     it('rejects non-git repositories before running commands', async () => {
@@ -172,6 +172,7 @@ describe('worktree service', () => {
       expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', [
         'worktree',
         'add',
+        '--no-track',
         '-b',
         'feat',
         '/wt/x',
