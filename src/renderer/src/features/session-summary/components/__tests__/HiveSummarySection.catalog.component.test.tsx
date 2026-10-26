@@ -43,7 +43,9 @@ it('summarizes from the Host counts without listing Workers or paging', async ()
   )
   expect(screen.queryByText('Worker on page two')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Load more workers' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Open in Hive panel' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Open Hive panel, 2 direct Workers, 1+ working' }),
+  ).toBeInTheDocument()
 })
 
 it('does not fetch further pages after the first', async () => {

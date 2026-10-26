@@ -151,7 +151,7 @@ A Hive is a group of related sessions working on one task. The parent, called th
 
 For a Queen or a Worker, the Summary shows one **Hive** row. It counts the opened session's direct Workers by who acts next: how many **need you**, are **waiting for** this session, are **working**, or are **closed** (accepted or cancelled), for example `3 direct Workers · 1 needs you · 2 waiting for Queen`. These are the same groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses, and only **need you** is shown in the attention colour. A Worker waiting for this session may have a result to review, a failed Run, or a question for it; that is the agent's to handle, not yours. A count followed by `+` covers only the Workers loaded so far, in a Hive with more than 50 direct Workers.
 
-**Open in Hive panel** lists every session of the Hive, at every depth. The panel's header counts all of them, so it can show more Workers than this row.
+A Worker's row also names the session that spawned it. Select anywhere on the row, or focus it and press Enter or Space, to open the Hive panel, which lists every session of the Hive at every depth; the panel icon at the end of the row marks it. The panel's header counts all of them, so it can show more Workers than this row. A Hive made by the older MCP task feature can't be listed there, so its row only shows the counts.
 
 See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) for delegating and reviewing work.
 
