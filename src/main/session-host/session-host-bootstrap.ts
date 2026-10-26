@@ -91,7 +91,7 @@ export async function startAppSessionHost(input: {
     authorizeActiveRun: (caller, snapshot) =>
       input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),
     recover: () => input.runEffect(recoverHostState()),
-    describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
+    describeUpgradeBlockers: () => input.runEffect(readSessionHostUpgradeBlockers),
     interruptRunsAtDrainDeadline: () => input.runEffect(interruptAllSessionRuns()),
     startOwnedServices: input.startOwnedServices,
     ...(input.startServicesAfterListening
@@ -118,7 +118,7 @@ export async function startAppSessionHost(input: {
           caller,
           payload: decodedPayload,
           countBlockingRuns: async () =>
-            (await readSessionHostUpgradeBlockers(input.paths.databasePath)).blockingRuns.length,
+            (await input.runEffect(readSessionHostUpgradeBlockers)).blockingRuns.length,
           requestHostStop,
           processId: process.pid,
         })

@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { SESSION_ARCHIVE_TIME_MIGRATION } from '../session-archive-time-migration'
 import { SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID } from '../session-host-schema-identity'
 
 function databaseWithSessions() {
-  const database = new DatabaseSync(':memory:')
+  const database = new Database(':memory:')
   database.exec(`
     CREATE TABLE sessions (
       id TEXT PRIMARY KEY, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL
@@ -53,7 +53,7 @@ describe('session archive time migration', () => {
     try {
       for (const statement of SESSION_ARCHIVE_TIME_MIGRATION.statements) database.exec(statement)
       const indexes = database
-        .prepare(
+        .prepare<[], Record<string, unknown>>(
           "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name LIKE '%archived_at'",
         )
         .all()

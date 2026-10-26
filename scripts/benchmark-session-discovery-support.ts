@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
 import { SqliteSessionSemanticProjection } from '../src/main/adapters/sqlite-session-semantic-projection'
 import { SqliteSessionTranscriptSemanticProjection } from '../src/main/adapters/sqlite-session-transcript-semantic-projection'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
+import type { HostSqliteDatabase } from '../src/main/session-host/host-sqlite-database'
 import {
   applyIncrementalSessionTranscriptTerms,
   prepareIncrementalSessionTranscriptTerms,
@@ -20,7 +20,7 @@ export function reportSessionDiscoveryBenchmarkPhase(phase: string, elapsedMs: n
   )
 }
 
-export function initializeSessionDiscoveryBenchmarkSource(database: DatabaseSync) {
+export function initializeSessionDiscoveryBenchmarkSource(database: HostSqliteDatabase) {
   database.exec('PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = FILE;')
   database.exec('PRAGMA cache_size = -131072; PRAGMA foreign_keys = ON;')
   database.exec(`
@@ -42,12 +42,12 @@ export function initializeSessionDiscoveryBenchmarkSource(database: DatabaseSync
   for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
 }
 
-function benchmarkCount(database: DatabaseSync, query: string) {
+function benchmarkCount(database: HostSqliteDatabase, query: string) {
   const row = database.prepare(query).get()
   return typeof row === 'object' && row !== null && 'count' in row ? Number(row.count) : 0
 }
 
-export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
+export function sessionDiscoveryBenchmarkCounts(database: HostSqliteDatabase) {
   return {
     sessions: benchmarkCount(database, 'SELECT COUNT(*) AS count FROM sessions'),
     messages: benchmarkCount(database, 'SELECT COUNT(*) AS count FROM session_nodes'),

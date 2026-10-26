@@ -1,6 +1,6 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as TRANSCRIPT_POLICY } from '../domain/session-transcript-semantic-storage-policy'
 import { SESSION_HOST_SCHEMA_REVISION } from '../services/session-host-schema-identity'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { queryCutoverRecord, readCutoverCount } from './session-host-cutover-database'
 import { validateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
 import { validateSessionHostWorkspaceBindingProjects } from './session-host-workspace-binding-validation'
@@ -30,7 +30,7 @@ interface TargetCounts {
   readonly transcriptSemanticLeases: number
 }
 
-function validateDatabaseIntegrity(database: DatabaseSync) {
+function validateDatabaseIntegrity(database: HostSqliteDatabase) {
   const integrity = queryCutoverRecord(database, 'PRAGMA integrity_check')?.integrity_check
   if (integrity !== 'ok')
     throw new Error(`Session Host target integrity check failed: ${String(integrity)}`)
@@ -45,7 +45,7 @@ function validateDatabaseIntegrity(database: DatabaseSync) {
     throw new Error('Session Host target metadata is missing or incompatible.')
 }
 
-function targetCounts(database: DatabaseSync): TargetCounts {
+function targetCounts(database: HostSqliteDatabase): TargetCounts {
   return {
     sessions: readCutoverCount(database, 'sessions'),
     nodes: readCutoverCount(database, 'session_nodes'),
@@ -118,7 +118,7 @@ function validateSemanticCoverage(input: {
   }
 }
 
-function validateRecoverableSemanticCoverage(database: DatabaseSync) {
+function validateRecoverableSemanticCoverage(database: HostSqliteDatabase) {
   const unrecoverable = queryCutoverRecord(
     database,
     `SELECT COUNT(*) AS count
@@ -135,7 +135,7 @@ function validateRecoverableSemanticCoverage(database: DatabaseSync) {
 }
 
 function validateSemanticVectors(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   semanticModel?: { readonly id: string; readonly revision: string; readonly dimensions: number },
 ) {
   const invalidVectors = queryCutoverRecord(
@@ -173,7 +173,7 @@ function isTranscriptStorageCounts(
   )
 }
 
-function validateTranscriptStorageBudget(database: DatabaseSync) {
+function validateTranscriptStorageBudget(database: HostSqliteDatabase) {
   const storage = queryCutoverRecord(
     database,
     `SELECT
@@ -201,7 +201,7 @@ function validateTranscriptStorageBudget(database: DatabaseSync) {
 }
 
 function validateTranscriptModel(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   semanticModel?: { readonly id: string; readonly revision: string; readonly dimensions: number },
 ) {
   if (!semanticModel) return
@@ -219,7 +219,7 @@ function validateTranscriptModel(
 }
 
 function validateTranscriptSemanticProjection(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   semanticModel?: { readonly id: string; readonly revision: string; readonly dimensions: number },
 ) {
   const unrecoverable = queryCutoverRecord(
@@ -262,7 +262,7 @@ function validateTranscriptSemanticProjection(
   validateTranscriptModel(database, semanticModel)
 }
 
-function invalidExecutionProfileCount(database: DatabaseSync) {
+function invalidExecutionProfileCount(database: HostSqliteDatabase) {
   return queryCutoverRecord(
     database,
     `
@@ -278,7 +278,7 @@ function invalidExecutionProfileCount(database: DatabaseSync) {
 }
 
 export function validateSessionHostTarget(
-  database: DatabaseSync,
+  database: HostSqliteDatabase,
   expected?: { readonly sessions: number; readonly nodes: number },
   semanticModel?: { readonly id: string; readonly revision: string; readonly dimensions: number },
   options: { readonly requireCompleteSemanticCoverage?: boolean } = {},

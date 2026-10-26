@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it, vi } from 'vitest'
 import { tokenizeSessionTranscriptTerms } from '../session-transcript-term-tokenizer'
 
@@ -72,7 +72,7 @@ describe('Session transcript term tokenizer', () => {
   })
 
   it('matches SQLite unicode61 token boundaries and diacritic removal', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     try {
       database.exec(`
         CREATE VIRTUAL TABLE transcript USING fts5(

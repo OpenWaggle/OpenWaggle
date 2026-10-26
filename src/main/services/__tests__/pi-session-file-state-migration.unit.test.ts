@@ -1,11 +1,11 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { PI_SESSION_ADOPTION_MIGRATION } from '../pi-session-adoption-migration'
 import { PI_SESSION_FILE_STATE_MIGRATION } from '../pi-session-file-state-migration'
 
 describe('Pi session file state migration', () => {
   it('records file state per Session and the working directory of an adopted one', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     try {
       database.exec('PRAGMA foreign_keys = ON')
       database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL)')

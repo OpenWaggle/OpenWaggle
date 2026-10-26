@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import type { SupportedModelId } from '../../src/shared/types/llm'
 
 const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
@@ -77,8 +77,8 @@ export function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
 
-function openDatabase(userDataDir: string): DatabaseSync {
-  const database = new DatabaseSync(getDatabasePath(userDataDir))
+function openDatabase(userDataDir: string): Database.Database {
+  const database = new Database(getDatabasePath(userDataDir))
   database.exec('PRAGMA foreign_keys = ON')
   return database
 }
@@ -93,7 +93,7 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
   while (Date.now() - startedAt < DB_WAIT_TIMEOUT_MS) {
     if (fs.existsSync(dbPath)) {
       try {
-        const db = new DatabaseSync(dbPath)
+        const db = new Database(dbPath)
         try {
           db.prepare('SELECT 1 FROM sessions LIMIT 1').all()
           db.prepare('SELECT 1 FROM session_nodes LIMIT 1').all()
@@ -119,7 +119,7 @@ function fixtureWorkspaceId(projectPath: string): string {
   return `e2e-workspace-${crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 20)}`
 }
 
-function insertSessionRow(database: DatabaseSync): SessionRowFixture {
+function insertSessionRow(database: Database.Database): SessionRowFixture {
   const id = crypto.randomUUID()
   const now = Date.now()
   const branchId = mainBranchId(id)
@@ -203,7 +203,7 @@ function messageKind(role: string): string {
 }
 
 function seedSessionRow(
-  database: DatabaseSync,
+  database: Database.Database,
   row: SessionRowFixture,
   sessionInput: SeedSessionInput,
   defaultProjectPath: string,
@@ -559,7 +559,7 @@ export async function seedHive(
 
 /** Seed the Host Run and branch projection together so exact filters agree with sidebar rows. */
 function seedInterruptedRun(
-  database: DatabaseSync,
+  database: Database.Database,
   row: SessionRowFixture,
   sessionInput: SeedSessionInput,
 ) {

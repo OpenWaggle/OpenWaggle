@@ -22,6 +22,7 @@ vi.mock('../../application/session-run-interruption', () => ({
 
 import type { LocalSessionHostPaths } from '../local-session-paths'
 import { startAppSessionHost } from '../session-host-bootstrap'
+import { readSessionHostUpgradeBlockers } from '../session-host-upgrade-blockers'
 
 const paths: LocalSessionHostPaths = {
   stateRoot: '/tmp/openwaggle-test',
@@ -88,5 +89,49 @@ describe('Session Host bootstrap', () => {
 
     // macOS counts the Host until this process exits, which is after its socket closes.
     expect(result).toMatchObject({ response: { processId: process.pid } })
+  })
+
+  it('reads upgrade blockers through the app runtime, never by opening the database file', async () => {
+    mocks.startLocalSessionHost.mockClear()
+    const blockers = {
+      blockingRuns: [
+        { sessionId: 'session-a', runId: 'run-a' },
+        { sessionId: 'session-b', runId: 'run-b' },
+      ],
+      blockingOperations: [{ operationId: '1', operation: 'message', targetScope: 'session-a' }],
+    }
+    const ranEffects: unknown[] = []
+    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+      ranEffects.push(effect)
+      return fromAny<A, unknown>(
+        effect === readSessionHostUpgradeBlockers ? blockers : DEFAULT_SETTINGS,
+      )
+    }
+    await startAppSessionHost({
+      paths,
+      runEffect,
+      startOwnedServices: async () => undefined,
+      stopOwnedServices: async () => undefined,
+    })
+    const input = mocks.startLocalSessionHost.mock.calls[0]?.[0]
+
+    // The paths above do not exist: a second connection to the file would fail here.
+    await expect(
+      Reflect.apply(Reflect.get(Object(input), 'describeUpgradeBlockers'), undefined, []),
+    ).resolves.toEqual(blockers)
+    const stop = await Reflect.apply(Reflect.get(Object(input), 'dispatch'), undefined, [
+      {
+        caller: { callerId: 'local-user:cli' },
+        negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
+        payload: {
+          contract: 'local-host-v1',
+          request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
+        },
+        requestHostStop: () => ({ hostInstanceId: 'host-1', runningActions: 0 }),
+      },
+    ])
+
+    expect(stop).toMatchObject({ response: { blockingRuns: 2 } })
+    expect(ranEffects.filter((effect) => effect === readSessionHostUpgradeBlockers)).toHaveLength(2)
   })
 })

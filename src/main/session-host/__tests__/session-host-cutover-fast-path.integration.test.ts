@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -29,7 +29,7 @@ describe('Session Host cutover completion fast path', () => {
     const paths = pathsFor(temporaryRoot)
     seedLegacyDatabase(paths.sourceDatabasePath)
     await runSessionHostCutover(paths, Date.now(), fakeEmbeddingModel)
-    const target = new DatabaseSync(paths.targetDatabasePath)
+    const target = openHostSqliteDatabase(paths.targetDatabasePath)
     try {
       target.exec('DELETE FROM session_title_search')
     } finally {
@@ -45,7 +45,7 @@ describe('Session Host cutover completion fast path', () => {
     const paths = pathsFor(temporaryRoot)
     seedLegacyDatabase(paths.sourceDatabasePath)
     await runSessionHostCutover(paths, Date.now(), fakeEmbeddingModel)
-    const target = new DatabaseSync(paths.targetDatabasePath)
+    const target = openHostSqliteDatabase(paths.targetDatabasePath)
     try {
       target.exec("UPDATE session_host_schema_metadata SET migration_revision = 'incomplete'")
     } finally {
@@ -66,7 +66,7 @@ describe('Session Host cutover completion fast path', () => {
     seedLegacyDatabase(paths.sourceDatabasePath)
     await runSessionHostCutover(paths, Date.now(), fakeEmbeddingModel)
     await fs.rename(paths.targetDatabasePath, stagingPath)
-    const staging = new DatabaseSync(stagingPath)
+    const staging = openHostSqliteDatabase(stagingPath)
     try {
       staging.exec('DELETE FROM session_workspace_bindings')
     } finally {

@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import type { LocalSessionHostPaths } from '../local-session-paths'
 import { runSessionHostCutover } from '../session-host-cutover'
 import {
@@ -19,7 +19,7 @@ const fakeEmbeddingModel: SessionEmbeddingModel = {
 }
 
 function seedEmptyLegacyDatabase(databasePath: string) {
-  const database = new DatabaseSync(databasePath)
+  const database = openHostSqliteDatabase(databasePath)
   try {
     database.exec(`
       CREATE TABLE _migrations (

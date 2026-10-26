@@ -1,10 +1,10 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { HostSqliteDatabase } from '../host-sqlite-database'
 import { populateSessionTranscriptTermCatalog } from '../session-transcript-term-cutover'
 import { createTranscriptTermCutoverDatabase } from './session-transcript-term-cutover.test-support'
 
 describe('Session transcript term cutover', () => {
-  let database: DatabaseSync
+  let database: HostSqliteDatabase
 
   beforeEach(() => {
     database = createTranscriptTermCutoverDatabase()

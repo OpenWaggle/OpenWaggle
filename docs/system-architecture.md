@@ -50,6 +50,14 @@ Pi sessions and OpenWaggle sessions are projected into:
 
 Session trees, branches, Waggle metadata, and future-mode state are explicit projection data over the Pi session graph.
 
+## One SQLite library
+
+OpenWaggle opens its own SQLite files with better-sqlite3 only (#371). That covers the Session Host database and its cutover staging, legacy and recovery copies, the ownership lock files, and the test and benchmark code that runs Host modules. The Host's runtime connection goes through `@effect/sql-sqlite-node`, and every other connection to these files goes through `openHostSqliteDatabase` (`src/main/session-host/host-sqlite-database.ts`). Code that needs the live database inside the Host, such as the upgrade-blocker check in the handshake and `host stop`, uses the Host's existing connection through the app runtime and does not open a second one.
+
+The rule exists because each SQLite library carries its own copy of SQLite. POSIX advisory locks belong to the process, not to a connection, and one copy does not track the other copy's locks. When one copy closes its file descriptor, it drops the other copy's locks on that file, and another process can then write at the same time ([How To Corrupt An SQLite Database File, section 2.2.1](https://www.sqlite.org/howtocorrupt.html#_multiple_copies_of_sqlite_linked_into_the_same_application)). `host-sqlite-database.integration.test.ts` checks that a second connection in the Host's process leaves the Host's write lock held. With a `node:sqlite` reader, that lock was released.
+
+Node and Electron always ship `node:sqlite`, and dependencies such as undici load it for feature detection. That is safe: the hazard needs two copies with the same file open. `pnpm check:repository-standards` rejects `node:sqlite` and other SQLite libraries anywhere under `src/`, `scripts/` and `packages/`, Worker source strings included. The only exception is `src/main/browser-import/`, which reads the browsers' own cookie and profile databases and never opens OpenWaggle's files. The pnpm override `@effect/sql-sqlite-node>better-sqlite3` keeps one better-sqlite3 build in the process, and `host-sqlite-database.unit.test.ts` checks it.
+
 ## Waggle Presets
 
 Waggle presets are resolved through `WagglePresetsRepository`. Built-in presets are bundled in the adapter, global presets are stored in Electron user data as `waggle-presets.json`, and project presets are stored in `.openwaggle/settings.json`. Project presets override global presets with the same id.

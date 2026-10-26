@@ -1,17 +1,19 @@
 import fs from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { Worker } from 'node:worker_threads'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
+// The writer runs in this process, so it must use the cutover's SQLite library: a second SQLite
+// copy closing its descriptor would drop the cutover connection's locks (#371).
 const CONCURRENT_SESSION_WRITER = `
-  const { DatabaseSync } = require('node:sqlite')
   const { parentPort, workerData } = require('node:worker_threads')
-  const database = new DatabaseSync(workerData.databasePath)
-  database.exec('PRAGMA busy_timeout = 1000')
+  const Database = require(workerData.betterSqlitePath)
+  const database = new Database(workerData.databasePath, { timeout: 1000 })
   const columns = database.prepare('PRAGMA table_info(sessions)').all().map((row) => row.name)
   const quoted = (value) => '"' + value.replaceAll('"', '""') + '"'
   const select = columns.map((column) => {
@@ -89,7 +91,7 @@ describe('Session Host cutover validation concurrency', () => {
     seedLegacyDatabase(sourceDatabasePath)
     await runSessionHostCutover(paths, 1_000, fakeEmbeddingModel)
 
-    const journal = new DatabaseSync(targetDatabasePath)
+    const journal = openHostSqliteDatabase(targetDatabasePath)
     try {
       journal.exec('PRAGMA journal_mode = WAL')
     } finally {
@@ -98,7 +100,10 @@ describe('Session Host cutover validation concurrency', () => {
 
     const worker = new Worker(CONCURRENT_SESSION_WRITER, {
       eval: true,
-      workerData: { databasePath: targetDatabasePath },
+      workerData: {
+        databasePath: targetDatabasePath,
+        betterSqlitePath: createRequire(import.meta.url).resolve('better-sqlite3'),
+      },
     })
     workers.push(worker)
     await waitForWorkerMessage(worker, 'ready')

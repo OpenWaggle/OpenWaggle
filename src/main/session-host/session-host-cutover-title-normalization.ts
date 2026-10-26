@@ -1,9 +1,9 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { boundGeneratedSessionTitle } from '@shared/session-title'
+import type { HostSqliteDatabase } from './host-sqlite-database'
 import { cutoverRecord, cutoverTableExists } from './session-host-cutover-database'
 
 /** Normalize copied legacy titles inside the staging transaction before references are indexed. */
-export function normalizeLegacySessionTitles(database: DatabaseSync) {
+export function normalizeLegacySessionTitles(database: HostSqliteDatabase) {
   if (!cutoverTableExists(database, 'sessions')) return
   const values: unknown = database.prepare('SELECT id, title FROM sessions ORDER BY id').all()
   if (!Array.isArray(values)) throw new Error('Legacy Session titles could not be read.')

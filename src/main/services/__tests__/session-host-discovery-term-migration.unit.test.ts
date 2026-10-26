@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Statement from '@effect/sql/Statement'
 import { SqliteClient } from '@effect/sql-sqlite-node'
+import Database from 'better-sqlite3'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateSessionHostCompletionSeal } from '../../session-host/session-host-completion-seal'
@@ -138,7 +138,7 @@ describe('Session discovery native signature migration', () => {
         expect(yield* sql.unsafe('PRAGMA foreign_key_check')).toEqual([])
       }),
     )
-    const database = new DatabaseSync(path.join(temporaryRoot, 'migration.sqlite'))
+    const database = new Database(path.join(temporaryRoot, 'migration.sqlite'))
     try {
       expect(() => validateSessionHostCompletionSeal(database)).not.toThrow()
       database

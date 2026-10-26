@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID } from '../session-host-schema-identity'
 import {
@@ -31,7 +31,7 @@ interface Row {
 }
 
 function database(rows: readonly Row[]) {
-  const db = new DatabaseSync(':memory:')
+  const db = new Database(':memory:')
   for (const statement of SCHEMA) db.exec(statement)
   const resource = db.prepare(
     `INSERT INTO session_resources (id, session_id, canonical_key, kind, title, available)
@@ -60,13 +60,13 @@ function database(rows: readonly Row[]) {
   return db
 }
 
-function migrate(db: DatabaseSync) {
+function migrate(db: Database.Database) {
   for (const statement of SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_STATEMENTS) db.exec(statement)
 }
 
-function ids(db: DatabaseSync, sql: string) {
+function ids(db: Database.Database, sql: string) {
   return db
-    .prepare(sql)
+    .prepare<[], Record<string, unknown>>(sql)
     .all()
     .map((row) => String(row.id))
 }

@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { SESSION_MCP_SWITCH_MIGRATION } from '../session-mcp-switch-migration'
 
 describe('Session MCP switch migration', () => {
   it('adds the switch table, whose rows go with their Session', () => {
-    const database = new DatabaseSync(':memory:')
+    const database = new Database(':memory:')
     try {
       database.exec('PRAGMA foreign_keys = ON')
       database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL)')
