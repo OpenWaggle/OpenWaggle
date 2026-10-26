@@ -35,7 +35,7 @@ const activePresentations = new Map<string, symbol>()
 function reportExternalFallbackFailure(options: NativeViewOptions, error: unknown) {
   options.onError(
     error instanceof Error
-      ? `Preview and system browser failed: ${ipcFailureMessage(error, 'the link could not be opened.')}`
+      ? `Preview and system browser failed: ${ipcFailureMessage(error, 'no reason was given.')}`
       : 'Preview and system browser could not open the link.',
   )
 }
