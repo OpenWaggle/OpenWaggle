@@ -317,7 +317,7 @@ Heartbeats and Launch schedules are Host-only SQLite records (`scheduled_tasks`,
 - All of these times are live time (`LocalSessionHostLiveClock`): a 25 ms ticker runs while any frame is held, and time the event loop was blocked (a gap between ticks beyond 50 ms) is not counted, since no socket could be served. Wake-time lateness alone misses stalls inside the window and stalls ended by a release wake. Vitest fake timers do not reproduce a stall: advancing time runs the ticker on schedule, and `setSystemTime` moves `Date` without firing the timers that came due, so stall tests busy-wait with real timers and live in the integration tier (`local-session-outbound-budget-stall.integration.test.ts`) with wide margins.
 - Handshake and connection-error frames are sent bounded (`maxBytes` 64 KiB): they skip the turn and the 72 MB reservation and are written while large answers wait, so a full budget never runs a handshake into its 5 s deadline. A bounded frame that encodes larger falls back to waiting.
 - Drops log the caller (`peer`), and waits over 1 s are logged, all under `session-host/outbound`. A paused test socket emits `close` only after it is resumed.
-- Renderer IPC errors lose their `.code`, so these reach Sentry as `Error: unknown` (unhandled rejection in the GUI process). Never leave a `void api.*()` without a catch.
+- Renderer IPC errors lose their `.code`, so these reach Sentry as `Error: unknown` (unhandled rejection in the GUI process). Never leave a `void api.*()` without a catch; `openwaggle/no-uncaught-void-ipc` (renderer-scoped) enforces it, with `.catch` or a `.then` rejection handler required on every `void` chain rooted at the `@/shared/lib/ipc` bridge.
 
 ### Generated Session titles (ADR 0043, October 2026)
 
