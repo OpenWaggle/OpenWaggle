@@ -1,4 +1,5 @@
 import type { AgentLoopInteraction } from './agent-loop-interaction'
+import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationState } from './session-collaboration'
 import type { FollowUpQueuePauseReason, SessionFollowUpListing } from './session-control-queue'
 import type {
@@ -207,6 +208,8 @@ export type SessionQueryOutcome =
       readonly delegation?: {
         readonly delegationId: string
         readonly state: DelegationState
+        /** Who acts next on the Worker (ADR 0059), derived at read time. */
+        readonly nextActor?: HiveNextActor
         readonly currentSpecificationRevision: number
         readonly latestSubmissionRevision: number
       }

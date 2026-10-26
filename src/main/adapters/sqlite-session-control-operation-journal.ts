@@ -7,6 +7,7 @@ import {
   SessionControlOperationJournal,
   type SessionControlOperationJournalShape,
 } from '../ports/session-control-operation-journal'
+import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
@@ -227,6 +228,15 @@ function completeExternalOperation(
           if (input.outcomeForFinalState) {
             recordedOutcome = input.outcomeForFinalState(finalizedState)
           }
+        }
+        if (recordedOutcome.effect !== 'rejected') {
+          // Steering, a promotion or a replacement from the parent answers a Worker's request.
+          yield* clearWorkerRequestOnParentDelivery(sql, {
+            workerSessionId: targetScope,
+            callerId: input.callerId,
+            operation,
+            now,
+          })
         }
         yield* sql`
           UPDATE session_operations

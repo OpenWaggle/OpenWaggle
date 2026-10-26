@@ -1,6 +1,7 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionTree } from '@shared/types/session'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
+import type { QueenWorkerAttention } from '../lib/worker-attention'
 
 export type SidebarView = 'chat' | 'settings'
 
@@ -50,7 +51,7 @@ export interface SidebarProjectRenderState {
   /** A status filter or search is active, so hidden Workers may list flat (ADR 0051). */
   readonly narrowed: boolean
   /** How many of a Queen's hidden Workers need the user, keyed by the Queen's id (ADR 0051). */
-  readonly workerAttentionOf: (queenId: string) => number
+  readonly workerAttentionOf: (queenId: string) => QueenWorkerAttention
   /** The Queen of the Hive the open Worker belongs to, for her secondary row highlight. */
   readonly activeHiveRootId: string | null
 }

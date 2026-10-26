@@ -2,7 +2,22 @@ import type { SessionHiveReader } from './session-hive-contract'
 
 export interface HiveHostEvent {
   readonly cursor: { readonly hostInstanceId: string; readonly sequence: number }
-  readonly payload: { readonly kind: string }
+  readonly payload: { readonly kind: string; readonly event?: unknown }
+}
+
+/**
+ * A Run parked or answered a request for the person: the Hive's Needs you count and its
+ * approval-or-question labels come from the Host, so they are read again (ADR 0059).
+ */
+function isInteractionChange(payload: HiveHostEvent['payload']) {
+  if (payload.kind !== 'session-transport') return false
+  const event = payload.event
+  return (
+    typeof event === 'object' &&
+    event !== null &&
+    'type' in event &&
+    (event.type === 'agent_interaction_request' || event.type === 'agent_interaction_resolved')
+  )
 }
 
 export interface SessionHiveEventSource extends SessionHiveReader {
@@ -10,7 +25,10 @@ export interface SessionHiveEventSource extends SessionHiveReader {
   readonly onSessionHostResyncRequired?: (callback: () => void) => () => void
 }
 
-/** One subscription for all Hive queries. Token streams never trigger catalog reads. */
+/**
+ * One subscription for all Hive queries. Token streams never trigger catalog reads; a parked or
+ * answered request does.
+ */
 export function subscribeSessionHiveUpdates(
   source: SessionHiveEventSource,
   refresh: { readonly invalidate: () => void; readonly resync: () => void },
@@ -43,7 +61,8 @@ export function subscribeSessionHiveUpdates(
           cursor = event.cursor
           if (
             event.payload.kind === 'session-list-changed' ||
-            event.payload.kind === 'session-state-changed'
+            event.payload.kind === 'session-state-changed' ||
+            isInteractionChange(event.payload)
           )
             schedule()
         })

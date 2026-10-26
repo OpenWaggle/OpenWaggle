@@ -1,5 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
+import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
@@ -7,6 +8,7 @@ import type {
 } from '@shared/types/session-hive-catalog'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
+import { countHiveNeedsYou } from './hive-needs-you-count'
 import {
   attachArchivedBranchState,
   hydrateSessionRows,
@@ -213,6 +215,7 @@ export async function listHiveTreeSessionCatalogPage(
   sessionId: SessionId,
   limit: number,
   encodedCursor?: string,
+  pendingRequests: ReadonlyMap<string, HivePendingRequest> = new Map(),
 ): Promise<HiveTreeSessionCatalogPage> {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
@@ -225,7 +228,7 @@ export async function listHiveTreeSessionCatalogPage(
         WHERE sessions.id = ${sessionId} LIMIT 1
       `
       const rootId = roots[0]?.root_id
-      if (!rootId) return { root: null, members: [], attentionCount: 0 }
+      if (!rootId) return { root: null, members: [], needsYouCount: 0 }
       const rootRows = yield* loadSessionRowsById(sql, [rootId])
       // Hydrated like every member, so the root carries its lineage (role, Worker counts).
       const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
@@ -241,19 +244,11 @@ export async function listHiveTreeSessionCatalogPage(
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
       `
       const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
-      const attention = yield* sql<{ readonly count: number }>`
-        SELECT COUNT(*) AS count FROM sessions
-        JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
-        JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
-        WHERE live.hive_root_session_id = ${rootId}
-          AND sessions.id != ${rootId}
-          AND sessions.archived = 0
-          AND delegation_contracts.state IN (${'needs_attention'}, ${'revision_requested'})
-      `
+      const needsYouCount = yield* countHiveNeedsYou(sql, rootId, pendingRequests)
       return {
         root,
         members: memberPage.sessions,
-        attentionCount: attention[0]?.count ?? 0,
+        needsYouCount,
         ...(memberPage.nextCursor ? { nextCursor: memberPage.nextCursor } : {}),
       }
     }),

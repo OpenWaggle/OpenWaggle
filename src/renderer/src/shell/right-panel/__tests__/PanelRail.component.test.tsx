@@ -76,7 +76,8 @@ describe('PanelRail', () => {
       knownRailIds: ['hive'],
       listedRailIds: ['hive'],
     })
-    expect(screen.getByRole('button', { name: 'Hive · needs attention' })).toBeVisible()
+    // The Hive's dot means only Needs you (issue 380).
+    expect(screen.getByRole('button', { name: 'Hive · needs you' })).toBeVisible()
   })
 
   it('lists All panels first, marks the shown surface and names shortcuts and reasons', () => {

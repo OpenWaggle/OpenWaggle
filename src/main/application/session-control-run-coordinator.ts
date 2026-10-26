@@ -14,6 +14,7 @@ import {
   reserveActiveSessionRun,
 } from './active-session-runs'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
+import { publishDelegationAttentionCleared } from './session-control-event-projection'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 import {
@@ -68,6 +69,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
             stateRevision: activation.stateRevision,
             operation: 'run-activated',
           })
+          publishDelegationAttentionCleared(activation.attentionCleared)
           yield* recordRunStartedForUsageStatistics({
             sessionId: input.sessionId,
             runId,

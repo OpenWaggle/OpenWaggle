@@ -10,6 +10,7 @@ import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-reposit
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
+import { hivePendingRequestsBySession } from './hive-pending-requests'
 import { invalid, requireArgCount, validateSessionId } from './host-ui-session-operation-validation'
 
 const MAX_LIMIT = 500
@@ -45,14 +46,18 @@ function attachPendingInteractions(
       pendingAtBySessionId.set(sessionId, interaction.createdAt)
     }
   }
+  // What each parked set asks of the person, for the Hive's Needs you labels (ADR 0059).
+  const kindBySessionId = hivePendingRequestsBySession()
   const pendingInteractionSnapshotAt = Date.now()
   return sessions.map((session) => {
     const pendingInteractionAt = pendingAtBySessionId.get(String(session.id))
+    const pendingInteractionKind = kindBySessionId.get(String(session.id))
     const followUpEditHeldAt = heldAtBySessionId.get(String(session.id))
     return {
       ...session,
       pendingInteractionSnapshotAt,
       ...(pendingInteractionAt === undefined ? {} : { pendingInteractionAt }),
+      ...(pendingInteractionKind === undefined ? {} : { pendingInteractionKind }),
       ...(followUpEditHeldAt === undefined ? {} : { followUpEditHeldAt }),
     }
   })
@@ -177,7 +182,12 @@ export function listHiveTreeSessionCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[1])
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
-    const page = yield* repository.listHiveTreeCatalogPage(sessionId, limit, cursor)
+    const page = yield* repository.listHiveTreeCatalogPage(
+      sessionId,
+      limit,
+      cursor,
+      hivePendingRequestsBySession(),
+    )
     return attachHiveTreePendingInteractions(page, yield* followUpEditHeldSessions)
   })
 }

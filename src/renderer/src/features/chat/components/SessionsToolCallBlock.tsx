@@ -72,10 +72,7 @@ function WorkerSpawnControls({ session }: { readonly session: HiveSession }) {
   return (
     <>
       <span
-        className={cn(
-          'shrink-0 text-xs',
-          state.needsAttention ? 'text-warning' : 'text-text-tertiary',
-        )}
+        className={cn('shrink-0 text-xs', state.needsYou ? 'text-warning' : 'text-text-tertiary')}
         title={state.hint}
       >
         {/* The long form: the panel's short State cell leans on its group heading. */}

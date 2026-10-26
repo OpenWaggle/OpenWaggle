@@ -17,6 +17,7 @@ import { SessionQueryRepository } from '../ports/session-query-repository'
 import { SessionWaitService } from '../ports/session-wait-service'
 import type { SettingsService } from '../services/settings-service'
 import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
+import { hivePendingRequestsBySession } from './hive-pending-requests'
 import {
   authorizeLocalSessionCommand,
   profileAuthorityForCapabilities,
@@ -254,6 +255,8 @@ export function dispatchSessionRepositoryQuery(
       repository.execute({
         callerId: liveCaller.callerId,
         ...(authority ? { authority } : {}),
+        // Agents, the CLI and MCP read who acts next on each Worker (ADR 0059).
+        pendingRequests: hivePendingRequestsBySession(),
         request,
       })
     yield* refreshBeforeSessionQuery(payload.request.query)

@@ -4,6 +4,7 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
+import type { HiveNextActorLineageFacts, HivePendingRequest } from './hive-next-actor'
 import type { SupportedModelId } from './llm'
 import type { DelegationState } from './session-collaboration'
 import type { ThinkingLevel } from './settings'
@@ -25,7 +26,8 @@ export type SessionNodeKind =
 export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
-export interface SessionLineageSummary {
+/** The lineage a Session summary carries; the next-actor facts come from the Host (ADR 0059). */
+export interface SessionLineageSummary extends HiveNextActorLineageFacts {
   readonly role: 'queen' | 'worker' | 'independent'
   readonly parentSessionId?: SessionId
   readonly parentTitle?: string
@@ -81,6 +83,8 @@ export interface SessionSummary {
   readonly latestRun?: SessionLatestRunSummary
   /** Creation time of the oldest outstanding non-notify agent interaction. */
   readonly pendingInteractionAt?: number
+  /** What they ask of the person; an approval outranks a question. */
+  readonly pendingInteractionKind?: HivePendingRequest
   /** Host time when the pending-interaction set was sampled, including when it was empty. */
   readonly pendingInteractionSnapshotAt?: number
   /**

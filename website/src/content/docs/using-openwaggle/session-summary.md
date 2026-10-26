@@ -149,7 +149,7 @@ If the provider creates the request but OpenWaggle cannot record it under Output
 
 A Hive is a group of related sessions working on one task. The parent, called the Queen, can delegate work to Worker sessions.
 
-For a Queen or a Worker, the Summary shows one **Hive** row. It counts the opened session's direct Workers and how many of them **need attention**, are **ready for review**, are **active**, or are **closed** (accepted or cancelled), for example `3 direct Workers · 3 ready for review`. These are the same groups the Hive panel uses. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. It does not mean the Worker's Run has stopped. A count followed by `+` covers only the Workers loaded so far, in a Hive with more than 50 direct Workers.
+For a Queen or a Worker, the Summary shows one **Hive** row. It counts the opened session's direct Workers by who acts next: how many **need you**, are **waiting for** this session, are **working**, or are **closed** (accepted or cancelled), for example `3 direct Workers · 1 needs you · 2 waiting for Queen`. These are the same groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses, and only **need you** is shown in the attention colour. A Worker waiting for this session may have a result to review, a failed Run, or a question for it; that is the agent's to handle, not yours. A count followed by `+` covers only the Workers loaded so far, in a Hive with more than 50 direct Workers.
 
 **Open in Hive panel** lists every session of the Hive, at every depth. The panel's header counts all of them, so it can show more Workers than this row.
 

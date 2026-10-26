@@ -38,31 +38,42 @@ function workersLabel(count: number) {
   return `${String(count)} ${count === 1 ? 'Worker' : 'Workers'}`
 }
 
-function rollUpParts(rollUp: HiveTreeRollUp | null) {
+/** One part of a row's meta line; a Needs you count reads in the attention colour. */
+interface HiveRowMetaPart {
+  readonly text: string
+  readonly needsYou?: boolean
+}
+
+/** "1 needs you · 2 waiting": Needs you first; the Waiting count is muted (ADR 0059). */
+function rollUpParts(rollUp: HiveTreeRollUp | null): readonly HiveRowMetaPart[] {
   if (rollUp === null) return []
   return [
-    ...(rollUp.needsAttention > 0
+    ...(rollUp.needsYou > 0
       ? [
-          `${String(rollUp.needsAttention)} ${rollUp.needsAttention === 1 ? 'needs' : 'need'} attention`,
+          {
+            text: `${String(rollUp.needsYou)} ${rollUp.needsYou === 1 ? 'needs' : 'need'} you`,
+            needsYou: true,
+          },
         ]
       : []),
-    ...(rollUp.readyForReview > 0 ? [`${String(rollUp.readyForReview)} ready for review`] : []),
+    ...(rollUp.waiting > 0 ? [{ text: `${String(rollUp.waiting)} waiting` }] : []),
   ]
 }
 
 /** What a row says about the rows below it, visibly and in its accessible name. */
-function rowMeta(item: HiveTreeItem) {
+function rowMeta(item: HiveTreeItem): readonly HiveRowMetaPart[] {
   return [
-    ...(item.childCount > 0 ? [workersLabel(item.childCount)] : []),
-    ...(item.archivedCount > 0 ? [`${String(item.archivedCount)} archived`] : []),
+    ...(item.childCount > 0 ? [{ text: workersLabel(item.childCount) }] : []),
+    ...(item.archivedCount > 0 ? [{ text: `${String(item.archivedCount)} archived` }] : []),
     ...rollUpParts(item.rollUp),
   ]
 }
 
 /**
  * One row of the Hive panel's tree (#377): a WAI-ARIA `treeitem` in a flat tree, indented by
- * depth up to four levels, with a disclosure when it has children. A collapsed row rolls up the
- * live descendants that need the user. The row keeps its own state, Workspace and ⋯ menu.
+ * depth up to four levels, with a disclosure when it has children. A collapsed row rolls up its
+ * live descendants that need you, and those waiting for an agent. The row keeps its own state,
+ * Workspace and ⋯ menu.
  */
 export function HiveTreeItemRow({
   item,
@@ -93,7 +104,11 @@ export function HiveTreeItemRow({
       aria-posinset={item.posInSet}
       aria-expanded={item.expanded === null ? undefined : item.expanded}
       aria-current={isCurrent ? 'true' : undefined}
-      aria-label={hiveRowAccessibleName(view, item.parentTitle, meta)}
+      aria-label={hiveRowAccessibleName(
+        view,
+        item.parentTitle,
+        meta.map((part) => part.text),
+      )}
       tabIndex={tabbable ? 0 : -1}
       data-dimmed={item.dimmed ? 'true' : undefined}
       className={cn(
@@ -190,22 +205,20 @@ function HiveTreeItemMeta({
   meta,
 }: {
   readonly item: HiveTreeItem
-  readonly meta: readonly string[]
+  readonly meta: readonly HiveRowMetaPart[]
 }) {
   if (meta.length === 0 && item.orphanParentTitle === null) return null
-  const attention = (item.rollUp?.needsAttention ?? 0) > 0
+  // Only Needs you earns a dot: a Worker waiting for an agent needs nothing from you.
+  const needsYou = (item.rollUp?.needsYou ?? 0) > 0
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-text-tertiary">
-      {item.rollUp === null ? null : (
-        <span
-          aria-hidden="true"
-          className={cn('size-1.5 shrink-0 rounded-full', attention ? 'bg-warning' : 'bg-info')}
-        />
-      )}
+      {needsYou ? (
+        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-warning" />
+      ) : null}
       {/* A separator ends the part before it, so a wrapped line never starts with one. */}
       {meta.map((part, index) => (
-        <span key={part} className="flex items-center gap-x-1.5 whitespace-nowrap">
-          <span>{part}</span>
+        <span key={part.text} className="flex items-center gap-x-1.5 whitespace-nowrap">
+          <span className={part.needsYou ? 'text-warning' : undefined}>{part.text}</span>
           {index < meta.length - 1 ? <span aria-hidden="true">·</span> : null}
         </span>
       ))}

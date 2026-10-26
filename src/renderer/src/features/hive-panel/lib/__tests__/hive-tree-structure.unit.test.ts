@@ -106,17 +106,19 @@ describe('buildHiveTreeItems', () => {
     })
   })
 
-  it('hides the children of a collapsed Worker and rolls up who needs the user', () => {
+  it('hides the children of a collapsed Worker and rolls up who needs you and who waits', () => {
     const items = tree(threeLevels, { collapsed: ['a', 'b'] })
 
     expect(outline(items)).toEqual(['queen', '  a', '  b'])
     expect(items.find((item) => String(item.session.id) === 'a')).toMatchObject({
       expanded: false,
-      rollUp: { needsAttention: 1, readyForReview: 0 },
+      // a1 is stuck: its parent a is idle with nothing queued.
+      rollUp: { needsYou: 1, waiting: 0 },
     })
     expect(items.find((item) => String(item.session.id) === 'b')).toMatchObject({
       expanded: false,
-      rollUp: { needsAttention: 0, readyForReview: 1 },
+      // b2 is ready for review: b acts next, not the person.
+      rollUp: { needsYou: 0, waiting: 1 },
     })
     // An expanded Worker shows its children instead of a roll-up.
     expect(tree(threeLevels).find((item) => String(item.session.id) === 'a')?.rollUp).toBeNull()
@@ -127,12 +129,14 @@ describe('buildHiveTreeItems', () => {
       [
         worker('a', 'queen', 1),
         worker('a1', 'a', 2),
-        worker('a11', 'a1', 3, { state: 'revision_requested' }),
+        worker('a11', 'a1', 3, { state: 'needs_attention' }),
+        // Revising at its parent's request: the Worker acts next, so it is not rolled up.
+        worker('a12', 'a1', 4, { state: 'revision_requested' }),
       ],
       { collapsed: ['queen'] },
     )
     expect(outline(items)).toEqual(['queen'])
-    expect(items[0]?.rollUp).toEqual({ needsAttention: 1, readyForReview: 0 })
+    expect(items[0]?.rollUp).toEqual({ needsYou: 1, waiting: 0 })
   })
 
   it('keeps a Worker whose parent is not loaded at the top level until the parent arrives', () => {

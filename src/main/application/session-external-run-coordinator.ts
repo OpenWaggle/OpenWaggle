@@ -9,6 +9,7 @@ import {
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
+import { publishDelegationAttentionCleared } from './session-control-event-projection'
 import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 
 export function startExternalSessionRun(input: {
@@ -30,6 +31,7 @@ export function startExternalSessionRun(input: {
         stateRevision: activation.stateRevision,
         operation: 'run-activated',
       })
+      publishDelegationAttentionCleared(activation.attentionCleared)
     }
     return activation
   })
@@ -65,6 +67,7 @@ export function activatePreparedExternalSessionRun(input: {
         stateRevision: activation.stateRevision,
         operation: 'run-activated',
       })
+      publishDelegationAttentionCleared(activation.attentionCleared)
     }
     return activation
   })

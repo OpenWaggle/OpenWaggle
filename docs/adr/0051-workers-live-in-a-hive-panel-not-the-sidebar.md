@@ -10,6 +10,8 @@ Supersedes in part: [ADR 0030](0030-adopt-single-local-session-host.md), its rul
 
 Refines: [ADR 0043](0043-unified-right-panel-with-a-panel-rail.md), which gains a built-in Hive surface.
 
+Superseded in part by: [ADR 0059](0059-the-hive-groups-workers-by-who-acts-next.md). The panel groups Workers by who acts next, not by Delegation state, and only Needs you reaches the person outside it; that replaces the grouping and state names below and in both amendments.
+
 Every Worker was an ordinary sidebar row, so one Hive could push a dozen rows into a project, hide its Queen among them and bury the user's own sessions. The fix is to stop listing Workers beside their Queen at all. The sidebar holds the sessions the user owns. A Hive's Workers are listed in one Right panel surface that stays docked while the user moves through the Hive.
 
 ## Decision

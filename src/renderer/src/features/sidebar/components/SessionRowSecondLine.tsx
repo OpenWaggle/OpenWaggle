@@ -4,6 +4,7 @@ import { cn } from '@/shared/lib/cn'
 import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
 import { sessionLineagePresentation } from '../lib/session-lineage'
+import { NO_QUEEN_WORKER_ATTENTION, type QueenWorkerAttention } from '../lib/worker-attention'
 import { SessionProvenanceIndicators } from './SessionProvenanceIndicators'
 import { SessionGitBadge } from './SessionRowGitBadge'
 
@@ -25,7 +26,7 @@ export function SessionRowSecondLine({
   phaseLabel,
   projectLabel,
   shortcutIndex,
-  workerAttentionCount = 0,
+  workerAttention = NO_QUEEN_WORKER_ATTENTION,
   showLineageParent = false,
 }: {
   readonly session: SessionSummary
@@ -35,8 +36,8 @@ export function SessionRowSecondLine({
   /** Shown only when the row sits outside its project group, as Pinned rows do. */
   readonly projectLabel: string
   readonly shortcutIndex: number | null
-  /** A Queen's hidden Workers needing the user; "N needs attention" (ADR 0051, #356). */
-  readonly workerAttentionCount?: number
+  /** A Queen's hidden Workers: "n need you", and a muted "n waiting for ‹Queen›" (ADR 0059). */
+  readonly workerAttention?: QueenWorkerAttention
   /** Name the Worker's parent in text, for Pinned and narrowed flat Worker rows. */
   readonly showLineageParent?: boolean
 }) {
@@ -72,7 +73,7 @@ export function SessionRowSecondLine({
         <HiveLineageLead
           session={session}
           showParent={showLineageParent}
-          attentionCount={workerAttentionCount}
+          attention={workerAttention}
           leadBeforeLineage={leadBeforeLineage}
         />
         {phaseLabel === null ? null : (
@@ -116,18 +117,18 @@ export function SessionRowSecondLine({
 }
 
 /**
- * The row's Hive metadata: the lineage glyph, the parent name where it applies, and a Queen's
- * hidden-Worker attention (ADR 0051). Nothing renders for an independent session.
+ * The row's Hive metadata: the lineage glyph, the parent name where it applies, and what a
+ * Queen's hidden Workers need (ADR 0051, ADR 0059). Nothing renders for an independent session.
  */
 function HiveLineageLead({
   session,
   showParent,
-  attentionCount,
+  attention,
   leadBeforeLineage,
 }: {
   readonly session: SessionSummary
   readonly showParent: boolean
-  readonly attentionCount: number
+  readonly attention: QueenWorkerAttention
   readonly leadBeforeLineage: boolean
 }) {
   const role = session.lineage?.role
@@ -136,24 +137,47 @@ function HiveLineageLead({
     <>
       {leadBeforeLineage ? <Separator /> : null}
       <SessionLineageIndicator session={session} showParent={showParent} />
-      {role === 'queen' && attentionCount > 0 ? (
-        <QueenWorkerAttention count={attentionCount} />
+      {role === 'queen' ? (
+        <QueenWorkerLine attention={attention} queenTitle={session.title} />
       ) : null}
     </>
   )
 }
 
 /**
- * A Queen's hidden Workers need her user; the row says so in the attention colour (ADR 0051), in
- * the words the Hive panel's Needs attention group and the rail use (#356).
+ * What a Queen's hidden Workers need (ADR 0059): "n need you" in the attention colour, then a
+ * muted "n waiting for ‹Queen›", which never takes the attention colour or a dot: those Workers
+ * wait for her, not for the person.
  */
-function QueenWorkerAttention({ count }: { readonly count: number }) {
+function QueenWorkerLine({
+  attention,
+  queenTitle,
+}: {
+  readonly attention: QueenWorkerAttention
+  readonly queenTitle: string
+}) {
   return (
     <>
-      <Separator />
-      <span data-qa="sidebar-row-worker-attention" className="shrink-0 text-warning">
-        {`${count} ${count === 1 ? 'needs' : 'need'} attention`}
-      </span>
+      {attention.needYou > 0 ? (
+        <>
+          <Separator />
+          <span data-qa="sidebar-row-worker-attention" className="shrink-0 text-warning">
+            {`${attention.needYou} ${attention.needYou === 1 ? 'needs' : 'need'} you`}
+          </span>
+        </>
+      ) : null}
+      {attention.waiting > 0 ? (
+        <>
+          <Separator />
+          <span
+            data-qa="sidebar-row-worker-waiting"
+            className="min-w-0 truncate text-text-tertiary"
+            title={`${attention.waiting} waiting for ${queenTitle}`}
+          >
+            {`${attention.waiting} waiting for ${queenTitle}`}
+          </span>
+        </>
+      ) : null}
     </>
   )
 }

@@ -29,8 +29,8 @@ import { hivePage, sessionActionsStub, summary, workerLineage } from './hive-pan
 
 describe('HivePanel archived group', () => {
   beforeEach(() => {
-    // These cover the By state view; the tree view has its own tests.
-    useHivePanelViewStore.setState({ view: 'by-state', showArchived: false, collapsed: {} })
+    // These cover the By next actor view; the tree view has its own tests.
+    useHivePanelViewStore.setState({ view: 'by-next-actor', showArchived: false, collapsed: {} })
     listHiveTreeSessionCatalogPage.mockReset().mockResolvedValue(hivePage([]))
     unarchiveSession.mockReset()
     useNavigate.mockReset().mockResolvedValue(undefined)
@@ -91,7 +91,7 @@ describe('HivePanel archived group', () => {
       Promise.resolve(
         id === 'queen'
           ? hivePage([archived('old-a', 'queen')])
-          : { root: otherQueen, members: [archived('old-b', 'other-queen')], attentionCount: 0 },
+          : { root: otherQueen, members: [archived('old-b', 'other-queen')], needsYouCount: 0 },
       ),
     )
     function Switcher() {

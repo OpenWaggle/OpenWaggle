@@ -52,3 +52,24 @@ describe('Hive tool cross-project guidance', () => {
     )
   })
 })
+
+describe('Hive tool next-actor guidance (#380)', () => {
+  it('explains nextActor in the description and the guidelines', async () => {
+    const registerTool = vi.fn()
+    await createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const tool = registerTool.mock.calls[0]?.[0]
+    expect(tool?.description).toMatch(/carry nextActor: user, parent, worker, or none/)
+    expect(tool?.promptGuidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /carries nextActor.*user when only the person can unblock it.*parent when its parent agent acts next.*worker when it is working or revising.*none once its Delegation is accepted or cancelled/,
+        ),
+      ]),
+    )
+  })
+})

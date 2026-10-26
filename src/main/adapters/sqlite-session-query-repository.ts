@@ -23,6 +23,7 @@ import { listSessions } from './sqlite-session-query-catalog'
 import { resolveCurrentProjectQuery } from './sqlite-session-query-current-project'
 import { readQueue, readSession, readStatus } from './sqlite-session-query-details'
 import { readItems } from './sqlite-session-query-items'
+import { type HivePendingRequests, withHiveNextActor } from './sqlite-session-query-next-actor'
 import { readTurns } from './sqlite-session-query-turns'
 import { SqliteSessionSemanticSearch } from './sqlite-session-semantic-search'
 import { SqliteSessionTranscriptSemanticSearch } from './sqlite-session-transcript-semantic-search'
@@ -109,6 +110,7 @@ function execute(
   exportSelectedPaths: SessionExportSelectedPathCache,
   callerId?: string,
   exportMaterializationOperationId?: string,
+  pendingRequests?: HivePendingRequests,
 ) {
   return resolveCurrentProjectQuery(sql, request).pipe(
     Effect.flatMap((resolved) =>
@@ -123,6 +125,11 @@ function execute(
         callerId,
         exportMaterializationOperationId,
       ),
+    ),
+    Effect.flatMap((response) =>
+      pendingRequests === undefined
+        ? Effect.succeed(response)
+        : withHiveNextActor(sql, response, pendingRequests),
     ),
     Effect.mapError((cause) => repositoryError(`query-${request.query.operation}`, cause)),
   )
@@ -140,7 +147,13 @@ export function makeSqliteSessionQueryRepositoryLive(
       const transcriptSemantic = new SqliteSessionTranscriptSemanticSearch(sql, model)
       const exportSelectedPaths = new SessionExportSelectedPathCache()
       return SessionQueryRepository.of({
-        execute: ({ callerId, authority, request, exportMaterializationOperationId }) =>
+        execute: ({
+          callerId,
+          authority,
+          request,
+          exportMaterializationOperationId,
+          pendingRequests,
+        }) =>
           execute(
             sql,
             authority,
@@ -151,6 +164,7 @@ export function makeSqliteSessionQueryRepositoryLive(
             exportSelectedPaths,
             callerId,
             exportMaterializationOperationId,
+            pendingRequests,
           ),
       })
     }),

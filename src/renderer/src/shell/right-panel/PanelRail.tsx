@@ -38,7 +38,8 @@ function surfaceTooltip(surface: RightPanelSurfaceEntry) {
   if (surface.extension !== null) parts.push(surface.extension.extensionName)
   if (surface.running) parts.push('running')
   // The attention dot is aria-hidden, so the name carries it for screen readers.
-  if (surface.attention) parts.push('needs attention')
+  // The Hive's dot means only Needs you: something the person must unblock (ADR 0059).
+  if (surface.attention) parts.push(surface.id === 'hive' ? 'needs you' : 'needs attention')
   if (surface.isNew) parts.push('new')
   const label = parts.join(' · ')
   const withShortcut = surface.shortcutLabel ? `${label} (${surface.shortcutLabel})` : label
