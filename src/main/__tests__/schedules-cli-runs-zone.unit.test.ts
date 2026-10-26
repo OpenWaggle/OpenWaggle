@@ -25,6 +25,7 @@ vi.mock('../cli-stdout', () => ({
 }))
 
 const { runSchedulesCli } = await import('../schedules-cli')
+const { cliWallClockTime } = await import('../cli-wall-clock-time')
 
 // 2026-06-01 08:02:03Z is 17:02:03 in Tokyo, which is not the machine's zone here.
 const RUN: ScheduledTaskRun = {
@@ -88,8 +89,8 @@ describe('openwaggle schedules runs', () => {
       return answer({ effect: 'runs-listed', runs: [RUN] })
     })
     expect(await runSchedulesCli(['runs', 'task-1'])).toBe(0)
-    expect(mocks.stdout.join('')).toMatch(
-      /^2026-06-01 \d\d:\d\d:03 [+-]\d\d:\d\d \S+ {2}schedule {2}started\n$/,
-    )
+    // The machine's clock, whatever zone runs the test: the same formatter with no zone given.
+    expect(mocks.stdout.join('')).toBe(`${cliWallClockTime(RUN.firedAt)}  schedule  started\n`)
+    expect(cliWallClockTime(RUN.firedAt)).toMatch(/:03 [+-]\d\d:\d\d \S+$/)
   })
 })
