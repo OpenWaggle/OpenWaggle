@@ -11,9 +11,11 @@ Released builds send anonymous usage statistics and error reports, from the firs
 
 ## Supported platforms
 
-- macOS on Intel or Apple silicon
-- Windows on x64
-- Linux on x64
+- macOS 13.4 (Ventura) or later, on Apple silicon or Intel
+- Windows 10 or later, on x64
+- Linux on x64 with glibc 2.35 or later
+
+See [System requirements](#system-requirements) for details.
 
 ## Pre-built installers
 
@@ -149,7 +151,18 @@ contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-
 
 ## System requirements
 
-- A modern operating system, such as macOS, Windows 10+, or a recent Linux distribution.
+| Platform | Minimum | Architectures |
+|----------|---------|---------------|
+| macOS | macOS 13.4 (Ventura) | Apple silicon and Intel |
+| Windows | Windows 10 | x64 |
+| Linux | glibc 2.35, for example Ubuntu 22.04, Debian 12 or Fedora 36 | x64. The AppImage is x64 only. |
+
+On macOS 12 through 13.3, OpenWaggle still opens and keeps receiving updates, but those versions are not supported. Semantic Session search and voice input need macOS 13.4 and fail on older versions. Update macOS to use them.
+
+On Linux, check your glibc version with `ldd --version`.
+
+You also need:
+
 - Access to an AI provider through an API key, sign-in, or another supported configuration. See [Providers and models](/docs/providers/overview).
 - An internet connection when using hosted models.
 

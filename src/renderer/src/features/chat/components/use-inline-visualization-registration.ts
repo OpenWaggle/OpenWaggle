@@ -61,10 +61,12 @@ export function useInlineVisualizationRegistration(input: {
         activeRegistration = result
         if (active) setRegistration(result)
         else {
-          void api.unregisterInlineVisualizationFrame({
-            frameId,
-            registrationId: result.registrationId,
-          })
+          void api
+            .unregisterInlineVisualizationFrame({
+              frameId,
+              registrationId: result.registrationId,
+            })
+            .catch(() => undefined)
         }
       })
       .catch((error: unknown) => {
@@ -73,10 +75,12 @@ export function useInlineVisualizationRegistration(input: {
     return () => {
       active = false
       if (activeRegistration) {
-        void api.unregisterInlineVisualizationFrame({
-          frameId,
-          registrationId: activeRegistration.registrationId,
-        })
+        void api
+          .unregisterInlineVisualizationFrame({
+            frameId,
+            registrationId: activeRegistration.registrationId,
+          })
+          .catch(() => undefined)
       }
     }
   }, [enabled, frameId, input.sessionId, input.sourcePath, wanted])

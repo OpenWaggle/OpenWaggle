@@ -139,6 +139,7 @@ const config: object[] = [
   {
     files: ['src/renderer/src/**/*.{ts,tsx}'],
     rules: {
+      'openwaggle/no-uncaught-void-ipc': 'error',
       'openwaggle/renderer-design-token-guardrails': [
         'error',
         { exemptFiles: readRendererDesignTokenExemptions() },

@@ -7,7 +7,8 @@
 # loads on each OS. It is non-gating: it never blocks a merge, it surfaces
 # packaging/native regressions between releases as a signal.
 #
-# Scope note: this builds + packages + runs `packaged-app:smoke` (asar shape,
+# Scope note: this builds + packages + runs the native platform-floor guard
+# (scripts/check-native-platform-floor.ts) and `packaged-app:smoke` (asar shape,
 # packaged docs, and a native node-pty/sqlite load probe via ELECTRON_RUN_AS_NODE).
 # It does NOT launch a window, so it does not cover renderer boot, CSP, visual
 # pixels, or timing budgets - those are local/manual only after E2E removal.
@@ -38,7 +39,8 @@ jobs:
             build_flags: --mac --arm64 --x64 --publish never
             syntax_budget: true
           - label: Linux
-            runner: ubuntu-latest
+            # Matches the release build: Ubuntu 22.04 keeps native modules on glibc 2.35.
+            runner: ubuntu-22.04
             build_flags: --linux --publish never
             syntax_budget: false
           - label: Windows
@@ -56,7 +58,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
           version: 11.15.1
 
@@ -77,6 +79,9 @@ jobs:
         run: pnpm exec electron-builder ${{ matrix.build_flags }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Check native platform floor
+        run: pnpm exec tsx scripts/check-native-platform-floor.ts
 
       - name: Smoke packaged runtime
         run: pnpm packaged-app:smoke
@@ -111,7 +116,7 @@ jobs:
 
       - name: Upload build artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: nightly-${{ matrix.label }}-dist
           path: |

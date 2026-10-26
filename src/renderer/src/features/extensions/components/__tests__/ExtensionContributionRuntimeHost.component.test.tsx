@@ -117,6 +117,7 @@ describe('ExtensionContributionRuntimeHost trusted renderer path', () => {
     apiMock.openExternal.mockReset()
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
     apiMock.invokeExtension.mockResolvedValue(INVOKE_FAILURE)
     apiMock.openExternal.mockResolvedValue(undefined)
     apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
