@@ -8,30 +8,14 @@ import type {
   UsageCostSessionRow,
   UsageCostView,
 } from '@shared/types/usage-cost'
+import type { UsageCostRecord, UsageCostRecordTokens } from './usage-cost-record'
+
+export type { UsageCostRecord, UsageCostRecordTokens } from './usage-cost-record'
 
 /**
  * Pure Usage & Cost aggregation over scanned Pi session records. No I/O here:
  * the adapter produces `UsageCostScanSession`s, this module answers queries.
  */
-
-export interface UsageCostRecordTokens {
-  readonly input: number
-  readonly output: number
-  readonly cacheRead: number
-  readonly cacheWrite: number
-}
-
-export interface UsageCostRecord {
-  readonly timestampMs: number
-  readonly provider: string
-  readonly modelId: string
-  readonly tokens: UsageCostRecordTokens
-  readonly totalTokens: number
-  /** Cost Pi wrote into the session record, or `null` when absent. */
-  readonly recordedCostUsd: number | null
-  /** Cost computed from Pi's own model rates when the record carried none. */
-  readonly estimatedCostUsd: number | null
-}
 
 export interface UsageCostScanSession {
   readonly file: string

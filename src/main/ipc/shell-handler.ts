@@ -1,5 +1,7 @@
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
+import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
+import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
 import * as Effect from 'effect/Effect'
 import { app, clipboard } from 'electron'
 import {
@@ -7,8 +9,8 @@ import {
   recoverDesktopNativeAdmission,
 } from '../desktop-native-admission'
 import { AutomationDesktopUiError, openExternal, openPath, revealPath } from '../desktop-ui'
+import { env } from '../env'
 import { createLogger } from '../logger'
-import { usageStatisticsEnvironmentBlock } from '../usage-statistics/usage-statistics-enablement'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('ipc:shell')
@@ -74,7 +76,20 @@ export function registerShellHandlers(): void {
 
   typedHandle('app:get-logs-path', () => Effect.sync(() => app.getPath('logs')))
   typedHandle('app:get-native-admission-issue', () => Effect.sync(getDesktopNativeAdmissionIssue))
-  typedHandle('app:get-usage-statistics-block', () => Effect.sync(usageStatisticsEnvironmentBlock))
+  // The window's own build and environment opt-out, for the Settings switch (#356).
+  typedHandle('app:get-usage-statistics-block', () =>
+    Effect.sync(() =>
+      resolveUsageStatisticsEnvironmentBlock({
+        buildChannel: BUILD_CHANNEL,
+        env: {
+          DO_NOT_TRACK: env.DO_NOT_TRACK,
+          PI_TELEMETRY: env.PI_TELEMETRY,
+          CI: env.CI,
+          OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
+        },
+      }),
+    ),
+  )
   // Choosing Recover is the user's attestation that the previous window left nothing running.
   typedHandle('app:recover-native-admission', () =>
     Effect.promise(() => recoverDesktopNativeAdmission()),

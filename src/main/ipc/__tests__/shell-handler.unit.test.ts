@@ -21,10 +21,15 @@ const mockNativeAdmissionIssue = vi.fn<() => string | null>(() => null)
 const mockRecoverNativeAdmission = vi.fn<() => Promise<DesktopNativeRecoveryOutcome>>(async () => ({
   outcome: 'recovered',
 }))
-const mockUsageStatisticsBlock = vi.fn<() => string | null>(() => null)
-vi.mock('../../usage-statistics/usage-statistics-enablement', () => ({
-  usageStatisticsEnvironmentBlock: () => mockUsageStatisticsBlock(),
-}))
+interface MockUsageEnv {
+  DO_NOT_TRACK?: string
+  PI_TELEMETRY?: string
+  CI?: string
+  OPENWAGGLE_AUTOMATION?: '1'
+}
+const mockEnv = vi.hoisted((): MockUsageEnv => ({}))
+vi.mock('../../env', () => ({ env: mockEnv }))
+vi.mock('@shared/build-identity-runtime', () => ({ BUILD_CHANNEL: 'beta' }))
 
 vi.mock('../../desktop-native-admission', () => ({
   getDesktopNativeAdmissionIssue: () => mockNativeAdmissionIssue(),
@@ -120,14 +125,19 @@ describe('shell-handler', () => {
     expect(mockRecoverNativeAdmission).toHaveBeenCalledTimes(2)
   })
 
-  it.each([null, 'dev-build', 'automation'])(
-    'tells the Settings switch why this process never sends statistics: %s',
-    async (block) => {
-      mockUsageStatisticsBlock.mockReturnValue(block)
-      registerShellHandlers()
-      expect(await handlers.get('app:get-usage-statistics-block')?.({})).toBe(block)
-    },
-  )
+  it.each([
+    [{}, null],
+    [{ OPENWAGGLE_AUTOMATION: '1' as const }, 'automation'],
+    [{ DO_NOT_TRACK: '1' }, 'do-not-track'],
+    [{ CI: 'true' }, 'ci'],
+  ])('tells the Settings switch why this window never sends statistics: %o', async (env, block) => {
+    for (const key of ['DO_NOT_TRACK', 'PI_TELEMETRY', 'CI', 'OPENWAGGLE_AUTOMATION'] as const) {
+      delete mockEnv[key]
+    }
+    Object.assign(mockEnv, env)
+    registerShellHandlers()
+    expect(await handlers.get('app:get-usage-statistics-block')?.({})).toBe(block)
+  })
 
   it('reads paste text through Electron clipboard isolation', async () => {
     registerShellHandlers()

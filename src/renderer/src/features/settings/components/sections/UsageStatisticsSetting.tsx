@@ -1,7 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import { USAGE_STATISTICS_DOCS_URL } from '@shared/constants/usage-statistics'
 import type { UsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -41,19 +41,17 @@ function blockReason(block: UsageStatisticsEnvironmentBlock) {
  * so it is read once. Until it is known, the switch stays disabled rather than showing a Dev
  * build's statistics as on.
  */
-function useUsageStatisticsBlock() {
-  return useQuery({
-    queryKey: queryKeys.usageStatisticsBlock,
-    queryFn: () => api.getUsageStatisticsBlock(),
-    staleTime: Number.POSITIVE_INFINITY,
-  })
-}
+const usageStatisticsBlockQuery = queryOptions({
+  queryKey: queryKeys.usageStatisticsBlock,
+  queryFn: () => api.getUsageStatisticsBlock(),
+  staleTime: Number.POSITIVE_INFINITY,
+})
 
 export function UsageStatisticsSetting() {
   const enabled = usePreferencesStore((state) => state.settings.usageStatisticsEnabled)
   const setUsageStatisticsEnabled = usePreferencesStore((state) => state.setUsageStatisticsEnabled)
   const [saving, setSaving] = useState(false)
-  const blockQuery = useUsageStatisticsBlock()
+  const blockQuery = useQuery(usageStatisticsBlockQuery)
   const block = blockQuery.data ?? null
   // A failed read leaves the Setting in charge, as before; the main process still enforces it.
   const blockKnown = blockQuery.isSuccess || blockQuery.isError

@@ -96,9 +96,8 @@ export function SessionEnvironmentActions({
 }) {
   const [open, setOpen] = useState(false)
   const showToast = useUIStore((state) => state.showToast)
-  const reportFailure = (cause: unknown, fallback: string) => {
+  const reportFailure = (cause: unknown, fallback: string) =>
     showToast(ipcFailureMessage(cause, fallback), 'error')
-  }
 
   return (
     <Popover

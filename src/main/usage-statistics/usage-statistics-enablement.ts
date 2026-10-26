@@ -117,11 +117,6 @@ export function currentUsageStatisticsEnablement(): UsageStatisticsProcessEnable
   return processEnablement.current()
 }
 
-/** Why this process never sends statistics whatever the Setting says, for the Settings switch. */
-export function usageStatisticsEnvironmentBlock(): UsageStatisticsEnvironmentBlock | null {
-  return processEnablement.environmentBlock()
-}
-
 /**
  * Calls `listener` with the new value each time {@link isUsageStatisticsEnabled} changes, which
  * happens only when the Setting changes or Settings first load. Returns the unsubscribe function.

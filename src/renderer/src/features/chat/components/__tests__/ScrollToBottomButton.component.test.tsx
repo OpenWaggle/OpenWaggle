@@ -12,7 +12,7 @@ describe('ScrollToBottomButton', () => {
     expect(onClick).toHaveBeenCalledOnce()
   })
 
-  it('hides with inert alone, so hiding while focused never sets aria-hidden on focus (#356)', () => {
+  it('hides with inert alone, so hiding while focused never sets aria-hidden on focus', () => {
     const { container, rerender } = render(<ScrollToBottomButton visible onClick={vi.fn()} />)
     screen.getByRole('button', { name: 'Scroll to bottom' }).focus()
 
