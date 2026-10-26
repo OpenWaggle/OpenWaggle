@@ -83,6 +83,16 @@ export function useQueuedMessageArrangement(
     if (focusStillInDock(listRef.current)) focusWhenPlaced(listRef.current, pending)
   }, [renderedOrder])
 
+  // A dragged message that leaves the queue mid-drag (delivered, withdrawn elsewhere) takes its
+  // grip with it, and Chromium's dragend on a detached node never reaches React: end the drag here.
+  useLayoutEffect(() => {
+    const draggedId = draggedIdRef.current
+    if (!draggedId || renderedOrder.split('\n').includes(draggedId)) return
+    draggedIdRef.current = null
+    dropRef.current = null
+    clearDragFeedback(listRef.current)
+  }, [renderedOrder])
+
   async function moveAndFocus(followUpId: string, anchor: QueuedMessageAnchor) {
     const moved = await move(followUpId, anchor)
     if (!moved) return

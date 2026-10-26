@@ -248,6 +248,27 @@ describe('QueuedMessages drag feedback', () => {
       expect(document.querySelector('[data-drag-source]')).toBeNull()
     })
 
+    it('ends the drag when the dragged message leaves the queue mid-drag', () => {
+      const { rerender } = renderDock()
+      const dataTransfer = makeDataTransfer()
+
+      fireDrag('dragStart', grip('first'), dataTransfer)
+      fireDrag('dragOver', rowFor('third'), dataTransfer)
+      // Delivered as the next Run: its row unmounts, so its dragend never reaches React.
+      queueMock.snapshot = snapshotOf(
+        [queueItem({ id: 'b', text: 'second' }), queueItem({ id: 'c', text: 'third' })],
+        5,
+      )
+      rerender(
+        <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={vi.fn()} />,
+      )
+
+      expect(dropTargets()).toEqual([])
+      expect(fireDrag('dragOver', list(), dataTransfer)).toBe(true)
+      fireDrag('drop', list(), dataTransfer)
+      expect(queueMock.reorder).not.toHaveBeenCalled()
+    })
+
     it('does not reuse a cancelled drag for a later drop', () => {
       renderDock()
       const dataTransfer = makeDataTransfer()
