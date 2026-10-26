@@ -2,9 +2,10 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import {
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
@@ -70,13 +71,17 @@ describe('useWorkspaceLifecycle Right panel shortcuts', () => {
   }
   let unregister: (() => void) | null = null
 
-  beforeEach(async () => {
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
+    ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
     resetWorkspaceLifecycleMocks()
     // The registry is asked about the Session's checkout, like the Panel rail does.
     lifecycleMocks.workingPath = '/repo'
     controller.toggleSurface.mockClear()
     controller.showSurface.mockClear()
-    ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
   })
 
   afterEach(() => {

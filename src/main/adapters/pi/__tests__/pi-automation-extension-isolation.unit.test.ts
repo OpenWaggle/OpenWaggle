@@ -1,6 +1,3 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { expect, it, vi } from 'vitest'
 
@@ -13,6 +10,7 @@ vi.mock('../../../env', async (importOriginal) => {
 })
 
 import { env } from '../../../env'
+import { temporaryTestDirectory } from '../../../test-support/temporary-test-directory'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
@@ -21,7 +19,7 @@ import {
 import { writeProviderExtension } from './pi-provider-catalog.test-utils'
 
 it('excludes project/user extensions but retains trusted built-ins during automation', async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-automation-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-automation-')
   const providerId = 'automation-window-escape-probe'
   const inlineFactory: ExtensionFactory = vi.fn()
   const trustedFactory: ExtensionFactory = vi.fn()
@@ -59,7 +57,7 @@ it('excludes project/user extensions but retains trusted built-ins during automa
 })
 
 it("keeps Pi's built-in codemode and tool search during automation", async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-automation-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-automation-')
 
   const services = await createPiRuntimeServices(projectPath)
 
@@ -81,7 +79,7 @@ it('retains trusted append-system-prompt guidance during automation', () => {
 })
 
 it('allows host-owned inline extensions without enabling discovered extensions during live QA', async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-live-qa-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-live-qa-')
   const providerId = 'automation-live-qa-window-escape-probe'
   const inlineFactory: ExtensionFactory = vi.fn()
   await writeProviderExtension(projectPath, providerId)
@@ -101,7 +99,7 @@ it('allows host-owned inline extensions without enabling discovered extensions d
 })
 
 it("loads the Run's built-in MCP extension by its builtin path during live QA", async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-live-qa-mcp-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-live-qa-mcp-')
   const mcpFactory: ExtensionFactory = vi.fn()
   const mcp = { name: 'mcp', factory: mcpFactory, replaceable: true, builtin: true }
   Object.assign(env, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
@@ -121,7 +119,7 @@ it("loads the Run's built-in MCP extension by its builtin path during live QA", 
 })
 
 it('loads only the Pi extension files a QA run names explicitly during automation', async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-qa-extension-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-qa-extension-')
   const providerId = 'automation-qa-fixture-provider'
   const fixturePath = await writeProviderExtension(projectPath, providerId)
   Object.assign(env, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: fixturePath })
@@ -136,15 +134,12 @@ it('loads only the Pi extension files a QA run names explicitly during automatio
 })
 
 it('ignores the QA extension files outside automation', async () => {
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-not-automation-'))
+  const projectPath = await temporaryTestDirectory('openwaggle-pi-not-automation-')
   // Outside the project and the Pi agent directory, so only the QA variable could load it.
-  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-qa-fixture-'))
+  const fixtureRoot = await temporaryTestDirectory('openwaggle-pi-qa-fixture-')
   const providerId = 'not-automation-qa-fixture-provider'
   const fixturePath = await writeProviderExtension(fixtureRoot, providerId)
-  vi.stubEnv(
-    'PI_CODING_AGENT_DIR',
-    await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-agent-')),
-  )
+  vi.stubEnv('PI_CODING_AGENT_DIR', await temporaryTestDirectory('openwaggle-pi-agent-'))
   Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION')
   Object.assign(env, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: fixturePath })
 

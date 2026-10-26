@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import type { ChatRow } from '../../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../../model'
 
@@ -82,6 +83,8 @@ function stubTallScroller() {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(500)
 }
 
+// Each test imports the transcript afresh (after `vi.resetModules()`, for the reading positions
+// the module reads when it loads), so each pays for a cold import of its module graph.
 describe('reading-position restore', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -94,49 +97,61 @@ describe('reading-position restore', () => {
     vi.restoreAllMocks()
   })
 
-  it('leaves nothing running when the saved row never arrives', async () => {
-    localStorage.setItem(
-      POSITIONS_KEY,
-      JSON.stringify([[`${SESSION}:main`, { key: 'message:gone', top: 12 }]]),
-    )
-    const { ChatTranscript } = await import('../ChatTranscript')
-    render(<ChatTranscript section={createSection()} />)
+  it(
+    'leaves nothing running when the saved row never arrives',
+    async () => {
+      localStorage.setItem(
+        POSITIONS_KEY,
+        JSON.stringify([[`${SESSION}:main`, { key: 'message:gone', top: 12 }]]),
+      )
+      const { ChatTranscript } = await import('../ChatTranscript')
+      render(<ChatTranscript section={createSection()} />)
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(GRACE_MS)
-    })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(GRACE_MS)
+      })
 
-    expect(vi.getTimerCount()).toBe(0)
-  })
+      expect(vi.getTimerCount()).toBe(0)
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  )
 
-  it('builds the first window around a saved row deep in older history', async () => {
-    localStorage.setItem(
-      POSITIONS_KEY,
-      JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
-    )
-    vi.resetModules()
-    const { ChatTranscript } = await import('../ChatTranscript')
-    const { getByText, queryByText } = render(<ChatTranscript section={createSection()} />)
+  it(
+    'builds the first window around a saved row deep in older history',
+    async () => {
+      localStorage.setItem(
+        POSITIONS_KEY,
+        JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
+      )
+      vi.resetModules()
+      const { ChatTranscript } = await import('../ChatTranscript')
+      const { getByText, queryByText } = render(<ChatTranscript section={createSection()} />)
 
-    // The pixel restore reopened at the newest 40 rows and landed on a different message.
-    expect(getByText('msg-100')).toBeInTheDocument()
-    expect(getByText('msg-80')).toBeInTheDocument()
-    expect(queryByText('msg-399')).not.toBeInTheDocument()
-  })
+      // The pixel restore reopened at the newest 40 rows and landed on a different message.
+      expect(getByText('msg-100')).toBeInTheDocument()
+      expect(getByText('msg-80')).toBeInTheDocument()
+      expect(queryByText('msg-399')).not.toBeInTheDocument()
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  )
 
-  it('builds the window around a saved row that only arrives with a later hydration commit', async () => {
-    localStorage.setItem(
-      POSITIONS_KEY,
-      JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
-    )
-    vi.resetModules()
-    const { ChatTranscript } = await import('../ChatTranscript')
-    const phase: ChatRow = { type: 'phase-indicator', label: 'Thinking', elapsedMs: 0 }
-    const partial = { ...createSection(), chatRows: [phase], messages: [] }
-    const { rerender, getByText } = render(<ChatTranscript section={partial} />)
-    rerender(<ChatTranscript section={createSection()} />)
+  it(
+    'builds the window around a saved row that only arrives with a later hydration commit',
+    async () => {
+      localStorage.setItem(
+        POSITIONS_KEY,
+        JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
+      )
+      vi.resetModules()
+      const { ChatTranscript } = await import('../ChatTranscript')
+      const phase: ChatRow = { type: 'phase-indicator', label: 'Thinking', elapsedMs: 0 }
+      const partial = { ...createSection(), chatRows: [phase], messages: [] }
+      const { rerender, getByText } = render(<ChatTranscript section={partial} />)
+      rerender(<ChatTranscript section={createSection()} />)
 
-    // Review finding: the first window opened at the newest rows and never reached the saved row.
-    expect(getByText('msg-100')).toBeInTheDocument()
-  })
+      // Review finding: the first window opened at the newest rows and never reached the saved row.
+      expect(getByText('msg-100')).toBeInTheDocument()
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  )
 })

@@ -18,6 +18,11 @@ import {
 } from '../migration/migration-health'
 import { sameMigrationLocation } from '../migration/project-spellings'
 import {
+  connectsProjectMcpServers,
+  projectServerPolicyNotice,
+  withProjectServerPolicy,
+} from './mcp-automation-policy'
+import {
   type McpConfigFileReader,
   type McpConfigFileRoots,
   mcpConfigFileLocations,
@@ -84,6 +89,8 @@ export interface LoadMcpRuntimeConfigInput {
    */
   readonly secretStamp?: (name: string) => Promise<string>
   readonly reader?: McpConfigFileReader
+  /** Whether project files' servers may connect; defaults to `connectsProjectMcpServers()`. */
+  readonly connectProjectServers?: boolean
 }
 
 function errorMessage(error: unknown) {
@@ -213,12 +220,19 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
 
 /**
  * Why a server the merge leaves out is missing: the notice of a failing migration, when the scope
- * is closed or the file that defines the server is left out. Undefined when it is not configured.
+ * is closed or the file that defines the server is left out, or the automation policy for a
+ * project server. Undefined when it is not configured.
  */
-export function mcpLeftOutServerNotice(roots: McpConfigFileRoots, name: string) {
+export function mcpLeftOutServerNotice(
+  roots: McpConfigFileRoots,
+  name: string,
+  connectProjectServers = connectsProjectMcpServers(),
+) {
   const scope = pendingMcpFileMigration(roots.homeDir, roots.projectPath)
   if (scope?.keepsLegacyState) return mcpScopePendingNotice(scope)
   const server = loadMcpMergedConfig(roots).servers.find((candidate) => candidate.name === name)
+  const notice = projectServerPolicyNotice(server, connectProjectServers)
+  if (notice) return notice
   const leftOut = server ? mcpFileMigrationPending(server.source.path) : undefined
   return leftOut ? mcpFilePendingNotice(leftOut) : undefined
 }
@@ -230,7 +244,10 @@ export function mcpLeftOutServerNotice(roots: McpConfigFileRoots, name: string) 
 export async function loadMcpRuntimeConfig(
   input: LoadMcpRuntimeConfigInput,
 ): Promise<McpRuntimeConfig> {
-  const merged = loadConnectableMcpConfig(input.roots, input.reader)
+  const merged = withProjectServerPolicy(
+    loadConnectableMcpConfig(input.roots, input.reader),
+    input.connectProjectServers ?? connectsProjectMcpServers(),
+  )
   // A project at the home folder has no project file of its own: its path is the global file's,
   // and Pi's /mcp "in this project" must not write that.
   const projectConfig = mcpConfigFileLocations(input.roots).some(

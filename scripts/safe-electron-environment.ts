@@ -10,6 +10,8 @@ const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
   // directory at startup, as every OpenWaggle process does.
   'OPENWAGGLE_HOST_TMPDIR',
   'PATH',
+  // A scratch Pi agent directory the caller chose; without it Pi falls back to HOME/.pi/agent.
+  'PI_CODING_AGENT_DIR',
   'SHELL',
   'SYSTEMROOT',
   'TERM',
@@ -22,13 +24,17 @@ const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
   'XDG_RUNTIME_DIR',
 ] as const
 
+/**
+ * The inherited allow-listed variables, then the launcher's overrides. An override wins: a
+ * launcher that isolates HOME or the Pi agent directory must not get the caller's real one back.
+ */
 export function buildSafeElectronEnvironment(
   overrides: Readonly<Record<string, string>>,
 ): Record<string, string> {
-  const environment: Record<string, string> = { ...overrides }
+  const environment: Record<string, string> = {}
   for (const key of SAFE_ELECTRON_ENVIRONMENT_KEYS) {
     const value = process.env[key]
     if (typeof value === 'string' && value.length > 0) environment[key] = value
   }
-  return environment
+  return { ...environment, ...overrides }
 }

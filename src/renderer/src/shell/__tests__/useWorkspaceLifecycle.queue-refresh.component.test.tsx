@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { useBackgroundRunStore } from '@/features/chat/state'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import {
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
@@ -15,9 +16,13 @@ describe('useWorkspaceLifecycle Follow-up queue refresh', () => {
     ReturnType<typeof loadUseWorkspaceLifecycle>
   >['useWorkspaceLifecycle']
 
-  beforeEach(async () => {
-    resetWorkspaceLifecycleMocks()
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
+    resetWorkspaceLifecycleMocks()
   })
 
   it('refetches the Follow-up queue when a stopped Run settles, so returned steers reappear', async () => {

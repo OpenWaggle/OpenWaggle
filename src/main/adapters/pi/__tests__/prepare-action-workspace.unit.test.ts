@@ -193,13 +193,18 @@ describe('preparation around worktree birth', () => {
 })
 
 describe('Setup launch step', () => {
-  let projectPath = ''
+  const projectPaths: string[] = []
   afterEach(async () => {
-    await rm(projectPath, { recursive: true, force: true })
+    await Promise.all(
+      projectPaths
+        .splice(0)
+        .map((projectPath) => rm(projectPath, { recursive: true, force: true })),
+    )
   })
 
   async function launchWith(preparation: WorkspacePreparation | null) {
-    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-setup-step-')))
+    const projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-setup-step-')))
+    projectPaths.push(projectPath)
     const workspacePath = join(projectPath, 'worktree')
     await mkdir(workspacePath)
     const order: string[] = []

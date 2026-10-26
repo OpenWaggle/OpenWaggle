@@ -31,7 +31,7 @@ pnpm dev
 
 This opens the Electron app with UI hot reload. Restart the app after backend changes when needed. Connect a provider and open a project as described in [Get started](/docs/getting-started/first-run).
 
-For automated, non-disruptive Electron QA, the repository has `pnpm dev:debug`. It uses a hidden window, a temporary profile, and CDP port 9223. Follow `.agents/skills/electron-qa/SKILL.md`; agents must not use the headed debug command without approval for that exact run.
+For automated, non-disruptive Electron QA, the repository has `pnpm dev:debug`. It uses a hidden window, a temporary profile with its own home and Pi agent directory, a mock keychain, and CDP port 9223. It starts no MCP server from the project's MCP files, and it stops the app's Session Host when it stops. Follow `.agents/skills/electron-qa/SKILL.md`; agents must not use the headed debug command without approval for that exact run.
 
 ## Production build
 

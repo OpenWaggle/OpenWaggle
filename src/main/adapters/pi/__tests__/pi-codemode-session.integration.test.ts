@@ -1,4 +1,5 @@
-import { copyFileSync, readFileSync } from 'node:fs'
+import { copyFileSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -6,7 +7,7 @@ import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import {
   clearAgentLoopInteractionBrokerForTests,
   submitAgentLoopInteractionResponse,
@@ -218,6 +219,12 @@ describe('codemode images', () => {
       selectedModel: { provider: 'router', id: 'auto' },
     })
     copyFileSync('build/icon-beta.png', path.join(projectPath, 'icon.png'))
+    // Codemode saves each image a script shows to a `pi-codemode-*` file in the temp directory.
+    onTestFinished(() => {
+      for (const entry of readdirSync(os.tmpdir())) {
+        if (entry.startsWith('pi-codemode-')) rmSync(path.join(os.tmpdir(), entry), { force: true })
+      }
+    })
     faux.setResponses(codemodeTurn("image(await tools.read({ path: 'icon.png' }))"))
 
     await session.prompt('Show the icon')

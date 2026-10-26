@@ -64,6 +64,10 @@ pnpm test:coverage
 
 Use targeted Vitest file runs while iterating, then run the relevant script before handoff.
 
+Every Vitest config runs its tests in `Pacific/Kiritimati` (UTC+14), whatever the machine's zone, so a test that confuses local and UTC days fails everywhere, not only far from UTC. The nightly workflow runs the unit tier again in `America/Adak`; reproduce it with `OPENWAGGLE_TEST_TIME_ZONE=America/Adak pnpm test:unit` (a plain `TZ=...` no longer reaches the tests). Build test dates from local parts (`new Date(2026, 9, 14, 0, 30)`) when a test means a local time, and stub `TZ` in the test when it needs one zone.
+
+Component hooks keep Vitest's 10 s deadline. Import a large module graph once in a `beforeAll` with `COLD_IMPORT_TIMEOUT_MS` (`src/renderer/src/test-utils/cold-import.ts`), never in a `beforeEach`; `scripts/test-support/cold-import-hooks.ts` fails the unit tier otherwise.
+
 The unit tier runs in the pre-push hook next to about 1,500 other files, so keep it in-process. A test that spawns many real child processes belongs in `*.integration.test.ts`. Examples are real `git` repositories and the profile-credential owned-file helper. Process start-up under parallel load makes such tests time out in `pnpm verify` even though they pass alone.
 
 ## Renderer Work

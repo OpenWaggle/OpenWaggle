@@ -56,6 +56,7 @@ function scopedOperation(input: {
 
 describe('scoped filesystem Session export artifact writer', () => {
   let temporaryRoot = ''
+  let legacyStagingDirectory: string | null = null
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-scoped-export-'))
@@ -63,6 +64,9 @@ describe('scoped filesystem Session export artifact writer', () => {
 
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
+    if (legacyStagingDirectory)
+      await fs.rm(legacyStagingDirectory, { recursive: true, force: true })
+    legacyStagingDirectory = null
   })
 
   it('rejects an ancestor swap without creating workspace-adjacent staging', async () => {
@@ -115,7 +119,8 @@ describe('scoped filesystem Session export artifact writer', () => {
       destinationRoot: canonicalWorkspace,
     })
     const legacyWorkingRoot = scopedExportWorkingRoot(operation)
-    await fs.mkdir(path.dirname(legacyWorkingRoot), { recursive: true })
+    legacyStagingDirectory = path.dirname(legacyWorkingRoot)
+    await fs.mkdir(legacyStagingDirectory, { recursive: true })
     await fs.rm(legacyWorkingRoot, { recursive: true, force: true })
     await fs.symlink(outside, legacyWorkingRoot)
 

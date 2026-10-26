@@ -18,11 +18,11 @@ import type { OpenWagglePiAppSettings } from '../openwaggle-pi-settings-app-over
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import { createOpenWaggleAgentSessionFromServices } from '../pi-session-lifecycle'
 
-const cleanups: Array<() => void> = []
+const cleanups: Array<() => unknown> = []
 
-/** Runs every cleanup registered by the sessions created since the last call. */
-export function cleanupOpenWagglePiSessions() {
-  while (cleanups.length > 0) cleanups.pop()?.()
+/** Runs every cleanup registered by the sessions created since the last call, newest first. */
+export async function cleanupOpenWagglePiSessions() {
+  while (cleanups.length > 0) await cleanups.pop()?.()
 }
 
 function temporaryDirectory(label: string) {
@@ -120,6 +120,12 @@ export async function createOpenWagglePiSession(options: OpenWagglePiSessionOpti
       : SessionManager.inMemory(projectPath),
     openWaggleUi,
   })
-  cleanups.push(() => session.dispose())
+  cleanups.push(async () => {
+    session.dispose()
+    // Registering (and disposing) a provider starts a model refresh that is not awaited, and it
+    // writes auth.json and models-store.json to the agent directory. Refreshes run one at a time,
+    // so awaiting one more lets them finish before the directory is removed.
+    await services.modelRuntime.refresh({ allowNetwork: false })
+  })
   return { session, services, faux, model: faux.getModel(), events, projectPath, agentDir }
 }

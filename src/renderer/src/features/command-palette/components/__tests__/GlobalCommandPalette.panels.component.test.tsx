@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
@@ -131,7 +132,7 @@ describe('GlobalCommandPalette Panels section', () => {
       this.removeAttribute('open')
     }
     Element.prototype.scrollIntoView ??= function scrollIntoView() {}
-  })
+  }, COLD_IMPORT_TIMEOUT_MS)
 
   beforeEach(() => {
     vi.clearAllMocks()

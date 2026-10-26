@@ -1,6 +1,11 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
+import {
+  NODE_TIER_TIMEOUTS,
+  TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
+} from './scripts/test-support/vitest-tier-options'
 
 export default defineConfig({
   resolve: {
@@ -14,19 +19,14 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     setupFiles: [
       'scripts/test-support/isolate-user-home.ts',
       'src/main/test-support/isolate-user-mcp-files.ts',
     ],
-    env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
+    env: { ...ISOLATED_SOURCE_CONTROL_CLI_ENV, ...TEST_TIME_ZONE_ENV },
     include: ['src/**/*.integration.test.ts', 'scripts/**/*.integration.test.ts'],
-    // Real-Git integration tests shell out to `git` many times (worktree add, commit,
-    // prune). Under the suite's parallel execution those subprocesses contend for CPU and
-    // a single test can take ~12s on a busy machine while passing in isolation. A timeout
-    // is a ceiling, not a wait — healthy tests still finish in ~12s — so a generous ceiling
-    // removes flake at no runtime cost. Hooks also run git in setup/teardown.
-    testTimeout: 60_000,
-    hookTimeout: 60_000,
+    ...NODE_TIER_TIMEOUTS,
     coverage: {
       enabled: false,
     },
