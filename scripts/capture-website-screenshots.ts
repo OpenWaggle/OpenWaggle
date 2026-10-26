@@ -25,8 +25,16 @@ import {
   captureSettingsWorktrees,
 } from './website-screenshot-hive-captures'
 import { seedHiveExample } from './website-screenshot-hive-fixture'
-import { selectedScreenshots, type WebsiteScreenshot } from './website-screenshot-manifest'
-import { createScreenshotProject, type ScreenshotProject } from './website-screenshot-project'
+import {
+  publishScreenshots,
+  selectedScreenshots,
+  type WebsiteScreenshot,
+} from './website-screenshot-manifest'
+import {
+  createScreenshotProject,
+  SCREENSHOT_WORKTREE_IDS,
+  type ScreenshotProject,
+} from './website-screenshot-project'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
 import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
 
@@ -167,38 +175,52 @@ async function main() {
     userDataDir: path.join(root, 'user-data'),
     homeDir: path.join(root, 'home'),
   }
+  // Captures land here first and replace the website's images only when every one succeeded.
+  const stagingDir = path.join(root, 'screenshots')
+  await fs.mkdir(stagingDir)
   const evidenceDir = await evidenceDirectory()
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
-  await fs.mkdir(SCREENSHOT_OUTPUT_DIR, { recursive: true })
   let app: ElectronApplication | null = null
   try {
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
       projectPath: path.join(root, PROJECT_NAME),
       homeDir: profile.homeDir,
-      worktreeIds: WORKTREE_IDS,
+      worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
     const launched = await launchSeededApp(profile, project)
     app = launched.app
     const rendererErrors = observeRendererErrors(launched.page)
     await runCaptures(
-      { app, page: launched.page, outputDir: SCREENSHOT_OUTPUT_DIR, evidenceDir },
+      { app, page: launched.page, outputDir: stagingDir, evidenceDir },
       screenshots,
     )
     if (rendererErrors.length > 0) {
       throw new Error(`Screenshot capture saw renderer errors: ${rendererErrors.join(' | ')}`)
     }
+    await publishScreenshots({ stagingDir, outputDir: SCREENSHOT_OUTPUT_DIR, screenshots })
     console.info('[website-shots] screenshot capture complete')
   } finally {
     await app?.close().catch(() => undefined)
-    // The Session Host is detached from the GUI and would keep the profile's SQLite files open.
-    await stopElectronQaSessionHost(profile.userDataDir).catch((error: unknown) => {
-      console.error('[website-shots] Session Host shutdown failed', error)
-      process.exitCode = 1
-    })
-    await fs.rm(root, { recursive: true, force: true })
+    await releaseScratchProfile(profile)
   }
+}
+
+/**
+ * The Session Host is detached from the GUI and would keep the profile's SQLite files open, so it
+ * is stopped first. A Host that did not stop keeps its profile: deleting files a live Host holds
+ * open is worse than leaving a scratch directory behind.
+ */
+async function releaseScratchProfile(profile: ScratchProfile) {
+  try {
+    await stopElectronQaSessionHost(profile.userDataDir)
+  } catch (error) {
+    console.error(`[website-shots] Session Host shutdown failed; kept ${profile.root}`, error)
+    process.exitCode = 1
+    return
+  }
+  await fs.rm(profile.root, { recursive: true, force: true })
 }
 
 void main().catch((error: unknown) => {

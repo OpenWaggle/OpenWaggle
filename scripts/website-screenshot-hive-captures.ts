@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { HIVE_NESTED_WORKER_TITLE, HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
+import { SCREENSHOT_WORKTREE_IDS } from './website-screenshot-project'
 import {
   type CaptureContext,
   closeRightPanel,
@@ -82,7 +83,7 @@ export async function captureSettingsWorktrees(context: CaptureContext) {
   const { page } = context
   await page.getByRole('button', { name: 'Settings' }).first().click()
   await page.getByRole('button', { name: 'Worktrees' }).first().click()
-  await page.getByText(sessionWorktreeBranchForId('')).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await page.getByText(sessionWorktreeBranchForId(SCREENSHOT_WORKTREE_IDS[0])).first().waitFor({ timeout: UI_TIMEOUT_MS })
   await shoot(context, 'settings-worktrees.png')
   await page.getByRole('button', { name: 'Back to app' }).first().click()
   await waitForUi(page)

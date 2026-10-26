@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 /**
  * Every image under `website/public/screenshots/`, each produced by one capture of
  * `capture-website-screenshots.ts`. A screenshot the script cannot regenerate drifts from the
@@ -31,4 +34,26 @@ export function selectedScreenshots(argv: readonly string[]): readonly WebsiteSc
     )
   }
   return selected
+}
+
+/**
+ * Copies the captured images over the website's only after every selected capture produced its
+ * file, so a run that fails partway leaves `website/public/screenshots/` as it was.
+ */
+export async function publishScreenshots(input: {
+  readonly stagingDir: string
+  readonly outputDir: string
+  readonly screenshots: readonly WebsiteScreenshot[]
+}) {
+  const missing: string[] = []
+  for (const file of input.screenshots) {
+    await fs.access(path.join(input.stagingDir, file)).catch(() => missing.push(file))
+  }
+  if (missing.length > 0) {
+    throw new Error(`Not publishing: no capture for ${missing.join(', ')}.`)
+  }
+  await fs.mkdir(input.outputDir, { recursive: true })
+  for (const file of input.screenshots) {
+    await fs.copyFile(path.join(input.stagingDir, file), path.join(input.outputDir, file))
+  }
 }

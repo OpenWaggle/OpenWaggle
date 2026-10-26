@@ -15,6 +15,9 @@ const GIT_IDENTITY = [
 
 /** Checked-in art the fixture project shows as an image an agent produced. */
 const OUTPUT_IMAGE_SOURCE = path.join('website', 'public', 'og', 'openwaggle.png')
+/** Fixed ids, so the worktree paths and branches read the same in every capture. */
+export const SCREENSHOT_WORKTREE_IDS = ['3f9c2a1e', '7b41d0c8'] as const
+
 export const OUTPUT_IMAGE_RELATIVE_PATH = path.join('docs', 'release-notes-preview.png')
 
 export interface ScreenshotWorktree {
