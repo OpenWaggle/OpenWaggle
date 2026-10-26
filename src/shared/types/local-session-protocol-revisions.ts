@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 26 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 27 as const
+export const LOCAL_SESSION_HIVE_DEFAULTS_REVISION = 27 as const
 export const LOCAL_SESSION_SCHEDULED_TASKS_REVISION = 26 as const
 export const LOCAL_SESSION_ARCHIVED_ITEMS_REVISION = 25 as const
 export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 23 as const
@@ -61,6 +62,11 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * Revision 26 adds Scheduled tasks (ADR 0057, ADR 0058): the `scheduled-tasks-v1` contract that
  * lists, reads, creates, updates, deletes, and runs Heartbeats and Launch schedules, and the
  * `schedules:read` and `schedules:manage` Session capabilities a CLI client profile can be granted.
+ * Revision 27 settles the Hive defaults before 1.0 (issue #352): a queue change's outcome names the
+ * Follow-ups still queued `remainingFollowUpIds` (it was `followUpIds`) and a withdraw adds
+ * `withdrawnFollowUpIds`, which a revision-26 client decodes exactly and would reject; a catalog
+ * `workingPath` means the caller's whole project; `list` takes `parentSessionId`; `spawn` takes a
+ * `title`; a queued Follow-up reports its queue state; and Session summaries carry `depth`.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -196,4 +202,9 @@ export const LOCAL_SESSION_REVISION_26_CAPABILITIES = [
   'scheduled-tasks:v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_26_CAPABILITIES
+export const LOCAL_SESSION_REVISION_27_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_26_CAPABILITIES,
+  'sessions:hive-defaults-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_27_CAPABILITIES

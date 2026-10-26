@@ -232,6 +232,43 @@ describe('useBrowserPreviewOwnerRegistration', () => {
     await waitFor(() => expect(api.unregisterBrowserPreviewOwner).toHaveBeenCalledWith('session-3'))
   })
 
+  it('releases a left Session as soon as its run ends, without another navigation', async () => {
+    useBackgroundRunStore.getState().addActiveRun(SessionId('session-1'))
+    const { rerender, unmount } = renderHook(
+      ({ ownerKey }: { ownerKey: string }) => useBrowserPreviewOwnerRegistration(ownerKey),
+      { initialProps: { ownerKey: 'session-1' } },
+    )
+    await waitFor(() => expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith('session-1'))
+    rerender({ ownerKey: 'session-2' })
+    await waitFor(() => expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith('session-2'))
+    expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalledWith('session-1')
+
+    act(() => useBackgroundRunStore.getState().removeActiveRun(SessionId('session-1')))
+
+    await waitFor(() => expect(api.unregisterBrowserPreviewOwner).toHaveBeenCalledWith('session-1'))
+    expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalledWith('session-2')
+    unmount()
+  })
+
+  it('releases a left Session when its last retained browser tab closes', async () => {
+    const { rerender, unmount } = renderHook(
+      ({ ownerKey }: { ownerKey: string }) => useBrowserPreviewOwnerRegistration(ownerKey),
+      { initialProps: { ownerKey: 'session-1' } },
+    )
+    await waitFor(() => expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith('session-1'))
+    act(() => {
+      useWorkspacePanelStore.getState().newBrowser('session-1')
+    })
+    rerender({ ownerKey: 'session-2' })
+    await waitFor(() => expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith('session-2'))
+    expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalledWith('session-1')
+
+    act(() => useWorkspacePanelStore.setState({ groups: {} }))
+
+    await waitFor(() => expect(api.unregisterBrowserPreviewOwner).toHaveBeenCalledWith('session-1'))
+    unmount()
+  })
+
   it('publishes current-tab intent only after registration completes', async () => {
     let finishRegistration: (() => void) | undefined
     const registration = new Promise<void>((resolve) => {

@@ -30,7 +30,7 @@ export function useWorkspaceFileWatcher(
     return () => {
       active = false
       unsubscribe()
-      void api.unwatchWorkspaceFiles(projectPath)
+      void api.unwatchWorkspaceFiles(projectPath).catch(() => undefined)
     }
   }, [projectPath])
 }

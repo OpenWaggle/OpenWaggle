@@ -15,6 +15,16 @@ export type GitPushRefReadResult =
       readonly upstream: GitUpstreamRef | null
       /** True only when Git exposed no push remote and the caller supplied the first-push remote. */
       readonly usedFallbackRemote: boolean
+      /** The push also moves the upstream to the destination ({@link resolveTrackedPushRef}). */
+      readonly replacesUpstream: boolean
+    }
+  | { readonly ok: false; readonly message: string; readonly recoverable?: boolean }
+
+type ResolvedPushRef =
+  | {
+      readonly ok: true
+      readonly upstream: GitUpstreamRef | null
+      readonly replacesUpstream?: boolean
     }
   | { readonly ok: false; readonly message: string; readonly recoverable?: boolean }
 
@@ -131,7 +141,7 @@ async function resolvePushRefFromConfig(
   projectPath: string,
   branchName: string,
   remote: string,
-): Promise<GitUpstreamReadResult> {
+): Promise<ResolvedPushRef> {
   const configuredPushRef = await resolveRemotePushRefspec(projectPath, branchName, remote)
   if (configuredPushRef !== null) return configuredPushRef
 
@@ -165,7 +175,7 @@ async function resolveDefaultPushRef(
   projectPath: string,
   branchName: string,
   remote: string,
-): Promise<GitUpstreamReadResult> {
+): Promise<ResolvedPushRef> {
   const pushDefaultResult = await readOptionalConfig(projectPath, 'push.default')
   if (!pushDefaultResult.ok) return pushDefaultResult
   const pushDefault = pushDefaultResult.values.at(-1) ?? 'simple'
@@ -185,14 +195,23 @@ async function resolveDefaultPushRef(
   return resolveTrackedPushRef(pushDefault, branchName, remote, upstreamResult.upstream)
 }
 
+/**
+ * Where push.default=upstream, tracking or simple sends the branch. With no upstream yet it is a
+ * first push to `<remote>/<branch>` under every mode, which sets the upstream. Under simple, a
+ * branch tracking a differently named branch on the push remote (`git switch -c x origin/main`)
+ * makes Git refuse; OpenWaggle takes Git's "push to the branch of the same name" option, which
+ * cannot write the base branch, and moves the upstream there (issue #353).
+ */
 function resolveTrackedPushRef(
   pushDefault: string,
   branchName: string,
   remote: string,
   upstream: GitUpstreamRef | null,
-): GitUpstreamReadResult {
+): ResolvedPushRef {
+  const ownBranch = { remote, branch: branchName }
   if (pushDefault === 'upstream' || pushDefault === 'tracking') {
-    if (!upstream || upstream.remote !== remote) {
+    if (!upstream) return { ok: true, upstream: ownBranch }
+    if (upstream.remote !== remote) {
       return {
         ok: false,
         message: 'The configured upstream push destination does not match the push remote.',
@@ -208,17 +227,12 @@ function resolveTrackedPushRef(
       recoverable: false,
     }
   }
-  if (!upstream || upstream.remote !== remote) {
-    return { ok: true, upstream: { remote, branch: branchName } }
+  return {
+    ok: true,
+    upstream: ownBranch,
+    replacesUpstream:
+      upstream !== null && upstream.remote === remote && upstream.branch !== branchName,
   }
-  return upstream.branch === branchName
-    ? { ok: true, upstream: { remote, branch: branchName } }
-    : {
-        ok: false,
-        message:
-          'push.default=simple refuses because the current and upstream branch names differ.',
-        recoverable: false,
-      }
 }
 
 async function resolvePushRemoteFromConfig(
@@ -254,7 +268,9 @@ export async function readPushRef(
   branchName: string | null,
   fallbackRemote: string | null = null,
 ): Promise<GitPushRefReadResult> {
-  if (branchName === null) return { ok: true, upstream: null, usedFallbackRemote: false }
+  if (branchName === null) {
+    return { ok: true, upstream: null, usedFallbackRemote: false, replacesUpstream: false }
+  }
   const remoteResult = await runGit(projectPath, [
     'for-each-ref',
     '--format=%(push:remotename)',
@@ -282,13 +298,17 @@ export async function readPushRef(
     : await resolvePushRemoteFromConfig(projectPath, branchName, fallbackRemote)
   if (!fallbackResult.ok) return fallbackResult
   const remote = fallbackResult.remote
-  if (!remote) return { ok: true, upstream: null, usedFallbackRemote: false }
+  if (!remote) {
+    return { ok: true, upstream: null, usedFallbackRemote: false, replacesUpstream: false }
+  }
 
   const resolved = await resolvePushRefFromConfig(projectPath, branchName, remote)
   return resolved.ok
     ? {
-        ...resolved,
+        ok: true,
+        upstream: resolved.upstream,
         usedFallbackRemote: fallbackResult.usedFallbackRemote,
+        replacesUpstream: resolved.replacesUpstream === true,
       }
     : resolved
 }

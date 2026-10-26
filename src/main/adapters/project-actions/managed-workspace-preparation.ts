@@ -295,6 +295,6 @@ export class ManagedWorkspacePreparation {
     await Promise.allSettled([...this.running])
   }
   recoverAfterHostLoss() {
-    return recoverPreparationAfterHostLoss(this.deps.persistence)
+    return recoverPreparationAfterHostLoss(this.deps.persistence, this.deps.listLocalWorkspaceIds)
   }
 }

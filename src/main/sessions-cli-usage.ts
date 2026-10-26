@@ -19,7 +19,7 @@ Usage:
   openwaggle hive fork <source-id> [--workspace share-source|local|existing|new-worktree]
     [--workspace-id <id>] [--target-node <node-id>] [--position before|at] [--title <title>]
   openwaggle hive spawn <parent-id> --text <objective> --expected-run <run-id>
-    [--workspace share-parent|local|new-worktree] [--attach <path>]...
+    [--title <title>] [--workspace share-parent|local|new-worktree] [--attach <path>]...
     [--deliverable <text>]... [--accept <criterion>]... [--resource <reference>]...
     [--authorization ask-for-approval|yolo] [--yolo] [--interaction-timeout-ms <ms>]
   openwaggle hive message <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
@@ -66,7 +66,7 @@ Usage:
   openwaggle hive queue-withdraw <session-id> <follow-up-id>...
   openwaggle hive queue-reorder <session-id> <follow-up-id>... --queue-revision <n>
   openwaggle hive queue-pause|queue-resume <session-id> --queue-revision <n>
-  openwaggle hive list [--project <path>|--all] [--archived] [--limit <n>] [--cursor <cursor>]
+  openwaggle hive list [--project <path>|--all] [--parent <session>] [--archived] [--limit <n>] [--cursor <cursor>]
   openwaggle hive search <query> [--mode hybrid|lexical|semantic] [--require-fresh]
     [--full-transcript] [--include-archived] [--project <path>|--all]
     [--limit <n>] [--cursor <cursor>] [--timeout-ms <ms>]
@@ -116,7 +116,8 @@ Run authorization (launch, spawn, message, start): --authorization <mode> or --y
   (run_authorization_override_requires_idle_session)
 New Worktree (create, launch, fork, spawn, handoff):
   --workspace new-worktree [--base-ref <ref>] [--start-from-origin]
-Catalog (list, search, delegations-list, delegations-conflicts): --project <path> | --all
+Catalog (list, search, delegations-list, delegations-conflicts): this project and its worktrees by
+  default; --project <path> | --all. list --archived lists only archived Sessions
 Agent definitions (agent-definitions-list, agent-definitions-search): definitions turned off for
   the project are left out, as spawn and launch refuse them
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input

@@ -116,17 +116,24 @@ export function flattenSessionsToolParameters(
  * The flattened provider schema cannot express per-action required fields, so enforce the
  * selected variant's contract here with an error the model can act on.
  */
-export function assertSessionsToolActionArguments(params: SessionsToolParameters): void {
+export function assertSessionsToolActionArguments(
+  params: unknown,
+): asserts params is SessionsToolParameters {
+  const action = isMatching({ action: P.string }, params) ? params.action : undefined
   const variant = sessionsToolParameterVariants.find(
-    (candidate) => variantActionName(candidate) === params.action,
+    (candidate) => variantActionName(candidate) === action,
   )
   if (variant === undefined) {
-    throw new Error(`Unknown hive action "${params.action}".`)
+    throw new Error(`Unknown hive action "${String(action)}".`)
   }
   const matchesVariant: boolean = Check(variant, params)
-  if (matchesVariant) return
-  const details = [...Errors(variant, params)]
-    .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
-    .join('; ')
-  throw new Error(`Invalid arguments for hive action "${params.action}": ${details}`)
+  if (!matchesVariant) {
+    const details = [...Errors(variant, params)]
+      .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+      .join('; ')
+    throw new Error(`Invalid arguments for hive action "${String(action)}": ${details}`)
+  }
+  if (!Check(sessionsToolParameters, params)) {
+    throw new Error(`Invalid arguments for hive action "${String(action)}".`)
+  }
 }

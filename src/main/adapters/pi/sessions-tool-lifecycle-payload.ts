@@ -98,29 +98,31 @@ function rootPayload(
   }
 }
 
-function workerPayload(
-  input: Extract<LifecycleParameters, { action: 'spawn' }>,
-  source: SessionsToolSource,
-): LocalSessionCommandPayload {
+type WorkerParameters = Extract<LifecycleParameters, { action: 'spawn' }>
+
+function workerWorkspace(input: WorkerParameters) {
   if (
     (input.baseRef !== undefined || input.startFromOrigin !== undefined) &&
     input.workspace !== 'new-worktree'
   ) {
     throw new Error('hive spawn baseRef and startFromOrigin require Workspace new-worktree.')
   }
+  if (input.workspace === 'new-worktree') {
+    return {
+      mode: input.workspace,
+      ...(input.baseRef ? { baseRef: input.baseRef } : {}),
+      ...(input.startFromOrigin === undefined ? {} : { startFromOrigin: input.startFromOrigin }),
+    }
+  }
+  return input.workspace === 'local' ? { mode: input.workspace } : { mode: 'share-parent' as const }
+}
+
+function workerPayload(
+  input: WorkerParameters,
+  source: SessionsToolSource,
+): LocalSessionCommandPayload {
+  const workspace = workerWorkspace(input)
   const selectedSpecialization = specialization(input)
-  const workspace =
-    input.workspace === 'new-worktree'
-      ? {
-          mode: input.workspace,
-          ...(input.baseRef ? { baseRef: input.baseRef } : {}),
-          ...(input.startFromOrigin === undefined
-            ? {}
-            : { startFromOrigin: input.startFromOrigin }),
-        }
-      : input.workspace === 'local'
-        ? { mode: input.workspace }
-        : { mode: 'share-parent' as const }
   return {
     contract: 'session-lifecycle-v2',
     ...attachmentTransport(input),
@@ -132,6 +134,7 @@ function workerPayload(
         operation: 'spawn',
         parentSessionId: source.sessionId,
         expectedParentRunId: source.runId,
+        ...(input.title ? { title: input.title } : {}),
         ...(input.workspace ? { workspace } : {}),
         ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
         ...(input.interactionTimeoutMs !== undefined

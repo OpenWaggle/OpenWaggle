@@ -113,6 +113,7 @@ const spawnCommandSchema = Schema.Struct({
   operation: Schema.Literal('spawn'),
   parentSessionId: sessionInputIdSchema,
   expectedParentRunId: sessionInputIdSchema,
+  title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(spawnWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),

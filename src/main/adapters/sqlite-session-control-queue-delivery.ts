@@ -63,6 +63,7 @@ export function newRunAdmissionRefusal(
 function queueUpdated(
   operation: DeliveringOperation,
   state: SessionControlSessionState,
+  withdrawn: WithdrawnFollowUps,
 ): SessionControlMutationOutcome {
   return {
     operation,
@@ -70,9 +71,19 @@ function queueUpdated(
     sessionId: state.sessionId,
     queueState: state.followUpQueue.state,
     queueRevision: state.followUpQueue.revision,
-    followUpIds: state.followUpQueue.items.map((item) => item.id),
+    remainingFollowUpIds: state.followUpQueue.items.map((item) => item.id),
+    ...withdrawn,
     stateRevision: state.revision,
   }
+}
+
+type WithdrawnFollowUps = { readonly withdrawnFollowUpIds?: readonly string[] }
+
+/** A delivery decision rebuilds the outcome; the ids a withdraw removed must survive it. */
+function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFollowUps {
+  return outcome.effect === 'queue-updated' && outcome.withdrawnFollowUpIds
+    ? { withdrawnFollowUpIds: outcome.withdrawnFollowUpIds }
+    : {}
 }
 
 /**
@@ -98,13 +109,14 @@ export function deliverAfterQueueDecision(
   ) {
     return Effect.succeed(decision)
   }
+  const withdrawn = withdrawnFollowUps(decision.outcome)
   return Effect.gen(function* () {
     const candidate = deliverIdleQueueHead(decision.state, nextRunId)
     if (!candidate.delivered) {
       return {
         ...decision,
         state: candidate.state,
-        outcome: queueUpdated(operation, candidate.state),
+        outcome: queueUpdated(operation, candidate.state, withdrawn),
       }
     }
     const authorized = yield* applyCurrentFollowUpAuthorization(sql, decision.state)
@@ -113,7 +125,7 @@ export function deliverAfterQueueDecision(
       return {
         ...decision,
         state: delivery.state,
-        outcome: queueUpdated(operation, delivery.state),
+        outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
     const refusal = yield* newRunAdmissionRefusal(
@@ -126,7 +138,7 @@ export function deliverAfterQueueDecision(
         authorized,
         refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : undefined,
       )
-      return { ...decision, state: paused, outcome: queueUpdated(operation, paused) }
+      return { ...decision, state: paused, outcome: queueUpdated(operation, paused, withdrawn) }
     }
     return {
       accepted: true,
@@ -137,6 +149,7 @@ export function deliverAfterQueueDecision(
         sessionId: delivery.state.sessionId,
         runId: delivery.delivered.runId,
         followUpId: delivery.delivered.followUpId,
+        ...withdrawn,
         queueRevision: delivery.state.followUpQueue.revision,
         stateRevision: delivery.state.revision,
       },

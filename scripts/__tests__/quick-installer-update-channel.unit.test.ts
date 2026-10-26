@@ -71,15 +71,19 @@ resolve_default_channel "$(fetch_release_pages https://example.test/releases)"`
 }
 
 describe('quick installer update channel', () => {
-  it('defaults to Alpha before the first stable release and Stable afterwards', async () => {
+  it('defaults to Beta before the first stable release and Stable afterwards', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
+    // The 1.0.0 line has no Alpha stage, and a release candidate build follows Beta, so an
+    // install during Beta or RC must not save Alpha and keep receiving later alpha lines.
     const prereleases = [
-      { tag_name: 'v0.4.0-alpha.3', prerelease: true },
-      { tag_name: 'v0.3.0-alpha.71', prerelease: false },
+      { tag_name: 'v1.0.0-rc.1', prerelease: true },
+      { tag_name: 'v1.0.0-beta.25', prerelease: true },
+      { tag_name: 'v0.4.0-alpha.9', prerelease: true },
     ]
-    const withStable = [{ tag_name: 'v0.4.0', prerelease: false }, ...prereleases]
+    const withStable = [{ tag_name: 'v1.0.0', prerelease: false }, ...prereleases]
 
-    await expect(resolveRelease(source, 'default-channel', prereleases)).resolves.toBe('alpha')
+    await expect(resolveRelease(source, 'default-channel', prereleases)).resolves.toBe('beta')
+    await expect(resolveRelease(source, 'tag', prereleases, 'beta')).resolves.toBe('v1.0.0-rc.1')
     await expect(resolveRelease(source, 'default-channel', withStable)).resolves.toBe('stable')
   })
 
@@ -122,7 +126,7 @@ describe('quick installer update channel', () => {
       tag_name: `v0.5.0-alpha.${100 - index}`,
     }))
 
-    await expect(resolveDefaultAcrossPages(source, [firstPage, []])).resolves.toBe('alpha')
+    await expect(resolveDefaultAcrossPages(source, [firstPage, []])).resolves.toBe('beta')
   })
 
   it('persists the selected policy channel independently of the resolved artifact channel', async () => {

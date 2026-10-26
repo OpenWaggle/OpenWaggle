@@ -152,6 +152,7 @@ describe('pushCurrentBranch safety reads', () => {
         remote: 'origin',
         branch: 'feature',
         pushUrls: ['ssh://old.example/repo'],
+        replacesUpstream: false,
       }),
     ).resolves.toEqual({
       ok: false,
@@ -181,6 +182,7 @@ describe('pushCurrentBranch safety reads', () => {
         remote: 'origin',
         branch: 'feature',
         pushUrls: ['ssh://approved.example/repo'],
+        replacesUpstream: false,
       }),
     ).resolves.toMatchObject({ ok: true })
     const pushCall = runGitMock.mock.calls.find(([, args]) => args.includes('push'))
@@ -232,6 +234,7 @@ describe('pushCurrentBranch safety reads', () => {
         remote: 'foo=bar',
         branch: 'feature',
         pushUrls: ['ssh://approved.example/repo'],
+        replacesUpstream: false,
       }),
     ).resolves.toEqual({
       ok: false,
