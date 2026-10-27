@@ -13,6 +13,8 @@
     "benchmark:session-embedding": "tsx scripts/benchmark-session-embedding.ts",
     "evaluate:session-titles": "tsx scripts/evaluate-session-titles.ts",
     "perf:first-turn-prefix": "vitest run -c vitest.integration.config.ts scripts/perf/first-turn-prefix",
+    "perf:generate-profile": "tsx scripts/perf/generate-profile.ts",
+    "perf:startup": "tsx scripts/perf/startup.ts",
     "benchmark:session-vector-index": "tsx scripts/benchmark-session-vector-index.ts",
     "benchmark:session-database": "tsx scripts/benchmark-session-discovery-database.ts",
     "benchmark:session-performance": "pnpm benchmark:session-embedding && pnpm benchmark:session-vector-index && pnpm benchmark:session-database --migration-scale",
