@@ -11,6 +11,7 @@ import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION } from './session-host-foreign-key-index-migration'
 import { SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION } from './session-host-queue-pause-reason-migration'
+import { SESSION_PROJECTION_PERFORMANCE_MIGRATIONS } from './session-projection-performance-migrations'
 import { SESSION_TITLE_PROVENANCE_MIGRATION } from './session-title-provenance-migration'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
@@ -296,4 +297,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_FOREIGN_KEY_INDEX_MIGRATION,
   ...PI_ECOSYSTEM_MIGRATIONS,
   ...V1_BETA_MIGRATIONS,
+  ...SESSION_PROJECTION_PERFORMANCE_MIGRATIONS,
 ]

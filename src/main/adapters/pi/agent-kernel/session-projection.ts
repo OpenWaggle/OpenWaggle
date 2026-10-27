@@ -3,11 +3,14 @@ import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent
 import { parseJsonUnknown } from '@shared/schema'
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
+import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
+import { markRetainedSnapshotNode } from '../../../store/session-details/retained-snapshot-nodes'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { contextOmittedEntryIds } from './context-edit-omissions'
 import { createEntryModelSelection } from './entry-model-selection'
 import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
+import { previouslyOmittedEntryIds, retainedEntryCount } from './projection-base-entries'
 import { findUserInputProjection } from './user-input-projection'
 import {
   createWaggleTurnMetadataResolver,
@@ -138,7 +141,7 @@ function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds): Sessi
     .otherwise((other) => other)
 }
 
-function projectPiEntry(input: {
+interface PiEntryProjectionInput {
   readonly entry: SessionEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
   readonly createdOrder: number
@@ -148,7 +151,9 @@ function projectPiEntry(input: {
   readonly selectedModel: string | null
   readonly omittedFromContext: boolean
   readonly waggleTurnOf: ReturnType<typeof createWaggleTurnMetadataResolver>
-}): ProjectedSessionNodeInput {
+}
+
+function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
   const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
@@ -214,12 +219,54 @@ function getPiEntryDepth(input: {
 }
 
 /**
+ * An entry the Session's current projection already holds, projected only if its content is read
+ * (D6). Its kind and role are the ones it was stored with; everything else an entry's projection
+ * depends on (its own bytes, its ancestors, whether a context edit drops it) is as it was then.
+ */
+function retainedPiEntryNode(
+  input: PiEntryProjectionInput,
+  stored: Pick<ProjectedSessionNodeInput, 'kind' | 'role'>,
+  revision: number,
+): ProjectedSessionNodeInput {
+  let projected: ProjectedSessionNodeInput | undefined
+  const full = () => {
+    projected ??= projectPiEntry(input)
+    return projected
+  }
+  return markRetainedSnapshotNode(
+    {
+      id: input.nodeIds.toNodeId(input.entry.id),
+      parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
+      piEntryType: input.entry.type,
+      kind: stored.kind,
+      role: stored.role,
+      timestampMs: parsePiEntryTimestamp(input.entry.timestamp),
+      get contentJson() {
+        return full().contentJson
+      },
+      get metadataJson() {
+        return full().metadataJson
+      },
+      pathDepth: input.pathDepth,
+      createdOrder: input.createdOrder,
+    },
+    revision,
+  )
+}
+
+/**
  * `nodeIds` maps entry ids to the Session's node ids; a discovered Pi session keys them under a
  * per-Session prefix (ADR 0051). Sessions OpenWaggle created use their entry ids unchanged.
+ *
+ * With `base`, the Session's current projection, the entries it already holds are kept rather
+ * than projected again (D6): only Pi's appended entries, and earlier ones a later context edit
+ * changed, are projected now. The snapshot is the same as a full projection; a kept node's content
+ * is computed only if read, and snapshot persistence leaves its stored row as it is.
  */
 export function projectPiSessionSnapshot(
   session: PiSessionSnapshotSource,
   nodeIds: PiEntryNodeIds = piEntryNodeIdsWithPrefix(undefined),
+  base: PiProjectionBase | null = null,
 ) {
   const entries = session.sessionManager.getEntries()
   const entryById = new Map(entries.map((entry) => [entry.id, entry]))
@@ -229,11 +276,14 @@ export function projectPiSessionSnapshot(
   const selectedModelOf = createEntryModelSelection(entryById)
   const omittedEntryIds = contextOmittedEntryIds(entries, entryById, leafId)
   const waggleTurnOf = createWaggleTurnMetadataResolver(entries, entryById)
+  const keptCount = base ? retainedEntryCount(entries, base, nodeIds) : 0
+  const previouslyOmitted =
+    base && keptCount > 0 ? previouslyOmittedEntryIds(entries, keptCount, base, nodeIds) : null
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
-    nodes: entries.map((entry, index) =>
-      projectPiEntry({
+    nodes: entries.map((entry, index) => {
+      const input: PiEntryProjectionInput = {
         entry,
         entryById,
         createdOrder: index,
@@ -243,7 +293,15 @@ export function projectPiSessionSnapshot(
         selectedModel: selectedModelOf(entry.parentId),
         omittedFromContext: omittedEntryIds.has(entry.id),
         waggleTurnOf,
-      }),
-    ),
+      }
+      const stored =
+        base && previouslyOmitted && index < keptCount
+          ? base.storedShapeByNodeId.get(nodeIds.toNodeId(entry.id))
+          : undefined
+      if (!base || !stored || previouslyOmitted?.has(entry.id) !== input.omittedFromContext) {
+        return projectPiEntry(input)
+      }
+      return retainedPiEntryNode(input, stored, base.revision)
+    }),
   }
 }

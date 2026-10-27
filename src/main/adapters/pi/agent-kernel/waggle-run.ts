@@ -19,6 +19,7 @@ import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import { piResponseUsageInput } from './pi-response-usage'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
+import { observeRunWorkspaceMutations } from './run-workspace-mutations'
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
@@ -257,6 +258,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       input.runId,
     ),
   )
+  const workspaceMutations = observeRunWorkspaceMutations(session, input.payload.text)
   const result = await runSubscribedPiOperation({
     runInput: input,
     session,
@@ -277,6 +279,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     stopFailingOnTurnStart()
     extensions.close()
     unregisterLiveRun()
+    workspaceMutations.dispose()
   })
   await captureTurnCheckpoint({
     session: input.session,
@@ -284,6 +287,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     runId: input.runId,
     startedAt,
     ...piSessionFileOf(session),
+    workspaceMayHaveChanged: workspaceMutations.mayHaveChangedWorkspace(),
   })
   return result
 }

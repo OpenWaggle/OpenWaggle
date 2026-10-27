@@ -100,6 +100,10 @@ Preparation records the file of a manager it creates in the opened checkout, but
 
 - Since Pi 1.0.4 (unchanged in 1.2.0), main's #282 streaming-argument test for OpenAI Responses ends the normal case with `output_item.done` (empty arguments), then `completed`: Pi refuses a toolUse message whose call never got `output_item.done`, so the old ending is now tested as refused, and `finishStreamingToolCalls` runs after that refusal.
 
+### Runs project only what Pi appended (v1 performance D6, October 2026)
+
+`session_nodes.content_hash` (migration 80) is sha256 of `content_json` + `metadata_json`; snapshot persistence selects light columns + hash and reads content only where the hash differs or is null (old rows, filled lazily on the Session's next persist). The reconcile writers keep it; trigger `session_nodes_content_hash_guard` clears a hash another writer left stale. `pi_session_file_projections.tail_*` (migration 81) records where the projected entries end (offset, last line start, digest of the first 64 KiB + that line, entry id, count, leaf), only when the file's last line is the snapshot's last Pi entry. While the file only grew (`piSessionFileStillHasTail`), a Run's snapshot keeps the earlier entries as lazy nodes (`retainedPiEntryNode`, kind/role from the stored rows) marked in a WeakMap with the projection revision (`retained-snapshot-nodes.ts`); `persistPiSessionSnapshotWithSql` trusts them only if that revision is still current and a tail is recorded, and then updates only their tree columns. Entries whose context-edit omission changed are projected again. Copying a node (`{...node}`) drops its mark (correct, just slower) and forces its lazy content. A refresh reads only the bytes after the tail: usage-only appends are `unchanged` without parsing the file. Pi's own `SessionManager.open` still parses the whole file per Run: its constructor is private and preloading would keep every parsed entry in Host memory between Runs. Measured on a synthetic 95 MB / 16k-entry Session: refresh after a warming append 130 → 0.9 ms, Run projection 145 → 48 ms, existing-node select 117 → 34 ms (0 content bytes read for an unchanged Session).
+
 ## MCP Runtime Memory
 
 - Never put keychain access (`safeStorage`, the MCP vault, the encrypted OAuth store) on the Host start path: with a scratch HOME, `safeStorage` stalled the main loop for 90-185 s, and Host start awaited the ADR 0051 migration's sign-in step. File migration (`migrateOpenWaggleMcpFilesOnce`) is keychain-free and awaited at start; the sign-in step (`migrateOpenWaggleMcpSignInsOnce`) starts after the Host listens (`startServicesAfterListening`), and only MCP connect and sign-in paths wait for it. The MCP vault uses `safeStorage`'s async API (`decryptStringAsync` opens `encryptString` output, same `v10` format, verified with `--use-mock-keychain`), and the sign-in step reads the old sign-ins it needs between two queued passes, outside the migration queue and lock (none once recorded), so a stall there leaves the Host responsive. The encrypted OAuth store is still synchronous (Pi's backend contract): moving an old sign-in into it and every OAuth connection block the main loop while the keychain stalls. An overridden profile (`OPENWAGGLE_USER_DATA_DIR`) sets `app.setAppLogsPath(<userData>/logs)` in `configureAppStoragePaths`, so QA logs, the Host's included, stay out of `~/Library/Logs`.
@@ -129,6 +133,7 @@ Preparation records the file of a manager it creates in the opened checkout, but
 
 Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
+- Electron 43 honours `--disk-cache-size` for every session, partitions included (`configureAppStoragePaths` appends it). It does not bound the V8 `Code Cache`; `chromium-disk-cache.ts` clears that, and an HTTP cache filled before the cap, by size: on each preview use (rate-limited, no timer, since preview tests count timers) and on a timer for the GUI's default session. The GUI and the Host share `session-data`, so only the GUI touches the default session's caches.
 - Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
 - xterm 6.0 stable lacks Kitty keyboard-protocol negotiation. The terminal pins the supply-chain-aged `@xterm/xterm@6.1.0-beta.303` exactly and enables `vtExtensions.kittyKeyboard`; a real-DOM test covers legacy-before-negotiation plus CSI-u press/release after `CSI > 3 u`. xterm calls custom key handlers on keydown and keyup in this line, so every app-owned/clipboard keydown must retain `event.code` and swallow its paired release or report-event-types clients receive an orphan keyup. Move back to stable only after those protocol tests and real-Electron performance/IME QA pass.
 - Packaged apps may not inherit a shell PATH. Pi package/resource loading and Pi-run child processes that shell out to tools need an adapter-controlled npm-compatible PATH, including common user tool dirs such as `~/Library/pnpm` on macOS.
@@ -293,6 +298,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
 - Edit rows (ADR 0050): Pi's edit result carries two diffs. `details.patch` is a standard unified patch (`--- path`/`+++ path`/`@@` hunks) that Pierre can render; `details.diff` is Pi's TUI display diff (`+12 code`, `-12 code`, no hunk headers) that Pierre cannot parse. Render `patch`, and fall back to `diff` as plain highlighted text only for edits recorded before Pi sent a patch. The old inline diff view fed `diff` to Pierre behind a fake file header, which is why it never rendered real hunks.
 - Turn-settle folds (ADR 0034): interruption labeling must apply only to the run's last fold unit; older turns always render "Worked for Xs" from durable checkpoint durations. A reset phase timer (0 ms) means unknown duration, never a zero-second run. `turn_checkpoints` rows are recorded even with empty diffs so durations survive restarts for turns that changed no files.
+- A Run whose tool calls are all known read-only (`isReadOnlyToolCall` in `agent-kernel/run-workspace-mutations.ts`) skips the worktree snapshot (v1 perf D11). Its checkpoint row carries the previous turn's `snapshot_ref`, anchored under its own turn ref, because `getLatestSnapshotRef` is the next turn's diff base: a null there diffs against HEAD and folds earlier uncommitted turns into the next diff. A new tool that can write files must not be added to the read-only lists.
 - Per-turn checkpoint rows store Pi-format `content_json` parts (`{type:'text',text}`, `{type:'tool-call',toolCall:{id,name,args,state}}`), not renderer Chat*Part format; seeding or mutating session rows with the wrong shape fails `sessions:get-workspace` projection.
 - **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
@@ -1904,6 +1910,24 @@ After: the longest stretch was 36 to 116 ms with ten Workers loading the machine
 the longest single statement (the one discovery rebuild of a 591-term objective) 20 to 40 ms in the
 sqlite3 CLI. A fresh APFS clone (`cp -c`) of the database has a cold page cache, so the first
 measurement on a clone reads high.
+
+### Large-profile Host CPU: embedding on the main thread, unsliced term repair, backfill rework (v1 perf W5b, October 2026)
+
+On a copied 1,800-Session / 300k-node / 1.4 GB profile the Host listened at 50-85 s and then stayed
+at 100% CPU. Found with a Host started on an APFS copy (`session-host-internal` as argv[0] after the
+app path; `--inspect=<port>` must come after it or `applicationCliArguments` treats it as the
+command), native `sample`, and a SQL-timing wrapper patched into the built bundle only:
+- The pegging is semantic embedding: onnxruntime-node's `InferenceSessionWrap::Run` is synchronous on
+  the Host's JS thread (stalls of 58-88 s, `livenessOwners: {semantic-preparation: 1}`), handed to W7.
+- Transcript-term repair ran Session after Session with no event-loop turn: 50 s straight. It now
+  rebuilds in bounded steps (`session-transcript-term-sliced-rebuild.ts`, ADR 0037 amendment).
+- Resource backfill re-parsed every message's Markdown 3-4 times per call and once per 32 captured
+  links, and hydrated each captured resource with a recursive active-path walk. A text-keyed parse
+  cache and skipping the walk when occurrences fit the preview: 115.8 s to 25.8 s for 16k links.
+- A Host started without a client exits after ~10 s if no liveness owner holds it
+  (`hasAcceptedClient` timer in the Host entry); keep a client or work attached when profiling.
+- Pragmas (`cache_size`, `mmap_size`) showed no difference beyond noise on macOS with a warm page
+  cache; not changed. Residual per-node trigger cost with the lexical deferral is ~0.1 ms (FTS).
 
 ### Expired provider credentials, refused Title models, empty legacy files (#357, October 2026)
 

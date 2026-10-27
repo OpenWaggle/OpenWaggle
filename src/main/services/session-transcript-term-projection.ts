@@ -3,9 +3,9 @@ import * as Effect from 'effect/Effect'
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
 const TRANSCRIPT_TERM_REFRESH_BATCH_SIZE = 256
-const STAGING_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
+export const STAGING_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
 
-function prepareProjectionStaging(sql: SqlClient.SqlClient) {
+export function prepareProjectionStaging(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     yield* sql.unsafe(`CREATE TEMP TABLE IF NOT EXISTS session_transcript_projection_ids (
       session_id TEXT PRIMARY KEY
@@ -96,7 +96,7 @@ function rebuildTermCatalog(sql: SqlClient.SqlClient, sessionIds: readonly strin
   })
 }
 
-function refreshBatch(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+export function refreshBatch(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   if (sessionIds.length === 0) return Effect.void
   return Effect.gen(function* () {
     yield* stageProjectionSource(sql, sessionIds)

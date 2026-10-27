@@ -1,3 +1,5 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
+
 const MAX_LABEL_LENGTH = 64
 const DEFAULT_OLDEST_DESCRIBED_COMMANDS = 8
 const DEFAULT_NEWEST_DESCRIBED_COMMANDS = 4
@@ -30,9 +32,38 @@ export function describeLocalSessionCommand(payload: unknown): string {
   return [contract, operation].filter((part) => part !== undefined).join(':') || 'unknown'
 }
 
+/**
+ * Commands that stay pending on purpose until something happens or their timeout ends: the
+ * desktop's 5 s long-poll, which is always in flight, and Session waits. They say nothing about
+ * what blocked the event loop, so stall reports count them apart from the oldest commands.
+ */
+const isLongPollCommand = isMatching(
+  P.union(
+    { contract: 'desktop-service-v1', request: { operation: 'poll' } },
+    {
+      contract: 'session-query-v2',
+      request: { query: { operation: P.union('wait', 'exports-wait') } },
+    },
+    {
+      contract: 'session-query-v2',
+      request: {
+        query: {
+          operation: 'search',
+          waitTimeoutMs: P.when((value) => typeof value === 'number' && value > 0),
+        },
+      },
+    },
+  ),
+)
+
+export function isLongPollLocalSessionCommand(payload: unknown): boolean {
+  return isLongPollCommand(payload)
+}
+
 interface InflightCommand {
   readonly command: string
   readonly startedAt: number
+  readonly longPoll: boolean
 }
 
 /**
@@ -49,7 +80,11 @@ export class LocalSessionInflightCommands {
   track(payload: unknown): () => void {
     const id = this.nextId
     this.nextId += 1
-    this.commands.set(id, { command: describeLocalSessionCommand(payload), startedAt: this.now() })
+    this.commands.set(id, {
+      command: describeLocalSessionCommand(payload),
+      startedAt: this.now(),
+      longPoll: isLongPollLocalSessionCommand(payload),
+    })
     return () => {
       this.commands.delete(id)
     }
@@ -57,14 +92,17 @@ export class LocalSessionInflightCommands {
 
   /**
    * The oldest commands are the likeliest cause of a long stall; the newest show what arrived
-   * just before it. The two lists never repeat a command.
+   * just before it. The two lists never repeat a command and leave out long-polls, which are
+   * only counted.
    */
   describe(
     oldestLimit = DEFAULT_OLDEST_DESCRIBED_COMMANDS,
     newestLimit = DEFAULT_NEWEST_DESCRIBED_COMMANDS,
   ) {
     const at = this.now()
-    const entries = [...this.commands.values()]
+    const all = [...this.commands.values()]
+    const entries = all.filter((entry) => !entry.longPoll)
+    const longPollCount = all.length - entries.length
     const oldestCount = Math.min(oldestLimit, entries.length)
     const newestCount = Math.min(newestLimit, entries.length - oldestCount)
     const summary = (entry: InflightCommand) => ({
@@ -73,6 +111,7 @@ export class LocalSessionInflightCommands {
     })
     return {
       inflightCommandCount: entries.length,
+      ...(longPollCount > 0 ? { longPollCount } : {}),
       oldestInflightCommands: entries.slice(0, oldestCount).map(summary),
       ...(newestCount > 0
         ? { newestInflightCommands: entries.slice(entries.length - newestCount).map(summary) }

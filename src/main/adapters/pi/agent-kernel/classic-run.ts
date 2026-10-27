@@ -19,6 +19,7 @@ import {
   promptPiSession,
   runSubscribedPiOperation,
 } from './run-lifecycle'
+import { observeRunWorkspaceMutations } from './run-workspace-mutations'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
@@ -157,6 +158,7 @@ export async function runPiSession(
       input.runId,
     ),
   )
+  const workspaceMutations = observeRunWorkspaceMutations(session, input.payload.text)
   const result = await runSubscribedPiOperation({
     runInput: input,
     session,
@@ -170,6 +172,7 @@ export async function runPiSession(
     orchestrationUpdates.close()
     specificationUpdates.close()
     unregisterLiveRun()
+    workspaceMutations.dispose()
   })
 
   // Best-effort per-turn checkpoint (WS7); never affects the run result.
@@ -179,6 +182,7 @@ export async function runPiSession(
     runId: input.runId,
     startedAt,
     ...piSessionFileOf(session),
+    workspaceMayHaveChanged: workspaceMutations.mayHaveChangedWorkspace(),
   })
 
   return result

@@ -32,3 +32,13 @@ Drift validation (`validateTranscriptTermCounts`) runs only during the one-time 
 ## Consequences
 
 Search and discovery can briefly miss a Session after a projection failure; it is repaired without user action. The repair checks aggregate consistency, not term-level content, so corruption that preserves the totals is not detected. An exact repair also rebuilds one Session in one transaction on the single SQLite connection (measured at 663ms for 20,000 nodes). A content-tied projection revision and a paged repair are tracked in issue #238. The upstream cause of drift remains unknown. The new Host log records the Session and operation the next time it happens, which makes it diagnosable rather than silent.
+
+## Amendment: The Repair Rebuilds a Session in Bounded Steps
+
+On a freshly opened 1,800-Session, 300k-node profile the repair held the Host's only thread for 50 s straight: one transaction per Session, and Session after Session without the event loop running. The Host listened only after it (49.6 s), and every client timed out.
+
+- **Bounded steps.** `rebuildSessionTranscriptTermsInSlices` rebuilds one Session in short transactions: 400 staged nodes per step, then 1,000 replaced term rows per step. The event loop runs between steps and between Sessions. Totals accumulate in a connection-local temporary table.
+- **Still exact, still never partial.** The term document, the stale marker's absence, is written by the last step only, so search keeps skipping the Session until the whole index is published. Appended nodes land after the slice cursor and are counted by a later step. An edit, deletion or historical insert bumps the Session's node-mutation revision, which every step checks; the rebuild then starts over, and after three restarts falls back to one single-transaction rebuild. A Session with no control state (no revision to check) is rebuilt in one transaction as before.
+- **Measured.** On that profile the Host listens in 1.2 s; the repair runs in the background with event-loop stalls of at most ~210 ms instead of one 50 s stall.
+
+Issue #238's paged repair is this amendment; a content-tied projection revision is still open.

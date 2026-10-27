@@ -108,7 +108,7 @@ function readCauses(sql: SqlClient.SqlClient) {
       SELECT id, attention_cause FROM delegation_contracts ORDER BY id
     `
     const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-      SELECT id, name FROM _migrations WHERE id > ${SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID}
+      SELECT id, name FROM _migrations WHERE id = ${DELEGATION_ATTENTION_CAUSE_MIGRATION_ID}
     `
     return {
       causes: Object.fromEntries(rows.map((row) => [row.id, row.attention_cause])),
@@ -126,14 +126,15 @@ describe('upgrading a beta.25 Hive through migration 74', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('is the newest beta migration, and one this binary supports', () => {
-    expect(V1_BETA_MIGRATIONS.at(-1)).toBe(DELEGATION_ATTENTION_CAUSE_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(DELEGATION_ATTENTION_CAUSE_MIGRATION.id)
+  it('is a beta migration this binary supports', () => {
+    expect(V1_BETA_MIGRATIONS).toContain(DELEGATION_ATTENTION_CAUSE_MIGRATION)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      DELEGATION_ATTENTION_CAUSE_MIGRATION.id,
+    )
   })
 
   it('records why each needs_attention Delegation got there, once', async () => {
     expect(DELEGATION_ATTENTION_CAUSE_MIGRATION_ID).toBe(74)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(DELEGATION_ATTENTION_CAUSE_MIGRATION_ID)
 
     await withDatabase((sql) =>
       Effect.gen(function* () {

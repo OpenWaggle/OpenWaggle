@@ -89,6 +89,24 @@ describe('configureAppStoragePaths', () => {
     expect(existsSync(join(sessionDataPath, REPAIR_MARKER_FILENAME))).toBe(true)
   })
 
+  it("bounds the profile's Chromium HTTP disk cache before the app is ready", () => {
+    const userDataPath = createTempDirectory()
+    const { appPathManager } = createAppPathManager(userDataPath)
+    const switches = new Map<string, string | undefined>()
+
+    configureAppStoragePaths({
+      ...appPathManager,
+      commandLine: {
+        hasSwitch: (name) => switches.has(name),
+        appendSwitch: (name, value) => {
+          switches.set(name, value)
+        },
+      },
+    })
+
+    expect(Number(switches.get('disk-cache-size'))).toBeGreaterThan(0)
+  })
+
   it('repairs existing Chromium DIPS files once for existing profiles', () => {
     const userDataPath = createTempDirectory()
     const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
