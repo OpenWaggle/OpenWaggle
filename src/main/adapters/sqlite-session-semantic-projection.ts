@@ -25,7 +25,8 @@ import {
 
 export { sessionDiscoveryDocument } from './session-discovery-document'
 
-const DEFAULT_PROJECTION_BATCH_SIZE = 128
+/** Sessions per committed batch: progress is saved every few seconds of inference (D3). */
+const DEFAULT_PROJECTION_BATCH_SIZE = 64
 /** Passages per inference call: 32 raised the ONNX arena peak by ~250 MB (D3). */
 export const EMBEDDING_INFERENCE_BATCH_SIZE = 8
 interface SemanticStateRow {
