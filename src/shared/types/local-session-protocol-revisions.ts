@@ -74,7 +74,10 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * appended messages for a cursor (`sessions:get-detail`'s second argument), the tree filter
  * searches on the Host (`sessions:search-tree`), and a Session's turns' changed files are read
  * in one call (`sessions:turn-diff-files:list`), and the provider catalog takes a scope
- * (`providers:get-models`'s second argument). A revision-27 window reading a content-free tree
+ * (`providers:get-models`'s second argument). A detail cursor may also bound the messages to the
+ * newest `maxMessages`, and the detail then says where they start (`messagesWindow`). A
+ * `session-list-changed` event for a pin or a read receipt carries `catalogOnly`, so windows do
+ * not read the Session again. A revision-27 window reading a content-free tree
  * would show empty labels, so older clients must upgrade.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
