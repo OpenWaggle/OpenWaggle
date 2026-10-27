@@ -99,11 +99,14 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     }
     void api
       .getSessionWorkspace(node.sessionId, { nodeId: node.id }, { window: { minEntries: 1 } })
-      .catch(() => null)
-      .then((workspace) => {
-        const entry = workspace?.transcriptPath.at(-1)
-        draftBranchFrom(entry?.node.id === node.id && entry.node.message ? entry.node : node)
-      })
+      .then(
+        (workspace) => {
+          const entry = workspace?.transcriptPath.at(-1)
+          draftBranchFrom(entry?.node.id === node.id && entry.node.message ? entry.node : node)
+        },
+        // Unreadable: draft the branch without prefill rather than not at all.
+        () => draftBranchFrom(node),
+      )
   }
 
   function draftBranchFrom(node: SessionTranscriptNode) {
