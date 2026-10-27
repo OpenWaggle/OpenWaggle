@@ -4,6 +4,7 @@ import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { splitUnifiedDiffIntoFileDiffs } from '@shared/utils/turn-diff-parse'
 import { useEffect, useState } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
+import { readTurnCheckpoints } from '@/queries/turn-checkpoints'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -47,7 +48,8 @@ export function useSessionTurns(
     let cancelled = false
     void (async () => {
       try {
-        const result = await api.listTurnCheckpoints(sessionId)
+        // Every view asking together shares one read (B5).
+        const result = await readTurnCheckpoints(sessionId)
         if (!cancelled) setTurns(result)
       } catch (error) {
         // refreshToken forces a refetch when a run completes (review renderer-M2).
