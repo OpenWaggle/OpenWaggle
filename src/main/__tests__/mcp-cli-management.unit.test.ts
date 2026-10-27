@@ -136,7 +136,8 @@ describe('openwaggle mcp list', () => {
 
     expect(result.calls.filter((call) => call.channel === 'mcp:inspect-server')).toHaveLength(1)
     expect(result.logs).toContain('docs: connected, 2 tools (deferred, global)')
-    expect(result.logs).toContain('tools: search [direct], read')
+    // A tool the file sets to direct runs, and shows, as codemode.
+    expect(result.logs).toContain('tools: search [codemode], read')
     expect(result.logs).toContain('off: disabled (codemode, global)')
     expect(result.exitCode).toBe(0)
   })

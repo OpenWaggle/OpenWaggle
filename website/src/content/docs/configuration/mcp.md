@@ -229,6 +229,8 @@ openwaggle mcp doctor --local
 
 New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `mcp enable` and `mcp disable` with `--in-project` switch a global server for the current project only, as **Turn off in this project** does in Settings. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
 
+`--exposure` on `mcp add` and `mcp registry add` takes `codemode` (the default), `deferred`, or `hidden`; `direct` is refused, since OpenWaggle runs it as codemode. `mcp list` shows the exposure OpenWaggle runs, so a server whose file says `direct` shows `codemode`; with `--json`, `configuredExposure` gives what the file says. The file is not changed.
+
 ## OpenWaggle as an MCP server
 
 This advanced option lets another MCP client work with OpenWaggle sessions. It is separate from connecting external servers in Settings and does not start with the desktop app by default.
