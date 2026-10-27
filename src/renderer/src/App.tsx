@@ -8,7 +8,7 @@ import {
   useGuiStartupStatus,
 } from '@/features/app-startup'
 import { usePreferences, useSettingsSetup } from '@/features/settings/hooks'
-import { router } from '@/router'
+import { router, useInitialRouteLoadSettled } from '@/router'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
@@ -82,10 +82,11 @@ export function App() {
   const retrySettings = useSettingsSetup()
 
   const { isLoaded, loadError } = usePreferences()
+  const initialRouteLoadSettled = useInitialRouteLoadSettled()
 
-  // Hook point for W3's B1 (router.tsx `useInitialRouteLoadSettled`): keep the skeleton until
-  // the launch route has loaded too, so the first route render does not suspend.
-  if (!isLoaded) {
+  // Keep the skeleton until the launch route has loaded too, so the first route render does not
+  // suspend and React does not hold the reveal for its fallback throttle (renderer-load B1).
+  if (!isLoaded || (loadError === null && !initialRouteLoadSettled)) {
     return <AppStartupView />
   }
 

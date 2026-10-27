@@ -48,14 +48,18 @@ vi.mock('@tanstack/react-router', () => ({
   RouterProvider: () => <div data-testid="router-provider">router</div>,
 }))
 
+const routeLoad = vi.hoisted(() => ({ settled: true }))
+
 vi.mock('@/router', () => ({
   router: {},
+  useInitialRouteLoadSettled: () => routeLoad.settled,
 }))
 
 import { App } from '../App'
 
 describe('App', () => {
   beforeEach(() => {
+    routeLoad.settled = true
     useSettingsSetupMock.mockReset()
     usePreferencesMock.mockReset()
     retrySettingsMock.mockReset()
@@ -147,6 +151,18 @@ describe('App', () => {
 
   it('renders the route tree after preferences are loaded', () => {
     render(<App />)
+
+    expect(screen.getByTestId('router-provider')).toBeInTheDocument()
+  })
+
+  it('keeps the startup view until the launch route has loaded, so the first route render cannot suspend', () => {
+    routeLoad.settled = false
+    const view = render(<App />)
+
+    expect(screen.queryByTestId('router-provider')).not.toBeInTheDocument()
+
+    routeLoad.settled = true
+    view.rerender(<App />)
 
     expect(screen.getByTestId('router-provider')).toBeInTheDocument()
   })

@@ -9,6 +9,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { SupportedModelId } from '@shared/types/llm'
+import * as Effect from 'effect/Effect'
 import { manageProjectActions } from '../../application/action-management'
 import {
   getAgentDefinitionPreviewOperation,
@@ -41,6 +42,7 @@ import {
   setHostUiExtensionProjectDisabled,
   setHostUiExtensionTrusted,
 } from '../../application/host-ui-extension-operations'
+import { optionalHostUiProviderCatalogScope } from '../../application/host-ui-operation-validation'
 import { getHostUiProviderModels } from '../../application/host-ui-provider-operation'
 import {
   dispatchHostBackedSessionGuiOperation,
@@ -211,8 +213,10 @@ export function legacyHostOperations(
       grantProjectAuthorizationOperation(projectPath, key),
     'authorization-grants:revoke': (_event, projectPath: string, key: unknown) =>
       revokeProjectAuthorizationOperation(projectPath, key),
-    'providers:get-models': (_event, projectPath?: string | null) =>
-      getHostUiProviderModels(projectPath),
+    'providers:get-models': (_event, projectPath?: string | null, scope?: unknown) =>
+      Effect.flatMap(optionalHostUiProviderCatalogScope(scope), (validScope) =>
+        getHostUiProviderModels(projectPath, validScope),
+      ),
     'settings:get': () => getSettingsOperation(),
     'settings:update': (_event, raw: unknown) => updateSettingsOperation(raw),
     'settings:set-enabled-models': (_event, models: unknown) => setEnabledModelsOperation(models),
