@@ -14,16 +14,15 @@ RUN pip3 install --break-system-packages --no-cache-dir \
   "aider-chat==0.86.2" \
   "deepseek-harness-sdk==0.1.2a3"
 
+# Refreshed for the v1 rerun (2026-10-27): Pi at the version OpenWaggle bundles, and the current
+# Claude Code, Codex and opencode. Reasonix, Aider and the DeepSeek harness keep their earlier
+# pins; run them only by name.
 RUN npm install -g --no-audit --no-fund \
-  @earendil-works/pi-coding-agent@0.81.1 \
-  @anthropic-ai/claude-code@2.1.247 \
-  @openai/codex@0.150.1 \
-  opencode-ai@1.18.26 \
+  @earendil-works/pi-coding-agent@1.4.0 \
+  @anthropic-ai/claude-code@2.1.311 \
+  @openai/codex@0.164.0 \
+  opencode-ai@1.19.4 \
   reasonix@1.35.0
-
-# Second pi version under its own prefix so both `pi` binaries coexist.
-RUN npm install -g --no-audit --no-fund --prefix /opt/pi-latest \
-  @earendil-works/pi-coding-agent@0.84.4
 
 WORKDIR /bench
 CMD ["/bin/bash"]

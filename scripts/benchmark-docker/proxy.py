@@ -1,40 +1,48 @@
 #!/usr/bin/env python3
-"""Logging reverse proxy in front of OpenRouter.
+"""Logging reverse proxy in front of OpenRouter for the first-turn token benchmark.
 
-Forwards every request to https://openrouter.ai, replacing the Authorization
-header with the real key, while streaming the response back incrementally (so
-SSE clients do not time out) and logging per-request usage to a JSONL file.
+Forwards every request to https://openrouter.ai with the real key in place of the
+agent's dummy one, streams the upstream status, headers and body back exactly once
+(SSE clients see chunks as they arrive), and appends one JSONL record per request:
+the upstream status, the request body (agents' requests carry no credentials; the
+Authorization header is never logged) and every usage object in the response.
+
+The listener binds to 127.0.0.1 unless BENCH_PROXY_BIND names another local address
+(run.sh passes Docker's bridge gateway on Linux). It injects a real key, so it must
+never listen on every interface.
 
 Usage: proxy.py <port> <openrouter-api-key> <log-path>
 """
+import http.client
 import json
-import subprocess
+import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 PORT = int(sys.argv[1])
 KEY = sys.argv[2]
 LOG_PATH = sys.argv[3]
-CURL_TIMEOUT_SECONDS = 600
+BIND = os.environ.get("BENCH_PROXY_BIND", "127.0.0.1")
+# Overridable only so the proxy's tests can stand in a local upstream.
+UPSTREAM = urlsplit(os.environ.get("BENCH_PROXY_UPSTREAM", "https://openrouter.ai"))
+UPSTREAM_TIMEOUT_SECONDS = 600
+CHUNK_BYTES = 4096
+FORWARDED_RESPONSE_HEADERS = {"content-type", "cache-control"}
+USAGE_KEYS = {"prompt_tokens", "input_tokens", "completion_tokens", "output_tokens", "total_tokens"}
 log_lock = threading.Lock()
 
 
 def log(record):
     with log_lock:
-        with open(LOG_PATH, "a") as f:
-            f.write(json.dumps(record) + "\n")
+        with open(LOG_PATH, "a") as handle:
+            handle.write(json.dumps(record) + "\n")
 
 
 def collect_usage(node, found):
     if isinstance(node, dict):
-        if set(node.keys()) & {
-            "prompt_tokens",
-            "input_tokens",
-            "completion_tokens",
-            "output_tokens",
-            "total_tokens",
-        }:
+        if set(node.keys()) & USAGE_KEYS:
             found.append(node)
         for value in node.values():
             collect_usage(value, found)
@@ -44,92 +52,79 @@ def collect_usage(node, found):
     return found
 
 
+def usage_of(payload):
+    """Usage objects of an SSE stream or of a plain JSON response."""
+    found = []
+    text = payload.decode("utf-8", errors="replace")
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.startswith("data: ") and line != "data: [DONE]":
+            try:
+                collect_usage(json.loads(line[len("data: "):]), found)
+            except ValueError:
+                continue
+    if not found:
+        try:
+            collect_usage(json.loads(text), found)
+        except ValueError:
+            pass
+    return found
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _run(self):
+    def _forward(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else None
+        connection = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
+        upstream = connection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS)
+        headers = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
+        upstream.request(self.command, self.path, body=body, headers=headers)
+        response = upstream.getresponse()
 
-        # Bind 0.0.0.0 so Linux host-gateway clients can reach us; the real key
-        # never leaves this process, and the port is only exposed locally.
-        cmd = [
-            "curl", "-s", "-N",
-            f"--max-time", str(CURL_TIMEOUT_SECONDS),
-            f"https://openrouter.ai{self.path}",
-            "-H", f"Authorization: Bearer {KEY}",
-            "-H", "Content-Type: application/json",
-            "-X", self.command,
-            "-w", "\n%{http_code}",
-        ]
-        if body is not None:
-            cmd += ["--data-binary", "@-"]
-
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        try:
-            proc.stdin.write(body if body is not None else b"")
-            proc.stdin.close()
-        except BrokenPipeError:
-            pass
-
-        # Stream through as chunks arrive; the final line carries the status.
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
+        self.send_response(response.status)
+        for name, value in response.getheaders():
+            if name.lower() in FORWARDED_RESPONSE_HEADERS:
+                self.send_header(name, value)
+        # No Content-Length: the body is relayed as it arrives and the connection closes.
         self.send_header("Connection", "close")
         self.end_headers()
 
         chunks = []
+        client_open = True
         while True:
-            chunk = proc.stdout.read(4096)
+            chunk = response.read1(CHUNK_BYTES)
             if not chunk:
                 break
             chunks.append(chunk)
-            try:
-                self.wfile.write(chunk)
-                self.wfile.flush()
-            except BrokenPipeError:
-                break
-        proc.wait()
+            if client_open:
+                try:
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                except BrokenPipeError:
+                    client_open = False
+        upstream.close()
+        self.close_connection = True
+        return body, response.status, b"".join(chunks)
 
-        payload = b"".join(chunks)
-        upstream_status = None
-        last_newline = payload.rfind(b"\n")
-        if last_newline >= 0:
-            trailer = payload[last_newline + 1:].strip()
-            if trailer.isdigit():
-                upstream_status = int(trailer)
-                payload = payload[:last_newline]
+    def _run(self):
+        body, status, payload = self._forward()
+        if body is None:
+            return
         try:
-            self.wfile.write(payload)
-            self.wfile.flush()
-        except BrokenPipeError:
-            pass
-
-        if body is not None:
-            usage_events = []
-            model = None
-            try:
-                model = json.loads(body).get("model")
-            except Exception:
-                pass
-            for line in payload.split(b"\n"):
-                line = line.strip()
-                if line.startswith(b"data: ") and line != b"data: [DONE]":
-                    try:
-                        event = json.loads(line[6:])
-                    except Exception:
-                        continue
-                    if isinstance(event, dict):
-                        collect_usage(event, usage_events)
-            log({
-                "command": self.command,
-                "path": self.path,
-                "status": upstream_status,
-                "model": model,
-                "request_bytes": len(body),
-                "usage_events": usage_events,
-            })
+            request = json.loads(body)
+        except ValueError:
+            request = None
+        log({
+            "command": self.command,
+            "path": self.path,
+            "status": status,
+            "model": request.get("model") if isinstance(request, dict) else None,
+            "request_bytes": len(body),
+            "request": request,
+            "usage_events": usage_of(payload),
+        })
 
     def do_POST(self):
         self._run()
@@ -142,5 +137,4 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    server.serve_forever()
+    ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
