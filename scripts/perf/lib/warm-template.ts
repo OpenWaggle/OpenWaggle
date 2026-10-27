@@ -59,7 +59,7 @@ export async function warmTemplateFor(app: PerfApp, templateRoot: string) {
     projectPath: path.join(target, 'projects', 'project-0'),
   }
   const startedAt = Date.now()
-  let listeningMs = 0
+  let listeningMs: number | null = null
   try {
     const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
     const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
