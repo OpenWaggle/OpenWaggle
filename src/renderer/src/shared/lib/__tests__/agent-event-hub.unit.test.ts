@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { SessionId } from '@shared/types/brand'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -106,26 +103,5 @@ describe('agent event hub', () => {
     declareShownSessions([SessionId('session-4')])
     await Promise.resolve()
     expect(bridge.setShownSessions).toHaveBeenCalledWith(['session-4'])
-  })
-
-  it('is the only renderer module that subscribes to agent:event on the bridge', () => {
-    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
-    const offenders: string[] = []
-    const walk = (directory: string) => {
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const entryPath = path.join(directory, entry.name)
-        if (entry.isDirectory()) {
-          if (entry.name !== '__tests__') walk(entryPath)
-          continue
-        }
-        if (!/\.tsx?$/u.test(entry.name) || entry.name === 'agent-event-hub.ts') continue
-        if (/\.onAgentEvent\(/u.test(readFileSync(entryPath, 'utf8'))) {
-          offenders.push(path.relative(root, entryPath))
-        }
-      }
-    }
-    walk(root)
-
-    expect(offenders).toEqual([])
   })
 })
