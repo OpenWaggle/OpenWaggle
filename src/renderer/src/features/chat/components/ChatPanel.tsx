@@ -101,9 +101,30 @@ function SessionNotificationStack({
   return <AgentNotificationStack events={events} onDismiss={handleDismiss} />
 }
 
-function transcriptPathNodeIds(section: ChatPanelSections['transcript']) {
-  if (section.activePathNodeIds) return section.activePathNodeIds
+const NODE_ID_SEPARATOR = '\u0000'
+
+function messageNodeIds(section: ChatPanelSections['transcript']) {
   return section.messages.map((message) => message.metadata?.sessionNodeId ?? message.id)
+}
+
+/**
+ * Node ids as one string. The message list is a new array whenever any message changes (a tool
+ * result, a settled answer), while its ids rarely do; deriving the id lists from this key keeps
+ * their identity, so the Session Summary and the resource viewer render only when ids change.
+ */
+function nodeIdsKey(ids: readonly string[]) {
+  return ids.join(NODE_ID_SEPARATOR)
+}
+
+/**
+ * The id list and set for a key, memoized on the key alone. Inline, they joined the memo scope of
+ * the message list and were rebuilt with it.
+ */
+function useNodeIdsForKey(key: string) {
+  // It calls no hook, so the compiler skips it unless asked.
+  'use memo'
+  const ids: readonly string[] = key === '' ? [] : key.split(NODE_ID_SEPARATOR)
+  return { ids, idSet: new Set(ids) }
 }
 
 function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible: boolean) {
@@ -151,11 +172,10 @@ export function ChatPanelContent({
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
   useSessionResourceBackfill(resourceSessionId)
-  const activeMessageNodeIds = sections.transcript.messages.map(
-    (message) => message.metadata?.sessionNodeId ?? message.id,
+  const { ids: activeMessageNodeIds, idSet: activeMessageIds } = useNodeIdsForKey(
+    nodeIdsKey(messageNodeIds(sections.transcript)),
   )
-  const activeMessageIds = new Set(activeMessageNodeIds)
-  const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
+  const activePathNodeIds = sections.transcript.activePathNodeIds ?? activeMessageNodeIds
   const { panelRef, hasSpace } = useSessionSummarySpace(rightSidebarOpen)
   const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
   return (
