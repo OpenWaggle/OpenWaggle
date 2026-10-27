@@ -10,6 +10,7 @@ import {
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
 import { foreignNativePrebuildExclusions } from './scripts/electron-builder-native-prebuilds'
+import { UNUSED_RUNTIME_FILE_PATTERNS } from './scripts/electron-builder-runtime-trim'
 import { resolveMacSigning } from './scripts/mac-signing'
 import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
 
@@ -114,8 +115,8 @@ const config = {
     // Workspace packages are followed through node_modules; ship their built/runtime surface only.
     '!node_modules/@openwaggle/*/src/**/*',
     '!node_modules/@openwaggle/*/tsconfig*.json',
-    // Exclude unused ONNX training WASM files (only inference is needed)
-    '!node_modules/onnxruntime-web/dist/ort-training*',
+    // onnxruntime-web, SQLite sources, tesseract browser builds (scripts/electron-builder-runtime-trim.ts).
+    ...UNUSED_RUNTIME_FILE_PATTERNS,
     // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
