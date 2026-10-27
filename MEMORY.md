@@ -1893,6 +1893,24 @@ the longest single statement (the one discovery rebuild of a 591-term objective)
 sqlite3 CLI. A fresh APFS clone (`cp -c`) of the database has a cold page cache, so the first
 measurement on a clone reads high.
 
+### Large-profile Host CPU: embedding on the main thread, unsliced term repair, backfill rework (v1 perf W5b, October 2026)
+
+On a copied 1,800-Session / 300k-node / 1.4 GB profile the Host listened at 50-85 s and then stayed
+at 100% CPU. Found with a Host started on an APFS copy (`session-host-internal` as argv[0] after the
+app path; `--inspect=<port>` must come after it or `applicationCliArguments` treats it as the
+command), native `sample`, and a SQL-timing wrapper patched into the built bundle only:
+- The pegging is semantic embedding: onnxruntime-node's `InferenceSessionWrap::Run` is synchronous on
+  the Host's JS thread (stalls of 58-88 s, `livenessOwners: {semantic-preparation: 1}`), handed to W7.
+- Transcript-term repair ran Session after Session with no event-loop turn: 50 s straight. It now
+  rebuilds in bounded steps (`session-transcript-term-sliced-rebuild.ts`, ADR 0037 amendment).
+- Resource backfill re-parsed every message's Markdown 3-4 times per call and once per 32 captured
+  links, and hydrated each captured resource with a recursive active-path walk. A text-keyed parse
+  cache and skipping the walk when occurrences fit the preview: 115.8 s to 25.8 s for 16k links.
+- A Host started without a client exits after ~10 s if no liveness owner holds it
+  (`hasAcceptedClient` timer in the Host entry); keep a client or work attached when profiling.
+- Pragmas (`cache_size`, `mmap_size`) showed no difference beyond noise on macOS with a warm page
+  cache; not changed. Residual per-node trigger cost with the lexical deferral is ~0.1 ms (FTS).
+
 ### Expired provider credentials, refused Title models, empty legacy files (#357, October 2026)
 
 - AWS SSO expiry ("Token is expired. To refresh this SSO session run 'aws sso login'...") ended Runs
