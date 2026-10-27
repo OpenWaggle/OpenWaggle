@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   subscribeInlineVisualizationFrame,
   subscribeInlineVisualizationTheme,
@@ -20,48 +20,57 @@ function customProtocolOrigin(frameUrl: string) {
   return `${url.protocol}//${url.host}`
 }
 
+/*
+ * Plain functions, memoized by the compiler: hand-written `useCallback`/`useMemo` here could not be
+ * preserved and left both hooks uncompiled. Refs are written only through these functions.
+ */
 function useFrameControls(input: {
   readonly registrationId: string | null
   readonly onUnavailable: (reason: string) => void
   readonly onStateChange: (state: JsonValue | null) => void
   readonly setErrorReason: (reason: string) => void
 }) {
+  const { registrationId, onUnavailable, onStateChange, setErrorReason } = input
   const healthCheckTimeoutRef = useRef<number | null>(null)
   const healthCheckIntervalRef = useRef<number | null>(null)
   const pendingStateRef = useRef<JsonValue | null | undefined>(undefined)
   const stateTimeoutRef = useRef<number | null>(null)
   const telemetryRef = useRef({ startedAt: 0, count: 0, blocked: false })
-  const clearHealthCheckTimeout = useCallback(() => {
+  const clearHealthCheckTimeout = () => {
     if (healthCheckTimeoutRef.current === null) return
     window.clearTimeout(healthCheckTimeoutRef.current)
     healthCheckTimeoutRef.current = null
-  }, [])
-  const clearHealthCheckInterval = useCallback(() => {
+  }
+  const clearHealthCheckInterval = () => {
     if (healthCheckIntervalRef.current === null) return
     window.clearInterval(healthCheckIntervalRef.current)
     healthCheckIntervalRef.current = null
-  }, [])
-  const clearPendingState = useCallback(() => {
+  }
+  const startHealthCheckInterval = (check: () => void, intervalMs: number) => {
+    clearHealthCheckInterval()
+    healthCheckIntervalRef.current = window.setInterval(check, intervalMs)
+  }
+  const resetTelemetry = () => {
+    telemetryRef.current = { startedAt: performance.now(), count: 0, blocked: false }
+  }
+  const clearPendingState = () => {
     if (stateTimeoutRef.current !== null) window.clearTimeout(stateTimeoutRef.current)
     stateTimeoutRef.current = null
     pendingStateRef.current = undefined
-  }, [])
-  const flushStateChange = useCallback(() => {
+  }
+  const flushStateChange = () => {
     if (stateTimeoutRef.current !== null) window.clearTimeout(stateTimeoutRef.current)
     stateTimeoutRef.current = null
     const state = pendingStateRef.current
     pendingStateRef.current = undefined
-    if (state !== undefined) input.onStateChange(state)
-  }, [input.onStateChange])
-  const scheduleStateChange = useCallback(
-    (state: JsonValue | null) => {
-      pendingStateRef.current = state
-      if (stateTimeoutRef.current !== null) return
-      stateTimeoutRef.current = window.setTimeout(flushStateChange, STATE_COALESCE_MS)
-    },
-    [flushStateChange],
-  )
-  const acceptMessage = useCallback(() => {
+    if (state !== undefined) onStateChange(state)
+  }
+  const scheduleStateChange = (state: JsonValue | null) => {
+    pendingStateRef.current = state
+    if (stateTimeoutRef.current !== null) return
+    stateTimeoutRef.current = window.setTimeout(flushStateChange, STATE_COALESCE_MS)
+  }
+  const acceptMessage = () => {
     const now = performance.now()
     const telemetry = telemetryRef.current
     if (now - telemetry.startedAt >= FRAME_TELEMETRY_WINDOW_MS) {
@@ -72,50 +81,33 @@ function useFrameControls(input: {
     if (telemetry.count <= MAX_FRAME_TELEMETRY_PER_WINDOW) return true
     if (!telemetry.blocked) {
       telemetry.blocked = true
-      input.setErrorReason('resource-limit')
+      setErrorReason('resource-limit')
       clearPendingState()
-      input.onUnavailable('resource-limit')
+      onUnavailable('resource-limit')
     }
     return false
-  }, [clearPendingState, input.onUnavailable, input.setErrorReason])
-  const armHealthCheckTimeout = useCallback(() => {
+  }
+  const armHealthCheckTimeout = () => {
     clearHealthCheckTimeout()
-    if (!input.registrationId) return
+    if (!registrationId) return
     healthCheckTimeoutRef.current = window.setTimeout(() => {
       healthCheckTimeoutRef.current = null
-      input.setErrorReason('unresponsive')
+      setErrorReason('unresponsive')
       clearPendingState()
-      input.onUnavailable('unresponsive')
+      onUnavailable('unresponsive')
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
-  }, [
+  }
+  return {
+    acceptMessage,
+    armHealthCheckTimeout,
+    clearHealthCheckInterval,
     clearHealthCheckTimeout,
     clearPendingState,
-    input.onUnavailable,
-    input.registrationId,
-    input.setErrorReason,
-  ])
-  return useMemo(
-    () => ({
-      acceptMessage,
-      armHealthCheckTimeout,
-      clearHealthCheckInterval,
-      clearHealthCheckTimeout,
-      clearPendingState,
-      flushStateChange,
-      healthCheckIntervalRef,
-      scheduleStateChange,
-      telemetryRef,
-    }),
-    [
-      acceptMessage,
-      armHealthCheckTimeout,
-      clearHealthCheckInterval,
-      clearHealthCheckTimeout,
-      clearPendingState,
-      flushStateChange,
-      scheduleStateChange,
-    ],
-  )
+    flushStateChange,
+    resetTelemetry,
+    scheduleStateChange,
+    startHealthCheckInterval,
+  }
 }
 
 export function useInlineVisualizationFrame(input: {
@@ -160,7 +152,7 @@ export function useInlineVisualizationFrame(input: {
     controls.clearHealthCheckInterval()
     capabilityRef.current = null
     brokerPendingRef.current = false
-    controls.telemetryRef.current = { startedAt: performance.now(), count: 0, blocked: false }
+    controls.resetTelemetry()
     controls.armHealthCheckTimeout()
     frame.src = input.frameUrl
 
@@ -193,7 +185,7 @@ export function useInlineVisualizationFrame(input: {
       })
     })
     const unsubscribeTheme = subscribeInlineVisualizationTheme(sendTheme)
-    controls.healthCheckIntervalRef.current = window.setInterval(() => {
+    controls.startHealthCheckInterval(() => {
       controls.armHealthCheckTimeout()
       postToFrame({ type: 'openwaggle:inline-visualization:health-check' })
     }, FRAME_HEALTH_CHECK_INTERVAL_MS)

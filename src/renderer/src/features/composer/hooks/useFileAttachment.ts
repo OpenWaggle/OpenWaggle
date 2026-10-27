@@ -1,5 +1,6 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useRef, useState } from 'react'
+import { withFinally } from '@/shared/lib/async-outcome'
 import { registerAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -145,13 +146,15 @@ export function useFileAttachment({
 
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
-    try {
-      await validateAndAttach(files)
-    } catch (err) {
-      reportAttachmentError(err, setAttachmentError, onToast)
-    } finally {
-      event.target.value = ''
-    }
+    await withFinally(
+      () =>
+        validateAndAttach(files).catch((err: unknown) => {
+          reportAttachmentError(err, setAttachmentError, onToast)
+        }),
+      () => {
+        event.target.value = ''
+      },
+    )
   }
 
   return {

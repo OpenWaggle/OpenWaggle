@@ -139,6 +139,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'setSessionAuthorizationMode',
   'setSessionModel',
   'setSessionThinkingLevel',
+  'setShownSessions',
   'getDefaultThinkingLevel',
   'setDefaultThinkingLevel',
   'listArchivedSessionBranches',

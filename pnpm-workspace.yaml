@@ -224,5 +224,6 @@ allowBuilds:
 patchedDependencies:
   '@earendil-works/pi-ai@1.4.0': patches/@earendil-works__pi-ai@1.4.0.patch
   '@earendil-works/pi-coding-agent@1.4.0': patches/@earendil-works__pi-coding-agent@1.4.0.patch
+  babel-plugin-react-compiler@1.0.0: patches/babel-plugin-react-compiler@1.0.0.patch
   dmg-builder@26.17.0: patches/dmg-builder@26.17.0.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch

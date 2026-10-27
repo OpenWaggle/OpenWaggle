@@ -6,6 +6,7 @@ import {
   type SessionFollowUpQueueItem,
   useSessionFollowUpQueue,
 } from '@/features/chat/hooks'
+import { attempt } from '@/shared/lib/async-outcome'
 import { retainHostReferencedAttachments } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
 import {
@@ -77,14 +78,13 @@ export function useQueuedMessageEdit(
     }
     const { contextKey } = target
     setEdit(sessionId, { phase: 'beginning', followUpId, contextKey })
-    let opened: Awaited<ReturnType<typeof queue.beginEdit>>
-    try {
-      opened = await queue.beginEdit(followUpId)
-    } catch (error) {
+    const began = await attempt(() => queue.beginEdit(followUpId))
+    if (!began.ok) {
       setEdit(sessionId, null)
-      onToast(beginFailureMessage(error))
+      onToast(beginFailureMessage(began.error))
       return
     }
+    const opened = began.value
     const pending = storedEdit(sessionId)
     if (pending?.phase !== 'beginning' || pending.followUpId !== followUpId) {
       // Superseded while the Host answered (the draft was cleared): do not leave the hold behind.
@@ -110,15 +110,17 @@ export function useQueuedMessageEdit(
     setEdit(sessionId, { ...open, phase: 'saving' })
     const { waggle, visualizationContext } = open.based.item
     const nextWaggle = editedWaggle(draft.wagglePreset ?? null, waggle)
-    try {
-      await queue.saveEdit(open.based, {
-        text: draft.input.trim(),
-        attachments: draft.attachments,
-        ...(nextWaggle ? { waggle: nextWaggle } : {}),
-        ...(visualizationContext ? { visualizationContext } : {}),
-      })
-    } catch (error) {
-      if (stillHolds(sessionId, open.based.holdId)) await handleSaveFailure(sessionId, open, error)
+    const payload = {
+      text: draft.input.trim(),
+      attachments: draft.attachments,
+      ...(nextWaggle ? { waggle: nextWaggle } : {}),
+      ...(visualizationContext ? { visualizationContext } : {}),
+    }
+    const saved = await attempt(() => queue.saveEdit(open.based, payload))
+    if (!saved.ok) {
+      if (stillHolds(sessionId, open.based.holdId)) {
+        await handleSaveFailure(sessionId, open, saved.error)
+      }
       return
     }
     if (!stillHolds(sessionId, open.based.holdId)) return
@@ -167,17 +169,15 @@ export function useQueuedMessageEdit(
     const open = currentEdit(sessionId)
     if (open?.phase !== 'editing') return
     setEdit(sessionId, { ...open, phase: 'cancelling' })
-    try {
-      await queue.cancelEdit(open.based)
-    } catch (error) {
-      // A lost hold has nothing left to release.
-      if (!isLostFollowUpEdit(error)) {
-        // Focus stays where the user left it (the Cancel button or the input).
-        if (stillHolds(sessionId, open.based.holdId))
-          setEdit(sessionId, { ...open, phase: 'editing' })
-        onToast(errorMessage(error))
-        return
+    const cancelled = await attempt(() => queue.cancelEdit(open.based))
+    // A lost hold has nothing left to release.
+    if (!cancelled.ok && !isLostFollowUpEdit(cancelled.error)) {
+      // Focus stays where the user left it (the Cancel button or the input).
+      if (stillHolds(sessionId, open.based.holdId)) {
+        setEdit(sessionId, { ...open, phase: 'editing' })
       }
+      onToast(errorMessage(cancelled.error))
+      return
     }
     if (stillHolds(sessionId, open.based.holdId)) restoreStashedDraft(sessionId, open)
   }

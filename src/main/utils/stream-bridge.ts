@@ -9,7 +9,7 @@ import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { resetPhaseForSession, updatePhaseFromTransportEvent } from '../agent/phase-tracker'
-import { broadcastToWindows } from './broadcast'
+import { broadcastAgentEvent, broadcastToWindows } from './broadcast'
 import {
   applyEventToStreamBuffer,
   getStreamBuffer,
@@ -180,7 +180,7 @@ export function emitTransportEvent(
     phase: updatePhaseFromTransportEvent(sessionId, event, event.timestamp),
   })
 
-  broadcastToWindows('agent:event', { sessionId, event })
+  broadcastAgentEvent({ sessionId, event })
 }
 
 export function emitErrorAndFinish(

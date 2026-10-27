@@ -1,12 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import type { UIMessage } from '@shared/types/chat-ui'
 import {
   clearLastAgentErrorInfo,
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
 import { isPiSessionFileRefusal } from '@/features/chat/lib/message-delivery'
+import { publishLiveStreamMessage } from '../state/live-stream-message-store'
 import { handleCompactionEndEvent } from './useAgentChat.compaction-events'
-import { updateMessagesForSession } from './useAgentChat.message-cache'
+import { getMessagesForSession, updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
 
 function signalStreamChange(context: AgentStreamEventContext) {
@@ -187,6 +189,51 @@ function isStreamingInBackground(payload: AgentEventPayload, context: AgentStrea
   )
 }
 
+function isStreamedToken(event: AgentEventPayload['event']) {
+  if (event.type !== 'message_update') return false
+  const type = event.assistantMessageEvent.type
+  return type === 'text_delta' || type === 'thinking_delta'
+}
+
+/**
+ * The message a token only lengthened: the token changed one message, and none of its parts were
+ * added or removed. Anything else (a new part, a started message) changes the transcript's rows.
+ */
+function lengthenedMessage(before: readonly UIMessage[], after: readonly UIMessage[]) {
+  if (before === after || before.length !== after.length) return null
+  let changed: UIMessage | null = null
+  for (let index = 0; index < after.length; index += 1) {
+    const previous = before[index]
+    const next = after[index]
+    if (previous === next) continue
+    if (changed || !previous || !next || previous.id !== next.id) return null
+    if (previous.parts.length !== next.parts.length) return null
+    changed = next
+  }
+  return changed
+}
+
+/**
+ * Applies a streamed text or reasoning token without committing the chat's message list (B2).
+ *
+ * The list in `messagesBySessionIdRef` takes the token, so the next event and the next commit
+ * build on it, and the message's bubble renders it from the live store. Returns `false` when the
+ * event must commit as before.
+ */
+function applyStreamedToken(payload: AgentEventPayload, context: AgentStreamEventContext) {
+  if (!isStreamedToken(payload.event)) return false
+  const before = getMessagesForSession(context.messagesBySessionIdRef, payload.sessionId)
+  const after = applyAgentTransportEvent(before, payload.event)
+  const message = lengthenedMessage(before, after)
+  if (!message) return false
+  const next = new Map(context.messagesBySessionIdRef.current)
+  next.set(payload.sessionId, after)
+  context.messagesBySessionIdRef.current = next
+  context.setRunRenderMessages(payload.sessionId, after)
+  publishLiveStreamMessage(payload.sessionId, message)
+  return true
+}
+
 export function handleAgentStreamPayload(
   payload: AgentEventPayload,
   context: AgentStreamEventContext,
@@ -202,6 +249,7 @@ export function handleAgentStreamPayload(
   handleForegroundAgentStateEvent(payload.event, context)
 
   if (context.foregroundStreamActiveRef.current || isStreamingInBackground(payload, context)) {
+    if (applyStreamedToken(payload, context)) return
     signalStreamChange(context)
     updateMessagesForSession(
       context.messagesBySessionIdRef,

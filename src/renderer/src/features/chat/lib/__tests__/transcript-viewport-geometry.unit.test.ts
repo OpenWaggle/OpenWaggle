@@ -1,6 +1,6 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
-import { createDomViewportGeometry } from '../transcript-viewport-geometry'
+import { createDomViewportGeometry, firstRowIndexBelow } from '../transcript-viewport-geometry'
 
 /** A viewport-relative box; the unit environment has no DOM. */
 function rect(top: number, height: number) {
@@ -52,5 +52,29 @@ describe('createDomViewportGeometry', () => {
         endSpaceHeight: 100,
       }).getContentHeight(),
     ).toBe(200)
+  })
+})
+
+describe('firstRowIndexBelow', () => {
+  function rows(count: number, measured: number[]) {
+    return Array.from({ length: count }, (_, index) =>
+      fromPartial<HTMLElement>({
+        getBoundingClientRect: () => {
+          measured.push(index)
+          return rect(index * 100, 100)
+        },
+      }),
+    )
+  }
+
+  it('finds the first row whose bottom is below the edge with a bounded number of reads', () => {
+    const measured: number[] = []
+    expect(firstRowIndexBelow(rows(160, measured), 15_050)).toBe(150)
+    expect(measured.length).toBeLessThanOrEqual(8)
+  })
+
+  it('returns the row count when every row ends above the edge', () => {
+    expect(firstRowIndexBelow(rows(3, []), 1_000)).toBe(3)
+    expect(firstRowIndexBelow([], 0)).toBe(0)
   })
 })

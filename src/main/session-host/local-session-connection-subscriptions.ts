@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
+import {
+  appendJsonProperty,
+  sessionHostEventJson,
+} from '../application/session-host-event-serialization'
 import type { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import { createLocalSessionEventAdmissionFilter } from './local-session-event-admission'
 import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { subscriptionLimitReached } from './local-session-resource-policy'
+import { SerializedLocalSessionFrame } from './local-session-serialized-frame'
 import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
@@ -264,11 +269,18 @@ export class LocalSessionConnectionSubscriptions {
           frame.event,
         ))
       if (!denied && caller) {
-        await this.input.send({
-          ...frame,
-          subscriptionId,
-          event: this.input.cursorProjection.exposeEvent(caller, frame.event),
-        })
+        // The payload's JSON is the hub's; only the frame around it and the cursor are new (D8).
+        const event = this.input.cursorProjection.exposeEvent(caller, frame.event)
+        await this.input.send(
+          new SerializedLocalSessionFrame(
+            frame.kind,
+            appendJsonProperty(
+              JSON.stringify({ kind: frame.kind, subscriptionId }),
+              'event',
+              sessionHostEventJson(event),
+            ),
+          ),
+        )
       }
     } finally {
       releaseAdmissionReader()

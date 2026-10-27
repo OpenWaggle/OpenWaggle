@@ -115,6 +115,11 @@ export interface OpenWaggleApi
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
   getAgentPhase(sessionId: SessionId): Promise<AgentPhaseState | null>
+  /**
+   * Names the Sessions this window shows. Their streamed deltas arrive about 30 times a second; other
+   * Sessions' arrive merged on a slower beat, for activity and route-switch snapshots.
+   */
+  setShownSessions(sessionIds: readonly SessionId[]): Promise<void>
   getBackgroundRun(sessionId: SessionId): Promise<BackgroundRunSnapshot | null>
   listActiveRuns(): Promise<ActiveRunInfo[]>
   getContextUsage(

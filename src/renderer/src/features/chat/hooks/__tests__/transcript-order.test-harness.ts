@@ -2,11 +2,7 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
-import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
-import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
-import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
-import { useRunFinishingStore } from '../../state/run-finishing-store'
 import { createBridgeModel } from './transcript-order.bridge'
 import {
   DEFAULT_LAG_MS,
@@ -25,9 +21,10 @@ import {
 import { createTranscriptKnowledge, missingMessages } from './transcript-order.knowledge'
 import { MODEL, SESSION_ID } from './transcript-order.persisted'
 import { createPromotions } from './transcript-order.promotions'
+import { resetRendererState } from './transcript-order.renderer-state'
 import { createRouteStore } from './transcript-order.route-store'
 import { createRunKinds } from './transcript-order.run-kinds'
-import { messageKey } from './transcript-order.violations'
+import { renderedMessageKeys } from './transcript-order.violations'
 
 vi.mock('@/shared/lib/ipc', async () => ({
   api: (await import('./transcript-order.ipc-mock')).transcriptOrderApiMock,
@@ -107,7 +104,7 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   }
 
   const harness = {
-    shownKeys: () => chat.result.current.messages.flatMap((message) => messageKey(message) ?? []),
+    shownKeys: () => renderedMessageKeys(SESSION_ID, chat.result.current.messages),
     truthKeys: () => host.truthKeys(),
     holdsHostReads: () => reads.pending(),
     hasLastDetail: () => route.lastDetail(SESSION_ID) !== null,
@@ -273,23 +270,6 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   }
 
   return harness
-}
-
-function resetRendererState() {
-  apiMock.agentEventHandlers.length = 0
-  apiMock.runCompletedHandlers.length = 0
-  apiMock.resyncHandlers.length = 0
-  useBackgroundRunStore.setState({
-    activeRunIds: new Set(),
-    runModelBySessionId: new Map(),
-    renderSnapshotsBySessionId: new Map(),
-    worktreeLaunchBySessionId: new Map(),
-    firstSendRecoveryBySessionId: new Map(),
-  })
-  useAgentLoopEventStore.setState({ sessionsById: new Map() })
-  useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
-  useOptimisticSteerStore.setState({ previews: new Map(), runIds: new Map() })
-  useRunFinishingStore.getState().clear(SESSION_ID)
 }
 
 export function resetTranscriptOrderState() {

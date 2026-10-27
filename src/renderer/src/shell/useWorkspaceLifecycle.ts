@@ -213,14 +213,7 @@ export function useWorkspaceLifecycle(): void {
   useEffect(() => {
     void loadSyntaxResources(workingPath)
   }, [loadSyntaxResources, workingPath])
-  useGitRefresh({
-    workingPath,
-    repositoryPath,
-    activeSessionId,
-    refreshGitStatus,
-    refreshGitBranches,
-    refreshSession,
-  })
+  useGitRefresh({ workingPath, repositoryPath, refreshGitStatus, refreshGitBranches })
 
   useEffect(() => {
     void refreshSessionTree(activeSessionId ? SessionId(String(activeSessionId)) : null)

@@ -1,6 +1,6 @@
-import { useHotkey } from '@tanstack/react-hotkeys'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
+import { useStableHotkey } from '@/shared/hooks/useStableHotkey'
 import { insertTextAtEditorOrStore } from '../lib/composer-editor-text'
 import { useComposerStore } from '../state/composer-store'
 import { useVoiceCapture } from './useVoiceCapture'
@@ -29,10 +29,9 @@ export function useComposerVoiceControls({
     sendAfterInsert,
   })
 
-  // useHotkey syncs the callback every render, so it always sees the latest
-  // state. A plain function is correct here; useEffectEvent would violate its
-  // "only call from Effects in the same component" contract by being passed as
-  // a value (react-doctor/rules-of-hooks).
+  // The hotkey reads the latest callback, so it always sees the latest state. A plain function is
+  // correct here; useEffectEvent would violate its "only call from Effects in the same component"
+  // contract by being passed as a value (react-doctor/rules-of-hooks).
   function handleVoiceEnter() {
     if (disabled) return
     if (voice.mode === 'transcribing') return
@@ -43,9 +42,10 @@ export function useComposerVoiceControls({
     submitCurrentDraft()
   }
 
-  useHotkey('Enter', handleVoiceEnter, {
+  useStableHotkey('Enter', handleVoiceEnter, {
     enabled: voice.isActive && !disabled,
     preventDefault: true,
+    stopPropagation: true,
     ignoreInputs: false,
     conflictBehavior: 'allow',
   })

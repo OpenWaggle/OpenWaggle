@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
@@ -78,14 +79,15 @@ function useSessionSummarySpace(rightSidebarOpen: boolean) {
     setHasSpace(roomForSummary)
   }, [rightSidebarOpen])
 
-  useLayoutEffect(() => {
-    measure()
-  }, [measure])
-
   useEffect(() => {
     const element = panelRef.current
     if (!element || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
+    /*
+     * A ResizeObserver reports each observed element once when it starts, after layout, so the
+     * first measurement needs no read in a layout effect: that read forced the shell's first layout
+     * inside its commit (B12). The update renders before paint, so the summary never flickers.
+     */
+    const observer = new ResizeObserver(() => flushSync(measure))
     observer.observe(element)
     const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
     if (contentFrame) observer.observe(contentFrame)
@@ -112,9 +114,30 @@ function SessionNotificationStack({
   return <AgentNotificationStack events={events} onDismiss={handleDismiss} />
 }
 
-function transcriptPathNodeIds(section: ChatPanelSections['transcript']) {
-  if (section.activePathNodeIds) return section.activePathNodeIds
+const NODE_ID_SEPARATOR = '\u0000'
+
+function messageNodeIds(section: ChatPanelSections['transcript']) {
   return section.messages.map((message) => message.metadata?.sessionNodeId ?? message.id)
+}
+
+/**
+ * Node ids as one string. The message list is a new array whenever any message changes (a tool
+ * result, a settled answer), while its ids rarely do; deriving the id lists from this key keeps
+ * their identity, so the Session Summary and the resource viewer render only when ids change.
+ */
+function nodeIdsKey(ids: readonly string[]) {
+  return ids.join(NODE_ID_SEPARATOR)
+}
+
+/**
+ * The id list and set for a key, memoized on the key alone. Inline, they joined the memo scope of
+ * the message list and were rebuilt with it.
+ */
+function useNodeIdsForKey(key: string) {
+  // It calls no hook, so the compiler skips it unless asked.
+  'use memo'
+  const ids: readonly string[] = key === '' ? [] : key.split(NODE_ID_SEPARATOR)
+  return { ids, idSet: new Set(ids) }
 }
 
 function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible: boolean) {
@@ -162,20 +185,19 @@ export function ChatPanelContent({
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
   useSessionResourceBackfill(resourceSessionId)
-  const activeMessageNodeIds = sections.transcript.messages.map(
-    (message) => message.metadata?.sessionNodeId ?? message.id,
+  const { ids: activeMessageNodeIds, idSet: activeMessageIds } = useNodeIdsForKey(
+    nodeIdsKey(messageNodeIds(sections.transcript)),
   )
-  const activeMessageIds = new Set(activeMessageNodeIds)
-  const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
-  const summarySpace = useSessionSummarySpace(rightSidebarOpen)
+  const activePathNodeIds = sections.transcript.activePathNodeIds ?? activeMessageNodeIds
+  const { panelRef, hasSpace } = useSessionSummarySpace(rightSidebarOpen)
   const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
   return (
     <div className="flex size-full overflow-hidden">
       <div
-        ref={summarySpace.panelRef}
+        ref={panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
-        data-session-summary-space={summarySpace.hasSpace ? 'available' : 'constrained'}
+        data-session-summary-space={hasSpace ? 'available' : 'constrained'}
       >
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}
@@ -191,10 +213,7 @@ export function ChatPanelContent({
                 activePathNodeIds,
                 messageCount: summaryMessageCount,
                 hiveAvailable,
-                autoHidden: summaryNeedsTransientOverlay(
-                  summarySpace.hasSpace,
-                  floatingPreviewVisible,
-                ),
+                autoHidden: summaryNeedsTransientOverlay(hasSpace, floatingPreviewVisible),
                 rightSidebarOpen,
                 extensionRegistry: sections.extensionRegistry,
                 extensionProjectPaths: sections.extensionProjectPaths,

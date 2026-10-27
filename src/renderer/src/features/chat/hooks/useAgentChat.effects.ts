@@ -7,6 +7,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
+import { declareShownSessions, subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
@@ -218,7 +219,7 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
     }
 
     const subscribedSessionId = sessionId
-    const unsubscribeStream = api.onAgentEvent((payload) => {
+    const unsubscribeStream = subscribeAgentEvents((payload) => {
       handleAgentStreamPayload(payload, { ...streamEventContext, subscribedSessionId })
     })
     const unsubscribeCompleted = api.onRunCompleted((payload) => {
@@ -230,6 +231,12 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
       unsubscribeCompleted()
     }
   }, [sessionId, streamEventContext, runCompletionContext])
+
+  // The Session on screen gets its streamed deltas about 30 times a second; others on a slower beat.
+  useEffect(() => {
+    declareShownSessions(sessionId ? [sessionId] : [])
+    return () => declareShownSessions([])
+  }, [sessionId])
 
   useEffect(() => {
     if (!sessionId) return

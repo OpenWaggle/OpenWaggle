@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import { useState } from 'react'
 import { type SessionFollowUpQueueSnapshot, useSessionFollowUpQueue } from '@/features/chat/hooks'
+import { withFinally } from '@/shared/lib/async-outcome'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
   isStaleQueueRevision,
@@ -88,29 +89,29 @@ export function useQueueControls(sessionId: SessionId | null, onToast: (message:
   async function changeQueueState(paused: boolean) {
     if (isChangingState) return
     setIsChangingState(true)
-    try {
-      await run(
-        paused ? 'pause' : 'resume',
-        (revision) => setPaused(paused, revision),
-        (fresh) => planQueueStateRetry(fresh, paused),
-      )
-    } finally {
-      setIsChangingState(false)
-    }
+    await withFinally(
+      () =>
+        run(
+          paused ? 'pause' : 'resume',
+          (revision) => setPaused(paused, revision),
+          (fresh) => planQueueStateRetry(fresh, paused),
+        ),
+      () => setIsChangingState(false),
+    )
   }
 
   /** Repeat clicks on the same row are ignored by the row while `adoptingId` names it. */
   async function sendAsMe(followUpId: string) {
     setAdoptingId(followUpId)
-    try {
-      await run(
-        'send-as-me',
-        (revision) => adopt(followUpId, revision),
-        (fresh) => planSendAsMeRetry(fresh, followUpId),
-      )
-    } finally {
-      setAdoptingId(null)
-    }
+    await withFinally(
+      () =>
+        run(
+          'send-as-me',
+          (revision) => adopt(followUpId, revision),
+          (fresh) => planSendAsMeRetry(fresh, followUpId),
+        ),
+      () => setAdoptingId(null),
+    )
   }
 
   return { isChangingState, adoptingId, changeQueueState, sendAsMe }

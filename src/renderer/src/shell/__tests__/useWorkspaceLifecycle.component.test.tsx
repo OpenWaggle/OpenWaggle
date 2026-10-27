@@ -51,10 +51,8 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
       workingPath: '/repo/.worktrees/session-1',
       repositoryPath: '/repo',
-      activeSessionId: SessionId('session-1'),
       refreshGitStatus: lifecycleMocks.refreshGitStatus,
       refreshGitBranches: lifecycleMocks.refreshGitBranches,
-      refreshSession: lifecycleMocks.refreshSession,
     })
     expect(lifecycleMocks.useSessionStatusMonitor).toHaveBeenCalledOnce()
 

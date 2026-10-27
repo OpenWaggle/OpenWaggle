@@ -5,6 +5,7 @@ import {
   useSessionFollowUpQueue,
 } from '@/features/chat/hooks'
 import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
+import { attempt } from '@/shared/lib/async-outcome'
 import {
   moveQueuedMessage,
   type QueuedMessageAnchor,
@@ -37,6 +38,38 @@ function planMove(
   return moveQueuedMessage(ids, lockedIds(sessionId), followUpId, anchor)
 }
 
+interface QueueMoveRetry {
+  readonly refresh: () => Promise<SessionFollowUpQueueSnapshot | undefined>
+  readonly reorder: (order: readonly string[], revision: number) => Promise<void>
+  readonly onToast: (message: string) => void
+}
+
+/** Replays a move once against the re-read queue; kept out of the hook (see `attempt`). */
+async function retryAgainstFreshQueue(
+  id: SessionId,
+  followUpId: string,
+  anchor: QueuedMessageAnchor,
+  { refresh, reorder, onToast }: QueueMoveRetry,
+): Promise<QueuedMessageMove | null> {
+  try {
+    const fresh = await refresh()
+    const locks = lockedIds(id)
+    const movable = new Set(fresh?.items.map((item) => item.id).filter((item) => !locks.has(item)))
+    if (!fresh || !movable.has(followUpId) || !movable.has(anchor.followUpId)) {
+      onToast(MOVE_NOT_APPLIED_MESSAGE)
+      return null
+    }
+    const planned = planMove(id, fresh, followUpId, anchor)
+    // Null here means the queue already has this order: someone made the same move.
+    if (!planned) return null
+    await reorder(planned.order, fresh.revision)
+    return planned
+  } catch (error) {
+    onToast(isStaleRevision(error) ? MOVE_NOT_APPLIED_MESSAGE : errorMessage(error))
+    return null
+  }
+}
+
 /**
  * Follow-up reordering from the queue dock, by drag or by Move up / Move down.
  *
@@ -57,40 +90,13 @@ export function useQueuedMessageReorder(
     if (!sessionId) return null
     const planned = planMove(sessionId, snapshot, followUpId, anchor)
     if (!planned) return null
-    try {
-      await reorder(planned.order, snapshot.revision)
-      return planned
-    } catch (error) {
-      if (isStaleRevision(error)) return retryAgainstFreshQueue(sessionId, followUpId, anchor)
-      onToast(errorMessage(error))
-      return null
+    const moved = await attempt(() => reorder(planned.order, snapshot.revision))
+    if (moved.ok) return planned
+    if (isStaleRevision(moved.error)) {
+      return retryAgainstFreshQueue(sessionId, followUpId, anchor, { refresh, reorder, onToast })
     }
-  }
-
-  async function retryAgainstFreshQueue(
-    id: SessionId,
-    followUpId: string,
-    anchor: QueuedMessageAnchor,
-  ) {
-    try {
-      const fresh = await refresh()
-      const locks = lockedIds(id)
-      const movable = new Set(
-        fresh?.items.map((item) => item.id).filter((item) => !locks.has(item)),
-      )
-      if (!fresh || !movable.has(followUpId) || !movable.has(anchor.followUpId)) {
-        onToast(MOVE_NOT_APPLIED_MESSAGE)
-        return null
-      }
-      const planned = planMove(id, fresh, followUpId, anchor)
-      // Null here means the queue already has this order: someone made the same move.
-      if (!planned) return null
-      await reorder(planned.order, fresh.revision)
-      return planned
-    } catch (error) {
-      onToast(isStaleRevision(error) ? MOVE_NOT_APPLIED_MESSAGE : errorMessage(error))
-      return null
-    }
+    onToast(errorMessage(moved.error))
+    return null
   }
 
   return { move }

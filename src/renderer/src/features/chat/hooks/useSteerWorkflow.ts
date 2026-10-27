@@ -29,59 +29,69 @@ interface SteerWorkflowReturn {
   readonly handleSteer: (messageId: string) => Promise<void>
 }
 
+/** Promotes a queued Follow-up into the active Run; kept out of the hook (see `withFinally`). */
+async function steerQueuedFollowUp(
+  activeSessionId: SessionId,
+  messageId: string,
+  deps: SteerWorkflowDeps,
+) {
+  const { promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
+  const item = deps.followUps.find((candidate) => candidate.id === messageId)
+  if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId))
+    return
+  let preview: OptimisticSteerPreviewController | undefined
+  const stopsBefore = userStopCount(activeSessionId)
+  try {
+    // This is display-only: the Host still resolves the original immutable attachments and
+    // intent by Follow-up ID. Never reconstruct a delivery payload from the queue preview.
+    const attachmentSummary =
+      item.attachmentCount > 0 ? `[${item.attachmentCount} attachments]` : ''
+    preview = deps.previewSteeredUserTurn(
+      {
+        text: [item.text, attachmentSummary].filter(Boolean).join('\n\n'),
+        attachments: [],
+      },
+      deps.isCompacting ? 'waiting-for-compaction' : 'sending',
+      // The delivered row shows the item's own text and attachments, not the summary above.
+      { text: item.text.trim(), attachmentCount: item.attachmentCount },
+    )
+    preview.setReceipt(null)
+    const receipt = await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))
+    const acceptedPreview = preview
+    matchBy(receipt, 'delivery')
+      .with('handled', () => acceptedPreview.clear())
+      .with('queued', (queued) => {
+        acceptedPreview.setReceipt(queued)
+        acceptedPreview.setDeliveryState('sending')
+      })
+      .with('unavailable', () => acceptedPreview.setDeliveryState('sending'))
+      .exhaustive()
+  } catch (error) {
+    preview?.clear()
+    // The user stopped the Run while the promotion was pending: the Host rejects it and the
+    // message goes back to the queue, which is what Stop asked for, not a failure to report.
+    if (userStopCount(activeSessionId) !== stopsBefore) {
+      logger.info('A Stop ended the Run a queued message was steering into', {
+        sessionId: activeSessionId,
+        messageId,
+      })
+    } else {
+      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
+    }
+  } finally {
+    // The Host has removed an accepted Follow-up, or retained a refused one. A queued receipt
+    // keeps its preview until the actual user node arrives, which can follow a long tool call.
+    useOptimisticSteerStore.getState().finishPromotion(activeSessionId, messageId)
+  }
+}
+
 export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
-  const { activeSessionId, promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
+  const { activeSessionId } = deps
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(activeSessionId))
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
-    const item = deps.followUps.find((candidate) => candidate.id === messageId)
-    if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId))
-      return
-    let preview: OptimisticSteerPreviewController | undefined
-    const stopsBefore = userStopCount(activeSessionId)
-    try {
-      // This is display-only: the Host still resolves the original immutable attachments and
-      // intent by Follow-up ID. Never reconstruct a delivery payload from the queue preview.
-      const attachmentSummary =
-        item.attachmentCount > 0 ? `[${item.attachmentCount} attachments]` : ''
-      preview = deps.previewSteeredUserTurn(
-        {
-          text: [item.text, attachmentSummary].filter(Boolean).join('\n\n'),
-          attachments: [],
-        },
-        deps.isCompacting ? 'waiting-for-compaction' : 'sending',
-        // The delivered row shows the item's own text and attachments, not the summary above.
-        { text: item.text.trim(), attachmentCount: item.attachmentCount },
-      )
-      preview.setReceipt(null)
-      const receipt = await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))
-      const acceptedPreview = preview
-      matchBy(receipt, 'delivery')
-        .with('handled', () => acceptedPreview.clear())
-        .with('queued', (queued) => {
-          acceptedPreview.setReceipt(queued)
-          acceptedPreview.setDeliveryState('sending')
-        })
-        .with('unavailable', () => acceptedPreview.setDeliveryState('sending'))
-        .exhaustive()
-    } catch (error) {
-      preview?.clear()
-      // The user stopped the Run while the promotion was pending: the Host rejects it and the
-      // message goes back to the queue, which is what Stop asked for, not a failure to report.
-      if (userStopCount(activeSessionId) !== stopsBefore) {
-        logger.info('A Stop ended the Run a queued message was steering into', {
-          sessionId: activeSessionId,
-          messageId,
-        })
-      } else {
-        reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
-      }
-    } finally {
-      // The Host has removed an accepted Follow-up, or retained a refused one. A queued receipt
-      // keeps its preview until the actual user node arrives, which can follow a long tool call.
-      useOptimisticSteerStore.getState().finishPromotion(activeSessionId, messageId)
-    }
+    await steerQueuedFollowUp(activeSessionId, messageId, deps)
   }
 
   return { isSteering: pendingPromotions.length > 0, handleSteer }

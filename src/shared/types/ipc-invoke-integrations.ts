@@ -51,6 +51,11 @@ export interface IpcIntegrationInvokeChannelMap
     args: [sessionId: SessionId]
     return: AgentPhaseState | null
   }
+  /** The Sessions the calling window shows, whose streamed deltas it gets about 30 times a second. */
+  'agent:set-shown-sessions': {
+    args: [sessionIds: readonly SessionId[]]
+    return: undefined
+  }
   'agent:get-background-run': {
     args: [sessionId: SessionId]
     return: BackgroundRunSnapshot | null
