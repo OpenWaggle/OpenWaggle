@@ -83,6 +83,8 @@ const config = {
     // Declarations are never needed at runtime; this also guarantees stray tsc
     // output (e.g. test fixtures) can never be packaged into the app.
     '!out/**/*.d.ts',
+    // The renderer build manifest only feeds the bundle budget (scripts/check-syntax-bundle.ts).
+    '!out/renderer/.vite/**/*',
     '!**/.vscode/*',
     '!src/*',
     '!tests/**/*',

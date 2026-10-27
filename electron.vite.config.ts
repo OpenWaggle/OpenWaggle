@@ -248,6 +248,15 @@ export default defineConfig({
   },
   renderer: {
     define: BUILD_DEFINE,
+    build: {
+      // electron-vite leaves the renderer unminified. Minified, the initial graph is less than
+      // half the bytes to read, parse and compile on every launch (B4). Names in error reports
+      // are unaffected: OpenWaggle's error classes set `name` explicitly.
+      minify: true,
+      cssMinify: true,
+      // The chunk graph scripts/check-syntax-bundle.ts budgets. Not packaged (electron-builder.ts).
+      manifest: true,
+    },
     worker: {
       // Module workers preserve Shiki's per-language dynamic imports. The IIFE
       // default inlines every bundled grammar into one 10+ MiB first-use asset.
