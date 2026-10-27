@@ -1,5 +1,5 @@
 import type { SessionDetail } from '@shared/types/session'
-import { CommitOrPushDialog, CommitOrPushStatusDialog } from '@/features/git'
+import { CommitOrPushDialog, CommitOrPushStatusDialog } from '@/features/git/components'
 import { ChangeRequestComposer } from './ChangeRequestComposer'
 import type { SessionSummaryHubController } from './use-session-summary-hub-controller'
 

@@ -1,3 +1,8 @@
+// Components stay out of this root index: the eager shell imports it for hooks, state and
+// helpers, and re-exporting components here pulled them into the initial renderer graph
+// (renderer-load B8). Import components from `@/features/extensions/components`.
+// Only the light pieces the shell and transcript render are exported here: the Panel rail icon
+// and the agent-loop surfaces.
 export { ExtensionAgentLoopStatusWidgets } from './components/ExtensionAgentLoopStatusWidgets'
 export {
   CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
@@ -10,19 +15,7 @@ export {
   type ExtensionStatusView,
   type ExtensionToolResultView,
 } from './components/ExtensionAgentLoopSurface'
-export { ExtensionContributionRuntimeHost } from './components/ExtensionContributionRuntimeHost'
-export {
-  ExtensionDialogSurface,
-  ExtensionDialogSurfaceContent,
-} from './components/ExtensionDialogSurface'
-export { ExtensionFederatedModuleHost } from './components/ExtensionFederatedModuleHost'
 export { ExtensionPanelIcon } from './components/ExtensionPanelIcon'
-export { ExtensionRouteSurface } from './components/ExtensionRouteSurface'
-export { ExtensionRouteView } from './components/ExtensionRouteView'
-export {
-  ExtensionSidePanelSurface,
-  ExtensionSidePanelSurfaceContent,
-} from './components/ExtensionSidePanelSurface'
 export { useExtensionSidePanelContributions } from './hooks/useExtensionSidePanelContributions'
 export {
   agentLoopAuxiliarySurfacePayload,

@@ -1,5 +1,5 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
-import { ExtensionFederatedModuleHost } from '@/features/extensions'
+import { ExtensionFederatedModuleHost } from '@/features/extensions/components'
 
 export function SettingsContributionRuntimeBody({
   entry,

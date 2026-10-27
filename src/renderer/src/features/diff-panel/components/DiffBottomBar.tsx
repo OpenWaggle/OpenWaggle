@@ -1,5 +1,5 @@
 import type { GitStackedAction, VcsStatus } from '@shared/types/git'
-import { GitQuickActionButton } from '@/features/git'
+import { GitQuickActionButton } from '@/features/git/components'
 import { Button } from '@/shared/ui/Button'
 
 interface DiffBottomBarProps {

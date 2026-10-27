@@ -87,9 +87,13 @@ vi.mock('@/features/git/hooks', () => ({
   useGit: mocks.useGit,
 }))
 
-vi.mock('@/features/git', () => ({
+vi.mock('@/features/git/components', () => ({
   CommitOrPushDialog: mocks.commitOrPushDialog,
+  CommitOrPushStatusDialog: () => null,
   CommitMessageDialog: () => null,
+}))
+
+vi.mock('@/features/git', () => ({
   resolveQuickAction: () => ({
     label: 'Commit & push',
     disabled: false,

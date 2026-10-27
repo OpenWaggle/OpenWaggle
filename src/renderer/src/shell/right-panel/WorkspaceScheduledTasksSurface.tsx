@@ -1,15 +1,5 @@
-import { useChatStore } from '@/features/chat/state'
-import { ScheduledTasksPanel } from '@/features/scheduled-tasks'
-import { useSessionProjectPath } from '@/features/sessions/hooks'
-
-/** The Session and project the Scheduled surface shows, for its body and its header alike. */
-export function useScheduledTasksPanelScope() {
-  const activeSessionId = useChatStore((state) => state.activeSessionId)
-  return {
-    sessionId: activeSessionId === null ? null : String(activeSessionId),
-    projectPath: useSessionProjectPath(),
-  }
-}
+import { ScheduledTasksPanel } from '@/features/scheduled-tasks/components'
+import { useScheduledTasksPanelScope } from './scheduled-tasks-panel-scope'
 
 /** Hosts the Scheduled surface for the open Session's project (ADR 0057). */
 export function WorkspaceScheduledTasksSurface() {

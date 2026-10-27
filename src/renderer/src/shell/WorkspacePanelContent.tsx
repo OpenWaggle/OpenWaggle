@@ -1,10 +1,6 @@
 import { lazy, Suspense } from 'react'
-import { ActionRunPanel } from '@/features/project-actions'
 import type { TerminalOwnerContext } from '@/features/terminal'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
-import { AllPanelsSurface } from './right-panel/AllPanelsSurface'
-import { WorkspaceProjectActionsSurface } from './right-panel/WorkspaceProjectActionsSurface'
-import { WorkspaceScheduledTasksSurface } from './right-panel/WorkspaceScheduledTasksSurface'
 import { useUIStore } from './ui-store'
 import {
   type BrowserPreviewTabState,
@@ -12,6 +8,28 @@ import {
   type WorkspacePanelSurface,
 } from './workspace-panel-store'
 
+// Every surface below renders only once the Right panel shows it, so none is in the eager shell
+// graph (renderer-load B8; scripts/check-syntax-bundle.ts budgets the initial graph).
+const LazyAllPanelsSurface = lazy(() =>
+  import('./right-panel/AllPanelsSurface').then((module) => ({
+    default: module.AllPanelsSurface,
+  })),
+)
+const LazyWorkspaceProjectActionsSurface = lazy(() =>
+  import('./right-panel/WorkspaceProjectActionsSurface').then((module) => ({
+    default: module.WorkspaceProjectActionsSurface,
+  })),
+)
+const LazyWorkspaceScheduledTasksSurface = lazy(() =>
+  import('./right-panel/WorkspaceScheduledTasksSurface').then((module) => ({
+    default: module.WorkspaceScheduledTasksSurface,
+  })),
+)
+const LazyActionRunPanel = lazy(() =>
+  import('@/features/project-actions/components').then((module) => ({
+    default: module.ActionRunPanel,
+  })),
+)
 const LazyTerminalPanel = lazy(() =>
   import('@/features/terminal/components').then((module) => ({
     default: module.TerminalPanel,
@@ -35,18 +53,36 @@ interface WorkspacePanelContentProps {
 export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   const updateBrowser = useWorkspacePanelStore((state) => state.updateBrowser)
   const showToast = useUIStore((state) => state.showToast)
-  if (props.activeSurface?.kind === 'all-panels') return <AllPanelsSurface />
-  if (props.activeSurface?.kind === 'project-actions') {
-    return <WorkspaceProjectActionsSurface owner={props.owner} />
+  if (props.activeSurface?.kind === 'all-panels') {
+    return (
+      <Suspense fallback={null}>
+        <LazyAllPanelsSurface />
+      </Suspense>
+    )
   }
-  if (props.activeSurface?.kind === 'scheduled-tasks') return <WorkspaceScheduledTasksSurface />
+  if (props.activeSurface?.kind === 'project-actions') {
+    return (
+      <Suspense fallback={null}>
+        <LazyWorkspaceProjectActionsSurface owner={props.owner} />
+      </Suspense>
+    )
+  }
+  if (props.activeSurface?.kind === 'scheduled-tasks') {
+    return (
+      <Suspense fallback={null}>
+        <LazyWorkspaceScheduledTasksSurface />
+      </Suspense>
+    )
+  }
   if (props.activeSurface?.kind === 'action')
     return (
-      <ActionRunPanel
-        key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}
-        scope={{ projectPath: props.activeSurface.projectPath, sessionId: props.owner.ownerKey }}
-        runId={props.activeSurface.runId}
-      />
+      <Suspense fallback={null}>
+        <LazyActionRunPanel
+          key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}
+          scope={{ projectPath: props.activeSurface.projectPath, sessionId: props.owner.ownerKey }}
+          runId={props.activeSurface.runId}
+        />
+      </Suspense>
     )
   if (props.activeSurface?.kind === 'terminal') {
     return (

@@ -10,7 +10,8 @@ import type {
 } from '@shared/types/extensions'
 import type { AgentTransportInteractionRequestEvent } from '@shared/types/stream'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { AgentCustomInteractionComposerFallback } from '../AgentCustomInteractionComposerFallback'
 import { InteractionEventRow } from '../AgentLoopInteractionEventRow'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
@@ -160,6 +161,11 @@ function AgentLoopExtensionSurfaceHarness({
 }
 
 describe('agent-loop extension surfaces', () => {
+  // Composer extension dialogs are a lazy chunk; load it once so the dialog renders on first await.
+  beforeAll(async () => {
+    await import('@/features/extensions/components')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
@@ -204,14 +210,16 @@ describe('agent-loop extension surfaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
 
-    expect(screen.getByRole('dialog', { name: 'GitHub approval dialog' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: 'GitHub approval dialog' }),
+    ).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: GitHub approval dialog')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close extension dialog' }))
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval side panel/i }))
 
-    expect(screen.getByLabelText('Extension side panel')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Extension side panel')).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: GitHub approval side panel')).toBeInTheDocument()
   })
 })
