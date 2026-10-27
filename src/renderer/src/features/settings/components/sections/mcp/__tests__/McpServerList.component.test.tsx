@@ -18,7 +18,9 @@ describe('the MCP server list', () => {
             inspection: { name: 'github', state: 'connected', tools: [TOOL, TOOL] },
           },
           {
+            // A file-level direct runs, and shows, as codemode.
             server: mcpServer('sentry', {
+              exposure: 'direct',
               source: { fileId: 'openwaggle-global', path: '/Users/me/.openwaggle/mcp.json' },
             }),
             status: 'needs-sign-in',

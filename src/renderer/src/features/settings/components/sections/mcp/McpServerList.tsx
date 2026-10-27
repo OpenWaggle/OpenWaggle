@@ -6,6 +6,7 @@ import {
   MCP_EXPOSURE_COPY,
   type McpServerRow,
   mcpOverrideNote,
+  mcpShownExposure,
   mcpToolCountLabel,
 } from '../../../lib/mcp-server-model'
 import { McpFileLabel, McpStatusPill } from './McpLabels'
@@ -75,7 +76,7 @@ function McpServerListRow({
             ) : null}
             <span className="text-xs text-text-tertiary">
               <span aria-hidden="true">· </span>
-              {MCP_EXPOSURE_COPY[server.exposure].label}
+              {MCP_EXPOSURE_COPY[mcpShownExposure(server.exposure)].label}
             </span>
           </span>{' '}
           <span className="flex min-w-0 flex-wrap gap-x-1.5 text-xs text-text-tertiary">
