@@ -20,7 +20,7 @@ import {
 } from './lib/large-profile-content'
 import { launchApp, resolvePerfApp, stopProcessGroup } from './lib/perf-app'
 import { createGitProject, type PerfProfile, profileEnvironment, stopProfileHost } from './lib/perf-profile'
-import { log } from './lib/perf-results'
+import { log, exitWhenFlushed } from './lib/perf-results'
 
 const DEFAULTS = {
   sessions: 1_800,
@@ -145,7 +145,10 @@ async function main() {
   log(JSON.stringify(manifest))
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

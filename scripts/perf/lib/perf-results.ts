@@ -38,3 +38,11 @@ export async function writeJsonResult(directory: string, name: string, value: un
 export function log(message: string) {
   process.stderr.write(`${message}\n`)
 }
+
+/**
+ * Ends a measurement CLI once its output is flushed. Races against long timeouts leave timers
+ * behind that would otherwise keep the process alive for minutes after it finished.
+ */
+export function exitWhenFlushed(code = 0) {
+  process.stdout.write('', () => process.stderr.write('', () => process.exit(code)))
+}

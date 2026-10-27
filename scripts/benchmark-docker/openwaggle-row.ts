@@ -7,6 +7,7 @@
  *     --proxy http://127.0.0.1:8399 --model z-ai/glm-5.3-flash
  */
 import { mkdir, writeFile } from 'node:fs/promises'
+import { exitWhenFlushed } from '../perf/lib/perf-results'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { startCliRun } from '../perf/lib/cli-run'
@@ -68,7 +69,10 @@ async function main() {
   if (exit !== 0) process.exitCode = 1
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

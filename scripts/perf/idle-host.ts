@@ -14,7 +14,7 @@ import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeP
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp, stopProcessGroup } from './lib/perf-app'
 import { profileHostPids, sampleProcesses } from './lib/perf-processes'
-import { log, measurementEnvironment, writeJsonResult } from './lib/perf-results'
+import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
 import { summarizeRuns } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 
@@ -141,7 +141,10 @@ async function main() {
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

@@ -15,7 +15,7 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { resolvePerfApp } from './perf/lib/perf-app'
-import { log, measurementEnvironment } from './perf/lib/perf-results'
+import { log, measurementEnvironment, exitWhenFlushed } from './perf/lib/perf-results'
 import { type EvalRunRecord, runEvalTask } from './evaluate-agent-context-runner'
 import { compareWithBaseline, summarizeEvalRuns } from './evaluate-agent-context-summary'
 import { AGENT_CONTEXT_TASKS } from './evaluate-agent-context-tasks'
@@ -124,7 +124,10 @@ async function main() {
   process.stdout.write(`${JSON.stringify({ totals: summary.totals, groups: summary.groups, comparison }, null, JSON_INDENT)}\n`)
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

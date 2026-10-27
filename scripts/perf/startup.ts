@@ -17,7 +17,7 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { LAUNCH_METRICS, type LaunchMode, measureLaunch } from './lib/launch-measurement'
 import { type PerfApp, resolvePerfApp } from './lib/perf-app'
-import { log, measurementEnvironment, writeJsonResult } from './lib/perf-results'
+import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
 import { summarizeRuns } from './lib/perf-stats'
 import { warmTemplateFor } from './lib/warm-template'
 
@@ -119,7 +119,10 @@ async function main() {
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

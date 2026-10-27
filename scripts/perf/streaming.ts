@@ -13,7 +13,7 @@ import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeP
 import { summarizeIpc } from './lib/ipc-summary'
 import { IPC_LOG_INSTALL, IPC_LOG_READ, IPC_LOG_RESET } from './lib/main-inspector'
 import { resolvePerfApp } from './lib/perf-app'
-import { log, measurementEnvironment, writeJsonResult } from './lib/perf-results'
+import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
 import { quantile, summarizeRuns } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 import { streamedAnswerTokens } from './lib/streamed-answer'
@@ -186,7 +186,10 @@ async function main() {
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)

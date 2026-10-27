@@ -20,7 +20,7 @@ import { createMaintainerLikeProject, writeMaintainerLikeHome } from './lib/main
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp } from './lib/perf-app'
 import type { PerfProfile } from './lib/perf-profile'
-import { log, measurementEnvironment, writeJsonResult } from './lib/perf-results'
+import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
 import { prefixContentOfOpenAiRequest } from './lib/openai-request-prefix'
 import { delay, withRunningApp } from './lib/running-app'
 
@@ -105,7 +105,10 @@ async function main() {
   if (values.out) log(`Wrote ${await writeJsonResult(values.out, `first-turn-prefix-packaged-${setup}.json`, report)}`)
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
-  process.exitCode = 1
-})
+main().then(
+  () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
+  (error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    exitWhenFlushed(1)
+  },
+)
