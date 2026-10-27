@@ -166,6 +166,23 @@ An Agent definition's tool allowlist is enforced by a `tool_call` hook
 MCP approval, so a refused call is never offered for approval. Pi loads extensions from paths and
 packages before every inline factory, so their `tool_call` hooks see a call before the guard.
 
+### Runtime exposure
+
+OpenWaggle runs a file's `direct` exposure, server-level or per tool, as `codemode`
+(`withOpenWaggleRuntimeExposure`, `domain/mcp/config/mcp-runtime-exposure.ts`), applied in
+`loadMcpRuntimeConfig` so every runtime consumer (Runs, Settings tool views, MCP Apps) agrees.
+`merged` keeps what the files say; nothing is written back, so `pi` still sees `direct`. Servers
+Pi extensions register get the same rewrite where Pi's MCP extension reads them
+(`withOpenWaggleMcpExposure`, `adapters/pi/mcp/mcp-openwaggle-exposure.ts`, a proxy over
+`getMcpServers`). MCP App tools are the exception: App tools known when the Run starts (this
+Session's `mcp-app-registry` listing, else the status registry's last listing of the server
+identity) are given to Pi as exact `toolExposure` `direct` entries in `loadConfig`, so Pi waits
+for their server; an App tool first listed during the Run is re-registered `direct` by the same
+proxy's `registerTool` (Pi names an MCP tool's server in `namespace.aliases[0]` and its label
+`<server>/<tool>`). Only tools that would run as `codemode` are promoted; hidden and deferred
+ones keep their exposure. Settings > MCP offers codemode or hidden (`mcpExposureChoices`) and
+shows `direct` as codemode (`mcpShownExposure`, via `@shared/utils/mcp-exposure`).
+
 ### Pi's commands and notices
 
 Pi's MCP extension is written for its terminal: a `/mcp` menu, and notices and tool errors that
@@ -418,7 +435,9 @@ listing before the model can reach it, whatever the exposure:
 - the MCP App metadata OpenWaggle reads from `tools/list`.
 
 "Lazy" in ADR 0051 means a connection never blocks a message. Only servers with `direct` tools
-are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
+are waited for before the first request, for at most `startupWaitMs` (1.5 s). OpenWaggle runs a
+file's `direct` as `codemode` (ADR 0051 amendment, see Runtime exposure), so the only direct tools Pi sees are
+MCP App tools known when the Run starts, and only their servers are waited for. A codemode script,
 `tool_search`, or a resource tool waits for the servers it needs when it runs. Before that, a
 Run with a server turned on waits for the login-shell environment the Host reads once at start
 (`mcpShellEnvironmentReady`, at most 5 s per shell it tries) and, when one of them is a URL server
