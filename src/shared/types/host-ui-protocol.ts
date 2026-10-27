@@ -11,9 +11,11 @@ export const HOST_UI_REVISION_28_REQUIRED_CHANNELS = [
 ] as const satisfies readonly IpcInvokeChannel[]
 /**
  * Arguments existing channels gained in revision 28: the detail's cursor, which returns only
- * appended messages, and the workspace's window and cached-node request.
+ * appended messages, the workspace's window and cached-node request, and the provider catalog's
+ * scope, which reads only the available providers unless Settings asks for all (B14).
  */
 export const HOST_UI_REVISION_28_ARGUMENT_COUNTS = {
+  'providers:get-models': 2,
   'sessions:get-detail': 2,
   'sessions:get-workspace': 3,
 } as const satisfies Partial<Record<IpcInvokeChannel, number>>

@@ -73,7 +73,8 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * content the caller holds (`sessions:get-workspace`'s third argument), the detail returns only
  * appended messages for a cursor (`sessions:get-detail`'s second argument), the tree filter
  * searches on the Host (`sessions:search-tree`), and a Session's turns' changed files are read
- * in one call (`sessions:turn-diff-files:list`). A revision-27 window reading a content-free tree
+ * in one call (`sessions:turn-diff-files:list`), and the provider catalog takes a scope
+ * (`providers:get-models`'s second argument). A revision-27 window reading a content-free tree
  * would show empty labels, so older clients must upgrade.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const

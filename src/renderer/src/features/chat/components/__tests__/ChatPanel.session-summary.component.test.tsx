@@ -1,13 +1,12 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
 import { useUIStore } from '@/shell/ui-store'
-import { createSections, makeMessage } from './ChatPanel.test-utils'
+import { makeMessage } from './ChatPanel.test-utils'
 import {
   advanceSessionResourceBackfill,
-  chatPanelElement,
   findSessionSummary,
   listSessionResources,
   notifyResize,
@@ -17,10 +16,9 @@ import {
   SESSION,
   setupChatPanelSessionSummaryHarness,
   toggleSessionSummaryPanel,
-  useChatPanelSectionsMock,
 } from './chat-panel-session-summary.test-harness'
 
-describe('ChatPanel session summary and setup dock', () => {
+describe('ChatPanel session summary', () => {
   preloadSessionSummaryOverlay()
 
   beforeEach(() => {
@@ -271,60 +269,5 @@ describe('ChatPanel session summary and setup dock', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: active.png' }),
     ).toBeInTheDocument()
     expect(await screen.findByLabelText('Image provenance')).toHaveTextContent('1 of 2')
-  })
-
-  it('shows the session setup dock before the first message', () => {
-    renderPanel({}, { isFirstMessage: true })
-    expect(screen.getByRole('group', { name: 'Session setup' })).toBeInTheDocument()
-  })
-
-  it('opens project selection from the session setup dock', () => {
-    renderPanel(
-      { recentProjects: ['/test/other-project'] },
-      { isFirstMessage: true, projectPath: '/test/project' },
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    expect(screen.getByRole('dialog')).toHaveClass('mb-3')
-    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Select folder…' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'other-project' })).toBeInTheDocument()
-  })
-
-  it('starts a draft in a recent project selected from the dock', () => {
-    const onSelectProjectPath = vi.fn()
-    renderPanel(
-      { recentProjects: ['/test/other-project'], onSelectProjectPath },
-      { isFirstMessage: true, projectPath: '/test/project' },
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'other-project' }))
-    expect(onSelectProjectPath).toHaveBeenCalledWith('/test/other-project')
-  })
-
-  it('opens the operating-system folder chooser from the dock project menu', () => {
-    const onOpenProject = vi.fn().mockResolvedValue(undefined)
-    renderPanel({ onOpenProject }, { isFirstMessage: true, projectPath: '/test/project' })
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select folder…' }))
-    expect(onOpenProject).toHaveBeenCalledOnce()
-  })
-
-  it('uses the dialog radius for both the composer and its dock', () => {
-    renderPanel({}, { isFirstMessage: true, projectPath: '/test/project' })
-    const composer = screen.getByRole('region', { name: 'Composer file drop zone' })
-    const projectTrigger = screen.getByRole('button', { name: 'Project: project' })
-    expect(composer).toHaveClass('rounded-xl')
-    expect(composer).not.toHaveClass('rounded-3xl')
-    expect(projectTrigger.closest('.rounded-t-xl')).toBeInTheDocument()
-  })
-
-  it('hides the session setup dock after the first message or while submitting it', () => {
-    const { rerender } = renderPanel({}, { isFirstMessage: false })
-    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
-    useChatPanelSectionsMock.mockReturnValue(
-      createSections({}, { isFirstMessage: true, isLoading: true, status: 'submitted' }),
-    )
-    rerender(chatPanelElement())
-    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
   })
 })
