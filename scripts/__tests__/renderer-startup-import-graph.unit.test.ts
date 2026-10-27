@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
  * so it fails on a stray static import or barrel re-export without a production build.
  */
 
-const RENDERER_ROOT = path.resolve(import.meta.dirname, '..')
+const RENDERER_ROOT = path.resolve(import.meta.dirname, '../../src/renderer/src')
 const SHARED_ROOT = path.resolve(RENDERER_ROOT, '../../shared')
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'] as const
 const STATIC_IMPORT_PATTERN =
