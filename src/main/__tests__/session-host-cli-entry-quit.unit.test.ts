@@ -53,6 +53,7 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    disableHardwareAcceleration: vi.fn(),
     on: (event: string, handler: (event: { preventDefault(): void }) => void) => {
       if (event === 'before-quit') mocks.quitHandlers.add(handler)
     },
@@ -64,7 +65,7 @@ vi.mock('electron', () => ({
 
 vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
-vi.mock('../env', () => ({ env: {} }))
+vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
@@ -213,8 +214,7 @@ describe('detached Session Host quit and orphan stop', () => {
   })
 })
 
-// A stage of the Host's stop can fail; nothing awaits these stops, so the failure must be logged
-// rather than become an unhandled rejection.
+// A stage of the Host's stop can fail; nothing awaits it, so the failure is logged, not unhandled.
 describe('a Session Host stop that fails', () => {
   const failure = new Error('MCP pool did not close')
 

@@ -37,7 +37,9 @@ export async function startAppSessionHost(input: {
   /** Started once the Host serves clients, not awaited. */
   readonly startServicesAfterListening?: () => Promise<void>
   readonly stopOwnedServices: () => Promise<void>
+  readonly startupMark?: (label: string) => void
 }) {
+  const mark = input.startupMark ?? (() => undefined)
   const localUserCredential = await ensureLocalUserCredential(input.paths.credentialPath)
   const settings = await input.runEffect(
     Effect.gen(function* () {
@@ -71,7 +73,7 @@ export async function startAppSessionHost(input: {
       ),
   })
 
-  return startLocalSessionHost({
+  const host = await startLocalSessionHost({
     endpoint: input.paths.endpoint,
     databasePath: input.paths.databasePath,
     ...(isWindowsPipe(input.paths.endpoint) ? { authenticateServer } : {}),
@@ -90,10 +92,16 @@ export async function startAppSessionHost(input: {
     snapshotActiveRuns: () => listStreamBufferSnapshots(),
     authorizeActiveRun: (caller, snapshot) =>
       input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),
-    recover: () => input.runEffect(recoverHostState()),
+    recover: async () => {
+      await input.runEffect(recoverHostState())
+      mark('host-recovered')
+    },
     describeUpgradeBlockers: () => input.runEffect(readSessionHostUpgradeBlockers),
     interruptRunsAtDrainDeadline: () => input.runEffect(interruptAllSessionRuns()),
-    startOwnedServices: input.startOwnedServices,
+    startOwnedServices: async () => {
+      await input.startOwnedServices()
+      mark('host-owned-services-started')
+    },
     ...(input.startServicesAfterListening
       ? { startServicesAfterListening: input.startServicesAfterListening }
       : {}),
@@ -138,4 +146,6 @@ export async function startAppSessionHost(input: {
         : exposedResult
     },
   })
+  mark('host-listening')
+  return host
 }

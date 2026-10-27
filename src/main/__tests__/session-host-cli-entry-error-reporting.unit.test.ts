@@ -28,12 +28,13 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    disableHardwareAcceleration: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }))
-vi.mock('../env', () => ({ env: {} }))
+vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
 vi.mock('../desktop-ui', () => ({
   installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,
 }))

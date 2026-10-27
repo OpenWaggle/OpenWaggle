@@ -32,10 +32,17 @@ export interface HostServiceOptions<R> {
   readonly createDiscoveredSession?: DiscoveredSessionCreator<R>
 }
 
+/**
+ * Host services that must run before the Host serves its first client: the migrations every read
+ * depends on, the session tool gateway, the Title worker (a Spawn or Launch asks it for a title,
+ * and a request before it is installed is dropped) and the background loops, which only fork.
+ * Anything that can wait starts once the Host listens (`startHostServicesOnceListening`, A-F8).
+ */
 export function startHostBackgroundServices<R = never>(options: HostServiceOptions<R> = {}) {
   return Effect.gen(function* () {
-    // SQLite checkpoints on a worker thread, not inside the Host's commits (#357).
-    yield* runWalCheckpointBackground()
+    // SQLite checkpoints on a worker thread, not inside the Host's commits (#357). Not awaited:
+    // until the worker reports ready the connection keeps checkpointing itself, as before.
+    yield* Effect.forkScoped(runWalCheckpointBackground())
     // Before anything reads a Session's thinking level or starts a Run.
     yield* migrateLegacyThinkingLevels
     // Before anything resolves a stored model reference or provider credential (Pi 1.0.3 renamed
@@ -47,8 +54,6 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     // serves clients (`startHostServicesAfterListening`).
     yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
     yield* installAppSessionToolGateway
-    yield* runSessionExportRecoveryBackground
-    yield* runSessionScratchSweepBackground
     yield* runFollowUpEditHoldExpiryBackground
     if (options.createDiscoveredSession) {
       yield* runPiSessionDiscoveryBackground(options.createDiscoveredSession)
@@ -57,6 +62,19 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     yield* runTranscriptTermRepairBackground
     yield* runUsageStatisticsReporterBackground
     yield* installSessionTitleWorker
+  })
+}
+
+/**
+ * Host services that start once the Host serves clients, in the scope of the services above
+ * (A-F8): export recovery, the scratch sweep, the scheduler, which settles interrupted firings
+ * before it forks, and trusted-main extension activation, which runs user code for as long as it
+ * takes. None of them answers a client request.
+ */
+export function startHostServicesOnceListening() {
+  return Effect.gen(function* () {
+    yield* runSessionExportRecoveryBackground
+    yield* runSessionScratchSweepBackground
     // After the tool gateway and title worker: a Launch schedule's Session gets its title.
     yield* runScheduledTaskSchedulerBackground
     yield* activateTrustedMainExtensionsForActiveProjectSafely()
