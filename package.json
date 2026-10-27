@@ -11,6 +11,7 @@
     "prepare:native:electron": "tsx scripts/rebuild-native-deps.ts electron",
     "prepare:semantic-model": "tsx scripts/prepare-session-embedding-model.ts",
     "benchmark:session-embedding": "tsx scripts/benchmark-session-embedding.ts",
+    "evaluate:agent-context": "tsx scripts/evaluate-agent-context.ts",
     "evaluate:session-titles": "tsx scripts/evaluate-session-titles.ts",
     "perf:bedrock-ttfb": "vitest run -c vitest.integration.config.ts scripts/perf/bedrock-ttfb",
     "perf:first-turn-prefix": "vitest run -c vitest.integration.config.ts scripts/perf/first-turn-prefix",

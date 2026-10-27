@@ -91,6 +91,11 @@ export function profileEnvironment(
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: profile.projectPath,
     ...(process.env.OWPERF_LOG_LEVEL ? { OPENWAGGLE_LOG_LEVEL: process.env.OWPERF_LOG_LEVEL } : {}),
+    // A stable V8 compile cache across launches of one series (boot shim, W2); without it every
+    // throwaway profile starts with a cold cache, as the first launch after an update does.
+    ...(process.env.OWPERF_COMPILE_CACHE_DIR
+      ? { OPENWAGGLE_COMPILE_CACHE_DIR: process.env.OWPERF_COMPILE_CACHE_DIR }
+      : {}),
     ...overrides,
   })
 }

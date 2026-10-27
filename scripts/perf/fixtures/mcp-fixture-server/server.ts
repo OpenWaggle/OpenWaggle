@@ -48,8 +48,45 @@ function toolsFor(name: string) {
   }))
 }
 
+/** The `inventory` toolset answers from this table, so an evaluation can check the answer. */
+const INVENTORY: Readonly<Record<string, { readonly units: number; readonly warehouse: string }>> = {
+  'A-1042': { units: 17, warehouse: 'Lisbon' },
+  'B-2001': { units: 64, warehouse: 'Porto' },
+  'C-3003': { units: 5, warehouse: 'Faro' },
+}
+const INVENTORY_TOOLS = [
+  {
+    name: 'lookup_sku',
+    description: 'Look up the stock of one SKU: units on hand and the warehouse that holds them.',
+    inputSchema: {
+      type: 'object',
+      properties: { sku: { type: 'string', description: 'The SKU, for example A-1042.' } },
+      required: ['sku'],
+    },
+  },
+  {
+    name: 'list_warehouses',
+    description: 'List every warehouse name.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+]
+
 const toolset = process.argv[TOOLSET_ARGUMENT] ?? 'generic'
-const tools = toolsFor(toolset)
+const tools = toolset === 'inventory' ? [...INVENTORY_TOOLS, ...toolsFor('generic')] : toolsFor(toolset)
+
+function inventoryResult(name: string | undefined, args: Record<string, unknown> | null) {
+  if (name === 'list_warehouses') return [...new Set(Object.values(INVENTORY).map((entry) => entry.warehouse))].join(', ')
+  const sku = stringField(args, 'sku') ?? ''
+  const entry = INVENTORY[sku]
+  return entry ? JSON.stringify({ sku, ...entry }) : `Unknown SKU ${sku}.`
+}
+
+function callResult(params: Record<string, unknown> | null) {
+  const name = stringField(params, 'name')
+  const args = params && isRecord(params.arguments) ? params.arguments : null
+  const text = toolset === 'inventory' ? inventoryResult(name, args) : `${name ?? 'tool'}: ok`
+  return { content: [{ type: 'text', text }] }
+}
 
 function write(message: object) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
@@ -75,7 +112,7 @@ const RESULTS: Readonly<Record<string, (params: Params) => object>> = {
     instructions: `Fixture ${toolset} server for OpenWaggle performance measurements.`,
   }),
   'tools/list': () => ({ tools }),
-  'tools/call': (params) => ({ content: [{ type: 'text', text: `${stringField(params, 'name') ?? 'tool'}: ok` }] }),
+  'tools/call': callResult,
   ping: () => ({}),
 }
 
