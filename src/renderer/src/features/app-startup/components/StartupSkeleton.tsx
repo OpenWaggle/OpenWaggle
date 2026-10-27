@@ -48,6 +48,17 @@ export function StartupSkeleton({ notice }: { readonly notice?: string }) {
           />
         </div>
       </div>
+      {/*
+        Invisible text in the shell's faces. Laid out while the Host starts, it loads the fonts and
+        their shaping caches, which the shell's first layout otherwise paid for (about 80 ms). Not
+        in index.html: there it would delay the first paint by the same layout.
+      */}
+      <div aria-hidden="true" data-startup-font-warmup="" className="sr-only">
+        <span className="text-sm">Aa</span>
+        <span className="text-sm font-medium">Aa</span>
+        <span className="text-sm font-semibold">Aa</span>
+        <span className="font-mono text-xs">Aa</span>
+      </div>
     </main>
   )
 }

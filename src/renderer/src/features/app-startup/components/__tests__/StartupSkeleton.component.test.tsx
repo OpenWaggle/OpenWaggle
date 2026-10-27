@@ -25,6 +25,8 @@ function comparable(markup: string) {
       .replaceAll(/src="[^"]*\.png\?inline"/gu, 'src="inlined-png"')
       .replaceAll(/src="[^"]*?(openwaggle-[a-z]+)[^"]*"/gu, 'src="$1"')
       .replaceAll(/>\s+</gu, '><')
+      // React adds the font warm-up after the first paint; the page leaves it out (see the component).
+      .replace(/<div aria-hidden="true" data-startup-font-warmup=""[\s\S]*?<\/div>/u, '')
       .trim()
   )
 }
@@ -38,6 +40,13 @@ describe('startup frame', () => {
   it('is the same markup in index.html as StartupSkeleton renders', () => {
     expect(comparable(pageStartupFrame())).toBe(
       comparable(renderToStaticMarkup(<StartupSkeleton />)),
+    )
+  })
+
+  it('warms the fonts only once React renders the frame, after the first paint', () => {
+    expect(pageStartupFrame()).not.toContain('data-startup-font-warmup')
+    expect(renderToStaticMarkup(<StartupSkeleton />)).toMatch(
+      /<div aria-hidden="true" data-startup-font-warmup="" class="sr-only"><span class="text-sm">Aa<\/span>/u,
     )
   })
 
