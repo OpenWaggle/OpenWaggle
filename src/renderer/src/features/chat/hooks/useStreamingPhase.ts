@@ -126,6 +126,7 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
       phaseRef.current = nextPhase
       clientPhaseStartRef.current = now
       setCurrentLabel(nextPhase.label)
+      setCompletedSnapshot([...completedRef.current])
     }
 
     const startFirstPhase = (nextPhase: AgentPhaseState, now: number) => {
@@ -205,7 +206,7 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
   }, [currentLabel])
 
   const current = currentLabel ? { label: currentLabel, elapsedMs } : null
-  const completed = current ? completedRef.current : completedSnapshot
 
-  return { current, completed, totalElapsedMs: totalSnapshot, reset }
+  // Every change of `completedRef` is mirrored into state; render never reads the ref.
+  return { current, completed: completedSnapshot, totalElapsedMs: totalSnapshot, reset }
 }

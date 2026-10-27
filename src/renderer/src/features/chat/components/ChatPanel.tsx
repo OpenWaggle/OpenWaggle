@@ -156,15 +156,15 @@ export function ChatPanelContent({
   )
   const activeMessageIds = new Set(activeMessageNodeIds)
   const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
-  const summarySpace = useSessionSummarySpace(rightSidebarOpen)
+  const { panelRef, hasSpace } = useSessionSummarySpace(rightSidebarOpen)
   const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
   return (
     <div className="flex size-full overflow-hidden">
       <div
-        ref={summarySpace.panelRef}
+        ref={panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
-        data-session-summary-space={summarySpace.hasSpace ? 'available' : 'constrained'}
+        data-session-summary-space={hasSpace ? 'available' : 'constrained'}
       >
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}
@@ -179,10 +179,7 @@ export function ChatPanelContent({
               activePathNodeIds,
               messageCount: summaryMessageCount,
               hiveAvailable,
-              autoHidden: summaryNeedsTransientOverlay(
-                summarySpace.hasSpace,
-                floatingPreviewVisible,
-              ),
+              autoHidden: summaryNeedsTransientOverlay(hasSpace, floatingPreviewVisible),
               rightSidebarOpen,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,

@@ -108,10 +108,12 @@ export function useAgentChat(
   const terminalRunErrorRef = useRef<Error | undefined>(undefined)
   const compactionSummaryCountAtStartRef = useRef(0)
   const compactionStatusRef = useRef<AgentCompactionStatus | null>(null)
-  const updateCompactionStatus = (nextStatus: AgentCompactionStatus | null) => {
+  // Created once: a render-time closure over a ref, passed to the run controls during render,
+  // reads to the compiler as ref access and left this hook uncompiled.
+  const [updateCompactionStatus] = useState(() => (nextStatus: AgentCompactionStatus | null) => {
     compactionStatusRef.current = nextStatus
     setCompactionStatus(nextStatus)
-  }
+  })
   const backgroundReconnectSessionIdRef = useRef<SessionId | null>(null)
   const lastHydratedResyncRevisionRef = useRef(0)
   const reconnectGenerationRef = useRef(0)
@@ -152,7 +154,9 @@ export function useAgentChat(
     // The session-scoped activity store must also confirm idle before discarding a pending steer.
     isSessionIdle && !selectedSessionHasActiveRun,
   )
-  const refs = {
+  // Created once, like the contexts below: an object of refs built during render and passed to
+  // the run controls reads to the compiler as ref access.
+  const [refs] = useState(() => ({
     currentSessionIdRef,
     statusRef,
     backgroundStreamingRef,
@@ -165,7 +169,8 @@ export function useAgentChat(
     pendingRunWaiterRef,
     messagesBySessionIdRef,
     sessionRef,
-  }
+  }))
+
   const runControls = createAgentRunControls({
     sessionId,
     isFirstMessage: session?.messages.length === 0,

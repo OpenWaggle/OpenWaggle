@@ -165,7 +165,12 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   const pendingIds = new Set(pendingPromotions)
   const queue = snapshot.items.filter((item) => !pendingIds.has(item.id))
   const queuedEdit = useQueuedMessageEdit(sessionId, onToast)
-  const arrangement = useQueuedMessageArrangement(sessionId, queue, onToast)
+  // Destructured: reading a ref off the hook's result during render made the compiler skip this.
+  const { listRef, listDragHandlers, ...arrangement } = useQueuedMessageArrangement(
+    sessionId,
+    queue,
+    onToast,
+  )
   // An edit must not interleave with composer work in flight or a branch-summary prompt.
   const visibleKey = useComposerStore((state) => state.activeDraftContextKey)
   const sessionKey = visibleKey?.includes(`session:${String(sessionId)}:`) ? visibleKey : null
@@ -231,10 +236,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
               />
 
               <ul
-                ref={arrangement.listRef}
-                onDragOver={arrangement.listDragHandlers.onDragOver}
-                onDragLeave={arrangement.listDragHandlers.onDragLeave}
-                onDrop={arrangement.listDragHandlers.onDrop}
+                ref={listRef}
+                onDragOver={listDragHandlers.onDragOver}
+                onDragLeave={listDragHandlers.onDragLeave}
+                onDrop={listDragHandlers.onDrop}
                 aria-label="Queued messages"
                 className="flex flex-col gap-1"
               >
