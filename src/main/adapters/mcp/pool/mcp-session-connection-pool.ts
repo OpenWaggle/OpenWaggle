@@ -1,4 +1,5 @@
 import { realLocation } from '../config/mcp-config-files'
+import { mcpConnectionCatalogOptions } from './mcp-connection-catalog'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
   MCP_CLOSE_ALL_TIMEOUT_MS,
@@ -15,6 +16,7 @@ import {
   type SessionConnections,
   systemClock,
 } from './mcp-session-connection-pool-types'
+import { McpSessionIdleClose } from './mcp-session-idle-close'
 import type { McpWireTransport } from './mcp-wire'
 
 /**
@@ -44,15 +46,18 @@ export class McpSessionConnectionPool {
   private closedAll = false
   private readonly reopenedSessions = new Set<string>()
   private readonly clock: McpPoolClock
-  private readonly idleCloseMs: number
+  private readonly idleClose: McpSessionIdleClose
   private readonly maxWarmSessions: number
   private readonly closeAllTimeoutMs: number
-  private idleCloseMsFor: McpSessionConnectionPoolOptions['idleCloseMsFor']
 
   constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
     this.clock = options.clock ?? systemClock
-    this.idleCloseMs = options.idleCloseMs ?? MCP_IDLE_CLOSE_MS
-    this.idleCloseMsFor = options.idleCloseMsFor
+    this.idleClose = new McpSessionIdleClose({
+      clock: this.clock,
+      idleCloseMs: options.idleCloseMs ?? MCP_IDLE_CLOSE_MS,
+      policy: options.idleCloseMsFor,
+      close: (sessionId) => void this.closeSessionConnections(sessionId),
+    })
     this.maxWarmSessions = options.maxWarmSessions ?? MCP_MAX_WARM_SESSIONS
     this.closeAllTimeoutMs = options.closeAllTimeoutMs ?? MCP_CLOSE_ALL_TIMEOUT_MS
   }
@@ -95,11 +100,13 @@ export class McpSessionConnectionPool {
     // replaced: it closes itself once the requests it already sent settle, or with the Session.
     if (existing) this.retireReplaced(session, existing.connection)
     const wasWarm = session.servers.size > 0
+    const hooks = this.options.hooks?.(sessionId, spec.name, spec.identity)
     const connection: McpPooledConnection = new McpPooledConnection({
       serverName: spec.name,
       open: spec.open,
       ...(spec.roots ? { roots: spec.roots } : {}),
-      ...this.options.hooks?.(sessionId, spec.name, spec.identity),
+      ...hooks,
+      ...mcpConnectionCatalogOptions(this.options.catalogStore, spec, hooks?.observeResult),
       onClosed: () => {
         session.replaced.delete(connection)
         if (session.servers.get(spec.name)?.connection === connection) {
@@ -114,7 +121,7 @@ export class McpSessionConnectionPool {
       fromExtension: spec.fromExtension === true,
       connection,
     })
-    if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
+    if (session.activeRuns === 0) this.idleClose.schedule(sessionId, session)
     if (!wasWarm) this.evictLeastRecentlyUsed(sessionId)
     return connection
   }
@@ -136,7 +143,7 @@ export class McpSessionConnectionPool {
     if (!session) return
     this.touch(sessionId)
     if (session.activeRuns === 0 && session.servers.size > 0) {
-      this.scheduleIdleClose(sessionId, session)
+      this.idleClose.schedule(sessionId, session)
     }
   }
 
@@ -149,14 +156,14 @@ export class McpSessionConnectionPool {
     session.leased.clear()
     this.closedSessions.delete(sessionId)
     if (this.closedAll) this.reopenedSessions.add(sessionId)
-    this.cancelIdleClose(session)
+    this.idleClose.cancel(session)
     let ended = false
     return () => {
       if (ended) return
       ended = true
       session.activeRuns = Math.max(0, session.activeRuns - 1)
       if (session.activeRuns === 0 && this.sessions.get(sessionId) === session) {
-        this.scheduleIdleClose(sessionId, session)
+        this.idleClose.schedule(sessionId, session)
       }
     }
   }
@@ -173,7 +180,7 @@ export class McpSessionConnectionPool {
   private async closeSessionConnections(sessionId: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return
-    this.cancelIdleClose(session)
+    this.idleClose.cancel(session)
     const connections = [
       ...[...session.servers.values()].map((server) => server.connection),
       ...session.replaced,
@@ -295,38 +302,9 @@ export class McpSessionConnectionPool {
     return session
   }
 
-  private scheduleIdleClose(sessionId: string, session: SessionConnections) {
-    this.armIdleClose(sessionId, session, this.idleCloseMs)
-    const policy = this.idleCloseMsFor
-    if (!policy) return
-    const armed = session.idleTimer
-    void Promise.resolve()
-      .then(() => policy(sessionId))
-      .then((delayMs) => {
-        if (delayMs === undefined || delayMs >= this.idleCloseMs) return
-        // A Run started, or a later idle period re-armed the timer, while the policy was asked.
-        if (session.idleTimer !== armed || session.activeRuns > 0) return
-        this.armIdleClose(sessionId, session, delayMs)
-      })
-      .catch(() => undefined)
-  }
-
-  private armIdleClose(sessionId: string, session: SessionConnections, delayMs: number) {
-    this.cancelIdleClose(session)
-    session.idleTimer = this.clock.setTimeout(() => {
-      session.idleTimer = undefined
-      if (session.activeRuns === 0) void this.closeSessionConnections(sessionId)
-    }, delayMs)
-  }
-
   /** Sets the per-Session idle close (Host start: settled Hive Workers close sooner). */
   setIdleClosePolicy(policy: McpSessionConnectionPoolOptions['idleCloseMsFor']) {
-    this.idleCloseMsFor = policy
-  }
-
-  private cancelIdleClose(session: SessionConnections) {
-    session.idleTimer?.cancel()
-    session.idleTimer = undefined
+    this.idleClose.policy = policy
   }
 
   private evictLeastRecentlyUsed(currentSessionId: string) {

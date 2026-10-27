@@ -3,6 +3,7 @@ import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp
 import { McpSessionConnectionPool } from './adapters/mcp/pool/mcp-session-connection-pool'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { openWaggleMcpConnectionHooks } from './adapters/pi/mcp/mcp-session-context'
+import { hostMcpToolCatalogStore } from './adapters/pi/mcp/mcp-tool-catalogs'
 import {
   OpenWaggleMcpConfigurationServiceLive,
   OpenWaggleMcpImportServiceLive,
@@ -22,6 +23,8 @@ import { McpServerRuntimeService } from './ports/mcp-server-runtime-service'
  */
 export const hostMcpConnectionPool = new McpSessionConnectionPool({
   hooks: openWaggleMcpConnectionHooks,
+  // Each server's last tools, served at Run start; stdio servers start on first use (D1.3).
+  catalogStore: hostMcpToolCatalogStore,
 })
 
 /** The Host's MCP server (Settings, the CLI, sign-in) and MCP App services. */

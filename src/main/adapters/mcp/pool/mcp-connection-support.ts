@@ -1,4 +1,5 @@
 import { isRecord } from '@shared/utils/validation'
+import type { McpConnectionCatalog } from './mcp-connection-catalog'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import {
   isJsonRpcId,
@@ -38,6 +39,13 @@ export interface McpPooledConnectionOptions {
   readonly adaptResult?: (method: string, result: unknown) => unknown
   /** Called once the connection is closed, by whichever side. */
   readonly onClosed: () => void
+  /** The server's last handshake and tools, recorded and, when `lazyStart`, served (D1.3). */
+  readonly catalog?: McpConnectionCatalog
+  /**
+   * With a fresh catalog, the server is started only when a request needs it (a stdio process
+   * is the costly part); until then `initialize`, `tools/list` and `ping` are answered from it.
+   */
+  readonly lazyStart?: boolean
 }
 
 export class McpServerError extends Error {

@@ -1,3 +1,4 @@
+import type { McpToolCatalogStore } from './mcp-connection-catalog'
 import type { McpPooledConnectionOptions, McpUpstream } from './mcp-connection-support'
 import type { McpPooledConnection } from './mcp-pooled-connection'
 
@@ -48,6 +49,10 @@ export interface McpPooledServerSpec {
   /** Opens the upstream; it may first read what it needs, such as vault secrets. */
   readonly open: () => McpUpstream | Promise<McpUpstream>
   readonly roots?: McpPooledConnectionOptions['roots']
+  /** Where the server's catalog is kept (`mcpToolCatalogKey`); none: nothing is cached. */
+  readonly catalogKey?: string
+  /** Start the server on the first request that needs it when its catalog is fresh (stdio). */
+  readonly lazyStart?: boolean
 }
 
 export type McpConnectionHooks = Pick<
@@ -65,6 +70,8 @@ export interface McpSessionConnectionPoolOptions {
   readonly idleCloseMsFor?: (sessionId: string) => Promise<number | undefined> | number | undefined
   readonly maxWarmSessions?: number
   readonly closeAllTimeoutMs?: number
+  /** The servers' catalogs (D1.3); none: every connection starts its server at once. */
+  readonly catalogStore?: McpToolCatalogStore
   /** OpenWaggle's additions for one Session's server: capabilities, sampling, elicitation, Apps. */
   readonly hooks?: (
     sessionId: string,

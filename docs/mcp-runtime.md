@@ -438,9 +438,26 @@ including a server that was off when the Run started and `/mcp` turns on. Check 
 MCP Apps load only their own server. A server a Pi extension registers in such a Run
 starts with whatever environment the Host has read by then. Connections are
 pooled per Session (below), so the next Run reuses them instead of starting the servers again.
-Hidden QA's process snapshots show exactly this: every enabled server of a Session that had run
-(`direct`, `codemode`, and project ones) running, and nothing for Sessions that had not. Making
-codemode or deferred servers connect only on first use would need a change to Pi's MCP extension.
+Pi's MCP extension still connects every enabled server at `session_start`, but the connection is
+a lease on the pool, which can answer without a server process:
+
+- **Tool catalogs (D1.3, C2-a).** Every pooled connection records its server's last `initialize`
+  result and `tools/list` pages (`mcp-connection-catalog.ts`), keyed by server identity, connection
+  fingerprint without the Run's working directory, and project (`mcp-tool-catalogs.ts`), in
+  `<userData>/mcp/tool-catalogs/`. A catalog younger than a day is served: a Session's Pi client gets
+  `initialize`, `tools/list` and `ping` from it at once, so its tools are registered before the
+  first model request of every Run instead of mid-Run.
+- **Lazy start (stdio only).** A stdio server with a served catalog starts when a request needs it
+  (`mcp-connection-lazy-start.ts`): a tool call, resources, prompts, or an OpenWaggle request. It is
+  initialized with the client's own `initialize` params (and `notifications/initialized` if the
+  client sent it), then its tools are listed again; when they differ from the catalog, clients get
+  `notifications/tools/list_changed` and Pi re-lists. A server that fails to start loses its catalog,
+  so the next Session starts it at once and reports the failure. Each Session still has its own
+  process (ADR 0013); a Session that never calls a server never starts it. URL servers connect as
+  before (they hold no process, and sign-in needs the handshake).
+- **Stable `<mcp_servers>` (C9).** A server without a configured `description` is described by the
+  first line of its cached `instructions`, so the section Pi renders is the same before and after
+  the server connects.
 
 | Event | Effect |
 | --- | --- |
@@ -457,7 +474,15 @@ codemode or deferred servers connect only on first use would need a change to Pi
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
 closed by closing stdin, then SIGTERM and SIGKILL to the whole group, or `taskkill /T /F` on
 Windows. That terminates a package runner (`npx`, `pnpm dlx`, `bunx`, `uvx`) together with the
-server it launched. pi-mcp skips all of that when the process it started has already exited,
+server it launched. Once a runner launch has run, a background probe (`npx --yes
+--package=<spec> -- node -e …`, and the same for `npm exec`, `pnpm dlx`, `bunx`) records the bin the
+runner resolved, and later launches spawn it directly with the runner's `node` and its
+`node_modules/.bin` first on `PATH` (`mcp-package-runner-bypass.ts`, D1.2), saving the ~80 MB runner
+process per server and the registry check `@latest` makes on every launch. Resolutions live in
+`<userData>/mcp/package-runner-bins.json`, keyed by runner, spec, working directory and `PATH`; a
+tag or range is resolved again after a day, an exact version after a week, and Check connection
+always launches through the runner and probes again. Forms the bypass cannot reproduce (several
+`--package`s, `-c`, git or file specs, unknown runner flags) keep the runner. pi-mcp skips all of that when the process it started has already exited,
 so after the transport closes OpenWaggle signals the whole group anyway (SIGTERM, then SIGKILL),
 and a server a launcher left behind does not survive (POSIX; Windows relies on pi-mcp's
 `taskkill /T`). Child processes get the user's environment (`{ ...process.env }`, as Pi
