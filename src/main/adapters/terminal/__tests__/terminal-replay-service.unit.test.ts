@@ -40,6 +40,20 @@ describe('terminal replay service integration', () => {
     expect(spawn).toHaveBeenCalledOnce()
   })
 
+  it('drops a live program palette probe from a hot reattach snapshot (#385)', async () => {
+    await open(workDirA)
+    await settle()
+    const probe = Array.from({ length: 16 }, (_, index) => `\x1b]4;${index};?\x1b\\`).join('')
+    feed(0, `pi${probe}\x1b]11;?\x07\x1b[c exited\r\n$ `)
+    await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
+    await service.history.flush()
+
+    const reattached = await open(workDirA)
+
+    expect(reattached.history).toBe('pi exited\r\n$ ')
+    await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('pi exited\r\n$ ')
+  })
+
   it('includes an incomplete sanitizer tail in a hot replacement snapshot', async () => {
     await open(workDirA)
     await settle()

@@ -55,3 +55,46 @@ describe('terminal output parser batches', () => {
     }
   })
 })
+
+describe('terminal attach history replay', () => {
+  it('scrubs terminal queries from attach history but keeps what renders and an open tail', () => {
+    const history = 'a\x1b]4;0;?\x1b\\b\x1b[6n\x1b[31mc\x1b[0m\x1b]11;?\x07d\x1b]4;1;'
+    const { write } = setup(history)
+
+    expect(write.mock.calls.map(([chunk]) => chunk).join('')).toBe('ab\x1b[31mc\x1b[0md\x1b]4;1;')
+  })
+
+  it('reports a replay in flight until xterm has parsed its last slice', () => {
+    const { delivery, write } = setup(`${'0123456789abcdef\r\n'.repeat(1_000)}`)
+
+    expect(delivery.isReplaying()).toBe(true)
+    for (const [, callback] of write.mock.calls.slice(0, -1)) callback?.()
+    expect(delivery.isReplaying()).toBe(true)
+    write.mock.calls.at(-1)?.[1]?.()
+    expect(delivery.isReplaying()).toBe(false)
+  })
+
+  it('has no replay in flight for an empty history', () => {
+    const { delivery, write } = setup('')
+
+    expect(write).not.toHaveBeenCalled()
+    expect(delivery.isReplaying()).toBe(false)
+  })
+
+  it('keeps the window open until every overlapping replay has been parsed', () => {
+    const { delivery, write } = setup('first replay')
+    delivery.reset()
+    delivery.applySnapshot(
+      fromPartial<TerminalAttachResult>({
+        history: 'second replay',
+        outputBytes: 13,
+        outputGeneration: 2,
+      }),
+    )
+
+    write.mock.calls[0]?.[1]?.()
+    expect(delivery.isReplaying()).toBe(true)
+    write.mock.calls[1]?.[1]?.()
+    expect(delivery.isReplaying()).toBe(false)
+  })
+})

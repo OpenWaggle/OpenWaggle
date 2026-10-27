@@ -21,6 +21,7 @@ import {
   createTerminalPaneActions,
   type TerminalRestartOptions,
 } from '../lib/terminal-pane-actions'
+import { connectTerminalInput } from '../lib/terminal-replay-input-guard'
 import { acquireTerminalSurfaceLease } from '../lib/terminal-surface-lease'
 import { resetTerminalOutput } from '../lib/write-terminal-output'
 import { useTerminalStore } from '../state/terminal-store'
@@ -170,9 +171,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
     geometry.synchronize()
     const disposeAppearance = observeTerminalAppearance(term, geometry.synchronize)
 
-    term.onData((data) => {
-      inputClient.enqueue(data)
-    })
+    const stopInput = connectTerminalInput(term, outputDelivery.isReplaying, inputClient.enqueue)
     term.attachCustomKeyEventHandler(
       createTerminalCustomKeyHandler({
         enqueueInput: inputClient.enqueue,
@@ -282,6 +281,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       sendInputNowRef.current = null
       pasteRef.current = null
       geometry.dispose()
+      stopInput()
       disposeAppearance()
       linkProvider.dispose()
       unsubscribe()

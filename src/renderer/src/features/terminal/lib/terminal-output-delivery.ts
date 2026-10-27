@@ -1,4 +1,5 @@
 import type { TerminalAttachResult, TerminalRuntimeEvent } from '@shared/types/terminal'
+import { stripTerminalQuerySequences } from '@shared/utils/terminal-escape-sequences'
 import type { Terminal } from '@xterm/xterm'
 import { sliceTerminalDataAfterBytes } from './terminal-input'
 import { writeTerminalOutput } from './write-terminal-output'
@@ -21,12 +22,20 @@ interface TerminalOutputDeliveryOptions {
  * Orders attach snapshots and live output using exact byte offsets, then ACKs
  * each event only after xterm has consumed it. This state stays local to the
  * viewport because main replays any unacknowledged bytes on the next attach.
+ *
+ * Attach history is a replay, not live output (issue #385). It is scrubbed of
+ * terminal queries before xterm sees it, and `isReplaying()` stays true from
+ * the moment it is queued until xterm has parsed its last slice. xterm parses
+ * its write queue in order and runs a write's callback right after parsing
+ * it, before the next write, so live output queued behind the replay is
+ * parsed, and its queries answered, only after the replay window closed.
  */
 export function createTerminalOutputDelivery(options: TerminalOutputDeliveryOptions) {
   let snapshotOutputBytes: number | null = null
   let outputGeneration: number | null = null
   const bufferedOutput: OutputEvent[] = []
   const pendingOutputAcks = new Map<string, OutputEvent>()
+  let replaysInFlight = 0
 
   const acknowledge = (event: OutputEvent) => {
     pendingOutputAcks.delete(`${event.outputGeneration}:${event.endOffset}`)
@@ -66,7 +75,13 @@ export function createTerminalOutputDelivery(options: TerminalOutputDeliveryOpti
   const applySnapshot = (snapshot: TerminalAttachResult) => {
     snapshotOutputBytes = snapshot.outputBytes
     outputGeneration = snapshot.outputGeneration
-    if (snapshot.history.length > 0) writeTerminalOutput(options.terminal, snapshot.history)
+    const history = stripTerminalQuerySequences(snapshot.history)
+    if (history.length > 0) {
+      replaysInFlight += 1
+      writeTerminalOutput(options.terminal, history, () => {
+        replaysInFlight -= 1
+      })
+    }
     for (const buffered of bufferedOutput) write(buffered)
     bufferedOutput.length = 0
   }
@@ -91,5 +106,8 @@ export function createTerminalOutputDelivery(options: TerminalOutputDeliveryOpti
     }
   }
 
-  return { acknowledgePending, applySnapshot, clear, reset, write }
+  /** Whether xterm may still be parsing replayed history, so its reports are not live answers. */
+  const isReplaying = () => replaysInFlight > 0
+
+  return { acknowledgePending, applySnapshot, clear, isReplaying, reset, write }
 }
