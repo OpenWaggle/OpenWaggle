@@ -32,6 +32,7 @@ describe('Hive tool Scheduled task payloads', () => {
       prompt: 'Check the deploy and report.',
       scheduleKind: 'heartbeat',
       schedule: { kind: 'interval', everyMinutes: 10 },
+      stopWhen: 'The deploy finished.',
     })
 
     expect(request).toMatchObject({
@@ -45,6 +46,7 @@ describe('Hive tool Scheduled task payloads', () => {
           enabled: true,
           schedule: { kind: 'interval', everyMinutes: 10 },
           target: { kind: 'heartbeat', sessionId: 'session-self' },
+          heartbeat: { stopWhen: 'The deploy finished.' },
         },
       },
     })

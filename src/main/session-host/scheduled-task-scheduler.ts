@@ -4,9 +4,14 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import type * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
+import { runHostWakeCheck } from '../adapters/scheduled-tasks/wake-check-process'
 import { hasAnyActiveRun } from '../application/active-session-runs'
 import { stopScheduledTask } from '../application/scheduled-task-bookkeeping'
-import { installScheduledTaskHooks } from '../application/scheduled-task-hooks'
+import { settleHeartbeatRunOutcome } from '../application/scheduled-task-heartbeat-commands'
+import {
+  type HeartbeatRunEnd,
+  installScheduledTaskHooks,
+} from '../application/scheduled-task-hooks'
 import { createLogger } from '../logger'
 import {
   type ScheduledTaskRecord,
@@ -232,6 +237,20 @@ function runNow(
   })
 }
 
+/** Settles a Heartbeat Run's outcome in the background; the Run's own settlement never waits. */
+function settleRunEnd(context: Context.Context<FiringDependencies>, end: HeartbeatRunEnd) {
+  Effect.runFork(
+    settleHeartbeatRunOutcome(end).pipe(
+      Effect.catchAllCause((cause) =>
+        Effect.sync(() =>
+          logger.warn('Could not settle a Heartbeat Run outcome', { cause: Cause.pretty(cause) }),
+        ),
+      ),
+      Effect.provide(context),
+    ),
+  )
+}
+
 /**
  * The Session Host's scheduler (ADR 0057): it fires due Scheduled tasks through the same
  * Session Control operations a person would use, holds the Host open while any task is enabled,
@@ -257,6 +276,8 @@ export const runScheduledTaskSchedulerBackground = Effect.gen(function* () {
   const releaseHooks = installScheduledTaskHooks({
     tasksChanged: () => state.wake?.(),
     requestRunNow: (taskId) => runNow(sql, state, context, taskId),
+    runWakeCheck: runHostWakeCheck,
+    heartbeatRunEnded: (end) => settleRunEnd(context, end),
   })
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {

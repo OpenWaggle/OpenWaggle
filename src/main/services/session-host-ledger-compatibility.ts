@@ -4,6 +4,7 @@ import {
 } from './database-session-resource-migrations'
 import {
   DELEGATION_ATTENTION_CAUSE_MIGRATION_ID,
+  HEARTBEAT_EFFICIENCY_MIGRATION_ID,
   HIVE_TOOL_NAME_MIGRATION_ID,
   PI_SESSION_ADOPTION_MIGRATION_ID,
   PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
@@ -116,6 +117,7 @@ const currentIdentities = [
     name: 'session-resource-docs-image-references',
   },
   { id: DELEGATION_ATTENTION_CAUSE_MIGRATION_ID, name: 'delegation-attention-cause' },
+  { id: HEARTBEAT_EFFICIENCY_MIGRATION_ID, name: 'heartbeat-efficiency' },
 ]
 
 export interface MigrationIdentity {

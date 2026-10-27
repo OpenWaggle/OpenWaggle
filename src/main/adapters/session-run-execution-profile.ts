@@ -8,9 +8,14 @@ import {
   type SessionCapability,
 } from '@shared/types/session-capability'
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
-import { scheduledTaskMessageOrigin, scheduledTaskRecord } from './session-run-scheduled-task'
+import { heartbeatRunIdentity } from '../domain/scheduled-tasks/heartbeat-run-context'
+import {
+  scheduledTaskMessageOrigin,
+  scheduledTaskRecord,
+  scheduledTaskRunContext,
+} from './session-run-scheduled-task'
 
 const JSON_INDENT_SPACES = 2
 
@@ -37,7 +42,10 @@ export interface SessionRunExecutionProfileRow {
 }
 
 export interface ResolvedSessionRunExecution {
+  /** The Session's model, or a Heartbeat's own model for its Runs (#388). */
   readonly model: ReturnType<typeof SupportedModelId>
+  /** A Heartbeat's own thinking level for this Run only; the Session's setting is unchanged. */
+  readonly thinkingLevel?: ThinkingLevel
   readonly authorizationCeiling: AgentAuthorizationMode
   readonly agentInstructions?: string
   readonly toolAllowlist?: readonly string[]
@@ -229,6 +237,24 @@ function scheduledTaskOrigin(value: string | null | undefined) {
       ? { previousSessionId: record.previousSessionId }
       : {}),
     note: 'This Run was started by this Scheduled task, not typed by a person now. Its prompt is the task prompt.',
+    ...heartbeatIdentity(record),
+  }
+}
+
+function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
+  if (record.kind !== 'heartbeat') return {}
+  const context = scheduledTaskRunContext(record)
+  return context ? heartbeatRunIdentity(context) : {}
+}
+
+/** A Heartbeat's own model and thinking level, which apply only to its Runs (#388). */
+function scheduledTaskModelChoice(value: string | null | undefined) {
+  const task = scheduledTaskRecord(value)
+  if (!task || task.record.kind !== 'heartbeat') return {}
+  const context = scheduledTaskRunContext(task.record)
+  return {
+    ...(context?.modelId ? { modelId: context.modelId } : {}),
+    ...(context?.thinkingLevel ? { thinkingLevel: context.thinkingLevel } : {}),
   }
 }
 
@@ -262,8 +288,10 @@ export function resolveSessionRunExecution(
     profile,
   )
   const scheduledTask = scheduledTaskMessageOrigin(row.scheduled_task_json)
+  const taskModel = scheduledTaskModelChoice(row.scheduled_task_json)
   return {
-    model: SupportedModelId(profile.modelId),
+    model: SupportedModelId(taskModel.modelId ?? profile.modelId),
+    ...(taskModel.thinkingLevel ? { thinkingLevel: taskModel.thinkingLevel } : {}),
     authorizationCeiling: row.authorization_ceiling,
     ...(agentSnapshot ? { agentInstructions: agentSnapshot.instructions } : {}),
     ...(profile.tools ? { toolAllowlist: profile.tools } : {}),

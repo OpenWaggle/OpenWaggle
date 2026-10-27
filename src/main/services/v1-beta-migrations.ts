@@ -1,5 +1,6 @@
 import type { AppMigration } from './database-migrations'
 import { DELEGATION_ATTENTION_CAUSE_MIGRATION } from './delegation-attention-cause-migration'
+import { HEARTBEAT_EFFICIENCY_MIGRATION } from './heartbeat-efficiency-migration'
 import { HIVE_TOOL_NAME_MIGRATION } from './hive-tool-name-migration'
 import { SCHEDULED_TASK_MIGRATION } from './scheduled-task-migration'
 import { SESSION_ARCHIVE_TIME_MIGRATION } from './session-archive-time-migration'
@@ -14,4 +15,5 @@ export const V1_BETA_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_DEFERRED_DISCOVERY_REFRESH_MIGRATION,
   SESSION_RESOURCE_DOCS_IMAGE_MIGRATION,
   DELEGATION_ATTENTION_CAUSE_MIGRATION,
+  HEARTBEAT_EFFICIENCY_MIGRATION,
 ]

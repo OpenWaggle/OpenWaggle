@@ -9,6 +9,7 @@ import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionCapability } from '@shared/types/session-capability'
+import type { ThinkingLevel } from '@shared/types/settings'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type {
   AgentKernelRunControl,
@@ -26,6 +27,8 @@ export interface AgentRunInput {
   readonly payload: AgentSendPayload
   readonly hydratedAttachments?: readonly HydratedAttachment[]
   readonly model: SupportedModelId
+  /** This Run's thinking level when it differs from the Session's (a Heartbeat's own, #388). */
+  readonly thinkingLevel?: ThinkingLevel
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly authorityCallerId?: string
   readonly agentInstructions?: string

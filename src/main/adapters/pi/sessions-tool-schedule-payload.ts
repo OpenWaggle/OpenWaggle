@@ -24,6 +24,7 @@ const SCHEDULE_OPERATIONS = {
   schedule_update: 'update',
   schedule_delete: 'delete',
   schedule_run_now: 'run-now',
+  schedule_outcome: 'report-outcome',
 } as const satisfies Record<SessionsToolScheduleInput['action'], ScheduledTasksOperation>
 
 export function isSessionsToolScheduleAction(
@@ -51,6 +52,7 @@ export function buildSessionsToolSchedulePayload(
     // An agent's Heartbeat watches its own Session unless it names another one.
     defaults: {
       heartbeatSessionId: source.sessionId,
+      runId: source.runId,
       ...(source.projectPath ? { launchProjectPath: source.projectPath } : {}),
     },
     ...(currentTarget ? { currentTarget } : {}),

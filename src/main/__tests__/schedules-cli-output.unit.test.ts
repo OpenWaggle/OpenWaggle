@@ -46,6 +46,7 @@ function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
     waitingSince: null,
     runCount: 1,
     lastRun: RUN_NOW,
+    heartbeat: null,
     recentSessionIds: [],
     createdAt: 0,
     updatedAt: 0,

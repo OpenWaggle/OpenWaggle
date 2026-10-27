@@ -21,10 +21,8 @@ import { assertSessionsToolActionArguments } from './sessions-tool-flat-schema'
 import { sessionsToolPromptGuidelines } from './sessions-tool-guidelines'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
-import {
-  executeSessionsToolSchedule,
-  isSessionsToolScheduleAction,
-} from './sessions-tool-schedule-payload'
+import { executeScheduleToolAction } from './sessions-tool-schedule-approval'
+import { isSessionsToolScheduleAction } from './sessions-tool-schedule-payload'
 import { scheduledTasksToolResult } from './sessions-tool-schedule-result'
 import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
 
@@ -247,9 +245,13 @@ async function executeSessionsToolCall(
     )
   }
   if (isSessionsToolScheduleAction(params)) {
-    const result = await executeSessionsToolSchedule(params, { ...input, toolCallId }, (payload) =>
-      sendSessionsToolCommand(input, payload, signal),
-    )
+    const result = await executeScheduleToolAction({
+      params,
+      source: { ...input, toolCallId },
+      ctx,
+      send: (payload) => sendSessionsToolCommand(input, payload, signal),
+      ...(signal ? { signal } : {}),
+    })
     return result.contract === 'scheduled-tasks-v1'
       ? scheduledTasksToolResult(result)
       : successfulToolResult(result)

@@ -12,13 +12,50 @@ import {
   SCHEDULED_TASK_COLUMNS,
   type ScheduledTaskRow,
 } from './sqlite-scheduled-task-rows'
-import {
-  scheduledTaskRunMethods,
-  scheduledTaskSessionMethods,
-} from './sqlite-scheduled-task-run-store'
+import { scheduledTaskRunMethods } from './sqlite-scheduled-task-run-store'
+import { scheduledTaskSessionMethods } from './sqlite-scheduled-task-session-store'
 
 function targetSessionId(record: ScheduledTaskRecord) {
   return record.target.kind === 'heartbeat' ? record.target.sessionId : null
+}
+
+function wakeCheckColumns(record: ScheduledTaskRecord) {
+  const wakeCheck = record.wakeCheck
+  return wakeCheck
+    ? {
+        command: wakeCheck.command,
+        onFailure: wakeCheck.onFailure,
+        approvedCommand: wakeCheck.approvedCommand,
+        pendingSince: wakeCheck.pendingSince,
+      }
+    : { command: null, onFailure: 'wake', approvedCommand: null, pendingSince: null }
+}
+
+function autoPauseColumns(record: ScheduledTaskRecord) {
+  const autoPause = record.autoPause
+  return autoPause
+    ? { reason: autoPause.reason, message: autoPause.message, since: autoPause.since }
+    : { reason: null, message: null, since: null }
+}
+
+/** Writes the Heartbeat columns (#388) of a record. */
+function writeHeartbeatColumns(sql: SqlClient.SqlClient, record: ScheduledTaskRecord) {
+  const wakeCheck = wakeCheckColumns(record)
+  const autoPause = autoPauseColumns(record)
+  return sql`
+    UPDATE scheduled_tasks SET
+      stop_when = ${record.stopWhen}, indefinite = ${record.indefinite ? 1 : 0},
+      idle_pause_after = ${record.idlePauseAfter},
+      consecutive_idle_runs = ${record.consecutiveIdleRuns},
+      wake_check_command = ${wakeCheck.command},
+      wake_check_on_failure = ${wakeCheck.onFailure},
+      wake_check_approved_command = ${wakeCheck.approvedCommand},
+      wake_check_pending_since = ${wakeCheck.pendingSince},
+      auto_pause_reason = ${autoPause.reason},
+      auto_pause_message = ${autoPause.message},
+      auto_paused_at = ${autoPause.since}
+    WHERE id = ${record.id}
+  `
 }
 
 function writeRecord(sql: SqlClient.SqlClient, record: NewScheduledTaskRecord) {
@@ -70,13 +107,15 @@ function rewriteRecord(
       updated_at = ${record.updatedAt}
     WHERE id = ${record.id} AND updated_at = ${expectedUpdatedAt}
     RETURNING id
-  `
+  `.pipe(Effect.tap((rows) => (rows.length > 0 ? writeHeartbeatColumns(sql, record) : Effect.void)))
 }
 
 function makeRepository(sql: SqlClient.SqlClient) {
   return ScheduledTaskRepository.of({
     insert: (record) =>
       writeRecord(sql, record).pipe(
+        Effect.zipRight(writeHeartbeatColumns(sql, record)),
+        sql.withTransaction,
         Effect.zipRight(selectTask(sql, record.id)),
         Effect.flatMap((stored) =>
           stored ? Effect.succeed(stored) : Effect.fail(new Error('Inserted task vanished.')),

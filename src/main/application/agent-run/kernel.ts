@@ -105,7 +105,10 @@ export function runAgentKernel(
   return Effect.gen(function* () {
     const agentKernel = yield* AgentKernelService
     const kernelInput: AgentKernelRunInput = {
-      session: preflight.session,
+      // A Run-only thinking level leaves the Session's own setting as it was.
+      session: input.thinkingLevel
+        ? { ...preflight.session, executionThinkingLevel: input.thinkingLevel }
+        : preflight.session,
       runId: input.runId,
       payload,
       model: input.model,
