@@ -32,6 +32,7 @@ import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
+import { mcpToolCatalogKeyOf, withCachedMcpDescriptions } from './mcp-tool-catalogs'
 import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { openWaggleMcpUpdateRefusal } from './openwaggle-mcp-configuration'
@@ -222,6 +223,9 @@ export function openWaggleMcpTransport(
       identity: mcpServerIdentity(entry.name, entry.config),
       projectPath: input.projectPath,
       ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
+      // The last tools are declared at once, and a stdio server starts on first use (D1.3).
+      catalogKey: mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
+      lazyStart: transport === 'stdio',
       // A server that was off when the Run started reads its vault secrets only now.
       open: async () =>
         openPiMcpUpstream({
@@ -281,7 +285,10 @@ export async function createOpenWaggleMcpExtensions(
       config.loaded,
       createMcpExtension({
         loadConfig: () =>
-          withShellResolvedClientSecrets(withKnownMcpAppToolsOf(input.sessionId, config.loaded)),
+          withCachedMcpDescriptions(
+            withShellResolvedClientSecrets(withKnownMcpAppToolsOf(input.sessionId, config.loaded)),
+            (entry) => mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
+          ),
         createTransport: openWaggleMcpTransport(input, config),
         credentials: getOpenWaggleMcpCredentials(),
         logPath: openWaggleMcpLogPath(),

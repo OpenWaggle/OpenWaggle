@@ -69,11 +69,31 @@ watcherMocks.watch.mockImplementation(() => {
 })
 
 vi.mock('chokidar', () => ({ watch: watcherMocks.watch }))
+vi.mock('../workspace-git-ignore-filter', () => ({
+  WorkspaceGitIgnoreFilter: { create: async () => undefined },
+}))
 vi.mock('../filesystem-workspace-file-service', () => ({
   invalidateWorkspaceFileIndex: vi.fn(),
 }))
 
-import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../workspace-file-watcher'
+import {
+  setWorkspaceWatcherPlatformForTests,
+  unwatchWorkspaceFiles,
+  watchWorkspaceFiles,
+} from '../workspace-file-watcher'
+
+// The chokidar backend, which Linux uses.
+setWorkspaceWatcherPlatformForTests('linux')
+
+/** The watcher chokidar was asked for, once the backend has loaded. */
+async function watcherAt(index: number) {
+  await vi.waitFor(() => {
+    if (!watcherMocks.instances[index]) throw new Error('No watcher yet')
+  })
+  const watcher = watcherMocks.instances[index]
+  if (!watcher) throw new Error('Expected a watcher.')
+  return watcher
+}
 
 function webContents(id: number): WebContents {
   return fromPartial<WebContents>({
@@ -95,8 +115,7 @@ describe('workspace watcher lifecycle', () => {
     const root = '/project/startup-error'
     const subscriber = webContents(10)
     const first = watchWorkspaceFiles(root, subscriber)
-    const failedWatcher = watcherMocks.instances[0]
-    if (!failedWatcher) throw new Error('Expected a pending watcher.')
+    const failedWatcher = await watcherAt(0)
 
     failedWatcher.emitError(new Error('watch startup failed'))
     await expect(first).rejects.toThrow('watch startup failed')
@@ -105,8 +124,7 @@ describe('workspace watcher lifecycle', () => {
     expect(failedWatcher.listenerCount('error')).toBe(0)
 
     const retry = watchWorkspaceFiles(root, subscriber)
-    const retryWatcher = watcherMocks.instances[1]
-    if (!retryWatcher) throw new Error('Expected a retry watcher.')
+    const retryWatcher = await watcherAt(1)
     retryWatcher.emitReady()
     await retry
     await unwatchWorkspaceFiles(root, subscriber.id)
@@ -118,8 +136,7 @@ describe('workspace watcher lifecycle', () => {
     const root = '/project/runtime-error'
     const subscriber = webContents(11)
     const pending = watchWorkspaceFiles(root, subscriber)
-    const watcher = watcherMocks.instances[0]
-    if (!watcher) throw new Error('Expected a watcher.')
+    const watcher = await watcherAt(0)
     watcher.emitReady()
     await pending
 
@@ -145,9 +162,8 @@ describe('workspace watcher lifecycle', () => {
     const first = watchWorkspaceFiles(root, firstSubscriber)
     const second = watchWorkspaceFiles(root, secondSubscriber)
 
+    const watcher = await watcherAt(0)
     expect(watcherMocks.watch).toHaveBeenCalledTimes(1)
-    const watcher = watcherMocks.instances[0]
-    if (!watcher) throw new Error('Expected a pending watcher.')
     await Promise.all([
       unwatchWorkspaceFiles(root, firstSubscriber.id),
       unwatchWorkspaceFiles(root, secondSubscriber.id),
@@ -163,8 +179,7 @@ describe('workspace watcher lifecycle', () => {
     const secondSubscriber = webContents(4)
     const first = watchWorkspaceFiles(root, firstSubscriber)
     const second = watchWorkspaceFiles(root, secondSubscriber)
-    const watcher = watcherMocks.instances[0]
-    if (!watcher) throw new Error('Expected a watcher.')
+    const watcher = await watcherAt(0)
     watcher.emitReady()
     await Promise.all([first, second])
 

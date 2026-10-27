@@ -21,6 +21,8 @@ interface HandshakeChannel {
   readonly notify: (message: JsonRpcMessage) => Promise<void>
   readonly augmentParams?: ((params: unknown) => unknown) | undefined
   readonly onProtocolVersion: (version: string) => void
+  /** Sees each result the server gave, for the connection's catalog. */
+  readonly onResult?: (result: unknown) => void
 }
 
 /**
@@ -42,6 +44,11 @@ export class McpConnectionHandshake {
     return this.result !== undefined
   }
 
+  /** The `initialize` result clients were given. */
+  get resultValue() {
+    return this.result?.value
+  }
+
   ensure(params: unknown) {
     if (this.result) return Promise.resolve(this.result.value)
     this.requested ??= { params }
@@ -50,6 +57,7 @@ export class McpConnectionHandshake {
       .then(
         (value) => {
           this.result = { value }
+          this.channel.onResult?.(value)
           if (isRecord(value) && typeof value.protocolVersion === 'string') {
             this.channel.onProtocolVersion(value.protocolVersion)
           }
@@ -61,6 +69,20 @@ export class McpConnectionHandshake {
         },
       )
     return this.initializing
+  }
+
+  /**
+   * Answers from a cached result without the server, which is not started yet: `replay` later
+   * initializes it with these params, and with `notifications/initialized` if a client sent it.
+   */
+  seed(params: unknown, result: unknown) {
+    this.requested ??= { params }
+    this.result ??= { value: result }
+  }
+
+  /** A client's `notifications/initialized` while the server is not started: sent by `replay`. */
+  markInitialized() {
+    this.initializedSent = true
   }
 
   /** Initializes for OpenWaggle's own requests when no client has. */
