@@ -1,9 +1,18 @@
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
+// Inline, like the page's own frame: it paints with the first frame, with no request to wait for.
+import openwaggleMark from '@/assets/openwaggle-mark.png?inline'
 
 /**
  * The static frame the window shows while the Session Host starts (maintainer decision 3): the
  * sidebar frame, the header, an empty chat and a disabled composer, in the last known
  * appearance. It holds no spinner and no made-up data, so nothing in it moves or misleads.
+ *
+ * `src/renderer/index.html` holds the same markup, so the window paints this frame before the
+ * renderer's scripts run; a component test keeps the two identical. The empty chat shows the
+ * welcome mark where the new-chat screen shows it: it is the largest image of the launch screen,
+ * so the window's largest contentful paint is this frame's first paint, not the later shell's.
+ * The mark is inlined and decoded with the frame, so that first paint already holds it, and the
+ * new-chat screen shows the same decoded image.
  */
 export function StartupSkeleton({ notice }: { readonly notice?: string }) {
   return (
@@ -23,7 +32,9 @@ export function StartupSkeleton({ notice }: { readonly notice?: string }) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="drag-region h-12 shrink-0 border-b border-border bg-bg" />
-        <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6">
+          {/* The new-chat screen's mark (WelcomeScreen), at its size. */}
+          <img src={openwaggleMark} alt="" decoding="sync" className="size-20 object-contain" />
           {notice ? (
             <p role="status" className="text-sm text-text-secondary">
               {notice}
