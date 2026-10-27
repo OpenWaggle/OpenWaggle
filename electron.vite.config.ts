@@ -12,6 +12,7 @@ import {
   EAGER_MAIN_EXTERNALS,
   lazyExternalRequiresPlugin,
 } from './scripts/vite/lazy-external-requires'
+import { mainBootEntryPlugin } from './scripts/vite/main-boot-entry'
 import { piWorkerBundlesPlugin } from './scripts/vite/pi-worker-bundles'
 import { resolveBuildIdentity } from './scripts/build-identity'
 
@@ -211,6 +212,7 @@ export default defineConfig({
       unpdfCjsResolvePlugin(),
       rolldownExternalFixPlugin(),
       piWorkerBundlesPlugin(),
+      mainBootEntryPlugin(),
     ],
     build: {
       minify: false,

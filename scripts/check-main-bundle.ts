@@ -2,7 +2,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { disallowedTopLevelRequires, topLevelRequires } from './main-bundle-requires'
 
-const MAIN_BUNDLE_FILES = ['out/main/index.js'] as const
+const KIBIBYTE = 1024
+const MAIN_BUNDLE_FILES = ['out/main/boot.js', 'out/main/index.js'] as const
+/**
+ * The boot shim runs before V8's compile cache exists, so it is compiled from source on every
+ * launch (src/main/boot.ts). Keep it a few kilobytes: anything it imports is paid by every process.
+ */
+const MAIN_BOOT_FILE = 'out/main/boot.js'
+const MAX_MAIN_BOOT_BYTES = 16 * KIBIBYTE
 
 async function main() {
   const failures: string[] = []
@@ -15,7 +22,13 @@ async function main() {
           'or route them through scripts/vite/lazy-external-requires.ts.',
       )
     }
-    process.stdout.write(`${file}: ${String(topLevelRequires(source).length)} top-level requires\n`)
+    const bytes = Buffer.byteLength(source)
+    if (file === MAIN_BOOT_FILE && bytes > MAX_MAIN_BOOT_BYTES) {
+      failures.push(`${file} is ${String(bytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`)
+    }
+    process.stdout.write(
+      `${file}: ${String(bytes)} bytes, ${String(topLevelRequires(source).length)} top-level requires\n`,
+    )
   }
   if (failures.length > 0) throw new Error(failures.join('\n'))
 }

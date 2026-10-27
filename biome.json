@@ -68,7 +68,7 @@
       }
     },
     {
-      "includes": ["src/main/env.ts"],
+      "includes": ["src/main/env.ts", "src/main/boot.ts"],
       "linter": {
         "rules": {
           "style": {
