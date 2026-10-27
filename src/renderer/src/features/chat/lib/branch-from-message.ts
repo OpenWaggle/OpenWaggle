@@ -1,7 +1,7 @@
 import { getMessageText as getAgentMessageText } from '@shared/types/agent'
 import type { SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { SessionTranscriptNode, SessionWorkspace } from '@shared/types/session'
 
 interface CreateBranchDraftSelectionInput {
   readonly messages: readonly UIMessage[]
@@ -19,7 +19,7 @@ function getUiMessageText(message: UIMessage) {
   return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
 }
 
-function isSummarizableAbandonedNode(node: SessionNode) {
+function isSummarizableAbandonedNode(node: SessionTranscriptNode) {
   return (
     node.kind === 'user_message' ||
     node.kind === 'assistant_message' ||
@@ -29,7 +29,10 @@ function isSummarizableAbandonedNode(node: SessionNode) {
   )
 }
 
-function pathToRootIds(nodesById: ReadonlyMap<string, SessionNode>, nodeId: SessionNodeId) {
+function pathToRootIds(
+  nodesById: ReadonlyMap<string, SessionTranscriptNode>,
+  nodeId: SessionNodeId,
+) {
   const pathIds = new Set<string>()
   let currentId: SessionNodeId | null = nodeId
 
@@ -84,7 +87,9 @@ function findTranscriptNode(
  * has not arrived. A message id is not a node id: a row sent in this window keeps its optimistic id
  * after the snapshot reconciles it, and Pi rejects that id as a fork target.
  */
-export function findUserMessageNode(input: CreateBranchDraftSelectionInput): SessionNode | null {
+export function findUserMessageNode(
+  input: CreateBranchDraftSelectionInput,
+): SessionTranscriptNode | null {
   const message = input.messages.find((candidate) => candidate.id === input.messageId)
   const node = findTranscriptNode(input.workspace, input.messageId, message)
   return node?.kind === 'user_message' ? node : null
@@ -93,13 +98,15 @@ export function findUserMessageNode(input: CreateBranchDraftSelectionInput): Ses
 /** The persisted assistant-message node of a turn's reply, or null before it is projected. */
 export function findAssistantMessageNode(
   input: CreateBranchDraftSelectionInput,
-): SessionNode | null {
+): SessionTranscriptNode | null {
   const message = input.messages.find((candidate) => candidate.id === input.messageId)
   const node = findTranscriptNode(input.workspace, input.messageId, message)
   return node?.kind === 'assistant_message' ? node : null
 }
 
-export function createBranchDraftSelectionFromNode(node: SessionNode): BranchDraftSelection {
+export function createBranchDraftSelectionFromNode(
+  node: SessionTranscriptNode,
+): BranchDraftSelection {
   if (node.kind === 'user_message' && node.parentId) {
     const text = node.message ? getAgentMessageText(node.message).trim() : ''
     return {

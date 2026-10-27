@@ -49,6 +49,7 @@ function sessionNode(
     createdOrder,
     pathDepth: createdOrder,
     branchId: MAIN_BRANCH_ID,
+    hasMessage: true,
     message: {
       id: MessageId(id),
       role,

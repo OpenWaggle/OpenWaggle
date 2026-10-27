@@ -1,5 +1,5 @@
 import type { SessionNodeId } from '@shared/types/brand'
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 
 export interface MoveSessionTreeFocusInput {
   readonly currentIndex: number
@@ -8,7 +8,7 @@ export interface MoveSessionTreeFocusInput {
 }
 
 export interface SessionTreeRow {
-  readonly node: SessionNode
+  readonly node: SessionTreeNode
   readonly visibleParentId: SessionNodeId | null
   readonly visualDepth: number
   readonly parentVisualDepth: number | null
@@ -21,8 +21,8 @@ export interface SessionTreeRow {
 }
 
 export interface BuildSessionTreeRowsInput {
-  readonly nodes: readonly SessionNode[]
-  readonly filteredNodes: readonly SessionNode[]
+  readonly nodes: readonly SessionTreeNode[]
+  readonly filteredNodes: readonly SessionTreeNode[]
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly activePathIds: ReadonlySet<string>
 }

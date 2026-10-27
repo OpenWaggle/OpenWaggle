@@ -136,6 +136,7 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
           canConsumePendingSend: activeBranchId !== null && activeBranchId !== undefined,
           onToggleTurnFold: section.onToggleTurnFold,
           sessionCreatedAt: section.sessionCreatedAt ?? null,
+          remoteHistory: section.remoteHistory ?? null,
         }}
         trailing={
           <TranscriptExtensionCards

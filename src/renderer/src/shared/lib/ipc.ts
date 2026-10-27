@@ -1,4 +1,6 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
+import { createSessionControlQueryReader } from './session-control-query-reader'
+import { createSessionDetailReader } from './session-detail-reader'
 
 /**
  * Type-safe access to the preload API.
@@ -19,11 +21,20 @@ function createMissingApiMethod(prop: string) {
 }
 
 function createApiProxy(base?: OpenWaggleApi) {
+  // Detail reads move only appended messages; callers still receive a complete detail (D5).
+  const readSessionDetail = base
+    ? createSessionDetailReader((id, cursor) => base.getSessionDetail(id, cursor))
+    : undefined
+  const querySessionControl = base
+    ? createSessionControlQueryReader((request) => base.querySessionControl(request))
+    : undefined
   const handler: ProxyHandler<OpenWaggleApi> = {
     has(_target, prop) {
       return base !== undefined && Reflect.has(base, prop)
     },
     get(_target, prop) {
+      if (prop === 'getSessionDetail' && readSessionDetail) return readSessionDetail
+      if (prop === 'querySessionControl' && querySessionControl) return querySessionControl
       if (base) {
         const value = Reflect.get(base, prop)
         if (value !== undefined) {

@@ -162,7 +162,8 @@ function persistedIds(tree: SessionWorkspace['tree']) {
   if (cached) return cached
   const ids = {
     messageIds: new Set(
-      tree.nodes.flatMap((node) => (node.message ? [String(node.message.id)] : [])),
+      // A message's id is its node's id; the tree carries no messages (B5).
+      tree.nodes.flatMap((node) => (node.hasMessage ? [String(node.id)] : [])),
     ),
     nodeIds: new Set(tree.nodes.map((node) => String(node.id))),
   }

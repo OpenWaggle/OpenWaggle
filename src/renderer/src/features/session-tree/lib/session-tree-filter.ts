@@ -1,8 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
-import { getMessageText } from '@shared/types/agent'
-import type { SessionNode, SessionTreeFilterMode } from '@shared/types/session'
+import type { SessionTreeFilterMode, SessionTreeNode } from '@shared/types/session'
 
-const BOOKKEEPING_NODE_KINDS: ReadonlySet<SessionNode['kind']> = new Set([
+const BOOKKEEPING_NODE_KINDS: ReadonlySet<SessionTreeNode['kind']> = new Set([
   'label',
   'custom',
   'model_change',
@@ -10,27 +9,27 @@ const BOOKKEEPING_NODE_KINDS: ReadonlySet<SessionNode['kind']> = new Set([
   'session_info',
 ])
 
-function isBookkeepingNode(node: SessionNode) {
+function isBookkeepingNode(node: SessionTreeNode) {
   return BOOKKEEPING_NODE_KINDS.has(node.kind)
 }
 
-function isToolNode(node: SessionNode) {
+function isToolNode(node: SessionTreeNode) {
   return node.kind === 'tool_result'
 }
 
-function isUserNode(node: SessionNode) {
+function isUserNode(node: SessionTreeNode) {
   return node.kind === 'user_message' || node.role === 'user'
 }
 
-function isLabeledNode(node: SessionNode) {
+function isLabeledNode(node: SessionTreeNode) {
   return node.kind === 'label'
 }
 
-function nodeKey(node: SessionNode) {
+function nodeKey(node: SessionTreeNode) {
   return String(node.id)
 }
 
-function parentKey(node: SessionNode) {
+function parentKey(node: SessionTreeNode) {
   return node.parentId ? String(node.parentId) : null
 }
 
@@ -38,24 +37,24 @@ function normalizeSearchText(text: string) {
   return text.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function searchTextForNode(node: SessionNode) {
+/**
+ * What the window can match itself: a node's identity and the start of its text. Its full text is
+ * matched on the Host (`sessions:search-tree`), since the tree carries no content (B5).
+ */
+function searchTextForNode(node: SessionTreeNode) {
   const parts = [
     String(node.id),
     node.kind.replace(/_/g, ' '),
     node.role ?? '',
     node.branchId ? String(node.branchId) : '',
-    node.contentJson,
-    node.metadataJson,
+    node.preview ?? '',
   ]
-  if (node.message) {
-    parts.push(getMessageText(node.message))
-  }
   return normalizeSearchText(parts.join(' '))
 }
 
 function addVisibleAncestors(input: {
-  readonly node: SessionNode
-  readonly nodeById: ReadonlyMap<string, SessionNode>
+  readonly node: SessionTreeNode
+  readonly nodeById: ReadonlyMap<string, SessionTreeNode>
   readonly visibleNodeIdSet: ReadonlySet<string>
   readonly includedNodeIdSet: Set<string>
 }) {
@@ -74,9 +73,9 @@ function addVisibleAncestors(input: {
 }
 
 export function filterSessionTreeNodes(
-  nodes: readonly SessionNode[],
+  nodes: readonly SessionTreeNode[],
   mode: SessionTreeFilterMode,
-): readonly SessionNode[] {
+): readonly SessionTreeNode[] {
   return match(mode)
     .with('all', () => nodes)
     .with('user-only', () => nodes.filter(isUserNode))
@@ -87,10 +86,12 @@ export function filterSessionTreeNodes(
 }
 
 export function searchSessionTreeNodes(input: {
-  readonly nodes: readonly SessionNode[]
-  readonly filteredNodes: readonly SessionNode[]
+  readonly nodes: readonly SessionTreeNode[]
+  readonly filteredNodes: readonly SessionTreeNode[]
   readonly query: string
-}): readonly SessionNode[] {
+  /** Node ids whose full transcript text the Host matched for this query. */
+  readonly textMatchNodeIds?: ReadonlySet<string>
+}): readonly SessionTreeNode[] {
   const normalizedQuery = normalizeSearchText(input.query)
   if (!normalizedQuery) {
     return input.filteredNodes
@@ -101,7 +102,10 @@ export function searchSessionTreeNodes(input: {
   const includedNodeIdSet = new Set<string>()
 
   for (const node of input.filteredNodes) {
-    if (!searchTextForNode(node).includes(normalizedQuery)) {
+    const matched =
+      input.textMatchNodeIds?.has(nodeKey(node)) === true ||
+      searchTextForNode(node).includes(normalizedQuery)
+    if (!matched) {
       continue
     }
     includedNodeIdSet.add(nodeKey(node))
