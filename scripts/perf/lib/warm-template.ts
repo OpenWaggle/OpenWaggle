@@ -59,14 +59,19 @@ export async function warmTemplateFor(app: PerfApp, templateRoot: string) {
     projectPath: path.join(target, 'projects', 'project-0'),
   }
   const startedAt = Date.now()
-  const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
-  const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
-  const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
-  await stopProcessGroup(started.child)
-  if (code !== 0) throw new Error(`host start failed while warming ${target}`)
-  const listeningMs = Date.now() - startedAt
-  await waitForIdleHost(profile.userData)
-  await stopProfileHost(profile)
+  let listeningMs = 0
+  try {
+    const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
+    const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
+    const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
+    await stopProcessGroup(started.child)
+    if (code !== 0) throw new Error(`host start failed while warming ${target}`)
+    listeningMs = Date.now() - startedAt
+    await waitForIdleHost(profile.userData)
+  } finally {
+    // Never leave a warming Host behind, even when warming failed: it would keep indexing.
+    await stopProfileHost(profile)
+  }
   const warm = { app: app.label, firstHostStartMs: listeningMs, warmedMs: Date.now() - startedAt }
   await writeFile(path.join(target, WARM_MARKER), `${JSON.stringify(warm)}\n`)
   log(`warmed ${target}: ${JSON.stringify(warm)}`)
