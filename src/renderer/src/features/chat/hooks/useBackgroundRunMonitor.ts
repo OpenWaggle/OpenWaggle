@@ -13,6 +13,7 @@ import {
   useExtensionStatusStore,
 } from '@/features/chat/state/extension-status-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { releaseLiveStreamMessage } from '@/features/chat/state/live-stream-message-store'
 import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
 import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
@@ -108,6 +109,7 @@ export function useBackgroundRunMonitor(): void {
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      releaseLiveStreamMessage(payload.sessionId)
       // A settled Run's extension statuses go with it, whatever runs next.
       useExtensionStatusStore.getState().clearRun(payload.sessionId, payload.runId)
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)

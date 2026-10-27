@@ -130,14 +130,18 @@ export function useAgentChat(
   const sessionRef = useRef(session)
   const agentRunActionsRef = useRef<AgentRunActions | null>(null)
 
+  /*
+   * `messagesBySessionIdRef` is not synced from state here: every write of the messages goes
+   * through `setMessagesForSession`, which writes the ref first, and a streamed token writes only
+   * the ref (B2). Syncing it from the last committed state would drop tokens not committed yet.
+   */
   useLayoutEffect(() => {
-    messagesBySessionIdRef.current = messagesBySessionId
     currentSessionIdRef.current = sessionId
     statusRef.current = status
     backgroundStreamingRef.current = backgroundStreaming
     messagesRef.current = messages
     sessionRef.current = session
-  }, [messagesBySessionId, sessionId, status, backgroundStreaming, messages, session])
+  }, [sessionId, status, backgroundStreaming, messages, session])
 
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
     messages,

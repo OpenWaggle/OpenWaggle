@@ -12,6 +12,7 @@ import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { getLastRenderableTextPartIndex } from '../lib/message-bubble-utils'
 import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
+import { useLiveStreamMessage } from '../state/live-stream-message-store'
 import { AgentLabel } from './AgentLabel'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
@@ -142,7 +143,7 @@ interface AssistantMessageBubbleProps {
 }
 
 export function AssistantMessageBubble({
-  message,
+  message: shownMessage,
   runtime,
   run,
   waggle,
@@ -150,6 +151,8 @@ export function AssistantMessageBubble({
   actions,
 }: AssistantMessageBubbleProps) {
   const isStreaming = run?.isStreaming
+  // Only this bubble re-renders for a streamed token; the transcript commits the message later.
+  const message = useLiveStreamMessage(runtime.sessionId, shownMessage)
   const isRunActive = run?.isRunActive
   const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
