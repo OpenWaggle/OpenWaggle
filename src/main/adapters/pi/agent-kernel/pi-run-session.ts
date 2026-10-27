@@ -24,6 +24,7 @@ import {
   type OpenWaggleAgentSessionOptions,
 } from '../pi-session-lifecycle'
 import { piExtensionCommands } from './pi-extension-commands'
+import { offersPowerShellTool } from './powershell-availability'
 import { rememberRunExtensionCommands } from './run-extension-commands'
 
 /**
@@ -88,9 +89,17 @@ export async function createPiSessionForRun(input: {
       OPENWAGGLE_AGENT_RUN: '1',
     },
   })
+  const preparedPath = input.preparedEnvironment?.PATH
+  const toolSearchPath = preparedPath === undefined ? process.env.PATH : (preparedPath ?? undefined)
   const customTools: ToolDefinition[] = [
     defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
-    defineTool(createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
+    ...(offersPowerShellTool(process.platform, toolSearchPath)
+      ? [
+          defineTool(
+            createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun }),
+          ),
+        ]
+      : []),
   ]
   const hasExistingMessages = input.sessionManager.buildSessionContext().messages.length > 0
   const result = await createOpenWaggleAgentSessionFromServices({
