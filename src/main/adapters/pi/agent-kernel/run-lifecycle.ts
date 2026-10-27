@@ -8,6 +8,7 @@ import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import { resolveEffectiveAuthorizationMode } from '../../../application/agent-authorization-mode'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
+import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
 import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
 import {
@@ -37,6 +38,7 @@ import {
   collectPiMessagesAfterBoundary,
   collectSettledPiMessages,
 } from './run-lifecycle-failure'
+import { readRunProjectionBase } from './run-projection-base'
 import {
   createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
@@ -207,6 +209,7 @@ export async function createPiRunSessionRuntime(
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
   readonly nodeIds: PiEntryNodeIds
+  readonly projectionBase: PiProjectionBase | null
   readonly payload: HydratedAgentSendPayload
   readonly appended: readonly unknown[]
   readonly aborted: boolean
@@ -218,7 +221,7 @@ function buildSuccessfulRunResult(input: {
     newMessages: buildPiRunNewMessages(input.payload, input.appended),
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds),
+    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds, input.projectionBase),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
@@ -282,6 +285,10 @@ export async function runSubscribedPiOperation(input: {
     return buildSuccessfulRunResult({
       session: input.session,
       nodeIds: piEntryNodeIds(input.runInput.session),
+      projectionBase: await readRunProjectionBase(
+        input.runInput.session,
+        input.session.sessionFile,
+      ),
       payload: input.runInput.payload,
       appended,
       aborted: operationAborted,

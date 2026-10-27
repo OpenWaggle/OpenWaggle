@@ -35,6 +35,8 @@ export interface SnapshotProjectionInput {
   readonly input: PersistSessionSnapshotInput
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly now: number
+  /** Nodes kept from the Session's current Pi projection, so stored as the snapshot has them. */
+  readonly retainedIds: ReadonlySet<string>
   readonly sql: SqlClient.SqlClient
 }
 
@@ -193,6 +195,7 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
             nodes: input.nodes,
             branchHintByNodeId: input.branchHintByNodeId,
             contentHashByNodeId: input.contentHashByNodeId,
+            retainedIds: input.retainedIds,
           }),
         ),
       ),

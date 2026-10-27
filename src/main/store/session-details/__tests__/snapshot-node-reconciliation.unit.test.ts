@@ -105,6 +105,7 @@ describe('reconcileSnapshotNodes', () => {
         branchHintByNodeId: new Map(),
         contentHashByNodeId: new Map(['p', 'a', 'b'].map((id) => [id, 'stored-hash'])),
         existingNodes: [existing('a', 0), existing('b', 1)],
+        retainedIds: new Set(),
         // `a` and `b` only move: content, role, kind and parent are unchanged; a new node leads.
         nodes: [next('p', 0), next('a', 1), next('b', 2)],
       }),
