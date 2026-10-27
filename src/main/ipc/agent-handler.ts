@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { decodeUnknownOrThrow } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
@@ -7,7 +7,7 @@ import {
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { AgentLoopInteractionErrorCode } from '@shared/types/agent-loop-interaction'
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
@@ -22,6 +22,7 @@ import {
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { interruptSessionRun } from '../application/session-run-interruption'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
+import { setWindowShownSessions } from '../utils/broadcast'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -30,6 +31,12 @@ import {
 } from '../utils/stream-bridge'
 import { cancelAllSessionRuns } from './active-agent-runs'
 import { hostHandle, typedHandle } from './typed-ipc'
+
+/** At most this many: a window shows a handful of Sessions at once. */
+const MAX_SHOWN_SESSIONS = 64
+const shownSessionIdsSchema = Schema.Array(Schema.String.pipe(Schema.fromBrand(SessionId))).pipe(
+  Schema.maxItems(MAX_SHOWN_SESSIONS),
+)
 
 function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
@@ -198,6 +205,12 @@ function registerAgentInteractionHandlers() {
 function registerAgentStateHandlers() {
   typedHandle('agent:get-phase', (_event, sessionId: SessionId) =>
     Effect.sync(() => getPhaseForSession(sessionId)),
+  )
+
+  typedHandle('agent:set-shown-sessions', (event, sessionIds: unknown) =>
+    Effect.sync(() =>
+      setWindowShownSessions(event.sender, decodeUnknownOrThrow(shownSessionIdsSchema, sessionIds)),
+    ),
   )
 
   typedHandle('agent:get-background-run', (_event, sessionId: SessionId) =>

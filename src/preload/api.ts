@@ -27,6 +27,7 @@ export const api: OpenWaggleApi = {
   onAgentEvent: on('agent:event'),
 
   getAgentPhase: invoke('agent:get-phase'),
+  setShownSessions: invoke('agent:set-shown-sessions'),
   getBackgroundRun: invoke('agent:get-background-run'),
   listActiveRuns: invoke('agent:list-active-runs'),
   getContextUsage: invoke('agent:get-context-usage'),

@@ -15,12 +15,19 @@ const bridge = vi.hoisted(() => {
       callbacks.add(callback)
       return () => callbacks.delete(callback)
     }),
+    setShownSessions: vi.fn(async (_sessionIds: readonly string[]) => {}),
   }
 })
 
-vi.mock('../ipc', () => ({ api: { onAgentEvent: bridge.onAgentEvent } }))
+vi.mock('../ipc', () => ({
+  api: { onAgentEvent: bridge.onAgentEvent, setShownSessions: bridge.setShownSessions },
+}))
 
-import { agentEventBridgeSubscriptionCount, subscribeAgentEvents } from '../agent-event-hub'
+import {
+  agentEventBridgeSubscriptionCount,
+  declareShownSessions,
+  subscribeAgentEvents,
+} from '../agent-event-hub'
 
 function deliver(payload: AgentEventPayload) {
   for (const callback of bridge.callbacks) callback(payload)
@@ -92,6 +99,13 @@ describe('agent event hub', () => {
     expect(reported).toEqual([failure])
     unsubscribeFailing()
     unsubscribeAfter()
+  })
+
+  it('tells the main process which Sessions this window shows, ignoring a failed call', async () => {
+    bridge.setShownSessions.mockRejectedValueOnce(new Error('stale preload'))
+    declareShownSessions([SessionId('session-4')])
+    await Promise.resolve()
+    expect(bridge.setShownSessions).toHaveBeenCalledWith(['session-4'])
   })
 
   it('is the only renderer module that subscribes to agent:event on the bridge', () => {

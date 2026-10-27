@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/types/brand'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import { api } from './ipc'
 
@@ -50,4 +51,14 @@ export function subscribeAgentEvents(listener: AgentEventListener): () => void {
 /** How many bridge subscriptions the hub holds; at most one. */
 export function agentEventBridgeSubscriptionCount() {
   return unsubscribeBridge ? 1 : 0
+}
+
+/**
+ * Tells the main process which Sessions this window shows: their streamed deltas arrive about 30
+ * times a second, other Sessions' merged on a slower beat (D8). Best effort: a preload without
+ * the method, or a failed call, leaves every Session at the faster beat.
+ */
+export function declareShownSessions(sessionIds: readonly SessionId[]) {
+  if (typeof api.setShownSessions !== 'function') return
+  void api.setShownSessions(sessionIds).catch(() => undefined)
 }
