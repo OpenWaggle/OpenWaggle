@@ -5,12 +5,15 @@ export interface ScheduledTaskNotice {
   readonly taskId: string
   readonly variant: 'neutral' | 'error'
   readonly message: string
+  /** Open the task, or turn an auto-paused Heartbeat back on. */
+  readonly action: 'open' | 'resume'
 }
 
 /** What the notifier remembers about a task between two list reads. */
 export interface ScheduledTaskNoticeSnapshot {
   readonly lastRunId: string | null
   readonly attentionSince: number | null
+  readonly autoPauseSince: number | null
 }
 
 export function noticeSnapshots(tasks: readonly ScheduledTask[]) {
@@ -19,6 +22,7 @@ export function noticeSnapshots(tasks: readonly ScheduledTask[]) {
     snapshots.set(task.id, {
       lastRunId: task.lastRun?.id ?? null,
       attentionSince: task.attention?.since ?? null,
+      autoPauseSince: task.heartbeat?.autoPause?.since ?? null,
     })
   }
   return snapshots
@@ -37,6 +41,7 @@ function runNotice(task: ScheduledTask, run: ScheduledTaskRun): ScheduledTaskNot
       taskId: task.id,
       variant: 'error',
       message: `Scheduled task “${task.name}” ${verb}${reason ? `: ${reason}` : '.'}`,
+      action: 'open',
     }
   }
   if (run.status === 'started' && task.notificationPolicy === 'every-run') {
@@ -45,6 +50,7 @@ function runNotice(task: ScheduledTask, run: ScheduledTaskRun): ScheduledTaskNot
       taskId: task.id,
       variant: 'neutral',
       message: `Scheduled task “${task.name}” ${what}.`,
+      action: 'open',
     }
   }
   return null
@@ -64,6 +70,17 @@ function taskNotices(task: ScheduledTask, previous: ScheduledTaskNoticeSnapshot 
       taskId: task.id,
       variant: 'error',
       message: `Scheduled task “${task.name}” needs attention: ${attention.message}`,
+      action: 'open',
+    })
+  }
+  const autoPause = task.heartbeat?.autoPause
+  // One notice per Auto-pause, with Resume; a task first seen paused announces nothing.
+  if (previous && autoPause && !task.enabled && autoPause.since !== previous.autoPauseSince) {
+    notices.push({
+      taskId: task.id,
+      variant: 'neutral',
+      message: `Heartbeat “${task.name}” ${autoPause.message}.`,
+      action: 'resume',
     })
   }
   return notices

@@ -14,7 +14,9 @@ const hello = {
 describe('Local Session protocol revision 27 (Hive defaults, issue #352)', () => {
   it('refuses a revision-26 client, which decodes queue outcomes with followUpIds exactly', () => {
     expect(LOCAL_SESSION_HIVE_DEFAULTS_REVISION).toBe(27)
-    expect(LOCAL_SESSION_CURRENT_REVISION).toBe(LOCAL_SESSION_HIVE_DEFAULTS_REVISION)
+    expect(LOCAL_SESSION_CURRENT_REVISION).toBeGreaterThanOrEqual(
+      LOCAL_SESSION_HIVE_DEFAULTS_REVISION,
+    )
     expect(
       negotiateLocalSessionProtocol({ ...hello, supportedRevisions: [26] }, 'host'),
     ).toMatchObject({ accepted: false })
@@ -22,10 +24,13 @@ describe('Local Session protocol revision 27 (Hive defaults, issue #352)', () =>
 
   it('advertises the Hive defaults capability', () => {
     expect(
-      negotiateLocalSessionProtocol({ ...hello, supportedRevisions: [27] }, 'host'),
+      negotiateLocalSessionProtocol(
+        { ...hello, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] },
+        'host',
+      ),
     ).toMatchObject({
       accepted: true,
-      revision: 27,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
       capabilities: expect.arrayContaining(['sessions:hive-defaults-v1']),
     })
   })

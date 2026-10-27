@@ -26,6 +26,15 @@ import {
   type TaskSchedule,
 } from '@shared/types/scheduled-task'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import {
+  heartbeatOutcomeNoteSchema,
+  heartbeatRunOutcomeSchema,
+  heartbeatSettingsInputSchema,
+  heartbeatSettingsSchema,
+  heartbeatWakeCheckCommandSchema,
+  scheduledTaskRunOutcomeSchema,
+  scheduledTaskRunWakeCheckSchema,
+} from './scheduled-task-heartbeat'
 import { sessionInputIdSchema, sessionInputPathSchema } from './session-input'
 
 const MODEL_ID_MAX_LENGTH = 256
@@ -77,16 +86,24 @@ export const taskScheduleSchema: Schema.Schema<TaskSchedule> = Schema.Union(
   }),
 )
 
+const modelChoiceFields = {
+  modelId: Schema.optional(
+    Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MODEL_ID_MAX_LENGTH)),
+  ),
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+}
+
 export const scheduledTaskTargetSchema: Schema.Schema<ScheduledTaskTarget> = Schema.Union(
-  Schema.Struct({ kind: Schema.Literal('heartbeat'), sessionId: sessionInputIdSchema }),
+  Schema.Struct({
+    kind: Schema.Literal('heartbeat'),
+    sessionId: sessionInputIdSchema,
+    ...modelChoiceFields,
+  }),
   Schema.Struct({
     kind: Schema.Literal('launch'),
     projectPath: sessionInputPathSchema.pipe(Schema.minLength(1)),
     workspace: Schema.Literal('new-worktree', 'local'),
-    modelId: Schema.optional(
-      Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MODEL_ID_MAX_LENGTH)),
-    ),
-    thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+    ...modelChoiceFields,
     agentDefinitionName: Schema.optional(
       Schema.String.pipe(Schema.minLength(1), Schema.maxLength(AGENT_DEFINITION_NAME_MAX_LENGTH)),
     ),
@@ -110,6 +127,7 @@ export const scheduledTaskInputSchema: Schema.Schema<ScheduledTaskInput> = Schem
   maxRuns: Schema.optional(maxRunsSchema),
   target: scheduledTaskTargetSchema,
   notificationPolicy: Schema.optional(notificationPolicySchema),
+  heartbeat: Schema.optional(heartbeatSettingsInputSchema),
 })
 
 export const scheduledTaskPatchSchema: Schema.Schema<ScheduledTaskPatch> = Schema.Struct({
@@ -122,6 +140,7 @@ export const scheduledTaskPatchSchema: Schema.Schema<ScheduledTaskPatch> = Schem
   maxRuns: Schema.optional(maxRunsSchema),
   target: Schema.optional(scheduledTaskTargetSchema),
   notificationPolicy: Schema.optional(notificationPolicySchema),
+  heartbeat: Schema.optional(heartbeatSettingsInputSchema),
 })
 
 const scheduledTasksCommandSchema: Schema.Schema<ScheduledTasksCommand> = Schema.Union(
@@ -147,6 +166,17 @@ const scheduledTasksCommandSchema: Schema.Schema<ScheduledTasksCommand> = Schema
   }),
   Schema.Struct({ operation: Schema.Literal('delete'), taskId: sessionInputIdSchema }),
   Schema.Struct({ operation: Schema.Literal('run-now'), taskId: sessionInputIdSchema }),
+  Schema.Struct({
+    operation: Schema.Literal('approve-wake-check'),
+    taskId: sessionInputIdSchema,
+    command: heartbeatWakeCheckCommandSchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('report-outcome'),
+    runId: sessionInputIdSchema,
+    outcome: heartbeatRunOutcomeSchema,
+    note: Schema.optional(heartbeatOutcomeNoteSchema),
+  }),
 )
 
 export const scheduledTasksRequestSchema: Schema.Schema<ScheduledTasksRequest> = Schema.Struct({
@@ -168,6 +198,8 @@ const scheduledTaskRunSchema: Schema.Schema<ScheduledTaskRun> = Schema.Struct({
   message: Schema.optional(Schema.String),
   sessionId: Schema.optional(Schema.String),
   runId: Schema.optional(Schema.String),
+  wakeCheck: Schema.optional(scheduledTaskRunWakeCheckSchema),
+  outcome: Schema.optional(scheduledTaskRunOutcomeSchema),
 })
 
 const scheduledTaskSchema: Schema.Schema<ScheduledTask> = Schema.Struct({
@@ -200,6 +232,7 @@ const scheduledTaskSchema: Schema.Schema<ScheduledTask> = Schema.Struct({
   waitingSince: Schema.NullOr(timestampSchema),
   runCount: countSchema,
   lastRun: Schema.NullOr(scheduledTaskRunSchema),
+  heartbeat: Schema.NullOr(heartbeatSettingsSchema),
   recentSessionIds: Schema.Array(Schema.String),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
@@ -224,6 +257,11 @@ const scheduledTasksResponseSchema: Schema.Schema<ScheduledTasksResponse> = Sche
     Schema.Struct({ effect: Schema.Literal('updated'), task: scheduledTaskSchema }),
     Schema.Struct({ effect: Schema.Literal('deleted'), taskId: Schema.String }),
     Schema.Struct({ effect: Schema.Literal('run-requested'), task: scheduledTaskSchema }),
+    Schema.Struct({
+      effect: Schema.Literal('outcome-recorded'),
+      task: scheduledTaskSchema,
+      run: scheduledTaskRunSchema,
+    }),
     Schema.Struct({
       effect: Schema.Literal('rejected'),
       code: Schema.Literal(...SCHEDULED_TASK_REJECTION_CODES),

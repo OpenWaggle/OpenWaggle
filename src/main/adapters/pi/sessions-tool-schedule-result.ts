@@ -57,12 +57,40 @@ function compactRun(run: ScheduledTaskRun, timeZone: string) {
     ...(run.message ? { message: run.message } : {}),
     ...(run.sessionId ? { sessionId: run.sessionId } : {}),
     ...(run.runId ? { runId: run.runId } : {}),
+    ...(run.wakeCheck ? { wakeCheck: run.wakeCheck } : {}),
+    ...(run.outcome ? { outcome: run.outcome.value, outcomeSource: run.outcome.source } : {}),
+  }
+}
+
+/** A Heartbeat's way to finish, Wake check and Auto-pause, as the model reads them (#388). */
+function compactHeartbeat(task: ScheduledTask) {
+  const heartbeat = task.heartbeat
+  if (!heartbeat) return {}
+  return {
+    ...(heartbeat.stopWhen ? { stopWhen: heartbeat.stopWhen } : {}),
+    ...(heartbeat.indefinite ? { indefinite: true } : {}),
+    idlePauseAfter: heartbeat.idlePauseAfter,
+    consecutiveIdleRuns: heartbeat.consecutiveIdleRuns,
+    ...(heartbeat.wakeCheck
+      ? {
+          wakeIf: heartbeat.wakeCheck.command,
+          wakeOnFailure: heartbeat.wakeCheck.onFailure,
+          wakeCheckApproval: heartbeat.wakeCheck.approval,
+        }
+      : {}),
+    ...(heartbeat.autoPause ? { autoPaused: heartbeat.autoPause.message } : {}),
   }
 }
 
 function compactTarget(task: ScheduledTask) {
   const { target } = task
-  if (target.kind === 'heartbeat') return { sessionId: target.sessionId }
+  if (target.kind === 'heartbeat') {
+    return {
+      sessionId: target.sessionId,
+      ...(target.modelId ? { model: target.modelId } : {}),
+      ...(target.thinkingLevel ? { thinking: target.thinkingLevel } : {}),
+    }
+  }
   return {
     projectPath: target.projectPath,
     workspace: target.workspace,
@@ -86,6 +114,7 @@ function compactTask(task: ScheduledTask, options: { readonly prompt?: boolean }
     ...(task.maxRuns !== null ? { maxRuns: task.maxRuns } : {}),
     runCount: task.runCount,
     ...compactTarget(task),
+    ...compactHeartbeat(task),
     ...(task.attention
       ? { attention: { reason: task.attention.reason, message: task.attention.message } }
       : {}),
@@ -96,6 +125,7 @@ function compactTask(task: ScheduledTask, options: { readonly prompt?: boolean }
             trigger: task.lastRun.trigger,
             firedAt: wallClock(task.lastRun.firedAt, task.timeZone),
             ...(task.lastRun.reason ? { reason: task.lastRun.reason } : {}),
+            ...(task.lastRun.outcome ? { outcome: task.lastRun.outcome.value } : {}),
           },
         }
       : {}),
@@ -124,6 +154,11 @@ function compactOutcome(outcome: ScheduledTasksOutcome) {
       .with('created', 'updated', 'run-requested', ({ effect, task }) => ({
         effect,
         task: compactTask(task),
+      }))
+      .with('outcome-recorded', ({ effect, task, run }) => ({
+        effect,
+        task: compactTask(task),
+        run: compactRun(run, task.timeZone),
       }))
       .with('deleted', ({ effect, taskId }) => ({ effect, taskId }))
       .with('rejected', ({ effect, code, message }) => ({ effect, code, message }))

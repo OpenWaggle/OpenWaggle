@@ -1,16 +1,29 @@
 import type {
+  HeartbeatAutoPause,
+  HeartbeatWakeCheckFailurePolicy,
   ScheduledTaskAttention,
   ScheduledTaskCreator,
   ScheduledTaskKind,
   ScheduledTaskNotificationPolicy,
   ScheduledTaskRun,
+  ScheduledTaskRunOutcome,
   ScheduledTaskRunReason,
   ScheduledTaskRunTrigger,
+  ScheduledTaskRunWakeCheck,
   ScheduledTaskTarget,
   TaskSchedule,
 } from '@shared/types/scheduled-task'
 import { Context, type Effect } from 'effect'
+import type { HeartbeatRunContext } from '../domain/scheduled-tasks/heartbeat-run-context'
 import type { ScheduledTaskRepositoryError } from '../errors'
+
+/** A Heartbeat's stored Wake check and the exact command the user approved, if any. */
+export interface StoredHeartbeatWakeCheck {
+  readonly command: string
+  readonly onFailure: HeartbeatWakeCheckFailurePolicy
+  readonly approvedCommand: string | null
+  readonly pendingSince: number | null
+}
 
 /**
  * A Scheduled task as the Session Host stores it. `ownerKey` names whose task it is (the local
@@ -41,6 +54,13 @@ export interface ScheduledTaskRecord {
   readonly nextNominalAt: number | null
   readonly waitingSince: number | null
   readonly runCount: number
+  /** Heartbeat settings (#388); a Launch schedule keeps the defaults and never uses them. */
+  readonly stopWhen: string | null
+  readonly indefinite: boolean
+  readonly idlePauseAfter: number
+  readonly consecutiveIdleRuns: number
+  readonly wakeCheck: StoredHeartbeatWakeCheck | null
+  readonly autoPause: HeartbeatAutoPause | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -69,6 +89,12 @@ export type ScheduledTaskRecordChanges = Partial<
     | 'nextNominalAt'
     | 'waitingSince'
     | 'runCount'
+    | 'stopWhen'
+    | 'indefinite'
+    | 'idlePauseAfter'
+    | 'consecutiveIdleRuns'
+    | 'wakeCheck'
+    | 'autoPause'
   >
 > & { readonly updatedAt: number }
 
@@ -84,6 +110,8 @@ export interface ScheduledTaskRunStart {
   readonly callerId: string
   readonly previousSessionId: string | null
   readonly previousFiredAt: number | null
+  /** What a Heartbeat Run is told about its task, when the firing sends one. */
+  readonly context?: HeartbeatRunContext
 }
 
 export interface ScheduledTaskRunSettlement {
@@ -92,6 +120,15 @@ export interface ScheduledTaskRunSettlement {
   readonly message?: string
   readonly sessionId?: string
   readonly runId?: string
+  readonly wakeCheck?: ScheduledTaskRunWakeCheck
+}
+
+/** The Scheduled task run that started one Session Run, found by that Run's id. */
+export interface ScheduledTaskRunOfSessionRun {
+  readonly id: string
+  readonly taskId: string
+  readonly sessionId: string
+  readonly outcome: ScheduledTaskRunOutcome | null
 }
 
 export interface ScheduledTaskSessionActivity {
@@ -102,6 +139,9 @@ export interface ScheduledTaskSessionActivity {
   readonly runCount: number
   readonly latestRunStatus: string | null
   readonly piSessionFile: string | null
+  /** Where a Wake check runs: the Session's Workspace, and its project. */
+  readonly workingPath: string | null
+  readonly projectPath: string | null
 }
 
 export interface ScheduledTaskRepositoryShape {
@@ -149,6 +189,18 @@ export interface ScheduledTaskRepositoryShape {
   readonly recordRun: (
     run: ScheduledTaskRunStart & ScheduledTaskRunSettlement,
   ) => Effect.Effect<void, ScheduledTaskRepositoryError>
+  /** The run that started this Session Run, if a Scheduled task started it. */
+  readonly runOfSessionRun: (
+    sessionRunId: string,
+  ) => Effect.Effect<ScheduledTaskRunOfSessionRun | null, ScheduledTaskRepositoryError>
+  /** Records a Run outcome: a reported one replaces any earlier; an inferred one only fills in. */
+  readonly recordRunOutcome: (
+    runId: string,
+    outcome: ScheduledTaskRunOutcome,
+  ) => Effect.Effect<boolean, ScheduledTaskRepositoryError>
+  readonly getRun: (
+    runId: string,
+  ) => Effect.Effect<ScheduledTaskRun | null, ScheduledTaskRepositoryError>
   readonly listRuns: (input: {
     readonly taskId: string
     readonly limit: number

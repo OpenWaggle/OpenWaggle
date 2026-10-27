@@ -1,5 +1,14 @@
+import {
+  doneAutoPauseMessage,
+  idleAutoPauseMessage,
+} from '@shared/domain/scheduled-tasks/heartbeat-rules'
 import { missedOccurrences } from '@shared/domain/scheduled-tasks/task-schedule'
-import type { ScheduledTaskAttention, ScheduledTaskRunTrigger } from '@shared/types/scheduled-task'
+import type {
+  HeartbeatAutoPause,
+  HeartbeatRunOutcome,
+  ScheduledTaskAttention,
+  ScheduledTaskRunTrigger,
+} from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import {
   type ScheduledTaskRecord,
@@ -159,4 +168,88 @@ export function stopScheduledTask(record: ScheduledTaskRecord, attention: Schedu
         }
       : null,
   )
+}
+
+function pausedBy(
+  current: ScheduledTaskRecord,
+  autoPause: HeartbeatAutoPause,
+  consecutiveIdleRuns: number,
+): ScheduledTaskRecordChanges {
+  return {
+    enabled: false,
+    autoPause,
+    consecutiveIdleRuns,
+    nextRunAt: null,
+    nextNominalAt: null,
+    waitingSince: null,
+    updatedAt: Math.max(autoPause.since, current.updatedAt + 1),
+  }
+}
+
+function outcomeChanges(
+  current: ScheduledTaskRecord,
+  outcome: HeartbeatRunOutcome,
+  input: { readonly now: number; readonly note?: string },
+): ScheduledTaskRecordChanges | null {
+  if (current.kind !== 'heartbeat') return null
+  const updatedAt = Math.max(input.now, current.updatedAt + 1)
+  if (outcome === 'acted') {
+    return current.consecutiveIdleRuns === 0 ? null : { consecutiveIdleRuns: 0, updatedAt }
+  }
+  if (outcome === 'done') {
+    // Paused already (by the Run itself, as its instruction says): it still says why it ended.
+    if (!current.enabled && current.autoPause) return null
+    return pausedBy(
+      current,
+      { reason: 'done', message: doneAutoPauseMessage(input.note), since: input.now },
+      current.consecutiveIdleRuns,
+    )
+  }
+  const idleRuns = current.consecutiveIdleRuns + 1
+  if (current.enabled && idleRuns >= current.idlePauseAfter) {
+    return pausedBy(
+      current,
+      { reason: 'idle', message: idleAutoPauseMessage(idleRuns), since: input.now },
+      idleRuns,
+    )
+  }
+  return { consecutiveIdleRuns: idleRuns, updatedAt }
+}
+
+/**
+ * Applies one Run outcome to its Heartbeat (#388): `acted` resets the idle count, `idle` (a
+ * skipped Wake check included) adds to it and pauses the Heartbeat at its threshold, and `done`
+ * pauses it at once. Each Auto-pause records why, which the app announces once with Resume.
+ */
+export function applyHeartbeatOutcome(
+  taskId: string,
+  outcome: HeartbeatRunOutcome,
+  input: { readonly now: number; readonly note?: string },
+) {
+  return applyWithRetry(taskId, (current) => outcomeChanges(current, outcome, input))
+}
+
+/** Records that a Heartbeat waits for the user to approve its Wake check command. */
+export function markWakeCheckPending(record: ScheduledTaskRecord, now: number) {
+  return applyWithRetry(record.id, (current) => {
+    const wakeCheck = current.wakeCheck
+    if (!wakeCheck || wakeCheck.command !== record.wakeCheck?.command) return null
+    if (wakeCheck.pendingSince !== null) return null
+    return {
+      wakeCheck: { ...wakeCheck, pendingSince: now },
+      updatedAt: Math.max(now, current.updatedAt + 1),
+    }
+  })
+}
+
+/** Its Session no longer asks for approval, so the Heartbeat no longer waits for it. */
+export function clearWakeCheckPending(record: ScheduledTaskRecord, now: number) {
+  return applyWithRetry(record.id, (current) => {
+    const wakeCheck = current.wakeCheck
+    if (!wakeCheck || wakeCheck.pendingSince === null) return null
+    return {
+      wakeCheck: { ...wakeCheck, pendingSince: null },
+      updatedAt: Math.max(now, current.updatedAt + 1),
+    }
+  })
 }

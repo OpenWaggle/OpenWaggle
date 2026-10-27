@@ -42,7 +42,8 @@ export function loadRunExecutionProfile(
             'firedAt', scheduled_task_runs.fired_at,
             'missedCount', scheduled_task_runs.missed_count,
             'previousSessionId', scheduled_task_runs.previous_session_id,
-            'previousFiredAt', scheduled_task_runs.previous_fired_at
+            'previousFiredAt', scheduled_task_runs.previous_fired_at,
+            'context', scheduled_task_runs.context_json
           )
           FROM session_runs
           JOIN scheduled_task_runs

@@ -13,6 +13,7 @@ const SCHEDULE_ACTIONS = [
   'schedule_update',
   'schedule_delete',
   'schedule_run_now',
+  'schedule_outcome',
 ] as const
 export type SessionsToolScheduleAction = (typeof SCHEDULE_ACTIONS)[number]
 

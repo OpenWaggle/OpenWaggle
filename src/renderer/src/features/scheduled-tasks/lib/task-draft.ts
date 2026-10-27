@@ -11,6 +11,12 @@ import { SCHEDULED_TASK_MAX_RUNS_LIMIT } from '@shared/types/scheduled-task'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { addDays, isValidTimeZone, localDateOf, zonedEpoch } from '@shared/utils/zoned-time'
 import {
+  type HeartbeatDraftFields,
+  heartbeatDraftFields,
+  heartbeatSettingsFromDraft,
+  NEW_HEARTBEAT_DRAFT_FIELDS,
+} from './heartbeat-draft'
+import {
   defaultScheduleDraft,
   draftFromSchedule,
   type ScheduleDraft,
@@ -19,7 +25,7 @@ import {
 import { defaultNotificationPolicy } from './task-format'
 
 /** Everything the Create/Edit editor holds, as the user typed it. */
-export interface TaskEditorDraft {
+export interface TaskEditorDraft extends HeartbeatDraftFields {
   readonly name: string
   readonly prompt: string
   readonly kind: ScheduledTaskKind
@@ -29,7 +35,7 @@ export interface TaskEditorDraft {
   /** Launch schedule target. */
   readonly projectPath: string
   readonly workspace: LaunchScheduleWorkspace
-  /** Empty means the project's default model. */
+  /** Empty means the project's default model, or a Heartbeat's Session model. */
   readonly modelId: string
   readonly thinkingLevel: ThinkingLevel | ''
   readonly agentDefinitionName: string
@@ -74,6 +80,7 @@ export function newTaskDraft(input: {
     endDate: '',
     maxRuns: '',
     notificationPolicy: defaultNotificationPolicy(input.kind),
+    ...NEW_HEARTBEAT_DRAFT_FIELDS,
   }
 }
 
@@ -100,12 +107,15 @@ function endDateFromTimestamp(endsAt: number | null, timeZone: string) {
 }
 
 function launchDraftFields(target: ScheduledTaskTarget) {
-  if (target.kind !== 'launch') return {} satisfies Partial<TaskEditorDraft>
-  return {
-    projectPath: target.projectPath,
-    workspace: target.workspace,
+  const model: Pick<TaskEditorDraft, 'modelId' | 'thinkingLevel'> = {
     modelId: target.modelId ?? '',
     thinkingLevel: target.thinkingLevel ?? '',
+  }
+  if (target.kind !== 'launch') return model satisfies Partial<TaskEditorDraft>
+  return {
+    ...model,
+    projectPath: target.projectPath,
+    workspace: target.workspace,
     agentDefinitionName: target.agentDefinitionName ?? '',
     archiveFinishedSessions: target.archiveFinishedSessions,
   } satisfies Partial<TaskEditorDraft>
@@ -124,13 +134,24 @@ export function draftFromTask(task: ScheduledTask): TaskEditorDraft {
     endDate: endDateFromTimestamp(task.endsAt, task.timeZone),
     maxRuns: task.maxRuns === null ? '' : String(task.maxRuns),
     notificationPolicy: task.notificationPolicy,
+    ...heartbeatDraftFields(task),
+  }
+}
+
+function modelChoiceFromDraft(draft: TaskEditorDraft) {
+  return {
+    ...(draft.modelId ? { modelId: draft.modelId } : {}),
+    ...(draft.thinkingLevel ? { thinkingLevel: draft.thinkingLevel } : {}),
   }
 }
 
 function targetFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskTarget> {
   if (draft.kind === 'heartbeat') {
     if (draft.sessionId === '') return { ok: false, error: 'Choose the Session to deliver into.' }
-    return { ok: true, value: { kind: 'heartbeat', sessionId: draft.sessionId } }
+    return {
+      ok: true,
+      value: { kind: 'heartbeat', sessionId: draft.sessionId, ...modelChoiceFromDraft(draft) },
+    }
   }
   if (draft.projectPath === '') return { ok: false, error: 'Choose a project.' }
   const agentDefinitionName = draft.agentDefinitionName.trim()
@@ -140,8 +161,7 @@ function targetFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskT
       kind: 'launch',
       projectPath: draft.projectPath,
       workspace: draft.workspace,
-      ...(draft.modelId ? { modelId: draft.modelId } : {}),
-      ...(draft.thinkingLevel ? { thinkingLevel: draft.thinkingLevel } : {}),
+      ...modelChoiceFromDraft(draft),
       ...(agentDefinitionName ? { agentDefinitionName } : {}),
       archiveFinishedSessions: draft.archiveFinishedSessions,
     },
@@ -192,7 +212,10 @@ export function nameFromPrompt(prompt: string) {
 }
 
 /** The create input an editor draft describes, or the first reason it does not yet. */
-export function taskInputFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskInput> {
+export function taskInputFromDraft(
+  draft: TaskEditorDraft,
+  original?: ScheduledTask | null,
+): TaskDraftResult<ScheduledTaskInput> {
   if (draft.prompt.trim() === '') return { ok: false, error: 'Write the prompt to deliver.' }
   const target = targetFromDraft(draft)
   if (!target.ok) return target
@@ -202,6 +225,15 @@ export function taskInputFromDraft(draft: TaskEditorDraft): TaskDraftResult<Sche
   if (!endsAt.ok) return endsAt
   const maxRuns = maxRunsFromDraft(draft.maxRuns)
   if (!maxRuns.ok) return maxRuns
+  const heartbeat =
+    draft.kind === 'heartbeat'
+      ? heartbeatSettingsFromDraft(
+          draft,
+          { endsAt: endsAt.value, maxRuns: maxRuns.value },
+          original,
+        )
+      : null
+  if (heartbeat && !heartbeat.ok) return heartbeat
   return {
     ok: true,
     value: {
@@ -214,14 +246,20 @@ export function taskInputFromDraft(draft: TaskEditorDraft): TaskDraftResult<Sche
       maxRuns: maxRuns.value,
       target: target.value,
       notificationPolicy: draft.notificationPolicy,
+      ...(heartbeat ? { heartbeat: heartbeat.value } : {}),
     },
   }
 }
 
-/** The update patch for an edited task; a Heartbeat's target Session cannot change. */
-export function taskPatchFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskPatch> {
-  const input = taskInputFromDraft(draft)
+/**
+ * The update patch for an edited task. A Heartbeat keeps its Session (the target only carries its
+ * own model), and its Wake check is sent only when the user changed it.
+ */
+export function taskPatchFromDraft(
+  draft: TaskEditorDraft,
+  original: ScheduledTask,
+): TaskDraftResult<ScheduledTaskPatch> {
+  const input = taskInputFromDraft(draft, original)
   if (!input.ok) return input
-  const { target, ...rest } = input.value
-  return { ok: true, value: target.kind === 'heartbeat' ? rest : { ...rest, target } }
+  return { ok: true, value: input.value }
 }

@@ -12,6 +12,14 @@ import {
   type ScheduledTaskTarget,
   type TaskSchedule,
 } from '@shared/types/scheduled-task'
+import {
+  assertHeartbeatCanFinish,
+  givenHeartbeatSettings,
+  type HeartbeatCommandFields,
+  heartbeatSettingsInput,
+  heartbeatTarget,
+  reportOutcomeCommand,
+} from './sessions-tool-schedule-heartbeat'
 import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
 
 /**
@@ -19,7 +27,7 @@ import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
  * Each adapter validates its own transport schema first; this module maps the fields onto one
  * `scheduled-tasks-v1` command so the two surfaces keep the same semantics.
  */
-export interface ScheduleCommandFields {
+export interface ScheduleCommandFields extends HeartbeatCommandFields {
   readonly scheduleTaskId?: string
   readonly name?: string
   readonly prompt?: string
@@ -33,8 +41,6 @@ export interface ScheduleCommandFields {
   readonly sessionId?: string
   readonly projectPath?: string
   readonly workspace?: string
-  readonly model?: string
-  readonly thinking?: string
   readonly agent?: string
   readonly archiveFinishedSessions?: boolean
   readonly limit?: number
@@ -47,16 +53,12 @@ export interface ScheduleCommandDefaults {
   readonly heartbeatSessionId?: string
   /** The calling Session's project, which a Launch schedule targets by default. */
   readonly launchProjectPath?: string
+  /** The calling Run, which reports its own Run outcome. */
+  readonly runId?: string
 }
 
-const LAUNCH_TARGET_FIELDS = [
-  'projectPath',
-  'workspace',
-  'model',
-  'thinking',
-  'agent',
-  'archiveFinishedSessions',
-] as const
+const LAUNCH_ONLY_FIELDS = ['projectPath', 'workspace', 'agent', 'archiveFinishedSessions'] as const
+const MODEL_FIELDS = ['model', 'thinking'] as const
 
 function requiredTaskId(fields: ScheduleCommandFields, operation: ScheduledTasksOperation) {
   if (!fields.scheduleTaskId)
@@ -92,12 +94,15 @@ function launchWorkspace(value: string | undefined): LaunchScheduleWorkspace | u
 }
 
 function givenLaunchFields(fields: ScheduleCommandFields) {
-  return LAUNCH_TARGET_FIELDS.filter((field) => fields[field] !== undefined)
+  return LAUNCH_ONLY_FIELDS.filter((field) => fields[field] !== undefined)
 }
 
-/** Whether an update changes Launch target fields, which needs the task's current target. */
+/** Whether an update changes target fields, which needs the task's current target. */
 export function scheduleUpdateChangesTarget(fields: ScheduleCommandFields) {
-  return givenLaunchFields(fields).length > 0
+  return (
+    givenLaunchFields(fields).length > 0 ||
+    MODEL_FIELDS.some((field) => fields[field] !== undefined)
+  )
 }
 
 type LaunchTarget = Extract<ScheduledTaskTarget, { kind: 'launch' }>
@@ -142,15 +147,23 @@ function createTarget(
     }
     const sessionId = fields.sessionId ?? defaults.heartbeatSessionId
     if (!sessionId) throw new Error('A Heartbeat requires sessionId, the Session it delivers into.')
-    return { kind: 'heartbeat', sessionId }
+    return heartbeatTarget(sessionId, fields)
   }
   if (fields.scheduleKind !== 'launch') {
     throw new Error('Scheduled task create requires scheduleKind heartbeat or launch.')
   }
+  assertNoHeartbeatSettings(fields)
   if (fields.sessionId !== undefined) {
     throw new Error('sessionId applies only to a Heartbeat; a Launch schedule names a project.')
   }
   return launchTarget(fields, undefined, defaults)
+}
+
+function assertNoHeartbeatSettings(fields: ScheduleCommandFields) {
+  const heartbeatOnly = givenHeartbeatSettings(fields)
+  if (heartbeatOnly.length > 0) {
+    throw new Error(`${heartbeatOnly.join(', ')} apply only to a Heartbeat.`)
+  }
 }
 
 function timingFields(fields: ScheduleCommandFields) {
@@ -173,6 +186,17 @@ function createCommand(
   if (!fields.name) throw new Error('Scheduled task create requires name.')
   if (!fields.prompt) throw new Error('Scheduled task create requires prompt.')
   if (fields.schedule === undefined) throw new Error('Scheduled task create requires schedule.')
+  const timing = timingFields(fields)
+  const target = createTarget(fields, defaults)
+  if (target.kind === 'heartbeat') {
+    assertHeartbeatCanFinish({
+      ...(fields.stopWhen !== undefined ? { stopWhen: fields.stopWhen } : {}),
+      ...(fields.indefinite !== undefined ? { indefinite: fields.indefinite } : {}),
+      endsAt: timing.endsAt ?? null,
+      maxRuns: timing.maxRuns ?? null,
+    })
+  }
+  const heartbeat = heartbeatSettingsInput(fields)
   return {
     operation: 'create',
     input: {
@@ -180,10 +204,26 @@ function createCommand(
       prompt: fields.prompt,
       enabled: fields.enabled ?? true,
       schedule: taskSchedule(fields.schedule),
-      ...timingFields(fields),
-      target: createTarget(fields, defaults),
+      ...timing,
+      target,
+      ...(heartbeat ? { heartbeat } : {}),
     },
   }
+}
+
+/** The target an update sets from the given target fields, merged into the current target. */
+function updatedTarget(
+  fields: ScheduleCommandFields,
+  currentTarget: ScheduledTaskTarget | undefined,
+) {
+  if (!scheduleUpdateChangesTarget(fields)) return undefined
+  if (!currentTarget) throw new Error('Updating a task target requires its current target.')
+  if (currentTarget.kind === 'launch') return launchTarget(fields, currentTarget, {})
+  const launchOnly = givenLaunchFields(fields)
+  if (launchOnly.length > 0) {
+    throw new Error(`${launchOnly.join(', ')} apply only to a Launch schedule.`)
+  }
+  return heartbeatTarget(currentTarget.sessionId, fields, currentTarget)
 }
 
 function updateCommand(
@@ -197,14 +237,8 @@ function updateCommand(
   if (fields.sessionId !== undefined) {
     throw new Error("A Heartbeat's target Session cannot change; delete it and create a new one.")
   }
-  let target: ScheduledTaskTarget | undefined
-  if (scheduleUpdateChangesTarget(fields)) {
-    if (!currentTarget) throw new Error('Updating a Launch target requires its current target.')
-    if (currentTarget.kind !== 'launch') {
-      throw new Error(`${givenLaunchFields(fields).join(', ')} apply only to a Launch schedule.`)
-    }
-    target = launchTarget(fields, currentTarget, {})
-  }
+  const target = updatedTarget(fields, currentTarget)
+  const heartbeat = heartbeatSettingsInput(fields)
   const patch: ScheduledTaskPatch = {
     ...(fields.name !== undefined ? { name: fields.name } : {}),
     ...(fields.prompt !== undefined ? { prompt: fields.prompt } : {}),
@@ -212,6 +246,7 @@ function updateCommand(
     ...(fields.schedule !== undefined ? { schedule: taskSchedule(fields.schedule) } : {}),
     ...timingFields(fields),
     ...(target ? { target } : {}),
+    ...(heartbeat ? { heartbeat } : {}),
   }
   if (Object.keys(patch).length === 0) {
     throw new Error('Scheduled task update needs at least one field to change.')
@@ -247,6 +282,10 @@ export function buildScheduledTasksCommand(input: {
   }
   if (operation === 'create') return createCommand(fields, input.defaults ?? {})
   if (operation === 'update') return updateCommand(fields, input.currentTarget)
+  if (operation === 'report-outcome') return reportOutcomeCommand(fields, input.defaults?.runId)
+  if (operation === 'approve-wake-check') {
+    throw new Error('A Wake check is approved by the user, never by a tool argument.')
+  }
   return { operation, taskId: requiredTaskId(fields, operation) }
 }
 

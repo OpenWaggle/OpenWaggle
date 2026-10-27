@@ -72,3 +72,21 @@ export function useSetScheduledTaskEnabled() {
     error: update.error,
   }
 }
+
+/** The user approves the exact Wake check command shown, which releases a held Heartbeat. */
+export function useApproveWakeCheck() {
+  const invalidate = useInvalidateScheduledTasks()
+  return useMutation({
+    mutationFn: async (variables: { readonly taskId: string; readonly command: string }) => {
+      const outcome = await executeScheduledTasksCommand({
+        operation: 'approve-wake-check',
+        ...variables,
+      })
+      if (outcome.effect !== 'updated') {
+        throw new Error('The Session Host did not approve the Wake check.')
+      }
+      return outcome.task
+    },
+    onSettled: invalidate,
+  })
+}

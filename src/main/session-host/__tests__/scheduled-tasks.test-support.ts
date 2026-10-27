@@ -76,6 +76,7 @@ export function heartbeatInput(sessionId: string, overrides: Partial<ScheduledTa
     schedule: { kind: 'interval', everyMinutes: 30 },
     timeZone: 'UTC',
     target: { kind: 'heartbeat', sessionId },
+    heartbeat: { stopWhen: 'CI is green on main.' },
     ...overrides,
   } satisfies ScheduledTaskInput
 }

@@ -9,6 +9,7 @@ import {
   scheduledTaskNotices,
 } from '../lib/task-notices'
 import { useScheduledTaskIndexStore } from '../state/scheduled-task-index-store'
+import { useSetScheduledTaskEnabled } from './useScheduledTaskMutations'
 import { useOpenScheduledTask } from './useShowScheduledTasks'
 
 function toastMessage(notices: readonly ScheduledTaskNotice[]) {
@@ -22,12 +23,13 @@ function toastMessage(notices: readonly ScheduledTaskNotice[]) {
 /**
  * Mounted once in the app shell. Keeps the sidebar's derived index current and announces new
  * Scheduled task runs in the app toast: failures and attention always, started runs only for a
- * task whose notification policy is "Every run".
+ * task whose notification policy is "Every run", and each Heartbeat Auto-pause once, with Resume.
  */
 export function useScheduledTasksMonitor(): void {
   const { data: tasks } = useQuery(scheduledTasksListQueryOptions())
   const index = useScheduledTaskIndexStore((state) => state.index)
   const openTask = useOpenScheduledTask()
+  const enabled = useSetScheduledTaskEnabled()
   const previous = useRef<ReadonlyMap<string, ScheduledTaskNoticeSnapshot> | null>(null)
 
   const announce = useEffectEvent((notices: readonly ScheduledTaskNotice[]) => {
@@ -40,7 +42,10 @@ export function useScheduledTasksMonitor(): void {
     useUIStore.getState().showActionToast({
       message: toastMessage(ordered),
       variant: first.variant,
-      action: { label: 'Open', onClick: () => openTask(first.taskId) },
+      action:
+        first.action === 'resume'
+          ? { label: 'Resume', onClick: () => enabled.setEnabled(first.taskId, true) }
+          : { label: 'Open', onClick: () => openTask(first.taskId) },
     })
   })
 

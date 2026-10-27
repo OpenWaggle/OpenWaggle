@@ -5,10 +5,12 @@ import { describeSchedule } from '../lib/schedule-presets'
 import {
   differingTimeZone,
   formatAbsoluteTime,
+  lastCheckText,
   nextRunAbsoluteText,
   nextRunText,
   RUN_STATUS_LABELS,
   RUN_TRIGGER_LABELS,
+  runOutcomeText,
   runReasonText,
 } from '../lib/task-format'
 
@@ -52,16 +54,31 @@ export function ScheduledTaskRunStatus({ run }: { readonly run: ScheduledTaskRun
   )
 }
 
-/** "Last run Started · Run now · Mar 2, 2026, 9:01:30 AM GMT+1": a manual run is never a misfire. */
-export function ScheduledTaskLastRunLine({ task }: { readonly task: ScheduledTask }) {
+/**
+ * "Last run Started · Run now · Mar 2, 2026, 9:01:30 AM GMT+1": a manual run is never a misfire.
+ * A gated Heartbeat leads with its last check: "Last check 07:04 · nothing to do · next 07:34".
+ */
+export function ScheduledTaskLastRunLine({
+  task,
+  now,
+}: {
+  readonly task: ScheduledTask
+  readonly now: number
+}) {
   const run = task.lastRun
   if (!run) return <div className="text-xs text-text-muted">No runs yet</div>
   const reason = runReasonText(run)
+  const outcome = runOutcomeText(run)
+  const check = lastCheckText(task, now)
   return (
-    <div className="text-xs text-text-tertiary">
-      Last run <ScheduledTaskRunStatus run={run} /> · {RUN_TRIGGER_LABELS[run.trigger]} ·{' '}
-      {formatAbsoluteTime(run.firedAt, differingTimeZone(task))}
-      {reason ? <span className="text-text-secondary"> — {reason}</span> : null}
+    <div className="space-y-0.5 text-xs text-text-tertiary">
+      {check ? <div className="text-text-secondary">{check}</div> : null}
+      <div>
+        Last run <ScheduledTaskRunStatus run={run} /> · {RUN_TRIGGER_LABELS[run.trigger]} ·{' '}
+        {formatAbsoluteTime(run.firedAt, differingTimeZone(task))}
+        {reason ? <span className="text-text-secondary"> — {reason}</span> : null}
+        {outcome ? <span className="text-text-secondary"> · {outcome}</span> : null}
+      </div>
     </div>
   )
 }

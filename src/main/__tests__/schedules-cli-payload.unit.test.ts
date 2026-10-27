@@ -60,6 +60,8 @@ describe('openwaggle schedules arguments', () => {
         'Watch',
         '--every',
         '15',
+        '--stop-when',
+        'CI is green',
         'Check',
         'CI',
       ),
@@ -72,8 +74,106 @@ describe('openwaggle schedules arguments', () => {
         enabled: true,
         schedule: { kind: 'interval', everyMinutes: 15 },
         target: { kind: 'heartbeat', sessionId: 's-1' },
+        heartbeat: { stopWhen: 'CI is green' },
       },
     })
+  })
+
+  it('refuses an open-ended Heartbeat unless it says how it ends (#388)', async () => {
+    const openEnded = await buildSchedulesCliCommands(
+      'create',
+      parsed('heartbeat', 's-1', '--name', 'Watch', '--every', '15', 'Check', 'CI'),
+    ).catch((error: unknown) => error)
+    expect(classifySessionsCliError(openEnded)).toBe('usage')
+    expect(String(openEnded)).toMatch(/--stop-when/)
+    for (const end of [['--indefinite'], ['--max-runs', '3'], ['--ends', '2030-01-01']]) {
+      const [command] = await buildSchedulesCliCommands(
+        'create',
+        parsed('heartbeat', 's-1', '--name', 'Watch', '--every', '15', ...end, 'Check'),
+      )
+      expect(command?.operation).toBe('create')
+    }
+  })
+
+  it('builds a gated Heartbeat with its own model, Wake check and idle threshold', async () => {
+    const [command] = await buildSchedulesCliCommands(
+      'create',
+      parsed(
+        'heartbeat',
+        's-1',
+        '--name',
+        'Babysit CI',
+        '--every',
+        '30m',
+        '--stop-when',
+        'the PR merged',
+        '--wake-if',
+        'gh pr checks 42 --json state -q ".[] | select(.state=="FAILURE")"',
+        '--wake-on-failure',
+        'skip',
+        '--idle-pause-after',
+        '5',
+        '--model',
+        'anthropic/haiku',
+        '--thinking',
+        'low',
+        'Fix failing checks.',
+      ),
+    )
+    expect(command).toMatchObject({
+      operation: 'create',
+      input: {
+        target: {
+          kind: 'heartbeat',
+          sessionId: 's-1',
+          modelId: 'anthropic/haiku',
+          thinkingLevel: 'low',
+        },
+        heartbeat: {
+          stopWhen: 'the PR merged',
+          idlePauseAfter: 5,
+          wakeCheck: { command: expect.stringContaining('gh pr checks'), onFailure: 'skip' },
+        },
+      },
+    })
+  })
+
+  it('removes a Wake check and Stop condition with none, and refuses bad Heartbeat options', async () => {
+    const [command] = await buildSchedulesCliCommands(
+      'update',
+      parsed('task-1', '--wake-if', 'none', '--stop-when', 'none', '--indefinite'),
+    )
+    expect(command).toEqual({
+      operation: 'update',
+      taskId: 'task-1',
+      patch: { heartbeat: { stopWhen: null, indefinite: true, wakeCheck: null } },
+    })
+    const tooMany = await buildSchedulesCliCommands(
+      'update',
+      parsed('task-1', '--idle-pause-after', '21'),
+    ).catch((error: unknown) => error)
+    expect(String(tooMany)).toMatch(/1 to 20/)
+    const launchWake = await buildSchedulesCliCommands(
+      'create',
+      parsed('launch', '/repo', '--name', 'N', '--every', '1h', '--wake-if', 'true', 'Go'),
+    ).catch((error: unknown) => error)
+    expect(String(launchWake)).toMatch(/only to a Heartbeat/)
+    const heartbeatWorkspace = await buildSchedulesCliCommands(
+      'create',
+      parsed(
+        'heartbeat',
+        's',
+        '--name',
+        'N',
+        '--every',
+        '1h',
+        '--indefinite',
+        '--workspace',
+        'local',
+        'Go',
+      ),
+    ).catch((error: unknown) => error)
+    expect(String(heartbeatWorkspace)).toMatch(/only to a Launch schedule/)
   })
 
   it('builds a paused Launch schedule with its execution options', async () => {

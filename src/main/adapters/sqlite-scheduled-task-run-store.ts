@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { ScheduledTaskRunTrigger } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
+import { encodeHeartbeatRunContext } from '../domain/scheduled-tasks/heartbeat-run-context'
 import type {
   InterruptedRunMessages,
   InterruptedScheduledTaskRun,
@@ -28,6 +29,7 @@ function runStartValues(run: ScheduledTaskRunStart) {
     caller_id: run.callerId,
     previous_session_id: run.previousSessionId,
     previous_fired_at: run.previousFiredAt,
+    context_json: run.context ? encodeHeartbeatRunContext(run.context) : null,
   }
 }
 
@@ -41,13 +43,14 @@ function insertRun(
     INSERT INTO scheduled_task_runs (
       id, task_id, task_name, trigger, nominal_at, fired_at, missed_count, status, reason,
       message, idempotency_key, caller_id, session_id, run_id, previous_session_id,
-      previous_fired_at
+      previous_fired_at, wake_check, context_json
     ) VALUES (
       ${values.id}, ${values.task_id}, ${values.task_name}, ${values.trigger}, ${values.nominal_at},
       ${values.fired_at}, ${values.missed_count}, ${settlement?.status ?? 'dispatching'},
       ${settlement?.reason ?? null}, ${settlement?.message ?? null}, ${values.idempotency_key},
       ${values.caller_id}, ${settlement?.sessionId ?? null}, ${settlement?.runId ?? null},
-      ${values.previous_session_id}, ${values.previous_fired_at}
+      ${values.previous_session_id}, ${values.previous_fired_at},
+      ${settlement?.wakeCheck ?? null}, ${values.context_json}
     )
   `
 }
@@ -118,6 +121,9 @@ type RunMethods = Pick<
   | 'startRun'
   | 'settleRun'
   | 'recordRun'
+  | 'runOfSessionRun'
+  | 'recordRunOutcome'
+  | 'getRun'
   | 'listRuns'
   | 'lastRuns'
   | 'recentSessionIds'
@@ -134,11 +140,13 @@ export function scheduledTaskRunMethods(sql: SqlClient.SqlClient): RunMethods {
         UPDATE scheduled_task_runs SET status = ${settlement.status},
           reason = ${settlement.reason ?? null}, message = ${settlement.message ?? null},
           session_id = COALESCE(${settlement.sessionId ?? null}, session_id),
-          run_id = COALESCE(${settlement.runId ?? null}, run_id)
+          run_id = COALESCE(${settlement.runId ?? null}, run_id),
+          wake_check = COALESCE(${settlement.wakeCheck ?? null}, wake_check)
         WHERE id = ${runId}
       `.pipe(Effect.asVoid, Effect.mapError(repositoryError('settle-run'))),
     recordRun: (run) =>
       insertRun(sql, run, run).pipe(Effect.asVoid, Effect.mapError(repositoryError('record-run'))),
+    ...scheduledTaskRunOutcomeMethods(sql),
     listRuns: (input) =>
       sql<ScheduledTaskRunRow>`
         SELECT ${sql.unsafe(SCHEDULED_TASK_RUN_COLUMNS)} FROM scheduled_task_runs
@@ -207,75 +215,50 @@ export function scheduledTaskRunMethods(sql: SqlClient.SqlClient): RunMethods {
   }
 }
 
-type SessionMethods = Pick<
+type RunOutcomeMethods = Pick<
   ScheduledTaskRepositoryShape,
-  'sessionAuthorityOrigin' | 'sessionActivity'
+  'runOfSessionRun' | 'recordRunOutcome' | 'getRun'
 >
 
-export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMethods {
+function scheduledTaskRunOutcomeMethods(sql: SqlClient.SqlClient): RunOutcomeMethods {
   return {
-    sessionAuthorityOrigin: (sessionId) =>
-      sql<{
-        readonly authority_origin_caller_id: string
-        readonly title: string
-        readonly archived: number
-      }>`
-        SELECT session_execution_profiles.authority_origin_caller_id, sessions.title,
-          sessions.archived
-        FROM sessions
-        JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
-        WHERE sessions.id = ${sessionId} LIMIT 1
+    runOfSessionRun: (sessionRunId) =>
+      sql<ScheduledTaskRunRow & { readonly session_id: string }>`
+        SELECT ${sql.unsafe(SCHEDULED_TASK_RUN_COLUMNS)} FROM scheduled_task_runs
+        WHERE run_id = ${sessionRunId} AND session_id IS NOT NULL
+          AND status IN ('started', 'dispatching')
+        ORDER BY fired_at DESC LIMIT 1
       `.pipe(
         Effect.map((rows) => {
           const row = rows[0]
-          return row
-            ? {
-                originCallerId: row.authority_origin_caller_id,
-                title: row.title,
-                archived: row.archived === 1,
-              }
-            : null
+          if (!row) return null
+          const run = decodeScheduledTaskRunRow(row)
+          return {
+            id: row.id,
+            taskId: row.task_id,
+            sessionId: row.session_id,
+            outcome: run.outcome ?? null,
+          }
         }),
-        Effect.mapError(repositoryError('session-authority-origin')),
+        Effect.mapError(repositoryError('run-of-session-run')),
       ),
-    sessionActivity: (sessionId) =>
-      sql<{
-        readonly archived: number
-        readonly active_run_id: string | null
-        readonly follow_up_count: number
-        readonly pinned: number
-        readonly run_count: number
-        readonly latest_run_status: string | null
-        readonly pi_session_file: string | null
-      }>`
-        SELECT sessions.archived, session_control_states.active_run_id,
-          (SELECT COUNT(*) FROM session_follow_ups
-            WHERE session_follow_ups.session_id = sessions.id) AS follow_up_count,
-          EXISTS (SELECT 1 FROM pinned_sessions
-            WHERE pinned_sessions.session_id = sessions.id) AS pinned,
-          (SELECT COUNT(*) FROM session_runs WHERE session_runs.session_id = sessions.id) AS run_count,
-          (SELECT status FROM session_runs WHERE session_runs.session_id = sessions.id
-            ORDER BY created_at DESC, id DESC LIMIT 1) AS latest_run_status,
-          sessions.pi_session_file
-        FROM sessions
-        LEFT JOIN session_control_states ON session_control_states.session_id = sessions.id
-        WHERE sessions.id = ${sessionId} LIMIT 1
+    recordRunOutcome: (runId, outcome) =>
+      sql<{ readonly id: string }>`
+        UPDATE scheduled_task_runs SET outcome = ${outcome.value},
+          outcome_source = ${outcome.source}, outcome_note = ${outcome.note ?? null}
+        WHERE id = ${runId} AND (outcome IS NULL OR ${outcome.source} = 'reported')
+        RETURNING id
       `.pipe(
-        Effect.map((rows) => {
-          const row = rows[0]
-          return row
-            ? {
-                archived: row.archived === 1,
-                activeRunId: row.active_run_id,
-                followUpCount: row.follow_up_count,
-                pinned: row.pinned === 1,
-                runCount: row.run_count,
-                latestRunStatus: row.latest_run_status,
-                piSessionFile: row.pi_session_file,
-              }
-            : null
-        }),
-        Effect.mapError(repositoryError('session-activity')),
+        Effect.map((rows) => rows.length > 0),
+        Effect.mapError(repositoryError('record-run-outcome')),
+      ),
+    getRun: (runId) =>
+      sql<ScheduledTaskRunRow>`
+        SELECT ${sql.unsafe(SCHEDULED_TASK_RUN_COLUMNS)} FROM scheduled_task_runs
+        WHERE id = ${runId} LIMIT 1
+      `.pipe(
+        Effect.map((rows) => (rows[0] ? decodeScheduledTaskRunRow(rows[0]) : null)),
+        Effect.mapError(repositoryError('get-run')),
       ),
   }
 }

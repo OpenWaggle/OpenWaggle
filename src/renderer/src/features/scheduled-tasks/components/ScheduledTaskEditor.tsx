@@ -8,6 +8,7 @@ import {
   useScheduledTaskEditor,
 } from '../hooks/useScheduledTaskEditor'
 import { nameFromPrompt } from '../lib/task-draft'
+import { EditorStopFields, EditorWakeCheckFields } from './EditorHeartbeatFields'
 import { EditorMoreFields } from './EditorMoreFields'
 import { EditorScheduleFields } from './EditorScheduleFields'
 import { EditorTargetFields, type ScheduledTaskEditorLayout } from './EditorTargetFields'
@@ -87,6 +88,16 @@ export function ScheduledTaskEditor({
         <EditorSection title="When">
           <EditorScheduleFields editor={editor} />
         </EditorSection>
+        {draft.kind === 'heartbeat' ? (
+          <>
+            <EditorSection title="Stop when…">
+              <EditorStopFields editor={editor} />
+            </EditorSection>
+            <EditorSection title="Before each run">
+              <EditorWakeCheckFields editor={editor} />
+            </EditorSection>
+          </>
+        ) : null}
         <EditorMoreFields editor={editor} />
         {editor.error ? (
           <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-xs text-error-text">

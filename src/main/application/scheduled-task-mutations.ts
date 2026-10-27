@@ -3,8 +3,6 @@ import type {
   ScheduledTaskInput,
   ScheduledTaskKind,
   ScheduledTaskPatch,
-  ScheduledTaskRejectionCode,
-  ScheduledTasksOutcome,
   ScheduledTaskTarget,
 } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
@@ -14,6 +12,13 @@ import {
   ScheduledTaskRepository,
 } from '../ports/scheduled-task-repository'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
+import {
+  DEFAULT_HEARTBEAT_FIELDS,
+  heartbeatFieldsFor,
+  heartbeatOnlyRefusal,
+  rejectedOutcome,
+  stopConditionRefusal,
+} from './scheduled-task-heartbeat-settings'
 import { scheduledTaskHooks } from './scheduled-task-hooks'
 import { nextFiringOf, presentScheduledTask } from './scheduled-task-presentation'
 import type { ScheduledTaskPrincipal } from './scheduled-task-principal'
@@ -22,9 +27,7 @@ import { authorizeScheduledTaskTarget } from './scheduled-task-target-authorizat
 /** Tasks one owner may keep; scheduling is recurring spend, so a runaway agent stops here. */
 export const SCHEDULED_TASKS_PER_OWNER_LIMIT = 200
 
-export function rejectedOutcome(code: ScheduledTaskRejectionCode, message: string) {
-  return { effect: 'rejected', code, message } satisfies ScheduledTasksOutcome
-}
+export { rejectedOutcome }
 
 function defaultPolicy(kind: ScheduledTaskKind) {
   return kind === 'heartbeat' ? ('failures-only' as const) : ('every-run' as const)
@@ -59,6 +62,10 @@ function scheduleRejection(
   return validation.ok ? null : rejectedOutcome(validation.code, validation.message)
 }
 
+function targetSessionOf(target: ScheduledTaskTarget) {
+  return target.kind === 'heartbeat' ? target.sessionId : null
+}
+
 function plannedFields(record: ScheduledTaskRecord, now: number) {
   const next = record.enabled ? nextFiringOf(record, now) : null
   return { nextRunAt: next?.runAt ?? null, nextNominalAt: next?.nominalAt ?? null }
@@ -87,11 +94,21 @@ export function createScheduledTask(input: {
     }
     const now = hooks.now()
     const kind = task.target.kind
+    const heartbeatRefusal = heartbeatOnlyRefusal(kind, task.heartbeat)
+    if (heartbeatRefusal) return heartbeatRefusal
     const timeZone = task.timeZone ?? hooks.defaultTimeZone()
     const scheduleRefusal = scheduleRejection(kind, { schedule: task.schedule, timeZone }, now)
     if (scheduleRefusal) return scheduleRefusal
     const admission = yield* admitTarget(principal, task.target)
     if (admission.effect === 'rejected') return admission
+    const heartbeat = yield* heartbeatFieldsFor({
+      principal,
+      current: DEFAULT_HEARTBEAT_FIELDS,
+      settings: task.heartbeat,
+      sessionId: targetSessionOf(task.target),
+      runsAs: principal.creatorCallerId,
+      now,
+    })
     const draft: ScheduledTaskRecord = {
       id: hooks.newId(),
       ownerKey: principal.ownerKey,
@@ -115,9 +132,12 @@ export function createScheduledTask(input: {
       nextNominalAt: null,
       waitingSince: null,
       runCount: 0,
+      ...heartbeat,
       createdAt: now,
       updatedAt: now,
     }
+    const stopRefusal = stopConditionRefusal(draft)
+    if (stopRefusal) return stopRefusal
     const planned = { ...draft, ...plannedFields(draft, now) }
     if (planned.enabled && planned.nextRunAt === null) {
       return rejectedOutcome('schedule_ended', 'This schedule has no firing left.')
@@ -193,7 +213,7 @@ function mergedRecord(current: ScheduledTaskRecord, patch: ScheduledTaskPatch, n
     ...scheduleFields(patch),
     ...(rescheduled ? { anchorAt: now } : {}),
     // Turning a task back on clears what stopped it; the next run checks again.
-    ...(enabling ? { attention: null } : {}),
+    ...(enabling ? { attention: null, autoPause: null, consecutiveIdleRuns: 0 } : {}),
     updatedAt: Math.max(now, current.updatedAt + 1),
   }
   const replan = rescheduled || enabling || patch.enabled === false
@@ -217,6 +237,12 @@ function recordChanges(record: ScheduledTaskRecord): ScheduledTaskRecordChanges 
     nextRunAt: record.nextRunAt,
     nextNominalAt: record.nextNominalAt,
     waitingSince: record.waitingSince,
+    stopWhen: record.stopWhen,
+    indefinite: record.indefinite,
+    idlePauseAfter: record.idlePauseAfter,
+    consecutiveIdleRuns: record.consecutiveIdleRuns,
+    wakeCheck: record.wakeCheck,
+    autoPause: record.autoPause,
     updatedAt: record.updatedAt,
   }
 }
@@ -235,7 +261,19 @@ export function updateScheduledTask(input: {
       const refusal = targetChangeRefusal(current, patch.target)
       if (refusal) return refusal
     }
-    const merged = mergedRecord(current, patch, now)
+    const heartbeatRefusal = heartbeatOnlyRefusal(current.kind, patch.heartbeat)
+    if (heartbeatRefusal) return heartbeatRefusal
+    const heartbeat = yield* heartbeatFieldsFor({
+      principal,
+      current,
+      settings: patch.heartbeat,
+      sessionId: targetSessionOf(current.target),
+      runsAs: current.creatorCallerId,
+      now,
+    })
+    const merged = { ...mergedRecord({ ...current, ...heartbeat }, patch, now) }
+    const stopRefusal = stopConditionRefusal(merged)
+    if (stopRefusal) return stopRefusal
     if (scheduleChanged(current, patch)) {
       const refusal = scheduleRejection(merged.kind, merged, now)
       if (refusal) return refusal

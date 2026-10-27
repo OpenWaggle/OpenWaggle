@@ -58,8 +58,16 @@ function runFiring(run: ScheduledTaskRun, timeZone: string | undefined) {
   return `${time(run.firedAt, timeZone)} ${run.trigger} ${run.status}`
 }
 
+function taskState(task: ScheduledTask) {
+  if (task.attention) return 'needs attention'
+  if (task.heartbeat?.autoPause) return task.heartbeat.autoPause.message
+  if (task.heartbeat?.wakeCheck?.approval === 'pending')
+    return 'waiting for you to approve its wake check'
+  return task.enabled ? 'on' : 'paused'
+}
+
 function taskLine(task: ScheduledTask, options: { readonly lastRun: boolean }) {
-  const state = task.attention ? 'needs attention' : task.enabled ? 'on' : 'paused'
+  const state = taskState(task)
   const waiting = task.waitingSince !== null ? ' · waiting for its Session' : ''
   const last =
     options.lastRun && task.lastRun ? `  last ${runFiring(task.lastRun, task.timeZone)}` : ''
@@ -73,10 +81,34 @@ function lastRunLine(task: ScheduledTask) {
   return `  Last run: ${runFiring(run, task.timeZone)}${session}`
 }
 
+/** A Heartbeat's way to finish, Wake check and idle count (#388). */
+function heartbeatLines(task: ScheduledTask) {
+  const heartbeat = task.heartbeat
+  if (!heartbeat) return []
+  const ends =
+    heartbeat.stopWhen !== null
+      ? `Stops when: ${heartbeat.stopWhen}`
+      : heartbeat.indefinite && task.endsAt === null && task.maxRuns === null
+        ? 'Has no end (indefinite)'
+        : null
+  const model = task.target.kind === 'heartbeat' ? task.target.modelId : undefined
+  return [
+    ...(ends ? [`  ${ends}`] : []),
+    ...(heartbeat.wakeCheck
+      ? [
+          `  Wake check (${heartbeat.wakeCheck.approval}, on failure ${heartbeat.wakeCheck.onFailure}): ${heartbeat.wakeCheck.command}`,
+        ]
+      : []),
+    `  Idle runs: ${String(heartbeat.consecutiveIdleRuns)} of ${String(heartbeat.idlePauseAfter)} before it pauses itself`,
+    ...(model ? [`  Model for its Runs: ${model}`] : []),
+  ]
+}
+
 function taskDetails(task: ScheduledTask) {
   return [
     taskLine(task, { lastRun: false }),
     `  ${taskTarget(task)}`,
+    ...heartbeatLines(task),
     `  Created by ${task.creator.label}; ${String(task.runCount)} run(s); notifies ${task.notificationPolicy}`,
     lastRunLine(task),
     ...(task.attention ? [`  Attention: ${task.attention.message}`] : []),
@@ -86,9 +118,10 @@ function taskDetails(task: ScheduledTask) {
 
 function runLine(run: ScheduledTaskRun, timeZone?: string) {
   const detail = run.reason ? ` (${run.reason}${run.message ? `: ${run.message}` : ''})` : ''
+  const outcome = run.outcome ? ` · ${run.outcome.value} (${run.outcome.source})` : ''
   const session = run.sessionId ? ` → ${run.sessionId}` : ''
   const missed = run.missedCount > 0 ? ` +${String(run.missedCount)} missed` : ''
-  return `${time(run.firedAt, timeZone)}  ${run.trigger}${missed}  ${run.status}${detail}${session}`
+  return `${time(run.firedAt, timeZone)}  ${run.trigger}${missed}  ${run.status}${detail}${session}${outcome}`
 }
 
 /**
@@ -121,7 +154,22 @@ export function formatSchedulesCliResponse(
   if (outcome.effect === 'updated') return `Updated ${taskDetails(outcome.task)}`
   if (outcome.effect === 'deleted') return `Deleted ${outcome.taskId}`
   if (outcome.effect === 'run-requested') return `Running ${outcome.task.name} now.`
+  if (outcome.effect === 'outcome-recorded') {
+    return `Recorded ${outcome.run.outcome?.value ?? 'no'} outcome for ${outcome.task.name}.`
+  }
   return `Refused (${outcome.code}): ${outcome.message}`
+}
+
+/** The Heartbeat settings an import sets again. */
+function exportedHeartbeat(heartbeat: NonNullable<ScheduledTask['heartbeat']>) {
+  return {
+    stopWhen: heartbeat.stopWhen,
+    indefinite: heartbeat.indefinite,
+    idlePauseAfter: heartbeat.idlePauseAfter,
+    wakeCheck: heartbeat.wakeCheck
+      ? { command: heartbeat.wakeCheck.command, onFailure: heartbeat.wakeCheck.onFailure }
+      : null,
+  }
 }
 
 /** The tasks as input another `openwaggle schedules import` can create again. */
@@ -137,6 +185,7 @@ export function exportedTasks(response: ScheduledTasksResponse) {
     maxRuns: task.maxRuns,
     target: task.target,
     notificationPolicy: task.notificationPolicy,
+    ...(task.heartbeat ? { heartbeat: exportedHeartbeat(task.heartbeat) } : {}),
   }))
 }
 

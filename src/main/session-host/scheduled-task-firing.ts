@@ -1,27 +1,19 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
-import type {
-  ScheduledTaskAttention,
-  ScheduledTaskAttentionReason,
-  ScheduledTaskRunReason,
-} from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { hasAnyActiveRun } from '../application/active-session-runs'
 import {
   advanceScheduledTask,
+  applyHeartbeatOutcome,
   firingTiming,
-  markScheduledTaskWaiting,
 } from '../application/scheduled-task-bookkeeping'
-import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
 import { scheduledTaskRunPayload } from '../application/scheduled-task-target-authorization'
 import { PiSessionFiles } from '../ports/pi-session-discovery'
 import {
   type ScheduledTaskRecord,
   ScheduledTaskRepository,
-  type ScheduledTaskRunSettlement,
-  type ScheduledTaskRunStart,
   type ScheduledTaskSessionActivity,
 } from '../ports/scheduled-task-repository'
 import {
@@ -29,73 +21,22 @@ import {
   resolveScheduledTaskCaller,
 } from './scheduled-task-caller'
 import { dispatchScheduledTaskCommand } from './scheduled-task-dispatch'
+import {
+  attentionFor,
+  type Firing,
+  newRunStart,
+  recordWithoutDispatch,
+  stopWithAttention,
+  waitForSession,
+} from './scheduled-task-firing-records'
+import {
+  evaluateHeartbeatGate,
+  type HeartbeatSendExtras,
+  heartbeatRunContext,
+} from './scheduled-task-heartbeat-gate'
 import { settlementOfDispatch, settlementOfFailure } from './scheduled-task-settlement'
 
-export type ScheduledTaskFiringOutcome = 'recorded' | 'waiting'
-
-interface Firing {
-  readonly record: ScheduledTaskRecord
-  readonly now: number
-  readonly timing: ReturnType<typeof firingTiming>
-  readonly run: ScheduledTaskRunStart
-}
-
-function attentionFor(reason: ScheduledTaskAttentionReason, message: string, now: number) {
-  return { reason, message, since: now } satisfies ScheduledTaskAttention
-}
-
-function newRunStart(
-  record: ScheduledTaskRecord,
-  timing: ReturnType<typeof firingTiming>,
-  now: number,
-  previous: { readonly sessionId?: string; readonly firedAt: number } | null,
-): ScheduledTaskRunStart {
-  const id = scheduledTaskHooks().newId()
-  return {
-    id,
-    taskId: record.id,
-    taskName: record.name,
-    trigger: timing.trigger,
-    nominalAt: timing.nominalAt,
-    firedAt: now,
-    missedCount: timing.missedCount,
-    idempotencyKey: `scheduled-task-run:${id}`,
-    callerId: record.creatorCallerId,
-    previousSessionId: previous?.sessionId ?? null,
-    previousFiredAt: previous?.firedAt ?? null,
-  }
-}
-
-/** Records a run that sent nothing and moves the task on; an attention also stops it. */
-function recordWithoutDispatch(
-  firing: Firing,
-  settlement: ScheduledTaskRunSettlement,
-  attention?: ScheduledTaskAttention,
-) {
-  return Effect.gen(function* () {
-    const repository = yield* ScheduledTaskRepository
-    yield* repository.recordRun({ ...firing.run, ...settlement })
-    yield* advanceScheduledTask(firing.record, {
-      firedNominalAt: firing.timing.trigger === 'run-now' ? null : firing.timing.nominalAt,
-      started: false,
-      now: firing.now,
-      ...(attention ? { attention } : {}),
-    })
-    return 'recorded' as const
-  })
-}
-
-function stopWithAttention(
-  firing: Firing,
-  reason: ScheduledTaskAttentionReason & ScheduledTaskRunReason,
-  message: string,
-) {
-  return recordWithoutDispatch(
-    firing,
-    { status: 'failed', reason, message },
-    attentionFor(reason, message, firing.now),
-  )
-}
+export type { ScheduledTaskFiringOutcome } from './scheduled-task-firing-records'
 
 /** Why a Heartbeat's Session cannot take a run now, or null when it is idle. */
 function heartbeatBusyReason(sessionId: string, activity: ScheduledTaskSessionActivity) {
@@ -109,37 +50,6 @@ function heartbeatBusyReason(sessionId: string, activity: ScheduledTaskSessionAc
     if (Option.isNone(files)) return null
     const origin = yield* files.value.lastPromptOrigin(activity.piSessionFile)
     return origin === 'outside' ? ('pi-cli-wrote-last' as const) : null
-  })
-}
-
-function waitForSession(firing: Firing, reason: 'session-busy' | 'pi-cli-wrote-last') {
-  return Effect.gen(function* () {
-    const repository = yield* ScheduledTaskRepository
-    const message =
-      reason === 'session-busy'
-        ? 'The Session was busy until the next fire time.'
-        : 'The pi CLI wrote to this Session last; continue it in OpenWaggle to resume the Heartbeat.'
-    if (firing.timing.trigger === 'run-now') {
-      yield* repository.recordRun({ ...firing.run, status: 'skipped', reason, message })
-      return 'recorded' as const
-    }
-    if (firing.timing.supersededNominalAt !== null) {
-      yield* repository.recordRun({
-        ...firing.run,
-        id: `${firing.run.id}-superseded`,
-        idempotencyKey: `${firing.run.idempotencyKey}-superseded`,
-        nominalAt: firing.timing.supersededNominalAt,
-        missedCount: 0,
-        status: 'skipped',
-        reason,
-        message,
-      })
-    }
-    yield* markScheduledTaskWaiting(firing.record, {
-      nominalAt: firing.timing.nominalAt,
-      now: firing.now,
-    })
-    return 'waiting' as const
   })
 }
 
@@ -163,7 +73,32 @@ function heartbeatPrecheck(firing: Firing, sessionId: string) {
       )
     }
     const busy = yield* heartbeatBusyReason(sessionId, activity)
-    return busy ? yield* waitForSession(firing, busy) : null
+    return busy ? yield* waitForSession(firing, busy) : activity
+  })
+}
+
+interface Dispatch {
+  readonly context?: ReturnType<typeof heartbeatRunContext>
+  readonly extras: HeartbeatSendExtras
+}
+
+/**
+ * After an idle Session, the Heartbeat's Wake check decides (#388): held for approval, skipped
+ * with nothing sent, or sent with what the check printed. Only `send` reaches Session Control.
+ */
+function heartbeatGate(firing: Firing, activity: ScheduledTaskSessionActivity) {
+  return Effect.gen(function* () {
+    const gate = yield* evaluateHeartbeatGate(firing.record, activity, firing.now)
+    if (gate.kind === 'held') return yield* waitForSession(firing, 'wake-check-unapproved')
+    if (gate.kind === 'skip') {
+      const recorded = yield* recordWithoutDispatch(firing, gate.settlement)
+      if (gate.idle) yield* applyHeartbeatOutcome(firing.record.id, 'idle', { now: firing.now })
+      return recorded
+    }
+    return {
+      context: heartbeatRunContext(firing.record, gate.report),
+      extras: gate.extras,
+    } satisfies Dispatch
   })
 }
 
@@ -200,6 +135,7 @@ function dispatchFiring(
   sql: SqlClient.SqlClient,
   firing: Firing,
   caller: LocalSessionCallerIdentity,
+  dispatch: Dispatch,
 ) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
@@ -211,13 +147,24 @@ function dispatchFiring(
       text: record.prompt,
       ...(record.kind === 'launch' ? { title: launchTitle(record, firing.now) } : {}),
     })
-    yield* repository.startRun(firing.run)
+    yield* repository.startRun({
+      ...firing.run,
+      ...(dispatch.context ? { context: dispatch.context } : {}),
+    })
     const settlement = yield* assertScheduledLaunchProjectKnown(sql, caller, payload).pipe(
       Effect.zipRight(dispatchScheduledTaskCommand({ caller, payload })),
       Effect.map(settlementOfDispatch),
       Effect.catchAll((error) => Effect.succeed(settlementOfFailure(error))),
     )
-    yield* repository.settleRun(firing.run.id, settlement.run)
+    yield* repository.settleRun(
+      firing.run.id,
+      settlement.run.status === 'started'
+        ? { ...settlement.run, ...dispatch.extras }
+        : {
+            ...settlement.run,
+            ...(dispatch.extras.wakeCheck ? { wakeCheck: dispatch.extras.wakeCheck } : {}),
+          },
+    )
     yield* advanceScheduledTask(record, {
       firedNominalAt: firing.timing.trigger === 'run-now' ? null : firing.timing.nominalAt,
       started: settlement.run.status === 'started',
@@ -256,11 +203,15 @@ export function fireScheduledTask(
     if (!resolution.live) {
       return yield* stopWithAttention(firing, 'creator-authority-revoked', resolution.message)
     }
-    const precheck =
-      record.target.kind === 'heartbeat'
-        ? yield* heartbeatPrecheck(firing, record.target.sessionId)
-        : yield* launchPrecheck(firing)
-    if (precheck) return precheck
-    return yield* dispatchFiring(sql, firing, resolution.caller)
+    if (record.target.kind === 'launch') {
+      const precheck = yield* launchPrecheck(firing)
+      if (precheck) return precheck
+      return yield* dispatchFiring(sql, firing, resolution.caller, { extras: {} })
+    }
+    const activity = yield* heartbeatPrecheck(firing, record.target.sessionId)
+    if (typeof activity === 'string') return activity
+    const dispatch = yield* heartbeatGate(firing, activity)
+    if (typeof dispatch === 'string') return dispatch
+    return yield* dispatchFiring(sql, firing, resolution.caller, dispatch)
   })
 }

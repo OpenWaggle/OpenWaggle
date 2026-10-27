@@ -44,6 +44,7 @@ export function scheduledTaskFixtures(input: {
       enabled: true,
       schedule: { kind: 'interval', everyMinutes: HEARTBEAT_EVERY_MINUTES },
       target: { kind: 'heartbeat', sessionId: input.queenSessionId },
+      heartbeat: { stopWhen: 'Every job on the release branch is green.' },
     },
     {
       name: 'Morning issue triage',
@@ -63,6 +64,7 @@ export function scheduledTaskFixtures(input: {
       enabled: false,
       schedule: { kind: 'interval', everyMinutes: HEARTBEAT_EVERY_MINUTES },
       target: { kind: 'heartbeat', sessionId: input.queenSessionId },
+      heartbeat: { stopWhen: 'The docs site is live and its links resolve.' },
     },
   ]
 }

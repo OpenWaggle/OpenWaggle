@@ -48,8 +48,72 @@ function OptionList({
   )
 }
 
+function ModelField({
+  editor,
+  placeholder,
+}: {
+  readonly editor: ScheduledTaskEditorState
+  readonly placeholder: string
+}) {
+  const models = useEnabledModelOptions(editor.draft.modelId)
+  return (
+    <EditorField label="Model" htmlFor="scheduled-task-model">
+      <Select
+        id="scheduled-task-model"
+        className="w-full"
+        value={editor.draft.modelId}
+        onChange={(event) => editor.change({ modelId: event.target.value })}
+      >
+        <OptionList options={models} placeholder={placeholder} />
+      </Select>
+    </EditorField>
+  )
+}
+
+function ThinkingField({ editor }: { readonly editor: ScheduledTaskEditorState }) {
+  return (
+    <EditorField label="Thinking level" htmlFor="scheduled-task-thinking">
+      <Select
+        id="scheduled-task-thinking"
+        className="w-full"
+        value={editor.draft.thinkingLevel}
+        onChange={(event) => {
+          const value = event.target.value
+          editor.change({ thinkingLevel: isThinkingLevel(value) ? value : '' })
+        }}
+      >
+        <OptionList
+          options={THINKING_LEVELS.map((level) => ({ value: level, label: level }))}
+          placeholder="Default"
+        />
+      </Select>
+    </EditorField>
+  )
+}
+
 function HeartbeatTargetField({ editor }: { readonly editor: ScheduledTaskEditorState }) {
   const sessions = useHeartbeatSessionOptions(editor.draft.sessionId)
+  return (
+    <>
+      <HeartbeatSessionField editor={editor} sessions={sessions} />
+      <div className="grid grid-cols-2 gap-3">
+        <ModelField editor={editor} placeholder="The Session’s model" />
+        <ThinkingField editor={editor} />
+      </div>
+      <p className="text-xs text-text-tertiary">
+        A cheaper model here applies only to this Heartbeat’s Runs; the Session keeps its own.
+      </p>
+    </>
+  )
+}
+
+function HeartbeatSessionField({
+  editor,
+  sessions,
+}: {
+  readonly editor: ScheduledTaskEditorState
+  readonly sessions: readonly TargetOption[]
+}) {
   return (
     <EditorField
       label="Session"
@@ -80,39 +144,14 @@ function LaunchModelFields({
   readonly editor: ScheduledTaskEditorState
   readonly layout: ScheduledTaskEditorLayout
 }) {
-  const models = useEnabledModelOptions(editor.draft.modelId)
   const definitions = useAgentDefinitionOptions(
     editor.draft.projectPath,
     editor.draft.agentDefinitionName,
   )
   return (
     <div className={layout === 'wide' ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'}>
-      <EditorField label="Model" htmlFor="scheduled-task-model">
-        <Select
-          id="scheduled-task-model"
-          className="w-full"
-          value={editor.draft.modelId}
-          onChange={(event) => editor.change({ modelId: event.target.value })}
-        >
-          <OptionList options={models} placeholder="Project default" />
-        </Select>
-      </EditorField>
-      <EditorField label="Thinking level" htmlFor="scheduled-task-thinking">
-        <Select
-          id="scheduled-task-thinking"
-          className="w-full"
-          value={editor.draft.thinkingLevel}
-          onChange={(event) => {
-            const value = event.target.value
-            editor.change({ thinkingLevel: isThinkingLevel(value) ? value : '' })
-          }}
-        >
-          <OptionList
-            options={THINKING_LEVELS.map((level) => ({ value: level, label: level }))}
-            placeholder="Default"
-          />
-        </Select>
-      </EditorField>
+      <ModelField editor={editor} placeholder="Project default" />
+      <ThinkingField editor={editor} />
       <EditorField label="Agent definition" htmlFor="scheduled-task-agent">
         <Select
           id="scheduled-task-agent"
