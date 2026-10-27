@@ -44,6 +44,7 @@ import {
 import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
 import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
+import { hasSessionHostPrelaunch } from './session-host/session-host-prelaunch-handoff'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { installSessionLinkProtocol } from './session-link-protocol'
 import { requestOpenSessionLink } from './session-link-requests'
@@ -158,7 +159,10 @@ async function bootstrapServicesAndWindow() {
   // Renderer requests wait here until the backend is ready (A-F2).
   holdGuiBackendGate()
   const hostUnderway = Promise.withResolvers<void>()
-  const hostHeadStart = Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
+  // A Host the boot shim launched is under way already; the window need not wait for it.
+  const hostHeadStart = hasSessionHostPrelaunch()
+    ? Promise.resolve()
+    : Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
   const startup = createGuiStartupCoordinator({
     start: (progress, signal) =>
       startGuiBackend({

@@ -53,7 +53,7 @@ afterEach(() => {
 
 describe('answerTopLevelCliInBoot', () => {
   it('prints the version and exits without loading the main bundle', async () => {
-    expect(answer(['--version'])).toBe(true)
+    expect(answer(['--version'])).toBe('answered')
 
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
     expect(stdout).toHaveBeenCalledWith('1.2.3\n', 'utf8', expect.any(Function))
@@ -61,7 +61,7 @@ describe('answerTopLevelCliInBoot', () => {
   })
 
   it('prints the same help and usage errors as the main bundle', async () => {
-    expect(answer(['help'])).toBe(true)
+    expect(answer(['help'])).toBe('answered')
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
     expect(stdout).toHaveBeenCalledWith(
       expect.stringContaining('OpenWaggle 1.2.3\n\nUsage:'),
@@ -70,7 +70,7 @@ describe('answerTopLevelCliInBoot', () => {
     )
 
     mocks.exit.mockClear()
-    expect(answer(['--version', 'extra'])).toBe(true)
+    expect(answer(['--version', 'extra'])).toBe('answered')
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(2))
     expect(stderr).toHaveBeenCalledWith(
       expect.stringContaining('openwaggle: --version does not accept arguments.'),
@@ -80,8 +80,10 @@ describe('answerTopLevelCliInBoot', () => {
   })
 
   it('leaves the desktop app, commands and command groups to the main bundle untouched', () => {
-    for (const args of [[], ['run', 'hello'], ['hive', 'list'], ['session-host-internal']]) {
-      expect(answer(args)).toBe(false)
+    expect(answer([])).toBe('desktop-app')
+    expect(answer(['-psn_0_12345'])).toBe('desktop-app')
+    for (const args of [['run', 'hello'], ['hive', 'list'], ['session-host-internal']]) {
+      expect(answer(args)).toBe('main-bundle')
     }
     expect(mocks.exit).not.toHaveBeenCalled()
     expect(mocks.setActivationPolicy).not.toHaveBeenCalled()
@@ -93,13 +95,13 @@ describe('answerTopLevelCliInBoot', () => {
     const file = path.join(directory, 'out.txt')
     const fd = openSync(file, 'w')
     try {
-      expect(answer(['--version'], String(fd))).toBe(true)
+      expect(answer(['--version'], String(fd))).toBe('answered')
       await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
       expect(readFileSync(file, 'utf8')).toBe('1.2.3\n')
       expect(stdout).not.toHaveBeenCalled()
 
       mocks.exit.mockClear()
-      expect(answer(['--version'], '1')).toBe(false)
+      expect(answer(['--version'], '1')).toBe('main-bundle')
       expect(mocks.exit).not.toHaveBeenCalled()
     } finally {
       closeSync(fd)

@@ -76,6 +76,17 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', safe)).toEqual([])
   })
 
+  it('allows only the detached spawn in the primitive the boot shim launches the Host with', () => {
+    const primitive = 'src/main/detached-process.ts'
+    const detached = [
+      "import { spawn } from 'node:child_process'",
+      "spawn(command, args, { detached: true, stdio: 'ignore' })",
+    ].join('\n')
+
+    expect(collectUnguardedDesktopUiViolations(primitive, detached)).toEqual([])
+    expect(collectUnguardedDesktopUiViolations(primitive, 'mainWindow.show()')).toHaveLength(1)
+  })
+
   it('rejects scripted Electron launches that omit explicit automation mode', () => {
     const unsafe = "const app = await electron.launch({ args: ['.'], env: {} })"
     const misleading =
