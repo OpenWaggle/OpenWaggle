@@ -1276,10 +1276,33 @@ index 1ae291c296dc5d35a7b827e1098977e0d0db32cf..b66e472141a97895d5c4263192a86350
      return RETRYABLE_PROVIDER_ERROR_PATTERN.test(errorMessage);
  }
 diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
-index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..ab91884312f3ce3c32ef11ea4fdf6a25330c4b2f 100644
+index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..7266b03311d441f87ee7bdde50965c87f8e90626 100644
 --- a/dist/utils/transcript.js
 +++ b/dist/utils/transcript.js
-@@ -50,6 +50,29 @@ export function getCurrentTools(messages) {
+@@ -3,6 +3,13 @@ import { contentText, getSystemMessageText } from "./text.js";
+  * Build the leading system message for a prompt and tool set. Returns undefined when
+  * both are empty, so an empty transcript stays empty.
+  */
++/**
++ * OpenWaggle patch: tools in name order. Tools registered concurrently (MCP servers listing their
++ * tools at session start) arrive in no fixed order, and the order is part of the cached prompt.
++ */
++function inNameOrder(tools) {
++    return [...tools].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
++}
+ export function createInitialSystemMessage(systemPrompt, tools) {
+     const hasSystemPrompt = systemPrompt !== undefined && systemPrompt.length > 0;
+     const hasTools = tools !== undefined && tools.length > 0;
+@@ -11,7 +18,7 @@ export function createInitialSystemMessage(systemPrompt, tools) {
+     return {
+         role: "system",
+         content: systemPrompt ?? "",
+-        ...(hasTools ? { toolsAdded: tools } : {}),
++        ...(hasTools ? { toolsAdded: inNameOrder(tools) } : {}),
+         timestamp: 0,
+     };
+ }
+@@ -50,6 +57,28 @@ export function getCurrentTools(messages) {
      }
      return [...tools.values()];
  }
@@ -1293,7 +1316,6 @@ index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..ab91884312f3ce3c32ef11ea4fdf6a25
 +function inStableToolOrder(messages, tools) {
 +    const leading = getInitialSystemMessage(messages);
 +    const leadingOrder = new Map((leading?.toolsAdded ?? []).map((tool, index) => [tool.name, index]));
-+    const compareNames = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 +    return [...tools].sort((left, right) => {
 +        const leftIndex = leadingOrder.get(left.name);
 +        const rightIndex = leadingOrder.get(right.name);
@@ -1303,13 +1325,13 @@ index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..ab91884312f3ce3c32ef11ea4fdf6a25
 +            return -1;
 +        if (rightIndex !== undefined)
 +            return 1;
-+        return compareNames(left.name, right.name);
++        return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
 +    });
 +}
  /**
   * Replay every system message into one leading system message holding the current
   * prompt and tools. Later `content` is appended to the base prompt, `sections` are
-@@ -73,7 +96,7 @@ export function getCurrentSystemMessage(messages) {
+@@ -73,7 +102,7 @@ export function getCurrentSystemMessage(messages) {
                  sections.set(name, value);
          }
      }
@@ -1318,3 +1340,12 @@ index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..ab91884312f3ce3c32ef11ea4fdf6a25
      if (timestamp === undefined && tools.length === 0)
          return undefined;
      return {
+@@ -127,7 +156,7 @@ export function getToolStateChanges(previous, current) {
+     const previousTools = new Map(previous.map((tool) => [tool.name, tool]));
+     const currentTools = new Map(current.map((tool) => [tool.name, tool]));
+     return {
+-        toolsAdded: current
++        toolsAdded: inNameOrder(current)
+             .filter((tool) => {
+             const previousTool = previousTools.get(tool.name);
+             return previousTool === undefined || !declarationsEqual(previousTool, tool);

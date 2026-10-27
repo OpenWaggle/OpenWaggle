@@ -1,5 +1,9 @@
 import type { Context, SystemMessage, Tool } from '@earendil-works/pi-ai'
-import { collapseSystemMessages, normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
+import {
+  collapseSystemMessages,
+  getToolStateChanges,
+  normalizeContext,
+} from '@earendil-works/pi-ai/utils/transcript'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -62,5 +66,18 @@ describe('collapsed tool order', () => {
       'mcp__figma__get',
       'mcp__browser__click',
     ])
+  })
+})
+
+describe('declared tool order', () => {
+  it('does not depend on the order MCP servers registered their tools in', () => {
+    const first = getToolStateChanges([], [tool('read'), tool('mcp__b__x'), tool('mcp__a__y')])
+    const second = getToolStateChanges([], [tool('mcp__a__y'), tool('read'), tool('mcp__b__x')])
+
+    expect(first.toolsAdded.map((entry) => entry.name)).toEqual(['mcp__a__y', 'mcp__b__x', 'read'])
+    expect(second.toolsAdded).toEqual(first.toolsAdded)
+    expect(
+      normalizeContext({ messages: [], tools: [tool('read'), tool('bash')] }).messages[0],
+    ).toMatchObject({ toolsAdded: [{ name: 'bash' }, { name: 'read' }] })
   })
 })
