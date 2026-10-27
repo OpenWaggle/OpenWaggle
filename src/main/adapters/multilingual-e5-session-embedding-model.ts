@@ -1,4 +1,4 @@
-import type { FeatureExtractionPipeline } from '@huggingface/transformers'
+import { type EmbeddingTensor, SessionEmbeddingProcess } from './session-embedding-process'
 
 export const SESSION_EMBEDDING_MODEL = {
   id: 'Xenova/multilingual-e5-small',
@@ -44,36 +44,45 @@ export interface SessionEmbeddingModel {
   readonly embedPassages: (texts: readonly string[]) => Promise<readonly Float32Array[]>
 }
 
-function vectorsFromTensor(
-  output: Awaited<ReturnType<FeatureExtractionPipeline>>,
-  expectedCount: number,
-) {
+function vectorsFromTensor(output: EmbeddingTensor, expectedCount: number) {
   const dimensions = output.dims.at(-1)
   if (dimensions !== SESSION_EMBEDDING_MODEL.dimensions) {
     throw new Error(`Embedding model returned ${String(dimensions)} dimensions.`)
   }
-  if (output.size !== expectedCount * dimensions) {
+  if (output.data.length !== expectedCount * dimensions) {
     throw new Error('Embedding model returned an unexpected batch shape.')
   }
   const vectors: Float32Array[] = []
   for (let batch = 0; batch < expectedCount; batch += 1) {
-    const vector = new Float32Array(dimensions)
-    for (let index = 0; index < dimensions; index += 1) {
-      vector[index] = Number(output.data[batch * dimensions + index] ?? 0)
-    }
-    vectors.push(vector)
+    vectors.push(output.data.slice(batch * dimensions, (batch + 1) * dimensions))
   }
-  output.dispose()
   return vectors
 }
 
+/**
+ * multilingual-e5 for Session discovery. Inference runs in a child process that exits after a
+ * minute without work and on `dispose()` (idle-slim Host), so the Host never holds the model (D3).
+ */
 export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingModel {
   readonly metadata = SESSION_EMBEDDING_MODEL
-  #pipeline: Promise<FeatureExtractionPipeline> | undefined
   #runtimeOptions: SessionEmbeddingRuntimeOptions = {}
+  #used = false
+  readonly #process: SessionEmbeddingProcess
+
+  constructor(options: ConstructorParameters<typeof SessionEmbeddingProcess>[1] = {}) {
+    this.#process = new SessionEmbeddingProcess(
+      () => ({
+        modelId: SESSION_EMBEDDING_MODEL.id,
+        revision: SESSION_EMBEDDING_MODEL.revision,
+        dtype: SESSION_EMBEDDING_MODEL.dtype,
+        ...this.#runtimeOptions,
+      }),
+      options,
+    )
+  }
 
   configureRuntime(options: SessionEmbeddingRuntimeOptions) {
-    if (this.#pipeline !== undefined) {
+    if (this.#used) {
       throw new Error('Session embedding runtime must be configured before its first use.')
     }
     this.#runtimeOptions = options
@@ -87,27 +96,19 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
     return this.#embed(texts.map((text) => `passage: ${text}`))
   }
 
-  async #embed(texts: readonly string[]) {
-    if (texts.length === 0) return []
-    const extractor = await this.#extractor()
-    const output = await extractor([...texts], { pooling: 'mean', normalize: true })
-    return vectorsFromTensor(output, texts.length)
+  /** Ends the model process unless it is embedding; the next embedding starts it again. */
+  dispose() {
+    return this.#process.dispose()
   }
 
-  #extractor() {
-    this.#pipeline ??= import('@huggingface/transformers').then(({ env, pipeline }) => {
-      if (this.#runtimeOptions.localModelPath !== undefined) {
-        env.localModelPath = this.#runtimeOptions.localModelPath
-      }
-      if (this.#runtimeOptions.allowRemoteModels !== undefined) {
-        env.allowRemoteModels = this.#runtimeOptions.allowRemoteModels
-      }
-      return pipeline('feature-extraction', SESSION_EMBEDDING_MODEL.id, {
-        revision: SESSION_EMBEDDING_MODEL.revision,
-        dtype: SESSION_EMBEDDING_MODEL.dtype,
-      })
-    })
-    return this.#pipeline
+  get isLoaded() {
+    return this.#process.isRunning
+  }
+
+  async #embed(texts: readonly string[]) {
+    if (texts.length === 0) return []
+    this.#used = true
+    return vectorsFromTensor(await this.#process.embed(texts), texts.length)
   }
 }
 

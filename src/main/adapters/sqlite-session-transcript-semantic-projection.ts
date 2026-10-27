@@ -19,7 +19,8 @@ import {
 } from './sqlite-session-transcript-semantic-storage'
 
 const DEFAULT_TRANSCRIPT_PROJECTION_BATCH_SIZE = 256
-const TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE = 32
+/** Passages per inference call, as for Session discovery (D3). */
+export const TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE = 8
 const TRANSCRIPT_MAINTENANCE_INTERVAL_MS = 60_000
 const CURRENT_TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('current_node')
 
