@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SESSION_NODE_CONTENT_HASH_GUARD_TRIGGER } from './session-node-content-hash-schema'
 
 export {
   CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS,
@@ -43,13 +44,11 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     metadata_json TEXT NOT NULL,
     branch_hint_id TEXT,
     path_depth INTEGER NOT NULL,
-    created_order INTEGER NOT NULL
+    created_order INTEGER NOT NULL,
+    content_hash TEXT
   )
   `,
-  `
-  CREATE INDEX IF NOT EXISTS idx_session_nodes_session_created_order
-  ON session_nodes (session_id, created_order ASC)
-  `,
+  SESSION_NODE_CONTENT_HASH_GUARD_TRIGGER,
   `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_session_nodes_session_created_order_unique
   ON session_nodes (session_id, created_order)

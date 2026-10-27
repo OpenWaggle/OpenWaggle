@@ -83,7 +83,8 @@ function readState(sql: SqlClient.SqlClient) {
       SELECT session_id FROM session_resource_backfill_state
     `
     const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-      SELECT id, name FROM _migrations WHERE id > ${HIVE_TOOL_NAME_MIGRATION_ID} ORDER BY id
+      SELECT id, name FROM _migrations WHERE id > ${HIVE_TOOL_NAME_MIGRATION_ID}
+        AND id <= ${DELEGATION_ATTENTION_CAUSE_MIGRATION_ID} ORDER BY id
     `
     return {
       resources: resources.map((row) => row.id),
@@ -105,7 +106,9 @@ describe('upgrading a beta.25 database through migrations 72 and 73', () => {
   it('keeps #366 at 72, applies the docs-image cleanup at 73, and is idempotent', async () => {
     expect(SESSION_HOST_DEFERRED_DISCOVERY_REFRESH_MIGRATION_ID).toBe(72)
     expect(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID).toBe(73)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(DELEGATION_ATTENTION_CAUSE_MIGRATION_ID)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      DELEGATION_ATTENTION_CAUSE_MIGRATION_ID,
+    )
 
     await withDatabase((sql) =>
       Effect.gen(function* () {

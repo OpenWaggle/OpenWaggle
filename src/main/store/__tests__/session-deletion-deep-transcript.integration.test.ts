@@ -107,6 +107,43 @@ describe('Session deletion of a deep transcript', () => {
     await expect(remainingNodes(session.id)).resolves.toBe(0)
   })
 
+  it('deletes a long Session in bounded chunks, giving the event loop turns between them', async () => {
+    const session = await sessionWithLinearTranscript(DEEPER_THAN_SQLITE_TRIGGER_DEPTH)
+    const { deleteSessionRow } = await import('../session-details/session-row-deletion')
+    let turns = 0
+    const removed = await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // A branch names the Session's nodes without a cascade; it must not block a chunk.
+        yield* sql`
+          INSERT INTO session_branches (
+            id, session_id, name, head_node_id, source_node_id, is_main, created_at, updated_at
+          ) VALUES (
+            ${'branch-deep'}, ${session.id}, ${'main'}, ${'node-1499'}, ${'node-0'}, 1, 0, 0
+          )
+        `
+        yield* sql.withTransaction(
+          deleteSessionRow(sql, session.id, {
+            chunk: 400,
+            betweenChunks: Effect.sync(() => {
+              turns += 1
+            }),
+          }),
+        )
+        const deferrals = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM session_lexical_discovery_deferrals
+        `
+        return deferrals[0]?.count
+      }),
+    )
+
+    // 1,500 nodes in chunks of 400: three full chunks, each followed by a turn.
+    expect(turns).toBe(3)
+    expect(removed).toBe(0)
+    await expect(getSessionDetail(session.id)).resolves.toBeNull()
+    await expect(remainingNodes(session.id)).resolves.toBe(0)
+  })
+
   it('finds a node’s children through an index, not a scan of every transcript', async () => {
     // Every node delete cascades to its children; without an index each one scans the table.
     await sessionWithLinearTranscript(2)

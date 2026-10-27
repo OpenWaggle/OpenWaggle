@@ -11,10 +11,29 @@ import type { AgentKernelSessionSnapshot } from './agent-kernel-service'
  * again before it is shown or continued.
  */
 
+/**
+ * Where a projection's last entry ends in its Pi file, with a digest of the file's first bytes and
+ * of that entry's line, so a later read can tell the file only grew since (D6).
+ */
+export interface PiSessionFileTailMarker {
+  readonly offset: number
+  readonly lineStart: number
+  readonly digest: string
+  readonly lastEntryId: string
+}
+
 /** The file state a projection was read from. Pi files are append-only, so any write changes it. */
 export interface PiSessionFileFingerprint {
   readonly size: number
   readonly mtimeMs: number
+  /** The tail of the content the projection was read from, when it ends in a complete entry. */
+  readonly tail?: PiSessionFileTailMarker | null
+}
+
+/** A projection's recorded tail: where its entries end, how many there are, and its leaf. */
+export interface PiSessionProjectedTail extends PiSessionFileTailMarker {
+  readonly entryCount: number
+  readonly leafNodeId: string | null
 }
 
 /** What a discovered Session is titled from, read from the start of its Pi file. */
@@ -139,6 +158,13 @@ export interface PiSessionFilesShape {
     readonly piEntryNodeIdPrefix?: string
     readonly projectedPiEntryCount?: number
     readonly projectedNodeIds?: ReadonlySet<string>
+    /**
+     * The projection's recorded tail. While the file only grew past it, only the appended bytes
+     * are read to tell whether anything but usage entries was added.
+     */
+    readonly projectedTail?: PiSessionProjectedTail | null
+    /** The Session whose projection a changed file's snapshot may keep entries of. */
+    readonly sessionId?: SessionId
   }) => Effect.Effect<PiSessionFileRead, Error>
 }
 
@@ -199,6 +225,8 @@ export interface PiSessionProjectionState {
   readonly revision: number
   /** The file state the last persisted snapshot came from, when this Host recorded one. */
   readonly fingerprint: PiSessionFileFingerprint | null
+  /** Where the projected entries end in the file, when the last snapshot recorded it (D6). */
+  readonly projectedTail: PiSessionProjectedTail | null
 }
 
 export interface PersistExternalPiProjectionInput {

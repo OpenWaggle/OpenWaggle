@@ -1,7 +1,10 @@
+import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import { app } from 'electron'
 import { createLogger } from '../logger'
+import { sweepOrphanedModelDownloads } from '../utils/model-download-temp-sweep'
 import { sessionScratchRoot } from '../utils/session-scratch-directory'
 import { sweepSessionScratchDirectories } from '../utils/session-scratch-sweep'
 
@@ -26,13 +29,42 @@ export function sweepSessionScratchDirectoriesOnce(
   })
 }
 
+const MODELS_DIRECTORY_NAME = 'models'
+
+/** Remove model downloads an interrupted Whisper or embedding download left in `<userData>/models`. */
+export function sweepOrphanedModelDownloadsOnce(
+  options: { readonly root?: string; readonly now?: number } = {},
+) {
+  return Effect.gen(function* () {
+    const root = options.root ?? path.join(app.getPath('userData'), MODELS_DIRECTORY_NAME)
+    const result = yield* Effect.tryPromise(() =>
+      sweepOrphanedModelDownloads(root, options.now ?? Date.now()),
+    )
+    if (result.removedFiles > 0) logger.info('Removed orphaned model downloads', result)
+    return result
+  })
+}
+
+function warnUnlessInterrupted(message: string) {
+  return Effect.catchAllCause((cause: Cause.Cause<unknown>) =>
+    Effect.sync(() => {
+      if (Cause.isInterruptedOnly(cause)) return
+      logger.warn(message, { cause: Cause.pretty(cause) })
+    }),
+  )
+}
+
+/**
+ * The Host's disk sweeps once it serves clients: stale Session scratch directories, then orphaned
+ * model downloads. Each failure is logged alone.
+ */
 export const runSessionScratchSweepBackground = Effect.forkScoped(
-  sweepSessionScratchDirectoriesOnce().pipe(
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        if (Cause.isInterruptedOnly(cause)) return
-        logger.warn('Session scratch directory sweep failed', { cause: Cause.pretty(cause) })
-      }),
-    ),
-  ),
+  Effect.gen(function* () {
+    yield* sweepSessionScratchDirectoriesOnce().pipe(
+      warnUnlessInterrupted('Session scratch directory sweep failed'),
+    )
+    yield* sweepOrphanedModelDownloadsOnce().pipe(
+      warnUnlessInterrupted('Orphaned model download sweep failed'),
+    )
+  }),
 )
