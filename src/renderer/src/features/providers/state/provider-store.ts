@@ -1,5 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { ProviderInfo } from '@shared/types/llm'
+import type { ProviderCatalogScope, ProviderInfo } from '@shared/types/llm'
 import { parseModelRef } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
 import { create } from 'zustand'
@@ -161,9 +161,18 @@ function normalizeProviderGroups(providerModels: readonly ProviderInfo[]) {
   }))
 }
 
+/** Settles older catalog loads after a newer one started, so a slow startup load cannot win. */
+let latestCatalogLoad = 0
+
 interface ProviderState {
   baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
+  /**
+   * Which catalog the store holds and reloads. Startup loads `available`, every provider with only
+   * its runnable models, which is all the composer offers; Settings asks for `all` once, and later
+   * reloads keep it (renderer-load B14).
+   */
+  catalogScope: ProviderCatalogScope
   /** True once loadProviderModels settled, even with zero providers — separates "empty" from "not loaded yet". */
   catalogHydrated: boolean
   isLoading: boolean
@@ -172,14 +181,17 @@ interface ProviderState {
   loadError: string | null
 
   loadProviderModels: (settingsSnapshot?: Settings) => Promise<Settings | null>
+  /** Loads every provider's full model list unless the store already holds it. */
+  ensureFullProviderCatalog: () => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
 }
 
-export const useProviderStore = create<ProviderState>((set) => ({
+export const useProviderStore = create<ProviderState>((set, get) => ({
   baseProviderModels: [],
   providerModels: [],
+  catalogScope: 'available',
   catalogHydrated: false,
   isLoading: false,
   testingProviders: {},
@@ -187,12 +199,17 @@ export const useProviderStore = create<ProviderState>((set) => ({
   loadError: null,
 
   async loadProviderModels(settingsSnapshot?: Settings) {
+    latestCatalogLoad += 1
+    const load = latestCatalogLoad
+    const scope = get().catalogScope
     set({ isLoading: true, loadError: null })
     try {
       const currentSettings = settingsSnapshot ?? (await api.getSettings())
       const baseProviderModels = normalizeProviderGroups(
-        await api.getProviderModels(currentSettings.projectPath),
+        await api.getProviderModels(currentSettings.projectPath, scope),
       )
+      // A newer load (another project, or Settings asking for the full catalog) replaces this one.
+      if (load !== latestCatalogLoad) return null
       set({
         baseProviderModels,
         providerModels: baseProviderModels,
@@ -210,13 +227,21 @@ export const useProviderStore = create<ProviderState>((set) => ({
       await api.updateSettings({ selectedModel })
       return { ...currentSettings, selectedModel }
     } catch (error) {
+      if (load !== latestCatalogLoad) return null
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Failed to load provider models', { message })
       set({ loadError: message, catalogHydrated: true })
       return null
     } finally {
-      set({ isLoading: false })
+      if (load === latestCatalogLoad) set({ isLoading: false })
     }
+  },
+
+  async ensureFullProviderCatalog() {
+    const state = get()
+    if (state.catalogScope === 'all' && state.catalogHydrated && state.loadError === null) return
+    set({ catalogScope: 'all' })
+    await get().loadProviderModels()
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {

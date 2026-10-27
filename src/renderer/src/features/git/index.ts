@@ -1,7 +1,7 @@
-export { CommitMessageDialog } from './components/CommitMessageDialog'
-export { CommitOrPushDialog } from './components/CommitOrPushDialog'
-export { CommitOrPushStatusDialog } from './components/CommitOrPushStatusDialog'
-export { GitQuickActionButton } from './components/GitQuickActionButton'
+// Components stay out of this root index: the eager shell imports it for hooks, state and
+// helpers, and re-exporting components here pulled them into the initial renderer graph
+// (renderer-load B8). Import components from `@/features/git/components`. Only the light Session
+// context row the New session composer renders is exported here.
 export { SessionContextRow } from './components/SessionContextRow'
 export { useCombinedVcsStatus } from './hooks/useCombinedVcsStatus'
 export { useDraftPreparationProfile } from './hooks/useDraftPreparationProfile'

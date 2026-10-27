@@ -27,7 +27,7 @@ import type {
   InlineVisualizationFrameUnregisterInput,
 } from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
-import type { ProviderInfo, SupportedModelId } from './llm'
+import type { ProviderCatalogScope, ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
@@ -161,7 +161,10 @@ export interface OpenWaggleApi
   getUsageCostSessions(query: UsageCostSessionQuery): Promise<UsageCostSessionsResult>
 
   // Providers
-  getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
+  getProviderModels(
+    projectPath?: string | null,
+    scope?: ProviderCatalogScope,
+  ): Promise<ProviderInfo[]>
 
   registerInlineVisualizationFrame(
     input: InlineVisualizationFrameRegisterInput,

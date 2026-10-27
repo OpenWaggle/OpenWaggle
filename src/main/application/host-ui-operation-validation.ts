@@ -1,3 +1,4 @@
+import { PROVIDER_CATALOG_SCOPES } from '@shared/types/llm'
 import * as Effect from 'effect/Effect'
 
 export function invalidHostUiInput(message: string) {
@@ -34,6 +35,16 @@ export function optionalHostUiProjectPath(value: unknown) {
   return value === undefined || value === null || typeof value === 'string'
     ? Effect.succeed(value)
     : invalidHostUiInput('Project path must be a string, null, or omitted.')
+}
+
+export function optionalHostUiProviderCatalogScope(value: unknown) {
+  if (value === undefined) return Effect.succeed(undefined)
+  const scope = PROVIDER_CATALOG_SCOPES.find((candidate) => candidate === value)
+  return scope === undefined
+    ? invalidHostUiInput(
+        `Provider catalog scope must be one of ${PROVIDER_CATALOG_SCOPES.join(', ')}.`,
+      )
+    : Effect.succeed(scope)
 }
 
 export function oneInput<A, E, R>(

@@ -1,5 +1,6 @@
-export { ScheduledTasksPanel } from './components/ScheduledTasksPanel'
-export { ScheduledTasksSettings } from './components/ScheduledTasksSettings'
+// Components stay out of this root index: the eager shell imports it for hooks, state and
+// helpers, and re-exporting components here pulled them into the initial renderer graph
+// (renderer-load B8). Import components from `@/features/scheduled-tasks/components`.
 export {
   useProjectScheduledTasksNeedAttention,
   useScheduledTaskLaunchedBy,

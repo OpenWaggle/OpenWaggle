@@ -1,6 +1,6 @@
 import type { WorktreeSessionUsage } from '@shared/types/worktree-usage'
 import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
-import { WorkspaceCleanupFailure } from '@/features/project-actions'
+import { WorkspaceCleanupFailure } from '@/features/project-actions/components'
 import { Button } from '@/shared/ui/Button'
 import type { PreparedWorktree } from './use-project-worktrees'
 import type { WorktreeRemovalRequest } from './WorktreeRemovalDialog'

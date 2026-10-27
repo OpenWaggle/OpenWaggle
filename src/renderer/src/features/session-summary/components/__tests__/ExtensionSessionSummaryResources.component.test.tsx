@@ -16,8 +16,10 @@ const getSessionResource = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({ api: { getSessionResource } }))
 vi.mock('@/features/extensions', () => ({
-  ExtensionDialogSurface: () => null,
   invokeBoundExtension: vi.fn(),
+}))
+vi.mock('@/features/extensions/components', () => ({
+  ExtensionDialogSurface: () => null,
 }))
 
 describe('Extension Session Summary resources', () => {

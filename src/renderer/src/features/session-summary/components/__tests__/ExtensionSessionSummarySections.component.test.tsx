@@ -34,11 +34,13 @@ interface ExtensionDialogProbeProps {
 
 vi.mock('@/shared/lib/ipc', () => ({ api: { getSessionResource } }))
 vi.mock('@/features/extensions', () => ({
+  invokeBoundExtension: vi.fn(),
+}))
+vi.mock('@/features/extensions/components', () => ({
   ExtensionDialogSurface: (props: ExtensionDialogProbeProps) => {
     renderExtensionDialog(props)
     return <input type="button" value="Close extension dialog probe" onClick={props.onClose} />
   },
-  invokeBoundExtension: vi.fn(),
 }))
 
 describe('ExtensionSessionSummarySections', () => {

@@ -1,12 +1,27 @@
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { render, screen, waitFor } from '@testing-library/react'
+import { SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
+import { useEffect } from 'react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { ComposerAutoFocusPlugin } from '../plugins/ComposerAutoFocusPlugin'
 
-function Editor() {
+/** Lexical tags the update `editor.focus()` commits; the package does not export the constant. */
+const LEXICAL_FOCUS_TAG = 'focus'
+
+function UpdateTagProbe({ onUpdateTags }: { readonly onUpdateTags: (tags: string[]) => void }) {
+  const [editor] = useLexicalComposerContext()
+  useEffect(
+    () => editor.registerUpdateListener(({ tags }) => onUpdateTags([...tags])),
+    [editor, onUpdateTags],
+  )
+  return null
+}
+
+function Editor({ onUpdateTags }: { readonly onUpdateTags?: (tags: string[]) => void }) {
   return (
     <LexicalComposer
       initialConfig={{
@@ -21,6 +36,7 @@ function Editor() {
         placeholder={null}
         ErrorBoundary={LexicalErrorBoundary}
       />
+      {onUpdateTags ? <UpdateTagProbe onUpdateTags={onUpdateTags} /> : null}
       <ComposerAutoFocusPlugin />
     </LexicalComposer>
   )
@@ -59,5 +75,16 @@ describe('ComposerAutoFocusPlugin', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Message input')).toHaveFocus())
     button.remove()
+  })
+
+  it('skips the caret scroll check in the update that focuses the mounted composer', async () => {
+    const updateTags: string[][] = []
+
+    render(<Editor onUpdateTags={(tags) => updateTags.push(tags)} />)
+    await waitFor(() => expect(screen.getByLabelText('Message input')).toHaveFocus())
+
+    // Lexical's scroll check reads every ancestor's box and forced a layout of the fresh shell.
+    const focusUpdate = updateTags.find((tags) => tags.includes(LEXICAL_FOCUS_TAG))
+    expect(focusUpdate).toContain(SKIP_SCROLL_INTO_VIEW_TAG)
   })
 })

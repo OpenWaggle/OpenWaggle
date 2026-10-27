@@ -253,7 +253,7 @@ describe('Header', () => {
     unregister()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open commit dialog' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh git' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh git' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm commit' }))
 
     expect(screen.getByText('Commit dialog')).toBeInTheDocument()

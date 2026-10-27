@@ -6,10 +6,8 @@ import {
 } from '@shared/utils/project-action-shortcuts'
 import { AlertTriangle, Trash2, X } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
-import {
-  ProjectActionConditionBuilder,
-  projectActionUnknownWhenVariables,
-} from '@/features/project-actions'
+import { projectActionUnknownWhenVariables } from '@/features/project-actions'
+import { ProjectActionConditionBuilder } from '@/features/project-actions/components'
 import { Button } from '@/shared/ui/Button'
 import {
   isShortcutModifierKey,

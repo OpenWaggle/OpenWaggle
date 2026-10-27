@@ -1,18 +1,12 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { lazy, Suspense } from 'react'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
+import { ChatRouteSurface } from './-chat-route-surface'
 import type { ChatExtensionSidePanelTarget, ChatRouteSearch } from './-route-search'
 import {
   extensionSidePanelTargetFromSearch,
   resourceBrowserTargetFromSearch,
 } from './-route-search'
-
-const LazyChatRouteSurface = lazy(() =>
-  import('./-chat-route-surface').then((module) => ({
-    default: module.ChatRouteSurface,
-  })),
-)
 
 function useChatIndexSidebarActions() {
   const navigate = useNavigate()
@@ -129,33 +123,22 @@ export function ChatIndexRouteView() {
   const actions = useChatIndexSidebarActions()
 
   return (
-    <Suspense
-      fallback={
-        <output
-          aria-live="polite"
-          className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-sm text-text-tertiary"
-        >
-          Loading chat…
-        </output>
-      }
-    >
-      <LazyChatRouteSurface
-        workspace={{ branchId: null, nodeId: null, sessionId: null }}
-        rightSidebar={{
-          changeRequestUrl: null,
-          diffOpen: search.panel === 'diff' || (search.diff === 1 && search.panel === undefined),
-          extensionSidePanel: extensionSidePanelTargetFromSearch(search),
-          resourcesTarget: resourceBrowserTargetFromSearch(search),
-          sessionTreeOpen: search.panel === 'session-tree',
-          hiveOpen: search.panel === 'hive',
-          // Files without a path is the navigator on its own (ADR 0043).
-          workspaceFile:
-            search.panel === 'file'
-              ? { path: search.filePath ?? '', line: search.fileLine ?? null }
-              : null,
-        }}
-        rightSidebarActions={actions}
-      />
-    </Suspense>
+    <ChatRouteSurface
+      workspace={{ branchId: null, nodeId: null, sessionId: null }}
+      rightSidebar={{
+        changeRequestUrl: null,
+        diffOpen: search.panel === 'diff' || (search.diff === 1 && search.panel === undefined),
+        extensionSidePanel: extensionSidePanelTargetFromSearch(search),
+        resourcesTarget: resourceBrowserTargetFromSearch(search),
+        sessionTreeOpen: search.panel === 'session-tree',
+        hiveOpen: search.panel === 'hive',
+        // Files without a path is the navigator on its own (ADR 0043).
+        workspaceFile:
+          search.panel === 'file'
+            ? { path: search.filePath ?? '', line: search.fileLine ?? null }
+            : null,
+      }}
+      rightSidebarActions={actions}
+    />
   )
 }

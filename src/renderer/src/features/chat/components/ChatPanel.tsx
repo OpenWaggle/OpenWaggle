@@ -1,15 +1,13 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
-  SessionResourceViewer,
-  type SessionSummaryExtensionSidePanelTarget,
-  SessionSummaryHub,
   useSessionResourceBackfill,
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
+import type { SessionSummaryExtensionSidePanelTarget } from '@/features/session-summary/components'
 import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
@@ -23,6 +21,19 @@ import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
 import { DeletedPiSessionFileNotice } from './DeletedPiSessionFileNotice'
+
+// The Summary overlay and the resource viewer are overlays over the chat, not part of its first
+// paint, so their code loads beside the chat instead of inside its route chunk (renderer-load B8).
+const LazySessionSummaryHub = lazy(() =>
+  import('@/features/session-summary/components').then((module) => ({
+    default: module.SessionSummaryHub,
+  })),
+)
+const LazySessionResourceViewer = lazy(() =>
+  import('@/features/session-summary/components').then((module) => ({
+    default: module.SessionResourceViewer,
+  })),
+)
 
 const SESSION_SUMMARY_WIDTH_PX = 300
 const SESSION_SUMMARY_RIGHT_INSET_PX = 16
@@ -171,27 +182,29 @@ export function ChatPanelContent({
           worktreePath={sections.transcript.worktreePath}
           workingPath={sections.transcript.workingPath}
         >
-          <SessionSummaryHub
-            key={activeSessionId ?? 'no-session-summary'}
-            input={{
-              session: sections.composer.session,
-              activeBranchId: sections.transcript.activeBranchId ?? null,
-              activePathNodeIds,
-              messageCount: summaryMessageCount,
-              hiveAvailable,
-              autoHidden: summaryNeedsTransientOverlay(
-                summarySpace.hasSpace,
-                floatingPreviewVisible,
-              ),
-              rightSidebarOpen,
-              extensionRegistry: sections.extensionRegistry,
-              extensionProjectPaths: sections.extensionProjectPaths,
-              onOpenDiff,
-              onOpenChangeRequest,
-              onOpenResources,
-              onOpenExtensionSidePanel,
-            }}
-          />
+          <Suspense fallback={null}>
+            <LazySessionSummaryHub
+              key={activeSessionId ?? 'no-session-summary'}
+              input={{
+                session: sections.composer.session,
+                activeBranchId: sections.transcript.activeBranchId ?? null,
+                activePathNodeIds,
+                messageCount: summaryMessageCount,
+                hiveAvailable,
+                autoHidden: summaryNeedsTransientOverlay(
+                  summarySpace.hasSpace,
+                  floatingPreviewVisible,
+                ),
+                rightSidebarOpen,
+                extensionRegistry: sections.extensionRegistry,
+                extensionProjectPaths: sections.extensionProjectPaths,
+                onOpenDiff,
+                onOpenChangeRequest,
+                onOpenResources,
+                onOpenExtensionSidePanel,
+              }}
+            />
+          </Suspense>
           {/* Anchored here rather than inside the composer: the composer area is reserved for
             requests that hold the run, so the surface a user must answer is always the one nearest
             the prompt input, and a notice that can never be answered floats clear of it. */}
@@ -202,12 +215,14 @@ export function ChatPanelContent({
               sessionId={sections.transcript.activeSessionId}
             />
           </PanelErrorBoundary>
-          <SessionResourceViewer
-            activeSessionId={activeSessionId}
-            activeBranchId={sections.transcript.activeBranchId ?? null}
-            activeMessageIds={activeMessageIds}
-            activePathNodeIds={activePathNodeIds}
-          />
+          <Suspense fallback={null}>
+            <LazySessionResourceViewer
+              activeSessionId={activeSessionId}
+              activeBranchId={sections.transcript.activeBranchId ?? null}
+              activeMessageIds={activeMessageIds}
+              activePathNodeIds={activePathNodeIds}
+            />
+          </Suspense>
 
           <PanelErrorBoundary
             name="Chat transcript"

@@ -76,8 +76,8 @@ vi.mock('@/features/scheduled-tasks', () => ({
   useScheduledTasksMonitor: vi.fn(),
   useScheduledTasksPanelTitle: () => ({ label: 'Scheduled' }),
   useProjectScheduledTasksNeedAttention: () => false,
-  ScheduledTasksPanel: () => null,
 }))
+vi.mock('@/features/scheduled-tasks/components', () => ({ ScheduledTasksPanel: () => null }))
 vi.mock('@/features/sidebar/components/Sidebar', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
 
 vi.mock('@/features/terminal/components', () => ({

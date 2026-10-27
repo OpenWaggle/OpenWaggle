@@ -1,6 +1,6 @@
 import type { SessionDetail } from '@shared/types/session'
 import type { ReactNode } from 'react'
-import { WorkspacePreparationStatus } from '@/features/project-actions'
+import { WorkspacePreparationStatus } from '@/features/project-actions/components'
 import { ActionRunsSummarySection } from './ActionRunsSummarySection'
 import { ExtensionSessionSummarySections } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'

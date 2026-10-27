@@ -4,7 +4,7 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import type { SessionResource } from '@shared/types/session-resource'
-import { ExtensionDialogSurface } from '@/features/extensions'
+import { ExtensionDialogSurface } from '@/features/extensions/components'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
 import { ExtensionSessionSummarySection } from './ExtensionSessionSummarySection'

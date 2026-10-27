@@ -10,7 +10,7 @@ import {
 } from '@shared/utils/project-action-shortcuts'
 import { X } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
-import { ProjectActionConditionBuilder } from '@/features/project-actions'
+import { ProjectActionConditionBuilder } from '@/features/project-actions/components'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import {

@@ -20,7 +20,7 @@ function syncEditorDraft(draft: {
 }) {
   const editor = useComposerStore.getState().lexicalEditor
   if (editor) {
-    setEditorDraft(editor, draft.input, draft.wagglePreset ?? null)
+    setEditorDraft(editor, draft.input, draft.wagglePreset ?? null, { scrollIntoView: false })
   }
 }
 

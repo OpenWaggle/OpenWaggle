@@ -1,8 +1,9 @@
 import { match } from '@diegogbrisa/ts-match'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigateBackToApp } from '@/features/chat/hooks'
-import { ProjectActionsSettings } from '@/features/project-actions'
-import { ScheduledTasksSettings } from '@/features/scheduled-tasks'
+import { ProjectActionsSettings } from '@/features/project-actions/components'
+import { useFullProviderCatalog } from '@/features/providers/hooks'
+import { ScheduledTasksSettings } from '@/features/scheduled-tasks/components'
 import { SkillsPanel } from '@/features/skills/components'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -29,6 +30,7 @@ interface SettingsPageProps {
 export function SettingsPage({ activeTab }: SettingsPageProps) {
   const navigateBackToApp = useNavigateBackToApp()
   const isFullscreen = useFullscreen()
+  useFullProviderCatalog()
 
   return (
     <div className="@container/settings flex size-full flex-col bg-bg">

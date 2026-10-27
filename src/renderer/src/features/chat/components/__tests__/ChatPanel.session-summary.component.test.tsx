@@ -8,9 +8,12 @@ import { createSections, makeMessage } from './ChatPanel.test-utils'
 import {
   advanceSessionResourceBackfill,
   chatPanelElement,
+  findSessionSummary,
   listSessionResources,
   notifyResize,
+  preloadSessionSummaryOverlay,
   renderPanel,
+  renderPanelSettled,
   SESSION,
   setupChatPanelSessionSummaryHarness,
   toggleSessionSummaryPanel,
@@ -18,6 +21,8 @@ import {
 } from './chat-panel-session-summary.test-harness'
 
 describe('ChatPanel session summary and setup dock', () => {
+  preloadSessionSummaryOverlay()
+
   beforeEach(() => {
     setupChatPanelSessionSummaryHarness()
   })
@@ -27,8 +32,8 @@ describe('ChatPanel session summary and setup dock', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does not show an empty summary for auxiliary rows before the first sent message', () => {
-    renderPanel(
+  it('does not show an empty summary for auxiliary rows before the first sent message', async () => {
+    await renderPanelSettled(
       { chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }] },
       { isFirstMessage: true, session: SESSION },
     )
@@ -37,7 +42,7 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(listSessionResources).not.toHaveBeenCalled()
   })
 
-  it('puts an empty Worker Hive in the Session Hub, not above the composer', () => {
+  it('puts an empty Worker Hive in the Session Hub, not above the composer', async () => {
     useSessionStore.setState({
       sessions: [
         {
@@ -55,12 +60,12 @@ describe('ChatPanel session summary and setup dock', () => {
         },
       ],
     })
-    renderPanel({}, { isFirstMessage: true, session: SESSION })
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    await renderPanelSettled({}, { isFirstMessage: true, session: SESSION })
+    expect(await findSessionSummary()).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Hive Sessions' })).toBeNull()
   })
 
-  it('keeps an empty Worker Hub visible while an older session tree lacks lineage', () => {
+  it('keeps an empty Worker Hub visible while an older session tree lacks lineage', async () => {
     const worker = {
       id: SessionId('session-1'),
       title: 'Worker session',
@@ -87,7 +92,7 @@ describe('ChatPanel session summary and setup dock', () => {
 
     renderPanel({}, { isFirstMessage: true, session: SESSION })
 
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
   it('keeps the transcript width independent from the floating Session Summary', () => {
@@ -117,13 +122,13 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
-  it('automatically hides the panel in a narrow chat while keeping its toggle usable', () => {
+  it('automatically hides the panel in a narrow chat while keeping its toggle usable', async () => {
     const message = makeMessage({
       id: 'u1',
       role: 'user',
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [
@@ -147,16 +152,16 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     act(() => toggleSessionSummaryPanel('session-1'))
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
-  it('auto-hides at a medium width where the panel would overlap centered chat content', () => {
+  it('auto-hides at a medium width where the panel would overlap centered chat content', async () => {
     const message = makeMessage({
       id: 'u1',
       role: 'user',
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [
@@ -180,10 +185,10 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     act(() => toggleSessionSummaryPanel('session-1'))
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
-  it('hides before paint when the chat mounts below the automatic summary width', () => {
+  it('hides before paint when the chat mounts below the automatic summary width', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
     const message = makeMessage({
       id: 'u1',
@@ -191,7 +196,7 @@ describe('ChatPanel session summary and setup dock', () => {
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
 
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [

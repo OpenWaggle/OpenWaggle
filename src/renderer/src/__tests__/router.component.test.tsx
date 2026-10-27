@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { render, renderHook, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { rendererQueryClient } from '@/queries/query-client'
-import { router } from '@/router'
+import { router, startInitialRouteLoad, useInitialRouteLoadSettled } from '@/router'
 
 function QueryClientProbe() {
   const queryClient = useQueryClient()
@@ -35,5 +35,24 @@ describe('router', () => {
     )
 
     expect(screen.getByText('integrated')).toBeInTheDocument()
+  })
+
+  it('loads the launch location once, before RouterProvider mounts', async () => {
+    const load = vi.spyOn(router, 'load')
+    const initialLoad = startInitialRouteLoad()
+
+    expect(startInitialRouteLoad()).toBe(initialLoad)
+    await initialLoad
+
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(router.state.matches.map((match) => match.routeId)).toContain('__root__')
+    expect(router.state.matches.every((match) => match.status === 'success')).toBe(true)
+    load.mockRestore()
+  })
+
+  it('reports the launch route load as settled for the boot gate', async () => {
+    const { result } = renderHook(() => useInitialRouteLoadSettled())
+
+    await waitFor(() => expect(result.current).toBe(true))
   })
 })

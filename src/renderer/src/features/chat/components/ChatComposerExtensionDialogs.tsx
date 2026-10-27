@@ -5,7 +5,7 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import { useReducer, useRef } from 'react'
+import { Suspense, useReducer, useRef } from 'react'
 import {
   type ComposerExtensionActionLauncher,
   ComposerExtensionActions,
@@ -14,9 +14,7 @@ import {
   agentLoopAuxiliarySurfacePayload,
   agentLoopInputKey,
   type ExtensionAgentLoopSurfaceInput,
-  ExtensionDialogSurfaceContent,
   type ExtensionDialogTarget,
-  ExtensionSidePanelSurfaceContent,
   type ExtensionSidePanelTarget,
   resolveExtensionAgentLoopContributionEntries,
   surfaceLabel,
@@ -24,6 +22,10 @@ import {
 } from '@/features/extensions'
 import { responseFromExtensionAction } from '../lib/agent-loop-interaction-response-actions'
 import { toExtensionInteractionView } from '../lib/agent-loop-interaction-view'
+import {
+  LazyExtensionDialogSurfaceContent,
+  LazyExtensionSidePanelSurfaceContent,
+} from './lazy-extension-surface-content'
 
 type InteractionSurfaceInput = Extract<
   ExtensionAgentLoopSurfaceInput,
@@ -224,7 +226,9 @@ function ActiveComposerSidePanelSurface({
 
   return (
     <div className="fixed inset-y-4 right-4 left-4 z-50 ml-auto max-w-105 overflow-hidden rounded-2xl border border-border bg-diff-bg shadow-2xl">
-      <ExtensionSidePanelSurfaceContent {...surfaceProps} />
+      <Suspense fallback={null}>
+        <LazyExtensionSidePanelSurfaceContent {...surfaceProps} />
+      </Suspense>
     </div>
   )
 }
@@ -289,19 +293,21 @@ export function ChatComposerExtensionDialogs({
       <ComposerExtensionActions launchers={launchers} />
       {error ? <p className="mb-2 text-xs text-error wrap-anywhere">{error}</p> : null}
       {activeSurface?.kind === 'dialog' ? (
-        <ExtensionDialogSurfaceContent
-          actions={{
-            onClose: () => dispatch({ type: 'close' }),
-            onRefresh: noOp,
-            onSurfaceAction: handleSurfaceAction,
-          }}
-          error={null}
-          loading={false}
-          projectPaths={extensionProjectPaths}
-          registry={extensionRegistry}
-          surfacePayload={activeSurface.surfacePayload}
-          target={activeSurface.target}
-        />
+        <Suspense fallback={null}>
+          <LazyExtensionDialogSurfaceContent
+            actions={{
+              onClose: () => dispatch({ type: 'close' }),
+              onRefresh: noOp,
+              onSurfaceAction: handleSurfaceAction,
+            }}
+            error={null}
+            loading={false}
+            projectPaths={extensionProjectPaths}
+            registry={extensionRegistry}
+            surfacePayload={activeSurface.surfacePayload}
+            target={activeSurface.target}
+          />
+        </Suspense>
       ) : null}
       {activeSurface?.kind === 'side-panel' ? (
         <ActiveComposerSidePanelSurface
