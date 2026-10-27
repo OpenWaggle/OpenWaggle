@@ -142,13 +142,20 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
   const cached = get().sessionById.get(id) ?? null
   set({ activeSessionId: id, activeSession: cached, draftSession: null })
   if (!cached) {
-    void get().refreshSession(id)
+    // The view that shows the Session reads its workspace, tree included; reading the tree again
+    // once this detail lands moved a long Session's tree and transcript window a second time.
+    void refreshSession(id, set, get, { opening: true })
     return
   }
   void revalidateCachedSession(cached, get, beginSessionRead(id).isCurrent)
 }
 
-async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
+async function refreshSession(
+  id: SessionId,
+  set: ChatSet,
+  get: ChatGet,
+  options: { readonly opening?: boolean } = {},
+) {
   const read = beginSessionRead(id)
   try {
     const session = await api.getSessionDetail(id)
@@ -162,7 +169,8 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
       return
     }
     get().upsertSession(session)
-    refreshSessionStoreForSession(id, get().activeSessionId)
+    if (options.opening) void useSessionStore.getState().loadSessions()
+    else refreshSessionStoreForSession(id, get().activeSessionId)
   } catch (err) {
     if (!read.isLatest()) return
     handleStoreError(err, 'refresh session', setError(set))

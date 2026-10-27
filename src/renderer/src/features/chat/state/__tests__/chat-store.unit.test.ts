@@ -109,6 +109,19 @@ describe('useChatStore unit', () => {
       expect(mockApi.getSessionDetail).toHaveBeenCalledWith(id)
     })
 
+    it('opens an uncached Session with one detail read, leaving its tree to the view', async () => {
+      const id = SessionId('opened-session-id')
+      mockApi.getSessionDetail.mockResolvedValueOnce(makeSessionDetail(id))
+
+      useChatStore.getState().setActiveSessionId(id)
+
+      await vi.waitFor(() => expect(useChatStore.getState().activeSession?.id).toBe(id))
+      await vi.waitFor(() => expect(mockApi.listSessionCatalogPage).toHaveBeenCalled())
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      expect(mockApi.getSessionDetail).toHaveBeenCalledOnce()
+      expect(mockApi.getSessionTree).not.toHaveBeenCalled()
+    })
+
     it('sets to null', () => {
       const id = SessionId('test-session-id')
       useChatStore.getState().setActiveSessionId(id)
@@ -283,9 +296,9 @@ describe('useChatStore unit', () => {
       useChatStore.getState().setActiveSessionId(activeId)
 
       useChatStore.getState().updateSessionTitle(activeId, 'Active renamed')
-      await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockApi.getSessionTree).toHaveBeenCalledWith(activeId)
+      // A tree read waits a moment for a workspace read that would carry it.
+      await vi.waitFor(() => expect(mockApi.getSessionTree).toHaveBeenCalledWith(activeId))
     })
   })
 })

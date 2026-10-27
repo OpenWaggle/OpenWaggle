@@ -56,6 +56,17 @@ let latestTreeRequestId = 0
 let latestWorkspaceRequestId = 0
 
 /**
+ * How long a tree read waits before it reads. A Session becomes active a moment before the chat
+ * route reads its workspace, which carries the tree: waiting lets that read serve both, instead of
+ * moving the tree twice when a Session opens.
+ */
+export const SESSION_TREE_READ_GRACE_MS = 100
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
+/**
  * One source for a Session's tree and workspace (B5). A tree refresh for the Session whose
  * workspace is shown reads that workspace (whose tree it carries) with the same selection, and
  * identical reads issued while one is in flight share a single trailing read rather than each
@@ -103,6 +114,27 @@ function joinOrStart(
   return flight.trailing
 }
 
+/**
+ * A tree read for a Session whose workspace is not shown. It waits out the grace first and leaves
+ * the tree to a workspace read that started meanwhile, which carries it.
+ */
+async function readTree(sessionId: SessionId, requestId: number, set: SessionSet) {
+  try {
+    await delay(SESSION_TREE_READ_GRACE_MS)
+    if (requestId !== latestTreeRequestId) {
+      // Wait for it when it is this Session's, so the caller still sees its tree once this ends.
+      if (workspaceFlight?.sessionId === sessionId) await workspaceFlight.promise
+      return
+    }
+    const activeSessionTree = await api.getSessionTree(sessionId)
+    if (requestId !== latestTreeRequestId) return
+    if (activeSessionTree && activeSessionTree.session.id !== sessionId) return
+    set({ activeSessionTree, error: null })
+  } catch (err) {
+    handleStoreError(err, 'refresh session tree', (error) => set({ error }))
+  }
+}
+
 /** The Session store's tree and workspace reads (B5, ADR 0036). */
 export function createSessionWorkspaceReads(set: SessionSet, get: SessionGet) {
   return {
@@ -122,17 +154,7 @@ export function createSessionWorkspaceReads(set: SessionSet, get: SessionGet) {
       const key = String(sessionId)
       return joinOrStart(treeFlight, key, () => {
         latestTreeRequestId += 1
-        const requestId = latestTreeRequestId
-        const promise = (async () => {
-          try {
-            const activeSessionTree = await api.getSessionTree(sessionId)
-            if (requestId !== latestTreeRequestId) return
-            if (activeSessionTree && activeSessionTree.session.id !== sessionId) return
-            set({ activeSessionTree, error: null })
-          } catch (err) {
-            handleStoreError(err, 'refresh session tree', (error) => set({ error }))
-          }
-        })()
+        const promise = readTree(sessionId, latestTreeRequestId, set)
         const flight = startedFlight(key, sessionId, promise)
         treeFlight = flight
         void promise.finally(() => {
@@ -184,6 +206,23 @@ export function createSessionWorkspaceReads(set: SessionSet, get: SessionGet) {
       })
     },
 
+    showSessionWorkspace(sessionId, selection) {
+      if (!sessionId) return get().refreshSessionWorkspace(null, selection)
+      const key = workspaceKey(sessionId, selection)
+      // Already shown or being read: a view that mounts again (a project switch, a re-route to
+      // the same Session) shows it as it is; changes since are refreshed by their own events.
+      if (workspaceFlight?.key === key) return workspaceFlight.trailing ?? workspaceFlight.promise
+      const shown = get().activeWorkspace
+      if (
+        shown?.tree.session.id === sessionId &&
+        lastWorkspaceRead?.sessionId === sessionId &&
+        workspaceKey(sessionId, lastWorkspaceRead.selection) === key
+      ) {
+        return Promise.resolve()
+      }
+      return get().refreshSessionWorkspace(sessionId, selection)
+    },
+
     loadEarlierTranscript(sessionId) {
       const shown = get().activeWorkspace
       if (shown?.tree.session.id !== sessionId || !hasEarlierTranscript(shown)) {
@@ -216,6 +255,7 @@ export function createSessionWorkspaceReads(set: SessionSet, get: SessionGet) {
     SessionState,
     | 'refreshSessionTree'
     | 'refreshSessionWorkspace'
+    | 'showSessionWorkspace'
     | 'loadEarlierTranscript'
     | 'loadTranscriptThrough'
   >
