@@ -214,6 +214,12 @@ readiness** and a **Send now** action so you decide when queued input is safe to
 
 - Hiding the panel or switching sessions keeps shells, development servers, and other processes running.
 - Reloading the app interface reconnects to the same running shell and restores recent output without duplicating it.
+- Restored output is never answered as if it were live. Programs such as Pi's TUI ask the terminal
+  for its colours, cursor position, or identity; OpenWaggle removes those queries from restored
+  output and drops any reply the terminal would produce while it replays, so reopening a terminal
+  never types a reply such as `4;0;rgb:0d0d/0f0f/1212` into the shell. What you type while the
+  output is being restored, and replies to queries a running program sends afterwards, still reach
+  the shell.
 - A full app restart does not preserve interactive terminal processes. OpenWaggle restores sanitized,
   capped output as **Previous terminal session**, then starts a fresh shell below it. Historical
   terminal queries, input modes, and full-screen TUI state are neutralized before replay.

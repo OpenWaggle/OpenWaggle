@@ -47,7 +47,10 @@ describe('TerminalPane lifecycle and visible actions', () => {
       inputGeneration: expect.any(String),
     })
     await waitFor(() =>
-      expect(mocks.terminalInstances[0]?.write).toHaveBeenCalledWith('replay-text'),
+      expect(mocks.terminalInstances[0]?.write).toHaveBeenCalledWith(
+        'replay-text',
+        expect.any(Function),
+      ),
     )
   })
 

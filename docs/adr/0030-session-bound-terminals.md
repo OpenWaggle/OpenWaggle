@@ -48,9 +48,13 @@ Electron architecture:
    The main process caps scrollback at 5,000 lines per terminal, persists it
    to `userData/terminal-logs/` through a coalescing writer, strips
    query-response escape sequences from persisted chunks, and replays the
-   snapshot on attach so reload restores visual state. A dead shell respawns
-   on demand when its pane is viewed, after revalidating the cwd; a missing
-   Working path surfaces an error instead of silently spawning elsewhere. A
+   snapshot on attach so reload restores visual state. The renderer treats
+   that snapshot as a replay, not live output (issue #385): it strips queries
+   again with the same shared classifier and drops the reports xterm generates
+   while parsing it, so a replayed query is never answered into the PTY. A
+   dead shell respawns on demand when its pane is viewed, after revalidating
+   the cwd; a missing Working path surfaces an error instead of silently
+   spawning elsewhere. A
    renderer reload attached to the same live PTY replays seamlessly. After a
    full app restart, persisted output is visibly separated as `Previous
    terminal session`, historical input and TUI modes are neutralized, and a

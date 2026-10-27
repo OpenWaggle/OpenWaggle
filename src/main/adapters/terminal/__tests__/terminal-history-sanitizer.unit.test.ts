@@ -1,7 +1,7 @@
+import { stripTerminalQuerySequences } from '@shared/utils/terminal-escape-sequences'
 import { describe, expect, it } from 'vitest'
 import {
   createTerminalHistorySanitizer,
-  stripTerminalQuerySequences,
   stripTerminalReplaySequences,
 } from '../terminal-history-sanitizer'
 
@@ -24,6 +24,23 @@ const STRIPPED_QUERY_SEQUENCES = [
   `${ESC}]10;?${BEL}`, // OSC 10 foreground color query (BEL)
   `${ESC}]12;?${BEL}`, // OSC 12 cursor color query (BEL)
   `${ESC}]10;?${ST}`, // OSC 10 color query (ST)
+  `${ESC}]4;0;?${ST}`, // OSC 4 palette query, as Pi's TUI sends for colours 0-15 (#385)
+  `${ESC}]4;15;?${BEL}`, // OSC 4 palette query (BEL)
+  `${ESC}]4;1;?;2;?${ST}`, // OSC 4 with several palette queries
+  `${ESC}]5;0;?${ST}`, // OSC 5 special colour query
+  `${ESC}]10;?;?${BEL}`, // OSC 10 chained foreground and background query
+  `${ESC}]17;?${ST}`, // OSC 17 highlight background query
+  `${ESC}]19;?${ST}`, // OSC 19 highlight foreground query
+  `${ESC}]52;c;?${BEL}`, // OSC 52 clipboard read
+  `${ESC}P$qm${ST}`, // DECRQSS (SGR)
+  `${ESC}P$q"q${ST}`, // DECRQSS (DECSCA)
+  `${ESC}[?996n`, // colour scheme query
+  `${ESC}[=c`, // tertiary DA
+  `${ESC}[4$p`, // ANSI DECRQM
+  `${ESC}[14t`, // XTWINOPS window size in pixels
+  `${ESC}[18t`, // XTWINOPS text area size in characters
+  `${ESC}[21t`, // XTWINOPS title report
+  `${ESC}Z`, // DECID
 ] as const
 
 const PRESERVED_SEQUENCES = [
@@ -36,16 +53,14 @@ const PRESERVED_SEQUENCES = [
   `${ESC}]0;OpenWaggle${BEL}`, // OSC title set (BEL)
   `${ESC}]2;OpenWaggle${ST}`, // OSC title set (ST)
   `${ESC}c`, // two-byte RIS reset
+  `${ESC}]4;1;rgb:cc/00/00${ST}`, // OSC 4 palette set
+  `${ESC}]10;#ffffff${BEL}`, // OSC 10 foreground set
+  `${ESC}]104;1${ST}`, // OSC 104 palette reset
+  `${ESC}]52;c;Zm9v${BEL}`, // OSC 52 clipboard write (stripped only on cold replay)
+  `${ESC}[8;24;80t`, // XTWINOPS resize request, not a report
+  `${ESC}[22;0t`, // XTWINOPS title push
+  `${ESC}[?1004h`, // focus reporting mode
 ] as const
-
-/*
- * Sequences whose stripping survives every chunk split. ST-terminated queries
- * are excluded: the tail logic only carries the last incomplete escape, so a
- * split between the ST's ESC and its backslash flushes the OSC head unstripped.
- */
-const BOUNDARY_SAFE_QUERY_SEQUENCES = STRIPPED_QUERY_SEQUENCES.filter(
-  (query) => !query.endsWith(ST),
-)
 
 describe('stripTerminalQuerySequences', () => {
   it('strips every supported query sequence', () => {
@@ -123,7 +138,7 @@ describe('createTerminalHistorySanitizer', () => {
   })
 
   it('strips queries split at every chunk boundary', () => {
-    for (const query of BOUNDARY_SAFE_QUERY_SEQUENCES) {
+    for (const query of STRIPPED_QUERY_SEQUENCES) {
       for (let cut = 0; cut <= query.length; cut += 1) {
         const sanitizer = createTerminalHistorySanitizer()
         const first = sanitizer.feed(`pre${query.slice(0, cut)}`)
