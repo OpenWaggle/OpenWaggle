@@ -30,6 +30,10 @@ export function configureInlineVisualizationProcessIsolation() {
 
 export function registerRendererScheme() {
   protocol.registerSchemesAsPrivileged([
+    // `codeCache` lets V8 keep compiled code for the app and extension modules between launches,
+    // as for http(s) pages; without it the renderer recompiled its 4.5 MB modulepreload graph on
+    // every start (A-F11). V8 checks each entry against the source, so an update recompiles once.
+    // Visualization and MCP App frames are not cached: each document has a fresh host.
     {
       scheme: RENDERER_PROTOCOL,
       privileges: {
@@ -37,6 +41,7 @@ export function registerRendererScheme() {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        codeCache: true,
       },
     },
     {
@@ -46,6 +51,7 @@ export function registerRendererScheme() {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        codeCache: true,
       },
     },
     {
@@ -55,6 +61,7 @@ export function registerRendererScheme() {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        codeCache: true,
       },
     },
     {
