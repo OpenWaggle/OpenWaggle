@@ -31,7 +31,7 @@ vi.mock('../../agent-kernel/openwaggle-authorize-channel', () => ({
 
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { createAgentToolAllowlistGuard } from '../../agent-run-context-extension'
-import { registerMcpToolApproval } from '../openwaggle-mcp-extensions'
+import { registerMcpToolApproval } from '../mcp-tool-approval-hook'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
 /** A stdio MCP server with one tool; it counts the calls that reach it. */
