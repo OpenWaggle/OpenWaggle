@@ -11,6 +11,7 @@ import {
   heartbeatTask,
   scheduledTaskRun,
 } from '@/test-utils/scheduled-task-fixtures'
+import { formatAbsoluteTime } from '../../lib/task-format'
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn<(command: ScheduledTasksCommand) => Promise<ScheduledTasksOutcome>>(),
@@ -118,6 +119,25 @@ describe('A gated Heartbeat in the Scheduled panel', () => {
         undefined,
       ),
     )
+  })
+
+  it("dates the auto-pause in the task's time zone, like the rest of its detail", async () => {
+    const since = Date.UTC(2026, 9, 27, 7, 4)
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Tokyo'
+        ? 'America/New_York'
+        : 'Asia/Tokyo'
+    const task = heartbeatTask({
+      enabled: false,
+      timeZone,
+      heartbeat: heartbeatSettings({
+        consecutiveIdleRuns: 3,
+        autoPause: { reason: 'idle', message: 'auto-paused: 3 idle runs', since },
+      }),
+    })
+    renderDetail(task)
+    const notice = await screen.findByRole('region', { name: 'Auto-paused' })
+    expect(notice).toHaveTextContent(formatAbsoluteTime(since, timeZone))
   })
 
   it('tells the user a grandfathered Heartbeat has no end', async () => {

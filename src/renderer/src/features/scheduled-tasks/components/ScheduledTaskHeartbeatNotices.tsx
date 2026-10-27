@@ -4,7 +4,12 @@ import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useApproveWakeCheck, useSetScheduledTaskEnabled } from '../hooks/useScheduledTaskMutations'
-import { formatAbsoluteTime, heartbeatHasNoEnd, WAKE_CHECK_APPROVAL_TEXT } from '../lib/task-format'
+import {
+  differingTimeZone,
+  formatAbsoluteTime,
+  heartbeatHasNoEnd,
+  WAKE_CHECK_APPROVAL_TEXT,
+} from '../lib/task-format'
 
 function Notice({
   icon,
@@ -97,7 +102,10 @@ function AutoPauseNotice({ task }: { readonly task: ScheduledTask }) {
     >
       <p>
         <span className="font-medium">{autoPause.message}</span>
-        <span className="text-text-tertiary"> · {formatAbsoluteTime(autoPause.since)}</span>
+        <span className="text-text-tertiary">
+          {' '}
+          · {formatAbsoluteTime(autoPause.since, differingTimeZone(task))}
+        </span>
       </p>
       <p className="text-text-secondary">
         {autoPause.reason === 'done'
