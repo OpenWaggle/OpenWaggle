@@ -1,3 +1,4 @@
+import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import {
   migrateOpenWaggleMcpFilesAtHostStart,
@@ -34,11 +35,11 @@ export interface HostServiceOptions<R> {
 
 /**
  * Host services that must run before the Host serves its first client: the migrations every read
- * depends on, the session tool gateway, the Title worker (a Spawn or Launch asks it for a title,
- * and a request before it is installed is dropped) and the background loops, which only fork.
- * Anything that can wait starts once the Host listens (`startHostServicesOnceListening`, A-F8).
+ * depends on, the session tool gateway, Follow-up edit-hold expiry and the Title worker (a Spawn or
+ * Launch asks it for a title, and a request before it is installed is dropped). Anything that can
+ * wait starts once the Host listens (`startHostServicesOnceListening`, A-F8).
  */
-export function startHostBackgroundServices<R = never>(options: HostServiceOptions<R> = {}) {
+export function startHostBackgroundServices() {
   return Effect.gen(function* () {
     // SQLite checkpoints on a worker thread, not inside the Host's commits (#357). Not awaited:
     // until the worker reports ready the connection keeps checkpointing itself, as before.
@@ -55,28 +56,43 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
     yield* installAppSessionToolGateway
     yield* runFollowUpEditHoldExpiryBackground
-    if (options.createDiscoveredSession) {
-      yield* runPiSessionDiscoveryBackground(options.createDiscoveredSession)
-    }
-    yield* runSessionSemanticDiscoveryBackground
-    yield* runTranscriptTermRepairBackground
-    yield* runUsageStatisticsReporterBackground
     yield* installSessionTitleWorker
   })
 }
 
 /**
- * Host services that start once the Host serves clients, in the scope of the services above
- * (A-F8): export recovery, the scratch sweep, the scheduler, which settles interrupted firings
- * before it forks, and trusted-main extension activation, which runs user code for as long as it
- * takes. None of them answers a client request.
+ * How long the background indexers wait after the Host listens. Transcript term repair and
+ * semantic preparation run SQLite and embedding work on the Host's thread; on a freshly opened
+ * 20k-node profile one pass stalled the loop for 6-11 s, before the Host listened and then before
+ * it answered its first client. The window's and the CLI's first requests come first.
  */
-export function startHostServicesOnceListening() {
+export const BACKGROUND_INDEXING_START_DELAY = Duration.seconds(5)
+
+function afterQuietStart<A, E, R>(indexer: Effect.Effect<A, E, R>) {
+  return Effect.forkScoped(
+    Effect.sleep(BACKGROUND_INDEXING_START_DELAY).pipe(Effect.zipRight(indexer)),
+  )
+}
+
+/**
+ * Host services that start once the Host serves clients, in the scope of the services above
+ * (A-F8). None of them answers a client request: export recovery, the scratch sweep, the
+ * scheduler (it settles interrupted firings before it forks), Pi session discovery, the Usage
+ * statistics reporter, the background indexers after a quiet delay, and
+ * trusted-main extension activation, which runs user code for as long as it takes.
+ */
+export function startHostServicesOnceListening<R = never>(options: HostServiceOptions<R> = {}) {
   return Effect.gen(function* () {
     yield* runSessionExportRecoveryBackground
     yield* runSessionScratchSweepBackground
     // After the tool gateway and title worker: a Launch schedule's Session gets its title.
     yield* runScheduledTaskSchedulerBackground
+    if (options.createDiscoveredSession) {
+      yield* runPiSessionDiscoveryBackground(options.createDiscoveredSession)
+    }
+    yield* runUsageStatisticsReporterBackground
+    yield* afterQuietStart(runTranscriptTermRepairBackground)
+    yield* afterQuietStart(runSessionSemanticDiscoveryBackground)
     yield* activateTrustedMainExtensionsForActiveProjectSafely()
   })
 }
