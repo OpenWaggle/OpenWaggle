@@ -63,6 +63,7 @@ const makeTestSessionProjectionLayer = () =>
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     getTurnDiffFiles: () => Effect.succeed([]),
+    listTurnDiffFiles: () => Effect.succeed({}),
     setTurnCheckpointAnchor: () => Effect.void,
     ...PINNED_SESSION_REPOSITORY_STUB,
   })

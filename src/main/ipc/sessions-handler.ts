@@ -25,6 +25,9 @@ export function registerSessionsHandlers(): void {
   typedHandle('sessions:get-workspace', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:get-workspace', args),
   )
+  typedHandle('sessions:search-tree', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:search-tree', args),
+  )
   typedHandle('sessions:navigate-tree', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:navigate-tree', args),
   )

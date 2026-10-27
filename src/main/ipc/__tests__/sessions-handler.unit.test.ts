@@ -128,6 +128,7 @@ describe('registerSessionsHandlers', () => {
       'sessions:delete-archived-sessions',
       'sessions:get-tree',
       'sessions:get-workspace',
+      'sessions:search-tree',
       'sessions:navigate-tree',
       'sessions:rename-branch',
       'sessions:archive-branch',

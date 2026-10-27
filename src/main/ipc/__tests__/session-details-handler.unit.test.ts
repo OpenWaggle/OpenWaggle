@@ -33,6 +33,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:turn-checkpoints:list',
       'sessions:turn-diff:get',
       'sessions:turn-diff-files:get',
+      'sessions:turn-diff-files:list',
       'sessions:pins:list',
       'sessions:pins:pin',
       'sessions:pins:unpin',

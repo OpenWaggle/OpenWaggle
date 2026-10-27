@@ -1,7 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
@@ -85,7 +85,7 @@ interface BrokerHarnessInput {
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
   readonly sessionDetails?: readonly SessionDetail[]
-  readonly sessionTree?: SessionTree
+  readonly sessionTree?: SessionContentTree
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null

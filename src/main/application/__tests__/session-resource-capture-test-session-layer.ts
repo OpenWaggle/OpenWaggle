@@ -1,4 +1,4 @@
-import type { SessionWorkspace } from '@shared/types/session'
+import type { SessionContentWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -19,7 +19,7 @@ export function sessionResourceTestSessionLayer(sessionWorkingPath?: string) {
       getWorkspace: () =>
         Effect.succeed(
           sessionWorkingPath
-            ? fromPartial<SessionWorkspace>({
+            ? fromPartial<SessionContentWorkspace>({
                 tree: {
                   session: {
                     projectPath: sessionWorkingPath,

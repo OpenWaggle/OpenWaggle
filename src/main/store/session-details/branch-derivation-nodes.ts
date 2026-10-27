@@ -1,5 +1,5 @@
+import { isAgentLoopAuditNode } from '@shared/utils/agent-loop-audit-node'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
-import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 
 /**
  * Refresh nodes no conversation follows: every node below them is a refresh too. Peeled from the

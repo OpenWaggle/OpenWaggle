@@ -26,6 +26,8 @@ export const emptySessionCatalogMethods = {
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
+  getNodeMutationRevision: () => Effect.succeed(null),
+  searchTreeNodes: () => Effect.succeed([]),
 } satisfies Pick<
   SessionRepositoryShape,
   | 'listCatalogPage'
@@ -41,4 +43,6 @@ export const emptySessionCatalogMethods = {
   | 'setArchiveTimes'
   | 'listResourceProjectionPage'
   | 'getResourceProjectionNodes'
+  | 'getNodeMutationRevision'
+  | 'searchTreeNodes'
 >

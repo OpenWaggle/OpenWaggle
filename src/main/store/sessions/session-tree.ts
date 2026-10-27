@@ -1,6 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import type { SessionNodeRow } from '../session-details'
 import { runStoreEffect } from '../store-runtime'
@@ -26,7 +26,7 @@ import type {
   SessionTreeUiStateRow,
 } from './types'
 
-export async function getSessionTree(sessionId: SessionId): Promise<SessionTree | null> {
+export async function getSessionTree(sessionId: SessionId): Promise<SessionContentTree | null> {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

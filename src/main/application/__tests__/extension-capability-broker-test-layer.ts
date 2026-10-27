@@ -1,5 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -77,7 +77,7 @@ export function makeBrokerLayer(input: {
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
   readonly sessionDetails?: readonly SessionDetail[]
-  readonly sessionTree?: SessionTree
+  readonly sessionTree?: SessionContentTree
   readonly resources: SessionResource[]
   readonly resourceUpserts: UpsertSessionResourceInput[]
   readonly storageItems: ExtensionStorageItem[]
@@ -162,6 +162,7 @@ export function makeBrokerLayer(input: {
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       getTurnDiffFiles: () => Effect.succeed([]),
+      listTurnDiffFiles: () => Effect.succeed({}),
       setTurnCheckpointAnchor: () => Effect.void,
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),

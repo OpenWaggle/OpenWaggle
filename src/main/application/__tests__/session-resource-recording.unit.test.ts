@@ -1,5 +1,5 @@
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
-import type { SessionWorkspace } from '@shared/types/session'
+import type { SessionContentWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -13,7 +13,9 @@ import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 function recordingLayer(
   recorded: UpsertSessionResourceInput[],
-  workspaceFor: (sessionId: SessionId) => Pick<SessionWorkspace, 'activeBranchId' | 'activeNodeId'>,
+  workspaceFor: (
+    sessionId: SessionId,
+  ) => Pick<SessionContentWorkspace, 'activeBranchId' | 'activeNodeId'>,
 ) {
   return Layer.merge(
     Layer.succeed(
@@ -63,7 +65,7 @@ function recordingLayer(
         getResourceProjectionNodes: () => Effect.succeed([]),
         getWorkspace: (sessionId) =>
           Effect.succeed(
-            fromPartial<SessionWorkspace>({
+            fromPartial<SessionContentWorkspace>({
               ...workspaceFor(sessionId),
               transcriptPath: [],
             }),

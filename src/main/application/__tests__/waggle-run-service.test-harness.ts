@@ -87,6 +87,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
   setTurnCheckpointAnchor: (requestedSessionId, turnId, anchorNodeId) =>
     Effect.sync(() => {
       setTurnCheckpointAnchorMock(requestedSessionId, turnId, anchorNodeId)

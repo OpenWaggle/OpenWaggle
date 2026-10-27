@@ -1,4 +1,4 @@
-import type { OAuthFlowStatus } from '@shared/types/auth'
+import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
 import { isOAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
@@ -15,6 +15,9 @@ import { ProviderAuthService } from '../ports/provider-auth-service'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
 import { runAppEffect } from '../runtime'
 import { typedHandle } from './typed-ipc'
+
+/** More providers than Pi offers OAuth for is not a real request. */
+const MAX_ACCOUNT_INFO_PROVIDERS = 64
 
 function broadcastOAuthStatus(status: OAuthFlowStatus) {
   if (status.type === 'success') {
@@ -88,6 +91,32 @@ export function registerAuthHandlers(): void {
     Effect.gen(function* () {
       const validated = yield* validateOAuthProvider(provider)
       return yield* Effect.promise(() => getAccountInfo(validated))
+    }),
+  )
+
+  typedHandle('auth:get-account-infos', (_event, providers: unknown) =>
+    Effect.gen(function* () {
+      if (!Array.isArray(providers) || providers.length > MAX_ACCOUNT_INFO_PROVIDERS) {
+        return yield* Effect.fail(new Error('Providers must be a short list of OAuth providers.'))
+      }
+      const validated: OAuthProvider[] = []
+      for (const provider of providers) {
+        if (typeof provider !== 'string') {
+          return yield* Effect.fail(new Error('OAuth providers must be strings.'))
+        }
+        validated.push(yield* validateOAuthProvider(provider))
+      }
+      const unique = [...new Set(validated)]
+      const settled = yield* Effect.promise(() =>
+        Promise.allSettled(unique.map((provider) => getAccountInfo(provider))),
+      )
+      // One provider's failure leaves only its account out, as separate reads did.
+      const result: Partial<Record<OAuthProvider, OAuthAccountInfo>> = {}
+      settled.forEach((outcome, index) => {
+        const provider = unique[index]
+        if (provider && outcome.status === 'fulfilled') result[provider] = outcome.value
+      })
+      return result
     }),
   )
 }
