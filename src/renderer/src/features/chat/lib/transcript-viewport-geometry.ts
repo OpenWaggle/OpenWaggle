@@ -23,8 +23,40 @@ export interface TranscriptViewportElements {
   readonly endSpace: () => HTMLElement | null
 }
 
-function rowElements(content: HTMLElement | null) {
+function rowElements(content: HTMLElement | null): ArrayLike<HTMLElement> {
   return content ? content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`) : []
+}
+
+/**
+ * The index of the first row whose bottom is below `top`, or `rows.length` when none is.
+ *
+ * Rows are stacked in document order, so their bottoms only grow: a binary search measures about
+ * log2(rows) of them. Walking from the first row measured every mounted row on each commit while
+ * the reader followed the live end, which was most of the streaming layout work.
+ */
+export function firstRowIndexBelow(rows: ArrayLike<HTMLElement>, top: number) {
+  let low = 0
+  let high = rows.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    const row = rows[middle]
+    if (row && row.getBoundingClientRect().bottom > top) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
+/** Keys of the rows intersecting the band from `top` to `bottom`, in order. */
+export function rowKeysWithin(content: HTMLElement | null, top: number, bottom: number) {
+  const keys = new Set<string>()
+  const rows = rowElements(content)
+  for (let index = firstRowIndexBelow(rows, top); index < rows.length; index += 1) {
+    const row = rows[index]
+    if (!row || row.getBoundingClientRect().top >= bottom) break
+    const key = row.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
+    if (key) keys.add(key)
+  }
+  return keys
 }
 
 /*
@@ -81,12 +113,10 @@ export function createDomViewportGeometry(elements: TranscriptViewportElements):
       rowElement(elements.content(), key)?.getBoundingClientRect().height ?? null,
     getFirstVisibleRow: () => {
       const top = viewportTop()
-      for (const row of rowElements(elements.content())) {
-        const rect = row.getBoundingClientRect()
-        const key = row.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
-        if (key && rect.bottom > top) return { key, top: rect.top - top }
-      }
-      return null
+      const rows = rowElements(elements.content())
+      const row = rows[firstRowIndexBelow(rows, top)]
+      const key = row?.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
+      return row && key ? { key, top: row.getBoundingClientRect().top - top } : null
     },
   }
 }
