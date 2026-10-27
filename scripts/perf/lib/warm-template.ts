@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { launchApp, type PerfApp, stopProcessGroup } from './perf-app'
 import { profileHostPids, sampleProcesses } from './perf-processes'
@@ -47,6 +47,8 @@ async function waitForIdleHost(userData: string) {
 export async function warmTemplateFor(app: PerfApp, templateRoot: string) {
   const target = `${templateRoot}.warm-${app.label}`
   if (existsSync(path.join(target, WARM_MARKER))) return target
+  // A copy without its marker is left over from an interrupted warm-up; start again.
+  await rm(target, { recursive: true, force: true })
   execFileSync('cp', ['-c', '-R', templateRoot, target], { stdio: 'ignore' })
   const profile: PerfProfile = {
     root: target,

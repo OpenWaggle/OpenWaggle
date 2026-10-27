@@ -100,11 +100,6 @@ export function profileEnvironment(
   })
 }
 
-/** Drains the profile's own Session Host, if one runs, then removes the profile. */
-export async function stopProfileHost(profile: Pick<PerfProfile, 'userData'>) {
-  await shutdownSessionHostForQa(profile.userData, async () => undefined)
-}
-
 const FORCED_STOP_WAIT_MS = 5_000
 
 function signalTree(pids: readonly number[], signal: NodeJS.Signals) {
@@ -129,14 +124,29 @@ async function forceStopProfileHost(userData: string) {
   signalTree(hostPids, 'SIGKILL')
 }
 
-export async function disposePerfProfile(profile: PerfProfile, keep = false) {
+/**
+ * How long the QA drain may take before the profile's Host is stopped by signal. A Host that is
+ * still indexing or closing MCP servers can outlast it; SIGTERM still shuts it down cleanly.
+ */
+const HOST_DRAIN_TIMEOUT_MS = 10_000
+const LOGGED_ERROR_CHARS = 120
+
+/** Stops the profile's own Session Host, if one runs: the QA drain, then signals. */
+export async function stopProfileHost(
+  profile: Pick<PerfProfile, 'userData'>,
+  whileOwnershipHeld: Parameters<typeof shutdownSessionHostForQa>[1] = async () => undefined,
+) {
   try {
-    await shutdownSessionHostForQa(profile.userData, async (ownership) =>
-      keep ? undefined : prepareQaProfileRemoval(profile.userData, ownership),
-    )
+    await shutdownSessionHostForQa(profile.userData, whileOwnershipHeld, HOST_DRAIN_TIMEOUT_MS)
   } catch (error) {
-    process.stderr.write(`Host drain failed (${String(error)}); stopping the profile's Host.\n`)
+    process.stderr.write(`Host drain did not finish (${String(error).slice(0, LOGGED_ERROR_CHARS)}); stopping the profile's Host.\n`)
     await forceStopProfileHost(profile.userData)
   }
+}
+
+export async function disposePerfProfile(profile: PerfProfile, keep = false) {
+  await stopProfileHost(profile, async (ownership) =>
+    keep ? undefined : prepareQaProfileRemoval(profile.userData, ownership),
+  )
   if (!keep) await rm(profile.root, { recursive: true, force: true })
 }
