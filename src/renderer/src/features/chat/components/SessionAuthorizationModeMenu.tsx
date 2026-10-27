@@ -8,6 +8,7 @@ import { Check, ChevronDown, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useDraftAuthorizationModeStore } from '@/features/chat/state/draft-authorization-mode-store'
 import { usePreferencesStore, useProjectAuthorizationDefault } from '@/features/settings/state'
+import { withFinally } from '@/shared/lib/async-outcome'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
@@ -94,12 +95,13 @@ export function SessionAuthorizationModeMenu({
     }
 
     setSaving(true)
-    try {
-      await onSetAuthorizationMode(next)
-      setOpen(false)
-    } finally {
-      setSaving(false)
-    }
+    await withFinally(
+      async () => {
+        await onSetAuthorizationMode(next)
+        setOpen(false)
+      },
+      () => setSaving(false),
+    )
   }
 
   return (
