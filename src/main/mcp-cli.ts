@@ -73,7 +73,7 @@ Options for add:
   --bearer-token-env-var <NAME>  Send "Authorization: Bearer \${NAME}"
   --oauth-client-id <id>, --oauth-client-secret <secret>,
   --oauth-callback-port <port>, --oauth-client-name <name>
-  --exposure <mode>              codemode (default), deferred, direct, or hidden
+  --exposure <mode>              codemode (default), deferred, or hidden
   --description <text>           What the server offers
   --file <file>                  pi-global, openwaggle-global, project-mcp-json,
                                  project-pi, or project-openwaggle

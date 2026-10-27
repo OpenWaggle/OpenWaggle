@@ -1,10 +1,10 @@
 import type { OpenWaggleApi } from '@shared/types/ipc'
+import { agentDefinitionsApi } from './agent-definitions-api'
 import { browserPreviewApi } from './browser-preview-api'
 import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
 import { sessionDataApi } from './session-data-api'
 import { startupApi } from './startup-api'
-import { terminalApi } from './terminal-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -14,11 +14,7 @@ export const api: OpenWaggleApi = {
   getCliShimStatus: invoke('cli-shim:get-status'),
   installCliShim: invoke('cli-shim:install'),
   removeCliShim: invoke('cli-shim:remove'),
-  selectAgentDefinitionSource: invoke('agent-definitions:select-source'),
-  manageAgentDefinitions: invoke('agent-definitions:manage'),
-  listAgentDefinitionDisplay: invoke('agent-definitions:list-display'),
-  getAgentDefinitionPreview: invoke('agent-definitions:get-preview'),
-  setAgentDefinitionEnabled: invoke('agent-definitions:set-enabled'),
+  ...agentDefinitionsApi,
   manageAccessProfiles: invoke('access-profiles:manage'),
   mutateSessionControl: invoke('session-control:mutate'),
   querySessionControl: invoke('session-control:query'),
@@ -177,12 +173,27 @@ export const api: OpenWaggleApi = {
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
   onGitStackedActionProgress: on('git:stacked-action:progress'),
 
+  // Terminal
+  getTerminalActivitySnapshot: invoke('terminal:get-activity-snapshot'),
+  openTerminal: invoke('terminal:open'),
+  detachTerminal: invoke('terminal:detach'),
+  resizeTerminal: invoke('terminal:resize'),
+  clearTerminal: invoke('terminal:clear'),
+  restartTerminal: invoke('terminal:restart'),
+  assessTerminalClose: invoke('terminal:assess-close'),
+  closeTerminal: invoke('terminal:close'),
+  writeTerminal: invoke('terminal:write'),
+  sendTerminalInputNow: invoke('terminal:send-input-now'),
+  acknowledgeTerminalOutput: send('terminal:ack-output'),
+  migrateTerminalOwner: invoke('terminal:migrate-owner'),
+  onTerminalEvent: on('terminal:event'),
+  onTerminalActivitySnapshot: on('terminal:activity-snapshot'),
+
   // Browser preview
   ...browserPreviewApi,
   ...scheduledTasksApi,
   ...startupApi,
   ...sessionDataApi,
-  ...terminalApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),

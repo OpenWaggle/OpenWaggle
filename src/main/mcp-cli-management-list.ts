@@ -11,6 +11,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { mcpCliShownExposure } from './mcp-cli-management-exposure'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
 import {
   MCP_NEEDS_SECRET_HINT,
@@ -43,6 +44,8 @@ interface ServerReport {
   readonly override?: string
   readonly enabled: boolean
   readonly exposure: string
+  /** What the file says, when OpenWaggle runs it differently (`direct` runs as `codemode`). */
+  readonly configuredExposure?: string
   readonly transport: string
   readonly state: string
   readonly tools: readonly string[]
@@ -56,16 +59,19 @@ function report(
   view: Pick<McpConfigurationView, 'missingSecretServers'>,
 ): ServerReport {
   const state = mcpCliServerState(server, inspection, view)
-  const overrides = (inspection?.tools ?? []).flatMap((tool) =>
-    tool.exposure === server.exposure ? [] : [[tool.name, tool.exposure] as const],
-  )
+  const exposure = mcpCliShownExposure(server.exposure)
+  const overrides = (inspection?.tools ?? []).flatMap((tool) => {
+    const toolExposure = mcpCliShownExposure(tool.exposure)
+    return toolExposure === exposure ? [] : [[tool.name, toolExposure] as const]
+  })
   return {
     name: server.name,
     scope: server.scope,
     source: server.source.path,
     ...(server.override ? { override: server.override.path } : {}),
     enabled: server.enabled,
-    exposure: server.exposure,
+    exposure,
+    ...(exposure === server.exposure ? {} : { configuredExposure: server.exposure }),
     transport: server.target,
     state,
     tools:
