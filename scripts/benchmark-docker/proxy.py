@@ -16,6 +16,7 @@ Usage: proxy.py <port> <openrouter-api-key> <log-path>
 import http.client
 import json
 import os
+import ssl
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,7 +32,14 @@ UPSTREAM_TIMEOUT_SECONDS = 600
 CHUNK_BYTES = 4096
 FORWARDED_RESPONSE_HEADERS = {"content-type", "cache-control"}
 USAGE_KEYS = {"prompt_tokens", "input_tokens", "completion_tokens", "output_tokens", "total_tokens"}
+# python.org builds ship without a CA bundle; fall back to the system one (macOS, most Linux).
+SYSTEM_CA_FILES = ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt")
 log_lock = threading.Lock()
+
+
+def tls_context():
+    cafile = os.environ.get("SSL_CERT_FILE") or next((path for path in SYSTEM_CA_FILES if os.path.exists(path)), None)
+    return ssl.create_default_context(cafile=cafile)
 
 
 def log(record):
@@ -77,8 +85,10 @@ class Handler(BaseHTTPRequestHandler):
     def _forward(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else None
-        connection = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
-        upstream = connection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS)
+        if UPSTREAM.scheme == "https":
+            upstream = http.client.HTTPSConnection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS, context=tls_context())
+        else:
+            upstream = http.client.HTTPConnection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS)
         headers = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
         upstream.request(self.command, self.path, body=body, headers=headers)
         response = upstream.getresponse()
