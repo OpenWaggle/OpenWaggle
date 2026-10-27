@@ -15,6 +15,7 @@
     "perf:first-turn-prefix": "vitest run -c vitest.integration.config.ts scripts/perf/first-turn-prefix",
     "perf:generate-profile": "tsx scripts/perf/generate-profile.ts",
     "perf:startup": "tsx scripts/perf/startup.ts",
+    "perf:streaming": "tsx scripts/perf/streaming.ts",
     "perf:session-open": "tsx scripts/perf/session-open.ts",
     "benchmark:session-vector-index": "tsx scripts/benchmark-session-vector-index.ts",
     "benchmark:session-database": "tsx scripts/benchmark-session-discovery-database.ts",
