@@ -3,6 +3,7 @@ import { DELEGATION_ATTENTION_CAUSE_MIGRATION } from './delegation-attention-cau
 import { HIVE_TOOL_NAME_MIGRATION } from './hive-tool-name-migration'
 import { SCHEDULED_TASK_MIGRATION } from './scheduled-task-migration'
 import { SESSION_ARCHIVE_TIME_MIGRATION } from './session-archive-time-migration'
+import { SESSION_AUTHORITY_REVISION_MIGRATION } from './session-authority-revision-migration'
 import { SESSION_HOST_DEFERRED_DISCOVERY_REFRESH_MIGRATION } from './session-host-deferred-discovery-refresh-migration'
 import { SESSION_NODE_DUPLICATE_INDEX_MIGRATION } from './session-node-duplicate-index-migration'
 import { SESSION_RESOURCE_DOCS_IMAGE_MIGRATION } from './session-resource-docs-image-migration'
@@ -16,4 +17,5 @@ export const V1_BETA_MIGRATIONS: readonly AppMigration[] = [
   SESSION_RESOURCE_DOCS_IMAGE_MIGRATION,
   DELEGATION_ATTENTION_CAUSE_MIGRATION,
   SESSION_NODE_DUPLICATE_INDEX_MIGRATION,
+  SESSION_AUTHORITY_REVISION_MIGRATION,
 ]

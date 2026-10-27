@@ -130,6 +130,7 @@ describe('upgrading a beta.25 database through migrations 72 and 73', () => {
         [73, 'session-resource-docs-image-references'],
         [74, 'delegation-attention-cause'],
         [82, 'session-node-duplicate-index'],
+        [83, 'session-authority-revision'],
       ],
     })
 

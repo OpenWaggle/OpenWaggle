@@ -47,9 +47,11 @@ describe('dropping the duplicate session node index (D7.1)', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('is the newest migration, and one this binary supports', () => {
-    expect(V1_BETA_MIGRATIONS.at(-1)).toBe(SESSION_NODE_DUPLICATE_INDEX_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SESSION_NODE_DUPLICATE_INDEX_MIGRATION.id)
+  it('is a migration this binary supports', () => {
+    expect(V1_BETA_MIGRATIONS).toContain(SESSION_NODE_DUPLICATE_INDEX_MIGRATION)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      SESSION_NODE_DUPLICATE_INDEX_MIGRATION.id,
+    )
   })
 
   it('leaves only the unique index, which still serves a Session ordered by created order', async () => {

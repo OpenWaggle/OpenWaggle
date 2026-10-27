@@ -37,9 +37,10 @@ export const SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID = 73
 export const DELEGATION_ATTENTION_CAUSE_MIGRATION_ID = 74
 /** 80 and 81 are taken by the tail-only Pi projection (D6). */
 export const SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID = 82
+export const SESSION_AUTHORITY_REVISION_MIGRATION_ID = 83
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v16'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_AUTHORITY_REVISION_MIGRATION_ID
