@@ -1,19 +1,23 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { rm, writeFile } from 'node:fs/promises'
+import { createConnection } from 'node:net'
 import path from 'node:path'
+import { resolveLocalSessionHostPaths } from '../../../src/main/session-host/local-session-paths'
 import { launchApp, type PerfApp, stopProcessGroup } from './perf-app'
 import { profileHostPids, sampleProcesses } from './perf-processes'
 import { type PerfProfile, profileEnvironment, stopProfileHost } from './perf-profile'
 import { log } from './perf-results'
 
 const WARM_MARKER = 'warmed.json'
+const LOG_TAIL_LINES = 3
 /** The first start of a large profile backfills its semantic index and can take minutes. */
 const HOST_START_TIMEOUT_MS = 900_000
 const IDLE_SAMPLE_MS = 5_000
 const IDLE_CPU_PERCENT = 2
 const IDLE_SAMPLES_NEEDED = 3
-const MAXIMUM_WARM_MS = 900_000
+/** A large unindexed profile may never go idle within this; warming then proceeds anyway. */
+const MAXIMUM_WARM_MS = 1_800_000
 const NANOSECONDS_PER_MILLISECOND = 1_000_000
 const PERCENT = 100
 
@@ -40,17 +44,40 @@ async function waitForIdleHost(userData: string) {
   }
 }
 
-/** Starts the profile's Host, waits for it to go idle, and returns how long it took to listen. */
+function canConnect(endpoint: string) {
+  return new Promise<boolean>((resolve) => {
+    const socket = createConnection(endpoint)
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+  })
+}
+
+/**
+ * Runs the profile's Host directly (as `host start` would launch it) until it accepts clients and
+ * then goes idle, and returns how long it took to listen. `host start` itself gives up while a
+ * large profile's first start is still preparing its semantic index.
+ */
 async function startHostUntilIdle(app: PerfApp, profile: PerfProfile) {
   const startedAt = Date.now()
-  const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
-  const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
-  const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
-  await stopProcessGroup(started.child)
-  if (code !== 0) throw new Error(`host start failed while warming ${profile.root}`)
-  const listeningMs = Date.now() - startedAt
-  await waitForIdleHost(profile.userData)
-  return listeningMs
+  const host = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'session-host-internal'])
+  try {
+    const { endpoint } = resolveLocalSessionHostPaths({ userDataRoot: profile.userData })
+    while (!(await canConnect(endpoint))) {
+      if (Date.now() - startedAt > HOST_START_TIMEOUT_MS || host.child.exitCode !== null) {
+        throw new Error(`The Host did not start while warming ${profile.root}: ${host.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+      }
+      await delay(IDLE_SAMPLE_MS)
+    }
+    const listeningMs = Date.now() - startedAt
+    await waitForIdleHost(profile.userData)
+    return listeningMs
+  } finally {
+    await stopProfileHost(profile)
+    await stopProcessGroup(host.child)
+  }
 }
 
 /**
@@ -72,13 +99,9 @@ export async function warmTemplateFor(app: PerfApp, templateRoot: string) {
     projectPath: path.join(target, 'projects', 'project-0'),
   }
   const startedAt = Date.now()
-  let listeningMs: number
-  try {
-    listeningMs = await startHostUntilIdle(app, profile)
-  } finally {
-    // Never leave a warming Host behind, even when warming failed: it would keep indexing.
-    await stopProfileHost(profile)
-  }
+
+  // startHostUntilIdle never leaves its Host behind, even when warming fails.
+  const listeningMs = await startHostUntilIdle(app, profile)
   const warm = { app: app.label, firstHostStartMs: listeningMs, warmedMs: Date.now() - startedAt }
   await writeFile(path.join(target, WARM_MARKER), `${JSON.stringify(warm)}\n`)
   log(`warmed ${target}: ${JSON.stringify(warm)}`)
