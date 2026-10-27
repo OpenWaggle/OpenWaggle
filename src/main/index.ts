@@ -7,7 +7,7 @@ import './restore-host-temporary-directory' // before any module caches a temp p
 import './apply-pi-package-directory' // before any Pi module reads its package.json
 import { electronApp, is } from '@electron-toolkit/utils'
 import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
-import { app } from 'electron'
+import { app, session } from 'electron'
 import {
   configureDefaultSessionEmbeddingModelForPackagedRuntime,
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
@@ -16,6 +16,7 @@ import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
+import { watchChromiumCacheSize } from './chromium-disk-cache'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
@@ -220,6 +221,7 @@ function registerAppLifecycle() {
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))
+      watchChromiumCacheSize(session.defaultSession)
 
       // CLI recovery must remain available even if the Session Host or window cannot start.
       const cliSetup = beginAppCliShimSetupWhen(app.isPackaged && !isAutomationMode())
