@@ -13,6 +13,7 @@ import {
   type RetainedReplayResult,
   SessionHostEventReplayWindow,
 } from './session-host-event-replay-window'
+import { serializeSessionHostEvent } from './session-host-event-serialization'
 import { SessionHostEventSubscription } from './session-host-event-subscription'
 
 export { SessionHostEventSubscription } from './session-host-event-subscription'
@@ -108,7 +109,7 @@ export class SessionHostEventHub {
       timestamp: this.now(),
       payload,
     } satisfies SessionHostEventEnvelope
-    const bytes = Buffer.byteLength(JSON.stringify(event), 'utf8')
+    const bytes = Buffer.byteLength(serializeSessionHostEvent(event), 'utf8')
     if (bytes <= this.replayByteCapacity) {
       this.replayWindow.push({ event, bytes })
     } else {
