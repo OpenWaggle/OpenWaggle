@@ -8,7 +8,8 @@ import { type PerfProfile, profileEnvironment, stopProfileHost } from './perf-pr
 import { log } from './perf-results'
 
 const WARM_MARKER = 'warmed.json'
-const HOST_START_TIMEOUT_MS = 120_000
+/** The first start of a large profile backfills its semantic index and can take minutes. */
+const HOST_START_TIMEOUT_MS = 900_000
 const IDLE_SAMPLE_MS = 5_000
 const IDLE_CPU_PERCENT = 2
 const IDLE_SAMPLES_NEEDED = 3
