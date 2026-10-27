@@ -12,6 +12,7 @@ import {
 } from '../../../domain/mcp/config/mcp-runtime-exposure'
 import { mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { mcpAppTool, mcpAppToolNames } from './mcp-app-registry'
+import { registerUnknownMcpAppToolWait } from './mcp-app-tool-startup-wait'
 import { boundMember } from './mcp-openwaggle-surface'
 import { knownMcpServerState } from './mcp-server-status-registry'
 
@@ -34,8 +35,19 @@ export function withOpenWaggleMcpExposure(
   sessionId: string,
   loaded: { readonly servers: readonly McpServerEntry[] },
   factory: ExtensionFactory,
+  /** The first request also waits for servers whose App tools are not known yet, this long. */
+  unknownApps?: { readonly waitMs: number; readonly cached?: CachedMcpAppTools },
 ): ExtensionFactory {
   return (pi) => {
+    const registeredLabels = new Set<string>()
+    if (unknownApps) {
+      registerUnknownMcpAppToolWait(pi, {
+        sessionId,
+        servers: loaded.servers,
+        ...unknownApps,
+        registered: (label) => registeredLabels.has(label),
+      })
+    }
     // Only `direct` changes here, which is stable: Pi reconnects a registered server whose
     // configuration changes, so the App tools it learns are declared on registration instead.
     const getMcpServers: ExtensionAPI['getMcpServers'] = () =>
@@ -47,6 +59,7 @@ export function withOpenWaggleMcpExposure(
       loaded.servers.find((server) => server.name === name)?.config ??
       getMcpServers().find((server) => server.name === name)?.config
     const registerTool: ExtensionAPI['registerTool'] = (definition) => {
+      registeredLabels.add(definition.label)
       pi.registerTool(declaredIfMcpApp(sessionId, serverConfig, definition))
     }
     return factory(
@@ -62,19 +75,28 @@ export function withOpenWaggleMcpExposure(
 }
 
 /**
- * The MCP App tools a server is known to have: from this Session's listings, else from the last
- * listing of the same server anywhere in the Host (a Run of another Session, Check connection).
+ * Where a Run looks up a server's App tools beyond this Host's memory: the server's cached
+ * catalog (`cachedMcpAppToolNames`). Undefined when nothing is known.
  */
-export function knownMcpAppTools(sessionId: string, name: string, config: McpServerConfig) {
-  const own = mcpAppToolNames(sessionId, name)
-  if (own) return own
-  const known = knownMcpServerState(mcpServerIdentity(name, config))
-  return (known?.tools ?? []).filter((tool) => tool.hasApp).map((tool) => tool.name)
-}
+export type CachedMcpAppTools = (entry: McpServerEntry) => readonly string[] | undefined
 
-/** A server's configuration with the App tools known so far declared to the model. */
-export function withKnownMcpAppTools(sessionId: string, name: string, config: McpServerConfig) {
-  return withMcpAppToolsDeclared(config, knownMcpAppTools(sessionId, name, config))
+/**
+ * The MCP App tools a server is known to have: from this Session's listings, else from the last
+ * listing of the same server anywhere in the Host (a Run of another Session, Check connection),
+ * else from its cached catalog. Undefined when none of them knows the server's tools.
+ */
+export function knownMcpAppTools(
+  sessionId: string,
+  entry: McpServerEntry,
+  cached?: CachedMcpAppTools,
+): readonly string[] | undefined {
+  const own = mcpAppToolNames(sessionId, entry.name)
+  if (own) return own
+  const known = knownMcpServerState(mcpServerIdentity(entry.name, entry.config))
+  if (known?.state === 'connected') {
+    return known.tools.filter((tool) => tool.hasApp).map((tool) => tool.name)
+  }
+  return cached?.(entry)
 }
 
 /**
@@ -83,12 +105,15 @@ export function withKnownMcpAppTools(sessionId: string, name: string, config: Mc
  */
 export function withKnownMcpAppToolsOf<
   Loaded extends { readonly servers: readonly McpServerEntry[] },
->(sessionId: string, loaded: Loaded): Loaded {
+>(sessionId: string, loaded: Loaded, cached?: CachedMcpAppTools): Loaded {
   return {
     ...loaded,
     servers: loaded.servers.map((server) => ({
       ...server,
-      config: withKnownMcpAppTools(sessionId, server.name, server.config),
+      config: withMcpAppToolsDeclared(
+        server.config,
+        knownMcpAppTools(sessionId, server, cached) ?? [],
+      ),
     })),
   }
 }

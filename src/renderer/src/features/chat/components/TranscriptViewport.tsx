@@ -112,10 +112,12 @@ export function TranscriptViewport({
         )}
         {...session.scrollerHandlers}
       >
+        {/* shrink-0, or the column shrinks to the viewport and its ResizeObserver, which follows
+          streamed tokens that re-render only their bubble (B2), never sees it grow. */}
         <div
           ref={(element) => session.attach('content', element)}
           data-chat-transcript-container
-          className="@container/transcript flex min-h-full flex-col"
+          className="@container/transcript flex min-h-full shrink-0 flex-col"
         >
           <div aria-live="polite" className="sr-only">
             {transcriptWindow.announcement}

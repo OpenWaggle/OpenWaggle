@@ -95,6 +95,7 @@ export function buildSessionTreePanelRows(input: BuildSessionTreePanelRowsInput)
   })
   const searchActive = input.searchQuery.trim().length > 0
   const rowExpandedNodeIds = resolveSessionTreeRowExpandedNodeIds({
+    nodes,
     filteredNodes,
     expandedNodeIds,
     searchActive,

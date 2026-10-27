@@ -137,7 +137,8 @@ describe("a Run's MCP extension", () => {
     const ctx = fromPartial<ExtensionContext>({ ui: fromPartial<ExtensionUIContext>({ notify }) })
     for (const handler of handlers) await handler({}, ctx)
 
-    expect(handlers).toHaveLength(1)
+    // Pi's wait for direct servers and OpenWaggle's for servers with unknown App tools (C2).
+    expect(handlers).toHaveLength(2)
     expect(notify).not.toHaveBeenCalled()
   })
 })
