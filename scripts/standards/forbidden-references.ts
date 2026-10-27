@@ -27,6 +27,8 @@ const forbiddenReferences: string[] = [
  */
 const forbiddenReferenceExemptFiles: string[] = [
   'MEMORY.md',
+  // The v1 performance report carries the same benchmark table.
+  'docs/performance/v1-performance-2026-10.md',
   'scripts/benchmark-docker/inside.sh',
   // results/ is untracked raw evidence; the curated copy is exempt below.
   'scripts/benchmark-docker/parse-results.py',
