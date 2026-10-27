@@ -1,4 +1,4 @@
-import { MCP_EXPOSURE_VALUES, type McpConfigFileScope } from '@shared/types/mcp-configuration'
+import type { McpConfigFileScope } from '@shared/types/mcp-configuration'
 import {
   MCP_REGISTRY_PACKAGE_TYPES,
   type McpRegistryInstallRequest,
@@ -12,6 +12,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { mcpCliExposureOption } from './mcp-cli-management-exposure'
 import { projectOptionOf } from './mcp-cli-management-list'
 
 /**
@@ -106,7 +107,7 @@ function installScope(input: McpManagementCommandInput) {
 function installRequest(input: McpManagementCommandInput, registryName: string) {
   const { args } = input
   const method = oneOf('package', args.values.get('package'), MCP_REGISTRY_PACKAGE_TYPES)
-  const exposure = oneOf('exposure', args.values.get('exposure'), MCP_EXPOSURE_VALUES)
+  const exposure = mcpCliExposureOption(args.values.get('exposure'))
   const serverName = args.values.get('name')
   const version = args.values.get('version')
   return {
