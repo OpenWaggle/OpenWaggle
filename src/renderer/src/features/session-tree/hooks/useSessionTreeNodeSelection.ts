@@ -1,5 +1,10 @@
 import type { SupportedModelId } from '@shared/types/brand'
-import type { SessionNode, SessionTree, SessionWorkspace } from '@shared/types/session'
+import type {
+  SessionTranscriptNode,
+  SessionTree,
+  SessionTreeNode,
+  SessionWorkspace,
+} from '@shared/types/session'
 import { useNavigate } from '@tanstack/react-router'
 import {
   createBranchDraftSelectionFromNode,
@@ -23,8 +28,8 @@ interface SessionTreeNodeSelectionInput {
 
 function switchComposerToDraftBranch(input: {
   readonly projectPath: string | null
-  readonly sessionId: SessionNode['sessionId']
-  readonly sourceNodeId: SessionNode['id']
+  readonly sessionId: SessionTreeNode['sessionId']
+  readonly sourceNodeId: SessionTreeNode['id']
   readonly fallbackText: string
 }) {
   const contextKey = buildComposerDraftContextKey({
@@ -47,7 +52,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
 
   function selectMaterializedBranch(
-    node: SessionNode,
+    node: SessionTreeNode,
     branchId: NonNullable<SessionTree['branches'][number]>,
   ) {
     const tree = input.tree
@@ -83,7 +88,28 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
       })
   }
 
-  function selectDraftBranch(node: SessionNode) {
+  /**
+   * A branch drafted from a user message is prefilled with its text, which the tree does not carry
+   * (B5): read the one entry from the Host first. Any other node drafts at once.
+   */
+  function selectDraftBranch(node: SessionTreeNode) {
+    if (node.kind !== 'user_message' || !node.hasMessage || 'message' in node) {
+      draftBranchFrom(node)
+      return
+    }
+    void api
+      .getSessionWorkspace(node.sessionId, { nodeId: node.id }, { window: { minEntries: 1 } })
+      .then(
+        (workspace) => {
+          const entry = workspace?.transcriptPath.at(-1)
+          draftBranchFrom(entry?.node.id === node.id && entry.node.message ? entry.node : node)
+        },
+        // Unreadable: draft the branch without prefill rather than not at all.
+        () => draftBranchFrom(node),
+      )
+  }
+
+  function draftBranchFrom(node: SessionTranscriptNode) {
     const tree = input.tree
     if (!tree) {
       return
@@ -124,7 +150,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
   }
 
-  function selectNode(node: SessionNode) {
+  function selectNode(node: SessionTreeNode) {
     const materializedBranch = input.tree?.branches.find((branch) => branch.headNodeId === node.id)
     if (materializedBranch) {
       selectMaterializedBranch(node, materializedBranch)

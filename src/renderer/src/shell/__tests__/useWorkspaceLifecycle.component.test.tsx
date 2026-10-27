@@ -135,9 +135,13 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(2)
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(3)
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: queryKeys.archivedItems,
+    })
+    // Project Actions are read on Host Session-state changes instead of polled (B7/D9).
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.projectActions,
     })
     expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
       initialCountRevision + 1,

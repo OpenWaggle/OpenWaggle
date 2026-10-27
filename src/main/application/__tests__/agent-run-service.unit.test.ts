@@ -1,5 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
@@ -40,7 +40,7 @@ const session = runServiceSession
 const newSession = runServiceNewSession
 
 let projectionSession: SessionDetail = session
-let projectionTree: SessionTree = runServiceSessionTree
+let projectionTree: SessionContentTree = runServiceSessionTree
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(projectionSession),
   getOptional: () => Effect.succeed(projectionSession),
@@ -62,6 +62,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
   setTurnCheckpointAnchor: () => Effect.void,
   ...PINNED_SESSION_REPOSITORY_STUB,
 })

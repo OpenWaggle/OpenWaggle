@@ -1,6 +1,6 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { MessageId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { SessionNode, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionNode } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import { Layer } from 'effect'
@@ -28,7 +28,7 @@ const sessionId = runServiceSessionId
 const branchId = runServiceBranchId
 const model = SupportedModelId('openai/gpt-5.4')
 const persistedSnapshots: PersistSessionSnapshotInput[] = []
-let projectionTree: SessionTree = runServiceSessionTree
+let projectionTree: SessionContentTree = runServiceSessionTree
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(runServiceSession),
@@ -47,6 +47,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
   setTurnCheckpointAnchor: () => Effect.void,
   ...PINNED_SESSION_REPOSITORY_STUB,
 })

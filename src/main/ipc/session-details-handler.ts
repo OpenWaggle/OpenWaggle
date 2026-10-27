@@ -5,6 +5,7 @@ export function registerSessionDetailsHandlers(): void {
   hostHandle('sessions:turn-checkpoints:list')
   hostHandle('sessions:turn-diff:get')
   hostHandle('sessions:turn-diff-files:get')
+  hostHandle('sessions:turn-diff-files:list')
   hostHandle('sessions:pins:list')
   hostHandle('sessions:pins:pin')
   hostHandle('sessions:pins:unpin')

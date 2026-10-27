@@ -1,5 +1,5 @@
 import { SessionBranchId, SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionDetail } from '@shared/types/session'
 
 export const BROKER_SESSION_ID = SessionId('session-1')
 export const BROKER_BRANCH_ID = SessionBranchId('session-1:main')
@@ -15,7 +15,7 @@ export function makeSessionDetail(projectPath: string): SessionDetail {
   }
 }
 
-export function makeSessionTree(projectPath: string): SessionTree {
+export function makeSessionTree(projectPath: string): SessionContentTree {
   return {
     session: {
       id: BROKER_SESSION_ID,

@@ -164,6 +164,35 @@ export async function getTurnDiffFiles(
   )
 }
 
+/** Most turn ids one batched changed-files read accepts; a Session opens with far fewer. */
+export const MAX_TURN_DIFF_FILE_BATCH = 500
+
+/**
+ * Several turns' file summaries in one read, keyed by turn id. A Session open used to read them
+ * one turn at a time, one Host round trip per settled turn on screen.
+ */
+export async function listTurnDiffFiles(
+  sessionId: SessionId,
+  turnIds: readonly string[],
+): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>> {
+  const unique = [...new Set(turnIds)].slice(0, MAX_TURN_DIFF_FILE_BATCH)
+  const filesByTurnId: Record<string, readonly TurnDiffFileSummary[]> = {}
+  for (const turnId of unique) filesByTurnId[turnId] = []
+  if (unique.length === 0) return filesByTurnId
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<Pick<TurnCheckpointRow, 'turn_id' | 'diff'>>`
+        SELECT turn_id, diff FROM turn_checkpoints
+        WHERE session_id = ${sessionId} AND turn_id IN ${sql.in(unique)}
+      `
+      for (const row of rows)
+        filesByTurnId[row.turn_id] = parseTurnDiffFilesFromUnifiedDiff(row.diff)
+      return filesByTurnId
+    }),
+  )
+}
+
 /** Retention: keep only the most recent `maxCheckpoints` turns for a session. Returns pruned turn ids. */
 export async function pruneTurnCheckpoints(
   sessionId: SessionId,

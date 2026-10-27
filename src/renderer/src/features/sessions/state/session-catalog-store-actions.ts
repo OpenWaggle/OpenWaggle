@@ -1,7 +1,9 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { coalescedRead } from '@/shared/lib/coalesced-read'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { readPinnedSessions } from '@/shared/lib/pinned-sessions-read'
 
 const logger = createRendererLogger('session-catalog-store')
 const PAGE_SIZE = 100
@@ -51,7 +53,7 @@ function appendUnique(current: readonly SessionSummary[], incoming: readonly Ses
 }
 
 async function loadPinnedSessionSummaries() {
-  const pins = await api.listPinnedSessions()
+  const pins = await readPinnedSessions()
   const sessions: SessionSummary[] = []
   for (let offset = 0; offset < pins.length; offset += PAGE_SIZE) {
     const ids = pins.slice(offset, offset + PAGE_SIZE).map((pin) => pin.sessionId)
@@ -171,6 +173,8 @@ async function refreshCatalogSessions(
 }
 
 export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): SessionCatalogState {
+  // The chat and sidebar stores both load the catalog at startup; one load serves both.
+  const loadSessions = coalescedRead(() => loadCatalog(set))
   return {
     sessions: [],
     archivedSessions: [],
@@ -179,7 +183,7 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
     sessionsNextCursor: null,
     hiveWorkersNextCursor: null,
     sessionsLoadingMore: false,
-    loadSessions: () => loadCatalog(set),
+    loadSessions,
     async loadMoreSessions() {
       const cursor = get().sessionsNextCursor
       if (!cursor || get().sessionsLoadingMore) return

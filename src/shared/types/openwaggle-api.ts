@@ -63,6 +63,7 @@ import type {
   SessionWorktreePlan,
 } from './session'
 import type { SessionTitleRegenerationResult } from './session-title'
+import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
 import type { Settings, ThinkingLevel } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -179,10 +180,14 @@ export interface OpenWaggleApi
   saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
-  getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  getSessionDetail(id: SessionId, cursor?: SessionDetailCursor): Promise<SessionDetail | null>
   dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiffFiles(id: SessionId, turnId: string): Promise<readonly TurnDiffFileSummary[]>
+  listTurnDiffFiles(
+    id: SessionId,
+    turnIds: readonly string[],
+  ): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
   listPinnedSessions(): Promise<PinnedSession[]>
@@ -227,7 +232,9 @@ export interface OpenWaggleApi
   getSessionWorkspace(
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,
+    request?: SessionWorkspaceRequest,
   ): Promise<SessionWorkspace | null>
+  searchSessionTree(sessionId: SessionId, query: string): Promise<readonly SessionNodeId[]>
   navigateSessionTree(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -286,6 +293,9 @@ export interface OpenWaggleApi
   setProviderApiKey(provider: string, apiKey: string): Promise<void>
   disconnectAuth(provider: OAuthProvider): Promise<void>
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
+  getAuthAccountInfos(
+    providers: readonly OAuthProvider[],
+  ): Promise<Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
 
   /*

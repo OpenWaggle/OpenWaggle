@@ -97,6 +97,13 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     turnId: string,
   ) => Effect.Effect<readonly TurnDiffFileSummary[], SessionProjectionRepositoryError>
+  readonly listTurnDiffFiles: (
+    id: SessionId,
+    turnIds: readonly string[],
+  ) => Effect.Effect<
+    Readonly<Record<string, readonly TurnDiffFileSummary[]>>,
+    SessionProjectionRepositoryError
+  >
   readonly setTurnCheckpointAnchor: (
     id: SessionId,
     turnId: string,

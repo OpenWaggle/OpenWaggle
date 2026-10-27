@@ -11,9 +11,22 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
-import { actionQueryKey } from './useNativeActions'
+import { actionQueryKey, useScopeAgentWorking } from './useNativeActions'
 
+/** While setup or cleanup runs, poll its progress (B7/D9). */
 const REFRESH_MS = 1_000
+/** While the agent works a first send may birth the worktree and start its setup. */
+const AGENT_WORKING_REFRESH_MS = 3_000
+
+export function preparationRefetchInterval(
+  preparation: WorkspacePreparation | null | undefined,
+  agentWorking: boolean,
+): number | false {
+  if (preparation?.setup.status === 'running' || preparation?.cleanup.status === 'running') {
+    return REFRESH_MS
+  }
+  return agentWorking ? AGENT_WORKING_REFRESH_MS : false
+}
 type PreparationMutation = Exclude<PreparationOperation, { type: 'preparation' }>
 export function useWorkspacePreparation(scope: ActionManagementScope | null): {
   readonly data: WorkspacePreparation | null | undefined
@@ -22,11 +35,13 @@ export function useWorkspacePreparation(scope: ActionManagementScope | null): {
 } {
   const client = useQueryClient()
   const queryKey = [...actionQueryKey(scope), 'preparation']
+  const agentWorking = useScopeAgentWorking(scope)
   const query = useQuery(
     queryOptions({
       queryKey,
       enabled: Boolean(scope?.sessionId || scope?.workspaceId),
-      refetchInterval: REFRESH_MS,
+      refetchOnWindowFocus: true,
+      refetchInterval: (current) => preparationRefetchInterval(current.state.data, agentWorking),
       queryFn: async () => {
         if (!scope) return null
         const result = await api.manageProjectActions({ scope, operation: { type: 'preparation' } })

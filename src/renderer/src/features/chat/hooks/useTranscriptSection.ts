@@ -23,6 +23,7 @@ import {
 } from '../lib/agent-loop-transcript-events'
 import { areCopiesBlocked } from '../lib/copies-blocked'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
+import { remoteTranscriptHistory, workspacePathNodeIds } from '../lib/transcript-remote-history'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState, PendingSend } from '../model'
@@ -76,7 +77,7 @@ function displayedWorkspaceSelection(
   }
   return {
     branchId: workspace.activeBranchId,
-    pathNodeIds: workspace.transcriptPath.map(({ node }) => String(node.id)),
+    pathNodeIds: workspacePathNodeIds(workspace),
   }
 }
 
@@ -163,6 +164,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     activeSessionId ? state.ids.has(activeSessionId) : false,
   )
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const loadEarlierTranscript = useSessionStore((state) => state.loadEarlierTranscript)
+  const loadTranscriptThrough = useSessionStore((state) => state.loadTranscriptThrough)
   const draftBranchSourceNodeId =
     activeSessionId &&
     draftBranch?.sessionId &&
@@ -248,6 +251,12 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   return {
     transcriptState: resolveTranscriptState(activeSessionId, activeSession, transcriptMessages),
     sessionCreatedAt: activeSession?.createdAt ?? null,
+    remoteHistory: remoteTranscriptHistory({
+      workspace: activeWorkspace,
+      sessionId: activeSessionId,
+      loadEarlier: loadEarlierTranscript,
+      loadThrough: loadTranscriptThrough,
+    }),
     messages: transcriptMessages,
     isLoading: transcriptLoading,
     projectPath,

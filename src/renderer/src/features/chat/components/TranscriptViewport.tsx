@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { useTranscriptCommitLayout } from '../hooks/useTranscriptCommitLayout'
 import { useTranscriptEdgeLoading } from '../hooks/useTranscriptEdgeLoading'
+import { useTranscriptRemoteHistory } from '../hooks/useTranscriptRemoteHistory'
 import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
 import { pendingSentRowKey } from '../lib/optimistic-user-message'
+import type { TranscriptRemoteHistory } from '../lib/transcript-remote-history'
 import { chatRowKeys } from '../lib/transcript-row-keys'
 import { visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
@@ -26,6 +28,8 @@ export interface TranscriptViewportInput {
   readonly canConsumePendingSend: boolean
   readonly onToggleTurnFold: (turnKey: string) => void
   readonly sessionCreatedAt: number | null
+  /** History the Host still holds above the loaded window, read on demand. */
+  readonly remoteHistory?: TranscriptRemoteHistory | null
 }
 
 /**
@@ -56,6 +60,7 @@ export function TranscriptViewport({
     isFollowing: () => session.controller.isFollowing,
     boundsLikeFollower,
   })
+  const edge = useTranscriptRemoteHistory(pendingRestoreKey, keys, input, transcriptWindow)
   const { exiting, clearExiting } = useTurnSettlePresentation({
     rows,
     keys,
@@ -67,7 +72,7 @@ export function TranscriptViewport({
   })
   const edges = useTranscriptEdgeLoading({
     viewport: session,
-    loadEarlier: transcriptWindow.loadEarlier,
+    loadEarlier: edge.loadEarlier,
     loadLater: transcriptWindow.loadLater,
   })
 
@@ -116,12 +121,12 @@ export function TranscriptViewport({
             {transcriptWindow.announcement}
           </div>
           <TranscriptTopEdge
-            hasEarlier={transcriptWindow.hasEarlier}
+            hasEarlier={edge.hasEarlier}
             hasRows={keys.length > 0}
             rangeStart={transcriptWindow.start}
             createdAt={input.sessionCreatedAt}
             sentinelRef={edges.earlierRef}
-            onLoad={transcriptWindow.loadEarlier}
+            onLoad={edge.loadEarlier}
           />
           {renderVisibleMessageRows
             ? renderVisibleMessageRows(visibleMessageNodeIds(visibleRows), renderedRows)

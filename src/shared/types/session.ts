@@ -1,5 +1,5 @@
 import type { SessionTitleSource } from '../session-title-source'
-import type { Message, MessageRole } from './agent'
+import type { Message } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
@@ -7,21 +7,17 @@ import type { SessionEnvironmentMode } from './git'
 import type { HiveNextActorLineageFacts, HivePendingRequest } from './hive-next-actor'
 import type { SupportedModelId } from './llm'
 import type { DelegationState } from './session-collaboration'
+import type {
+  SessionNode,
+  SessionNodeKind,
+  SessionTranscriptNode,
+  SessionTreeNode,
+} from './session-node'
+import type { SessionTranscriptWindow } from './session-transcript-window'
 import type { ThinkingLevel } from './settings'
 import type { WaggleConfig } from './waggle'
 
-export type SessionNodeKind =
-  | 'user_message'
-  | 'assistant_message'
-  | 'system_message'
-  | 'tool_result'
-  | 'custom'
-  | 'session_info'
-  | 'label'
-  | 'model_change'
-  | 'thinking_level_change'
-  | 'branch_summary'
-  | 'compaction_summary'
+export type { SessionNode, SessionNodeKind, SessionTranscriptNode, SessionTreeNode }
 
 export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
@@ -170,6 +166,10 @@ export interface SessionDetail {
    * it in pi (ADR 0051). Only a Session read for the chat view while it is idle carries it.
    */
   readonly piSessionLastPromptOutside?: true
+  /** Node mutation revision when read, for the next `SessionDetailCursor` (D5). */
+  readonly nodeMutationRevision?: number
+  /** `messages` continues the caller's first `baseMessageCount` ones (a cursor read). */
+  readonly messagesDelta?: { readonly baseMessageCount: number }
 }
 
 /**
@@ -199,22 +199,6 @@ export interface SessionWorktreePlan {
   readonly environmentMode: SessionEnvironmentMode
   readonly baseRef: string | null
   readonly startFromOrigin: boolean
-}
-
-export interface SessionNode {
-  readonly id: SessionNodeId
-  readonly sessionId: SessionId
-  readonly parentId: SessionNodeId | null
-  readonly piEntryType: string
-  readonly kind: SessionNodeKind
-  readonly role?: MessageRole
-  readonly timestampMs: number
-  readonly createdOrder: number
-  readonly pathDepth: number
-  readonly branchId?: SessionBranchId | null
-  readonly message?: Message
-  readonly contentJson: string
-  readonly metadataJson: string
 }
 
 export interface SessionBranch {
@@ -279,12 +263,18 @@ export interface PinnedSessionMove {
   readonly beforeSessionId: SessionId | null
 }
 
+/** A Session's tree as the desktop window reads it, without node content (see `SessionTreeNode`). */
 export interface SessionTree {
   readonly session: SessionSummary
-  readonly nodes: readonly SessionNode[]
+  readonly nodes: readonly SessionTreeNode[]
   readonly branches: readonly SessionBranch[]
   readonly branchStates: readonly SessionBranchState[]
   readonly uiState: SessionTreeUiState | null
+}
+
+/** A Session's tree with every node's content, as the Host reads it from its projection. */
+export interface SessionContentTree extends SessionTree {
+  readonly nodes: readonly SessionNode[]
 }
 
 export interface SessionWorkspaceSelection {
@@ -312,9 +302,11 @@ export interface SessionCopyToNewResult {
 }
 
 export interface SessionTranscriptEntry {
-  readonly node: SessionNode
+  readonly node: SessionTranscriptNode
   readonly branchId?: SessionBranchId | null
   readonly isActive: boolean
+  /** Message left out: the caller holds it at this revision (`SessionWorkspaceRequest`). */
+  readonly contentOmitted?: true
 }
 
 export interface SessionWorkspace {
@@ -323,4 +315,14 @@ export interface SessionWorkspace {
   readonly activeNodeId: SessionNodeId | null
   readonly activeBranchState?: SessionBranchState
   readonly transcriptPath: readonly SessionTranscriptEntry[]
+  /** Present when the read asked for a window: the path holds only its newest part. */
+  readonly transcriptWindow?: SessionTranscriptWindow
+  /** The Session's node mutation revision when read; bumps whenever an existing node changes. */
+  readonly nodeMutationRevision?: number
+}
+
+/** A workspace with every path node's full content, as the Host builds it. */
+export interface SessionContentWorkspace extends SessionWorkspace {
+  readonly tree: SessionContentTree
+  readonly transcriptPath: readonly (SessionTranscriptEntry & { readonly node: SessionNode })[]
 }

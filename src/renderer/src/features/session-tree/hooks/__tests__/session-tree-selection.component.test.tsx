@@ -17,6 +17,7 @@ const selectionMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   navigateSessionTree: vi.fn(),
   getPiBranchSummarySkipPrompt: vi.fn(),
+  getSessionWorkspace: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -27,6 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getPiBranchSummarySkipPrompt: selectionMocks.getPiBranchSummarySkipPrompt,
     navigateSessionTree: selectionMocks.navigateSessionTree,
+    getSessionWorkspace: selectionMocks.getSessionWorkspace,
   },
 }))
 
@@ -210,5 +212,39 @@ describe('useSessionTreeNodeSelection', () => {
       search: expect.any(Function),
     })
     expect(refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, { nodeId: ROOT_NODE.id })
+  })
+
+  it('reads a content-free user node’s message from the Host to prefill its draft (B5)', async () => {
+    const setDraftBranch = vi.fn((draftBranch) => useSessionStore.setState({ draftBranch }))
+    const refreshSessionWorkspace = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ setDraftBranch, refreshSessionWorkspace })
+    const { message: _message, contentJson: _content, metadataJson: _metadata, ...bare } = USER_NODE
+    const contentFreeUser = { ...bare, hasMessage: true, preview: 'Use this' }
+    useComposerStore.setState({ activeDraftContextKey: null, scopedDrafts: {} })
+    selectionMocks.getSessionWorkspace.mockResolvedValue({
+      ...workspace(),
+      transcriptPath: [{ node: USER_NODE, isActive: true }],
+    })
+    const { result } = renderHook(() =>
+      useSessionTreeNodeSelection({
+        activeWorkspace: workspace(),
+        selectedModel: SupportedModelId('openai/gpt-5.5'),
+        showToast: vi.fn(),
+        tree: tree(),
+      }),
+    )
+
+    act(() => result.current.selectNode(contentFreeUser))
+
+    await waitFor(() => expect(useComposerStore.getState().input).toBe('Use this prompt'))
+    expect(selectionMocks.getSessionWorkspace).toHaveBeenCalledWith(
+      SESSION_ID,
+      { nodeId: USER_NODE.id },
+      { window: { minEntries: 1 } },
+    )
+    expect(setDraftBranch).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      sourceNodeId: ROOT_NODE.id,
+    })
   })
 })

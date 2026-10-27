@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { TurnCheckpointSummary, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { ChevronRight, FileDiff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api } from '@/shared/lib/ipc'
+import { readTurnDiffFiles } from '@/queries/turn-checkpoints'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import {
@@ -107,7 +107,8 @@ export function ChangedFilesCard({
     let cancelled = false
     void (async () => {
       try {
-        const files = await api.getTurnDiffFiles(sessionId, turn.turnId)
+        // Every card mounted together reads its turn's files in one batched call (B5).
+        const files = await readTurnDiffFiles(sessionId, turn.turnId)
         if (!cancelled) setFiles(files)
       } catch (error) {
         logger.warn('Failed to load turn diff files', {

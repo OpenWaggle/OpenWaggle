@@ -7,7 +7,7 @@ import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { InlineVisualizationService } from '../ports/inline-visualization-service'
 import type { SessionOutputRetryRepository } from '../ports/session-output-retry-repository'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionRepository } from '../ports/session-repository'
+import type { SessionRepository } from '../ports/session-repository'
 import type { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
 import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import type { SessionResourceRepository } from '../ports/session-resource-repository'
@@ -31,6 +31,13 @@ import {
   listSessionProjectPage,
   listSessionsByIds,
 } from './host-ui-session-catalog-operations'
+import {
+  getSessionDetail,
+  getSessionTree,
+  getSessionWorkspace,
+  listTurnDiffFiles,
+  searchSessionTree,
+} from './host-ui-session-data-operations'
 import {
   beginProjectRemoval,
   createSession,
@@ -57,7 +64,6 @@ import {
   validateSessionId,
   validateSessionNodeId,
   validateTreeUiStatePatch,
-  validateWorkspaceSelection,
 } from './host-ui-session-operation-validation'
 import {
   listPinnedSessions,
@@ -70,9 +76,6 @@ import {
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
-import { withDeletedPiSessionFileNotice } from './pi-session-deleted-files'
-import { openedSessionId } from './pi-session-projection-refresh'
-import { withPiSessionPromptOrigin } from './pi-session-prompt-origin'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -137,6 +140,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:delete-archived-sessions', () => deleteArchivedSessions(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
+    .with('sessions:search-tree', () => searchSessionTree(args))
     .with('sessions:navigate-tree', () => navigateSessionTree(args))
     .with('sessions:rename-branch', () => renameSessionBranch(args))
     .with('sessions:archive-branch', 'sessions:restore-branch', (matchedChannel) =>
@@ -146,20 +150,13 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:turn-checkpoints:list', () => listTurnCheckpoints(args))
     .with('sessions:turn-diff:get', () => getTurnDiff(args))
     .with('sessions:turn-diff-files:get', () => getTurnDiffFiles(args))
+    .with('sessions:turn-diff-files:list', () => listTurnDiffFiles(args))
     .with('sessions:pins:list', () => listPinnedSessions(args))
     .with('sessions:pins:pin', 'sessions:pins:unpin', (matchedChannel) =>
       setSessionPinned(matchedChannel, args),
     )
     .with('sessions:pins:move', () => movePinnedSession(args))
     .exhaustive()
-}
-
-function getSessionDetail(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
-    const detail = (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
-    return yield* withPiSessionPromptOrigin(yield* withDeletedPiSessionFileNotice(yield* detail))
-  })
 }
 
 function organizeFromArgs(args: readonly unknown[], operation: 'archive' | 'unarchive') {
@@ -179,22 +176,6 @@ function updateSessionTitle(args: readonly unknown[]) {
     const sessionId = yield* validateSessionId(args[0])
     const title = typeof args[1] === 'string' ? args[1] : yield* invalid('Title must be a string.')
     yield* organizeSession({ operation: 'rename', sessionId, title }, 'session-renamed')
-  })
-}
-
-function getSessionTree(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
-    return yield* (yield* SessionRepository).getTree(yield* openedSessionId(args[0]))
-  })
-}
-
-function getSessionWorkspace(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
-    const sessionId = yield* openedSessionId(args[0])
-    const selection = yield* validateWorkspaceSelection(args[1])
-    return yield* (yield* SessionRepository).getWorkspace(sessionId, selection)
   })
 }
 

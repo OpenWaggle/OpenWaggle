@@ -6,9 +6,19 @@ import { useChangedFilesCardStore } from '../../state/changed-files-card-store'
 import { ChangedFilesCard } from '../ChangedFilesCard'
 
 const mockGetTurnDiffFiles = vi.hoisted(() => vi.fn())
+const mockListTurnDiffFiles = vi.hoisted(() =>
+  // Cards read their files through the batched list; each turn answers as the mock does.
+  vi.fn(async (sessionId: string, turnIds: readonly string[]) =>
+    Object.fromEntries(
+      await Promise.all(
+        turnIds.map(async (turnId) => [turnId, await mockGetTurnDiffFiles(sessionId, turnId)]),
+      ),
+    ),
+  ),
+)
 
 vi.mock('@/shared/lib/ipc', () => ({
-  api: { getTurnDiffFiles: mockGetTurnDiffFiles },
+  api: { listTurnDiffFiles: mockListTurnDiffFiles },
 }))
 
 vi.mock('@/shared/lib/logger', () => ({
@@ -49,6 +59,32 @@ function renderCard(overrides: Partial<Parameters<typeof ChangedFilesCard>[0]> =
 }
 
 describe('ChangedFilesCard', () => {
+  it('reads the files of every card mounted together in one call (B5)', async () => {
+    mockListTurnDiffFiles.mockClear()
+    render(
+      <>
+        <ChangedFilesCard
+          sessionId={SessionId('session-1')}
+          turn={turn({ turnId: 'turn-a' })}
+          isLatestTurn={false}
+          anchorMessageId="anchor-a"
+          onOpenTurnDiff={vi.fn()}
+        />
+        <ChangedFilesCard
+          sessionId={SessionId('session-1')}
+          turn={turn({ turnId: 'turn-b' })}
+          isLatestTurn
+          anchorMessageId="anchor-b"
+          onOpenTurnDiff={vi.fn()}
+        />
+      </>,
+    )
+
+    await waitFor(() => expect(screen.getAllByTestId('changed-files-card')).toHaveLength(2))
+    expect(mockListTurnDiffFiles).toHaveBeenCalledTimes(1)
+    expect(mockListTurnDiffFiles).toHaveBeenCalledWith(SessionId('session-1'), ['turn-a', 'turn-b'])
+  })
+
   it('auto-expands the latest small turn to show every file row', async () => {
     mockGetTurnDiffFiles.mockResolvedValue([
       { path: 'src/a.ts', additions: 30, deletions: 6 },

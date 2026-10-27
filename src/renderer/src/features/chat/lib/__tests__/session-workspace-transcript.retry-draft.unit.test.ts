@@ -38,6 +38,7 @@ function sessionNode(
     createdOrder,
     pathDepth: createdOrder,
     branchId,
+    hasMessage: true,
     message: {
       id: MessageId(messageId),
       role,

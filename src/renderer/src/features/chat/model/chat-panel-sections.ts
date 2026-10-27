@@ -15,6 +15,7 @@ import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/wagg
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
 import type { PendingSend } from '../lib/optimistic-user-message'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
+import type { TranscriptRemoteHistory } from '../lib/transcript-remote-history'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 
 /**
@@ -27,6 +28,8 @@ export interface ChatTranscriptSectionState {
   readonly transcriptState?: ChatTranscriptState
   /** When the Session was created, for the transcript's start marker. */
   readonly sessionCreatedAt?: number | null
+  /** History the Host still holds above the loaded transcript window (ADR 0036, B5). */
+  readonly remoteHistory?: TranscriptRemoteHistory | null
   readonly messages: UIMessage[]
   readonly isLoading: boolean
   readonly projectPath: string | null

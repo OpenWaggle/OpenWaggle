@@ -1,29 +1,15 @@
-import type { Message } from '@shared/types/agent'
-import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
-import type { SessionNode } from '@shared/types/session'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionTreeNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { filterSessionTreeNodes, searchSessionTreeNodes } from '../session-tree-filter'
 
-function message(input: {
-  readonly id: string
-  readonly role: Message['role']
-  readonly text: string
-}): Message {
-  return {
-    id: MessageId(input.id),
-    role: input.role,
-    parts: [{ type: 'text', text: input.text }],
-    createdAt: 1,
-  }
-}
-
 function node(input: {
   readonly id: string
-  readonly kind: SessionNode['kind']
-  readonly role?: SessionNode['role']
+  readonly kind: SessionTreeNode['kind']
+  readonly role?: SessionTreeNode['role']
   readonly parentId?: string | null
   readonly contentText?: string
-}): SessionNode {
+}): SessionTreeNode {
   return {
     id: SessionNodeId(input.id),
     sessionId: SessionId('session-1'),
@@ -34,11 +20,7 @@ function node(input: {
     timestampMs: 1,
     createdOrder: 1,
     pathDepth: 0,
-    message: input.role
-      ? message({ id: input.id, role: input.role, text: input.contentText ?? input.id })
-      : undefined,
-    contentJson: JSON.stringify({ parts: [{ type: 'text', text: input.contentText ?? input.id }] }),
-    metadataJson: '{}',
+    ...(input.role ? { hasMessage: true, preview: input.contentText ?? input.id } : {}),
   }
 }
 
@@ -133,20 +115,30 @@ describe('searchSessionTreeNodes', () => {
     ).toEqual(['root', 'leaf'])
   })
 
-  it('searches persisted content when a node has no hydrated message', () => {
+  it('matches the nodes the Host found in their full text, which the tree does not carry', () => {
     const nodes = [
-      node({
-        id: 'summary-node',
-        kind: 'branch_summary',
-        contentText: 'Persisted branch summary text',
-      }),
+      node({ id: 'summary-node', kind: 'branch_summary' }),
+      node({ id: 'other', kind: 'user_message', role: 'user', contentText: 'Unrelated' }),
     ]
 
     expect(
-      searchSessionTreeNodes({ nodes, filteredNodes: nodes, query: 'branch summary text' }).map(
-        (item) => String(item.id),
-      ),
+      searchSessionTreeNodes({
+        nodes,
+        filteredNodes: nodes,
+        query: 'branch summary text',
+        textMatchNodeIds: new Set(['summary-node']),
+      }).map((item) => String(item.id)),
     ).toEqual(['summary-node'])
+  })
+
+  it('matches the start of a message the tree carries before the Host answers', () => {
+    const nodes = [node({ id: 'root', kind: 'user_message', role: 'user', contentText: 'Fix it' })]
+
+    expect(
+      searchSessionTreeNodes({ nodes, filteredNodes: nodes, query: 'fix' }).map((item) =>
+        String(item.id),
+      ),
+    ).toEqual(['root'])
   })
 
   it('searches branch ids so visible branch badges can be found', () => {

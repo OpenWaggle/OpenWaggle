@@ -93,3 +93,13 @@ Measured in real Electron (production build) after the change:
 | Composer growth by 8 lines, content hidden | 156px | 0px |
 
 Cmd+F finds only mounted rows, as it did under ADR 0022.
+
+## Amendment: the bound covers transferred rows too (v1 performance, October 2026)
+
+The window bounded the rows that mount, but every read still moved the whole branch: the Session tree carried every node's message and raw JSON, the workspace carried that tree plus the transcript path again, and a Session open read the tree three or four times. A 12-message Session moved about 720 KB per open; an 80-message Session with long answers moved 13 MB.
+
+- The tree the desktop window reads carries structure and a 160-character `preview` per node, never content (`SessionTreeNode`). Only agent-loop audit nodes keep their content, because their cards hang off the path. The tree filter matches the full text on the Host (`sessions:search-tree`, from the transcript search projection).
+- A workspace read returns the newest window of the selected path (at least 200 entries, `transcriptWindow { startIndex, pathLength }`), always a suffix ending at the selected node. Reaching the top of the loaded rows reads the next page from the Host; a saved reading position older than the loaded rows reads a window that reaches its node (`includeNodeId`), so the anchor rules above are unchanged.
+- Entries the window already holds come back without content while the Session's node mutation revision is unchanged (`cached`, `contentOmitted`), and a Session detail read with a cursor returns only the messages appended after the caller's (`messagesDelta`). The revision is read before the nodes it labels, so held content is never newer than its label.
+
+This ships with Local Session revision 28. Measured on hidden packaged-style builds: a 12-message open 720 KB → 77 KB, the 80-message open 13.2 MB → 0.40 MB (first open 15.4 → 2.5 MB).

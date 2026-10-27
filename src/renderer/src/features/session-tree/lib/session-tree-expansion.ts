@@ -1,15 +1,15 @@
 import type { SessionNodeId } from '@shared/types/brand'
-import type { SessionNode, SessionTreeUiState } from '@shared/types/session'
+import type { SessionTreeNode, SessionTreeUiState } from '@shared/types/session'
 
 export function getDefaultExpandedSessionTreeNodeIds(
-  nodes: readonly SessionNode[],
+  nodes: readonly SessionTreeNode[],
 ): readonly SessionNodeId[] {
   const parentIds = new Set(nodes.flatMap((node) => (node.parentId ? [String(node.parentId)] : [])))
   return nodes.flatMap((node) => (parentIds.has(String(node.id)) ? [node.id] : []))
 }
 
 export function resolveExpandedSessionTreeNodeIds(input: {
-  readonly nodes: readonly SessionNode[]
+  readonly nodes: readonly SessionTreeNode[]
   readonly uiState: SessionTreeUiState | null
   readonly overrideNodeIds: readonly SessionNodeId[] | null
 }): readonly SessionNodeId[] {
@@ -25,7 +25,7 @@ export function resolveExpandedSessionTreeNodeIds(input: {
 }
 
 export function resolveSessionTreeRowExpandedNodeIds(input: {
-  readonly filteredNodes: readonly SessionNode[]
+  readonly filteredNodes: readonly SessionTreeNode[]
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly searchActive: boolean
 }): readonly SessionNodeId[] {

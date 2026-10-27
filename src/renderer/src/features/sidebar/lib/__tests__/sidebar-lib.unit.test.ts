@@ -1,4 +1,4 @@
-import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary, SessionTree } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { buildSidebarBranchRows } from '../sidebar-branches'
@@ -175,14 +175,9 @@ describe('sidebar library helpers', () => {
           timestampMs: 1,
           createdOrder: 0,
           pathDepth: 0,
-          message: {
-            id: MessageId('session-a/a1b2c3d4'),
-            role: 'user',
-            parts: [{ type: 'text', text: '  Try the other approach\nwith more detail' }],
-            createdAt: 1,
-          },
-          contentJson: '{}',
-          metadataJson: '{}',
+          // The tree carries the start of the message's text, not the message (B5).
+          hasMessage: true,
+          preview: 'Try the other approach\nwith more detail',
         },
       ],
       branches: [],

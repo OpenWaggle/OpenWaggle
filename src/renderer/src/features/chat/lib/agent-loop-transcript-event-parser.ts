@@ -27,7 +27,8 @@ export interface AgentLoopTranscriptNode {
   readonly kind: string
   readonly timestampMs: number
   readonly createdOrder: number
-  readonly contentJson: string
+  /** Only audit nodes carry content in a Session tree (B5); other nodes never match. */
+  readonly contentJson?: string
 }
 
 function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | null {
@@ -121,7 +122,7 @@ export function parseAgentLoopEvent(
 }
 
 export function isAgentLoopTranscriptNode(node: AgentLoopTranscriptNode) {
-  if (node.kind !== 'custom') {
+  if (node.kind !== 'custom' || !node.contentJson) {
     return false
   }
 
@@ -134,6 +135,6 @@ export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
     return null
   }
 
-  const content = parseJsonObject(node.contentJson)
+  const content = node.contentJson ? parseJsonObject(node.contentJson) : null
   return content ? parseAgentLoopEvent(content.event) : null
 }

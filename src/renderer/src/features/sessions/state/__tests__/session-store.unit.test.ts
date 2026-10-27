@@ -123,6 +123,19 @@ describe('useSessionStore unit', () => {
     expect(useSessionStore.getState().archivedSessions).toHaveLength(1)
   })
 
+  it('reads the catalog once for loads in the same task (boot fetch dedupe)', async () => {
+    mockApi.listSessionCatalogPage.mockResolvedValue({ sessions: [makeSession('s1')] })
+
+    await Promise.all([
+      useSessionStore.getState().loadSessions(),
+      useSessionStore.getState().loadSessions(),
+    ])
+
+    // One active page and one archived page, not two of each.
+    expect(mockApi.listSessionCatalogPage).toHaveBeenCalledTimes(2)
+    expect(mockApi.listPinnedSessions).toHaveBeenCalledTimes(1)
+  })
+
   it('does not let an older catalog request overwrite a newer refresh', async () => {
     let resolveOlder: (sessions: readonly SessionSummary[]) => void = () => undefined
     const olderRequest = new Promise<readonly SessionSummary[]>((resolve) => {
@@ -139,10 +152,12 @@ describe('useSessionStore unit', () => {
       .mockResolvedValueOnce({ sessions: [] })
 
     const first = useSessionStore.getState().loadSessions()
+    // A load asked for after the first started (a later task) reads again once it is done.
+    await Promise.resolve()
     const second = useSessionStore.getState().loadSessions()
-    await second
     resolveOlder([makeSession('older')])
     await first
+    await second
 
     expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual(['newer'])
   })
@@ -224,7 +239,9 @@ describe('useSessionStore unit', () => {
 
     await useSessionStore.getState().refreshSessionWorkspace(SessionId('s1'), selection)
 
-    expect(mockApi.getSessionWorkspace).toHaveBeenCalledWith(SessionId('s1'), selection)
+    expect(mockApi.getSessionWorkspace).toHaveBeenCalledWith(SessionId('s1'), selection, {
+      window: { minEntries: 200 },
+    })
     expect(useSessionStore.getState().activeWorkspace).toEqual(workspace)
     expect(useSessionStore.getState().activeSessionTree).toEqual(workspace.tree)
   })

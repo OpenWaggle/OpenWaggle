@@ -15,6 +15,7 @@ const { apiMock, oauthListeners } = vi.hoisted(() => {
       submitAuthCode: vi.fn().mockResolvedValue(undefined),
       cancelOAuth: vi.fn().mockResolvedValue(undefined),
       disconnectAuth: vi.fn().mockResolvedValue(undefined),
+      getAuthAccountInfos: vi.fn().mockResolvedValue({}),
       getAuthAccountInfo: vi.fn().mockResolvedValue({
         provider: 'openrouter',
         connected: true,
@@ -303,28 +304,31 @@ describe('auth-store', () => {
   })
 
   describe('loadAllAuthAccounts', () => {
-    it('loads account info for all OAuth providers', async () => {
+    it('loads every OAuth provider account in one call', async () => {
       await useAuthStore
         .getState()
         .loadAllAuthAccounts(['openai-codex', 'github-copilot', 'google-gemini-cli'])
 
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledTimes(3)
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai-codex')
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('github-copilot')
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('google-gemini-cli')
+      expect(apiMock.getAuthAccountInfos).toHaveBeenCalledTimes(1)
+      expect(apiMock.getAuthAccountInfos).toHaveBeenCalledWith([
+        'openai-codex',
+        'github-copilot',
+        'google-gemini-cli',
+      ])
+      expect(apiMock.getAuthAccountInfo).not.toHaveBeenCalled()
     })
 
     it('stores all fetched account info', async () => {
-      const makeInfo = (provider: string) => ({
+      const makeInfo = (provider: OAuthAccountInfo['provider']) => ({
         provider,
         connected: true,
         label: `${provider}@test.com`,
       })
-
-      apiMock.getAuthAccountInfo
-        .mockResolvedValueOnce(makeInfo('openai-codex'))
-        .mockResolvedValueOnce(makeInfo('github-copilot'))
-        .mockResolvedValueOnce(makeInfo('google-gemini-cli'))
+      apiMock.getAuthAccountInfos.mockResolvedValueOnce({
+        'openai-codex': makeInfo('openai-codex'),
+        'github-copilot': makeInfo('github-copilot'),
+        'google-gemini-cli': makeInfo('google-gemini-cli'),
+      })
 
       await useAuthStore
         .getState()
@@ -336,25 +340,18 @@ describe('auth-store', () => {
       expect(accounts['google-gemini-cli']?.label).toBe('google-gemini-cli@test.com')
     })
 
-    it('succeeds even when some providers fail', async () => {
-      apiMock.getAuthAccountInfo
-        .mockResolvedValueOnce({ provider: 'openai-codex', connected: true, label: 'ok' })
-        .mockRejectedValueOnce(new Error('github-copilot failed'))
-        .mockResolvedValueOnce({
-          provider: 'google-gemini-cli',
-          connected: false,
-          label: 'disconnected',
-        })
+    it('does not throw when the batched read fails', async () => {
+      apiMock.getAuthAccountInfos.mockRejectedValueOnce(new Error('offline'))
 
-      // Should not throw
       await expect(
-        useAuthStore
-          .getState()
-          .loadAllAuthAccounts(['openai-codex', 'github-copilot', 'google-gemini-cli']),
+        useAuthStore.getState().loadAllAuthAccounts(['openai-codex']),
       ).resolves.toBeUndefined()
+    })
 
-      // The successful ones should still be stored
-      expect(useAuthStore.getState().authAccounts['openai-codex']?.label).toBe('ok')
+    it('makes no call without providers', async () => {
+      await useAuthStore.getState().loadAllAuthAccounts([])
+
+      expect(apiMock.getAuthAccountInfos).not.toHaveBeenCalled()
     })
   })
 })

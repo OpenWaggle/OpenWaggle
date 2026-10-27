@@ -149,6 +149,11 @@ export interface IpcIntegrationInvokeChannelMap
     args: [provider: OAuthProvider]
     return: OAuthAccountInfo
   }
+  /** Every listed provider's account in one call; the settings gate read them one by one. */
+  'auth:get-account-infos': {
+    args: [providers: readonly OAuthProvider[]]
+    return: Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>
+  }
   'auth:submit-code': {
     args: [provider: OAuthProvider, code: string]
     return: undefined
@@ -244,5 +249,10 @@ export interface IpcIntegrationInvokeChannelMap
   'sessions:turn-diff-files:get': {
     args: [id: SessionId, turnId: string]
     return: readonly TurnDiffFileSummary[]
+  }
+  /** Every listed turn's changed files in one read, keyed by turn id (one call per Session open). */
+  'sessions:turn-diff-files:list': {
+    args: [id: SessionId, turnIds: readonly string[]]
+    return: Readonly<Record<string, readonly TurnDiffFileSummary[]>>
   }
 }

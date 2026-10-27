@@ -7,18 +7,18 @@ import type {
   ArchivedItemsRefsQuery,
 } from '@shared/types/archived-items'
 import type { RunMode } from '@shared/types/background-run'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
   SessionCatalogPage,
+  SessionContentTree,
+  SessionContentWorkspace,
   SessionNode,
   SessionNodeKind,
   SessionProjectPage,
   SessionSummary,
-  SessionTree,
   SessionTreeUiStatePatch,
-  SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import type {
@@ -144,7 +144,20 @@ export interface SessionRepositoryShape {
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
-  ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>
+  ) => Effect.Effect<SessionContentTree | null, SessionProjectionRepositoryError>
+  /**
+   * The Session's node mutation revision, which bumps whenever an existing node is updated or
+   * deleted or one is inserted into history; null when the Session has no control state. Read it
+   * before the nodes it labels, so content is never newer than the revision it is labelled with.
+   */
+  readonly getNodeMutationRevision: (
+    sessionId: SessionId,
+  ) => Effect.Effect<number | null, SessionProjectionRepositoryError>
+  /** Tree node ids whose transcript search text contains `query`, case folded. */
+  readonly searchTreeNodes: (
+    sessionId: SessionId,
+    query: string,
+  ) => Effect.Effect<readonly SessionNodeId[], SessionProjectionRepositoryError>
   readonly listResourceProjectionPage: (
     sessionId: SessionId,
     afterCreatedOrder: number,
@@ -164,7 +177,7 @@ export interface SessionRepositoryShape {
   readonly getWorkspace: (
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,
-  ) => Effect.Effect<SessionWorkspace | null, SessionProjectionRepositoryError>
+  ) => Effect.Effect<SessionContentWorkspace | null, SessionProjectionRepositoryError>
   readonly persistSnapshot: (
     input: PersistSessionSnapshotInput,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>

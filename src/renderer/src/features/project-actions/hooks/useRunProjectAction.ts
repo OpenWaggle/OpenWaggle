@@ -2,10 +2,12 @@ import type { ActionDefinition } from '@shared/types/action-definitions'
 import type { ProjectAction } from '@shared/types/project-actions'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { useChat } from '@/features/chat/hooks'
+import { rendererQueryClient } from '@/queries/query-client'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import { openWorkspaceAction } from '@/shell/workspace-panel-actions'
 import { useProjectActionStore } from '../state/project-action-store'
+import { PROJECT_ACTIONS_QUERY_ROOT } from './useNativeActions'
 
 export function useRunProjectAction(projectPath: string | null) {
   const { activeSession } = useChat()
@@ -33,6 +35,8 @@ export function useRunProjectAction(projectPath: string | null) {
       })
       if (result.type !== 'run') throw new Error('Unexpected action start response.')
       useProjectActionStore.getState().rememberInvoked(projectPath, action.id)
+      // Runs are not polled while none is active: read them now so the new one is seen.
+      void rendererQueryClient.invalidateQueries({ queryKey: PROJECT_ACTIONS_QUERY_ROOT })
       openWorkspaceAction(activeSession.id, projectPath, result.run.id)
       return true
     } catch (error) {

@@ -1,7 +1,8 @@
 import type {
   SessionBranch,
+  SessionContentTree,
+  SessionContentWorkspace,
   SessionNode,
-  SessionTree,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
@@ -23,7 +24,7 @@ function isVisibleBranch(branch: SessionBranch) {
   return branch.archived !== true
 }
 
-function getDefaultBranch(tree: SessionTree) {
+function getDefaultBranch(tree: SessionContentTree) {
   return (
     tree.branches.find((branch) => branch.isMain && isVisibleBranch(branch)) ??
     tree.branches.find(isVisibleBranch) ??
@@ -32,12 +33,12 @@ function getDefaultBranch(tree: SessionTree) {
   )
 }
 
-function getNodeBranch(tree: SessionTree, node: SessionNode | null) {
+function getNodeBranch(tree: SessionContentTree, node: SessionNode | null) {
   return node?.branchId ? findBranchById(tree.branches, node.branchId) : null
 }
 
 function resolveWorkspaceBranch(
-  tree: SessionTree,
+  tree: SessionContentTree,
   selection: SessionWorkspaceSelection | undefined,
   selectedNode: SessionNode | null,
 ) {
@@ -52,7 +53,7 @@ function resolveWorkspaceBranch(
 }
 
 function resolveWorkspaceNode(
-  tree: SessionTree,
+  tree: SessionContentTree,
   selection: SessionWorkspaceSelection | undefined,
   activeBranch: SessionBranch | null,
 ) {
@@ -66,7 +67,7 @@ function resolveWorkspaceNode(
 }
 
 /** The selected branch up to the active node, compacted history included (ADR 0048). */
-function buildTranscriptPath(tree: SessionTree, activeNodeId: SessionNode['id'] | null) {
+function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode['id'] | null) {
   return buildPiTranscriptPath(activeNodeId ? String(activeNodeId) : null, tree.nodes, {
     getId: (node) => String(node.id),
     getParentId: (node) => (node.parentId ? String(node.parentId) : null),
@@ -77,7 +78,10 @@ function buildTranscriptPath(tree: SessionTree, activeNodeId: SessionNode['id'] 
   }))
 }
 
-export function buildSessionWorkspace(tree: SessionTree, selection?: SessionWorkspaceSelection) {
+export function buildSessionWorkspace(
+  tree: SessionContentTree,
+  selection?: SessionWorkspaceSelection,
+): SessionContentWorkspace {
   const selectedNode = findNodeById(tree.nodes, selection?.nodeId)
   const activeBranch = resolveWorkspaceBranch(tree, selection, selectedNode)
   const activeNode = resolveWorkspaceNode(tree, selection, activeBranch)

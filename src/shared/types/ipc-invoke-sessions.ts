@@ -27,10 +27,15 @@ import type {
 } from './session'
 import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
 import type { SessionTitleRegenerationResult } from './session-title'
+import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
 import type { ThinkingLevel } from './settings'
 
 export interface IpcSessionInvokeChannelMap {
-  'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
+  /** With a cursor, a detail whose nodes were only appended to returns only the new messages. */
+  'sessions:get-detail': {
+    args: [id: SessionId, cursor?: SessionDetailCursor]
+    return: SessionDetail | null
+  }
   'sessions:create': {
     /**
      * `thinkingLevel` is the level the new Session starts at, stored on it alone: unlike a
@@ -136,8 +141,20 @@ export interface IpcSessionInvokeChannelMap {
   }
   'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
   'sessions:get-workspace': {
-    args: [sessionId: SessionId, selection?: SessionWorkspaceSelection]
+    args: [
+      sessionId: SessionId,
+      selection?: SessionWorkspaceSelection,
+      request?: SessionWorkspaceRequest,
+    ]
     return: SessionWorkspace | null
+  }
+  /**
+   * The Session tree nodes whose transcript text contains `query` (whitespace collapsed, case
+   * folded), read from the transcript search projection: the tree itself carries no content.
+   */
+  'sessions:search-tree': {
+    args: [sessionId: SessionId, query: string]
+    return: readonly SessionNodeId[]
   }
   'sessions:navigate-tree': {
     args: [

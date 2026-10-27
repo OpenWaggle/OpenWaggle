@@ -10,6 +10,7 @@ export function registerSessionsHandlers(): void {
   hostHandle('sessions:delete-archived-sessions')
   hostHandle('sessions:get-tree')
   hostHandle('sessions:get-workspace')
+  hostHandle('sessions:search-tree')
   hostHandle('sessions:navigate-tree')
   hostHandle('sessions:rename-branch')
   hostHandle('sessions:archive-branch')

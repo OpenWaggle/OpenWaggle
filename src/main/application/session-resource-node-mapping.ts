@@ -1,5 +1,5 @@
 import type { Message } from '@shared/types/agent'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 
 export interface PersistedRunResourceNodes {
   readonly resourceMessages: readonly Message[]
@@ -13,8 +13,8 @@ export interface PersistedRunResourceNodes {
  * transient message ids returned by the runtime kernel.
  */
 export function mapPersistedRunResourceNodes(
-  existingTree: SessionTree | null,
-  persistedTree: SessionTree | null,
+  existingTree: SessionContentTree | null,
+  persistedTree: SessionContentTree | null,
 ): PersistedRunResourceNodes {
   const existingNodeIds = new Set((existingTree?.nodes ?? []).map((node) => String(node.id)))
   const resourceNodes = (persistedTree?.nodes ?? [])

@@ -49,6 +49,7 @@ type RepoOperation =
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
   | 'getTurnDiffFiles'
+  | 'listTurnDiffFiles'
   | 'setTurnCheckpointAnchor'
   | 'listPinnedSessions'
   | 'pinSession'
@@ -216,6 +217,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.gen(function* () {
 
         getTurnDiffFiles: (id, turnId) =>
           repoOp('getTurnDiffFiles', () => turnCheckpoints.getTurnDiffFiles(id, turnId)),
+
+        listTurnDiffFiles: (id, turnIds) =>
+          repoOp('listTurnDiffFiles', () => turnCheckpoints.listTurnDiffFiles(id, turnIds)),
 
         setTurnCheckpointAnchor: (id, turnId, anchorNodeId) =>
           repoOp('setTurnCheckpointAnchor', () =>

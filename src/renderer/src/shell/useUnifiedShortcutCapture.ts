@@ -116,6 +116,33 @@ export function browserPreviewShortcutBindings(
 }
 
 /** One capture listener arbitrates every configurable command before xterm encodes the key. */
+/**
+ * Sends the browser preview its shortcut bindings when they change. Startup rebuilt these inputs
+ * about seven times with the same result and sent the same list each time (boot fetch dedupe);
+ * an unchanged list is not sent again.
+ */
+function useBrowserPreviewShortcutBindingSync(
+  ...inputs: Parameters<typeof browserPreviewShortcutBindings>
+) {
+  const sentBindingsRef = useRef<string | null>(null)
+  const [builtInRules, actions, terminalOpen, extensionPanels] = inputs
+  useEffect(() => {
+    const bindings = browserPreviewShortcutBindings(
+      builtInRules,
+      actions,
+      terminalOpen,
+      extensionPanels,
+    )
+    const json = JSON.stringify(bindings)
+    if (json === sentBindingsRef.current) return
+    sentBindingsRef.current = json
+    void api.setBrowserPreviewShortcutBindings(bindings).catch((error: unknown) => {
+      sentBindingsRef.current = null
+      console.error('[shortcuts] Failed to register browser preview bindings.', error)
+    })
+  }, [actions, builtInRules, terminalOpen, extensionPanels])
+}
+
 export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions) {
   const handlersRef = useRef(options.handlers)
   const onRunProjectActionRef = useRef(options.onRunProjectAction)
@@ -143,17 +170,12 @@ export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions
     )
   })
 
-  useEffect(() => {
-    const bindings = browserPreviewShortcutBindings(
-      options.builtInRules,
-      options.actions,
-      options.terminalOpen,
-      extensionPanels,
-    )
-    void api.setBrowserPreviewShortcutBindings(bindings).catch((error: unknown) => {
-      console.error('[shortcuts] Failed to register browser preview bindings.', error)
-    })
-  }, [options.actions, options.builtInRules, options.terminalOpen, extensionPanels])
+  useBrowserPreviewShortcutBindingSync(
+    options.builtInRules,
+    options.actions,
+    options.terminalOpen,
+    extensionPanels,
+  )
 
   useEffect(() => {
     const suppressedKeyUps = new Set<string>()

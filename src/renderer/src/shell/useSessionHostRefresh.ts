@@ -106,6 +106,11 @@ function invalidateSessionHostQueries(
   for (const sessionId of refresh.queueSessionIds) {
     void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
   }
+  if (refresh.catalog) {
+    // Project Actions are no longer polled (B7/D9): a Session's Run starting or settling is when
+    // its agent may have started an action, changed the catalog, or birthed a worktree.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projectActions })
+  }
   if (refresh.archivedBranches) {
     // Archiving, restoring, and deleting anywhere (another window, the CLI, Hive cleanup)
     // changes what Settings > Archived items lists.

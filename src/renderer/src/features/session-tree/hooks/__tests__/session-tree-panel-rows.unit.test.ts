@@ -40,11 +40,12 @@ describe('session tree panel row state', () => {
     expect(next.expandedNodeIdsOverride?.nodeIds).toEqual([SessionNodeId('root')])
   })
 
-  it('builds rows from tree filters, search, transcript path, and expansion overrides', () => {
+  it('builds rows from tree filters, search, the active path, and expansion overrides', () => {
     const tree = makeTree()
     const result = buildSessionTreePanelRows({
       tree,
-      transcriptPath: [{ node: tree.nodes[0] }, { node: tree.nodes[1] }],
+      // The path comes from the tree's structure: the workspace holds only its newest window.
+      activeNodeId: SessionNodeId('user'),
       filterMode: 'no-tools',
       searchQuery: 'user',
       focusIndex: 9,
@@ -56,7 +57,7 @@ describe('session tree panel row state', () => {
 
     expect(result.searchActive).toBe(true)
     expect(result.clampedFocusIndex).toBe(1)
-    expect(result.activePathIds.has('user')).toBe(true)
+    expect([...result.activePathIds]).toEqual(['root', 'user'])
     expect(result.visibleNodes.map((visibleNode) => String(visibleNode.id))).toEqual([
       'root',
       'user',
@@ -64,10 +65,32 @@ describe('session tree panel row state', () => {
     expect(result.expandedNodeIds.map(String)).toEqual(['root', 'user'])
   })
 
+  it('adds the nodes the Host matched in their full text to the search results', () => {
+    const tree = makeTree()
+    const result = buildSessionTreePanelRows({
+      tree,
+      activeNodeId: null,
+      textMatchNodeIds: new Set(['tool']),
+      filterMode: 'all',
+      searchQuery: 'deep in the output',
+      focusIndex: 0,
+      expandedNodeIdsOverride: {
+        sessionId: SESSION_ID,
+        nodeIds: [SessionNodeId('root'), SessionNodeId('user')],
+      },
+    })
+
+    expect(result.visibleNodes.map((visibleNode) => String(visibleNode.id))).toEqual([
+      'root',
+      'user',
+      'tool',
+    ])
+  })
+
   it('returns empty rows when no tree is available', () => {
     const result = buildSessionTreePanelRows({
       tree: null,
-      transcriptPath: [],
+      activeNodeId: null,
       filterMode: 'default',
       searchQuery: '',
       focusIndex: 1,

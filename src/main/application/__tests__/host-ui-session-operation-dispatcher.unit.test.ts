@@ -33,6 +33,8 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:search-tree',
+  'sessions:turn-diff-files:list',
   'sessions:query-archived-items',
   'sessions:list-archived-item-refs',
   'sessions:set-archived-items',
