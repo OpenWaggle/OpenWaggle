@@ -92,7 +92,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async loadAllAuthAccounts(providers?: readonly OAuthProvider[]) {
     const providerIds = providers ?? []
-    await Promise.all(providerIds.map((provider) => get().loadAuthAccount(provider)))
+    if (providerIds.length === 0) return
+    // One call for every provider instead of one per provider (boot fetch dedupe).
+    try {
+      const infos = await api.getAuthAccountInfos(providerIds)
+      set((state) => ({ authAccounts: { ...state.authAccounts, ...infos } }))
+    } catch (err) {
+      logger.warn('Failed to load auth account info', { error: String(err) })
+    }
   },
 
   getOAuthStatus(provider: OAuthProvider) {

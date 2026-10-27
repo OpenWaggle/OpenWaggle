@@ -11,6 +11,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getProviderModels: vi.fn(),
     getAuthAccountInfo: vi.fn(),
+    getAuthAccountInfos: vi.fn(),
     updateSettings: vi.fn(),
   },
 }))
@@ -66,10 +67,8 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
 
   it('shows the failure with a retry that reloads the catalog and its sign-ins', async () => {
     apiMock.getProviderModels.mockResolvedValue(PROVIDER_MODELS)
-    apiMock.getAuthAccountInfo.mockResolvedValue({
-      provider: 'openai-codex',
-      connected: true,
-      label: 'user@example.com',
+    apiMock.getAuthAccountInfos.mockResolvedValue({
+      'openai-codex': { provider: 'openai-codex', connected: true, label: 'user@example.com' },
     })
 
     render(<ConnectionsSection />)
@@ -84,7 +83,11 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Connections' })).toHaveFocus()
     expect(apiMock.getProviderModels).toHaveBeenCalledWith(DEFAULT_SETTINGS.projectPath)
-    await waitFor(() => expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai-codex'))
+    await waitFor(() =>
+      expect(apiMock.getAuthAccountInfos).toHaveBeenCalledWith(
+        expect.arrayContaining(['openai-codex']),
+      ),
+    )
     fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
     expect(await screen.findByText('user@example.com')).toBeInTheDocument()
   })

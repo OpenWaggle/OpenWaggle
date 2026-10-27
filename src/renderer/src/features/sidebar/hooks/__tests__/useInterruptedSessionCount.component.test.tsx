@@ -1,3 +1,4 @@
+import type { SessionSummary } from '@shared/types/session'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useInterruptedSessionCount } from '../useInterruptedSessionCount'
@@ -34,5 +35,22 @@ describe('interrupted Session chip count', () => {
         }),
       }),
     )
+  })
+
+  it('asks the Host again only when the catalog’s interruptions change (boot fetch dedupe)', async () => {
+    apiMocks.querySessionControl.mockResolvedValue({
+      contractVersion: 2,
+      requestId: 'interrupted-count',
+      outcome: { operation: 'list', sessions: [], totalCount: 0 },
+    })
+    // A new array of the same (empty) catalog on every render, as startup produced.
+    const noSessions = (): readonly SessionSummary[] => []
+    const { rerender } = renderHook(({ sessions }) => useInterruptedSessionCount(sessions), {
+      initialProps: { sessions: noSessions() },
+    })
+    rerender({ sessions: noSessions() })
+    rerender({ sessions: noSessions() })
+
+    await waitFor(() => expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(1))
   })
 })
