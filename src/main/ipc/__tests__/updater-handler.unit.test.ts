@@ -31,6 +31,9 @@ vi.mock('../../runtime', () => ({
 vi.mock('../../updater', () => ({
   checkForUpdates: (channel?: unknown) => mockCheckForUpdates(channel),
   installUpdate: () => mockInstallUpdate(),
+}))
+
+vi.mock('../../update-status', () => ({
   getUpdateStatus: () => mockGetUpdateStatus(),
   setUpdateWaitingForRuns: vi.fn(),
 }))
