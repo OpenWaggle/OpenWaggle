@@ -2,10 +2,15 @@ import nodeModule from 'node:module'
 import type { MainCompileCacheLocation } from './main-compile-cache-location'
 
 /**
- * When the cache is written again for modules loaded after startup (lazily imported externals,
- * Pi's on-demand modules). Writing finds nothing new for files already written.
+ * When the cache is written again after the main bundle loaded, for files each process loads on
+ * demand: the externals behind `lazyModule` and Rolldown's lazy stand-ins (sharp, editorconfig,
+ * electron-updater, the embedding model), Pi's worker files. The Host loads some before it
+ * listens (≈1 s), the window while it opens (≈3 s), the rest later. A write finds nothing new for
+ * files already written, so the later ones cost almost nothing.
  */
-export const MAIN_COMPILE_CACHE_LATE_FLUSH_DELAY_MS = 10_000
+export const MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS: readonly number[] = [
+  1_000, 3_000, 10_000, 60_000,
+]
 
 /** The part of `node:module` the shim uses. */
 export interface CompileCacheApi {
@@ -59,10 +64,10 @@ export function enableMainCompileCache(
 }
 
 /**
- * Writes the cache now, and once more after startup for modules loaded later.
+ * Writes the cache now, and again after startup for files loaded later.
  *
  * V8 produces a module's cache data when it compiles the module, so writing right after the main
- * bundle loaded already holds all of it; a later write adds nothing for that file. It has to be
+ * bundle loaded already holds the bundle; a later write adds the files loaded since. It has to be
  * written explicitly: Node writes the cache when the process exits normally, and Electron's
  * `app.exit()` (every CLI command) and a killed Session Host never exit normally. The later write
  * never keeps a finished command alive.
@@ -70,9 +75,9 @@ export function enableMainCompileCache(
 export function flushMainCompileCacheAfterLoad(
   cache: MainCompileCache,
   scheduleTimer: ScheduleTimer,
-  lateFlushDelayMs: number = MAIN_COMPILE_CACHE_LATE_FLUSH_DELAY_MS,
+  lateFlushDelaysMs: readonly number[] = MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS,
 ) {
   if (!cache.enabled) return
   cache.flush()
-  scheduleTimer(cache.flush, lateFlushDelayMs).unref?.()
+  for (const delayMs of lateFlushDelaysMs) scheduleTimer(cache.flush, delayMs).unref?.()
 }

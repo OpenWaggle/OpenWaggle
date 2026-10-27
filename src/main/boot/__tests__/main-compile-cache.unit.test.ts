@@ -3,7 +3,7 @@ import {
   type CompileCacheApi,
   enableMainCompileCache,
   flushMainCompileCacheAfterLoad,
-  MAIN_COMPILE_CACHE_LATE_FLUSH_DELAY_MS,
+  MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS,
 } from '../main-compile-cache'
 
 const STATUS = { ENABLED: 1, ALREADY_ENABLED: 2, FAILED: 0, DISABLED: 3 } as const
@@ -66,7 +66,7 @@ describe('enableMainCompileCache', () => {
 })
 
 describe('flushMainCompileCacheAfterLoad', () => {
-  it('writes at once, because app.exit() never lets Node write it, and once more later', () => {
+  it('writes at once, because app.exit() never lets Node write it, and again for files loaded later', () => {
     const { api, flushCompileCache } = fakeApi(STATUS.ENABLED)
     const cache = enableMainCompileCache({ kind: 'enabled', directory: '/c' }, api)
     const unref = vi.fn()
@@ -78,10 +78,10 @@ describe('flushMainCompileCacheAfterLoad', () => {
     })
 
     expect(flushCompileCache).toHaveBeenCalledTimes(1)
-    expect(scheduled.map(({ delayMs }) => delayMs)).toEqual([
-      MAIN_COMPILE_CACHE_LATE_FLUSH_DELAY_MS,
-    ])
-    expect(unref).toHaveBeenCalled()
+    expect(scheduled.map(({ delayMs }) => delayMs)).toEqual(MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS)
+    // The Host loads lazy externals before it listens; the first rewrite must come soon after.
+    expect(scheduled[0]?.delayMs).toBeLessThanOrEqual(1_000)
+    expect(unref).toHaveBeenCalledTimes(MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS.length)
     scheduled[0]?.callback()
     expect(flushCompileCache).toHaveBeenCalledTimes(2)
   })
