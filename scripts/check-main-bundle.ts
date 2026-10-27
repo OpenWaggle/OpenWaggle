@@ -6,10 +6,11 @@ const KIBIBYTE = 1024
 const MAIN_BUNDLE_FILES = ['out/main/boot.js', 'out/main/index.js'] as const
 /**
  * The boot shim runs before V8's compile cache exists, so it is compiled from source on every
- * launch (src/main/boot.ts). Keep it a few kilobytes: anything it imports is paid by every process.
+ * launch (src/main/boot.ts). It holds the compile cache setup and the `--version`/`--help` router
+ * (34 KB when this budget was set); anything more it imports is paid by every process.
  */
 const MAIN_BOOT_FILE = 'out/main/boot.js'
-const MAX_MAIN_BOOT_BYTES = 16 * KIBIBYTE
+const MAX_MAIN_BOOT_BYTES = 48 * KIBIBYTE
 
 async function main() {
   const failures: string[] = []
