@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface ViewerProps {
@@ -11,8 +11,7 @@ const viewer = vi.hoisted(() => {
   return { props }
 })
 
-vi.mock('@/features/session-summary', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/session-summary')>()),
+vi.mock('@/features/session-summary/components/SessionResourceViewer', () => ({
   SessionResourceViewer: (props: ViewerProps) => {
     viewer.props.push(props)
     return null
@@ -22,7 +21,8 @@ vi.mock('@/features/session-summary', async (importOriginal) => ({
 import { createSections, makeMessage } from './ChatPanel.test-utils'
 import {
   chatPanelElement,
-  renderPanel,
+  preloadSessionSummaryOverlay,
+  renderPanelSettled,
   SESSION,
   setupChatPanelSessionSummaryHarness,
   useChatPanelSectionsMock,
@@ -34,16 +34,19 @@ import {
  * and both re-rendered on every change, though the ids rarely change (B2).
  */
 describe('ChatPanel derived message ids', () => {
+  preloadSessionSummaryOverlay()
+
   beforeEach(() => {
     setupChatPanelSessionSummaryHarness()
     viewer.props.length = 0
   })
 
-  it('keeps the id lists while only message content changes', () => {
+  it('keeps the id lists while only message content changes', async () => {
     const user = makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] })
     const answer = (content: string) =>
       makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content }] })
-    const view = renderPanel({ messages: [user, answer('Hel')] }, { session: SESSION })
+    const view = await renderPanelSettled({ messages: [user, answer('Hel')] }, { session: SESSION })
+    await waitFor(() => expect(viewer.props.length).toBeGreaterThan(0))
     const first = viewer.props.at(-1)
 
     useChatPanelSectionsMock.mockReturnValue(
@@ -57,9 +60,10 @@ describe('ChatPanel derived message ids', () => {
     expect([...(latest?.activeMessageIds ?? [])]).toEqual(['u1', 'a1'])
   })
 
-  it('derives new lists when the ids change', () => {
+  it('derives new lists when the ids change', async () => {
     const user = makeMessage({ id: 'u1', role: 'user', parts: [] })
-    const view = renderPanel({ messages: [user] }, { session: SESSION })
+    const view = await renderPanelSettled({ messages: [user] }, { session: SESSION })
+    await waitFor(() => expect(viewer.props.length).toBeGreaterThan(0))
     const first = viewer.props.at(-1)
 
     useChatPanelSectionsMock.mockReturnValue(
