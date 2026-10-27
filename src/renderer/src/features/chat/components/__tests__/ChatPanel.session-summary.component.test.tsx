@@ -206,6 +206,9 @@ describe('ChatPanel session summary and setup dock', () => {
       },
       { isFirstMessage: false, session: SESSION },
     )
+    // A ResizeObserver reports its first observation after layout and before paint; its update
+    // renders synchronously, so the summary is hidden in the first painted frame.
+    act(() => notifyResize())
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })

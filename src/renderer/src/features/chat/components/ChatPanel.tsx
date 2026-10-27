@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
@@ -67,14 +68,15 @@ function useSessionSummarySpace(rightSidebarOpen: boolean) {
     setHasSpace(roomForSummary)
   }, [rightSidebarOpen])
 
-  useLayoutEffect(() => {
-    measure()
-  }, [measure])
-
   useEffect(() => {
     const element = panelRef.current
     if (!element || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
+    /*
+     * A ResizeObserver reports each observed element once when it starts, after layout, so the
+     * first measurement needs no read in a layout effect: that read forced the shell's first layout
+     * inside its commit (B12). The update renders before paint, so the summary never flickers.
+     */
+    const observer = new ResizeObserver(() => flushSync(measure))
     observer.observe(element)
     const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
     if (contentFrame) observer.observe(contentFrame)
