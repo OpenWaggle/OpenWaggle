@@ -105,7 +105,9 @@ describe('upgrading a beta.25 database through migrations 72 and 73', () => {
   it('keeps #366 at 72, applies the docs-image cleanup at 73, and is idempotent', async () => {
     expect(SESSION_HOST_DEFERRED_DISCOVERY_REFRESH_MIGRATION_ID).toBe(72)
     expect(SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID).toBe(73)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(DELEGATION_ATTENTION_CAUSE_MIGRATION_ID)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      DELEGATION_ATTENTION_CAUSE_MIGRATION_ID,
+    )
 
     await withDatabase((sql) =>
       Effect.gen(function* () {
@@ -127,6 +129,7 @@ describe('upgrading a beta.25 database through migrations 72 and 73', () => {
         [72, 'session-host-deferred-discovery-refresh'],
         [73, 'session-resource-docs-image-references'],
         [74, 'delegation-attention-cause'],
+        [82, 'session-node-duplicate-index'],
       ],
     })
 

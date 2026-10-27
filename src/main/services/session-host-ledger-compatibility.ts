@@ -33,6 +33,7 @@ import {
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
   SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
   SESSION_MCP_SWITCH_MIGRATION_ID,
+  SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID,
   SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
   SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
@@ -116,6 +117,7 @@ const currentIdentities = [
     name: 'session-resource-docs-image-references',
   },
   { id: DELEGATION_ATTENTION_CAUSE_MIGRATION_ID, name: 'delegation-attention-cause' },
+  { id: SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID, name: 'session-node-duplicate-index' },
 ]
 
 export interface MigrationIdentity {

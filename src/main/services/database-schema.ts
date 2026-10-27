@@ -47,10 +47,6 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   )
   `,
   `
-  CREATE INDEX IF NOT EXISTS idx_session_nodes_session_created_order
-  ON session_nodes (session_id, created_order ASC)
-  `,
-  `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_session_nodes_session_created_order_unique
   ON session_nodes (session_id, created_order)
   `,
