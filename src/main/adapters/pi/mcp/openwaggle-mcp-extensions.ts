@@ -27,6 +27,7 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
+import { withKnownMcpAppToolsOf, withOpenWaggleMcpExposure } from './mcp-openwaggle-exposure'
 import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
@@ -42,7 +43,7 @@ import {
 import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
-/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0051). */
+/** How long a server with MCP App tools known at Run start can delay a message (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
 export interface OpenWaggleMcpSessionInput {
@@ -275,24 +276,29 @@ export async function createOpenWaggleMcpExtensions(
   }
   const extensionServers = createMcpExtensionServers()
   const mcp = forOpenWaggleMcpSurface(
-    createMcpExtension({
-      loadConfig: () => withShellResolvedClientSecrets(config.loaded),
-      createTransport: openWaggleMcpTransport(input, config),
-      credentials: getOpenWaggleMcpCredentials(),
-      logPath: openWaggleMcpLogPath(),
-      // Servers Pi extensions registered sign in too; the companion reads them at session start.
-      openUrl: createRunSignInOpener(() => [
-        ...config.loaded.servers,
-        ...extensionServers.entries(),
-      ]),
-      updateConfig: createMcpUpdateConfig(
-        (filePath) => input.onConfigChanged?.(filePath),
-        (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
-        // As Settings: a change made before the scope's migration succeeds would be undone by it.
-        openWaggleMcpUpdateRefusal(input.projectPath),
-      ),
-      startupWaitMs: MCP_STARTUP_WAIT_MS,
-    }),
+    withOpenWaggleMcpExposure(
+      input.sessionId,
+      config.loaded,
+      createMcpExtension({
+        loadConfig: () =>
+          withShellResolvedClientSecrets(withKnownMcpAppToolsOf(input.sessionId, config.loaded)),
+        createTransport: openWaggleMcpTransport(input, config),
+        credentials: getOpenWaggleMcpCredentials(),
+        logPath: openWaggleMcpLogPath(),
+        // Servers Pi extensions registered sign in too; the companion reads them at session start.
+        openUrl: createRunSignInOpener(() => [
+          ...config.loaded.servers,
+          ...extensionServers.entries(),
+        ]),
+        updateConfig: createMcpUpdateConfig(
+          (filePath) => input.onConfigChanged?.(filePath),
+          (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+          // As Settings: a change made before the scope's migration succeeds would be undone by it.
+          openWaggleMcpUpdateRefusal(input.projectPath),
+        ),
+        startupWaitMs: MCP_STARTUP_WAIT_MS,
+      }),
+    ),
   )
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },

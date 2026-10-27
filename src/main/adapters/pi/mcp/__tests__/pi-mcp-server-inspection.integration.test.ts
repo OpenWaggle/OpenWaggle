@@ -65,7 +65,8 @@ describe('MCP server inspection for Settings', () => {
       state: 'connected',
       tools: [
         { name: 'search', description: 'Search', exposure: 'deferred', hasApp: false },
-        { name: 'show', exposure: 'direct', hasApp: true },
+        // A file's `direct` runs, and shows, as codemode (ADR 0051 amendment).
+        { name: 'show', exposure: 'codemode', hasApp: true },
       ],
     })
   })

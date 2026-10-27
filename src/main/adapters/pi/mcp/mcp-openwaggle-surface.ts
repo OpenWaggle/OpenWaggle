@@ -116,7 +116,7 @@ function openWaggleUi(ui: ExtensionUIContext, withoutInfoNotices: boolean): Exte
 }
 
 /** A member read as from the target itself, so methods keep their own `this`. */
-function boundMember(target: object, property: string | symbol): unknown {
+export function boundMember(target: object, property: string | symbol): unknown {
   const value: unknown = Reflect.get(target, property, target)
   return typeof value === 'function' ? value.bind(target) : value
 }
