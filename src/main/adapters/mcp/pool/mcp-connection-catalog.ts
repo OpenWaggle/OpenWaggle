@@ -11,6 +11,9 @@ import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 
 /** A catalog older than this is not served: the server starts and the catalog is refreshed. */
+/** Hex characters of a catalog key: its file name. */
+const CATALOG_KEY_LENGTH = 32
+
 export const MCP_TOOL_CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000
 
 const CatalogSchema = Schema.Struct({
@@ -87,7 +90,7 @@ export function mcpToolCatalogKey(input: {
   return createHash('sha256')
     .update(`${input.identity}\0${input.connectionFingerprint}\0${input.projectPath ?? ''}`)
     .digest('hex')
-    .slice(0, 32)
+    .slice(0, CATALOG_KEY_LENGTH)
 }
 
 function cursorOf(params: unknown) {

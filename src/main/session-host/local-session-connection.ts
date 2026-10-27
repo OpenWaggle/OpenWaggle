@@ -2,7 +2,6 @@ import type { Socket } from 'node:net'
 import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
 import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
-import { hostBackgroundGate } from '../application/host-background-gate'
 import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
@@ -215,13 +214,7 @@ export class LocalSessionConnection {
     this.caller = result.caller
     this.negotiatedRevision = result.revision
     this.inbound.markAuthenticated()
-    const releaseLiveness = this.dependencies.liveness.acquire('client')
-    // Background work waits for a client, and the Host slims once none is left (A-F9).
-    const releasePresence = hostBackgroundGate.clientAttached()
-    this.releaseClientLiveness = () => {
-      releasePresence()
-      releaseLiveness()
-    }
+    this.releaseClientLiveness = this.dependencies.liveness.acquire('client')
     this.handshakeDeadline.clear()
     await this.outbound.sendHandshakeFrame(result.negotiation)
   }

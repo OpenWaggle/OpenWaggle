@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
 import { mcpToolCatalogKeyOf, withCachedMcpDescriptions } from '../mcp-tool-catalogs'
 
-const datadog: McpServerEntry = { name: 'datadog', config: { command: 'datadog_mcp_cli' }, source: 'mcp.json' }
+const datadog: McpServerEntry = {
+  name: 'datadog',
+  config: { command: 'datadog_mcp_cli' },
+  source: 'mcp.json',
+}
 const config = { transports: new Map([['datadog', 'stdio' as const]]) }
 
 describe('MCP tool catalogs at Run start (C9)', () => {

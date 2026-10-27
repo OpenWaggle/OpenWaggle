@@ -6,13 +6,18 @@ import { createLogger } from './logger'
 import { hostMcpConnectionPool } from './mcp-runtime-layers'
 
 const logger = createLogger('host-idle-slim')
+const BYTES_PER_MB = 1024 * 1024
+
+function isGarbageCollector(value: unknown): value is () => void {
+  return typeof value === 'function'
+}
 
 /** A full V8 collection, so the heap the Host no longer uses is returned. */
 export function collectHostGarbage() {
   try {
     setFlagsFromString('--expose-gc')
     const gc: unknown = runInNewContext('gc')
-    if (typeof gc === 'function') gc()
+    if (isGarbageCollector(gc)) gc()
   } catch {
     // Without `gc`, V8 trims on its own schedule.
   }
@@ -31,7 +36,7 @@ export function installHostIdleSlim() {
     defaultSessionEmbeddingModel.dispose()
     collectHostGarbage()
     logger.info('Session Host slimmed down without clients', {
-      rssMb: Math.round(process.memoryUsage().rss / 2 ** 20),
+      rssMb: Math.round(process.memoryUsage().rss / BYTES_PER_MB),
     })
   })
 }

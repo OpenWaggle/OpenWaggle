@@ -1,5 +1,6 @@
 /** How a package runner launch (`npx pkg args…`) is read, and how its bin is found (D1.2). */
 import path from 'node:path'
+import { match } from '@diegogbrisa/ts-match'
 
 export type PackageRunner = 'npx' | 'npm-exec' | 'pnpm-dlx' | 'bunx'
 
@@ -55,6 +56,35 @@ const PASSIVE_FLAGS: Readonly<Record<PackageRunner, ReadonlySet<string>>> = {
 
 const PACKAGE_FLAGS = new Set(['-p', '--package'])
 
+/** `flag=value` splits into its two parts. */
+const FLAG_AND_VALUE_PARTS = 2
+
+interface RunnerOptions {
+  readonly packageSpec: string | undefined
+  /** Index of the first argument after the runner's options. */
+  readonly next: number
+}
+
+/**
+ * The runner's own options: `--package <spec>` once, and flags that change nothing about the bin
+ * that runs. Undefined for any other option, or several packages (the runner's PATH would hold
+ * them all, which a direct spawn would not).
+ */
+function runnerOptions(runner: PackageRunner, rest: readonly string[]): RunnerOptions | undefined {
+  let packageSpec: string | undefined
+  for (let index = 0; index < rest.length; index += 1) {
+    const token = rest[index] ?? ''
+    if (token === '--') return { packageSpec, next: index + 1 }
+    if (!token.startsWith('-')) return { packageSpec, next: index }
+    if (PASSIVE_FLAGS[runner].has(token)) continue
+    const [flag, inline] = token.split('=', FLAG_AND_VALUE_PARTS)
+    if (!flag || !PACKAGE_FLAGS.has(flag) || packageSpec !== undefined) return undefined
+    packageSpec = inline ?? rest[++index]
+    if (packageSpec === undefined) return undefined
+  }
+  return { packageSpec, next: rest.length }
+}
+
 /**
  * The runner launch of a configured stdio command, or undefined when it is something else or uses
  * a form the bypass does not reproduce exactly (several packages, `-c`, git or file specs, …).
@@ -66,41 +96,21 @@ export function parsePackageRunnerCommand(
   const found = runnerOf(command, args)
   if (!found) return undefined
   const { runner, rest } = found
-  let packageSpec: string | undefined
-  let index = 0
-  for (; index < rest.length; index += 1) {
-    const token = rest[index] ?? ''
-    if (token === '--') {
-      index += 1
-      break
-    }
-    if (!token.startsWith('-')) break
-    if (PASSIVE_FLAGS[runner].has(token)) continue
-    const [flag, inline] = token.split('=', 2)
-    if (flag && PACKAGE_FLAGS.has(flag)) {
-      // Several packages: the runner's PATH holds them all, which a direct spawn would not.
-      if (packageSpec !== undefined) return undefined
-      packageSpec = inline ?? rest[++index]
-      if (packageSpec === undefined) return undefined
-      continue
-    }
-    return undefined
-  }
-  const positional = rest[index]
-  if (positional === undefined) return undefined
-  const binName = packageSpec === undefined ? undefined : positional
-  const spec = packageSpec ?? positional
-  const match = REGISTRY_SPEC.exec(spec)
-  const name = match?.groups?.name
-  if (!name) return undefined
-  if (binName !== undefined && !/^[\w.@~-]+$/u.test(binName)) return undefined
+  const options = runnerOptions(runner, rest)
+  const positional = options ? rest[options.next] : undefined
+  if (!options || positional === undefined) return undefined
+  const binName = options.packageSpec === undefined ? undefined : positional
+  const spec = options.packageSpec ?? positional
+  const parsed = REGISTRY_SPEC.exec(spec)
+  const name = parsed?.groups?.name
+  if (!name || (binName !== undefined && !/^[\w.@~-]+$/u.test(binName))) return undefined
   return {
     runner,
     packageSpec: spec,
     packageName: name,
     binName,
-    serverArgs: rest.slice(index + 1),
-    pinned: EXACT_VERSION.test(match.groups?.version ?? ''),
+    serverArgs: rest.slice(options.next + 1),
+    pinned: EXACT_VERSION.test(parsed.groups?.version ?? ''),
   }
 }
 
@@ -131,14 +141,13 @@ const PROBE_SOURCE =
 export function probeCommand(command: string, launch: PackageRunnerLaunch) {
   const spec = launch.packageSpec
   const probe = ['node', '-e', PROBE_SOURCE]
-  switch (launch.runner) {
-    case 'npx':
-      return { command, args: ['--yes', `--package=${spec}`, '--', ...probe] }
-    case 'npm-exec':
-      return { command, args: ['exec', '--yes', `--package=${spec}`, '--', ...probe] }
-    case 'pnpm-dlx':
-      return { command, args: [`--package=${spec}`, 'dlx', ...probe] }
-    case 'bunx':
-      return { command, args: ['--package', spec, ...probe] }
-  }
+  return match(launch.runner)
+    .with('npx', () => ({ command, args: ['--yes', `--package=${spec}`, '--', ...probe] }))
+    .with('npm-exec', () => ({
+      command,
+      args: ['exec', '--yes', `--package=${spec}`, '--', ...probe],
+    }))
+    .with('pnpm-dlx', () => ({ command, args: [`--package=${spec}`, 'dlx', ...probe] }))
+    .with('bunx', () => ({ command, args: ['--package', spec, ...probe] }))
+    .exhaustive()
 }

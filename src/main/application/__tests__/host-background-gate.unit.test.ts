@@ -97,3 +97,22 @@ describe('Host background gate (A-F9, decision 4)', () => {
     expect(slims).toBe(0)
   })
 })
+
+describe('Session Host clients and the background gate', () => {
+  it('counts each authenticated client the Host liveness admits', async () => {
+    const { SessionHostLiveness } = await import('../session-host-liveness')
+    const { hostBackgroundGate } = await import('../host-background-gate')
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 1_000,
+      requestShutdown: () => {},
+    })
+    const before = hostBackgroundGate.attachedClients
+    const release = liveness.acquire('client')
+    const run = liveness.acquire('run')
+    expect(hostBackgroundGate.attachedClients).toBe(before + 1)
+    release()
+    run()
+    expect(hostBackgroundGate.attachedClients).toBe(before)
+    liveness.close()
+  })
+})

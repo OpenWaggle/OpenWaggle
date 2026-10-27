@@ -187,20 +187,20 @@ async function chokidarBackend(
 
 async function createWatcher(projectRoot: string, subscribers: Map<number, WebContents>) {
   const gitIgnore = await WorkspaceGitIgnoreFilter.create(projectRoot)
-  let entry: WorkspaceWatcher | undefined
+  const pending: { entry?: WorkspaceWatcher } = {}
   const events: BackendEvents = {
     onChange: (changedPath) => {
-      if (entry) queueChange(projectRoot, entry, changedPath)
+      if (pending.entry) queueChange(projectRoot, pending.entry, changedPath)
     },
     onError: (error) => {
-      if (entry) queueOverflow(projectRoot, entry, error)
+      if (pending.entry) queueOverflow(projectRoot, pending.entry, error)
     },
   }
   const backend =
     watchPlatform === 'linux'
       ? await chokidarBackend(projectRoot, gitIgnore, events)
       : await nativeBackend(projectRoot, events)
-  entry = {
+  const entry: WorkspaceWatcher = {
     backend,
     subscribers,
     changedPaths: new Set(),
@@ -208,6 +208,7 @@ async function createWatcher(projectRoot: string, subscribers: Map<number, WebCo
     timeout: null,
     overflow: false,
   }
+  pending.entry = entry
   return entry
 }
 
