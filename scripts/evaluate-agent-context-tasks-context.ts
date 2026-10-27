@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { answerMatches, type EvalTask, grade, usedTool } from './evaluate-agent-context-types'
@@ -8,7 +9,7 @@ const INVENTORY_TOOL = /inventory/
 const SKILL_TOKEN = 'SKILLTOKEN-7781'
 const VAULT_CODE = 'MARMOT-4417'
 /** Compaction triggers at this share of the model's window in the compaction tasks. */
-const LOW_COMPACTION_PERCENT = 6
+const LOW_COMPACTION_PERCENT = 4
 const FILLER_PARAGRAPHS = 600
 const COMPACTION_TIMEOUT_MS = 900_000
 
@@ -96,7 +97,12 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
           'Use when writing a git commit message for this repository.',
           'Commit subjects start with `[eval] ` followed by a type such as `docs:` or `fix:`, all lowercase, at most 60 characters.',
         ),
+        'README.md': '# Widgets\n\nTeh quick start guide is below.\n',
       }),
+    afterCommit: async (root) => {
+      await writeFile(path.join(root, 'README.md'), '# Widgets\n\nThe quick start guide is below.\n')
+      execFileSync('git', ['add', 'README.md'], { cwd: root })
+    },
     inspectFiles: ['COMMIT_MSG.txt'],
     grade: (outcome) => grade(/^\[eval\] (docs|fix|chore):/.test((outcome.files['COMMIT_MSG.txt'] ?? '').trim()), 'subject starts with [eval] type:'),
     reference: { files: { 'COMMIT_MSG.txt': '[eval] docs: fix typo in readme\n' } },

@@ -49,6 +49,7 @@ async function prepareTaskProfile(task: EvalTask, profile: PerfProfile) {
   await task.setup?.(profile.projectPath)
   execFileSync('git', ['add', '-A'], { cwd: profile.projectPath })
   execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'fixture'], { cwd: profile.projectPath })
+  await task.afterCommit?.(profile.projectPath)
   if (!task.mcpInventory) return
   const config = { mcpServers: { inventory: { command: 'node', args: [FIXTURE_SERVER, 'inventory'], exposure: 'direct' } } }
   await mkdir(profile.agentDir, { recursive: true })

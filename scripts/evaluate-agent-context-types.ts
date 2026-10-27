@@ -44,6 +44,8 @@ export interface EvalTask {
   readonly prompt: (context: EvalTaskContext) => string
   /** Writes the task's fixture into the fresh project (a git repository with one commit). */
   readonly setup?: (projectPath: string) => Promise<void>
+  /** Runs after the fixture is committed, for state that must stay uncommitted (a staged change). */
+  readonly afterCommit?: (projectPath: string) => Promise<void>
   /** Project-relative files the grader reads. */
   readonly inspectFiles?: readonly string[]
   /** Shell commands run in the project after the Run; their results reach the grader. */

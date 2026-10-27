@@ -11,7 +11,7 @@ async function files(root: string, entries: Readonly<Record<string, string>>) {
   }
 }
 
-const NODE_TEST = 'node --test test/'
+const NODE_TEST = 'node --test test/sum.test.mjs'
 const SLUGIFY_CHECK = 'node check-slugify.mjs'
 const RENAME_CHECK = 'node check-rename.mjs'
 const GENERATED_LINES = 6_000
