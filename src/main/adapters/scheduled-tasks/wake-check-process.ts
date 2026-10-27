@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
+import { StringDecoder } from 'node:string_decoder'
 import {
   HEARTBEAT_WAKE_CHECK_OUTPUT_LIMIT_BYTES,
   HEARTBEAT_WAKE_CHECK_TIMEOUT_MS,
@@ -42,7 +43,12 @@ function boundedStream(limit: number) {
       chunks.push(kept)
       bytes += kept.length
     },
-    text: () => Buffer.concat(chunks).toString('utf8'),
+    // The cut at the cap may land inside a character: the decoder holds back its partial bytes.
+    // Uncut output decodes whole, so a lone invalid byte still counts as printing something.
+    text: () => {
+      const bytes = Buffer.concat(chunks)
+      return truncated ? new StringDecoder('utf8').write(bytes) : bytes.toString('utf8')
+    },
     get truncated() {
       return truncated
     },

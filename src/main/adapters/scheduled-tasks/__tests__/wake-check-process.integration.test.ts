@@ -82,4 +82,11 @@ describe.runIf(POSIX)('Wake check process (#388)', () => {
     expect(execution.truncated).toBe(true)
     expect(execution.exitCode).toBe(0)
   })
+
+  it('cuts at the cap without splitting a character', async () => {
+    // "é" is two bytes in UTF-8: with an odd cap, the last one straddles it.
+    const execution = await check("printf 'aéééééé'", { outputLimitBytes: 4 })
+    expect(execution.stdout).toBe('aé')
+    expect(execution.truncated).toBe(true)
+  })
 })

@@ -118,7 +118,8 @@ export function reportHeartbeatOutcome(principal: ScheduledTaskPrincipal, comman
 /**
  * A Heartbeat Run ended (#388): its reported Run outcome, or else the one its tools imply, moves
  * the idle count once, and may Auto-pause the Heartbeat. A Run that failed or was stopped before
- * reporting has no outcome and leaves the count as it was.
+ * reporting has no outcome and leaves the count as it was. A reported `done` already paused the
+ * Heartbeat when it was reported; applying it again here would undo a Resume given since.
  */
 export function settleHeartbeatRunOutcome(end: HeartbeatRunEnd) {
   return Effect.gen(function* () {
@@ -131,6 +132,7 @@ export function settleHeartbeatRunOutcome(end: HeartbeatRunEnd) {
       outcome = { value: inferHeartbeatRunOutcome(end.toolUses), source: 'inferred' }
       yield* repository.recordRunOutcome(run.id, outcome)
     }
+    if (outcome.value === 'done') return
     yield* applyHeartbeatOutcome(run.taskId, outcome.value, {
       now: scheduledTaskHooks().now(),
       ...(outcome.note ? { note: outcome.note } : {}),

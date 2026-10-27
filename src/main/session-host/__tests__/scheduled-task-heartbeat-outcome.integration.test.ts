@@ -169,6 +169,22 @@ describe('Heartbeat Run outcomes and Auto-pause (#388)', () => {
     ).toMatchObject({ effect: 'rejected', code: 'run_not_scheduled' })
   })
 
+  it('keeps a Resume the user gave while the Run that reported done was still running', async () => {
+    const hooks = await installHeartbeatHooks({ executions: [] })
+    release = hooks.release
+    const { task, sessionId } = await heartbeat()
+    await fireIntoRun(task.id, sessionId, 'run-done')
+    await scheduledTasks({ operation: 'report-outcome', runId: 'run-done', outcome: 'done' })
+    expect((await readTask(task.id)).task.enabled).toBe(false)
+
+    await scheduledTasks({ operation: 'update', taskId: task.id, patch: { enabled: true } })
+    await settleRunEnd(sessionId, 'run-done', [])
+    expect((await readTask(task.id)).task).toMatchObject({
+      enabled: true,
+      heartbeat: { autoPause: null },
+    })
+  })
+
   it('infers idle from read-only tools, acted from any other, and pauses at its threshold', async () => {
     const hooks = await installHeartbeatHooks({ executions: [] })
     release = hooks.release
