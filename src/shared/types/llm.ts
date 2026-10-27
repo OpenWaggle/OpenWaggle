@@ -41,6 +41,15 @@ export interface ModelDisplayInfo {
   readonly virtual?: boolean
 }
 
+/**
+ * How much of Pi's model catalog `providers:get-models` returns. `available` keeps every
+ * provider's metadata and auth state but only the models that can run now; the renderer loads it
+ * at startup, where the composer only offers available models. `all` adds every model of every
+ * provider, for Settings (renderer-load B14).
+ */
+export const PROVIDER_CATALOG_SCOPES = ['available', 'all'] as const
+export type ProviderCatalogScope = (typeof PROVIDER_CATALOG_SCOPES)[number]
+
 /** Provider metadata exposed to the renderer via IPC */
 export interface ProviderInfo {
   readonly provider: Provider

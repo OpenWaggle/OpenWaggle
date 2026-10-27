@@ -83,7 +83,10 @@ describe('ConnectionsSection after the provider catalog failed to load', () => {
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Connections' })).toHaveFocus()
-    expect(apiMock.getProviderModels).toHaveBeenCalledWith(DEFAULT_SETTINGS.projectPath)
+    expect(apiMock.getProviderModels).toHaveBeenCalledWith(
+      DEFAULT_SETTINGS.projectPath,
+      'available',
+    )
     await waitFor(() => expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai-codex'))
     fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
     expect(await screen.findByText('user@example.com')).toBeInTheDocument()

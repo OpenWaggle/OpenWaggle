@@ -24,6 +24,7 @@ import {
   oneInput,
   oneOrTwoInputs,
   optionalHostUiProjectPath,
+  optionalHostUiProviderCatalogScope,
   requiredHostUiString,
   requireHostUiArgCount,
   TWO_ARGUMENTS,
@@ -170,8 +171,11 @@ function dispatchHostUiChannel(
     )
     .with('providers:get-models', () =>
       Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 0, 1)
-        return yield* getHostUiProviderModels(yield* optionalHostUiProjectPath(args[0]))
+        yield* requireHostUiArgCount(args, 0, TWO_ARGUMENTS)
+        return yield* getHostUiProviderModels(
+          yield* optionalHostUiProjectPath(args[0]),
+          yield* optionalHostUiProviderCatalogScope(args[1]),
+        )
       }),
     )
     .with('project-config:set-preferences', () => twoInputs(args, setProjectPreferencesOperation))

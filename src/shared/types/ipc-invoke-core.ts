@@ -45,7 +45,7 @@ import type {
 } from './extensions'
 import type { SessionResourceIpcInvokeChannels } from './ipc-invoke-session-resources'
 import type { IpcSessionInvokeChannelMap } from './ipc-invoke-sessions'
-import type { ProviderInfo, SupportedModelId } from './llm'
+import type { ProviderCatalogScope, ProviderInfo, SupportedModelId } from './llm'
 import type {
   LocalSessionProfileManagementResponse,
   LocalSessionProfileUiCommand,
@@ -285,7 +285,7 @@ export interface IpcCoreInvokeChannelMap
     return: string
   }
   'providers:get-models': {
-    args: [projectPath?: string | null]
+    args: [projectPath?: string | null, scope?: ProviderCatalogScope]
     return: ProviderInfo[]
   }
 }

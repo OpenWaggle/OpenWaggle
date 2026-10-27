@@ -179,7 +179,7 @@ describe('useExtensionsSectionController', () => {
       viewProjectPaths: [PROJECT_PATH],
       enabled: true,
     })
-    expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH)
+    expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH, 'available')
     expect(apiMock.getSettings).not.toHaveBeenCalled()
     expect(useProviderStore.getState().providerModels).toEqual(EXTENSION_PROVIDER_MODELS)
     // The project's catalog no longer lists the old model: it stays enabled, hidden, but this
@@ -207,7 +207,7 @@ describe('useExtensionsSectionController', () => {
       scope: { kind: 'project', projectPath: PROJECT_PATH },
       viewProjectPaths: [PROJECT_PATH],
     })
-    expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH)
+    expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH, 'available')
     expect(useProviderStore.getState().providerModels).toEqual(EXTENSION_PROVIDER_MODELS)
   })
 })
