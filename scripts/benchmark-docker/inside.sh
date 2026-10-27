@@ -15,7 +15,7 @@ mkdir -p "$HOME" /bench/project "$OUT"
 cd /bench/project
 
 case "$AGENT" in
-  pi081)
+  pi)
     export PI_CODING_AGENT_DIR=/bench/pi-agent
     mkdir -p "$PI_CODING_AGENT_DIR"
     cat > "$PI_CODING_AGENT_DIR/models.json" <<EOF
@@ -43,37 +43,6 @@ case "$AGENT" in
 EOF
     echo '{"bench":{"type":"api_key","key":"bench-proxy"}}' > "$PI_CODING_AGENT_DIR/auth.json"
     exec pi -p --mode json --no-session \
-      --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files \
-      --model "bench/$MODEL" "$PROBE"
-    ;;
-  pi084)
-    export PI_CODING_AGENT_DIR=/bench/pi-agent
-    mkdir -p "$PI_CODING_AGENT_DIR"
-    cat > "$PI_CODING_AGENT_DIR/models.json" <<EOF
-{
-  "providers": {
-    "bench": {
-      "name": "Bench OpenRouter",
-      "baseUrl": "$PROXY/api/v1",
-      "api": "openai-completions",
-      "apiKey": "bench-proxy",
-      "models": [
-        {
-          "id": "$MODEL",
-          "name": "GLM 5.3 Flash",
-          "reasoning": true,
-          "input": ["text", "image"],
-          "contextWindow": 1000000,
-          "maxTokens": 131072,
-          "cost": { "input": 0.2, "output": 0.6, "cacheRead": 0.02, "cacheWrite": 0.08 }
-        }
-      ]
-    }
-  }
-}
-EOF
-    echo '{"bench":{"type":"api_key","key":"bench-proxy"}}' > "$PI_CODING_AGENT_DIR/auth.json"
-    exec /opt/pi-latest/bin/pi -p --mode json --no-session \
       --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files \
       --model "bench/$MODEL" "$PROBE"
     ;;
@@ -159,6 +128,7 @@ EOF
     export DEEPSEEK_BASE_URL="$PROXY/api/v1"
     mkdir -p "$DSH_HOME" /bench/project
     cat > /bench/dsh-run.py <<'PYEOF'
+import os
 import sys
 from deepseek_harness import DeepSeekHarness
 
