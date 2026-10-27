@@ -55,6 +55,8 @@ export interface EvalTask {
   readonly previewPage?: string
   /** App settings the task needs, applied through the window before the Run. */
   readonly settings?: Readonly<Record<string, unknown>>
+  /** Titles of Sessions created in the project before the task's Run starts. */
+  readonly otherSessions?: readonly string[]
   readonly timeoutMs?: number
   /** A passing outcome, for the deterministic grader tests. */
   readonly reference: Partial<EvalOutcome>

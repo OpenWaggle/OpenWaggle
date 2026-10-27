@@ -5,10 +5,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { startCliRun } from './perf/lib/cli-run'
 import type { PerfApp } from './perf/lib/perf-app'
-import { stopProcessGroup } from './perf/lib/perf-app'
-import type { PerfProfile } from './perf/lib/perf-profile'
+import { launchApp, stopProcessGroup } from './perf/lib/perf-app'
+import { type PerfProfile, profileEnvironment } from './perf/lib/perf-profile'
 import { delay, withRunningApp } from './perf/lib/running-app'
-import { OWN_TITLE_TASK_TITLE } from './evaluate-agent-context-tasks-platform'
 import { addUsage, emptyUsage, readRunTranscripts, type SessionTranscriptSummary } from './evaluate-agent-context-transcript'
 import type { EvalOutcome, EvalTask } from './evaluate-agent-context-types'
 
@@ -92,6 +91,15 @@ export async function outcomeOf(task: EvalTask, profile: PerfProfile) {
   return { outcome, usage, modelCalls }
 }
 
+/** Sessions that exist before the task's Run, created with `openwaggle hive create`. */
+async function precreateSessions(app: PerfApp, profile: PerfProfile, task: EvalTask, environment: Readonly<Record<string, string>>) {
+  for (const title of task.otherSessions ?? []) {
+    const created = launchApp(app, profileEnvironment(profile, environment), ['--use-mock-keychain', 'hive', 'create', profile.projectPath, '--title', title])
+    await Promise.race([new Promise((resolve) => created.child.once('exit', resolve)), delay(APP_TIMEOUT_MS)])
+    await stopProcessGroup(created.child)
+  }
+}
+
 async function applySettings(page: Parameters<Parameters<typeof withRunningApp>[2]>[0]['page'], settings: Readonly<Record<string, unknown>>) {
   await page.evaluate(async (values) => {
     const api: unknown = Reflect.get(globalThis, 'api')
@@ -118,13 +126,17 @@ export async function runEvalTask(input: EvalRunInput) {
       },
       async ({ profile, page: window }) => {
         await applySettings(window, { selectedModel: input.model, ...task.settings })
+        await precreateSessions(app, profile, task, input.environment)
+        const title = `Eval ${task.id}`
         const run = startCliRun(app, profile, {
           prompt: task.prompt({ previewUrl: page?.url ?? null }),
           model: input.model,
           yolo: true,
           environment: input.environment,
-          ...(task.id === 'hive-own-title' ? { title: OWN_TITLE_TASK_TITLE } : {}),
+          title,
         })
+        // The browser preview belongs to the Session the window shows, so open it there.
+        if (task.previewPage) await window.getByText(title, { exact: true }).first().click({ timeout: APP_TIMEOUT_MS })
         const exit = await Promise.race([run.exited, delay(task.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS).then(() => 'timeout' as const)])
         if (exit === 'timeout') await stopProcessGroup(run.launched.child)
         const { outcome, usage, modelCalls } = await outcomeOf(task, profile)

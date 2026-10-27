@@ -13,6 +13,8 @@ const PROJECT_ACTIONS = /^(project_actions|codemode:project_actions)$/
 const DOCS = /^(openwaggle_docs|codemode:openwaggle_docs)$/
 const HIVE = /^(hive|codemode:hive)$/
 const PREVIEW = /^(codemode:)?preview_/
+/** A Session `hive-find-session` creates before its Run, which the agent must find. */
+const OTHER_SESSION_TITLE = 'Pelican migration notes 1987'
 
 async function writeProjectFile(root: string, relative: string, content: string) {
   await mkdir(path.dirname(path.join(root, relative)), { recursive: true })
@@ -70,11 +72,12 @@ export const PLATFORM_TASKS: readonly EvalTask[] = [
     timeoutMs: 600_000,
   },
   {
-    id: 'hive-own-title',
+    id: 'hive-find-session',
     group: 'hive',
-    prompt: () => "Use the hive tool to read this Session's own record and tell me its exact title.",
-    grade: (outcome) => grade(usedTool(outcome, HIVE) && answerMatches(outcome, /Quokka ledger review/), 'hive used; reports the title'),
-    reference: { answer: 'The title is "Quokka ledger review".', toolNames: ['hive'] },
+    prompt: () => 'Another Session in this project is about pelican migration. Use the hive tool to find it and tell me its exact title.',
+    otherSessions: [OTHER_SESSION_TITLE],
+    grade: (outcome) => grade(usedTool(outcome, HIVE) && answerMatches(outcome, /Pelican migration notes 1987/), 'hive used; finds the other Session'),
+    reference: { answer: 'It is "Pelican migration notes 1987".', toolNames: ['hive'] },
   },
   {
     id: 'hive-two-workers',
@@ -109,6 +112,3 @@ export const PLATFORM_TASKS: readonly EvalTask[] = [
     reference: { answer: 'KESTREL-6077', toolNames: ['preview_click'] },
   },
 ]
-
-/** The title `hive-own-title` gives its Session. */
-export const OWN_TITLE_TASK_TITLE = 'Quokka ledger review'
