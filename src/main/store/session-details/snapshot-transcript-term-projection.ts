@@ -8,7 +8,7 @@ import {
   applyIncrementalSessionTranscriptTerms,
   prepareIncrementalSessionTranscriptTerms,
 } from '../../services/session-transcript-term-incremental-projection'
-import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
+import { rebuildSessionTranscriptTermsInSlices } from '../../services/session-transcript-term-sliced-rebuild'
 import { describeError } from '../../utils/describe-error'
 import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { continuesImmediately, firstKeys, REPAIR_BATCH_SIZE } from './transcript-term-repair-policy'
@@ -206,7 +206,8 @@ function backoffDelay(failures: number) {
 }
 
 /**
- * Rebuilds up to `limit` stale Session term indexes, each in its own transaction.
+ * Rebuilds up to `limit` stale Session term indexes, each in bounded slices of short
+ * transactions with the event loop running between them.
  *
  * Deleted Sessions are never selected. A failing Session backs off exponentially, so one bad
  * Session cannot starve the others or retry on every pass.
@@ -241,7 +242,12 @@ export function repairStaleTranscriptTermProjections(
     yield* pruneBackoff(sql)
     let repaired = 0
     for (const { id } of rows) {
-      const ok = yield* sql.withTransaction(refreshSessionTranscriptTerms(sql, [id])).pipe(
+      // Each Session, and each slice of a large one, gives clients a turn: the repair of a freshly
+      // opened 1,800-Session profile held the Host's thread for 50 s straight before it listened.
+      yield* yieldToEventLoop
+      const ok = yield* rebuildSessionTranscriptTermsInSlices(sql, id, {
+        betweenSlices: yieldToEventLoop,
+      }).pipe(
         Effect.as(true),
         Effect.catchAll((error) =>
           Effect.sync(() => {
