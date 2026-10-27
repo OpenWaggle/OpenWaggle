@@ -14,6 +14,7 @@
     "evaluate:session-titles": "tsx scripts/evaluate-session-titles.ts",
     "perf:bedrock-ttfb": "vitest run -c vitest.integration.config.ts scripts/perf/bedrock-ttfb",
     "perf:first-turn-prefix": "vitest run -c vitest.integration.config.ts scripts/perf/first-turn-prefix",
+    "perf:first-turn-prefix:packaged": "tsx scripts/perf/first-turn-prefix-packaged.ts",
     "perf:generate-profile": "tsx scripts/perf/generate-profile.ts",
     "perf:hive-memory": "tsx scripts/perf/hive-memory.ts",
     "perf:startup": "tsx scripts/perf/startup.ts",
