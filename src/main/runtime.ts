@@ -305,14 +305,14 @@ export async function startSessionHostOwnedServices(options: HostServiceOptions<
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* startHostBackgroundServices(options)
+        yield* startHostBackgroundServices()
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()
         })
         // Deferrable work starts only once the Host serves clients (A-F8).
         yield* Deferred.await(listening)
-        yield* startHostServicesOnceListening()
+        yield* startHostServicesOnceListening(options)
         return yield* Effect.never
       }),
     ),

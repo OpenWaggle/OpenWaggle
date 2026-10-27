@@ -1,6 +1,8 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
+import * as TestClock from 'effect/TestClock'
+import * as TestContext from 'effect/TestContext'
 import { describe, expect, it, vi } from 'vitest'
 
 const started = vi.hoisted(() => {
@@ -64,6 +66,7 @@ vi.mock('../adapters/pi/pi-legacy-provider-credentials', () => ({
 }))
 
 const {
+  BACKGROUND_INDEXING_START_DELAY,
   startHostBackgroundServices,
   startHostServicesAfterListening,
   startHostServicesOnceListening,
@@ -82,9 +85,10 @@ describe('Host background services', () => {
       noServices<Effect.Effect.Context<ReturnType<typeof startHostBackgroundServices>>>()
     await Effect.runPromise(
       Effect.scoped(
-        startHostBackgroundServices({
-          createDiscoveredSession: () => Effect.succeed(null),
-        }).pipe(Effect.zipLeft(Effect.yieldNow()), Effect.provide(services)),
+        startHostBackgroundServices().pipe(
+          Effect.zipLeft(Effect.yieldNow()),
+          Effect.provide(services),
+        ),
       ),
     )
 
@@ -98,8 +102,6 @@ describe('Host background services', () => {
     // Migrates pre-ADR-0051 MCP files before Settings, the CLI, or a Run reads them.
     expect(started.indexOf('mcp files')).toBeGreaterThanOrEqual(0)
     expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
-    // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0051).
-    expect(started).toContain('pi session discovery')
     // WAL checkpoints leave the Host's event loop; their worker start is forked, not awaited.
     expect(started).toContain('wal checkpoints')
     // Work no client request needs waits until the Host listens.
@@ -107,6 +109,10 @@ describe('Host background services', () => {
     expect(started).not.toContain('scratch sweep')
     expect(started).not.toContain('scheduled tasks')
     expect(started).not.toContain('trusted extensions')
+    expect(started).not.toContain('pi session discovery')
+    expect(started).not.toContain('transcript term repair')
+    // The indexers stalled a 20k-node profile's Host for 6-11 s before it listened.
+    expect(started).not.toContain('semantic discovery')
     // Old MCP sign-ins read the keychain, which can stall for minutes: not part of Host start.
     expect(started).not.toContain('mcp sign-ins')
   })
@@ -115,15 +121,32 @@ describe('Host background services', () => {
     started.length = 0
     const services =
       noServices<Effect.Effect.Context<ReturnType<typeof startHostServicesOnceListening>>>()
-    await Effect.runPromise(startHostServicesOnceListening().pipe(Effect.provide(services)))
-
-    // Removes scratch directories of Sessions deleted or archived while no Host ran (ADR 0042).
-    expect(started).toContain('scratch sweep')
-    expect(started).toContain('export recovery')
-    // Fires due Scheduled tasks and holds the Host open while one is enabled (ADR 0057).
-    expect(started).toContain('scheduled tasks')
-    // Trusted-main extensions run user code, for as long as it takes.
-    expect(started.at(-1)).toBe('trusted extensions')
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* startHostServicesOnceListening({
+            createDiscoveredSession: () => Effect.succeed(null),
+          })
+          yield* Effect.yieldNow()
+          // Removes scratch directories of Sessions deleted or archived while no Host ran (ADR 0042).
+          expect(started).toContain('scratch sweep')
+          expect(started).toContain('export recovery')
+          // Fires due Scheduled tasks and holds the Host open while one is enabled (ADR 0057).
+          expect(started).toContain('scheduled tasks')
+          // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0051).
+          expect(started).toContain('pi session discovery')
+          // Trusted-main extensions run user code, for as long as it takes.
+          expect(started.at(-1)).toBe('trusted extensions')
+          // The window's first requests after it attaches come before the indexers.
+          expect(started).not.toContain('semantic discovery')
+          expect(started).not.toContain('transcript term repair')
+          yield* TestClock.adjust(BACKGROUND_INDEXING_START_DELAY)
+          yield* Effect.yieldNow()
+          expect(started).toContain('semantic discovery')
+          expect(started).toContain('transcript term repair')
+        }),
+      ).pipe(Effect.provide(services), Effect.provide(TestContext.TestContext)),
+    )
   })
 
   it('migrates old MCP sign-ins once the Host serves clients', async () => {
