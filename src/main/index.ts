@@ -33,6 +33,7 @@ import {
 } from './gui-backend-startup'
 import { exitAfterBootstrapFailure, reportGuiStartupFailure } from './gui-bootstrap-failure'
 import { createGuiStartupCoordinator, type GuiStartupCoordinator } from './gui-startup-coordinator'
+import { openWindowThenRegisterIpc } from './gui-window-bootstrap'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
@@ -189,19 +190,22 @@ async function bootstrapServicesAndWindow() {
   await hostHeadStart
   startupMark('session-host-underway')
 
-  const runtimeModule = await getRuntimeModule()
-  await registerIpcHandlersOnce(startup)
-  startupMark('ipc-handlers-registered')
-
-  registerApplicationProtocols({
-    readInlineVisualizationSource: (input) =>
-      runtimeModule.runGuiEffect(readInlineVisualizationSource(input)),
+  await openWindowThenRegisterIpc({
+    registerProtocols: () =>
+      registerApplicationProtocols({
+        readInlineVisualizationSource: async (input) =>
+          (await getRuntimeModule()).runGuiEffect(readInlineVisualizationSource(input)),
+      }),
+    createWindow: () => {
+      createMainWindowWithVisualizationGuard()
+      mainWindowCreated = true
+    },
+    registerIpc: async () => {
+      await getRuntimeModule()
+      await registerIpcHandlersOnce(startup)
+    },
+    startupMark,
   })
-  startupMark('protocol-handlers-registered')
-
-  createMainWindowWithVisualizationGuard()
-  mainWindowCreated = true
-  startupMark('main-window-created')
 }
 
 /** A later launch focuses the window, or creates one after startup as the Dock icon does. */
