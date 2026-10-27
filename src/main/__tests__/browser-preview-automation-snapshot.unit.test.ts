@@ -265,6 +265,27 @@ describe('browser preview automation snapshot', () => {
     })
   })
 
+  it('sends text and elements without a screenshot when the window has no display surface', async () => {
+    vi.useFakeTimers()
+    const source = imageFixture({ width: 800, height: 600, data: Buffer.from([1, 2, 3]) })
+    const { page } = createPage(source, { nodes: [] })
+    // What Electron rejects with for a preview in a hidden automation window.
+    vi.mocked(page.contents.capturePage).mockRejectedValue(
+      new Error('Current display surface not available for capture'),
+    )
+    const pending = captureBrowserPreviewAutomationSnapshot(
+      new BrowserPreviewAutomationController(),
+      page,
+    )
+    await vi.advanceTimersByTimeAsync(240)
+
+    await expect(pending).resolves.toMatchObject({
+      visibleText: 'Appearance Save',
+      screenshot: null,
+      screenshotUnavailable: expect.stringContaining('hidden'),
+    })
+  })
+
   it('bounds a permanently stalled capture, answers without a screenshot, and releases control', async () => {
     vi.useFakeTimers()
     const source = imageFixture({ width: 800, height: 600, data: Buffer.from([1, 2, 3]) })

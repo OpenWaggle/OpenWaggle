@@ -26,6 +26,8 @@ const ACCESSIBILITY_TREE_DEPTH = 8
 const SCREENSHOT_UNAVAILABLE =
   'The page painted no frame to capture (for example, its window is hidden). Text and elements are current.'
 
+const NO_DISPLAY_SURFACE_PATTERN = /display surface not available for capture/i
+
 class BrowserPreviewEmptyCaptureError extends Error {
   constructor() {
     super('Browser preview screenshot had invalid dimensions.')
@@ -72,6 +74,8 @@ function encodeBoundedPng(source: NativeImage) {
  */
 function unpaintedPage(error: unknown) {
   if (error instanceof BrowserPreviewCaptureTimeoutError) return null
+  // Electron rejects `capturePage` this way for a page in a hidden window (seen in automation).
+  if (error instanceof Error && NO_DISPLAY_SURFACE_PATTERN.test(error.message)) return null
   throw error
 }
 
