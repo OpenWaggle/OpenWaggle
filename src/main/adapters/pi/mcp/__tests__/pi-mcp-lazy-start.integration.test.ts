@@ -46,7 +46,11 @@ describe("Pi's MCP client with cached catalogs (D1.3)", () => {
     cleanups.push(() => pool.closeAll())
     const entry = {
       name: 'fixture',
-      config: { command: process.execPath, args: ['-e', SERVER], env: { MCP_FIXTURE_STARTS: startsFile } },
+      config: {
+        command: process.execPath,
+        args: ['-e', SERVER],
+        env: { MCP_FIXTURE_STARTS: startsFile },
+      },
       source: 'test',
     }
     const spec = {

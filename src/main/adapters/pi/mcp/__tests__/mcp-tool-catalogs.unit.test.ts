@@ -1,8 +1,9 @@
+import type { McpServerEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
 import { mcpToolCatalogKeyOf, withCachedMcpDescriptions } from '../mcp-tool-catalogs'
 
-const datadog = { name: 'datadog', config: { command: 'datadog_mcp_cli' }, source: 'mcp.json' }
+const datadog: McpServerEntry = { name: 'datadog', config: { command: 'datadog_mcp_cli' }, source: 'mcp.json' }
 const config = { transports: new Map([['datadog', 'stdio' as const]]) }
 
 describe('MCP tool catalogs at Run start (C9)', () => {
@@ -14,7 +15,11 @@ describe('MCP tool catalogs at Run start (C9)', () => {
       toolsPages: {},
       savedAt: Date.now(),
     })
-    const described = { name: 'docs', config: { command: 'docs', description: 'Mine' }, source: 'x' }
+    const described: McpServerEntry = {
+      name: 'docs',
+      config: { command: 'docs', description: 'Mine' },
+      source: 'x',
+    }
 
     const loaded = withCachedMcpDescriptions(
       { servers: [datadog, described], errors: [] },
