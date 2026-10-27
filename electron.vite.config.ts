@@ -8,6 +8,10 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
+import {
+  EAGER_MAIN_EXTERNALS,
+  lazyExternalRequiresPlugin,
+} from './scripts/vite/lazy-external-requires'
 import { piWorkerBundlesPlugin } from './scripts/vite/pi-worker-bundles'
 import { resolveBuildIdentity } from './scripts/build-identity'
 
@@ -62,6 +66,20 @@ const BUNDLED_DEPS = [
   // be externalized into the CJS main bundle; bundle it like the other
   // ESM-only dependencies above.
   'plist',
+  // Pure-JS packages made of many small files. As externals, every process resolved, read and
+  // compiled each of their files at startup (≈150 ms: startup-main.md, A-F4); bundled, they are
+  // part of the main bundle's compile cache and evaluate only when their importer does. Natives,
+  // WASM readers and packages that locate files beside themselves stay external.
+  'zod',
+  'undici',
+  'ws',
+  'proper-lockfile',
+  'ignore',
+  'jsonc-parser',
+  'remark-parse',
+  'unified',
+  'yauzl',
+  'chokidar',
 ]
 
 interface UnknownObject {
@@ -87,26 +105,45 @@ function dependencyNamesFromPackageJson(value: unknown) {
  * SSR mode (`ssr.noExternal: true`). This plugin runs last and replaces the
  * external array with a pure-string list derived from package.json deps.
  */
+function mainExternalPackages() {
+  const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
+  const allDeps = dependencyNamesFromPackageJson(packageJson)
+  const externalDeps = allDeps.filter((dependency) =>
+    !BUNDLED_DEPS.some(
+      (bundledDependency) =>
+        dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
+    ),
+  )
+  return new Set([...ALWAYS_EXTERNAL, ...externalDeps])
+}
+
+const MAIN_EXTERNAL_PACKAGES = mainExternalPackages()
+
+/**
+ * Externals other than Electron are required where their importer first runs instead of at the
+ * top of the main bundle (scripts/vite/lazy-external-requires.ts). They are resolved by that
+ * plugin, so they are kept out of Rolldown's own `external` list.
+ */
+function isLazyMainExternal(packageName: string) {
+  return MAIN_EXTERNAL_PACKAGES.has(packageName) && !EAGER_MAIN_EXTERNALS.includes(packageName)
+}
+
 function rolldownExternalFixPlugin(): Plugin {
   return {
     name: 'vite:rolldown-external-fix',
     enforce: 'post',
     configResolved(config) {
-      const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
-      const allDeps = dependencyNamesFromPackageJson(packageJson)
-      const externalDeps = allDeps.filter((dependency) =>
-        !BUNDLED_DEPS.some(
-          (bundledDependency) =>
-            dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
-        ),
+      const external = [...MAIN_EXTERNAL_PACKAGES].filter(
+        (dependency) => !isLazyMainExternal(dependency),
       )
-      const external = [...new Set([...ALWAYS_EXTERNAL, ...externalDeps])]
 
       // Strip RegExp entries from the resolved external array and ensure all
       // deps are present as plain strings (Rolldown only accepts string[]).
       const resolved = config.build.rolldownOptions.external
       const existing = Array.isArray(resolved)
-        ? resolved.filter((entry): entry is string => typeof entry === 'string')
+        ? resolved.filter(
+            (entry): entry is string => typeof entry === 'string' && !isLazyMainExternal(entry),
+          )
         : []
       const merged = [...new Set([...existing, ...external])]
 
@@ -169,14 +206,19 @@ export default defineConfig({
       ...BUILD_DEFINE,
       PI_BUNDLED_NODE: 'true',
     },
-    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin(), piWorkerBundlesPlugin()],
+    plugins: [
+      lazyExternalRequiresPlugin(isLazyMainExternal),
+      unpdfCjsResolvePlugin(),
+      rolldownExternalFixPlugin(),
+      piWorkerBundlesPlugin(),
+    ],
     build: {
       minify: false,
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
       rolldownOptions: {
-        external: ALWAYS_EXTERNAL,
+        external: EAGER_MAIN_EXTERNALS.filter((dependency) => ALWAYS_EXTERNAL.includes(dependency)),
         checks: {
           pluginTimings: false,
         },
