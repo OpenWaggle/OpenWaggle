@@ -45,7 +45,8 @@ export function toSummary(session: SessionDetail) {
     id: session.id,
     title: session.title,
     projectPath: session.projectPath,
-    messageCount: session.messages.length,
+    // A long Session's detail holds only its newest messages (ADR 0036); count them all.
+    messageCount: session.messagesWindow?.pathLength ?? session.messages.length,
     archived: session.archived,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,

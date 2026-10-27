@@ -169,6 +169,51 @@ describe('Host UI Session data reads (B5/D5)', () => {
     expect(result?.messagesDelta).toEqual({ baseMessageCount: 2 })
   })
 
+  it('returns only the newest messages for a bounded detail read', async () => {
+    const detail: SessionDetail = {
+      id: SESSION,
+      title: 'S',
+      projectPath: null,
+      messages: nodes.flatMap((entry) => (entry.message ? [entry.message] : [])),
+      createdAt: 1,
+      updatedAt: 2,
+    }
+    const result = await run(
+      dispatchHostBackedSessionGuiOperation('sessions:get-detail', [
+        SESSION,
+        { nodeMutationRevision: 0, messageCount: 0, lastMessageId: null, maxMessages: 2 },
+      ]),
+      {
+        sessions: { getNodeMutationRevision: () => Effect.succeed(4) },
+        projections: { getOptional: () => Effect.succeed(detail) },
+      },
+    )
+
+    expect(result?.messages.map((message) => String(message.id))).toEqual(['b', 'c'])
+    expect(result?.messagesWindow).toEqual({ startIndex: 1, pathLength: 3 })
+    expect(result?.nodeMutationRevision).toBe(4)
+  })
+
+  it('refuses a detail cursor with a bound that is not a positive count', async () => {
+    await expect(
+      run(
+        dispatchHostBackedSessionGuiOperation('sessions:get-detail', [
+          SESSION,
+          fromAny({
+            nodeMutationRevision: 0,
+            messageCount: 0,
+            lastMessageId: null,
+            maxMessages: 0,
+          }),
+        ]),
+        {
+          sessions: { getNodeMutationRevision: () => Effect.succeed(4) },
+          projections: { getOptional: () => Effect.succeed(null) },
+        },
+      ),
+    ).rejects.toThrow(/Session detail cursor is invalid/)
+  })
+
   it('reads a detail without a cursor as before, without a revision read', async () => {
     const getNodeMutationRevision = vi.fn(() => Effect.succeed(2))
     const detail = fromPartial<SessionDetail>({ id: SESSION, messages: [] })

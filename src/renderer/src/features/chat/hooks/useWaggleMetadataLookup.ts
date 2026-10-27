@@ -1,5 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import {
   isInheritedWaggleModelBinding,
   type WaggleConfig,
@@ -92,18 +92,26 @@ function resolveAssistantMetadata(params: LiveMetadataResolutionParams) {
   return getCurrentAgentMetadata(params)
 }
 
-function buildPersistedMetaMap(session: SessionDetail | null) {
-  const map = new Map<string, WaggleMessageMetadata>()
-  if (!session) return map
+type PersistedMessage = SessionDetail['messages'][number]
 
-  for (const msg of session.messages) {
-    if (msg.role !== 'assistant') continue
-    const meta = msg.metadata?.waggle
-    if (meta) {
-      map.set(String(msg.id), meta)
+function addPersistedMeta(map: Map<string, WaggleMessageMetadata>, message: PersistedMessage) {
+  if (message.role !== 'assistant') return
+  const meta = message.metadata?.waggle
+  if (meta) map.set(String(message.id), meta)
+}
+
+/**
+ * Persisted Waggle metadata by message id. The detail holds only a long Session's newest messages
+ * (ADR 0036), so the loaded workspace's transcript window, which reaches further back, adds its own.
+ */
+function buildPersistedMetaMap(session: SessionDetail | null, workspace: SessionWorkspace | null) {
+  const map = new Map<string, WaggleMessageMetadata>()
+  if (workspace && session && String(workspace.tree.session.id) === String(session.id)) {
+    for (const entry of workspace.transcriptPath) {
+      if (entry.node.message) addPersistedMeta(map, entry.node.message)
     }
   }
-
+  for (const message of session?.messages ?? []) addPersistedMeta(map, message)
   return map
 }
 
@@ -115,6 +123,7 @@ function buildPersistedMetaMap(session: SessionDetail | null) {
 export function useWaggleMetadataLookup(
   session: SessionDetail | null,
   messages: UIMessage[],
+  workspace: SessionWorkspace | null = null,
 ): Readonly<Record<string, WaggleMessageMetadata>> {
   const activeConfig = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -132,7 +141,7 @@ export function useWaggleMetadataLookup(
   }
 
   const lookup: Record<string, WaggleMessageMetadata> = {}
-  const persistedMeta = buildPersistedMetaMap(session)
+  const persistedMeta = buildPersistedMetaMap(session, workspace)
   const lastUserMessageIndex = findLastUserMessageIndex(messages)
   const isLive = status === 'running'
   let assistantIndex = 0
