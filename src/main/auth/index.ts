@@ -30,6 +30,7 @@ const inFlightOAuthFlows = new Map<OAuthProvider, InFlightOAuthFlow>()
 const canceledOAuthFlows = new Set<OAuthProvider>()
 const lifecycleConnectivity = new Map<OAuthProvider, boolean>()
 let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
+let authLifecycleFirstCheck: ReturnType<typeof setTimeout> | null = null
 let authLifecycleTickInFlight = false
 
 export function submitCode(provider: OAuthProvider, code: string): void {
@@ -84,22 +85,37 @@ export async function cancelOAuth(
   logger.info('OAuth flow cancelled', { provider })
 }
 
-export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+function stopAuthLifecycleTimers() {
   if (authLifecycleTimer) {
     clearInterval(authLifecycleTimer)
+    authLifecycleTimer = null
   }
+  if (authLifecycleFirstCheck) {
+    clearTimeout(authLifecycleFirstCheck)
+    authLifecycleFirstCheck = null
+  }
+}
 
-  void runAuthLifecycleTick(emitStatus)
+/**
+ * Watches for OAuth sign-ins that expire while the app runs. The first check waits until the
+ * window has opened: it loads Pi and builds a model runtime in this process (≈95 ms of the main
+ * thread on a cold start, W11), and the window lists the accounts itself once Settings load.
+ */
+export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+  stopAuthLifecycleTimers()
+
+  authLifecycleFirstCheck = setTimeout(() => {
+    authLifecycleFirstCheck = null
+    void runAuthLifecycleTick(emitStatus)
+  }, AUTH_TIMEOUT.LIFECYCLE_FIRST_CHECK_DELAY_MS)
+  authLifecycleFirstCheck.unref?.()
   authLifecycleTimer = setInterval(() => {
     void runAuthLifecycleTick(emitStatus)
   }, AUTH_TIMEOUT.LIFECYCLE_INTERVAL_MS)
   authLifecycleTimer.unref?.()
 
   return () => {
-    if (authLifecycleTimer) {
-      clearInterval(authLifecycleTimer)
-      authLifecycleTimer = null
-    }
+    stopAuthLifecycleTimers()
     lifecycleConnectivity.clear()
   }
 }
