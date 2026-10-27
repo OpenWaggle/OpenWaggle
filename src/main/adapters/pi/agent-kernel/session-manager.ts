@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
-import { logger } from './constants'
+import { logger, REUSE_PARSED_PI_FILE } from './constants'
 import {
   assertNoPiSessionFileToReplace,
   isReadablePiSessionFile,
@@ -286,7 +286,7 @@ export function createSessionManagerForSession(
 }
 
 function openSessionManager(session: SessionDetail, file: string, projectPath: string) {
-  const sessionManager = SessionManager.open(file, undefined, projectPath)
+  const sessionManager = SessionManager.open(file, undefined, projectPath, REUSE_PARSED_PI_FILE)
   resumeSelectedPosition(sessionManager, session)
   return sessionManager
 }
@@ -316,7 +316,7 @@ export async function createReadOnlySessionManagerForSession(
   // Pi reads the file when the manager is pointed at it; with persistence off it writes nothing,
   // not even the migration of an older format.
   const sessionManager = SessionManager.inMemory(projectPath)
-  sessionManager.setSessionFile(file)
+  sessionManager.setSessionFile(file, REUSE_PARSED_PI_FILE)
   resumeSelectedPosition(sessionManager, session)
   return sessionManager
 }

@@ -2444,7 +2444,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..790330354afdadda73623343b82902b9
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215a00b142b 100644
+index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd0776096907e 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -2519,7 +2519,39 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -268,7 +296,7 @@ export declare class SessionManager {
+@@ -219,6 +247,22 @@ partialSessions?: readonly SessionInfo[]) => void;
+  * Use buildSessionContext() to get the resolved message list for the LLM, which
+  * handles compaction summaries and follows the path from root to current leaf.
+  */
++/** OpenWaggle patch: how a manager reads its session file. */
++export interface SessionFileOpenOptions {
++    /**
++     * Parse only what was appended since the last cached parse of this file, when the rest of
++     * the file is unchanged; otherwise parse it whole. The loaded entry objects may be shared
++     * with other managers and must not be mutated.
++     */
++    reuseParsedFile?: boolean;
++}
++/**
++ * OpenWaggle patch: the file's entries, parsing only what was appended since the cached parse
++ * when the rest of the file is unchanged. Returns a new array; its entry objects may be shared.
++ */
++export declare function loadEntriesFromFileReusingParse(filePath: string): FileEntry[];
++/** OpenWaggle patch: forget every parsed session file. */
++export declare function clearParsedSessionFileCache(): void;
+ export declare class SessionManager {
+     private sessionId;
+     private sessionFile;
+@@ -233,7 +277,7 @@ export declare class SessionManager {
+     private leafId;
+     private constructor();
+     /** Switch to a different session file (used for resume and branching) */
+-    setSessionFile(sessionFile: string): void;
++    setSessionFile(sessionFile: string, options?: SessionFileOpenOptions): void;
+     private _setSessionFile;
+     newSession(options?: NewSessionOptions): string | undefined;
+     private _loadEntries;
+@@ -268,7 +312,7 @@ export declare class SessionManager {
      /** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
      appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry;
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2528,7 +2560,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
      /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
      appendCustomEntry(customType: string, data?: unknown): string;
      /** Append a session info entry (e.g., display name). Returns entry id. */
-@@ -313,13 +341,13 @@ export declare class SessionManager {
+@@ -313,13 +357,13 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2545,18 +2577,29 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
      /**
       * Get session header.
       */
+@@ -375,7 +419,7 @@ export declare class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
+-    static open(path: string, sessionDir?: string, cwdOverride?: string): SessionManager;
++    static open(path: string, sessionDir?: string, cwdOverride?: string, options?: SessionFileOpenOptions): SessionManager;
+     /**
+      * Continue the most recent session, or create new if none.
+      * @param cwd Working directory
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb999abc2f4 100644
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..8901768d87c7883bdd53f29cf8f9aa6f0f460738 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -1,5 +1,5 @@
+@@ -1,6 +1,6 @@
 -import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
 -import { randomUUID } from "crypto";
+-import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
 +import { getCurrentSystemMessage, uuidv7 } from "@earendil-works/pi-ai";
 +import { createHash, randomUUID } from "crypto";
- import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
++import { appendFileSync, closeSync, createReadStream, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
  import { readdir, stat } from "fs/promises";
  import { basename, join, resolve } from "path";
+ import { createInterface } from "readline";
 @@ -9,6 +9,74 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
  import { normalizePath, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
@@ -2867,7 +2910,189 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
  }
  /**
   * Compute the default session directory for a cwd.
-@@ -877,7 +1090,7 @@ export class SessionManager {
+@@ -367,6 +580,168 @@ export function loadEntriesFromFile(filePath) {
+         appendFileSync(resolvedFilePath, "\n");
+     return entries;
+ }
++/**
++ * OpenWaggle patch: parsed session files reused across managers.
++ *
++ * A session file is append-only while a session runs, and every run opens it again, so a long
++ * session paid a full parse per run (0.4 s for a 174 MB file). A file whose bytes up to the cached
++ * end are unchanged only parses what was appended. Anything else (shrunk, replaced, rewritten by
++ * `pi --resume` or a migration, a different inode, an unfinished last line) falls back to the
++ * full load, which also refreshes the cache.
++ *
++ * A file counts as unchanged up to the cached end when its device and inode match and the first
++ * and last 4 KiB before that end are byte-identical (and, at the same size, its mtime matches).
++ * Entry objects are shared by the managers that read them, so they must not be mutated; each
++ * manager gets its own array. The cache is bounded by count, by total parsed bytes and by idle
++ * time, since it holds a parsed copy of each file after its managers are gone.
++ */
++const PARSED_FILE_CACHE_MAX_FILES = 4;
++const PARSED_FILE_CACHE_MAX_BYTES = 256 * 1024 * 1024;
++const PARSED_FILE_CACHE_IDLE_MS = 10 * 60_000;
++const PARSED_FILE_WINDOW_BYTES = 4096;
++const parsedSessionFiles = new Map();
++let parsedSessionFileSweep;
++function readWindow(fd, position, length) {
++    const buffer = Buffer.alloc(length);
++    let filled = 0;
++    while (filled < length) {
++        const bytesRead = readSync(fd, buffer, filled, length - filled, position + filled);
++        if (bytesRead === 0)
++            break;
++        filled += bytesRead;
++    }
++    return buffer.subarray(0, filled);
++}
++/**
++ * Parse complete lines from `start` to the end of the file. Returns undefined when the file does
++ * not end with a newline (a writer is mid-line, or the file needs Pi's repair), so the caller
++ * takes the full load, which handles that the way Pi always has.
++ */
++function readCompleteLines(fd, start) {
++    const entries = [];
++    const decoder = new StringDecoder("utf8");
++    const buffer = Buffer.allocUnsafe(SESSION_READ_BUFFER_SIZE);
++    let position = start;
++    let pending = "";
++    while (true) {
++        const bytesRead = readSync(fd, buffer, 0, buffer.length, position);
++        if (bytesRead === 0)
++            break;
++        position += bytesRead;
++        pending += decoder.write(buffer.subarray(0, bytesRead));
++        let lineStart = 0;
++        let newlineIndex = pending.indexOf("\n", lineStart);
++        while (newlineIndex !== -1) {
++            const entry = parseSessionEntryLine(pending.slice(lineStart, newlineIndex));
++            if (entry)
++                entries.push(entry);
++            lineStart = newlineIndex + 1;
++            newlineIndex = pending.indexOf("\n", lineStart);
++        }
++        pending = pending.slice(lineStart);
++    }
++    pending += decoder.end();
++    if (pending.length > 0)
++        return undefined;
++    return { entries, end: position };
++}
++function cacheParsedSessionFile(path, fd, stats, entries, end) {
++    parsedSessionFiles.delete(path);
++    const header = entries[0];
++    if (end > PARSED_FILE_CACHE_MAX_BYTES || header?.type !== "session" || (header.version ?? 1) < CURRENT_SESSION_VERSION)
++        return;
++    const headLength = Math.min(PARSED_FILE_WINDOW_BYTES, end);
++    const tailLength = Math.min(PARSED_FILE_WINDOW_BYTES, end);
++    parsedSessionFiles.set(path, {
++        dev: stats.dev,
++        ino: stats.ino,
++        end,
++        mtimeMs: stats.size === end ? stats.mtimeMs : undefined,
++        head: readWindow(fd, 0, headLength),
++        tail: readWindow(fd, end - tailLength, tailLength),
++        entries,
++        lastUsedAt: Date.now(),
++    });
++    let total = 0;
++    for (const cached of parsedSessionFiles.values())
++        total += cached.end;
++    for (const [key, cached] of parsedSessionFiles) {
++        if (parsedSessionFiles.size <= PARSED_FILE_CACHE_MAX_FILES && total <= PARSED_FILE_CACHE_MAX_BYTES)
++            break;
++        parsedSessionFiles.delete(key);
++        total -= cached.end;
++    }
++    if (parsedSessionFileSweep === undefined) {
++        parsedSessionFileSweep = setInterval(() => {
++            const now = Date.now();
++            for (const [key, cached] of parsedSessionFiles) {
++                if (now - cached.lastUsedAt >= PARSED_FILE_CACHE_IDLE_MS)
++                    parsedSessionFiles.delete(key);
++            }
++            if (parsedSessionFiles.size === 0) {
++                clearInterval(parsedSessionFileSweep);
++                parsedSessionFileSweep = undefined;
++            }
++        }, PARSED_FILE_CACHE_IDLE_MS);
++        parsedSessionFileSweep.unref?.();
++    }
++}
++function unchangedUpTo(fd, stats, cached) {
++    if (stats.dev !== cached.dev || stats.ino !== cached.ino || stats.size < cached.end)
++        return false;
++    if (stats.size === cached.end && cached.mtimeMs !== undefined && stats.mtimeMs !== cached.mtimeMs)
++        return false;
++    return (readWindow(fd, 0, cached.head.length).equals(cached.head) &&
++        readWindow(fd, cached.end - cached.tail.length, cached.tail.length).equals(cached.tail));
++}
++/**
++ * The file's entries, parsing only what was appended since the cached parse when the rest of the
++ * file is unchanged. Returns a new array each time; its entry objects may be shared.
++ */
++export function loadEntriesFromFileReusingParse(filePath) {
++    const resolvedFilePath = normalizePath(filePath);
++    if (!existsSync(resolvedFilePath)) {
++        parsedSessionFiles.delete(resolvedFilePath);
++        return [];
++    }
++    const fd = openSync(resolvedFilePath, "r");
++    try {
++        const stats = fstatSync(fd);
++        const cached = parsedSessionFiles.get(resolvedFilePath);
++        if (cached && unchangedUpTo(fd, stats, cached)) {
++            const appended = cached.end === stats.size ? { entries: [], end: cached.end } : readCompleteLines(fd, cached.end);
++            if (appended) {
++                const entries = appended.entries.length === 0 ? cached.entries : cached.entries.concat(appended.entries);
++                if (appended.end === cached.end) {
++                    cached.lastUsedAt = Date.now();
++                    cached.mtimeMs = stats.size === cached.end ? stats.mtimeMs : cached.mtimeMs;
++                }
++                else {
++                    cacheParsedSessionFile(resolvedFilePath, fd, stats, entries, appended.end);
++                }
++                return entries.slice();
++            }
++        }
++        const full = readCompleteLines(fd, 0);
++        if (full?.entries[0]?.type === "session") {
++            cacheParsedSessionFile(resolvedFilePath, fd, stats, full.entries, full.end);
++            return full.entries.slice();
++        }
++        parsedSessionFiles.delete(resolvedFilePath);
++    }
++    finally {
++        closeSync(fd);
++    }
++    return loadEntriesFromFile(resolvedFilePath);
++}
++/** Forget every parsed session file, e.g. when an idle process releases memory. */
++export function clearParsedSessionFileCache() {
++    parsedSessionFiles.clear();
++    if (parsedSessionFileSweep !== undefined) {
++        clearInterval(parsedSessionFileSweep);
++        parsedSessionFileSweep = undefined;
++    }
++}
+ /**
+  * Inspect a physical line while searching for the first parsed session entry.
+  * Blank and malformed lines are skipped to match loadEntriesFromFile().
+@@ -659,8 +1034,10 @@ export class SessionManager {
+         }
+     }
+     /** Switch to a different session file (used for resume and branching) */
+-    setSessionFile(sessionFile) {
+-        this._setSessionFile(sessionFile);
++    setSessionFile(sessionFile, options) {
++        // OpenWaggle patch: reuse a cached parse of a file that only grew.
++        const resolved = resolvePath(sessionFile);
++        this._setSessionFile(sessionFile, options?.reuseParsedFile && existsSync(resolved) ? loadEntriesFromFileReusingParse(resolved) : undefined);
+     }
+     _setSessionFile(sessionFile, preloadedFileEntries) {
+         this.sessionFile = resolvePath(sessionFile);
+@@ -877,7 +1254,7 @@ export class SessionManager {
          return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2876,7 +3101,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
          const timestamp = new Date().toISOString();
          const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
          const id = generateId(this.byId);
-@@ -892,6 +1105,7 @@ export class SessionManager {
+@@ -892,6 +1269,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -2884,7 +3109,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
              ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-@@ -1074,19 +1288,37 @@ export class SessionManager {
+@@ -1074,19 +1452,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2930,6 +3155,26 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
      }
      /**
       * Get session header.
+@@ -1323,11 +1719,16 @@ export class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
+-    static open(path, sessionDir, cwdOverride) {
++    static open(path, sessionDir, cwdOverride, options) {
+         const resolvedPath = resolvePath(path);
+         let header = null;
+-        let preloadedFileEntries;
+-        if (cwdOverride === undefined && existsSync(resolvedPath)) {
++        // OpenWaggle patch: reuse a cached parse of a file that only grew.
++        let preloadedFileEntries = options?.reuseParsedFile && existsSync(resolvedPath) ? loadEntriesFromFileReusingParse(resolvedPath) : undefined;
++        if (preloadedFileEntries && cwdOverride === undefined) {
++            const firstEntry = preloadedFileEntries[0];
++            header = firstEntry?.type === "session" ? firstEntry : null;
++        }
++        if (cwdOverride === undefined && !preloadedFileEntries && existsSync(resolvedPath)) {
+             try {
+                 header = readSessionHeader(resolvedPath);
+             }
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
 index a40ba7fa48c51d73a6db798f51b9e4beda56b687..979080a9e99502dd7759a74ae4e11eda7bf9d294 100644
 --- a/dist/core/settings-manager.d.ts
@@ -3127,7 +3372,7 @@ index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d7
  /**
   * How the codemode tool presents tools that are both declared and callable from scripts:
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3821d9f41564a68e990d233b260427d6a5681f42..2e1280887c12dbd32681cbbd24008a3730fad52b 100644
+index 3821d9f41564a68e990d233b260427d6a5681f42..66f4a0778406ee6cea3e6335084cbd1ba342e50e 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -1,9 +1,9 @@
@@ -3147,7 +3392,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..2e1280887c12dbd32681cbbd24008a37
  export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
  export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
 -export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
-+export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
++export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, clearParsedSessionFileCache, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, loadEntriesFromFileReusingParse, migrateSessionEntries, type SessionFileOpenOptions, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
  export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
 +export { type ClientIdentityTransform, setClientIdentityTransform, } from "./core/client-identity.ts";
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
@@ -3165,7 +3410,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..2e1280887c12dbd32681cbbd24008a37
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfccc3a90939e533b9118122189507a7af326..739a2dc2495e57f145a3110ec6735c998de2268f 100644
+index ab5cfccc3a90939e533b9118122189507a7af326..7250e8978c90b59dc2226e466bc799b4e1e01550 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -3182,7 +3427,7 @@ index ab5cfccc3a90939e533b9118122189507a7af326..739a2dc2495e57f145a3110ec6735c99
  // Tool factories (for custom cwd)
  createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
 -export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
-+export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
++export { buildContextEntries, buildSessionContext, buildSessionProjection, clearParsedSessionFileCache, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, loadEntriesFromFileReusingParse, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
  export { SettingsManager, } from "./core/settings-manager.js";
 +// OpenWaggle patch: client identity of provider requests
 +export { setClientIdentityTransform, } from "./core/client-identity.js";
