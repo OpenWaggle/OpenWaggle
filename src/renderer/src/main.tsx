@@ -3,9 +3,13 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'
 import { App } from './App'
+import { startInitialRouteLoad } from './router'
 import './shared/lib/appearance'
 import './styles/globals.css'
 import { startWindowErrorReporting } from './window-error-reporting'
+
+// Fetch the launch route's chunks while the settings read is in flight (renderer-load B1).
+void startInitialRouteLoad()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Root element not found')

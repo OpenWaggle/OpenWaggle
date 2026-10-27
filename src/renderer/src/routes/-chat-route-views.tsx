@@ -1,7 +1,8 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { type ComponentProps, lazy, Suspense } from 'react'
+import type { ComponentProps } from 'react'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
+import { ChatRouteSurface } from './-chat-route-surface'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
@@ -10,32 +11,11 @@ import {
   resourceBrowserTargetFromSearch,
 } from './-route-search'
 
-const LazyChatRouteSurface = lazy(() =>
-  import('./-chat-route-surface').then((module) => ({
-    default: module.ChatRouteSurface,
-  })),
-)
-
-function ChatRouteSurfaceFallback() {
-  return (
-    <output
-      aria-live="polite"
-      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-sm text-text-tertiary"
-    >
-      Loading chat…
-    </output>
-  )
-}
-
-type LazyChatRouteSurfaceInput = ComponentProps<typeof LazyChatRouteSurface>
-
-function ChatRouteSurfaceView({ input }: { readonly input: LazyChatRouteSurfaceInput }) {
-  return (
-    <Suspense fallback={<ChatRouteSurfaceFallback />}>
-      <LazyChatRouteSurface {...input} />
-    </Suspense>
-  )
-}
+// The route component is already its own lazy chunk (TanStack `autoCodeSplitting`), so the
+// chat surface is imported statically here. A nested `lazy()` added a third chunk round trip
+// after the shell had rendered, and a committed Suspense fallback that React then held for its
+// 300 ms fallback throttle before revealing the chat (renderer-load B1).
+type ChatRouteSurfaceInput = ComponentProps<typeof ChatRouteSurface>
 
 function useSessionWorkspaceFileOpen(sessionId: string) {
   const navigate = useNavigate()
@@ -181,7 +161,7 @@ function useChatSessionSidebarActions(sessionId: string) {
     onSessionTreeOpenChange: setSessionTreeOpen,
     onHiveOpenChange: setHiveOpen,
     onWorkspaceFileOpenChange: setWorkspaceFileOpen,
-  } satisfies LazyChatRouteSurfaceInput['rightSidebarActions']
+  } satisfies ChatRouteSurfaceInput['rightSidebarActions']
 }
 
 export function ChatSessionRouteView() {
@@ -201,15 +181,13 @@ export function ChatSessionRouteView() {
       search.panel === 'file'
         ? { path: search.filePath ?? '', line: search.fileLine ?? null }
         : null,
-  } satisfies LazyChatRouteSurfaceInput['rightSidebar']
+  } satisfies ChatRouteSurfaceInput['rightSidebar']
 
   return (
-    <ChatRouteSurfaceView
-      input={{
-        workspace: { branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId },
-        rightSidebar,
-        rightSidebarActions,
-      }}
+    <ChatRouteSurface
+      workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
+      rightSidebar={rightSidebar}
+      rightSidebarActions={rightSidebarActions}
     />
   )
 }
