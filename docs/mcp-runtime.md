@@ -445,10 +445,10 @@ codemode or deferred servers connect only on first use would need a change to Pi
 | Event | Effect |
 | --- | --- |
 | Run starts (`beginRun`) | Cancels the Session's idle timer; marks it most recently used. |
-| Run ends (`endRun`) | When the Session has no other active Run, starts a 5-minute idle timer. |
+| Run ends (`endRun`) | When the Session has no other active Run, starts a 5-minute idle timer, or a 1-minute one for a Hive Worker whose Delegation is `ready_for_review`, `accepted` or `cancelled` (`mcp-settled-worker-idle-policy.ts`). |
 | Idle timer fires | Closes all the Session's connections. |
 | Session archived or deleted (including Worker auto-archive by Hive cleanup) | Closes all the Session's connections immediately (`withSessionDesktopRemoval`). |
-| A Session opens its first connection while 8 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
+| A Session opens its first connection while 3 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
 | Signing in to or out of a server, or switching a Session's MCP off | Closes the connections to that server identity (name plus command or URL) in every Session, or the Session's connections. |
 | A saved MCP change (Settings, the CLI, Pi's `/mcp`) turns a server off or removes it | Closes each Session's connection to it where its own project no longer has it on (`mcp-turned-off-servers.ts`); that Session's Run leases of it are refused until its next Run. A project whose files cannot be read is left alone. MCP Apps check `enabled` before using a warm connection. |
 | Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. Leases are refused afterwards, except for a Session that begins a new Run. |

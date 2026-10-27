@@ -20,8 +20,18 @@ export const systemClock: McpPoolClock = {
 
 /** A Session's connections close after this long without a new Run (ADR 0051). */
 export const MCP_IDLE_CLOSE_MS = 300_000
-/** Sessions that may hold warm connections at once; the least recently used gives them up. */
-export const MCP_MAX_WARM_SESSIONS = 8
+/**
+ * A Hive Worker whose Delegation is under review or done (`ready_for_review`, `accepted`,
+ * `cancelled`) closes its connections this soon after its Run: it rarely runs again, and its
+ * servers would otherwise hold several hundred MB for the full idle period.
+ */
+export const MCP_SETTLED_WORKER_IDLE_CLOSE_MS = 60_000
+/**
+ * Sessions that may hold warm connections at once; the least recently used gives them up. Each
+ * holds every enabled server (measured ~840 MB per Session with five `npx` servers), and Sessions
+ * with a Run are never evicted, so a busy Hive still keeps every running Session's servers.
+ */
+export const MCP_MAX_WARM_SESSIONS = 3
 /** How long Host shutdown waits for servers to exit. */
 export const MCP_CLOSE_ALL_TIMEOUT_MS = 5_000
 
@@ -48,6 +58,11 @@ export type McpConnectionHooks = Pick<
 export interface McpSessionConnectionPoolOptions {
   readonly clock?: McpPoolClock
   readonly idleCloseMs?: number
+  /**
+   * A shorter idle close for one Session, such as a Worker whose Delegation is settled; undefined
+   * keeps `idleCloseMs`. Asked each time the Session becomes idle.
+   */
+  readonly idleCloseMsFor?: (sessionId: string) => Promise<number | undefined> | number | undefined
   readonly maxWarmSessions?: number
   readonly closeAllTimeoutMs?: number
   /** OpenWaggle's additions for one Session's server: capabilities, sampling, elicitation, Apps. */

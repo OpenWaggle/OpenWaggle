@@ -47,10 +47,12 @@ export class McpSessionConnectionPool {
   private readonly idleCloseMs: number
   private readonly maxWarmSessions: number
   private readonly closeAllTimeoutMs: number
+  private idleCloseMsFor: McpSessionConnectionPoolOptions['idleCloseMsFor']
 
   constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
     this.clock = options.clock ?? systemClock
     this.idleCloseMs = options.idleCloseMs ?? MCP_IDLE_CLOSE_MS
+    this.idleCloseMsFor = options.idleCloseMsFor
     this.maxWarmSessions = options.maxWarmSessions ?? MCP_MAX_WARM_SESSIONS
     this.closeAllTimeoutMs = options.closeAllTimeoutMs ?? MCP_CLOSE_ALL_TIMEOUT_MS
   }
@@ -294,11 +296,32 @@ export class McpSessionConnectionPool {
   }
 
   private scheduleIdleClose(sessionId: string, session: SessionConnections) {
+    this.armIdleClose(sessionId, session, this.idleCloseMs)
+    const policy = this.idleCloseMsFor
+    if (!policy) return
+    const armed = session.idleTimer
+    void Promise.resolve()
+      .then(() => policy(sessionId))
+      .then((delayMs) => {
+        if (delayMs === undefined || delayMs >= this.idleCloseMs) return
+        // A Run started, or a later idle period re-armed the timer, while the policy was asked.
+        if (session.idleTimer !== armed || session.activeRuns > 0) return
+        this.armIdleClose(sessionId, session, delayMs)
+      })
+      .catch(() => undefined)
+  }
+
+  private armIdleClose(sessionId: string, session: SessionConnections, delayMs: number) {
     this.cancelIdleClose(session)
     session.idleTimer = this.clock.setTimeout(() => {
       session.idleTimer = undefined
       if (session.activeRuns === 0) void this.closeSessionConnections(sessionId)
-    }, this.idleCloseMs)
+    }, delayMs)
+  }
+
+  /** Sets the per-Session idle close (Host start: settled Hive Workers close sooner). */
+  setIdleClosePolicy(policy: McpSessionConnectionPoolOptions['idleCloseMsFor']) {
+    this.idleCloseMsFor = policy
   }
 
   private cancelIdleClose(session: SessionConnections) {
