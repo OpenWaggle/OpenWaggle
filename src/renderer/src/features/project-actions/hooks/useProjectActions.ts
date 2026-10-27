@@ -17,7 +17,6 @@ function shortcutAction(definition: ActionDefinition): ProjectAction {
     runOnWorktreeCreate: false,
   }
 }
-const SHORTCUT_REFRESH_MS = 5_000
 const projectActionsQueryKey = (projectPath: string | null, scope?: ActionManagementScope | null) =>
   ['native-actions', projectPath, scope ?? null, 'shortcut-presentation'] as const
 
@@ -32,7 +31,8 @@ export function projectActionsQueryOptions(
 > {
   return queryOptions({
     queryKey: projectActionsQueryKey(projectPath, scope),
-    refetchInterval: SHORTCUT_REFRESH_MS,
+    // Read on mount, focus, and Host Session-state changes; never on a timer (B7/D9).
+    refetchOnWindowFocus: true,
     enabled: projectPath !== null,
     queryFn: async (): Promise<readonly ProjectAction[]> => {
       if (!projectPath) return []

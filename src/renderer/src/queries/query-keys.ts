@@ -5,6 +5,8 @@ export function extensionPackagesQueryKey(projectPath: string | null) {
 }
 
 export const queryKeys = {
+  /** Every Project Actions query; a Host Session-state change refreshes them (B7/D9). */
+  projectActions: ['native-actions'] as const,
   wagglePresets: (projectPath: string | null) => ['wagglePresets', projectPath] as const,
   archivedSessions: ['archivedSessions'] as const,
   /** Settings > Archived items; each query appends its filter and sort. */
