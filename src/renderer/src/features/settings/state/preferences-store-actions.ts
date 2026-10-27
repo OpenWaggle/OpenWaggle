@@ -52,9 +52,13 @@ async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
   }
 }
 
-async function loadSettings(set: PreferencesSet, get: PreferencesGet) {
+async function loadSettings(
+  set: PreferencesSet,
+  get: PreferencesGet,
+  prefetched?: Promise<Settings>,
+) {
   try {
-    const settings = await api.getSettings()
+    const settings = await (prefetched ?? api.getSettings())
     setRuntimeSyntaxThemeSelections(settings.syntaxThemeSelections)
     setRuntimeAppearancePreferences(settings.appearancePreferences)
     set({
@@ -217,7 +221,7 @@ export function createPreferencesActions(
     ...createProjectHivePreferencesActions(set, get),
     ...createPiSessionContinuationPreferencesActions(set, get),
     ...createAppearancePreferencesActions(set, get),
-    loadSettings: () => loadSettings(set, get),
+    loadSettings: (prefetched) => loadSettings(set, get, prefetched),
     setSelectedModel: async (model) => {
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })

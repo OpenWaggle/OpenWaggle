@@ -33,7 +33,8 @@ export interface PreferencesState {
   isLoaded: boolean
   loadError: string | null
 
-  loadSettings: () => Promise<void>
+  /** `prefetched` is a `getSettings` request started earlier, as startup does (B11). */
+  loadSettings: (prefetched?: Promise<Settings>) => Promise<void>
   setSelectedModel: (model: SupportedModelId) => Promise<void>
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
