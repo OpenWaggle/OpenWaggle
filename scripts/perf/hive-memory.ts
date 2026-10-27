@@ -23,12 +23,12 @@ import { median, summarizeRuns } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 import { createScriptedHive } from './lib/scripted-hive'
 
-const DEFAULTS = { runs: 3, workers: 5, sleepSeconds: 60 }
+const DEFAULTS = { runs: 3, workers: 5, sleepSeconds: 100 }
 const TIMEOUT_MS = 120_000
 const ALL_ACTIVE_TIMEOUT_MS = 180_000
 const SAMPLE_EVERY_MS = 3_000
-const SAMPLE_COUNT = 10
-const DRAIN_GRACE_MS = 90_000
+const SAMPLE_COUNT = 20
+const DRAIN_GRACE_MS = 120_000
 const DECIMAL = 10
 const ORDERS = 2
 const USAGE_EXIT_CODE = 2
