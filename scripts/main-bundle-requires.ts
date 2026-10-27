@@ -71,12 +71,22 @@ function isNodeBuiltin(specifier: string) {
   return specifier.startsWith('node:') || builtinModules.includes(specifier)
 }
 
-/** Top-level requires that are neither Node built-ins nor on the allowlist. */
+/** Another chunk of the same build, beside this file; budgeted as part of the chunk graph. */
+const SIBLING_PREFIX = './'
+
+function isSiblingChunk(specifier: string) {
+  return (
+    specifier.startsWith(SIBLING_PREFIX) && !specifier.slice(SIBLING_PREFIX.length).includes('/')
+  )
+}
+
+/** Top-level requires that are neither Node built-ins, sibling chunks, nor on the allowlist. */
 export function disallowedTopLevelRequires(
   source: string,
   allowed: readonly string[] = ALLOWED_TOP_LEVEL_MAIN_REQUIRES,
 ) {
   return topLevelRequires(source).filter(
-    (specifier) => !isNodeBuiltin(specifier) && !allowed.includes(specifier),
+    (specifier) =>
+      !isNodeBuiltin(specifier) && !isSiblingChunk(specifier) && !allowed.includes(specifier),
   )
 }

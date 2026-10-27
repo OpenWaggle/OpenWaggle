@@ -151,6 +151,8 @@ async function connectAndList(
       transport,
       cwd,
       authProvider: hardenedMcpAuthProvider(entry, authProvider),
+      // A check launches `npx pkg@latest` as configured, so a new version is picked up.
+      refreshPackage: true,
     })
     await client.connect(upstream.transport)
     const tools = client.serverCapabilities?.tools ? await client.listTools() : []

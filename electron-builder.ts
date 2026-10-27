@@ -86,6 +86,7 @@ const config = {
     '!out/**/*.d.ts',
     // The renderer build manifest only feeds the bundle budget (scripts/check-syntax-bundle.ts).
     '!out/renderer/.vite/**/*',
+    '!out/main/.vite/**/*',
     '!**/.vscode/*',
     '!src/*',
     '!tests/**/*',

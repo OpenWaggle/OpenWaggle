@@ -4,9 +4,19 @@ import { getOpenWaggleMcpConfigurationService } from './adapters/pi/mcp/openwagg
 import { createLogger } from './logger'
 import { hostMcpConnectionPool } from './mcp-runtime-layers'
 import { installMcpSessionRemoval } from './mcp-session-removal'
+import { settledWorkerIdleCloseMs, workerDelegationState } from './mcp-settled-worker-idle-policy'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
 
 const logger = createLogger('mcp-host-start')
+
+/** Settled Hive Workers close their MCP servers a minute after their Run (D1.1). */
+function installSettledWorkerIdleClose() {
+  hostMcpConnectionPool.setIdleClosePolicy(async (sessionId) => {
+    // Lazily: the runtime imports this module.
+    const { runAppEffect } = await import('./runtime')
+    return settledWorkerIdleCloseMs(await runAppEffect(workerDelegationState(sessionId)))
+  })
+}
 
 function installMcpServerStatusFreshness() {
   getOpenWaggleMcpConfigurationService().onChange(() => {
@@ -28,6 +38,7 @@ function installMcpServerStatusFreshness() {
 export function startMcpHostServices() {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
   installMcpSessionRemoval(hostMcpConnectionPool)
+  installSettledWorkerIdleClose()
   // A server turned off or removed stops being used by MCP Apps and running Runs alike.
   installMcpTurnedOffServerClosing(hostMcpConnectionPool)
   // A server turned off or on no longer shows a state from before, wherever it was switched.

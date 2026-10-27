@@ -3,6 +3,7 @@ import * as Data from 'effect/Data'
 import * as Deferred from 'effect/Deferred'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import { hostBackgroundGate } from '../../application/host-background-gate'
 import { createLogger } from '../../logger'
 import {
   applyIncrementalSessionTranscriptTerms,
@@ -276,6 +277,8 @@ export function resetTranscriptTermRepairBackoff() {
 export const runTranscriptTermRepairBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const loop = Effect.gen(function* () {
+    // Waits until a client has been attached a moment, and while none is (A-F9).
+    yield* Effect.promise(() => hostBackgroundGate.whenOpen())
     const wake = yield* Deferred.make<void>()
     repairWake = wake
     const result = yield* repairStaleTranscriptTermProjections(sql).pipe(

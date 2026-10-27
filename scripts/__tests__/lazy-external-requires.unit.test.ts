@@ -96,9 +96,11 @@ describe('topLevelRequires', () => {
       '\tmodule.exports = require("undici");',
       '}));',
       'function later() { return require("sharp") }',
+      'const shared = require("./effect-Ab12.js");',
     ].join('\n')
 
-    expect(topLevelRequires(source)).toEqual(['electron', 'side-effect', 'zod'])
+    expect(topLevelRequires(source)).toEqual(['./effect-Ab12.js', 'electron', 'side-effect', 'zod'])
+    // Sibling chunks of the same build are budgeted by the chunk graph instead.
     expect(disallowedTopLevelRequires(source)).toEqual(['side-effect', 'zod'])
   })
 

@@ -199,14 +199,16 @@ export function loadSessionSemanticProjectionRows(
   sql: SqlClient.SqlClient,
   limit: number,
   recordLimit: number,
+  /** Only Sessions queued (last changed) at or before this time; later ones are still settling. */
+  settledBefore: number = Number.MAX_SAFE_INTEGER,
 ) {
   // Materialize the bounded queue page before SQLite can reorder the document joins.
   return sql<SessionSemanticProjectionRow>`
     WITH candidates AS MATERIALIZED (
       SELECT session_id, queued_at FROM session_discovery_embedding_queue
-      WHERE (SELECT COUNT(*) FROM sessions) <= ${recordLimit} OR session_id IN (
+      WHERE queued_at <= ${settledBefore} AND ((SELECT COUNT(*) FROM sessions) <= ${recordLimit} OR session_id IN (
         SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
-      )
+      ))
       ORDER BY queued_at, session_id
       LIMIT ${limit}
     )
