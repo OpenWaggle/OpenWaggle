@@ -21,6 +21,7 @@ import {
   notePiRunProjectDefaultForUsageStatistics,
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
+import { installIdleCompaction } from './idle-compaction-install'
 import { notifyModelFallback, type PiInteractionUiContextInput } from './interaction-ui-context'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
@@ -112,15 +113,6 @@ function resolvePiRuntimeThinkingLevel(
   return sessionThinkingLevel
     ? clampThinkingLevel(sessionThinkingLevel, getPiModelAvailableThinkingLevels(model))
     : undefined
-}
-
-/**
- * A compaction computed while the Session was idle: Pi installs it before the first request, or
- * drops it if the conversation or model changed.
- */
-function installIdleCompaction(sessionId: string, session: AgentSession) {
-  const idleCompaction = idleCacheWarming.takeIdleCompaction(sessionId)
-  if (idleCompaction) session.setPendingCompaction(idleCompaction)
 }
 
 export async function createPiRunSessionRuntime(
