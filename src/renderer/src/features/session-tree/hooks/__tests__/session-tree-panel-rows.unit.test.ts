@@ -87,6 +87,46 @@ describe('session tree panel row state', () => {
     ])
   })
 
+  it('shows matches under the bookkeeping entries the filter leaves out', () => {
+    // Every Session starts with model and thinking-level entries that the default filter hides.
+    const model = node({ id: 'model', depth: 0, order: 1, kind: 'model_change' })
+    const thinking = node({
+      id: 'thinking',
+      parentId: 'model',
+      depth: 1,
+      order: 2,
+      kind: 'thinking_level_change',
+    })
+    const user = node({
+      id: 'user',
+      parentId: 'thinking',
+      depth: 2,
+      order: 3,
+      kind: 'user_message',
+    })
+    const answer = node({ id: 'answer', parentId: 'user', depth: 3, order: 4 })
+    const tree = {
+      ...makeTree(),
+      nodes: [model, thinking, user, answer],
+      uiState: treeUiState({ expandedNodeIds: [], expandedNodeIdsTouched: false }),
+    } satisfies SessionTree
+
+    const result = buildSessionTreePanelRows({
+      tree,
+      activeNodeId: null,
+      textMatchNodeIds: new Set(['answer']),
+      filterMode: 'default',
+      searchQuery: 'rendered',
+      focusIndex: 0,
+      expandedNodeIdsOverride: null,
+    })
+
+    expect(result.visibleNodes.map((visibleNode) => String(visibleNode.id))).toEqual([
+      'user',
+      'answer',
+    ])
+  })
+
   it('returns empty rows when no tree is available', () => {
     const result = buildSessionTreePanelRows({
       tree: null,

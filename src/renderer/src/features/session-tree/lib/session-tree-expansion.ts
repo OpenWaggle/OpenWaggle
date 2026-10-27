@@ -25,12 +25,19 @@ export function resolveExpandedSessionTreeNodeIds(input: {
 }
 
 export function resolveSessionTreeRowExpandedNodeIds(input: {
+  /** Every node of the tree, including the ones the filter and search leave out. */
+  readonly nodes: readonly SessionTreeNode[]
   readonly filteredNodes: readonly SessionTreeNode[]
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly searchActive: boolean
 }): readonly SessionNodeId[] {
   if (input.searchActive) {
-    return getDefaultExpandedSessionTreeNodeIds(input.filteredNodes)
+    /*
+     * A match stays hidden while any ancestor is collapsed, including one the filter leaves out,
+     * such as the model and thinking-level entries every Session starts with. Expanding only the
+     * parents among the results hid every match under them, so a search expands every parent.
+     */
+    return getDefaultExpandedSessionTreeNodeIds(input.nodes)
   }
 
   return input.expandedNodeIds

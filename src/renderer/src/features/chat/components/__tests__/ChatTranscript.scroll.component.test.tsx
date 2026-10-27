@@ -268,6 +268,54 @@ describe('ChatTranscript pinned-turn scroll behavior', () => {
     expect(scroller?.className).toContain('[overflow-anchor:none]')
   })
 
+  it('follows growth its content ResizeObserver reports between commits', async () => {
+    // A token re-renders only its bubble (B2); the content column's observer must see it grow.
+    class RecordingResizeObserver {
+      readonly targets: Element[] = []
+      constructor(readonly callback: ResizeObserverCallback) {
+        observers.push(this)
+      }
+      observe(target: Element) {
+        this.targets.push(target)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const observers: RecordingResizeObserver[] = []
+    vi.stubGlobal('ResizeObserver', RecordingResizeObserver)
+    const userMessage = createTextMessage('msg-1', 'user', 'hello')
+    const assistantMessage = createTextMessage('msg-2', 'assistant', 'short')
+    const { container } = render(
+      <ChatTranscript
+        section={createSection({
+          isLoading: true,
+          messages: [userMessage, assistantMessage],
+          chatRows: [createMessageChatRow(userMessage), createMessageChatRow(assistantMessage)],
+          lastUserMessageId: 'msg-1',
+        })}
+      />,
+    )
+    const scroller = container.querySelector('[role="log"]')
+    const content = container.querySelector('[data-chat-transcript-container]')
+    if (!(scroller instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+      throw new Error('Chat scroller not found')
+    }
+    expect(content.className.split(' ')).toContain('shrink-0')
+    const layout = configureScrollableElement(scroller)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
+    })
+
+    layout.setNaturalScrollHeight(1200)
+    const contentObserver = observers.find((observer) => observer.targets.includes(content))
+    expect(contentObserver).toBeDefined()
+    act(() => {
+      if (contentObserver) contentObserver.callback([], contentObserver)
+    })
+
+    expect(layout.getScrollTop()).toBe(700)
+  })
+
   it('does not scroll when lastUserMessageId is null', async () => {
     const { container } = render(
       <ChatTranscript
