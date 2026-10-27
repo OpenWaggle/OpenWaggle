@@ -1,6 +1,7 @@
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
 import { defaultSessionEmbeddingModel } from './adapters/multilingual-e5-session-embedding-model'
+import { releaseParsedPiSessionFiles } from './adapters/pi/pi-parsed-session-file-cache'
 import { hostBackgroundGate } from './application/host-background-gate'
 import { createLogger } from './logger'
 import { hostMcpConnectionPool } from './mcp-runtime-layers'
@@ -26,7 +27,7 @@ export function collectHostGarbage() {
 /**
  * Decision 4: a Session Host with no client attached keeps its idle grace (300 s by default) but
  * slims down at once: idle Sessions' MCP servers close (Sessions with a running Run keep theirs),
- * the embedding model process ends, background discovery and indexing pause (the gate is closed),
+ * the embedding model process ends, parsed Pi session files are released, background discovery and indexing pause (the gate is closed),
  * and V8 collects. A client that attaches again finds everything starting on demand.
  */
 export function installHostIdleSlim() {
@@ -34,6 +35,7 @@ export function installHostIdleSlim() {
   return hostBackgroundGate.onSlim(async () => {
     await hostMcpConnectionPool.closeIdleSessions()
     defaultSessionEmbeddingModel.dispose()
+    releaseParsedPiSessionFiles()
     collectHostGarbage()
     logger.info('Session Host slimmed down without clients', {
       rssMb: Math.round(process.memoryUsage().rss / BYTES_PER_MB),
