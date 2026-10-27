@@ -1,6 +1,7 @@
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -41,7 +42,7 @@ export function useGitRefresh({
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-    const unsubscribe = api.onAgentEvent(({ sessionId, event }) => {
+    const unsubscribe = subscribeAgentEvents(({ sessionId, event }) => {
       if (!isTerminalTransportEvent(event)) return
 
       if (activeSessionId === sessionId) {

@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { SupportedModelId } from '@shared/types/llm'
 import { useEffect, useState } from 'react'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -38,56 +39,52 @@ export function useContextUsageSnapshot({
     let receivedLiveUpdate = false
     const currentRequestKey = requestKey
 
-    const unsubscribe =
-      typeof api.onAgentEvent === 'function'
-        ? api.onAgentEvent((payload) => {
-            const event = payload.event
-            // A virtual selection's usage arrives under the model its router chose, with that
-            // model's own window, and names the selection it was routed from.
-            const forSelectedModel =
-              event.model === selectedModel ||
-              (event.type === 'context_usage' && event.routedFrom === selectedModel)
-            if (cancelled || payload.sessionId !== activeSessionId || !forSelectedModel) {
-              return
-            }
+    const unsubscribe = subscribeAgentEvents((payload) => {
+      const event = payload.event
+      // A virtual selection's usage arrives under the model its router chose, with that
+      // model's own window, and names the selection it was routed from.
+      const forSelectedModel =
+        event.model === selectedModel ||
+        (event.type === 'context_usage' && event.routedFrom === selectedModel)
+      if (cancelled || payload.sessionId !== activeSessionId || !forSelectedModel) {
+        return
+      }
 
-            if (event.type === 'context_usage') {
-              receivedLiveUpdate = true
-              // Live usage carries no Session totals; the last read ones stay until the next read.
-              setRequestState((current) => {
-                const session =
-                  current.key === currentRequestKey ? current.snapshot?.session : undefined
-                return {
-                  key: currentRequestKey,
-                  snapshot: {
-                    tokens: event.tokens,
-                    contextWindow: event.contextWindow,
-                    percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
-                    ...(session ? { session } : {}),
-                  },
-                  failed: false,
+      if (event.type === 'context_usage') {
+        receivedLiveUpdate = true
+        // Live usage carries no Session totals; the last read ones stay until the next read.
+        setRequestState((current) => {
+          const session = current.key === currentRequestKey ? current.snapshot?.session : undefined
+          return {
+            key: currentRequestKey,
+            snapshot: {
+              tokens: event.tokens,
+              contextWindow: event.contextWindow,
+              percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
+              ...(session ? { session } : {}),
+            },
+            failed: false,
+          }
+        })
+        return
+      }
+
+      if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
+        receivedLiveUpdate = true
+        setRequestState((current) => ({
+          key: currentRequestKey,
+          snapshot:
+            current.key === currentRequestKey && current.snapshot
+              ? {
+                  tokens: null,
+                  contextWindow: current.snapshot.contextWindow,
+                  percent: null,
                 }
-              })
-              return
-            }
-
-            if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
-              receivedLiveUpdate = true
-              setRequestState((current) => ({
-                key: currentRequestKey,
-                snapshot:
-                  current.key === currentRequestKey && current.snapshot
-                    ? {
-                        tokens: null,
-                        contextWindow: current.snapshot.contextWindow,
-                        percent: null,
-                      }
-                    : null,
-                failed: false,
-              }))
-            }
-          })
-        : undefined
+              : null,
+          failed: false,
+        }))
+      }
+    })
 
     api
       .getContextUsage(activeSessionId, selectedModel)
@@ -106,7 +103,7 @@ export function useContextUsageSnapshot({
 
     return () => {
       cancelled = true
-      unsubscribe?.()
+      unsubscribe()
     }
   }, [activeSessionId, selectedModel, requestKey])
 

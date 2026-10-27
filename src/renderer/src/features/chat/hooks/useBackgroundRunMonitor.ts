@@ -16,6 +16,7 @@ import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pendi
 import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
 import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -59,7 +60,7 @@ export function useBackgroundRunMonitor(): void {
   useLayoutEffect(() => {
     const compactionOnlySessionIds = new Set<string>()
     const startedRuns = createStartedRuns()
-    const unsubEvent = api.onAgentEvent((payload) => {
+    const unsubEvent = subscribeAgentEvents((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       trackRunFinishing(payload.sessionId, payload.event)
       trackExtensionStatus(payload.sessionId, payload.event)
