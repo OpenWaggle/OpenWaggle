@@ -25,6 +25,7 @@ import {
   resetGitHandlerMocks,
   typedHandleMock,
 } from '../../__tests__/git-handler.test-harness'
+import { emulateSessionGitHost } from './session-git-host-emulation'
 
 type GitCallback = (error: Error | null, stdout: string, stderr: string) => void
 const COMMIT_HASH = '0123456789abcdef0123456789abcdef01234567'
@@ -128,6 +129,7 @@ function invokeCommitWithLayer(
 ) {
   const handler = typedHandleMock.mock.calls.find(([channel]) => channel === 'git:commit')?.[1]
   if (typeof handler !== 'function') throw new Error('Missing git:commit handler.')
+  emulateSessionGitHost(layer)
   return Effect.runPromise(Effect.provide(handler({}, workingPath, payload), layer))
 }
 

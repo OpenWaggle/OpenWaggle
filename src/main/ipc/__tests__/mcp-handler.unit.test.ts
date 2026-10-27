@@ -25,7 +25,10 @@ const { hostHandleMock, typedHandleMock } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({ hostHandle: hostHandleMock, typedHandle: typedHandleMock }))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return { hostHandle: withLegacyHostOperation(hostHandleMock), typedHandle: typedHandleMock }
+})
 
 import { registerMcpHandlers } from '../mcp-handler'
 

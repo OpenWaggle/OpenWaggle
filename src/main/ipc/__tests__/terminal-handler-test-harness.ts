@@ -72,8 +72,8 @@ vi.mock('../typed-ipc', () => ({
   typedOn: typedOnMock,
 }))
 
-vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, TerminalService>) =>
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, TerminalService>) =>
     Effect.runPromise(Effect.provide(effect, TestTerminalServiceLayer)),
 }))
 

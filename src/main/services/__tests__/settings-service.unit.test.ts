@@ -38,7 +38,7 @@ vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUi: invokeConfiguredHostUiMock,
 }))
 
-vi.mock('../database-service', () => ({
+vi.mock('../database-access-mode', () => ({
   isAppDatabaseClientIsolated: isAppDatabaseClientIsolatedMock,
 }))
 

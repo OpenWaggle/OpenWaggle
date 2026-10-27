@@ -1,7 +1,7 @@
 import type { Settings } from '@shared/types/settings'
 import { Context, Effect, Layer } from 'effect'
 import { SettingsStoreReadError } from '../errors'
-import { isAppDatabaseClientIsolated } from './database-service'
+import { isAppDatabaseClientIsolated } from './database-access-mode'
 
 export interface SettingsServiceShape {
   readonly get: () => Effect.Effect<Settings, SettingsStoreReadError>

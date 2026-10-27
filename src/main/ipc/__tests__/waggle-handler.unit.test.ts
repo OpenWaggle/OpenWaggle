@@ -47,6 +47,10 @@ vi.mock('../../application/waggle-run-service', () => ({
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
 }))
+vi.mock('../../application/gui-session-command', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../application/gui-session-command')>()),
+  dispatchGuiSessionCommand: dispatchLocalSessionCommandMock,
+}))
 
 vi.mock('../../application/session-external-run-coordinator', () => ({
   activatePreparedExternalSessionRun: activatePreparedExternalSessionRunMock,

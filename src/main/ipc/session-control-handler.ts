@@ -12,9 +12,9 @@ import {
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { powerMonitor, webContents } from 'electron'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
-import { runAppEffect } from '../runtime'
 import {
   FollowUpEditHoldWindowLeases,
   type WindowFollowUpEditHold,
@@ -42,14 +42,14 @@ const windowGenerations = new WindowPageGenerations((windowId, events) => {
 })
 
 function dispatchGuiCommand(payload: LocalSessionCommandPayload) {
-  return dispatchLocalSessionCommand({
+  return dispatchGuiSessionCommand({
     caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
     payload,
   })
 }
 
 function renewHold(hold: WindowFollowUpEditHold) {
-  return runAppEffect(
+  return runGuiEffect(
     dispatchGuiCommand({
       contract: 'local-ui-v1',
       request: {
@@ -65,7 +65,7 @@ function renewHold(hold: WindowFollowUpEditHold) {
 
 function releaseHold(hold: WindowFollowUpEditHold) {
   const key = `follow-up-edit-window-closed:${hold.holdId}`
-  return runAppEffect(
+  return runGuiEffect(
     dispatchGuiCommand({
       contract: 'session-control-v2',
       request: {

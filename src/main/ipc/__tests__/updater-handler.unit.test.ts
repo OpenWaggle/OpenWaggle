@@ -27,6 +27,11 @@ vi.mock('../../runtime', () => ({
   runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
     Effect.runPromiseExit(effect),
 }))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
+}))
 
 vi.mock('../../updater', () => ({
   checkForUpdates: (channel?: unknown) => mockCheckForUpdates(channel),
@@ -51,8 +56,9 @@ vi.mock('../../desktop-ui', () => ({
     return mockShowMessageBox()
   },
 }))
-vi.mock('../../application/session-run-interruption', () => ({
-  interruptSessionRun: (sessionId: string) => mockInterruptSessionRun(sessionId),
+vi.mock('../../application/session-run-interruption-command', () => ({
+  interruptSessionRunThrough: (_dispatch: unknown, sessionId: string) =>
+    mockInterruptSessionRun(sessionId),
 }))
 
 vi.mock('../../logger', () => ({

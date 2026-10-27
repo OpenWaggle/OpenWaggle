@@ -2,7 +2,10 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ handle: vi.fn(), manage: vi.fn() }))
-vi.mock('../typed-ipc', () => ({ hostHandle: mocks.handle }))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return { hostHandle: withLegacyHostOperation(mocks.handle) }
+})
 vi.mock('../../application/action-management', () => ({ manageProjectActions: mocks.manage }))
 
 import { registerProjectActionHandlers } from '../project-actions-handler'

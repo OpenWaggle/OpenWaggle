@@ -2,27 +2,19 @@ import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { installAutomationDesktopUiBlockers } from './desktop-ui'
-import { env } from './env'
+import { env, installDesktopShellEnvironment } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
 import { configureAppStoragePaths } from './session-data'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import {
+  type LocalSessionHostPaths,
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
   rotateLocalSessionHostEndpoint,
 } from './session-host/local-session-paths'
-import { startAppSessionHost } from './session-host/session-host-bootstrap'
-import {
-  runSessionHostCutover,
-  sessionHostSourceExists,
-  sessionHostTargetExists,
-} from './session-host/session-host-cutover'
-import {
-  acquireSessionHostOwnership,
-  isSessionHostOwnershipHeld,
-} from './session-host/session-host-ownership'
+import { createStartupMark } from './startup-timing'
 import {
   configureUsageStatisticsHostRecorder,
   flushUsageStatistics,
@@ -31,6 +23,7 @@ import { describeError } from './utils/describe-error'
 
 const FAILURE_EXIT_CODE = 1
 const logger = createLogger('session-host-cli')
+const startupMark = createStartupMark('session-host/startup')
 const ORPHAN_HOST_GRACE_MS = 10_000
 /** How long a quit signal waits for the Host to stop and be disposed before it exits anyway. */
 export const SESSION_HOST_QUIT_HOLD_MS = 30_000
@@ -75,12 +68,31 @@ export function watchUnadoptableSessionHostEndpoint(input: {
  * owned has nothing to start, and its exit is no crash.
  */
 async function acquireOwnershipUnlessHeld(databasePath: string) {
+  // Loaded here, not at module load: the desktop window's entry graph reaches this module.
+  const ownership = await import('./session-host/session-host-ownership')
   try {
-    return await acquireSessionHostOwnership(databasePath)
+    return await ownership.acquireSessionHostOwnership(databasePath)
   } catch (error) {
-    if (isSessionHostOwnershipHeld(error)) return null
+    if (ownership.isSessionHostOwnershipHeld(error)) return null
     throw error
   }
+}
+
+/**
+ * The Host hydrates its own login-shell environment (PATH, SSH agent, locale), the same bounded
+ * way the desktop app does, instead of inheriting one the launching GUI waited for (A-F1/A-F7):
+ * the GUI launches the Host before its own probe finishes. The probe runs while the Host opens
+ * its database and runtime, and the Host serves no client before it settles, so every Run,
+ * terminal, git or MCP process it starts still sees the hydrated environment.
+ */
+export function hydrateSessionHostShellEnvironment(
+  install: () => Promise<void> = installDesktopShellEnvironment,
+): Promise<void> {
+  return install().catch((error: unknown) => {
+    logger.warn('The Session Host could not read the login-shell environment', {
+      error: describeError(error),
+    })
+  })
 }
 
 /** Exits with the log written, or once a disk that does not answer has had its short chance. */
@@ -125,10 +137,34 @@ export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
   }
 }
 
+/** Rotates the endpoint and moves a legacy store into place, under its writer fence if needed. */
+async function prepareSessionHostStore(preparedPaths: LocalSessionHostPaths) {
+  const paths = await rotateLocalSessionHostEndpoint(preparedPaths)
+  const cutoverPaths = {
+    sourceDatabasePath: paths.legacyDatabasePath,
+    targetDatabasePath: paths.databasePath,
+    recoveryDatabasePath: paths.recoveryDatabasePath,
+  }
+  // The cutover opens SQLite; loaded here so the window's entry graph never reaches it (A-F5).
+  const store = await import('./session-host/session-host-cutover')
+  const cutover = () => store.runSessionHostCutover(cutoverPaths)
+  if (
+    (await store.sessionHostTargetExists(cutoverPaths)) ||
+    !(await store.sessionHostSourceExists(cutoverPaths))
+  ) {
+    await cutover()
+  } else {
+    await withLegacySessionWriterFence(cutover)
+  }
+  return paths
+}
+
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')
+  // It draws nothing either, so it skips the GPU process (A-F13).
+  app.disableHardwareAcceleration()
   // The Host inherits OPENWAGGLE_AUTOMATION from the app that started it, so it blocks native UI
   // (dialogs, the browser) the same way, for example a sign-in page an MCP server asks to open.
   installAutomationDesktopUiBlockers()
@@ -140,10 +176,12 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       // failure it recovers from, including a turn that could not be saved, is lost (ADR 0037).
       // Awaited so startup diagnostics are written; initialization failures are reported, not thrown.
       await initFileLogger(app.getPath('logs'), SESSION_HOST_LOG_FILE_STEM)
+      startupMark('host-file-logger-ready') // Its uptime dates the process start.
       const preparedPaths = await prepareLocalSessionHostPaths(
         resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
       )
       const ownership = await acquireOwnershipUnlessHeld(preparedPaths.databasePath)
+      startupMark('host-ownership-settled')
       if (!ownership) {
         logger.info('Another Session Host owns this profile; exiting without starting')
         await drainFileLogger()
@@ -151,28 +189,19 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         app.exit(0)
         return
       }
+      // Started once this Host owns the profile, so a Host that exits at once leaves no probe.
+      const shellEnvironment = hydrateSessionHostShellEnvironment()
       try {
-        const paths = await rotateLocalSessionHostEndpoint(preparedPaths)
-        const cutoverPaths = {
-          sourceDatabasePath: paths.legacyDatabasePath,
-          targetDatabasePath: paths.databasePath,
-          recoveryDatabasePath: paths.recoveryDatabasePath,
-        }
-        const cutover = () => runSessionHostCutover(cutoverPaths)
-        if (
-          (await sessionHostTargetExists(cutoverPaths)) ||
-          !(await sessionHostSourceExists(cutoverPaths))
-        ) {
-          await cutover()
-        } else {
-          await withLegacySessionWriterFence(cutover)
-        }
+        const paths = await prepareSessionHostStore(preparedPaths)
+        startupMark('host-cutover-settled')
         const runtime = await import('./runtime')
         const settings = await import('./store/settings')
+        const { startAppSessionHost } = await import('./session-host/session-host-bootstrap')
         let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()
           await settings.initializeSettingsStore()
+          startupMark('host-settings-initialized')
           // Settings decide whether errors are reported, so reporting starts once they load.
           void startErrorReporting('session-host')
           await applyInstallerUpdateChannelIntent(app.getPath('userData'), (channel) =>
@@ -183,8 +212,11 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             userDataDirectory: app.getPath('userData'),
             appVersion: app.getVersion(),
           })
+          await shellEnvironment
+          startupMark('host-shell-environment-installed')
           const host = await startAppSessionHost({
             paths,
+            startupMark,
             externalOwnership: ownership,
             runEffect: runtime.runAppEffect,
             startOwnedServices: async () => {

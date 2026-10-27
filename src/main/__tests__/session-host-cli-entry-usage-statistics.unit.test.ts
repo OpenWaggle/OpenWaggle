@@ -32,12 +32,13 @@ vi.mock('electron', () => ({
     getVersion: () => '1.2.0',
     whenReady: async () => undefined,
     setActivationPolicy: () => undefined,
+    disableHardwareAcceleration: vi.fn(),
     on: () => undefined,
     off: () => undefined,
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
-vi.mock('../env', () => ({ env: {} }))
+vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: async () => null,
 }))

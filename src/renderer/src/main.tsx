@@ -5,9 +5,12 @@ import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'
 import { App } from './App'
 import { startInitialRouteLoad } from './router'
 import './shared/lib/appearance'
+import { restoreCachedAppearancePreferences } from './shared/lib/appearance-preferences-runtime'
 import './styles/globals.css'
 import { startWindowErrorReporting } from './window-error-reporting'
 
+// The startup skeleton paints in the last appearance before the Session Host answers.
+restoreCachedAppearancePreferences()
 // Fetch the launch route's chunks while the settings read is in flight (renderer-load B1).
 void startInitialRouteLoad()
 

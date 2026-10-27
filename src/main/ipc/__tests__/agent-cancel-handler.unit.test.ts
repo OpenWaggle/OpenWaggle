@@ -10,10 +10,17 @@ const { typedHandleMock, emitRunCompletedMock, getStreamBufferMock, cancelAllSes
     cancelAllSessionRunsMock: vi.fn(),
   }))
 
-vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock, typedHandle: typedHandleMock }))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return { hostHandle: withLegacyHostOperation(typedHandleMock), typedHandle: typedHandleMock }
+})
 vi.mock('../../agent/session-cleanup', () => ({ cleanupSessionRun: vi.fn() }))
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: vi.fn(),
+}))
+vi.mock('../../application/gui-session-command', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../application/gui-session-command')>()),
+  dispatchGuiSessionCommand: vi.fn(),
 }))
 vi.mock('../../application/agent-session-service', () => ({ getAgentContextUsage: vi.fn() }))
 vi.mock('../../utils/broadcast', () => ({ broadcastToWindows: vi.fn() }))

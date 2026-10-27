@@ -4,7 +4,12 @@ import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
 } from './local-session-paths'
-import { runSessionHostCutover, sessionHostTargetExists } from './session-host-cutover'
+import type * as SessionHostCutover from './session-host-cutover'
+import { sessionHostTargetExists } from './session-host-cutover-presence'
+
+/** Loaded only when a legacy store may need moving: the cutover opens SQLite (A-F5). */
+const importSessionHostCutover = (): Promise<typeof SessionHostCutover> =>
+  import('./session-host-cutover')
 
 /**
  * The desktop process is always a Session Host client. Keeping canonical Host
@@ -27,6 +32,7 @@ export async function prepareGuiSessionHostStartup(input: {
     recoveryDatabasePath: paths.recoveryDatabasePath,
   }
   if (!(await sessionHostTargetExists(cutoverPaths))) {
+    const { runSessionHostCutover } = await importSessionHostCutover()
     await withLegacySessionWriterFence(() => runSessionHostCutover(cutoverPaths))
     input.startupMark('session-host-cutover-ready')
   }

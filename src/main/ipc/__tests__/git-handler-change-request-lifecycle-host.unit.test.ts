@@ -44,7 +44,7 @@ describe('change request lifecycle through the Session Host', () => {
       method: 'squash',
     })
 
-    expect(result).toMatchObject({ value: merged })
+    expect(result).toMatchObject(merged)
     expect(
       lifecycleMocks.invokeConfiguredHostUi.mock.calls.map((call: unknown[]) => call[0]),
     ).toEqual(['git:change-request:merge-candidate', 'git:change-request:merge-confirmed'])

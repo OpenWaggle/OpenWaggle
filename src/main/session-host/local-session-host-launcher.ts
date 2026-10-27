@@ -3,6 +3,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
+import { STARTUP_TIMINGS_ENVIRONMENT_VARIABLE, startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
 import {
@@ -10,13 +11,12 @@ import {
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
 import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
+import { HOST_POLL_INTERVAL_MS, waitForCondition } from './local-session-host-polling'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
-import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
-const HOST_POLL_INTERVAL_MS = 50
 const CONNECT_PROBE_TIMEOUT_MS = 250
 
 export function sessionHostLaunchArguments(input: {
@@ -86,11 +86,14 @@ export function sessionHostChildEnvironment(input: {
   readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
   readonly userDataRoot: string
   readonly logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  /** The launching GUI measures its startup, so the Host marks its own too. */
+  readonly startupTimings?: boolean
 }) {
   return {
     ...(input.safeEnvironment ?? getSessionHostChildEnv()),
     OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
     ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
+    ...(input.startupTimings ? { [STARTUP_TIMINGS_ENVIRONMENT_VARIABLE]: '1' } : {}),
   }
 }
 
@@ -149,10 +152,12 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
   canConnect,
   probe: probeLocalSessionHost,
   tryAcquireOwnership: async (databasePath) => {
+    // Its SQLite lock loads only when no Host answers, never on the window's entry graph.
+    const ownership = await import('./session-host-ownership')
     try {
-      return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+      return await ownership.acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     } catch (error) {
-      if (isSessionHostOwnershipHeld(error)) return null
+      if (ownership.isSessionHostOwnershipHeld(error)) return null
       throw error
     }
   },
@@ -162,6 +167,7 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       environment: sessionHostChildEnvironment({
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
+        startupTimings: startupTimingsRequested(),
       }),
     }),
   now: Date.now,
@@ -179,24 +185,6 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       signal?.addEventListener('abort', abort, { once: true })
     }),
   refreshPaths: refreshLocalSessionHostEndpoint,
-}
-
-async function waitForCondition(input: {
-  readonly timeoutMs: number
-  readonly condition: () => Promise<boolean>
-  readonly dependencies: LocalSessionHostLauncherDependencies
-  readonly signal?: AbortSignal
-}) {
-  input.signal?.throwIfAborted()
-  const deadline = input.dependencies.now() + input.timeoutMs
-  while (input.dependencies.now() < deadline) {
-    if (await awaitWithSignal(input.condition(), input.signal)) return true
-    await awaitWithSignal(
-      input.dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal),
-      input.signal,
-    )
-  }
-  return awaitWithSignal(input.condition(), input.signal)
 }
 
 export async function waitForLocalSessionHostRelease(
@@ -246,7 +234,7 @@ async function waitForCompatibleHost(
 }
 
 async function waitForLocalSessionHostAuthority(
-  input: LocalSessionClientConnectionInput,
+  input: LocalSessionClientConnectionInput & { readonly onUpgradePending?: () => void },
   timeoutMs: number,
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
@@ -265,6 +253,7 @@ async function waitForLocalSessionHostAuthority(
         }
       } catch (error) {
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
+        if (!upgradePendingError) input.onUpgradePending?.()
         upgradePendingError = error
       }
       // An older executable may use a different ownership mechanism. Its authenticated listener
@@ -292,7 +281,13 @@ async function waitForLocalSessionHostAuthority(
 const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
 
 export async function ensureLocalSessionHost(
-  input: LocalSessionClientConnectionInput & { readonly takeoverTimeoutMs?: number },
+  input: LocalSessionClientConnectionInput & {
+    readonly takeoverTimeoutMs?: number
+    /** Called once when the running Host is handing over to an update and this call waits. */
+    readonly onUpgradePending?: () => void
+    /** Called once this call has launched a Host process, before it waits for it to listen. */
+    readonly onLaunched?: () => void
+  },
   dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
 ) {
   const takeoverTimeoutMs = input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS
@@ -301,6 +296,7 @@ export async function ensureLocalSessionHost(
 
   await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
     await dependencies.launch()
+    input.onLaunched?.()
     signal.throwIfAborted()
     await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
   })

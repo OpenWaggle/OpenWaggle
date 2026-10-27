@@ -10,12 +10,16 @@ const { typedHandleMock, listDocsMock, resolveTopicMock } = vi.hoisted(() => ({
   resolveTopicMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 import { registerDocsHandlers } from '../docs-handler'
+import { setLegacyHostOperationDependencies } from './legacy-host-operations'
 
 function getRegisteredHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
@@ -48,7 +52,8 @@ describe('registerDocsHandlers', () => {
   it('registers docs:discover and normalizes existing project paths', async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-docs-ipc-'))
     const realProjectPath = await fs.realpath(projectPath)
-    registerDocsHandlers({ listDocs: listDocsMock, resolveTopic: resolveTopicMock })
+    setLegacyHostOperationDependencies({ listDocs: listDocsMock })
+    registerDocsHandlers({ resolveTopic: resolveTopicMock })
     const handler = getRegisteredHandler('docs:discover')
 
     try {
@@ -64,7 +69,8 @@ describe('registerDocsHandlers', () => {
   })
 
   it('rejects invalid docs:discover project paths instead of dropping them', async () => {
-    registerDocsHandlers({ listDocs: listDocsMock, resolveTopic: resolveTopicMock })
+    setLegacyHostOperationDependencies({ listDocs: listDocsMock })
+    registerDocsHandlers({ resolveTopic: resolveTopicMock })
     const handler = getRegisteredHandler('docs:discover')
 
     await expect(
@@ -74,7 +80,8 @@ describe('registerDocsHandlers', () => {
   })
 
   it('rejects blank docs:discover project paths instead of dropping them', async () => {
-    registerDocsHandlers({ listDocs: listDocsMock, resolveTopic: resolveTopicMock })
+    setLegacyHostOperationDependencies({ listDocs: listDocsMock })
+    registerDocsHandlers({ resolveTopic: resolveTopicMock })
     const handler = getRegisteredHandler('docs:discover')
 
     await expect(handler?.({}, { projectPaths: ['   '] })).rejects.toThrow(
@@ -84,7 +91,8 @@ describe('registerDocsHandlers', () => {
   })
 
   it('rejects extension topics on docs:resolve-topic', async () => {
-    registerDocsHandlers({ listDocs: listDocsMock, resolveTopic: resolveTopicMock })
+    setLegacyHostOperationDependencies({ listDocs: listDocsMock })
+    registerDocsHandlers({ resolveTopic: resolveTopicMock })
     const handler = getRegisteredHandler('docs:resolve-topic')
 
     await expect(

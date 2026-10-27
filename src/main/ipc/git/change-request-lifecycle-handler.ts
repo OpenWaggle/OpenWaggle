@@ -7,17 +7,10 @@ import type {
   MergeChangeRequestPayload,
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { GuiSessionCommandNotAttachedError } from '../../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../../application/gui-session-command-router'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
-import {
-  mergeConfirmedSessionChangeRequest,
-  sessionChangeRequestMergeCandidate,
-} from '../../services/source-control/session-change-request-merge'
-import { loadSessionChangeRequestPanel } from '../../services/source-control/session-change-requests'
-import {
-  decodeSessionMergeArguments,
-  decodeSessionRequestArguments,
-} from '../../services/source-control/session-request-arguments'
+import { decodeSessionMergeArguments } from '../../services/source-control/session-request-arguments'
 import { hostHandle, RelayedHostResult, relayingHandle } from '../typed-ipc'
 
 const candidateResultSchema = Schema.Union(
@@ -94,9 +87,11 @@ function mergeEffect(
         payload,
       ]),
     )
-    const candidate: ChangeRequestMergeCandidateResult = remoteCandidate.handled
-      ? decodeUnknownOrThrow(candidateResultSchema, remoteCandidate.result)
-      : yield* sessionChangeRequestMergeCandidate(sessionId, workingPath, payload)
+    if (!remoteCandidate.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+    const candidate: ChangeRequestMergeCandidateResult = decodeUnknownOrThrow(
+      candidateResultSchema,
+      remoteCandidate.result,
+    )
     if (!candidate.ok) return candidate
     const confirmed = yield* Effect.promise(() =>
       askMergeConfirmation(event, candidate.candidate, payload),
@@ -109,20 +104,13 @@ function mergeEffect(
         payload,
       ]),
     )
-    if (remoteMerge.handled) return new RelayedHostResult(remoteMerge.result)
-    return yield* mergeConfirmedSessionChangeRequest(sessionId, workingPath, payload)
+    if (!remoteMerge.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+    return new RelayedHostResult(remoteMerge.result)
   })
 }
 
 export function registerGitChangeRequestLifecycleHandlers(): void {
-  hostHandle('git:change-request:panel', (_event, rawSessionId, rawPath, rawUrl) => {
-    const { sessionId, workingPath, requestUrl } = decodeSessionRequestArguments(
-      rawSessionId,
-      rawPath,
-      rawUrl,
-    )
-    return loadSessionChangeRequestPanel(sessionId, workingPath, requestUrl)
-  })
+  hostHandle('git:change-request:panel')
   relayingHandle('git:change-request:merge', (event, sessionId, path, payload) =>
     mergeEffect(event, sessionId, path, payload),
   )

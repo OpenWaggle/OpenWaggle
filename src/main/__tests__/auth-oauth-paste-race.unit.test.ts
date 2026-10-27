@@ -56,6 +56,39 @@ vi.mock('../runtime', () => ({
       ),
     ),
 }))
+vi.mock('../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, ProviderOAuthService>) =>
+    Effect.runPromise(
+      Effect.provide(
+        effect,
+        Layer.succeed(
+          ProviderOAuthService,
+          ProviderOAuthService.of({
+            listProviders: () => Effect.succeed(['openai-codex']),
+            // A browser sign-in that also offers to paste the code; the browser callback wins.
+            login: (_provider, handlers) =>
+              Effect.promise(async () => {
+                handlers.onAuthUrl(AUTH_URL, 'Open the link, or paste the code it shows.')
+                flow.pasted = handlers.onManualCodeInput(
+                  { message: 'Paste the authorization code' },
+                  flow.pastePrompt.signal,
+                )
+                void flow.pasted.catch(() => undefined)
+                await flow.browserFinished.promise
+              }),
+            logout: () => Effect.void,
+            isConnected: () => Effect.succeed(false),
+            getAccountInfo: (provider) =>
+              Effect.succeed({
+                provider,
+                connected: false,
+                label: 'Not connected',
+              }),
+          }),
+        ),
+      ),
+    ),
+}))
 
 describe('a sign-in whose browser callback wins over the paste field', () => {
   it('stops asking for a code and shows the sign-in as in progress', async () => {

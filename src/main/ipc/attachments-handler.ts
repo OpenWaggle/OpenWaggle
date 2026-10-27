@@ -7,7 +7,7 @@ import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { createLogger } from '../logger'
 import {
   configurePreparedAttachmentRegistry,
@@ -56,7 +56,7 @@ function prepareAttachmentsThroughHost(
   entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
 ) {
   return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchGuiSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: baseDirectory },
       payload: {
         contract: 'local-attachments-v1',

@@ -11,14 +11,16 @@ const {
 } = vi.hoisted(() => ({
   releaseSessionHostForUpdateMock: vi.fn(async () => 'stopped'),
   configureGuiSessionCommandClientMock: vi.fn(),
-  ensureLocalSessionHostMock: vi.fn(async () => undefined),
+  ensureLocalSessionHostMock: vi.fn(
+    async (_input: { readonly onLaunched?: () => void }): Promise<void> => undefined,
+  ),
   prepareLocalSessionHostPathsMock: vi.fn(async (paths: object) => paths),
   probeLocalSessionHostMock: vi.fn(async () => undefined),
   startRemoteSessionHostRendererBridgeMock: vi.fn(),
   stopRendererBridgeMock: vi.fn(),
 }))
 
-vi.mock('../../application/local-session-command-dispatcher', () => ({
+vi.mock('../../application/gui-session-command-router', () => ({
   configureGuiSessionCommandClient: configureGuiSessionCommandClientMock,
 }))
 vi.mock('../local-session-client', () => ({
@@ -147,5 +149,63 @@ describe('GUI Session Host lifecycle', () => {
 
     expect(ensureLocalSessionHostMock).toHaveBeenCalledOnce()
     await lifecycle.stop()
+  })
+
+  it('says the Host is underway when it attaches to a running one', async () => {
+    const onHostUnderway = vi.fn()
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+      onHostUnderway,
+    })
+
+    await lifecycle.start()
+
+    expect(onHostUnderway).toHaveBeenCalledOnce()
+    await lifecycle.stop()
+  })
+
+  it('launches with the start signal and says the Host is underway once launched (A-F1)', async () => {
+    const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
+    probeLocalSessionHostMock.mockRejectedValueOnce(unavailable).mockResolvedValue(undefined)
+    const onHostUnderway = vi.fn()
+    const startupMark = vi.fn()
+    ensureLocalSessionHostMock.mockImplementationOnce(
+      async (input: { readonly onLaunched?: () => void }) => {
+        input.onLaunched?.()
+      },
+    )
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark,
+      onHostUnderway,
+    })
+    const controller = new AbortController()
+
+    await lifecycle.start(controller.signal)
+
+    expect(ensureLocalSessionHostMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    )
+    expect(startupMark).toHaveBeenCalledWith('session-host-launched')
+    expect(onHostUnderway).toHaveBeenCalled()
+    await lifecycle.stop()
+  })
+
+  it('does not launch a Host for a start that was already aborted', async () => {
+    const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
+    probeLocalSessionHostMock.mockRejectedValue(unavailable)
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    const controller = new AbortController()
+    controller.abort(new Error('retried'))
+
+    await expect(lifecycle.start(controller.signal)).rejects.toThrow('retried')
+    expect(ensureLocalSessionHostMock).not.toHaveBeenCalled()
   })
 })

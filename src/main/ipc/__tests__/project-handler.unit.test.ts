@@ -19,10 +19,13 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 import { requestOpenProject } from '../../open-project-requests'
 import { requestOpenSessionLink } from '../../session-link-requests'

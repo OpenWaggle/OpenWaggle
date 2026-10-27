@@ -1,11 +1,5 @@
 import * as Effect from 'effect/Effect'
 import type { OpenDialogOptions } from 'electron'
-import {
-  getAgentDefinitionPreviewOperation,
-  listAgentDefinitionDisplayOperation,
-  setAgentDefinitionEnabledOperation,
-} from '../application/agent-definition-display-operations'
-import { manageHostUiAgentDefinitions } from '../application/host-ui-agent-definition-operation'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
 import {
   forgetAgentDefinitionImportSources,
@@ -15,15 +9,9 @@ import {
 import { hostHandle, typedHandle } from './typed-ipc'
 
 export function registerAgentDefinitionsHandlers() {
-  hostHandle('agent-definitions:list-display', (_event, projectPath) =>
-    listAgentDefinitionDisplayOperation(projectPath),
-  )
-  hostHandle('agent-definitions:get-preview', (_event, projectPath, name) =>
-    getAgentDefinitionPreviewOperation(projectPath, name),
-  )
-  hostHandle('agent-definitions:set-enabled', (_event, projectPath, name, enabled) =>
-    setAgentDefinitionEnabledOperation(projectPath, name, enabled),
-  )
+  hostHandle('agent-definitions:list-display')
+  hostHandle('agent-definitions:get-preview')
+  hostHandle('agent-definitions:set-enabled')
   typedHandle('agent-definitions:select-source', (event) =>
     Effect.gen(function* () {
       const owner = browserWindowFromWebContents(event.sender)
@@ -45,16 +33,12 @@ export function registerAgentDefinitionsHandlers() {
       return selected
     }),
   )
-  hostHandle(
-    'agent-definitions:manage',
-    (event, command) => manageHostUiAgentDefinitions({ senderId: event.sender.id, command }),
-    {
-      prepareRemoteArgs: (event, command) => [
-        {
-          command,
-          selectedSourcePaths: listAgentDefinitionImportSources(event.sender.id),
-        },
-      ],
-    },
-  )
+  hostHandle('agent-definitions:manage', {
+    prepareRemoteArgs: (event, command) => [
+      {
+        command,
+        selectedSourcePaths: listAgentDefinitionImportSources(event.sender.id),
+      },
+    ],
+  })
 }
