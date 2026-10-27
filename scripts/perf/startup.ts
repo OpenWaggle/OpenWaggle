@@ -42,6 +42,8 @@ const { values } = parseArgs({
     mode: { type: 'string', default: 'cold' },
     template: { type: 'string' },
     'session-list-text': { type: 'string' },
+    /** `none` opens raw copies of the template; a build label makes every build use that build's warm copy. */
+    'warmed-by': { type: 'string' },
     'timeout-ms': { type: 'string' },
     'warm-host-idle-ms': { type: 'string' },
     out: { type: 'string' },
@@ -103,11 +105,21 @@ async function measureOnce(
   })
 }
 
-/** Each build first opens its own copy of the generated profile once, as an upgrade would. */
+/**
+ * Each build first opens its own copy of the generated profile once, as an upgrade would.
+ * `--warmed-by none` measures first opens of the raw template instead, and `--warmed-by <label>`
+ * gives every build the copy that build warmed (a profile only one build can warm in time).
+ */
 async function prepareTemplates(apps: readonly PerfApp[], mode: string) {
   const templates = new Map<string, string>()
   if (!values.template || mode === 'version') return templates
-  for (const app of apps) templates.set(app.label, await warmTemplateFor(app, path.resolve(values.template)))
+  const template = path.resolve(values.template)
+  const warmedBy = values['warmed-by']
+  const warmer = apps.find((app) => app.label === warmedBy)
+  for (const app of apps) {
+    if (warmedBy === 'none') templates.set(app.label, template)
+    else templates.set(app.label, await warmTemplateFor(warmer ?? app, template))
+  }
   return templates
 }
 
