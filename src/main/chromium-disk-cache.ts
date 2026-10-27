@@ -106,8 +106,6 @@ export async function trimChromiumCachesIfOversized(
   }
 }
 
-const watchedSessions = new WeakSet<ChromiumCacheSession>()
-
 async function trimAndLog(session: ChromiumCacheSession) {
   try {
     const result = await trimChromiumCachesIfOversized(session)
@@ -122,10 +120,29 @@ async function trimAndLog(session: ChromiumCacheSession) {
   }
 }
 
+const lastCheckedAt = new WeakMap<ChromiumCacheSession, number>()
+
 /**
- * Keep a session's caches bounded for as long as this process runs: a first check shortly after
- * it is first used, then one every few hours. Idempotent per session; the timers never keep the
- * process alive.
+ * Check a session's caches each time it is used, at most once per interval. For the browser
+ * preview: every preview it opens is a use. Runs in the background and starts no timer.
+ */
+export function checkChromiumCacheSizeOnUse(
+  session: ChromiumCacheSession,
+  now: number = Date.now(),
+  intervalMs: number = CACHE_CHECK_INTERVAL_MS,
+): Promise<void> | undefined {
+  const previous = lastCheckedAt.get(session)
+  if (previous !== undefined && now - previous < intervalMs) return undefined
+  lastCheckedAt.set(session, now)
+  return trimAndLog(session)
+}
+
+const watchedSessions = new WeakSet<ChromiumCacheSession>()
+
+/**
+ * Keep a long-lived session's caches bounded for as long as this process runs: a first check
+ * shortly after startup, then one every few hours. Idempotent per session; the timers never keep
+ * the process alive.
  */
 export function watchChromiumCacheSize(
   session: ChromiumCacheSession,

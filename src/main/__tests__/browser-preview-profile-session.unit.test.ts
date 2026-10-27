@@ -13,6 +13,10 @@ function fakeSession() {
   const events = new EventEmitter()
   const browserSession = fromPartial<Session>({
     clearCache: vi.fn(async () => undefined),
+    clearCodeCaches: vi.fn(async () => undefined),
+    getCacheSize: vi.fn(async () => 0),
+    isPersistent: () => true,
+    storagePath: '/profile/Partitions/openwaggle-browser-preview',
     clearStorageData: vi.fn(async () => undefined),
     getUserAgent: vi.fn(() => 'Mozilla Electron/43.2.0 OpenWaggle/0.3.0'),
     on: events.on.bind(events),
@@ -74,5 +78,14 @@ describe('browser preview profile sessions', () => {
     expect(fromPartition).toHaveBeenCalledExactlyOnceWith(browserPreviewPartition('work'))
     expect(browserSession.clearStorageData).toHaveBeenCalledWith()
     expect(browserSession.clearCache).toHaveBeenCalledOnce()
+  })
+
+  it('checks the partition caches when a preview uses it, clearing one over its bound', async () => {
+    const { browserSession } = fakeSession()
+    vi.mocked(browserSession.getCacheSize).mockResolvedValue(900_000_000)
+    browserPreviewSessionForProfile('cache-check', { fromPartition: () => browserSession })
+
+    await vi.waitFor(() => expect(browserSession.clearCache).toHaveBeenCalledOnce())
+    expect(browserSession.getCacheSize).toHaveBeenCalledOnce()
   })
 })

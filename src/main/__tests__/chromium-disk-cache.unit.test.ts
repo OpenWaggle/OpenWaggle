@@ -6,6 +6,7 @@ import {
   CHROMIUM_CODE_CACHE_MAX_BYTES,
   CHROMIUM_HTTP_CACHE_MAX_BYTES,
   type ChromiumCacheSession,
+  checkChromiumCacheSizeOnUse,
   directorySizeBytes,
   limitChromiumHttpDiskCache,
   oversizedChromiumCaches,
@@ -148,5 +149,20 @@ describe('watchChromiumCacheSize', () => {
     expect(session.getCacheSize).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(10_000)
     expect(session.getCacheSize).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('checkChromiumCacheSizeOnUse', () => {
+  it('checks on first use, then at most once per interval, without a timer', async () => {
+    vi.useFakeTimers()
+    const session = fakeSession({ httpCacheBytes: 900_000_000 })
+
+    await checkChromiumCacheSizeOnUse(session, 0, 10_000)
+    expect(checkChromiumCacheSizeOnUse(session, 9_999, 10_000)).toBeUndefined()
+    await checkChromiumCacheSizeOnUse(session, 10_000, 10_000)
+
+    expect(session.getCacheSize).toHaveBeenCalledTimes(2)
+    expect(session.clearCache).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
