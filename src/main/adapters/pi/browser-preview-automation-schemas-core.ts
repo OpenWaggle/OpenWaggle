@@ -24,6 +24,27 @@ export const previewTabTargetParameters = Type.Object({
   ),
 })
 
+/** Optional parts of a page snapshot; visible text, elements, and the screenshot are always sent. */
+export const BROWSER_PREVIEW_SNAPSHOT_PARTS = [
+  'accessibility',
+  'console',
+  'network',
+  'actions',
+] as const
+
+export const previewSnapshotParameters = Type.Object({
+  ...previewTabTargetParameters.properties,
+  include: Type.Optional(
+    Type.Array(Type.Enum(BROWSER_PREVIEW_SNAPSHOT_PARTS), {
+      uniqueItems: true,
+      description:
+        'Also send the accessibility tree, console entries, network entries, or action history.',
+    }),
+  ),
+})
+
+export type BrowserPreviewSnapshotPart = (typeof BROWSER_PREVIEW_SNAPSHOT_PARTS)[number]
+
 const url = Type.String({
   minLength: 1,
   maxLength: BROWSER_PREVIEW_LIMITS.URL_LENGTH,
@@ -52,7 +73,7 @@ const timeout = Type.Optional(
 const environmentPortTarget = Type.Object({
   kind: Type.Literal('environment-port'),
   port: Type.Integer({ minimum: 1, maximum: MAX_TCP_PORT }),
-  protocol: Type.Optional(Type.Union([Type.Literal('http'), Type.Literal('https')])),
+  protocol: Type.Optional(Type.Enum(['http', 'https'])),
   path: Type.Optional(Type.String({ maxLength: BROWSER_PREVIEW_LIMITS.URL_LENGTH })),
 })
 
@@ -62,9 +83,7 @@ export const previewNavigateParameters = Type.Object({
   target: Type.Optional(
     Type.Union([Type.Object({ kind: Type.Literal('url'), url }), environmentPortTarget]),
   ),
-  readiness: Type.Optional(
-    Type.Union([Type.Literal('load'), Type.Literal('domContentLoaded'), Type.Literal('none')]),
-  ),
+  readiness: Type.Optional(Type.Enum(['load', 'domContentLoaded', 'none'])),
   timeoutMs: timeout,
 })
 
@@ -76,36 +95,33 @@ function viewportDimension(description: string) {
   })
 }
 
-const preset = Type.Union(
+const preset = Type.Enum(
   [
-    Type.Literal('iphone-se'),
-    Type.Literal('iphone-xr'),
-    Type.Literal('iphone-12-pro'),
-    Type.Literal('iphone-14-pro-max'),
-    Type.Literal('pixel-7'),
-    Type.Literal('samsung-galaxy-s8-plus'),
-    Type.Literal('samsung-galaxy-s20-ultra'),
-    Type.Literal('ipad-mini'),
-    Type.Literal('ipad-air'),
-    Type.Literal('ipad-pro'),
-    Type.Literal('surface-pro-7'),
-    Type.Literal('surface-duo'),
-    Type.Literal('galaxy-z-fold-5'),
-    Type.Literal('asus-zenbook-fold'),
-    Type.Literal('samsung-galaxy-a51-71'),
-    Type.Literal('nest-hub'),
-    Type.Literal('nest-hub-max'),
+    'iphone-se',
+    'iphone-xr',
+    'iphone-12-pro',
+    'iphone-14-pro-max',
+    'pixel-7',
+    'samsung-galaxy-s8-plus',
+    'samsung-galaxy-s20-ultra',
+    'ipad-mini',
+    'ipad-air',
+    'ipad-pro',
+    'surface-pro-7',
+    'surface-duo',
+    'galaxy-z-fold-5',
+    'asus-zenbook-fold',
+    'samsung-galaxy-a51-71',
+    'nest-hub',
+    'nest-hub-max',
   ],
   { description: 'Required when mode is preset.' },
 )
 
-const resizeMode = Type.Union(
-  [Type.Literal('fill'), Type.Literal('freeform'), Type.Literal('preset')],
-  {
-    description:
-      'fill sizes the viewport to the panel; freeform uses width and height; preset uses a named device.',
-  },
-)
+const resizeMode = Type.Enum(['fill', 'freeform', 'preset'], {
+  description:
+    'fill sizes the viewport to the panel; freeform uses width and height; preset uses a named device.',
+})
 
 /*
  * One object with `mode` as the discriminator, not a root union of the three modes: Bedrock rejects
@@ -120,7 +136,7 @@ export const previewResizeParameters = Type.Object(
     height: Type.Optional(viewportDimension('Required when mode is freeform.')),
     preset: Type.Optional(preset),
     orientation: Type.Optional(
-      Type.Union([Type.Literal('portrait'), Type.Literal('landscape')], {
+      Type.Enum(['portrait', 'landscape'], {
         description: 'Only used when mode is preset.',
       }),
     ),
@@ -166,5 +182,5 @@ export function browserPreviewResizeInput(
 
 export const previewAppearanceParameters = Type.Object({
   ...previewTabTargetParameters.properties,
-  colorScheme: Type.Union([Type.Literal('system'), Type.Literal('light'), Type.Literal('dark')]),
+  colorScheme: Type.Enum(['system', 'light', 'dark']),
 })

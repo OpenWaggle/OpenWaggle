@@ -30,8 +30,13 @@ vi.mock('../../application/gui-session-command-router', () => ({
 vi.mock('../../application/host-ui-agent-operation', () => ({
   listHostUiActiveActivities: () => Effect.succeed([]),
 }))
-vi.mock('../../application/session-run-interruption', () => ({
-  interruptSessionRun: () => Effect.void,
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
+}))
+vi.mock('../../application/session-run-interruption-command', () => ({
+  interruptSessionRunThrough: () => Promise.resolve(),
 }))
 vi.mock('../../desktop-ui', () => ({
   getAllBrowserWindows: () => [],

@@ -15,6 +15,7 @@ import {
   searchDocsToolTopics,
   sortDocsToolTopics,
 } from './openwaggle-docs-tool-topics'
+import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
 
 const logger = createLogger('openwaggle-docs-tool')
 
@@ -42,13 +43,10 @@ interface OpenWaggleDocsToolInput {
   readonly bundlePath: string | null
 }
 
-const source = Type.Union(
-  [Type.Literal('openwaggle'), Type.Literal('pi'), Type.Literal('extension')],
-  {
-    description:
-      'Only topics from this source: "openwaggle" (the OpenWaggle app), "pi" (the Pi runtime OpenWaggle runs on), or "extension" (installed OpenWaggle extensions).',
-  },
-)
+const source = Type.Enum(['openwaggle', 'pi', 'extension'], {
+  description:
+    'Only topics from this source: "openwaggle" (the OpenWaggle app), "pi" (the Pi runtime OpenWaggle runs on), or "extension" (installed OpenWaggle extensions).',
+})
 const query = Type.String({
   minLength: 1,
   maxLength: MAX_QUERY_LENGTH,
@@ -82,8 +80,8 @@ type OpenWaggleDocsToolParameters = Static<(typeof parameterVariants)[number]>
 const parameters = Type.Unsafe<OpenWaggleDocsToolParameters>({
   type: 'object',
   properties: {
-    action: Type.Union(
-      parameterVariants.map((variant) => variant.properties.action),
+    action: Type.Enum(
+      parameterVariants.map((variant) => variant.properties.action.const),
       {
         description:
           '"list" shows every topic, "search" finds topics for a question, "read" returns one topic\'s Markdown.',
@@ -238,30 +236,35 @@ function execute(input: OpenWaggleDocsToolInput, params: unknown): Promise<DocsT
     .exhaustive()
 }
 
-/** The rules this tool adds to the system prompt; the bundle root is named only when it loads. */
-export function openWaggleDocsPromptGuidelines(bundlePath: string | null) {
-  return [
-    `For questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the hive CLI), use ${OPENWAGGLE_DOCS_TOOL_NAME} search or list, then read the topic, instead of guessing from memory or file paths.`,
-    ...(bundlePath
-      ? [
-          `The installed OpenWaggle docs bundle is ${JSON.stringify(bundlePath)}: ${BUNDLE_README} and ${BUNDLE_INDEX} at its root, Markdown under topics/. Its topics/pi/ holds the Pi docs as plain files: paths inside app.asar open with the read and ls tools, not from shell commands, find, or grep.`,
-        ]
-      : []),
-  ]
+const DESCRIPTION =
+  'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs of the OpenWaggle extensions this Session loads (written by each extension\'s author). "list" returns every topic id with its title and description, "search" ranks topics for a question, OpenWaggle topics first, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".'
+
+/**
+ * The tool's description: what it reads, and where the installed bundle is when it loads, which
+ * the model only needs once it uses the tool.
+ */
+export function openWaggleDocsToolDescription(bundlePath: string | null) {
+  if (!bundlePath) return DESCRIPTION
+  return `${DESCRIPTION} The installed bundle is ${JSON.stringify(bundlePath)}: ${BUNDLE_README} and ${BUNDLE_INDEX} at its root, Markdown under topics/. Its topics/pi/ holds the Pi docs as plain files: paths inside app.asar open with the read and ls tools, not from shell commands, find, or grep.`
 }
+
+/**
+ * Replaces Pi's `<docs>` section, which names Pi's README, docs, and examples on disk (about 600
+ * tokens on every request), with where the docs are: this on-demand tool, which also has Pi's own
+ * docs as its `pi` source.
+ */
+const PI_DOCS_PROMPT_SECTION = 'docs'
+
+export const OPENWAGGLE_DOCS_PROMPT_SECTION = `OpenWaggle and Pi documentation: ${OPENWAGGLE_DOCS_TOOL_NAME} (load it with tool_search or call it from codemode) searches and reads the installed docs. Use it for questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the hive CLI) and about pi itself (its SDK, extensions, themes, skills, TUI; source pi), instead of guessing from memory or file paths.`
 
 export function createOpenWaggleDocsToolExtension(
   input: OpenWaggleDocsToolInput,
 ): ExtensionFactory {
   return (pi) => {
-    pi.registerTool({
+    onDemandToolRegistration(pi).registerTool({
       name: OPENWAGGLE_DOCS_TOOL_NAME,
       label: 'OpenWaggle Docs',
-      description:
-        'Look up the OpenWaggle documentation installed with this app: OpenWaggle product docs, the Pi runtime docs, and docs of the OpenWaggle extensions this Session loads (written by each extension\'s author). "list" returns every topic id with its title and description, "search" ranks topics for a question, OpenWaggle topics first, and "read" returns one topic\'s Markdown, paged like the read tool. Topic ids look like "openwaggle:using-openwaggle/hives-and-sessions" or "pi:extensions".',
-      promptSnippet:
-        'Look up OpenWaggle and Pi documentation by topic when asked how OpenWaggle works.',
-      promptGuidelines: openWaggleDocsPromptGuidelines(input.bundlePath),
+      description: openWaggleDocsToolDescription(input.bundlePath),
       parameters,
       executionMode: 'parallel',
       async execute(_toolCallId, params, signal) {
@@ -279,6 +282,9 @@ export function createOpenWaggleDocsToolExtension(
           }
         }
       },
+    })
+    announceOnDemandTools(pi, {
+      section: { name: PI_DOCS_PROMPT_SECTION, text: OPENWAGGLE_DOCS_PROMPT_SECTION },
     })
   }
 }

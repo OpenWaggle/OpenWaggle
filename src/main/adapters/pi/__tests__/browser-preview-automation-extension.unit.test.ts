@@ -53,6 +53,7 @@ async function registeredTools() {
   await factory(
     fromPartial<ExtensionAPI>({
       registerTool: (tool: ToolDefinition) => tools.set(tool.name, tool),
+      on: () => undefined,
     }),
   )
   return tools
@@ -102,8 +103,21 @@ describe('Pi browser preview automation extension', () => {
 
     expect(disabled).toEqual({ trustedExtensionFactories: [], systemPromptAppendices: [] })
     expect(enabled.trustedExtensionFactories).toHaveLength(1)
-    expect(enabled.systemPromptAppendices[0]).toContain('Start with preview_status')
-    expect(enabled.systemPromptAppendices[0]).toContain('Do not switch to a global Playwright')
+    // The preview tools announce themselves with one rule instead of an appendix on every request.
+    expect(enabled.systemPromptAppendices).toEqual([])
+  })
+
+  it('registers every preview tool on demand, with the usage guidance on preview_status', async () => {
+    const tools = await registeredTools()
+
+    for (const tool of tools.values()) {
+      expect(tool).toMatchObject({ exposure: 'deferred', namespace: { name: 'openwaggle' } })
+      expect(tool.promptSnippet).toBeUndefined()
+    }
+    expect(tools.get('preview_status')?.description).toContain('preview_open')
+    expect(tools.get('preview_status')?.description).toContain(
+      'instead of switching to another browser integration',
+    )
   })
 
   it('reports status without requesting page-control authority', async () => {
@@ -156,6 +170,28 @@ describe('Pi browser preview automation extension', () => {
     ])
   })
 
+  it('answers a snapshot without an image when the page painted no frame', async () => {
+    vi.mocked(service.snapshot).mockReturnValueOnce(
+      Effect.succeed({ ...snapshot, screenshot: null, screenshotUnavailable: 'hidden window' }),
+    )
+    const tools = await registeredTools()
+    const result = await tools.get('preview_snapshot')?.execute(
+      'snapshot-2',
+      { include: ['console'] },
+      undefined,
+      undefined,
+      context(async () => true),
+    )
+
+    expect(service.snapshot).toHaveBeenCalledWith(
+      { sessionId: SessionId('session-1'), workingPath: '/project' },
+      {},
+    )
+    expect(result?.content).toEqual([
+      { type: 'text', text: expect.stringContaining('"screenshotUnavailable":"hidden window"') },
+    ])
+  })
+
   it('forwards navigation targets through the session-scoped service', async () => {
     const tools = await registeredTools()
     await tools.get('preview_navigate')?.execute(
@@ -182,7 +218,7 @@ describe('Pi browser preview automation extension', () => {
       type: 'object',
       required: ['mode'],
       properties: {
-        mode: { anyOf: [{ const: 'fill' }, { const: 'freeform' }, { const: 'preset' }] },
+        mode: { enum: ['fill', 'freeform', 'preset'] },
       },
     })
     await expect(

@@ -7,6 +7,8 @@ import {
   type McpImportNameConflictPolicy,
   type McpImportSourceId,
 } from '@shared/types/mcp-configuration-operations'
+import { mcpCliExposureOption } from './mcp-cli-management-exposure'
+import { McpCliUsageError } from './mcp-cli-usage-error'
 
 /**
  * Arguments of `openwaggle mcp add|remove|list|enable|disable|login|logout|import|registry|doctor`.
@@ -35,7 +37,7 @@ export function isMcpManagementCommand(value: string | undefined): value is McpM
   return MCP_MANAGEMENT_COMMANDS.some((command) => command === value)
 }
 
-export class McpCliUsageError extends Error {}
+export { McpCliUsageError } from './mcp-cli-usage-error'
 
 type OptionKind = 'flag' | 'value' | 'list'
 
@@ -258,7 +260,7 @@ export function mcpCliAddInput(args: McpManagementArguments): McpCliAddInput {
   }
   const entry: Record<string, JsonValue> =
     url === undefined ? stdioEntry(args, command) : httpEntry(args, url)
-  const exposure = args.values.get('exposure')
+  const exposure = mcpCliExposureOption(args.values.get('exposure'))
   if (exposure !== undefined) entry.exposure = exposure
   const description = args.values.get('description')
   if (description !== undefined) entry.description = description

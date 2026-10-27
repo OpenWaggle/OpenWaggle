@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const startup = vi.hoisted(() => {
   const listeners = new Set<(status: GuiStartupStatus) => void>()
-  const initial: GuiStartupStatus = { state: 'starting' }
+  // A function's declared return type is not narrowed, so the mock can later hold any status.
+  const initialStatus = (): GuiStartupStatus => ({ state: 'starting' })
   return {
     listeners,
-    status: initial,
+    status: initialStatus(),
     retryStartup: vi.fn(async () => undefined),
     openLogsDir: vi.fn(async () => undefined),
   }

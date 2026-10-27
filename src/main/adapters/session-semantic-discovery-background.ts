@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { hostBackgroundGate } from '../application/host-background-gate'
 import { createLogger } from '../logger'
 import {
   currentSemanticDiscoverySourceRevision,
@@ -13,6 +14,11 @@ import { SqliteSessionSemanticProjection } from './sqlite-session-semantic-proje
 import { SqliteSessionTranscriptSemanticProjection } from './sqlite-session-transcript-semantic-projection'
 
 const IDLE_POLL_INTERVAL = '2 seconds'
+/**
+ * A Session that changed is embedded once it has been quiet this long: a Run's messages each
+ * re-queue it, and embedding after every one re-embedded the Session many times per Run (D3).
+ */
+const SEMANTIC_REEMBED_SETTLE_MS = 15_000
 const FAILURE_RETRY_INTERVAL = '30 seconds'
 const logger = createLogger('semantic-session-discovery')
 
@@ -24,6 +30,9 @@ function waitForSemanticDiscoverySourceChange(afterRevision: number) {
     return Effect.sync(release)
   })
 }
+
+/** Background work waits while no client is attached, and after one attaches (A-F9). */
+export const awaitHostBackgroundWindow = Effect.promise(() => hostBackgroundGate.whenOpen())
 
 function publishReadiness(projection: SqliteSessionSemanticProjection) {
   return projection.readiness().pipe(
@@ -44,6 +53,7 @@ function hostIsDraining() {
 
 function projectionLoop(projection: SqliteSessionSemanticProjection): Effect.Effect<void> {
   return Effect.gen(function* () {
+    yield* awaitHostBackgroundWindow
     const sourceRevision = currentSemanticDiscoverySourceRevision()
     const releaseLiveness = yield* Effect.try(() =>
       getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
@@ -81,6 +91,7 @@ function transcriptProjectionLoop(
   projection: SqliteSessionTranscriptSemanticProjection,
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
+    yield* awaitHostBackgroundWindow
     const sourceRevision = currentSemanticDiscoverySourceRevision()
     const releaseLiveness = yield* Effect.try(() =>
       getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
@@ -112,7 +123,12 @@ function transcriptProjectionLoop(
 
 export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
-  const projection = new SqliteSessionSemanticProjection(sql, defaultSessionEmbeddingModel)
+  const projection = new SqliteSessionSemanticProjection(
+    sql,
+    defaultSessionEmbeddingModel,
+    undefined,
+    { settleMs: SEMANTIC_REEMBED_SETTLE_MS },
+  )
   const transcriptProjection = new SqliteSessionTranscriptSemanticProjection(
     sql,
     defaultSessionEmbeddingModel,

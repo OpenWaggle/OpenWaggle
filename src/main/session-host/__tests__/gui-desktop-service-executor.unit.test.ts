@@ -4,6 +4,7 @@ import { Effect } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   activeFence,
+  browserClickCommand,
   browserCommand,
   browserStatus,
   envelope,
@@ -208,14 +209,14 @@ describe('GUI desktop executor ownership and durable fences', () => {
     const interrupted = vi.fn()
     const instance = executorHarness({
       browser: {
-        status: () =>
+        click: () =>
           Effect.sync(() => started.resolve()).pipe(
             Effect.zipRight(Effect.never),
             Effect.onInterrupt(() => Effect.sync(interrupted)),
           ),
       },
     })
-    const running = instance.executor.execute(envelope(), 'lease-one')
+    const running = instance.executor.execute(envelope(browserClickCommand), 'lease-one')
     await started.promise
     expect(instance.executor.isIdle()).toBe(false)
     instance.executor.cancel('command-one')

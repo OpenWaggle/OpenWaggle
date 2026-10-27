@@ -47,6 +47,7 @@ import { ActiveProjectChangeServiceLive } from './application/active-project-cha
 import { promptCacheWarming } from './application/prompt-cache-warming'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { makeSourceControlSettingsAccess } from './application/source-control-settings-access'
+import { installHostIdleSlim } from './host-idle-slim'
 import { startMcpHostServices } from './mcp-host-start'
 import {
   closeHostMcpConnections,
@@ -297,6 +298,8 @@ export async function startSessionHostOwnedServices(options: HostServiceOptions<
   if (stopHostOwnedServices) return
   // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
   startMcpHostServices()
+  // Background work waits for a client; without one the Host slims down (A-F9, decision 4).
+  installHostIdleSlim()
   promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
   let didStart = false
@@ -305,14 +308,14 @@ export async function startSessionHostOwnedServices(options: HostServiceOptions<
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* startHostBackgroundServices(options)
+        yield* startHostBackgroundServices()
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()
         })
         // Deferrable work starts only once the Host serves clients (A-F8).
         yield* Deferred.await(listening)
-        yield* startHostServicesOnceListening()
+        yield* startHostServicesOnceListening(options)
         return yield* Effect.never
       }),
     ),

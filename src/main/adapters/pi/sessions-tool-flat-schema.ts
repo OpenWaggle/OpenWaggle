@@ -16,7 +16,7 @@ export function actionChoices(action: unknown): { const: string }[] {
   return []
 }
 
-function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
+export function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
   return actionChoices(variant.properties.action)[0]?.const
 }
 
@@ -39,11 +39,14 @@ function singleActionVariants(
 export const sessionsToolParameterVariants: readonly SessionsToolRuntimeVariant[] =
   singleActionVariants(sessionsToolParameters.anyOf)
 
-function requiredActionsByProperty(variants: readonly SessionsToolRuntimeVariant[]) {
+function requiredActionsByProperty(
+  variants: readonly SessionsToolRuntimeVariant[],
+  noteActions: ReadonlySet<string> | undefined,
+) {
   const requiredBy = new Map<string, string[]>()
   for (const variant of variants) {
     const action = variantActionName(variant)
-    if (action === undefined) continue
+    if (action === undefined || (noteActions && !noteActions.has(action))) continue
     for (const key of variant.required ?? []) {
       if (key === 'action') continue
       requiredBy.set(key, [...(requiredBy.get(key) ?? []), action])
@@ -69,6 +72,13 @@ function describeRequiredActions(schema: TSchema, actions: readonly string[] | u
   return described
 }
 
+export interface SessionsToolFlatSchemaOptions {
+  /** The properties to declare; the others are still accepted, and `help` describes them. */
+  readonly declaredProperties?: ReadonlySet<string>
+  /** The actions whose required properties are named in property descriptions. */
+  readonly requiredNoteActions?: ReadonlySet<string>
+}
+
 /**
  * The provider-facing hive tool schema: a single object with `action` as a literal
  * union and every other property optional. Root-level anyOf unions break tool-call
@@ -79,14 +89,16 @@ function describeRequiredActions(schema: TSchema, actions: readonly string[] | u
  */
 export function flattenSessionsToolParameters(
   variants: readonly SessionsToolRuntimeVariant[],
+  options: SessionsToolFlatSchemaOptions = {},
 ): TUnsafe<SessionsToolParameters> {
   const actions: TSchema[] = []
   const propertiesByKey = new Map<string, TSchema[]>()
-  const requiredBy = requiredActionsByProperty(variants)
+  const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
   for (const variant of variants) {
     actions.push(variant.properties.action)
     for (const [key, schema] of Object.entries(variant.properties)) {
       if (key === 'action') continue
+      if (options.declaredProperties && !options.declaredProperties.has(key)) continue
       const existing = propertiesByKey.get(key) ?? []
       if (!existing.some((candidate) => JSON.stringify(candidate) === JSON.stringify(schema))) {
         existing.push(schema)

@@ -16,6 +16,7 @@ import {
   openWagglePiBuiltInExtensionPaths,
   openWagglePiBuiltInExtensions,
 } from './pi-built-in-extensions'
+import { skillPromptListingExtension } from './pi-skill-prompt-listing'
 import { withoutInstalledPiWaggle } from './pi-waggle-package-dedupe'
 
 export interface PiRuntimeServicesOptions {
@@ -165,12 +166,35 @@ function systemPromptAppendices(options: PiRuntimeServicesOptions) {
   return appendices
 }
 
+/** The Pi system prompt section that carries the Session's directories and other appendices. */
+export const SESSION_DIRECTORIES_PROMPT_SECTION = 'openwaggle_session_directories'
+
+/**
+ * Puts OpenWaggle's per-Session appendices (visualization, scratch, and evidence directories) in
+ * their own section after Pi's stable ones, instead of Pi's `addendum`, which comes before the
+ * project context and skills. Those stay a prefix that Sessions of one project share, so a new
+ * Session or Worker reads it from the provider cache instead of writing it again (C11 of the v1
+ * performance research).
+ */
+function sessionDirectoriesSectionExtension(appendices: readonly string[]): ExtensionFactory {
+  const text = appendices.join('\n\n')
+  return (pi) => {
+    pi.on('before_agent_start', (event) => {
+      event.systemPromptOptions.sections[SESSION_DIRECTORIES_PROMPT_SECTION] = text
+      return undefined
+    })
+  }
+}
+
 function configuredExtensionFactories(
   options: PiRuntimeServicesOptions,
   disableExtensions: boolean,
+  appendices: readonly string[],
 ): InlineExtension[] {
   return [
     ...openWagglePiBuiltInExtensions(),
+    skillPromptListingExtension(),
+    ...(appendices.length > 0 ? [sessionDirectoriesSectionExtension(appendices)] : []),
     ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
       ? (options.extensionFactories ?? [])
       : []),
@@ -242,8 +266,8 @@ export function createOpenWagglePiResourceLoaderOptions(
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
   const disableExtensions = disableExecutableExtensionsForAutomation()
-  const appendSystemPrompt = systemPromptAppendices(options)
-  const extensionFactories = configuredExtensionFactories(options, disableExtensions)
+  const appendices = systemPromptAppendices(options)
+  const extensionFactories = configuredExtensionFactories(options, disableExtensions, appendices)
   return {
     ...configuredResourcePaths(
       projectPath,
@@ -255,7 +279,9 @@ export function createOpenWagglePiResourceLoaderOptions(
     ),
     skillsOverride: (base) =>
       filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
-    ...(appendSystemPrompt.length > 0 ? { appendSystemPrompt } : {}),
+    // An explicit empty list keeps Pi from adding an APPEND_SYSTEM.md, as passing the
+    // appendices here used to; they now travel in their own section.
+    ...(appendices.length > 0 ? { appendSystemPrompt: [] } : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
     extensionFactories,
     extensionsOverride: withoutInstalledPiWaggle,

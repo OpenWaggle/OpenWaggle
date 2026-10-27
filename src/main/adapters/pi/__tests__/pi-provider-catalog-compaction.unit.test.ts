@@ -43,6 +43,26 @@ describe('Pi provider catalog compaction metadata', () => {
     expect(services.settingsManager.getCompactionSettings().thresholdPercent).toBe(72)
   })
 
+  it('caps automatic compaction at 400k tokens whatever the window, and never stores the cap', async () => {
+    const projectPath = await tempProject()
+    await writeJson(path.join(projectPath, '.openwaggle', 'settings.json'), {
+      pi: { compaction: { maxThresholdTokens: 900_000 } },
+    })
+
+    const services = await createPiRuntimeServices(projectPath, {
+      compactionThresholdPercent: 80,
+    })
+    expect(services.settingsManager.getCompactionSettings().maxThresholdTokens).toBe(400_000)
+
+    services.settingsManager.setProjectSkillPaths(['skills'])
+    await services.settingsManager.flush()
+    const stored = JSON.parse(
+      await fs.readFile(path.join(projectPath, '.openwaggle', 'settings.json'), 'utf8'),
+    )
+    expect(stored.pi).toBeDefined()
+    expect(stored.pi.compaction).toBeUndefined()
+  })
+
   it('publishes Native compaction only for explicitly capable built-in transports', async () => {
     const services = await createPiRuntimeServices(await tempProject())
 

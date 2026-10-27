@@ -114,12 +114,23 @@ function abortedEvent(error: AssistantMessage): AssistantMessageEvent {
   return { type: 'error', reason: 'aborted', error: { ...error, stopReason: 'aborted' } }
 }
 
+interface ExpiredCredentialRetryDependencies {
+  readonly wait?: RetryWait
+  readonly delayMs?: number
+  /**
+   * Drops cached Bedrock clients, so the retry builds a new one and resolves the credential chain
+   * again instead of reusing the provider that just failed.
+   */
+  readonly invalidateClients?: () => void
+}
+
 /**
  * Wraps a Pi Amazon Bedrock stream function so a request that failed on expired AWS credentials
- * is made once more before the Run fails (#357). Pi builds a new Bedrock client for each request,
- * so the retry resolves the credential chain again: an SSO token another request refreshed
- * meanwhile, or one the user renewed with `aws sso login`, is picked up. A second failure is
- * final and reaches the Run, which reports it as expired credentials.
+ * is made once more before the Run fails (#357). Pi reuses one Bedrock client per configuration,
+ * with its credential provider and HTTP/2 session, so the retry first drops the cached clients
+ * and then resolves the credential chain again: an SSO token another request refreshed meanwhile,
+ * or one the user renewed with `aws sso login`, is picked up. A second failure is final and
+ * reaches the Run, which reports it as expired credentials.
  */
 export function withExpiredCredentialRetry<
   TModel extends ModelIdentity,
@@ -127,7 +138,7 @@ export function withExpiredCredentialRetry<
   TOptions extends { readonly signal?: AbortSignal },
 >(
   stream: ProviderStream<TModel, TContext, TOptions>,
-  dependencies: { readonly wait?: RetryWait; readonly delayMs?: number } = {},
+  dependencies: ExpiredCredentialRetryDependencies = {},
 ): ProviderStream<TModel, TContext, TOptions> {
   const wait = dependencies.wait ?? waitUnlessAborted
   const delayMs = dependencies.delayMs ?? EXPIRED_CREDENTIAL_RETRY_DELAY_MS
@@ -140,6 +151,7 @@ export function withExpiredCredentialRetry<
         provider: first.error.provider,
         model: first.error.model,
       })
+      dependencies.invalidateClients?.()
       if (!(await wait(delayMs, options?.signal))) {
         target.push(abortedEvent(first.error))
         target.end()

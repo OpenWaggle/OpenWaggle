@@ -147,7 +147,7 @@ The first time a new version starts, OpenWaggle converts its older MCP files to 
 - A Session you had switched MCP off for stays off. Turn it back on from **Use MCP servers** in the composer's **+** menu.
 - A project that is your home folder, or whose `.openwaggle` folder links to `~/.openwaggle`, shares its OpenWaggle file with every project, so servers you had switched on or off for that project only are not carried over. Switch them again in that project if you need to.
 
-Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server. A copy you edited, or one that reads a secret from the encrypted store, is kept.
+Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server (OpenWaggle now runs direct tools through codemode, see [How tools reach the agent](#how-tools-reach-the-agent)). A copy you edited, or one that reads a secret from the encrypted store, is kept.
 
 If the conversion cannot finish for a file, MCP servers stay off until it does: for that project, or for every project when the file is `~/.openwaggle/mcp.json`. That way a server you had off does not start. Changes to those servers are refused until then, so the conversion cannot undo them, and the message says what to do:
 
@@ -158,16 +158,18 @@ This only applies after an upgrade. A new install has nothing to convert, so not
 
 ## How tools reach the agent
 
-Each server's **exposure** decides how the agent can use its tools. Tool names look like `mcp__<server>__<tool>`.
+Each server's **exposure** decides how the agent can use its tools. Tool names look like `mcp__<server>__<tool>`. In **Settings > MCP** you choose one of two:
 
 | Exposure | What the agent sees |
 | --- | --- |
 | Codemode (default) | The agent finds and calls the tools from short scripts, so many tools cost little context. |
-| Deferred | The agent searches for the tools it needs, then calls them directly. |
-| Direct | The tools are offered to the agent from the start, like built-in tools. Best for small, frequently used servers. |
 | Hidden | The tools cannot be used. |
 
-You can give single tools their own exposure, for example to offer one search tool directly and hide a delete tool.
+You can give single tools their own exposure, for example to hide a delete tool.
+
+Tools that open an app (see [Apps, sampling, and input requests](#apps-sampling-and-input-requests)) are offered to the agent directly, so it calls them itself and the app shows in the conversation. Hidden app tools stay hidden.
+
+Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**: offering every tool's description to the agent on every message cost thousands of tokens per message, while agents rarely called them. You do not need to change anything, and OpenWaggle does not change the file, so the `pi` command still offers those tools directly. `deferred` keeps working: the agent searches for those tools, then calls them directly. Settings shows it while a file sets it.
 
 Every MCP tool call, including calls made from a script, asks for your approval in **Ask for approval** mode. **Allow** choices are remembered per server and tool.
 
@@ -181,11 +183,13 @@ OAuth options such as a registered client id, a fixed callback port, or scopes g
 
 ## Connections
 
-A server connects in the background when a session sends a message, and only servers with direct tools can delay a message, by at most 1.5 seconds. A session with no server turned on waits for MCP only while OpenWaggle converts a project's older MCP files: the first time it sees the project, or again after a conversion that failed. After OpenWaggle starts, the first message that uses MCP servers can also wait a few seconds while OpenWaggle reads your login shell's environment (so servers find the commands on your `PATH`) and, after an upgrade, moves your old sign-ins (only when a server with a URL is on). The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
+A server connects in the background when a session sends a message, and only a server with app tools OpenWaggle already knows about can delay a message, by at most 1.5 seconds, so its app tools are offered from the first message. A session with no server turned on waits for MCP only while OpenWaggle converts a project's older MCP files: the first time it sees the project, or again after a conversion that failed. After OpenWaggle starts, the first message that uses MCP servers can also wait a few seconds while OpenWaggle reads your login shell's environment (so servers find the commands on your `PATH`) and, after an upgrade, moves your old sign-ins (only when a server with a URL is on). The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
+
+OpenWaggle remembers each server's tools from the last time it connected. A session gets those tools as soon as it starts, and a local server's process starts only when the agent first uses one of them, so a session that never calls a server never starts it. If the server then offers different tools, the session's list is updated. A server started through `npx`, `pnpm dlx`, or `bunx` is started directly after its first launch, without the package runner staying alive beside it; **Check connection** always goes through the runner, which also picks up a new version of an `@latest` server.
 
 Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. A server that needs a secret you have not saved says **Needs secret** until you add it. Turning a server off or on, or saving one of its secrets again, clears the result of a check made before. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
 
-A session's servers stop after 5 minutes without a new message, when the session is archived or deleted, and when OpenWaggle's background Host stops. When many sessions have servers running, the one used least recently stops first. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
+A session's servers stop after 5 minutes without a new message (1 minute for a Worker whose result is under review, accepted, or cancelled), when the session is archived or deleted, when no OpenWaggle window or command is connected to the background Host, and when the Host stops. When more than three sessions have servers running, the one used least recently stops first; a session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 
 ## Apps, sampling, and input requests
 
@@ -226,6 +230,8 @@ openwaggle mcp doctor --local
 `openwaggle mcp` commands report failures with the [error kinds and exit codes](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes) of every `openwaggle` command, and with `--json` answer in the same envelope, such as `{"schemaVersion":1,"type":"response","command":"mcp list","result":...}`.
 
 New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `mcp enable` and `mcp disable` with `--in-project` switch a global server for the current project only, as **Turn off in this project** does in Settings. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
+
+`--exposure` on `mcp add` and `mcp registry add` takes `codemode` (the default), `deferred`, or `hidden`; `direct` is refused, since OpenWaggle runs it as codemode. `mcp list` shows the exposure OpenWaggle runs, so a server whose file says `direct` shows `codemode`; with `--json`, `configuredExposure` gives what the file says. The file is not changed.
 
 ## OpenWaggle as an MCP server
 

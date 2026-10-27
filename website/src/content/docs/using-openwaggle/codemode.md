@@ -19,7 +19,7 @@ If you also use Pi on its own, OpenWaggle follows your Pi settings until you cho
 
 Two exceptions still apply:
 
-- MCP servers whose tools are set to the `codemode` exposure still turn it on, because their tools can only be called from scripts. See [MCP](/docs/configuration/mcp).
+- MCP servers whose tools run through codemode, the default (OpenWaggle also runs a file's `direct` this way), still turn it on, because their tools can only be called from scripts. See [MCP](/docs/configuration/mcp).
 - A project's `.pi/settings.json` that lists its own tools by name replaces the tool list, as Pi documents, so a project without codemode in that list runs without it.
 
 ## What the agent can do in a script

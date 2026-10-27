@@ -70,6 +70,7 @@ describe('Pi project_actions shares GUI executions', () => {
         registerTool: (registered: ToolDefinition) => {
           tool = registered
         },
+        on: () => undefined,
       }),
     )
     if (!tool) throw new Error('Tool was not registered')

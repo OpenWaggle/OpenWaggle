@@ -2,6 +2,7 @@ import type { Model } from '@earendil-works/pi-ai'
 import {
   DEFAULT_COMPACTION_SETTINGS,
   findCutPoint,
+  getCompactionThresholdTokens,
   selectCompactionMechanism,
   shouldCompact,
 } from '@earendil-works/pi-coding-agent'
@@ -27,6 +28,26 @@ describe('Pi compaction policy', () => {
 
     expect(shouldCompact(83_615, 100_000, settings)).toBe(false)
     expect(shouldCompact(83_616, 100_000, settings)).toBe(true)
+  })
+
+  it('caps the threshold of a very large window at the absolute ceiling', () => {
+    const settings = {
+      ...DEFAULT_COMPACTION_SETTINGS,
+      thresholdPercent: 80,
+      maxThresholdTokens: 400_000,
+    }
+
+    expect(getCompactionThresholdTokens(1_000_000, settings)).toBe(400_000)
+    expect(shouldCompact(399_999, 1_000_000, settings)).toBe(false)
+    expect(shouldCompact(400_000, 1_000_000, settings)).toBe(true)
+    // Below the ceiling the percentage still decides: 80% of 200k is 160k.
+    expect(getCompactionThresholdTokens(200_000, settings)).toBe(160_000)
+  })
+
+  it('has no ceiling unless one is set', () => {
+    const settings = { ...DEFAULT_COMPACTION_SETTINGS, thresholdPercent: 80 }
+
+    expect(getCompactionThresholdTokens(1_000_000, settings)).toBe(800_000)
   })
 
   it('selects Native only from an explicit transport capability', () => {

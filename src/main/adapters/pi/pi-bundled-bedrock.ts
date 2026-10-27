@@ -1,5 +1,5 @@
 import { setBedrockProviderModule } from '@earendil-works/pi-ai/api/bedrock-converse-stream.lazy'
-import { bedrockProviderModule } from '@earendil-works/pi-ai/bedrock-provider'
+import { bedrockProviderModule, clearBedrockClients } from '@earendil-works/pi-ai/bedrock-provider'
 import { withExpiredCredentialRetry } from './pi-bedrock-credential-retry'
 
 let registered = false
@@ -20,7 +20,9 @@ let registered = false
  * the ModelRuntime construction chokepoint; the guard makes repeats free.
  *
  * Both stream functions make a request that failed on expired AWS credentials once more before
- * failing it, which re-resolves the credentials (#357).
+ * failing it, after dropping the cached Bedrock clients so the credentials are resolved again
+ * (#357). Every Bedrock caller (Runs, cache warming, Title generation, compaction) goes through
+ * this module, so they share the cached clients.
  */
 export function registerPiBundledBedrockProvider() {
   if (registered) {
@@ -29,8 +31,12 @@ export function registerPiBundledBedrockProvider() {
 
   setBedrockProviderModule({
     ...bedrockProviderModule,
-    stream: withExpiredCredentialRetry(bedrockProviderModule.stream),
-    streamSimple: withExpiredCredentialRetry(bedrockProviderModule.streamSimple),
+    stream: withExpiredCredentialRetry(bedrockProviderModule.stream, {
+      invalidateClients: clearBedrockClients,
+    }),
+    streamSimple: withExpiredCredentialRetry(bedrockProviderModule.streamSimple, {
+      invalidateClients: clearBedrockClients,
+    }),
   })
   registered = true
 }

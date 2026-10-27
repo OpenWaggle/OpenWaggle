@@ -1,4 +1,9 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type {
+  BeforeAgentStartEvent,
+  ExtensionAPI,
+  ExtensionFactory,
+} from '@earendil-works/pi-coding-agent'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { expect, it, vi } from 'vitest'
 
 vi.mock('../../../env', async (importOriginal) => {
@@ -15,6 +20,7 @@ import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
+  SESSION_DIRECTORIES_PROMPT_SECTION,
 } from '../pi-provider-resources'
 import { writeProviderExtension } from './pi-provider-catalog.test-utils'
 
@@ -50,6 +56,8 @@ it('excludes project/user extensions but retains trusted built-ins during automa
     extensionFactories: [
       expect.objectContaining({ name: 'codemode', builtin: true }),
       expect.objectContaining({ name: 'tool-search', builtin: true }),
+      // The skill listing, which shortens <skills> in the prompt only.
+      expect.any(Function),
       trustedFactory,
     ],
     noExtensions: true,
@@ -67,14 +75,32 @@ it("keeps Pi's built-in codemode and tool search during automation", async () =>
   expect(tools).toEqual(expect.arrayContaining(['codemode', 'tool_search']))
 })
 
-it('retains trusted append-system-prompt guidance during automation', () => {
-  expect(
-    createOpenWagglePiResourceLoaderOptions('/project', {
-      systemPromptAppendices: ['Collaborative browser guidance'],
-    }),
-  ).toMatchObject({
-    appendSystemPrompt: ['Collaborative browser guidance'],
-    noExtensions: true,
+it('retains trusted Session directory guidance during automation, after the stable sections', async () => {
+  const options = createOpenWagglePiResourceLoaderOptions('/project', {
+    systemPromptAppendices: ['Collaborative browser guidance'],
+  })
+  // Empty, not absent: Pi then adds no APPEND_SYSTEM.md, as when the appendices were passed here.
+  expect(options).toMatchObject({ appendSystemPrompt: [], noExtensions: true })
+
+  const handlers: Array<(event: unknown) => unknown> = []
+  for (const extension of options.extensionFactories ?? []) {
+    if (typeof extension !== 'function') continue
+    await extension(
+      fromPartial<ExtensionAPI>({
+        on: (name: string, handler: (event: unknown) => unknown) => {
+          if (name === 'before_agent_start') handlers.push(handler)
+        },
+      }),
+    )
+  }
+  const event = fromPartial<BeforeAgentStartEvent>({
+    systemPromptOptions: { sections: {}, skills: [], cwd: '/project' },
+  })
+  for (const handler of handlers) handler(event)
+
+  // A section Pi renders after cwd, not its `addendum` before the project context and skills.
+  expect(event.systemPromptOptions.sections).toEqual({
+    [SESSION_DIRECTORIES_PROMPT_SECTION]: 'Collaborative browser guidance',
   })
 })
 

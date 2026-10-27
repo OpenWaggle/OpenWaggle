@@ -201,7 +201,7 @@ describe('Agent run context and the provider prompt cache', () => {
     const leading = leadingSystemPrompt(second)
     expect(leading).toContain('OpenWaggle Session identity (Host-authored)')
     expect(leading).toContain('authoritative')
-    expect(leading).toContain('"sessionId": "worker-1"')
+    expect(leading).toContain('"sessionId":"worker-1"')
     expect(leading).toContain('Review the implementation.')
     expect(leading).not.toContain('run-first')
     expect(leading).not.toContain('run-second')

@@ -51,7 +51,12 @@ export interface BrowserPreviewAutomationSnapshot {
   readonly consoleEntries: readonly BrowserPreviewAutomationConsoleEntry[]
   readonly networkEntries: readonly BrowserPreviewAutomationNetworkEntry[]
   readonly actionTimeline: readonly BrowserPreviewAutomationActionEvent[]
-  readonly screenshot: BrowserPreviewAutomationScreenshot
+  /**
+   * Null when the page painted no frame to capture, as in a hidden window; the rest of the
+   * snapshot is still useful, and `screenshotUnavailable` says why.
+   */
+  readonly screenshot: BrowserPreviewAutomationScreenshot | null
+  readonly screenshotUnavailable?: string
 }
 
 export interface BrowserPreviewAutomationRecordingStatus {

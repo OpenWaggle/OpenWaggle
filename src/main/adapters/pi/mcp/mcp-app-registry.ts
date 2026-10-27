@@ -72,6 +72,12 @@ export function recordMcpAppTools(sessionId: string, serverName: string, result:
   recordMcpToolVisibility(sessionId, serverName, result)
 }
 
+/** The App tools a server listed in this Session; undefined when it has not listed its tools. */
+export function mcpAppToolNames(sessionId: string, serverName: string) {
+  const tools = registry.get(key(sessionId, serverName))
+  return tools ? [...tools.keys()] : undefined
+}
+
 export function mcpAppTool(sessionId: string, serverName: string, toolName: string) {
   return registry.get(key(sessionId, serverName))?.get(toolName)
 }

@@ -89,6 +89,17 @@ describe('desktop browser service boundary', () => {
     expect(() => decodeDesktopBrowserResult({ service: 'browser', operation, value })).toThrow()
   })
 
+  it('accepts a snapshot whose page painted no frame, with the reason', () => {
+    const value = {
+      ...snapshot,
+      screenshot: null,
+      screenshotUnavailable: 'The page painted no frame.',
+    }
+    expect(
+      decodeDesktopBrowserResult({ service: 'browser', operation: 'snapshot', value }),
+    ).toEqual({ service: 'browser', operation: 'snapshot', value })
+  })
+
   it('preserves substantial accessibility data independently of the smaller evaluate limit', () => {
     const value = {
       ...snapshot,

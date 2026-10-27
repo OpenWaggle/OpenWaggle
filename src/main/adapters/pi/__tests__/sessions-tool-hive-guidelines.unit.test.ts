@@ -2,6 +2,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
+import { hiveHelpText } from './hive-help.test-utils'
 
 describe('Hive tool Hive cleanup guidance', () => {
   it('tells the Queen that finished untouched Workers are archived and come back with new work', async () => {
@@ -12,7 +13,7 @@ describe('Hive tool Hive cleanup guidance', () => {
       workingDirectory: '/project',
     })(fromPartial<ExtensionAPI>({ registerTool }))
 
-    const guidelines: unknown = registerTool.mock.calls[0]?.[0]?.promptGuidelines
+    const guidelines = (await hiveHelpText(registerTool.mock.calls[0]?.[0])).split('\n')
     expect(guidelines).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/accept or cancel a Worker.*archives it on your behalf/),
@@ -42,7 +43,7 @@ describe('Hive tool cross-project guidance', () => {
       workingDirectory: '/project',
     })(fromPartial<ExtensionAPI>({ registerTool }))
 
-    const guidelines: unknown = registerTool.mock.calls[0]?.[0]?.promptGuidelines
+    const guidelines = (await hiveHelpText(registerTool.mock.calls[0]?.[0])).split('\n')
     expect(guidelines).toEqual(
       expect.arrayContaining([
         expect.stringMatching(
@@ -64,7 +65,7 @@ describe('Hive tool next-actor guidance (#380)', () => {
 
     const tool = registerTool.mock.calls[0]?.[0]
     expect(tool?.description).toMatch(/carry nextActor: user, parent, worker, or none/)
-    expect(tool?.promptGuidelines).toEqual(
+    expect((await hiveHelpText(tool)).split('\n')).toEqual(
       expect.arrayContaining([
         expect.stringMatching(
           /carries nextActor.*user when only the person can unblock it.*parent when its parent agent acts next.*worker when it is working or revising.*none once its Delegation is accepted or cancelled/,

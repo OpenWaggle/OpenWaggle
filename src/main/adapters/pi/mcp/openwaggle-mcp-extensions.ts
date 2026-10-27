@@ -27,11 +27,12 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
+import { withKnownMcpAppToolsOf, withOpenWaggleMcpExposure } from './mcp-openwaggle-exposure'
 import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
-import { approveMcpToolCall } from './mcp-tool-approval'
-import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
+import { registerMcpToolApproval } from './mcp-tool-approval-hook'
+import { mcpToolCatalogKeyOf, withCachedMcpDescriptions } from './mcp-tool-catalogs'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { openWaggleMcpUpdateRefusal } from './openwaggle-mcp-configuration'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
@@ -42,7 +43,7 @@ import {
 import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
-/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0051). */
+/** How long a server with MCP App tools known at Run start can delay a message (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
 export interface OpenWaggleMcpSessionInput {
@@ -66,22 +67,6 @@ function serverIdentities(config: McpRuntimeConfig) {
       { identity: mcpServerIdentity(server.name, server.config) },
     ]),
   )
-}
-
-/** The configured server a Pi MCP tool belongs to, found through its tool namespace. */
-function serverOfTool(
-  pi: ExtensionAPI,
-  config: Pick<McpRuntimeConfig, 'loaded'>,
-  toolName: string,
-) {
-  const namespace = mcpToolNamespace(pi, toolName)
-  if (!namespace) return undefined
-  const server = mcpServerEntryOfNamespace(config, namespace)
-  if (server) {
-    return { name: server.name, identity: mcpServerIdentity(server.name, server.config) }
-  }
-  // A server an extension registered: still asked about, under its namespace.
-  return { name: namespace.replace(/^mcp__/, ''), identity: `mcp-extension:${namespace}` }
 }
 
 /**
@@ -168,30 +153,6 @@ function companionExtension(
 }
 
 /**
- * Asks before every MCP server tool runs, through Pi's `tool_call` hook, which also fires for the
- * calls a codemode script makes (`parentToolCallId` set).
- */
-export function registerMcpToolApproval(
-  pi: ExtensionAPI,
-  config: Pick<McpRuntimeConfig, 'loaded'>,
-) {
-  pi.on('tool_call', async (event, ctx) => {
-    if (!event.toolName.startsWith('mcp__')) return undefined
-    const server = serverOfTool(pi, config, event.toolName)
-    if (!server) return undefined
-    const approved = await approveMcpToolCall({
-      ctx,
-      serverName: server.name,
-      serverIdentity: server.identity,
-      toolName: event.toolName,
-      input: event.input,
-      fromScript: event.parentToolCallId !== undefined,
-    })
-    return approved ? undefined : { block: true, reason: 'The user declined this MCP tool call.' }
-  })
-}
-
-/**
  * The transport of each server a Run connects: a lease on the Session's pooled connection. Servers
  * an Agent definition does not list are refused here too, since servers Pi extensions register
  * (`pi.registerMcpServer`) never pass through `loadConfig`.
@@ -221,6 +182,9 @@ export function openWaggleMcpTransport(
       identity: mcpServerIdentity(entry.name, entry.config),
       projectPath: input.projectPath,
       ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
+      // The last tools are declared at once, and a stdio server starts on first use (D1.3).
+      catalogKey: mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
+      lazyStart: transport === 'stdio',
       // A server that was off when the Run started reads its vault secrets only now.
       open: async () =>
         openPiMcpUpstream({
@@ -275,24 +239,32 @@ export async function createOpenWaggleMcpExtensions(
   }
   const extensionServers = createMcpExtensionServers()
   const mcp = forOpenWaggleMcpSurface(
-    createMcpExtension({
-      loadConfig: () => withShellResolvedClientSecrets(config.loaded),
-      createTransport: openWaggleMcpTransport(input, config),
-      credentials: getOpenWaggleMcpCredentials(),
-      logPath: openWaggleMcpLogPath(),
-      // Servers Pi extensions registered sign in too; the companion reads them at session start.
-      openUrl: createRunSignInOpener(() => [
-        ...config.loaded.servers,
-        ...extensionServers.entries(),
-      ]),
-      updateConfig: createMcpUpdateConfig(
-        (filePath) => input.onConfigChanged?.(filePath),
-        (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
-        // As Settings: a change made before the scope's migration succeeds would be undone by it.
-        openWaggleMcpUpdateRefusal(input.projectPath),
-      ),
-      startupWaitMs: MCP_STARTUP_WAIT_MS,
-    }),
+    withOpenWaggleMcpExposure(
+      input.sessionId,
+      config.loaded,
+      createMcpExtension({
+        loadConfig: () =>
+          withCachedMcpDescriptions(
+            withShellResolvedClientSecrets(withKnownMcpAppToolsOf(input.sessionId, config.loaded)),
+            (entry) => mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
+          ),
+        createTransport: openWaggleMcpTransport(input, config),
+        credentials: getOpenWaggleMcpCredentials(),
+        logPath: openWaggleMcpLogPath(),
+        // Servers Pi extensions registered sign in too; the companion reads them at session start.
+        openUrl: createRunSignInOpener(() => [
+          ...config.loaded.servers,
+          ...extensionServers.entries(),
+        ]),
+        updateConfig: createMcpUpdateConfig(
+          (filePath) => input.onConfigChanged?.(filePath),
+          (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+          // As Settings: a change made before the scope's migration succeeds would be undone by it.
+          openWaggleMcpUpdateRefusal(input.projectPath),
+        ),
+        startupWaitMs: MCP_STARTUP_WAIT_MS,
+      }),
+    ),
   )
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },

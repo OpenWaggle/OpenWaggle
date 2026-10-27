@@ -166,6 +166,23 @@ An Agent definition's tool allowlist is enforced by a `tool_call` hook
 MCP approval, so a refused call is never offered for approval. Pi loads extensions from paths and
 packages before every inline factory, so their `tool_call` hooks see a call before the guard.
 
+### Runtime exposure
+
+OpenWaggle runs a file's `direct` exposure, server-level or per tool, as `codemode`
+(`withOpenWaggleRuntimeExposure`, `domain/mcp/config/mcp-runtime-exposure.ts`), applied in
+`loadMcpRuntimeConfig` so every runtime consumer (Runs, Settings tool views, MCP Apps) agrees.
+`merged` keeps what the files say; nothing is written back, so `pi` still sees `direct`. Servers
+Pi extensions register get the same rewrite where Pi's MCP extension reads them
+(`withOpenWaggleMcpExposure`, `adapters/pi/mcp/mcp-openwaggle-exposure.ts`, a proxy over
+`getMcpServers`). MCP App tools are the exception: App tools known when the Run starts (this
+Session's `mcp-app-registry` listing, else the status registry's last listing of the server
+identity) are given to Pi as exact `toolExposure` `direct` entries in `loadConfig`, so Pi waits
+for their server; an App tool first listed during the Run is re-registered `direct` by the same
+proxy's `registerTool` (Pi names an MCP tool's server in `namespace.aliases[0]` and its label
+`<server>/<tool>`). Only tools that would run as `codemode` are promoted; hidden and deferred
+ones keep their exposure. Settings > MCP offers codemode or hidden (`mcpExposureChoices`) and
+shows `direct` as codemode (`mcpShownExposure`, via `@shared/utils/mcp-exposure`).
+
 ### Pi's commands and notices
 
 Pi's MCP extension is written for its terminal: a `/mcp` menu, and notices and tool errors that
@@ -418,7 +435,9 @@ listing before the model can reach it, whatever the exposure:
 - the MCP App metadata OpenWaggle reads from `tools/list`.
 
 "Lazy" in ADR 0051 means a connection never blocks a message. Only servers with `direct` tools
-are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
+are waited for before the first request, for at most `startupWaitMs` (1.5 s). OpenWaggle runs a
+file's `direct` as `codemode` (ADR 0051 amendment, see Runtime exposure), so the only direct tools Pi sees are
+MCP App tools known when the Run starts, and only their servers are waited for. A codemode script,
 `tool_search`, or a resource tool waits for the servers it needs when it runs. Before that, a
 Run with a server turned on waits for the login-shell environment the Host reads once at start
 (`mcpShellEnvironmentReady`, at most 5 s per shell it tries) and, when one of them is a URL server
@@ -438,17 +457,34 @@ including a server that was off when the Run started and `/mcp` turns on. Check 
 MCP Apps load only their own server. A server a Pi extension registers in such a Run
 starts with whatever environment the Host has read by then. Connections are
 pooled per Session (below), so the next Run reuses them instead of starting the servers again.
-Hidden QA's process snapshots show exactly this: every enabled server of a Session that had run
-(`direct`, `codemode`, and project ones) running, and nothing for Sessions that had not. Making
-codemode or deferred servers connect only on first use would need a change to Pi's MCP extension.
+Pi's MCP extension still connects every enabled server at `session_start`, but the connection is
+a lease on the pool, which can answer without a server process:
+
+- **Tool catalogs (D1.3, C2-a).** Every pooled connection records its server's last `initialize`
+  result and `tools/list` pages (`mcp-connection-catalog.ts`), keyed by server identity, connection
+  fingerprint without the Run's working directory, and project (`mcp-tool-catalogs.ts`), in
+  `<userData>/mcp/tool-catalogs/`. A catalog younger than a day is served: a Session's Pi client gets
+  `initialize`, `tools/list` and `ping` from it at once, so its tools are registered before the
+  first model request of every Run instead of mid-Run.
+- **Lazy start (stdio only).** A stdio server with a served catalog starts when a request needs it
+  (`mcp-connection-lazy-start.ts`): a tool call, resources, prompts, or an OpenWaggle request. It is
+  initialized with the client's own `initialize` params (and `notifications/initialized` if the
+  client sent it), then its tools are listed again; when they differ from the catalog, clients get
+  `notifications/tools/list_changed` and Pi re-lists. A server that fails to start loses its catalog,
+  so the next Session starts it at once and reports the failure. Each Session still has its own
+  process (ADR 0013); a Session that never calls a server never starts it. URL servers connect as
+  before (they hold no process, and sign-in needs the handshake).
+- **Stable `<mcp_servers>` (C9).** A server without a configured `description` is described by the
+  first line of its cached `instructions`, so the section Pi renders is the same before and after
+  the server connects.
 
 | Event | Effect |
 | --- | --- |
 | Run starts (`beginRun`) | Cancels the Session's idle timer; marks it most recently used. |
-| Run ends (`endRun`) | When the Session has no other active Run, starts a 5-minute idle timer. |
+| Run ends (`endRun`) | When the Session has no other active Run, starts a 5-minute idle timer, or a 1-minute one for a Hive Worker whose Delegation is `ready_for_review`, `accepted` or `cancelled` (`mcp-settled-worker-idle-policy.ts`). |
 | Idle timer fires | Closes all the Session's connections. |
 | Session archived or deleted (including Worker auto-archive by Hive cleanup) | Closes all the Session's connections immediately (`withSessionDesktopRemoval`). |
-| A Session opens its first connection while 8 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
+| A Session opens its first connection while 3 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
 | Signing in to or out of a server, or switching a Session's MCP off | Closes the connections to that server identity (name plus command or URL) in every Session, or the Session's connections. |
 | A saved MCP change (Settings, the CLI, Pi's `/mcp`) turns a server off or removes it | Closes each Session's connection to it where its own project no longer has it on (`mcp-turned-off-servers.ts`); that Session's Run leases of it are refused until its next Run. A project whose files cannot be read is left alone. MCP Apps check `enabled` before using a warm connection. |
 | Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. Leases are refused afterwards, except for a Session that begins a new Run. |
@@ -457,7 +493,15 @@ codemode or deferred servers connect only on first use would need a change to Pi
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
 closed by closing stdin, then SIGTERM and SIGKILL to the whole group, or `taskkill /T /F` on
 Windows. That terminates a package runner (`npx`, `pnpm dlx`, `bunx`, `uvx`) together with the
-server it launched. pi-mcp skips all of that when the process it started has already exited,
+server it launched. Once a runner launch has run, a background probe (`npx --yes
+--package=<spec> -- node -e …`, and the same for `npm exec`, `pnpm dlx`, `bunx`) records the bin the
+runner resolved, and later launches spawn it directly with the runner's `node` and its
+`node_modules/.bin` first on `PATH` (`mcp-package-runner-bypass.ts`, D1.2), saving the ~80 MB runner
+process per server and the registry check `@latest` makes on every launch. Resolutions live in
+`<userData>/mcp/package-runner-bins.json`, keyed by runner, spec, working directory and `PATH`; a
+tag or range is resolved again after a day, an exact version after a week, and Check connection
+always launches through the runner and probes again. Forms the bypass cannot reproduce (several
+`--package`s, `-c`, git or file specs, unknown runner flags) keep the runner. pi-mcp skips all of that when the process it started has already exited,
 so after the transport closes OpenWaggle signals the whole group anyway (SIGTERM, then SIGKILL),
 and a server a launcher left behind does not survive (POSIX; Windows relies on pi-mcp's
 `taskkill /T`). Child processes get the user's environment (`{ ...process.env }`, as Pi

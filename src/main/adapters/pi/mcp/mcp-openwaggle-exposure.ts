@@ -1,0 +1,116 @@
+import {
+  type ExtensionAPI,
+  type ExtensionFactory,
+  getMcpToolExposure,
+  type McpServerConfig,
+  type McpServerEntry,
+  type ToolDefinition,
+} from '@earendil-works/pi-coding-agent'
+import {
+  withMcpAppToolsDeclared,
+  withOpenWaggleRuntimeExposure,
+} from '../../../domain/mcp/config/mcp-runtime-exposure'
+import { mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
+import { mcpAppTool, mcpAppToolNames } from './mcp-app-registry'
+import { boundMember } from './mcp-openwaggle-surface'
+import { knownMcpServerState } from './mcp-server-status-registry'
+
+/**
+ * MCP exposure as OpenWaggle runs it, on Pi's MCP extension (ADR 0051 amendment). The configured
+ * servers arrive with `direct` already run as `codemode` (`loadMcpRuntimeConfig`); this covers
+ * the rest:
+ *
+ * - Tools that open an MCP App are declared to the model (`withMcpAppToolsDeclared`). Pi drops a
+ *   tool's `_meta`, so App tools are known only from the `tools/list` results the transport layer
+ *   sees. Those already known when the Run starts, from this Session or any check of the same
+ *   server, are given to Pi as `direct`: Pi then waits for their server before the first request
+ *   (at most `MCP_STARTUP_WAIT_MS`), as it waits for any server with direct tools. One first
+ *   learned in this Run is declared when Pi registers it, from the next request on.
+ * - Servers Pi extensions register (`pi.registerMcpServer`) never pass through OpenWaggle's
+ *   configuration, so their `direct` is run as `codemode` where Pi's MCP extension reads them,
+ *   and their App tools are declared when Pi registers them.
+ */
+export function withOpenWaggleMcpExposure(
+  sessionId: string,
+  loaded: { readonly servers: readonly McpServerEntry[] },
+  factory: ExtensionFactory,
+): ExtensionFactory {
+  return (pi) => {
+    // Only `direct` changes here, which is stable: Pi reconnects a registered server whose
+    // configuration changes, so the App tools it learns are declared on registration instead.
+    const getMcpServers: ExtensionAPI['getMcpServers'] = () =>
+      pi.getMcpServers().map((server) => ({
+        ...server,
+        config: withOpenWaggleRuntimeExposure(server.config),
+      }))
+    const serverConfig = (name: string) =>
+      loaded.servers.find((server) => server.name === name)?.config ??
+      getMcpServers().find((server) => server.name === name)?.config
+    const registerTool: ExtensionAPI['registerTool'] = (definition) => {
+      pi.registerTool(declaredIfMcpApp(sessionId, serverConfig, definition))
+    }
+    return factory(
+      new Proxy(pi, {
+        get: (target, property) => {
+          if (property === 'getMcpServers') return getMcpServers
+          if (property === 'registerTool') return registerTool
+          return boundMember(target, property)
+        },
+      }),
+    )
+  }
+}
+
+/**
+ * The MCP App tools a server is known to have: from this Session's listings, else from the last
+ * listing of the same server anywhere in the Host (a Run of another Session, Check connection).
+ */
+export function knownMcpAppTools(sessionId: string, name: string, config: McpServerConfig) {
+  const own = mcpAppToolNames(sessionId, name)
+  if (own) return own
+  const known = knownMcpServerState(mcpServerIdentity(name, config))
+  return (known?.tools ?? []).filter((tool) => tool.hasApp).map((tool) => tool.name)
+}
+
+/** A server's configuration with the App tools known so far declared to the model. */
+export function withKnownMcpAppTools(sessionId: string, name: string, config: McpServerConfig) {
+  return withMcpAppToolsDeclared(config, knownMcpAppTools(sessionId, name, config))
+}
+
+/**
+ * The configuration Pi's MCP extension loads, with each server's known App tools declared. Pi
+ * calls `loadConfig` when its session starts, so App tools an earlier Run listed count.
+ */
+export function withKnownMcpAppToolsOf<
+  Loaded extends { readonly servers: readonly McpServerEntry[] },
+>(sessionId: string, loaded: Loaded): Loaded {
+  return {
+    ...loaded,
+    servers: loaded.servers.map((server) => ({
+      ...server,
+      config: withKnownMcpAppTools(sessionId, server.name, server.config),
+    })),
+  }
+}
+
+/**
+ * Pi's definition of one MCP tool, declared when the tool opens an MCP App and would otherwise
+ * run as `codemode`. Pi gives MCP tools of a `codemode` server the tool exposure `deferred`, the
+ * namespace alias of their server's name, and the label `<server>/<tool>` (`tools.ts`).
+ */
+function declaredIfMcpApp<
+  Definition extends Pick<ToolDefinition, 'name' | 'label' | 'exposure' | 'namespace'>,
+>(
+  sessionId: string,
+  serverConfig: (name: string) => McpServerConfig | undefined,
+  definition: Definition,
+): Definition {
+  if (definition.exposure !== 'deferred' || !definition.name.startsWith('mcp__')) return definition
+  const server = definition.namespace?.aliases?.[0]
+  if (!server || !definition.label.startsWith(`${server}/`)) return definition
+  const tool = definition.label.slice(server.length + 1)
+  const config = serverConfig(server)
+  if (!config || getMcpToolExposure(config, tool) !== 'codemode') return definition
+  if (!mcpAppTool(sessionId, server, tool)) return definition
+  return { ...definition, exposure: 'direct' }
+}

@@ -12,7 +12,7 @@ import {
 } from './browser-preview-automation-tool-support'
 
 interface RegistrationInput {
-  readonly pi: ExtensionAPI
+  readonly pi: Pick<ExtensionAPI, 'registerTool'>
   readonly scope: BrowserPreviewAutomationScope
   readonly service: BrowserPreviewAutomationServiceShape
 }
