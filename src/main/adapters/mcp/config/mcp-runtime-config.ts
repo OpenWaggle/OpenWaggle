@@ -5,6 +5,7 @@ import {
   mergeMcpConfigLayers,
 } from '../../../domain/mcp/config/mcp-config-merge'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
+import { withOpenWaggleRuntimeExposure } from '../../../domain/mcp/config/mcp-runtime-exposure'
 import type {
   McpConfiguredValue,
   McpServerConfig,
@@ -53,6 +54,10 @@ export interface McpRuntimeLoadedConfig {
 }
 
 export interface McpRuntimeConfig {
+  /**
+   * What Pi's MCP extension is given, with exposure as OpenWaggle runs it: a file's `direct` is
+   * `codemode` here (`withOpenWaggleRuntimeExposure`, ADR 0051 amendment).
+   */
   readonly loaded: McpRuntimeLoadedConfig
   /** The real transport of each server, for servers Pi sees as plain URL entries. */
   readonly transports: ReadonlyMap<string, McpTransportKind>
@@ -267,7 +272,9 @@ export async function loadMcpRuntimeConfig(
   const connectionConfigs = new Map<string, McpServerConfig>()
   const missingSecrets = new Map<string, string>()
   const stamp = input.secretStamp ?? (async (name: string) => name)
-  for (const server of selected) {
+  for (const configured of selected) {
+    // Files keep `direct` for the `pi` command; OpenWaggle runs it as `codemode`.
+    const server = { ...configured, config: withOpenWaggleRuntimeExposure(configured.config) }
     const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
     const resolved = await resolveServer(
       server,

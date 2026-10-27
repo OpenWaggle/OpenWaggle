@@ -106,5 +106,6 @@ export const desktopBrowserSnapshotSchema = Schema.Struct({
   consoleEntries: Schema.Array(consoleSchema).pipe(Schema.maxItems(LIMITS.CONSOLE_ENTRIES)),
   networkEntries: Schema.Array(networkSchema).pipe(Schema.maxItems(LIMITS.NETWORK_ENTRIES)),
   actionTimeline: Schema.Array(actionSchema).pipe(Schema.maxItems(LIMITS.ACTION_EVENTS)),
-  screenshot: screenshotSchema,
+  screenshot: Schema.NullOr(screenshotSchema),
+  screenshotUnavailable: Schema.optional(textSchema),
 })

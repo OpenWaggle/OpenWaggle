@@ -9,7 +9,10 @@ import {
   boundedBrowserPreviewAccessibilityTree,
   decodeBrowserPreviewPageSnapshot,
 } from './browser-preview-automation-page-results'
-import { captureBrowserPreviewPage } from './browser-preview-capture'
+import {
+  BrowserPreviewCaptureTimeoutError,
+  captureBrowserPreviewPage,
+} from './browser-preview-capture'
 
 const MAX_SCREENSHOT_WIDTH = 1_280
 const MAX_SCREENSHOT_HEIGHT = 2_000
@@ -19,6 +22,17 @@ const BASE64_INPUT_BYTES = 3
 const BASE64_OUTPUT_BYTES = 4
 const ACCESSIBILITY_TREE_DEPTH = 8
 
+/** Why no screenshot came back, for a capture failure the rest of the snapshot survives. */
+const SCREENSHOT_UNAVAILABLE =
+  'The page painted no frame to capture (for example, its window is hidden). Text and elements are current.'
+
+class BrowserPreviewEmptyCaptureError extends Error {
+  constructor() {
+    super('Browser preview screenshot had invalid dimensions.')
+    this.name = 'BrowserPreviewEmptyCaptureError'
+  }
+}
+
 function constrainImageDimensions(source: NativeImage) {
   const size = source.getSize()
   if (
@@ -27,7 +41,7 @@ function constrainImageDimensions(source: NativeImage) {
     size.width <= 0 ||
     size.height <= 0
   ) {
-    throw new Error('Browser preview screenshot had invalid dimensions.')
+    throw new BrowserPreviewEmptyCaptureError()
   }
   const pixelScale = Math.sqrt(MAX_SCREENSHOT_PIXELS / (size.width * size.height))
   const widthScale = MAX_SCREENSHOT_WIDTH / size.width
@@ -51,6 +65,33 @@ function encodeBoundedPng(source: NativeImage) {
   return { image, data }
 }
 
+/**
+ * A page that paints no compositor frame, such as one in a hidden window during automation, times
+ * out or captures an empty image. The snapshot then goes without a screenshot instead of failing
+ * as a whole; any other capture error, such as a navigation, still fails it.
+ */
+function unpaintedPage(error: unknown) {
+  if (error instanceof BrowserPreviewCaptureTimeoutError) return null
+  throw error
+}
+
+function boundedScreenshot(source: NativeImage) {
+  if (source.isEmpty()) return null
+  try {
+    const { image, data } = encodeBoundedPng(source)
+    const imageSize = image.getSize()
+    return {
+      mimeType: 'image/png' as const,
+      data: data.toString('base64'),
+      width: imageSize.width,
+      height: imageSize.height,
+    }
+  } catch (error) {
+    if (error instanceof BrowserPreviewEmptyCaptureError) return null
+    throw error
+  }
+}
+
 export function captureBrowserPreviewAutomationSnapshot(
   controller: BrowserPreviewAutomationController,
   page: BrowserPreviewAutomationPage,
@@ -71,24 +112,19 @@ export function captureBrowserPreviewAutomationSnapshot(
               context.assertCurrentDocument()
             }
           },
-        }),
+        }).catch(unpaintedPage),
       ])
       context.assertCurrentDocument()
       const pageData = decodeBrowserPreviewPageSnapshot(pageDataValue)
-      const { image, data } = encodeBoundedPng(sourceImage)
-      const imageSize = image.getSize()
+      const screenshot = sourceImage ? boundedScreenshot(sourceImage) : null
       return {
         ...pageData,
         accessibilityTree: boundedBrowserPreviewAccessibilityTree(accessibility),
         consoleEntries: context.consoleEntries(),
         networkEntries: context.networkEntries(),
         actionTimeline: context.actionTimeline(),
-        screenshot: {
-          mimeType: 'image/png',
-          data: data.toString('base64'),
-          width: imageSize.width,
-          height: imageSize.height,
-        },
+        screenshot,
+        ...(screenshot ? {} : { screenshotUnavailable: SCREENSHOT_UNAVAILABLE }),
       }
     },
     { signal },

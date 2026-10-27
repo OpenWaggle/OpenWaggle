@@ -79,7 +79,8 @@ describe('tool schemas OpenWaggle hands to Pi', () => {
       const hive = JSON.stringify(payload.get('hive'))
       // Providers that reject unknown JSON Schema keywords would refuse the whole request.
       expect(JSON.stringify([...payload.values()])).not.toMatch(/"~[A-Za-z]+"/)
-      expect(hive).toContain('"description":"Required for launch, spawn."')
+      // Only the hot actions' required properties are noted; help describes the others.
+      expect(hive).toContain('"description":"Required for spawn."')
       expect(payload.has('sessions')).toBe(false)
     }
   })

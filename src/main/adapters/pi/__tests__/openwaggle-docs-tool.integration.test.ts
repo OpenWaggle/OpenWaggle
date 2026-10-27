@@ -47,6 +47,7 @@ async function registeredTool() {
       registerTool: (registered: ToolDefinition) => {
         tool = registered
       },
+      on: () => undefined,
     }),
   )
   if (!tool) throw new Error('Tool was not registered')
@@ -82,7 +83,7 @@ describe('openwaggle_docs over the generated installed docs bundle', () => {
     setResourcesPath(resourcesPath)
     const { tool, bundlePath } = await registeredTool()
     expect(bundlePath).toBe(path.join(resourcesPath, 'openwaggle-docs'))
-    expect(tool.promptGuidelines?.join('\n')).toContain(JSON.stringify(bundlePath))
+    expect(tool.description).toContain(JSON.stringify(bundlePath))
 
     const search = await call(tool, { action: 'search', query: 'how do Hives work', limit: 3 })
     expect(search.isError).toBe(false)
@@ -115,7 +116,7 @@ describe('openwaggle_docs over the generated installed docs bundle', () => {
       setResourcesPath(empty)
       const { tool, bundlePath } = await registeredTool()
       expect(bundlePath).toBeNull()
-      expect(tool.promptGuidelines?.join('\n')).not.toContain(empty)
+      expect(tool.description).not.toContain(empty)
       const result = await call(tool, { action: 'list' })
       expect(result.isError).toBe(true)
       expect(result.text).toContain(JSON.stringify(path.join(empty, 'openwaggle-docs')))

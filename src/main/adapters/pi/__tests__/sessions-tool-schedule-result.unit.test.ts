@@ -5,6 +5,7 @@ import { installSessionToolGateway } from '../../../session-host/session-tool-ga
 import { sessionsToolSchemaForCapabilities } from '../sessions-tool-capability-schema'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 import { renderScheduledTasksToolResult } from '../sessions-tool-schedule-result'
+import { hiveHelpText } from './hive-help.test-utils'
 import { result, task } from './sessions-tool-schedule.test-utils'
 
 describe('Hive tool Scheduled task results', () => {
@@ -261,7 +262,7 @@ describe('Hive tool Scheduled task registration', () => {
     expect(toolResult.details).toEqual(result({ effect: 'created', task: task() }, 'create'))
   })
 
-  it('offers schedule actions and guidance only to Sessions that hold schedule capabilities', () => {
+  it('offers schedule actions and guidance only to Sessions that hold schedule capabilities', async () => {
     const actionsOf = (
       capabilities: Parameters<typeof sessionsToolSchemaForCapabilities>[0]['capabilities'],
     ) =>
@@ -284,11 +285,16 @@ describe('Hive tool Scheduled task registration', () => {
       expect(manager).toContain(`"${action}"`)
     }
 
-    const guidance = (tool: ToolDefinition) => (tool.promptGuidelines ?? []).join('\n')
-    expect(guidance(register(['sessions:read', 'delegations:contribute']))).not.toContain(
+    expect(await hiveHelpText(register(['sessions:read', 'delegations:contribute']))).not.toContain(
       'Heartbeat',
     )
-    const root = guidance(register(['sessions:read', 'schedules:read', 'schedules:manage']))
+    const root = await hiveHelpText(
+      register(['sessions:read', 'schedules:read', 'schedules:manage']),
+    )
+    // The system prompt keeps the rule that guards creating one.
+    expect(register(['schedules:read', 'schedules:manage']).promptGuidelines).toEqual(
+      expect.arrayContaining([expect.stringMatching(/Scheduled task only when the user asks/)]),
+    )
     expect(root).toMatch(/only when the user directly asks for recurring or scheduled work/)
     expect(root).toMatch(/this Session when sessionId is omitted/)
     expect(root).toMatch(/Heartbeat fires at most every 5 minutes, a Launch schedule every 15/)

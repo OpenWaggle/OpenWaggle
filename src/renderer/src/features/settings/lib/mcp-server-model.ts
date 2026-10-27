@@ -14,31 +14,41 @@ import type {
   McpImportCandidateStatus,
   McpImportSourceId,
 } from '@shared/types/mcp-configuration-operations'
+import {
+  MCP_SETTINGS_EXPOSURE_CHOICES,
+  type McpRuntimeExposure,
+  openWaggleMcpExposure,
+} from '@shared/utils/mcp-exposure'
 
 /** What Settings > MCP says about Pi's MCP data. Copy follows Pi's `docs/mcp.md`. */
 
-export const MCP_EXPOSURE_ORDER: readonly McpServerExposure[] = [
-  'codemode',
-  'deferred',
-  'direct',
-  'hidden',
-]
+/**
+ * The exposure Settings shows for a configured one. OpenWaggle runs a file's `direct` as codemode
+ * (ADR 0051 amendment), so it shows as codemode; the file keeps `direct` for the `pi` command.
+ */
+export function mcpShownExposure(exposure: McpServerExposure): McpRuntimeExposure {
+  return openWaggleMcpExposure(exposure)
+}
+
+/**
+ * The choices Settings offers: codemode or hidden. A file's `deferred`, which Settings does not
+ * offer, is listed while it is the current value, so the choice shown is always the one in use.
+ */
+export function mcpExposureChoices(current: McpRuntimeExposure): readonly McpRuntimeExposure[] {
+  return current === 'deferred' ? ['codemode', 'deferred', 'hidden'] : MCP_SETTINGS_EXPOSURE_CHOICES
+}
 
 export const MCP_EXPOSURE_COPY: Readonly<
-  Record<McpServerExposure, { readonly label: string; readonly description: string }>
+  Record<McpRuntimeExposure, { readonly label: string; readonly description: string }>
 > = {
   codemode: {
     label: 'Codemode',
     description:
-      'The model calls these tools from codemode scripts, which find them by searching. The default.',
+      'The model calls these tools from codemode scripts, which find them by searching. Tools that open an app are offered to the model directly. The default.',
   },
   deferred: {
     label: 'Deferred',
     description: 'Hidden from the model until tool search loads them, then called directly.',
-  },
-  direct: {
-    label: 'Direct',
-    description: 'Shown to the model like built-in tools, and callable from codemode.',
   },
   hidden: {
     label: 'Hidden',

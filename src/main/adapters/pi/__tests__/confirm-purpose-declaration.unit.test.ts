@@ -18,7 +18,7 @@ function read(relativePath: string) {
 }
 
 const clientInteractions = read('src/main/adapters/pi/mcp-client-interactions.ts')
-const sessionsTool = read('src/main/adapters/pi/sessions-tool-extension.ts')
+const sessionsTool = read('src/main/adapters/pi/sessions-tool-authorization.ts')
 const uiContext = read('src/main/adapters/pi/agent-kernel/interaction-ui-context.ts')
 const presetManagement = read('packages/pi-waggle/src/default-preset-management.ts')
 
