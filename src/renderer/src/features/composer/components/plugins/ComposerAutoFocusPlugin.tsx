@@ -1,4 +1,5 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { $addUpdateTag, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
 import { useEffect } from 'react'
 
 const NON_TEXT_INPUT_TYPES = new Set(['button', 'checkbox', 'radio', 'reset', 'submit', 'range'])
@@ -24,10 +25,17 @@ export function ComposerAutoFocusPlugin(): null {
     // Placing the selection can itself focus the editable root, so check before asking Lexical.
     const root = editor.getRootElement()
     if (root !== null && isTypingElsewhere(document.activeElement, root)) return
-    editor.focus(() => {
-      const current = editor.getRootElement()
-      if (current === null || isTypingElsewhere(document.activeElement, current)) return
-      if (!current.contains(document.activeElement)) current.focus({ preventScroll: true })
+    // The composer is on screen when it mounts, so its focus update skips Lexical's caret scroll
+    // check. That check reads every ancestor's bounding box and forced a layout of the freshly
+    // committed shell before its first paint (renderer-load B12). Inside an update, `focus()`
+    // runs inline, so the tag lands on the focus update itself.
+    editor.update(() => {
+      $addUpdateTag(SKIP_SCROLL_INTO_VIEW_TAG)
+      editor.focus(() => {
+        const current = editor.getRootElement()
+        if (current === null || isTypingElsewhere(document.activeElement, current)) return
+        if (!current.contains(document.activeElement)) current.focus({ preventScroll: true })
+      })
     })
   }, [editor])
 

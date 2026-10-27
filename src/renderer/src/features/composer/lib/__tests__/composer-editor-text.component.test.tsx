@@ -1,9 +1,9 @@
 import { waitFor } from '@testing-library/react'
-import { $getRoot, createEditor, type LexicalEditor } from 'lexical'
+import { $getRoot, createEditor, type LexicalEditor, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '../../state/composer-store'
 import { insertTextAtEditorOrStore } from '../composer-editor-text'
-import { clearEditor, setEditorText } from '../lexical-utils'
+import { clearEditor, setEditorDraft, setEditorText } from '../lexical-utils'
 
 function editorText(editor: LexicalEditor) {
   let text = ''
@@ -47,5 +47,18 @@ describe('composer editor text helpers', () => {
 
     await waitFor(() => expect(editorText(editor)).toBe('Hello world'))
     expect(setInput).not.toHaveBeenCalled()
+  })
+
+  it('restores a draft without the caret scroll check only when asked to', () => {
+    const editor = createEditor()
+    editor.setRootElement(document.createElement('div'))
+    const updateTags: string[][] = []
+    editor.registerUpdateListener(({ tags }) => updateTags.push([...tags]))
+
+    // A draft restored as the composer mounts skips Lexical's ancestor-measuring scroll check.
+    setEditorDraft(editor, 'Restored', null, { scrollIntoView: false })
+    setEditorDraft(editor, 'Typed history', null)
+
+    expect(updateTags).toEqual([[SKIP_SCROLL_INTO_VIEW_TAG], []])
   })
 })
