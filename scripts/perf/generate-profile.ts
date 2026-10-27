@@ -8,7 +8,7 @@
  * The app only creates the empty Session Host database (its schema and migrations); the Sessions
  * are then written with the same fixture writer the QA seeds use, with the Host stopped.
  */
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { getDatabasePath, type SeedSessionInput, seedSessions } from '../support/session-fixtures'
@@ -97,7 +97,8 @@ async function main() {
     process.stderr.write('Use --app <OpenWaggle.app> --out <directory> [--sessions N] [--nodes N]\n')
     process.exit(USAGE_EXIT_CODE)
   }
-  const root = path.resolve(values.out)
+  await mkdir(values.out, { recursive: true })
+  const root = await realpath(values.out)
   const profile: PerfProfile = {
     root,
     userData: path.join(root, 'user-data'),

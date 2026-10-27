@@ -29,6 +29,8 @@ const EPHEMERAL_PORT = 0
 const LOCALHOST = '127.0.0.1'
 const HTTP_OK = 200
 const JSON_INDENT = 2
+/** A nominal usage record; the measured app never bills the fake model. */
+const NOMINAL_USAGE = { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }
 
 function chunk(delta: object, finishReason: string | null) {
   const payload = {
@@ -37,7 +39,7 @@ function chunk(delta: object, finishReason: string | null) {
     created: 1,
     model: FAKE_MODEL_ID,
     choices: [{ index: 0, delta, finish_reason: finishReason }],
-    ...(finishReason ? { usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 } } : {}),
+    ...(finishReason ? { usage: NOMINAL_USAGE } : {}),
   }
   return `data: ${JSON.stringify(payload)}\n\n`
 }

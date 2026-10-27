@@ -61,7 +61,10 @@ async function openAndWait(page: Page, title: string, lastText: string) {
   }, lastText)
   await page.getByText(title, { exact: true }).first().click({ timeout: TIMEOUT_MS })
   await page.waitForFunction(() => typeof Reflect.get(globalThis, '__owOpen') === 'number', undefined, { timeout: TIMEOUT_MS })
-  const openMs: unknown = await page.evaluate(() => Reflect.get(globalThis, '__owOpen'))
+  const openMs: unknown = await page.evaluate(() => {
+    const value: unknown = Reflect.get(globalThis, '__owOpen')
+    return value
+  })
   return typeof openMs === 'number' ? Math.round(openMs) : null
 }
 

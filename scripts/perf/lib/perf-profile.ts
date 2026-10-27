@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from '../../qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
+import { processTree, profileHostPids } from './perf-processes'
 
 /**
  * A throwaway OpenWaggle profile: its own user data, HOME and Pi agent directory, so a measured
@@ -53,7 +54,8 @@ export async function createGitProject(projectPath: string) {
 }
 
 export async function createPerfProfile(options: PerfProfileOptions): Promise<PerfProfile> {
-  const root = await mkdtemp(path.join(os.tmpdir(), `owperf-${options.label}-`))
+  // The real path: Session authority compares resolved roots, and /tmp is /private/tmp on macOS.
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), `owperf-${options.label}-`)))
   const userData = path.join(root, 'user-data')
   const home = path.join(root, 'home')
   if (options.templateUserData) cloneDirectory(options.templateUserData, userData)
@@ -73,8 +75,13 @@ export function profileEnvironment(
   profile: PerfProfile,
   overrides: Readonly<Record<string, string>> = {},
 ) {
+  // The measured Host keeps its scratch directories (and their sweeps) under this harness's own
+  // temp directory, never under a temp directory another Host shares.
+  const temporaryDirectory = os.tmpdir()
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
+    TMPDIR: temporaryDirectory,
+    OPENWAGGLE_HOST_TMPDIR: temporaryDirectory,
     HOME: profile.home,
     USERPROFILE: profile.home,
     PI_CODING_AGENT_DIR: profile.agentDir,
@@ -83,6 +90,7 @@ export function profileEnvironment(
     OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: profile.projectPath,
+    ...(process.env.OWPERF_LOG_LEVEL ? { OPENWAGGLE_LOG_LEVEL: process.env.OWPERF_LOG_LEVEL } : {}),
     ...overrides,
   })
 }
@@ -92,9 +100,38 @@ export async function stopProfileHost(profile: Pick<PerfProfile, 'userData'>) {
   await shutdownSessionHostForQa(profile.userData, async () => undefined)
 }
 
+const FORCED_STOP_WAIT_MS = 5_000
+
+function signalTree(pids: readonly number[], signal: NodeJS.Signals) {
+  for (const entry of processTree(pids)) {
+    try {
+      process.kill(entry.pid, signal)
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+/**
+ * Stops the profile's own Host and its children (MCP servers) when it does not drain in time,
+ * for example while a measured Run is still active. Only this profile's processes are signalled.
+ */
+async function forceStopProfileHost(userData: string) {
+  const hostPids = profileHostPids(userData)
+  if (hostPids.length === 0) return
+  signalTree(hostPids, 'SIGTERM')
+  await new Promise((resolve) => setTimeout(resolve, FORCED_STOP_WAIT_MS))
+  signalTree(hostPids, 'SIGKILL')
+}
+
 export async function disposePerfProfile(profile: PerfProfile, keep = false) {
-  await shutdownSessionHostForQa(profile.userData, async (ownership) =>
-    keep ? undefined : prepareQaProfileRemoval(profile.userData, ownership),
-  )
+  try {
+    await shutdownSessionHostForQa(profile.userData, async (ownership) =>
+      keep ? undefined : prepareQaProfileRemoval(profile.userData, ownership),
+    )
+  } catch (error) {
+    process.stderr.write(`Host drain failed (${String(error)}); stopping the profile's Host.\n`)
+    await forceStopProfileHost(profile.userData)
+  }
   if (!keep) await rm(profile.root, { recursive: true, force: true })
 }

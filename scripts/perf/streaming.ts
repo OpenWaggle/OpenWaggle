@@ -134,7 +134,10 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           await delay(SETTLE_AFTER_STREAM_MS)
         })
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
-        const frames: unknown = await page.evaluate(() => Reflect.get(globalThis, '__owFrames'))
+        const frames: unknown = await page.evaluate(() => {
+          const value: unknown = Reflect.get(globalThis, '__owFrames')
+          return value
+        })
         const ipc = summarizeIpc(JSON.parse(String(await inspector?.evaluate(IPC_LOG_READ) ?? 'null')))
         const agentEvents = ipc.pushedChannels['agent:event'] ?? { count: 0, bytes: 0 }
         const bounds = traceBounds(trace)

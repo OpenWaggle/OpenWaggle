@@ -100,6 +100,8 @@ export async function withRunningApp<Result>(
     inspector?.close()
     await browser?.close().catch(() => undefined)
     if (launched) await stopProcessGroup(launched.child)
-    await disposePerfProfile(profile)
+    // OWPERF_KEEP_PROFILE=1 keeps the stopped profile (logs, database) for diagnosis.
+    await disposePerfProfile(profile, process.env.OWPERF_KEEP_PROFILE === '1')
+    if (process.env.OWPERF_KEEP_PROFILE === '1') process.stderr.write(`kept ${profile.root}\n`)
   }
 }
