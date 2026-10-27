@@ -44,6 +44,34 @@ vi.mock('../runtime', () => ({
       ),
     ),
 }))
+vi.mock('../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, ProviderOAuthService>) =>
+    Effect.runPromise(
+      Effect.provide(
+        effect,
+        Layer.succeed(
+          ProviderOAuthService,
+          ProviderOAuthService.of({
+            listProviders: () => Effect.succeed(['radius']),
+            // Radius's sign-in: a link and what to do with it, then the browser finishes it.
+            login: (_provider, handlers) =>
+              Effect.promise(async () => {
+                handlers.onAuthUrl(RADIUS_AUTH_URL, 'Continue in your browser.')
+                await browserFinished.promise
+              }),
+            logout: () => Effect.void,
+            isConnected: () => Effect.succeed(false),
+            getAccountInfo: (provider) =>
+              Effect.succeed({
+                provider,
+                connected: false,
+                label: 'Not connected',
+              }),
+          }),
+        ),
+      ),
+    ),
+}))
 
 describe('a sign-in that finishes in the browser', () => {
   it('shows its instructions and sign-in link while it waits', async () => {

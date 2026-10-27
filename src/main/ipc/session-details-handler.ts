@@ -1,74 +1,27 @@
-import { dispatchHostBackedSessionGuiOperation } from '../application/host-ui-session-operation-dispatcher'
-import { hostHandle as typedHandle } from './typed-ipc'
+import { hostHandle } from './typed-ipc'
 
 export function registerSessionDetailsHandlers(): void {
-  typedHandle('sessions:get-detail', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:get-detail', args),
-  )
-  typedHandle('sessions:turn-checkpoints:list', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:turn-checkpoints:list', args),
-  )
-  typedHandle('sessions:turn-diff:get', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:turn-diff:get', args),
-  )
-  typedHandle('sessions:turn-diff-files:get', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:turn-diff-files:get', args),
-  )
-  typedHandle('sessions:pins:list', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:pins:list', args),
-  )
-  typedHandle('sessions:pins:pin', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:pins:pin', args),
-  )
-  typedHandle('sessions:pins:unpin', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:pins:unpin', args),
-  )
-  typedHandle('sessions:pins:move', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:pins:move', args),
-  )
-  typedHandle('sessions:create', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:create', args),
-  )
-  typedHandle('sessions:fork-to-new', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:fork-to-new', args),
-  )
-  typedHandle('sessions:clone-to-new', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:clone-to-new', args),
-  )
-  typedHandle('sessions:dismiss-interrupted-run', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:dismiss-interrupted-run', args),
-  )
-  typedHandle('sessions:delete', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:delete', args),
-  )
-  typedHandle('sessions:begin-project-removal', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:begin-project-removal', args),
-  )
-  typedHandle('sessions:archive', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:archive', args),
-  )
-  typedHandle('sessions:unarchive', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:unarchive', args),
-  )
-  typedHandle('sessions:update-title', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:update-title', args),
-  )
-  typedHandle('sessions:set-authorization-mode', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:set-authorization-mode', args),
-  )
-  typedHandle('sessions:regenerate-title', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:regenerate-title', args),
-  )
-  typedHandle('sessions:set-model', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:set-model', args),
-  )
-  typedHandle('sessions:set-thinking-level', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:set-thinking-level', args),
-  )
-  typedHandle('sessions:get-default-thinking-level', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:get-default-thinking-level', args),
-  )
-  typedHandle('sessions:set-default-thinking-level', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:set-default-thinking-level', args),
-  )
+  hostHandle('sessions:get-detail')
+  hostHandle('sessions:turn-checkpoints:list')
+  hostHandle('sessions:turn-diff:get')
+  hostHandle('sessions:turn-diff-files:get')
+  hostHandle('sessions:pins:list')
+  hostHandle('sessions:pins:pin')
+  hostHandle('sessions:pins:unpin')
+  hostHandle('sessions:pins:move')
+  hostHandle('sessions:create')
+  hostHandle('sessions:fork-to-new')
+  hostHandle('sessions:clone-to-new')
+  hostHandle('sessions:dismiss-interrupted-run')
+  hostHandle('sessions:delete')
+  hostHandle('sessions:begin-project-removal')
+  hostHandle('sessions:archive')
+  hostHandle('sessions:unarchive')
+  hostHandle('sessions:update-title')
+  hostHandle('sessions:set-authorization-mode')
+  hostHandle('sessions:regenerate-title')
+  hostHandle('sessions:set-model')
+  hostHandle('sessions:set-thinking-level')
+  hostHandle('sessions:get-default-thinking-level')
+  hostHandle('sessions:set-default-thinking-level')
 }

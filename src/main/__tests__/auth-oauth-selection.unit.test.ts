@@ -55,6 +55,38 @@ vi.mock('../runtime', () => ({
       ),
     ),
 }))
+vi.mock('../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, ProviderOAuthService>) =>
+    Effect.runPromise(
+      Effect.provide(
+        effect,
+        Layer.succeed(
+          ProviderOAuthService,
+          ProviderOAuthService.of({
+            listProviders: () => Effect.succeed(['openai']),
+            login: (_provider, handlers) =>
+              Effect.promise(async () => {
+                selectionState.selectedOption = await handlers.onSelect({
+                  message: 'Choose a sign-in method',
+                  options: [
+                    { id: 'browser', label: 'Browser login' },
+                    { id: 'device-code', label: 'Device code' },
+                  ],
+                })
+              }),
+            logout: () => Effect.void,
+            isConnected: () => Effect.succeed(false),
+            getAccountInfo: (provider) =>
+              Effect.succeed({
+                provider,
+                connected: false,
+                label: 'Not connected',
+              }),
+          }),
+        ),
+      ),
+    ),
+}))
 
 async function waitForSelectionStatus(statuses: readonly OAuthFlowStatus[]) {
   for (let attempt = 0; attempt < MAX_STATUS_POLL_ATTEMPTS; attempt += 1) {

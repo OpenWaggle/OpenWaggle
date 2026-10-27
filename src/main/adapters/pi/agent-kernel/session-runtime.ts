@@ -156,7 +156,9 @@ export async function createPiSessionRuntime(
      * extensions see it, so the fork can be written. The manager it returns, if any, is the one the
      * fork's session runs on.
      */
-    readonly beforeForkStarts?: (sessionManager: SessionManager) => Promise<SessionManager | void>
+    readonly beforeForkStarts?: (
+      sessionManager: SessionManager,
+    ) => Promise<SessionManager | undefined>
   } = {},
 ) {
   await idleCacheWarming.release(input.session.id)

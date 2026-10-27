@@ -15,8 +15,8 @@ vi.mock('../local-session-paths', () => ({
     endpointCapabilityPath: null,
   }),
 }))
-vi.mock('../session-host-cutover', () => ({
-  runSessionHostCutover: vi.fn(async () => undefined),
+vi.mock('../session-host-cutover', () => ({ runSessionHostCutover: vi.fn(async () => undefined) }))
+vi.mock('../session-host-cutover-presence', () => ({
   sessionHostTargetExists: vi.fn(async () => true),
 }))
 

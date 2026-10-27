@@ -3,7 +3,7 @@ import { getParseIssues } from '@shared/schema'
 import { decodeScheduledTasksRequest } from '@shared/schemas/scheduled-task'
 import { SCHEDULED_TASKS_CONTRACT_VERSION } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { typedHandle } from './typed-ipc'
 
 function invalidCommandError(error: unknown) {
@@ -30,7 +30,7 @@ export function registerScheduledTasksHandlers(): void {
           }),
         catch: invalidCommandError,
       })
-      const result = yield* dispatchLocalSessionCommand({
+      const result = yield* dispatchGuiSessionCommand({
         caller: { callerId: 'gui:local-user' },
         payload: { contract: 'scheduled-tasks-v1', request },
       })

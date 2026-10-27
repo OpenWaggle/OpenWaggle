@@ -1,11 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as Effect from 'effect/Effect'
-import {
-  getSettingsOperation,
-  setEnabledModelsOperation,
-  testApiKeyOperation,
-  updateSettingsOperation,
-} from '../application/settings-operations'
+import { getSettingsOperation } from '../application/settings-operations'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { createAppCliShimService } from '../services/cli-shim-service'
 import { getAppCliShimStatus } from '../services/cli-shim-startup'
@@ -31,13 +26,11 @@ function rehydrateAfterUsageStatisticsChange(result: unknown, raw: unknown) {
 }
 
 function registerSettingsCrudHandlers() {
-  hostHandle('settings:get', () => getSettingsOperation())
-  hostHandle('settings:update', (_event, raw: unknown) => updateSettingsOperation(raw), {
+  hostHandle('settings:get')
+  hostHandle('settings:update', {
     afterRemote: rehydrateAfterUsageStatisticsChange,
   })
-  hostHandle('settings:set-enabled-models', (_event, models: unknown) =>
-    setEnabledModelsOperation(models),
-  )
+  hostHandle('settings:set-enabled-models')
 }
 
 function registerTreePreferenceHandlers() {
@@ -75,11 +68,7 @@ function registerSettingsUtilityHandlers() {
     Effect.tryPromise(() => createAppCliShimService().install()),
   )
   typedHandle('cli-shim:remove', () => Effect.tryPromise(() => createAppCliShimService().remove()))
-  hostHandle(
-    'settings:test-api-key',
-    (_event, provider: string, apiKey: string, projectPath?: string | null) =>
-      testApiKeyOperation(provider, apiKey, projectPath),
-  )
+  hostHandle('settings:test-api-key')
 }
 
 export function registerSettingsHandlers(): void {

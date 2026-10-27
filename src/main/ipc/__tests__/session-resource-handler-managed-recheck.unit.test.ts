@@ -22,11 +22,14 @@ const mocks = vi.hoisted(() => ({
   getResourceProjectionNodes: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: mocks.typedHandle,
-  typedHandle: mocks.typedHandle,
-  typedOn: mocks.typedOn,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(mocks.typedHandle),
+    typedHandle: mocks.typedHandle,
+    typedOn: mocks.typedOn,
+  }
+})
 
 const MANAGED_RESOURCE = {
   id: 'managed-attachment',

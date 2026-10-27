@@ -17,7 +17,7 @@ const { invokeConfiguredHostUiRawMock, ipcMainHandleMock, ipcMainOnMock, warning
   },
 )
 
-vi.mock('../../application/local-session-command-dispatcher', () => ({
+vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: invokeConfiguredHostUiRawMock,
 }))
 
@@ -37,9 +37,9 @@ vi.mock('../../logger', () => ({
   }),
 }))
 
-vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
     Effect.runPromiseExit(effect),
 }))
 
@@ -138,10 +138,9 @@ describe('hostHandle', () => {
     ipcMainOnMock.mockReset()
   })
 
-  it('forwards prepared transport arguments and skips the isolated local runtime', async () => {
+  it('forwards prepared transport arguments to the Session Host', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
-    const localHandler = vi.fn(() => Effect.succeed({ ok: false as const, error: 'local' }))
-    hostHandle('settings:update', localHandler, {
+    hostHandle('settings:update', {
       prepareRemoteArgs: (_event, update) => [{ approved: update }],
     })
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
@@ -152,17 +151,16 @@ describe('hostHandle', () => {
     expect(invokeConfiguredHostUiRawMock).toHaveBeenCalledWith('settings:update', [
       { approved: { thinkingLevel: 'high' } },
     ])
-    expect(localHandler).not.toHaveBeenCalled()
   })
 
-  it('uses the application effect when this GUI owns the Host', async () => {
+  it('answers nothing itself when the window is not attached to a Session Host (A-F5)', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: false })
-    const localHandler = vi.fn(() => Effect.succeed(DEFAULT_SETTINGS))
-    hostHandle('settings:get', localHandler)
+    hostHandle('settings:get')
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
 
-    await expect(registeredHandler({ sender: {} })).resolves.toEqual(DEFAULT_SETTINGS)
-    expect(localHandler).toHaveBeenCalledOnce()
+    await expect(registeredHandler({ sender: {} })).rejects.toThrow(
+      '"settings:get" needs the Session Host',
+    )
   })
 
   it('routes worktree removal to the authoritative Host for an attached GUI', async () => {
@@ -170,10 +168,7 @@ describe('hostHandle', () => {
       handled: true,
       result: { ok: false, code: 'workspace-bound', message: 'Still bound.' },
     })
-    const localHandler = vi.fn(() =>
-      Effect.succeed({ ok: true as const, path: '/worktree', message: 'Removed.' }),
-    )
-    hostHandle('git:worktrees:remove', localHandler)
+    hostHandle('git:worktrees:remove')
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
 
     await expect(
@@ -183,7 +178,6 @@ describe('hostHandle', () => {
       '/project',
       { path: '/worktree' },
     ])
-    expect(localHandler).not.toHaveBeenCalled()
   })
 })
 
@@ -197,7 +191,7 @@ describe('hostHandle follow-up after the Session Host answered', () => {
   it('runs the follow-up with the Host result and the original arguments', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
     const followUps: unknown[] = []
-    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+    hostHandle('settings:update', {
       afterRemote: (result, update) => Effect.sync(() => void followUps.push({ result, update })),
     })
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
@@ -210,7 +204,7 @@ describe('hostHandle follow-up after the Session Host answered', () => {
 
   it('returns the Host result and logs the channel when the follow-up fails', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
-    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+    hostHandle('settings:update', {
       afterRemote: () => Effect.fail(new Error('Session Host went away')),
     })
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
@@ -224,15 +218,15 @@ describe('hostHandle follow-up after the Session Host answered', () => {
     ])
   })
 
-  it('runs no follow-up when this GUI handled the call itself', async () => {
+  it('runs no follow-up when no Session Host answered', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: false })
     const followUps: unknown[] = []
-    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+    hostHandle('settings:update', {
       afterRemote: (result) => Effect.sync(() => void followUps.push(result)),
     })
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
 
-    await expect(registeredHandler({ sender: {} }, {})).resolves.toEqual({ ok: true })
+    await expect(registeredHandler({ sender: {} }, {})).rejects.toThrow('needs the Session Host')
     expect(followUps).toEqual([])
   })
 })

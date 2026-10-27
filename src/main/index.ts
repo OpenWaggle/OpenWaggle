@@ -41,6 +41,7 @@ import {
   registerRendererScheme,
 } from './renderer-protocol'
 import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
+import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { installSessionLinkProtocol } from './session-link-protocol'
@@ -58,7 +59,7 @@ const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-l
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importIpcHandlersModule = () => import('./ipc/handlers')
-const importRuntimeModule = () => import('./runtime')
+const importRuntimeModule = () => import('./gui-runtime')
 
 type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
@@ -141,7 +142,7 @@ async function persistActiveRunsBeforeQuit() {
   const resolved = persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
   if (!resolved) return
 
-  await runtimeModule.runAppEffect(resolved())
+  await runtimeModule.runGuiEffect(resolved())
 }
 
 async function bootstrapServicesAndWindow() {
@@ -150,8 +151,8 @@ async function bootstrapServicesAndWindow() {
   const shellEnvironment = installDesktopShellEnvironment().catch((error: unknown) => {
     logger.warn('The login-shell environment could not be read', describeError(error))
   })
-  const { configureAppDatabaseAccess } = await import('./services/database-service')
-  configureAppDatabaseAccess('client-isolated')
+  // The window has no database of its own; Settings come from the Host (A-F5).
+  setAppDatabaseAccessMode('client-isolated')
 
   // Renderer requests wait here until the backend is ready (A-F2).
   holdGuiBackendGate()
@@ -189,7 +190,7 @@ async function bootstrapServicesAndWindow() {
 
   registerApplicationProtocols({
     readInlineVisualizationSource: (input) =>
-      runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+      runtimeModule.runGuiEffect(readInlineVisualizationSource(input)),
   })
   startupMark('protocol-handlers-registered')
 
@@ -265,7 +266,7 @@ function registerAppLifecycle() {
         })
       } finally {
         try {
-          await (await getRuntimeModule()).disposeAppRuntime()
+          await (await getRuntimeModule()).disposeGuiRuntime()
         } finally {
           clearGuiBackend()
         }

@@ -14,12 +14,16 @@ const { typedHandleMock, listContributionsMock } = vi.hoisted(() => ({
   listContributionsMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 import { registerExtensionsHandlers } from '../extensions-handler'
+import { setLegacyHostOperationDependencies } from './legacy-host-operations'
 
 function makeContributionsView(
   input: ExtensionListContributionsInput,
@@ -59,10 +63,11 @@ function makeContributionsView(
 }
 
 function registerContributionsHandler() {
-  registerExtensionsHandlers({
+  setLegacyHostOperationDependencies({
     listExtensionContributionsView: (input: ExtensionListContributionsInput) =>
       Effect.sync(() => listContributionsMock(input)),
   })
+  registerExtensionsHandlers()
   const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) =>
       candidate[0] === 'extensions:list-contributions' && typeof candidate[1] === 'function',

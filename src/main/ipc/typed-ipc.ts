@@ -12,12 +12,11 @@ import type { Effect as EffectType } from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
-import { invokeConfiguredHostUiRaw } from '../application/local-session-command-dispatcher'
+import { invokeConfiguredHostUiRaw } from '../application/gui-session-command-router'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
 import { waitForGuiBackend } from '../gui-backend-gate'
+import { type GuiServices, runGuiEffect, runGuiEffectExit } from '../gui-runtime'
 import { createLogger } from '../logger'
-import type { AppServices } from '../runtime'
-import { runAppEffect, runAppEffectExit } from '../runtime'
 
 const logger = createLogger('ipc')
 
@@ -38,7 +37,7 @@ type IpcHandler<C extends IpcInvokeChannel> = (
 type EffectIpcHandler<C extends IpcInvokeChannel> = (
   event: IpcMainInvokeEvent,
   ...args: IpcInvokeArgs<C>
-) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, AppServices>
+) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, GuiServices>
 
 function isObjectWithUnknownValues(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null
@@ -73,7 +72,7 @@ function toReadableIssues(issues: readonly string[]) {
   return issues.join('; ')
 }
 
-function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
+export function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
   if (isValidationIssuesError(error)) {
     const readable = toReadableIssues(error.issues)
     logger.warn(`Validation failed on "${channel}"`, { issues: readable })
@@ -166,10 +165,10 @@ export function relayingHandle<C extends IpcInvokeChannel>(
   handler: (
     event: IpcMainInvokeEvent,
     ...args: IpcInvokeArgs<C>
-  ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, AppServices>,
+  ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, GuiServices>,
 ): void {
   rawHandle(channel, async (event, ...args) => {
-    const exit = await runAppEffectExit(handler(event, ...args))
+    const exit = await runGuiEffectExit(handler(event, ...args))
 
     if (Exit.isSuccess(exit)) {
       return exit.value instanceof RelayedHostResult ? exit.value.value : exit.value
@@ -189,9 +188,21 @@ export function relayingHandle<C extends IpcInvokeChannel>(
   })
 }
 
+/** A Host-backed channel before the GUI attached, or after it detached for quit. */
+export class GuiSessionHostNotAttachedError extends Error {
+  constructor(channel: string) {
+    super(`"${channel}" needs the Session Host, and this window is not attached to it.`)
+    this.name = 'GuiSessionHostNotAttachedError'
+  }
+}
+
+/**
+ * Relays a Host-backed channel to the Session Host (ADR 0030). The window answers none of them
+ * itself: it never builds the Host's services (A-F5), and its requests wait at the backend gate
+ * until it is attached.
+ */
 export function hostHandle<C extends HostBackedGuiChannel>(
   channel: C,
-  handler: EffectIpcHandler<C>,
   options: {
     readonly prepareRemoteArgs?: (
       event: IpcMainInvokeEvent,
@@ -201,7 +212,7 @@ export function hostHandle<C extends HostBackedGuiChannel>(
     readonly afterRemote?: (
       result: unknown,
       ...args: IpcInvokeArgs<C>
-    ) => EffectType<void, unknown, AppServices>
+    ) => EffectType<void, unknown, GuiServices>
   } = {},
 ): void {
   if (!HOST_BACKED_GUI_CHANNELS.some((candidate) => candidate === channel)) {
@@ -212,24 +223,16 @@ export function hostHandle<C extends HostBackedGuiChannel>(
       ? await options.prepareRemoteArgs(event, ...args)
       : args
     const remote = await invokeConfiguredHostUiRaw(channel, remoteArgs)
-    if (remote.handled) {
-      if (options.afterRemote) {
-        await runAppEffect(options.afterRemote(remote.result, ...args)).catch((error: unknown) => {
-          logger.warn('Host-backed IPC follow-up failed', {
-            channel,
-            error: error instanceof Error ? error.message : String(error),
-          })
+    if (!remote.handled) throw new GuiSessionHostNotAttachedError(channel)
+    if (options.afterRemote) {
+      await runGuiEffect(options.afterRemote(remote.result, ...args)).catch((error: unknown) => {
+        logger.warn('Host-backed IPC follow-up failed', {
+          channel,
+          error: error instanceof Error ? error.message : String(error),
         })
-      }
-      return remote.result
+      })
     }
-    const exit = await runAppEffectExit(handler(event, ...args))
-    if (Exit.isSuccess(exit)) return exit.value
-    const failure = Cause.failureOption(exit.cause)
-    if (Option.isSome(failure)) throw toIpcError(channel, failure.value)
-    const defect = Cause.dieOption(exit.cause)
-    if (Option.isSome(defect)) throw toIpcError(channel, defect.value)
-    throw new Error('An unexpected Effect failure occurred.')
+    return remote.result
   })
 }
 
@@ -249,14 +252,14 @@ function rawOn<C extends IpcSendChannel>(
 type EffectIpcOnHandler<C extends IpcSendChannel> = (
   event: IpcMainEvent,
   ...args: IpcSendArgs<C>
-) => EffectType<void, unknown, AppServices>
+) => EffectType<void, unknown, GuiServices>
 
 export function typedOn<C extends IpcSendChannel>(
   channel: C,
   handler: EffectIpcOnHandler<C>,
 ): void {
   rawOn(channel, (event, ...args) => {
-    runAppEffect(handler(event, ...args)).catch((err) => {
+    runGuiEffect(handler(event, ...args)).catch((err) => {
       logger.error(`Unhandled error in "${channel}" listener`, {
         error: err instanceof Error ? err.message : String(err),
       })

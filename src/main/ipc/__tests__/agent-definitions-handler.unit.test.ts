@@ -10,7 +10,10 @@ vi.mock('../../application/host-ui-agent-definition-operation', () => ({
   manageHostUiAgentDefinitions: manageMock,
 }))
 
-vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock, typedHandle: typedHandleMock }))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return { hostHandle: withLegacyHostOperation(typedHandleMock), typedHandle: typedHandleMock }
+})
 
 import { registerAgentDefinitionsHandlers } from '../agent-definitions-handler'
 

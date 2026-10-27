@@ -14,16 +14,6 @@ import {
   resolveLocalSessionHostPaths,
   rotateLocalSessionHostEndpoint,
 } from './session-host/local-session-paths'
-import { startAppSessionHost } from './session-host/session-host-bootstrap'
-import {
-  runSessionHostCutover,
-  sessionHostSourceExists,
-  sessionHostTargetExists,
-} from './session-host/session-host-cutover'
-import {
-  acquireSessionHostOwnership,
-  isSessionHostOwnershipHeld,
-} from './session-host/session-host-ownership'
 import { createStartupMark } from './startup-timing'
 import {
   configureUsageStatisticsHostRecorder,
@@ -78,10 +68,12 @@ export function watchUnadoptableSessionHostEndpoint(input: {
  * owned has nothing to start, and its exit is no crash.
  */
 async function acquireOwnershipUnlessHeld(databasePath: string) {
+  // Loaded here, not at module load: the desktop window's entry graph reaches this module.
+  const ownership = await import('./session-host/session-host-ownership')
   try {
-    return await acquireSessionHostOwnership(databasePath)
+    return await ownership.acquireSessionHostOwnership(databasePath)
   } catch (error) {
-    if (isSessionHostOwnershipHeld(error)) return null
+    if (ownership.isSessionHostOwnershipHeld(error)) return null
     throw error
   }
 }
@@ -153,10 +145,12 @@ async function prepareSessionHostStore(preparedPaths: LocalSessionHostPaths) {
     targetDatabasePath: paths.databasePath,
     recoveryDatabasePath: paths.recoveryDatabasePath,
   }
-  const cutover = () => runSessionHostCutover(cutoverPaths)
+  // The cutover opens SQLite; loaded here so the window's entry graph never reaches it (A-F5).
+  const store = await import('./session-host/session-host-cutover')
+  const cutover = () => store.runSessionHostCutover(cutoverPaths)
   if (
-    (await sessionHostTargetExists(cutoverPaths)) ||
-    !(await sessionHostSourceExists(cutoverPaths))
+    (await store.sessionHostTargetExists(cutoverPaths)) ||
+    !(await store.sessionHostSourceExists(cutoverPaths))
   ) {
     await cutover()
   } else {
@@ -202,6 +196,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         startupMark('host-cutover-settled')
         const runtime = await import('./runtime')
         const settings = await import('./store/settings')
+        const { startAppSessionHost } = await import('./session-host/session-host-bootstrap')
         let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()

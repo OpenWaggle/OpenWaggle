@@ -90,10 +90,12 @@ describe('session resource image actions', () => {
   it.each(['sessions:resources:copy-image', 'sessions:resources:prepare-attachment'])(
     'rejects a cross-session resource on %s',
     async (channel) => {
+      // The Session Host finds no such image in that Session, so nothing is read (A-F5).
       await expect(invoke(channel, SessionId('session-two'), IMAGE.id)).rejects.toThrow(
-        'not an image',
+        /could not be read|no managed attachment copy/u,
       )
 
+      expect(handlerMocks.read).not.toHaveBeenCalled()
       expect(actionMocks.writeImage).not.toHaveBeenCalled()
       expect(actionMocks.prepareRegisteredImageAttachmentFromBytes).not.toHaveBeenCalled()
     },
@@ -120,12 +122,13 @@ describe('session resource image actions', () => {
       .mockReturnValueOnce({ ...IMAGE, kind: 'file' })
       .mockReturnValueOnce({ ...IMAGE, available: false })
 
+    // The Session Host answers neither, so the window reads nothing (A-F5).
     await expect(
       invoke('sessions:resources:copy-image', SessionId('session-one'), IMAGE.id),
-    ).rejects.toThrow('not an image')
+    ).rejects.toThrow('could not be read')
     await expect(
       invoke('sessions:resources:copy-image', SessionId('session-one'), IMAGE.id),
-    ).rejects.toThrow('unavailable')
+    ).rejects.toThrow('could not be read')
 
     expect(handlerMocks.read).not.toHaveBeenCalled()
     expect(actionMocks.writeImage).not.toHaveBeenCalled()

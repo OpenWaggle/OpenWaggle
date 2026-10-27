@@ -34,9 +34,12 @@ const {
   mutateLocalUiSessionMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+  }
+})
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: (input: {

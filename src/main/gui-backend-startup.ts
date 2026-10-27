@@ -11,9 +11,9 @@ import { env } from './env'
 import { startErrorReporting } from './error-reporting'
 import { startGuiAutoUpdater } from './gui-auto-updater'
 import { releaseGuiBackendGate } from './gui-backend-gate'
+import type * as GuiRuntimeModule from './gui-runtime'
 import { type GuiStartupProgress, GuiStartupRestartRequiredError } from './gui-startup-coordinator'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
-import type * as RuntimeModule from './runtime'
 import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
@@ -69,7 +69,7 @@ export async function startGuiBackend(input: {
   /** Settles once the Host process is launched or reached, or after a short bound. */
   readonly hostHeadStart: Promise<void>
   readonly startupMark: StartupMark
-  readonly loadRuntime: () => Promise<typeof RuntimeModule>
+  readonly loadRuntime: () => Promise<typeof GuiRuntimeModule>
 }) {
   const { startupMark } = input
   const { signal } = input
@@ -94,10 +94,9 @@ export async function startGuiBackend(input: {
     import('./store/settings'),
   ])
   startupMark('startup-modules-imported')
-  await runtimeModule.initializeAppRuntime()
-  startupMark('app-runtime-initialized')
-  await settingsStoreModule.initializeSettingsStore()
-  startupMark('settings-store-initialized')
+  // The window's own composition root (A-F5): no Pi, MCP, agent kernel, SQLite or model runtime.
+  await runtimeModule.initializeGuiRuntime()
+  startupMark('gui-runtime-initialized')
   await hostStart
   try {
     signal.throwIfAborted()
@@ -122,8 +121,8 @@ export async function startGuiBackend(input: {
     try {
       cleanupDesktopServicesOnce = await startAppGuiDesktopServices({
         client: lifecycle.client,
-        runEffect: runtimeModule.runAppEffect,
-        disposeRuntime: runtimeModule.disposeAppRuntime,
+        runEffect: runtimeModule.runGuiEffect,
+        disposeRuntime: runtimeModule.disposeGuiRuntime,
       })
     } catch (error) {
       // Its cleanup already disposed this process's runtime: only a new process can retry.

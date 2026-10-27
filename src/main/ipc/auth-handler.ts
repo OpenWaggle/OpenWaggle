@@ -11,14 +11,14 @@ import {
   submitCode,
 } from '../auth'
 import { getAllBrowserWindows } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { ProviderAuthService } from '../ports/provider-auth-service'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
-import { runAppEffect } from '../runtime'
 import { typedHandle } from './typed-ipc'
 
 function broadcastOAuthStatus(status: OAuthFlowStatus) {
   if (status.type === 'success') {
-    void runAppEffect(recordUsageStatisticsObservation({ kind: 'provider-connected' }))
+    void runGuiEffect(recordUsageStatisticsObservation({ kind: 'provider-connected' }))
   }
   for (const window of getAllBrowserWindows()) {
     window.webContents.send('auth:oauth-status', status)

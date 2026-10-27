@@ -48,7 +48,10 @@ export interface McpOAuthMigrationSink {
    * Store a state in OpenWaggle's Pi OAuth store under Pi's key. False when the key already has a
    * sign-in, which is kept.
    */
-  write(key: string, state: MigratedMcpOAuthState): boolean | void | Promise<boolean | void>
+  write(
+    key: string,
+    state: MigratedMcpOAuthState,
+  ): boolean | undefined | Promise<boolean | undefined>
 }
 
 export interface McpOAuthMigrationResult {

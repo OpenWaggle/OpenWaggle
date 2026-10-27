@@ -14,7 +14,6 @@ import { LocalSessionHostUnavailableError } from './local-session-client-protoco
 import { HOST_POLL_INTERVAL_MS, waitForCondition } from './local-session-host-polling'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
-import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
@@ -153,10 +152,12 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
   canConnect,
   probe: probeLocalSessionHost,
   tryAcquireOwnership: async (databasePath) => {
+    // Its SQLite lock loads only when no Host answers, never on the window's entry graph.
+    const ownership = await import('./session-host-ownership')
     try {
-      return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+      return await ownership.acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     } catch (error) {
-      if (isSessionHostOwnershipHeld(error)) return null
+      if (ownership.isSessionHostOwnershipHeld(error)) return null
       throw error
     }
   },

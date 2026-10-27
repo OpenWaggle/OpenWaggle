@@ -10,8 +10,9 @@ import type {
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { WebContents } from 'electron'
 import { type Mock, vi } from 'vitest'
+import type * as GuiSessionCommandRouter from '../../application/gui-session-command-router'
 import { SessionResourceRepositoryError } from '../../errors'
 import {
   type PendingSessionOutput,
@@ -39,6 +40,7 @@ import {
   registerSessionResourceHandlers,
   SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
 } from '../session-resource-handler'
+import { emulateSessionResourceHost } from './session-resource-host-emulation'
 
 export function sessionResourceBackfillPageSize() {
   return SESSION_RESOURCE_BACKFILL_PAGE_SIZE
@@ -91,11 +93,20 @@ export function getSessionResourceHandlerMocks() {
   return handlerMocks
 }
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: handlerMocks.typedHandle,
-  typedHandle: handlerMocks.typedHandle,
-  typedOn: handlerMocks.typedOn,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(handlerMocks.typedHandle),
+    typedHandle: handlerMocks.typedHandle,
+    typedOn: handlerMocks.typedOn,
+  }
+})
+
+vi.mock('../../application/gui-session-command-router', async (importOriginal) => {
+  const host = await import('./session-resource-host-emulation')
+  const router = await importOriginal<typeof GuiSessionCommandRouter>()
+  return { ...router, invokeConfiguredHostUiRaw: host.relaySessionResourceHostRequest }
+})
 
 const TestLayer = Layer.mergeAll(
   Layer.succeed(
@@ -250,28 +261,28 @@ const TestLayer = Layer.mergeAll(
   ),
 )
 
-export function invokeSessionResourceHandler(channel: string, ...args: readonly unknown[]) {
-  const handler = handlerMocks.typedHandle.mock.calls.find((call) => call[0] === channel)?.[1]
+function runRegisteredHandler(registrations: Mock, channel: string, args: readonly unknown[]) {
+  const handler = registrations.mock.calls.find((call) => call[0] === channel)?.[1]
   if (typeof handler !== 'function') throw new Error(`Missing handler for ${channel}`)
-  const sender = fromPartial<WebContents>(handlerSender)
-  const event = fromPartial<IpcMainInvokeEvent>({ sender })
+  const event = { sender: fromPartial<WebContents>(handlerSender) }
   return Effect.runPromise(Effect.provide(handler(event, ...args), TestLayer))
 }
 
+export function invokeSessionResourceHandler(channel: string, ...args: readonly unknown[]) {
+  return runRegisteredHandler(handlerMocks.typedHandle, channel, args)
+}
+
 export function invokeSessionResourceOwnerHandler(sessionId: unknown) {
-  const handler = handlerMocks.typedOn.mock.calls.find(
-    (call) => call[0] === 'sessions:resources:activate-owner',
-  )?.[1]
-  if (typeof handler !== 'function') throw new Error('Missing Session resource owner handler')
-  const sender = fromPartial<WebContents>(handlerSender)
-  const event = fromPartial<IpcMainEvent>({ sender })
-  return Effect.runPromise(Effect.provide(handler(event, sessionId), TestLayer))
+  return runRegisteredHandler(handlerMocks.typedOn, 'sessions:resources:activate-owner', [
+    sessionId,
+  ])
 }
 
 export function resetSessionResourceHandlerHarness() {
   handlerSenderId += 1
   handlerSender = Object.assign(new EventEmitter(), { id: handlerSenderId })
   handlerMocks.pendingOutputs.splice(0)
+  emulateSessionResourceHost(TestLayer)
   handlerMocks.typedHandle.mockClear()
   handlerMocks.typedOn.mockClear()
   handlerMocks.list.mockReset().mockReturnValue([])

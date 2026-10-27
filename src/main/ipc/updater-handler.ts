@@ -4,12 +4,15 @@ import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channe
 import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
+import {
+  dispatchGuiSessionCommand,
+  GuiSessionCommandNotAttachedError,
+} from '../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
-import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
-import { interruptSessionRun } from '../application/session-run-interruption'
+import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
 import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
-import { runAppEffect } from '../runtime'
 import {
   createUpdateRestartController,
   type UpdateRestartChoice,
@@ -56,17 +59,17 @@ function parseUpdateChannel(value: unknown): UpdateChannel | undefined {
 /** Active runs and compactions across every Session the Session Host owns. */
 async function listActiveActivities() {
   const remote = await invokeConfiguredHostUi('agent:list-active-runs', [])
-  const activities = remote.handled
-    ? remote.result
-    : await runAppEffect(listHostUiActiveActivities())
-  return decodeUnknownOrThrow(activeActivitiesSchema, activities)
+  if (!remote.handled) throw new GuiSessionCommandNotAttachedError()
+  return decodeUnknownOrThrow(activeActivitiesSchema, remote.result)
 }
 
 /** Stops every active run and compaction; interruptSessionRun handles both. */
 async function interruptActiveRuns() {
   const sessionIds = new Set((await listActiveActivities()).map((activity) => activity.sessionId))
   await Promise.all(
-    [...sessionIds].map((sessionId) => runAppEffect(interruptSessionRun(SessionId(sessionId)))),
+    [...sessionIds].map((sessionId) =>
+      runGuiEffect(interruptSessionRunThrough(dispatchGuiSessionCommand, SessionId(sessionId))),
+    ),
   )
 }
 

@@ -231,26 +231,17 @@ async function defaultReadContent(input: {
   readonly sessionId: SessionId
   readonly resourceId: string
 }): Promise<SessionResourceProtocolContent | null> {
-  const [
-    { readHostSessionResourceContent },
-    { openSessionResourceContentStream },
-    { runAppEffect },
-  ] = await Promise.all([
-    import('./application/host-ui-session-resource-content-client'),
-    import('./application/session-resource-content'),
-    import('./runtime'),
-  ])
+  const { readHostSessionResourceContent } = await import(
+    './application/host-ui-session-resource-content-client'
+  )
+  // Session resources live in the Session Host's store, never in the window (A-F5).
   const remote = await readHostSessionResourceContent(input.sessionId, input.resourceId)
-  if (remote.handled) {
-    return remote.content
-      ? {
-          fileName: remote.content.fileName,
-          mimeType: remote.content.mimeType,
-          body: singleChunkStream(remote.content.bytes),
-        }
-      : null
+  if (!remote.handled || !remote.content) return null
+  return {
+    fileName: remote.content.fileName,
+    mimeType: remote.content.mimeType,
+    body: singleChunkStream(remote.content.bytes),
   }
-  return runAppEffect(openSessionResourceContentStream(input.sessionId, input.resourceId))
 }
 
 export function registerSessionResourceProtocolOnce(

@@ -247,8 +247,8 @@ async function defaultReadSource(input: {
   readonly sessionId: SessionId
   readonly sourcePath: string
 }) {
-  const { runAppEffect } = await import('./runtime')
-  return runAppEffect(readInlineVisualizationSource(input))
+  const { runGuiEffect } = await import('./gui-runtime')
+  return runGuiEffect(readInlineVisualizationSource(input))
 }
 
 export function inlineVisualizationUrl(frameId: string) {

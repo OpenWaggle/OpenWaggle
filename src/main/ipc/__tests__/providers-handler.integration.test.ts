@@ -13,10 +13,13 @@ const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 function makeModel(id: string): ProviderModelCapabilities {
   return {

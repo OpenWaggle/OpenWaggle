@@ -26,17 +26,19 @@ describe('session resource catalog IPC handlers', () => {
     resetSessionResourceHandlerHarness()
   })
 
-  it('passes validated identifiers to the session-scoped content lookup', async () => {
+  it('asks the Session Host for the content with validated identifiers', async () => {
     await expect(
       invoke('sessions:resources:read', SessionId('session-one'), 'resource-one'),
     ).resolves.toBeNull()
-    expect(handlerMocks.getContentLocation).toHaveBeenCalledWith(
+    expect(handlerMocks.findById).toHaveBeenCalledWith(
       SessionId('session-one'),
       'resource-one',
+      'images',
     )
   })
 
-  it('returns an opaque protocol reference without serializing managed bytes', async () => {
+  it('returns an opaque protocol reference, never the bytes the Session Host sent', async () => {
+    handlerMocks.findById.mockReturnValue({ id: 'resource-one', kind: 'image', available: true })
     handlerMocks.getContentLocation.mockReturnValue({
       resourceId: 'resource-one',
       sessionId: SESSION_ONE,
@@ -44,6 +46,7 @@ describe('session resource catalog IPC handlers', () => {
       mimeType: 'image/png',
       managedPath: '/managed/image.png',
     })
+    handlerMocks.read.mockReturnValue(Buffer.from('image-bytes'))
 
     const content = await invoke('sessions:resources:read', SESSION_ONE, 'resource-one')
 
@@ -55,7 +58,7 @@ describe('session resource catalog IPC handlers', () => {
       downloadUrl: expect.stringMatching(/^openwaggle-session-resource:\/\/content\//u),
     })
     expect(content).not.toHaveProperty('dataBase64')
-    expect(handlerMocks.read).not.toHaveBeenCalled()
+    expect(content).not.toHaveProperty('bytes')
   })
 
   it('drains a durable pending Output before serving the modern catalog page', async () => {

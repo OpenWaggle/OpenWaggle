@@ -1,10 +1,5 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
-import {
-  getSkillPreviewOperation,
-  listSkillsOperation,
-  setSkillEnabledOperation,
-} from '../application/skill-operations'
 import { loadProjectAgentsInstruction } from '../standards/agents-loader'
 import { resolveAgentsChainForPath, resolveProjectRootAgents } from '../standards/agents-resolver'
 import { hostHandle, typedHandle } from './typed-ipc'
@@ -36,15 +31,9 @@ export function registerSkillsHandlers(): void {
       }),
   )
 
-  hostHandle('skills:list', (_event, rawProjectPath: string) => listSkillsOperation(rawProjectPath))
+  hostHandle('skills:list')
 
-  hostHandle(
-    'skills:set-enabled',
-    (_event, rawProjectPath: string, rawSkillId: string, enabled: boolean) =>
-      setSkillEnabledOperation(rawProjectPath, rawSkillId, enabled),
-  )
+  hostHandle('skills:set-enabled')
 
-  hostHandle('skills:get-preview', (_event, rawProjectPath: string, rawSkillId: string) =>
-    getSkillPreviewOperation(rawProjectPath, rawSkillId),
-  )
+  hostHandle('skills:get-preview')
 }

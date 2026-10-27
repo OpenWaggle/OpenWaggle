@@ -14,9 +14,7 @@ import {
   calculateContentHash,
   resolveSafePackageFilePath,
 } from './adapters/extensions/package-files'
-import { isExtensionRuntimeModuleAccessAllowed } from './application/extension-runtime-module-access-service'
-import { invokeConfiguredHostUiRaw } from './application/local-session-command-dispatcher'
-import { runAppEffect } from './runtime'
+import { invokeConfiguredHostUiRaw } from './application/gui-session-command-router'
 import { isPathInside } from './utils/paths'
 
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
@@ -240,8 +238,8 @@ export async function defaultExtensionRuntimeModuleAccessChecker(
   input: ExtensionRuntimeModuleAccessInput,
 ) {
   const remote = await invokeConfiguredHostUiRaw('extensions:authorize-runtime-module', [input])
-  if (remote.handled) return remote.result === true
-  return runAppEffect(isExtensionRuntimeModuleAccessAllowed(input))
+  // Only the Session Host decides; a window that is not attached loads no extension module.
+  return remote.handled && remote.result === true
 }
 
 async function resolveExtensionModuleFilePath(

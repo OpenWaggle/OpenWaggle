@@ -90,7 +90,7 @@ describe('readInlineVisualizationSource', () => {
 
   afterEach(() => configureGuiSessionCommandClient(null))
 
-  it('authorizes the effective session worktree without exposing the opened checkout', async () => {
+  it('reads nothing when no Session Host answers: the window has no Session store (A-F5)', async () => {
     const sourcePath = '/session-worktree/.openwaggle/visualizations/map.html'
 
     const result = await Effect.runPromise(
@@ -99,13 +99,9 @@ describe('readInlineVisualizationSource', () => {
       ),
     )
 
-    expect(result).toMatchObject({ status: 'loaded' })
-    expect(readSource).toHaveBeenCalledWith({
-      sessionId,
-      sourcePath,
-      workspaceRoots: ['/session-worktree'],
-      readOnly: false,
-    })
+    expect(result).toEqual({ status: 'unavailable', reason: 'session-missing' })
+    expect(getTree).not.toHaveBeenCalled()
+    expect(readSource).not.toHaveBeenCalled()
   })
 
   it('reads the authoritative Host owner when the GUI session repository is isolated', async () => {

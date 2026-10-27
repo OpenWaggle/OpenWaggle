@@ -7,9 +7,9 @@ import type {
 } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { openExternal } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
-import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
 
@@ -121,7 +121,7 @@ async function runOAuthFlow(
   })
 
   try {
-    await runAppEffect(
+    await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
@@ -235,7 +235,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
   authLifecycleTickInFlight = true
 
   try {
-    const providerStates = await runAppEffect(
+    const providerStates = await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         const providers = yield* authService.listProviders()
@@ -272,7 +272,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
 }
 
 async function logoutOAuthProvider(provider: OAuthProvider) {
-  await runAppEffect(
+  await runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       yield* authService.logout(provider)
@@ -287,7 +287,7 @@ export async function disconnect(provider: OAuthProvider): Promise<void> {
 }
 
 export async function getAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo> {
-  return runAppEffect(
+  return runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       return yield* authService.getAccountInfo(provider)

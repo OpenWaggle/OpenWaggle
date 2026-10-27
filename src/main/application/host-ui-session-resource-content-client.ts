@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionResourceThumbnailPreview } from '@shared/types/session-resource'
 import { isRecord } from '@shared/utils/validation'
 import { MAX_CAPTURED_IMAGE_BYTES } from '../domain/session-resource-image'
-import { invokeConfiguredHostUiRaw } from './local-session-command-dispatcher'
+import { invokeConfiguredHostUiRaw } from './gui-session-command-router'
 
 export type HostSessionResourceContentResult =
   | { readonly handled: false }

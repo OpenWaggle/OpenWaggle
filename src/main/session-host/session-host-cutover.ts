@@ -1,4 +1,4 @@
-import { access, mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
 import {
   defaultSessionEmbeddingModel,
@@ -18,7 +18,6 @@ import {
   SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
 } from '../services/session-host-target-schema'
 import { type HostSqliteDatabase, openHostSqliteDatabase } from './host-sqlite-database'
-import { legacyDatabaseFileState } from './legacy-database-file'
 import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
 import {
   normalizeLegacyMigrationLedger,
@@ -29,22 +28,26 @@ import {
   normalizeLegacySessionColumns,
   populateSessionHostTarget,
 } from './session-host-cutover-population'
+import {
+  exists,
+  type SessionHostCutoverPaths,
+  sessionHostSourceExists,
+} from './session-host-cutover-presence'
 import { normalizeLegacySessionTitles } from './session-host-cutover-title-normalization'
 import { validateSessionHostTarget } from './session-host-cutover-validation'
 import { acquireSessionHostOwnership } from './session-host-ownership'
 
+export {
+  type SessionHostCutoverPaths,
+  sessionHostSourceExists,
+  sessionHostTargetExists,
+} from './session-host-cutover-presence'
 export { SESSION_HOST_SCHEMA_REVISION } from './session-host-cutover-validation'
 
 export const SESSION_HOST_CUTOVER_MIGRATION_ID = SESSION_HOST_BASELINE_MIGRATION_ID
 export const SESSION_HOST_CUTOVER_MIGRATION_REVISION = SESSION_HOST_CUTOVER_REVISION
 const OWNER_DIRECTORY_MODE = 0o700
 const CUTOVER_CACHE_KIB = 131_072
-
-export interface SessionHostCutoverPaths {
-  readonly sourceDatabasePath: string
-  readonly targetDatabasePath: string
-  readonly recoveryDatabasePath: string
-}
 
 export type SessionHostCutoverResult =
   | { readonly status: 'fresh-install' }
@@ -56,25 +59,6 @@ export type SessionHostCutoverResult =
       readonly sessionCount: number
       readonly nodeCount: number
     }
-
-async function exists(targetPath: string) {
-  try {
-    await access(targetPath)
-    return true
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false
-    throw error
-  }
-}
-
-export function sessionHostTargetExists(paths: SessionHostCutoverPaths) {
-  return exists(paths.targetDatabasePath)
-}
-
-/** Whether there is a legacy database to migrate; a 0-byte file holds nothing (#357). */
-export async function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
-  return (await legacyDatabaseFileState(paths.sourceDatabasePath)) === 'present'
-}
 
 function applyTargetSchema(database: HostSqliteDatabase) {
   for (const statement of SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
