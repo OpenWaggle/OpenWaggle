@@ -1,4 +1,3 @@
-import { realLocation } from '../config/mcp-config-files'
 import { mcpConnectionCatalogOptions } from './mcp-connection-catalog'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
@@ -16,17 +15,9 @@ import {
   type SessionConnections,
   systemClock,
 } from './mcp-session-connection-pool-types'
+import { connectionStatesOf, poolServerStatus } from './mcp-session-connection-pool-views'
 import { McpSessionIdleClose } from './mcp-session-idle-close'
 import type { McpWireTransport } from './mcp-wire'
-
-/**
- * Whether a connection's project is `projectPath`, however either is spelled: by real folder, as
- * a Run records the Session's spelling (perhaps through a link) and Settings sends the real path.
- */
-function sameProject(projectPath: string | null) {
-  const wanted = projectPath === null ? null : realLocation(projectPath)
-  return (other: string | null) => (other === null ? null : realLocation(other)) === wanted
-}
 
 /**
  * Every Session's MCP server connections. A connection belongs to one Session and lasts across
@@ -254,37 +245,21 @@ export class McpSessionConnectionPool {
   }
 
   status(sessionId: string): McpPoolServerStatus[] {
-    const session = this.sessions.get(sessionId)
-    if (!session) return []
-    return [...session.servers].map(([name, { connection }]) => ({
-      name,
-      clients: connection.attachedLeases,
-      ...(connection.lastError ? { lastError: connection.lastError } : {}),
-      stderrTail: connection.stderrTail,
-    }))
+    return poolServerStatus(this.sessions.get(sessionId))
+  }
+
+  /** The open connections to one server identity of the project's Sessions (`connectionStatesOf`). */
+  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
+    return connectionStatesOf(this.sessions.values(), identity, projectPath)
   }
 
   /**
-   * The open connections to one server identity of the project's Sessions (`null`: Sessions with
-   * no project), read without sending anything, touching recency, or handing a connection out: a
-   * connection stays its Session's alone. Another project's Session connects on its own, so its
-   * connection says nothing about the server there (ADR 0051).
+   * Closes the connections of every Session without a running Run, as an idle close does: the
+   * Host has no client (decision 4). A Session's next Run or MCP App request reconnects.
    */
-  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
-    const project = sameProject(projectPath)
-    return [...this.sessions.values()].flatMap((session) =>
-      [...session.servers.values()]
-        .filter(
-          (server) =>
-            server.identity === identity &&
-            project(server.projectPath) &&
-            !server.connection.isClosed,
-        )
-        .map(({ connection }) => ({
-          ready: connection.isReady,
-          ...(connection.lastError ? { lastError: connection.lastError } : {}),
-        })),
-    )
+  async closeIdleSessions() {
+    const idle = [...this.sessions].filter(([, session]) => session.activeRuns === 0)
+    await Promise.all(idle.map(([id]) => this.closeSessionConnections(id)))
   }
 
   private touch(sessionId: string) {

@@ -114,3 +114,25 @@ describe('MCP pool idle policy (D1.1)', () => {
     expect(settledWorkerIdleCloseMs(null)).toBeUndefined()
   })
 })
+
+describe('MCP pool without clients (decision 4)', () => {
+  it('closes idle Sessions’ servers at once and keeps those of running Runs', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
+    await runOnce(pool, 'idle', upstreams)
+    const end = pool.beginRun('busy')
+    const lease = pool.lease('busy', server(upstreams))
+    await lease.start()
+    await lease.send(initializeRequest(1))
+    await flush()
+
+    await pool.closeIdleSessions()
+
+    expect(upstreams.map((upstream) => upstream.closed)).toEqual([true, false])
+    expect(pool.warmSessions()).toEqual(['busy'])
+    // An idle close refuses nothing: the idle Session's next Run reconnects.
+    await runOnce(pool, 'idle', upstreams)
+    expect(upstreams).toHaveLength(3)
+    end()
+  })
+})

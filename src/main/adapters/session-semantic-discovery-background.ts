@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { hostBackgroundGate } from '../application/host-background-gate'
 import { createLogger } from '../logger'
 import {
   currentSemanticDiscoverySourceRevision,
@@ -25,6 +26,9 @@ function waitForSemanticDiscoverySourceChange(afterRevision: number) {
   })
 }
 
+/** Background work waits while no client is attached, and after one attaches (A-F9). */
+export const awaitHostBackgroundWindow = Effect.promise(() => hostBackgroundGate.whenOpen())
+
 function publishReadiness(projection: SqliteSessionSemanticProjection) {
   return projection.readiness().pipe(
     Effect.tap((readiness) =>
@@ -44,6 +48,7 @@ function hostIsDraining() {
 
 function projectionLoop(projection: SqliteSessionSemanticProjection): Effect.Effect<void> {
   return Effect.gen(function* () {
+    yield* awaitHostBackgroundWindow
     const sourceRevision = currentSemanticDiscoverySourceRevision()
     const releaseLiveness = yield* Effect.try(() =>
       getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
@@ -81,6 +86,7 @@ function transcriptProjectionLoop(
   projection: SqliteSessionTranscriptSemanticProjection,
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
+    yield* awaitHostBackgroundWindow
     const sourceRevision = currentSemanticDiscoverySourceRevision()
     const releaseLiveness = yield* Effect.try(() =>
       getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
