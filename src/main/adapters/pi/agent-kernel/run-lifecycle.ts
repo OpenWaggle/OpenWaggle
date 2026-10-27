@@ -112,6 +112,15 @@ function resolvePiRuntimeThinkingLevel(
     : undefined
 }
 
+/**
+ * A compaction computed while the Session was idle: Pi installs it before the first request, or
+ * drops it if the conversation or model changed.
+ */
+function installIdleCompaction(sessionId: string, session: AgentSession) {
+  const idleCompaction = idleCacheWarming.takeIdleCompaction(sessionId)
+  if (idleCompaction) session.setPendingCompaction(idleCompaction)
+}
+
 export async function createPiRunSessionRuntime(
   input: CreatePiRunSessionRuntimeInput,
 ): Promise<PiRunSessionRuntime> {
@@ -175,6 +184,7 @@ export async function createPiRunSessionRuntime(
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
+    installIdleCompaction(input.session.id, session)
 
     return exposePiRunControl(input, selectedRuntime.runtime, session, openWaggleUi)
   } catch (error) {

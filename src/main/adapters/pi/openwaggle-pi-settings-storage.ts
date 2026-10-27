@@ -4,6 +4,7 @@ import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import { COMPACTION_MAX_THRESHOLD_TOKENS } from '@shared/types/settings'
 import {
   type OpenWagglePiAppSettings,
   withOpenWagglePiAppSettings,
@@ -132,6 +133,7 @@ function withOpenWaggleCompactionThreshold(
     compaction: {
       ...compaction,
       thresholdPercent,
+      maxThresholdTokens: COMPACTION_MAX_THRESHOLD_TOKENS,
     },
   }
 }
@@ -139,7 +141,11 @@ function withOpenWaggleCompactionThreshold(
 function withoutOpenWaggleCompactionThreshold(settings: JsonObject): JsonObject {
   if (!isJsonObject(settings.compaction)) return settings
   const { compaction: _currentCompaction, ...otherSettings } = settings
-  const { thresholdPercent: _thresholdPercent, ...compaction } = settings.compaction
+  const {
+    thresholdPercent: _thresholdPercent,
+    maxThresholdTokens: _maxThresholdTokens,
+    ...compaction
+  } = settings.compaction
   return {
     ...otherSettings,
     ...(Object.keys(compaction).length > 0 ? { compaction } : {}),

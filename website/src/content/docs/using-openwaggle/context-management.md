@@ -41,9 +41,15 @@ A summary may omit details. Keep lasting project conventions in project instruct
 
 The default threshold is **80%** of the active model's context window. To change it, open **Settings > General > Context compaction**. The setting applies to every project and session.
 
+Whatever the percentage, automatic compaction runs by **400,000 tokens** at the latest. Every model request sends the whole context again, so on a model with a 1M-token window, letting it grow to 800k made each later request about twice as expensive and slow.
+
 Compaction happens before a model request, not while a reply is streaming. If the agent is idle when usage crosses the threshold, OpenWaggle waits until the next message. During an ongoing task, it can compact between a tool result and the next model request.
 
 The model also needs room to reply. OpenWaggle may compact before your chosen percentage if that output reserve would otherwise run out.
+
+### Compaction while you are away
+
+Providers keep a conversation's prompt cache for about five minutes; after that, your next message pays to send the whole context again. When you leave a session idle with at least 200,000 tokens of context, OpenWaggle prepares the compacted form shortly before that cache expires, while it is still cheap to read. If you come back after the cache expired, the session continues from the compacted form and the conversation shows a **Context automatically compacted** marker. If you come back sooner, the prepared summary is dropped and nothing changes. It is skipped when **Keep prompt caches warm** is **Off** or **Between runs**, and it is not kept across an OpenWaggle restart. The summary request counts toward the session's usage.
 
 ### How compaction works
 
