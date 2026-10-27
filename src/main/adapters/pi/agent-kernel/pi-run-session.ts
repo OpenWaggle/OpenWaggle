@@ -12,6 +12,7 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
+import { getCurrentProcessPath } from '../../../env'
 import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,
@@ -90,7 +91,8 @@ export async function createPiSessionForRun(input: {
     },
   })
   const preparedPath = input.preparedEnvironment?.PATH
-  const toolSearchPath = preparedPath === undefined ? process.env.PATH : (preparedPath ?? undefined)
+  const toolSearchPath =
+    preparedPath === undefined ? getCurrentProcessPath() : (preparedPath ?? undefined)
   const customTools: ToolDefinition[] = [
     defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
     ...(offersPowerShellTool(process.platform, toolSearchPath)

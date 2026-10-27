@@ -70,7 +70,7 @@ function encodeBoundedPng(source: NativeImage) {
  * out or captures an empty image. The snapshot then goes without a screenshot instead of failing
  * as a whole; any other capture error, such as a navigation, still fails it.
  */
-function unpaintedPage(error: unknown): null {
+function unpaintedPage(error: unknown) {
   if (error instanceof BrowserPreviewCaptureTimeoutError) return null
   throw error
 }

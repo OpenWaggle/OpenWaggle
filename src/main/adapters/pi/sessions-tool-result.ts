@@ -14,6 +14,8 @@ export const HIVE_RESULT_TEXT_LIMIT_BYTES = 32 * 1024
 /** Room kept for the truncation note itself. */
 const TRUNCATION_NOTE_BYTES = 1_024
 const RESULTS_DIRECTORY = 'hive-results'
+const PRIVATE_FILE_MODE = 0o600
+const HALF = 2
 
 /** Request bookkeeping the model never acts on. */
 const ENVELOPE_KEYS = new Set(['contract', 'contractVersion', 'requestId', 'idempotencyKey'])
@@ -80,7 +82,7 @@ function firstPageThatFits(result: unknown, note: Record<string, unknown>) {
   let high = paged.items.length
   let best: string | undefined
   while (low <= high) {
-    const count = Math.floor((low + high) / 2)
+    const count = Math.floor((low + high) / HALF)
     const kept = paged.items.slice(0, count)
     const nextCreatedOrder = createdOrderOf(kept.at(-1))
     const text = JSON.stringify({
@@ -112,7 +114,7 @@ async function savedFullResult(
   const file = path.join(directory, `${toolCallId.replace(/[^A-Za-z0-9_-]/g, '_')}.json`)
   try {
     await ensurePrivateDirectory(directory)
-    await writeFile(file, text, { mode: 0o600 })
+    await writeFile(file, text, { mode: PRIVATE_FILE_MODE })
     return file
   } catch {
     return undefined

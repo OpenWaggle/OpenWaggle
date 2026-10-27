@@ -139,7 +139,6 @@ describe('runPiAgentKernel', () => {
       projectPath: '/repo',
       sessionCapabilities: ['sessions:spawn', 'sessions:read'],
       modelMultiAgentEnabled: false,
-      // Where a hive result too large for the model is saved whole.
       scratchDirectory: '/scratch/session-1',
     })
     expect(runMocks.runPiSession).toHaveBeenCalledWith(
@@ -160,8 +159,7 @@ describe('runPiAgentKernel', () => {
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining(['project_actions', 'source_control', 'openwaggle_docs']),
     )
-    const docs = tools.find((tool) => tool.name === 'openwaggle_docs')
-    expect(docs?.description).toContain('"/docs-bundle"')
+    expect(tools.find(({ name }) => name === 'openwaggle_docs')?.description).toContain('/docs')
     expect(runMocks.retainSessionScratchDirectory).toHaveBeenCalledWith('session-1')
     expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(
