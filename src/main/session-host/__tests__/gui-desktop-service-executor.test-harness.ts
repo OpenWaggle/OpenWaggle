@@ -27,6 +27,11 @@ export const browserCommand = {
   scope: { sessionId: SessionId('session-one'), workingPath: '/repo/worktree' },
   input: {},
 }
+export const browserClickCommand = {
+  ...browserCommand,
+  operation: 'click' as const,
+  input: { locator: 'role=button[name="Save"]' },
+}
 export const activeFence: DesktopFenceRecord = {
   token: 'fence-one',
   hostInstanceId: 'host-one',
