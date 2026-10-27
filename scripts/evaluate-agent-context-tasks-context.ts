@@ -6,11 +6,21 @@ import { answerMatches, type EvalTask, grade, usedTool } from './evaluate-agent-
 /** MCP through the fixture server, project skills, and recall across a compaction. */
 
 const INVENTORY_TOOL = /inventory/
-const SKILL_TOKEN = 'SKILLTOKEN-7781'
+/**
+ * The release name the skill's script prints. A "deployment token" fixture made Opus 5.5 on Bedrock
+ * stop with content_filtered on 4 of 5 runs (v1 final eval), so the fixture names a release instead.
+ */
+const SKILL_RELEASE_NAME = 'KESTREL-7781'
 const VAULT_CODE = 'MARMOT-4417'
 /** Compaction triggers at this share of the model's window in the compaction tasks. */
 const LOW_COMPACTION_PERCENT = 4
 const FILLER_PARAGRAPHS = 600
+/**
+ * Compaction fires at a share of the context window, so it needs the files in context. At v1 the
+ * prefix shrank by ~15k Opus tokens, and runs that scanned the files with bash instead of reading
+ * them stayed under the threshold and never compacted (on both sides). Every recall was right.
+ */
+const READ_EVERY_PAGE = 'Use the read tool for every page; do not grep, count or summarize the files with bash.'
 const COMPACTION_TIMEOUT_MS = 900_000
 
 async function files(root: string, entries: Readonly<Record<string, string>>) {
@@ -110,26 +120,26 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
   {
     id: 'skills-bundled-script',
     group: 'skills',
-    prompt: () => "Use this project's token-generator skill to produce today's deployment token, and tell me the token.",
+    prompt: () => "Use this project's release-namer skill to get the name of today's release, and tell me the name.",
     setup: (root) =>
       files(root, {
         ...DISTRACTOR_SKILLS,
-        '.agents/skills/token-generator/SKILL.md': skill(
-          'token-generator',
-          'Use when asked for a deployment token.',
-          'Run `node scripts/token.mjs` from this skill\'s directory and report its output verbatim.',
+        '.agents/skills/release-namer/SKILL.md': skill(
+          'release-namer',
+          'Use when asked for the name of a release.',
+          'Run `node scripts/name.mjs` from this skill\'s directory and report its output verbatim.',
         ),
-        '.agents/skills/token-generator/scripts/token.mjs': `console.log(['SKILLTOKEN', 7700 + 81].join('-'))\n`,
+        '.agents/skills/release-namer/scripts/name.mjs': `console.log(['KESTREL', 7700 + 81].join('-'))\n`,
       }),
-    grade: (outcome) => grade(answerMatches(outcome, new RegExp(SKILL_TOKEN)), 'ran the skill script by its path'),
-    reference: { answer: SKILL_TOKEN },
+    grade: (outcome) => grade(answerMatches(outcome, new RegExp(SKILL_RELEASE_NAME)), 'ran the skill script by its path'),
+    reference: { answer: SKILL_RELEASE_NAME },
   },
   {
     id: 'compaction-recall-start',
     group: 'compaction-recall',
     settings: { compactionThresholdPercent: LOW_COMPACTION_PERCENT },
     prompt: () =>
-      'Read notes.txt completely (it is long; read it in full, all pages), then read appendix.txt completely. Then tell me the vault code mentioned in the first paragraph of notes.txt.',
+      `Read notes.txt completely (it is long; read it in full, all pages), then read appendix.txt completely. ${READ_EVERY_PAGE} Then tell me the vault code mentioned in the first paragraph of notes.txt.`,
     setup: (root) => files(root, { 'notes.txt': longNotes(`The vault code is ${VAULT_CODE}.`), 'appendix.txt': longNotes('Appendix.') }),
     grade: (outcome) => grade(outcome.compactions > 0 && answerMatches(outcome, new RegExp(VAULT_CODE)), 'compacted and still recalls the code'),
     reference: { answer: `The vault code is ${VAULT_CODE}.`, compactions: 1 },
@@ -140,7 +150,7 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
     group: 'compaction-recall',
     settings: { compactionThresholdPercent: LOW_COMPACTION_PERCENT },
     prompt: () =>
-      'First, decide on a name for our new cache service: call it "Heronstore" and remember that decision. Then read notes.txt and appendix.txt completely (both are long; read every page). Finally, write the cache service name we decided on into decision.txt.',
+      `First, decide on a name for our new cache service: call it "Heronstore" and remember that decision. Then read notes.txt and appendix.txt completely (both are long; read every page). ${READ_EVERY_PAGE} Finally, write the cache service name we decided on into decision.txt.`,
     setup: (root) => files(root, { 'notes.txt': longNotes('Notes.'), 'appendix.txt': longNotes('Appendix.') }),
     inspectFiles: ['decision.txt'],
     grade: (outcome) => grade(outcome.compactions > 0 && (outcome.files['decision.txt'] ?? '').includes('Heronstore'), 'compacted and keeps the decision'),
