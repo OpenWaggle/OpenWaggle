@@ -215,7 +215,10 @@ export default defineConfig({
       mainBootEntryPlugin(),
     ],
     build: {
-      minify: false,
+      // Minified with names kept: 26.7 -> 15.8 MB for every process to read, and less V8 code cache
+      // (A-F6). Function and class names stay (`keepNames`) for logs and libraries that read them;
+      // error reports scrub them anyway (src/shared/error-reporting).
+      minify: true,
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
@@ -226,6 +229,7 @@ export default defineConfig({
         },
         output: {
           codeSplitting: false,
+          keepNames: true,
         },
       },
     },

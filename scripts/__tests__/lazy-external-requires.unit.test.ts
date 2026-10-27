@@ -87,7 +87,7 @@ describe('lazyExternalRequiresPlugin', () => {
 })
 
 describe('topLevelRequires', () => {
-  it('reads only unindented requires, which run when the bundle loads', () => {
+  it('reads the requires that run when the bundle loads, not those inside functions', () => {
     const source = [
       'let electron = require("electron");',
       'let zod = __toESM$2(require("zod"));',
@@ -95,9 +95,19 @@ describe('topLevelRequires', () => {
       'var require_lazy = __commonJSMin(((exports, module) => {',
       '\tmodule.exports = require("undici");',
       '}));',
+      'function later() { return require("sharp") }',
     ].join('\n')
 
-    expect(topLevelRequires(source)).toEqual(['electron', 'zod', 'side-effect'])
-    expect(disallowedTopLevelRequires(source)).toEqual(['zod', 'side-effect'])
+    expect(topLevelRequires(source)).toEqual(['electron', 'side-effect', 'zod'])
+    expect(disallowedTopLevelRequires(source)).toEqual(['side-effect', 'zod'])
+  })
+
+  it('reads a minified bundle, where many statements share a line', () => {
+    const source =
+      'var e=Object.create;let t=require("electron"),n=e(require("node:path")),r=require("ws");' +
+      'var o=(e,t)=>()=>(t||e((t={exports:{}}).exports,t),t.exports),s=o((e,t)=>{t.exports=require("undici")});'
+
+    expect(topLevelRequires(source)).toEqual(['electron', 'node:path', 'ws'])
+    expect(disallowedTopLevelRequires(source)).toEqual(['ws'])
   })
 })
