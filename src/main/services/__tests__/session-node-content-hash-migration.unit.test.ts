@@ -34,6 +34,19 @@ function withDatabase<A>(
   )
 }
 
+/** Removes the digest column, as a database migrated before it existed has none. */
+function dropContentHash(sql: SqlClient.SqlClient) {
+  return Effect.gen(function* () {
+    yield* sql.unsafe('DROP TRIGGER IF EXISTS session_nodes_content_hash_guard')
+    const columns = yield* sql<{ readonly name: string }>`
+      SELECT name FROM pragma_table_info('session_nodes')
+    `
+    if (columns.some((column) => column.name === 'content_hash')) {
+      yield* sql.unsafe('ALTER TABLE session_nodes DROP COLUMN content_hash')
+    }
+  })
+}
+
 /** A beta.27 Session with nodes, before `session_nodes` had a digest column. */
 function seedBeta27Session(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
@@ -85,6 +98,24 @@ describe('upgrading a beta.27 database through migration 80', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
+  it('gives a fresh database the column and the trigger from the current schema', async () => {
+    const state = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* runAppDatabaseMigrations
+        yield* seedBeta27Session(sql)
+        return yield* readState(sql)
+      }),
+    )
+    expect(state).toEqual({
+      nodes: [
+        ['node-0', null],
+        ['node-1', null],
+      ],
+      triggers: ['session_nodes_content_hash_guard'],
+      ledger: [[80, 'session-node-content-hash']],
+    })
+  })
+
   it('is one this binary supports', () => {
     expect(SESSION_NODE_CONTENT_HASH_MIGRATION.id).toBe(80)
     expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
@@ -98,6 +129,7 @@ describe('upgrading a beta.27 database through migration 80', () => {
         yield* runMigrations(
           APP_MIGRATIONS.filter(({ id }) => id <= DELEGATION_ATTENTION_CAUSE_MIGRATION_ID),
         )
+        yield* dropContentHash(sql)
         yield* seedBeta27Session(sql)
       }),
     )
