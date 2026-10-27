@@ -4,16 +4,11 @@ import { sessionsToolSchemaForCapabilities } from '../sessions-tool-capability-s
 
 // The schema carries TypeBox symbols; serialize to a plain object to inspect its shape.
 function exposedActions(schema: ReturnType<typeof sessionsToolSchemaForCapabilities>) {
-  const plain = fromAny<
-    {
-      properties?: { action?: { const?: unknown; anyOf?: readonly { const?: unknown }[] } }
-    },
-    unknown
-  >(JSON.parse(JSON.stringify(schema)))
-  const action = plain.properties?.action
-  if (typeof action?.const === 'string') return [action.const]
-  return (action?.anyOf ?? []).flatMap((candidate) =>
-    typeof candidate.const === 'string' ? [candidate.const] : [],
+  const plain = fromAny<{ properties?: { action?: { enum?: readonly unknown[] } } }, unknown>(
+    JSON.parse(JSON.stringify(schema)),
+  )
+  return (plain.properties?.action?.enum ?? []).flatMap((candidate) =>
+    typeof candidate === 'string' ? [candidate] : [],
   )
 }
 

@@ -1,3 +1,4 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type {
@@ -15,10 +16,17 @@ import { assertFilesystemWriteScope } from '../../utils/filesystem-write-scope'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import {
   assertSessionsToolActionPermitted,
+  permittedSessionsToolVariants,
+  type SessionsToolActionGrant,
   sessionsToolSchemaForGrant,
 } from './sessions-tool-capability-schema'
 import { assertSessionsToolActionArguments } from './sessions-tool-flat-schema'
-import { sessionsToolPromptGuidelines } from './sessions-tool-guidelines'
+import {
+  sessionsToolEssentialGuidelines,
+  sessionsToolPromptGuidelines,
+} from './sessions-tool-guidelines'
+import { hiveHelp } from './sessions-tool-help'
+import { HIVE_HELP_ACTION } from './sessions-tool-hot-schema'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
 import {
@@ -227,6 +235,15 @@ function sendSessionsToolCommand(
   })
 }
 
+function helpResult(rawParams: unknown, grant: SessionsToolActionGrant) {
+  const help = hiveHelp({
+    variants: permittedSessionsToolVariants(grant),
+    guidelines: sessionsToolPromptGuidelines(grant.capabilities, grant.modelMultiAgentEnabled),
+    topic: isMatching({ topic: P._ }, rawParams) ? rawParams.topic : undefined,
+  })
+  return { content: [{ type: 'text' as const, text: help.text }], details: help.details }
+}
+
 async function executeSessionsToolCall(
   rawParams: unknown,
   input: SessionsToolExtensionInput,
@@ -275,8 +292,11 @@ function failedToolResult(error: unknown) {
   }
 }
 
+const HIVE_TOOL_DESCRIPTION =
+  'Coordinate your Hive of durable OpenWaggle Sessions: spawn Workers, read and wait on Sessions, report peer context, send Follow-ups, steer or interrupt a Run, review Delegations, manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker, an ordinary Session with its own transcript that may continue after this Run. Session summaries and Delegations carry nextActor: user, parent, worker, or none.'
+
 export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
-  const grant = {
+  const grant: SessionsToolActionGrant = {
     capabilities: input.sessionCapabilities,
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
   }
@@ -285,11 +305,10 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
     pi.registerTool<TSchema, unknown>({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
-      description:
-        'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends. Session summaries and Delegations with a Delegation state carry nextActor: user, parent, worker, or none.',
+      description: HIVE_TOOL_DESCRIPTION,
       promptSnippet:
         'Use hive to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
-      promptGuidelines: sessionsToolPromptGuidelines(
+      promptGuidelines: sessionsToolEssentialGuidelines(
         input.sessionCapabilities,
         grant.modelMultiAgentEnabled,
       ),
@@ -302,6 +321,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
         try {
+          if (isMatching({ action: HIVE_HELP_ACTION }, params)) return helpResult(params, grant)
           return await executeSessionsToolCall(params, input, ctx, toolCallId, signal)
         } catch (error) {
           return failedToolResult(error)

@@ -3,6 +3,7 @@ import type { SessionCapability } from '@shared/types/session-capability'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
+import { hiveHelpText } from './hive-help.test-utils'
 
 /** What the spawned Worker of a Queen holds (derived grant), never create, start, or organize. */
 const WORKER_CAPABILITIES: readonly SessionCapability[] = [
@@ -39,8 +40,9 @@ function register(capabilities?: readonly SessionCapability[], modelMultiAgentEn
   return tool
 }
 
+/** Every rule the grant gets, as help returns it; the system prompt carries the essentials. */
 function guidance(tool: ToolDefinition) {
-  return (tool.promptGuidelines ?? []).join('\n')
+  return hiveHelpText(tool)
 }
 
 function prepare(tool: ToolDefinition, args: unknown) {
@@ -49,8 +51,8 @@ function prepare(tool: ToolDefinition, args: unknown) {
 }
 
 describe('Hive tool capability gating', () => {
-  it('advertises only the actions the Session grant carries', () => {
-    const text = guidance(register(WORKER_CAPABILITIES))
+  it('advertises only the actions the Session grant carries', async () => {
+    const text = await guidance(register(WORKER_CAPABILITIES))
 
     for (const action of [
       'launch',
@@ -73,29 +75,29 @@ describe('Hive tool capability gating', () => {
     expect(text).toMatch(/steer to append to one exact active Run/)
   })
 
-  it('keeps the full guidance for a Session without a derived grant', () => {
-    const text = guidance(register())
+  it('keeps the full guidance for a Session without a derived grant', async () => {
+    const text = await guidance(register())
 
     for (const action of ['launch', 'create', 'start', 'unarchive', 'export_create']) {
       expect(text).toMatch(new RegExp(`\\b${action}\\b`))
     }
   })
 
-  it('describes the catalog defaults to any Session that can discover', () => {
-    expect(guidance(register(WORKER_CAPABILITIES))).toMatch(
+  it('describes the catalog defaults to any Session that can discover', async () => {
+    expect(await guidance(register(WORKER_CAPABILITIES))).toMatch(
       /current project by default, every worktree of it included.*list leaves archived Sessions out unless archived is true.*delegations_list shows every state, newest first/s,
     )
   })
 
-  it('describes only the discovery actions the grant carries', () => {
-    const text = guidance(register(['sessions:discover']))
+  it('describes only the discovery actions the grant carries', async () => {
+    const text = await guidance(register(['sessions:discover']))
 
     expect(text).toMatch(/list and search look at your current project by default/)
     expect(text).not.toMatch(/delegations_list/)
   })
 
-  it('points a delegations-only grant at delegations_list, not list or search', () => {
-    const text = guidance(register(['delegations:read']))
+  it('points a delegations-only grant at delegations_list, not list or search', async () => {
+    const text = await guidance(register(['delegations:read']))
 
     expect(text).toMatch(/Use delegations_list with catalogScope project/)
     expect(text).not.toMatch(/\b(list|search) (and|or|with|look)/)
@@ -112,13 +114,13 @@ describe('Hive tool capability gating', () => {
     )
   })
 
-  it('explains that spawn and launch need multi-agent work enabled for the model', () => {
+  it('explains that spawn and launch need multi-agent work enabled for the model', async () => {
     const tool = register(WORKER_CAPABILITIES, false)
 
     expect(() => prepare(tool, { action: 'spawn', objective: 'x' })).toThrow(
       /hive action spawn is not available: multi-agent work is turned off/,
     )
-    expect(guidance(tool)).not.toMatch(/\bspawn\b/)
+    expect(await guidance(tool)).not.toMatch(/\bspawn\b/)
   })
 
   it('passes a permitted action on to schema validation unchanged', () => {
