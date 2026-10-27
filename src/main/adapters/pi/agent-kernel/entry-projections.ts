@@ -13,6 +13,7 @@ import {
   piToolResultContentToPart,
   piUserContentToDisplayParts,
 } from './message-parts'
+import { systemMessageTools } from './system-message-tools-projection'
 import { visibleWaggleUserMessageProjection } from './visible-waggle-user-message-projection'
 
 type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
@@ -51,7 +52,7 @@ function systemMessageProjection(
   return rawProjection({
     role: value.role,
     content: toJsonValue(value.content),
-    toolsAdded: toJsonValue(value.toolsAdded ?? []),
+    ...systemMessageTools(value.toolsAdded ?? []),
   })
 }
 
