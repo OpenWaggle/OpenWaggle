@@ -13,7 +13,7 @@ import {
   SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../session-host-schema-identity'
 import { SESSION_NODE_DUPLICATE_INDEX_MIGRATION } from '../session-node-duplicate-index-migration'
-import { V1_BETA_MIGRATIONS } from '../v1-beta-migrations'
+import { SESSION_PROJECTION_PERFORMANCE_MIGRATIONS } from '../session-projection-performance-migrations'
 
 let temporaryRoot = ''
 
@@ -48,7 +48,9 @@ describe('dropping the duplicate session node index (D7.1)', () => {
   })
 
   it('is a migration this binary supports', () => {
-    expect(V1_BETA_MIGRATIONS).toContain(SESSION_NODE_DUPLICATE_INDEX_MIGRATION)
+    expect(SESSION_PROJECTION_PERFORMANCE_MIGRATIONS).toContain(
+      SESSION_NODE_DUPLICATE_INDEX_MIGRATION,
+    )
     expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
       SESSION_NODE_DUPLICATE_INDEX_MIGRATION.id,
     )
@@ -81,5 +83,13 @@ describe('dropping the duplicate session node index (D7.1)', () => {
     expect(after.indexes).toEqual(['idx_session_nodes_session_created_order_unique'])
     expect(after.plan).toContain('idx_session_nodes_session_created_order_unique')
     expect(after.plan).not.toContain('TEMP B-TREE')
+  })
+})
+
+describe('the app migration list', () => {
+  it('lists migrations in ascending ledger order', async () => {
+    const { APP_MIGRATIONS: migrations } = await import('../database-migrations')
+    const ids = migrations.map(({ id }) => id)
+    expect(ids).toEqual([...ids].sort((left, right) => left - right))
   })
 })
