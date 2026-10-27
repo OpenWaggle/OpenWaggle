@@ -16,7 +16,6 @@ import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-ex
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
-import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { resolveLegacyMcpServerAllowlist } from './mcp/legacy-mcp-server-allowlist'
 import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
 import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
@@ -89,7 +88,8 @@ export function createBrowserPreviewRuntimeResources(input: {
         service: input.service,
       }),
     ],
-    systemPromptAppendices: [BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT],
+    // The preview tools announce themselves with a rule; no appendix on every request (C5).
+    systemPromptAppendices: [],
   } as const
 }
 

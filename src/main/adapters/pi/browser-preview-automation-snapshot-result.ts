@@ -7,6 +7,7 @@ import type {
   BrowserPreviewAutomationSnapshot,
 } from '@shared/types/browser-preview-automation'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
+import type { BrowserPreviewSnapshotPart } from './browser-preview-automation-schemas-core'
 
 const MIN_VISIBLE_TEXT_LENGTH = 1_024
 const TITLE_LENGTH = 512
@@ -63,15 +64,50 @@ function halve<T>(values: readonly T[], keepNewest: boolean) {
   return keepNewest ? values.slice(-nextLength) : values.slice(0, nextLength)
 }
 
-/** Keeps snapshot metadata below Pi's result ceiling while retaining the native PNG separately. */
-export function boundedBrowserPreviewSnapshotSummary(snapshot: BrowserPreviewAutomationSnapshot) {
+/**
+ * How many entries each part left out of the snapshot holds, so the model knows when asking for
+ * it is worth it, for example console errors after a failed click.
+ */
+function omittedParts(
+  snapshot: BrowserPreviewAutomationSnapshot,
+  included: ReadonlySet<BrowserPreviewSnapshotPart>,
+) {
+  const counts = {
+    ...(!included.has('accessibility') && snapshot.accessibilityTree !== null
+      ? { accessibility: 1 }
+      : {}),
+    ...(!included.has('console') && snapshot.consoleEntries.length > 0
+      ? { console: snapshot.consoleEntries.length }
+      : {}),
+    ...(!included.has('network') && snapshot.networkEntries.length > 0
+      ? { network: snapshot.networkEntries.length }
+      : {}),
+    ...(!included.has('actions') && snapshot.actionTimeline.length > 0
+      ? { actions: snapshot.actionTimeline.length }
+      : {}),
+  }
+  return Object.keys(counts).length > 0 ? { omitted: counts } : {}
+}
+
+/**
+ * Keeps snapshot metadata below Pi's result ceiling while retaining the native PNG separately.
+ * Visible text and interactive elements are always sent; the accessibility tree, console,
+ * network, and action history only when `include` names them (C16 of the v1 performance research:
+ * a full snapshot is up to 64 KB of JSON).
+ */
+export function boundedBrowserPreviewSnapshotSummary(
+  snapshot: BrowserPreviewAutomationSnapshot,
+  include: readonly BrowserPreviewSnapshotPart[] = [],
+) {
+  const included = new Set(include)
   let visibleText = snapshot.visibleText
   let interactiveElements = snapshot.interactiveElements.map(sanitizeElement)
-  let accessibilityTree = snapshot.accessibilityTree
-  let consoleEntries = snapshot.consoleEntries.map(sanitizeConsole)
-  let networkEntries = snapshot.networkEntries.map(sanitizeNetwork)
-  let actionTimeline = snapshot.actionTimeline.map(sanitizeAction)
+  let accessibilityTree = included.has('accessibility') ? snapshot.accessibilityTree : null
+  let consoleEntries = included.has('console') ? snapshot.consoleEntries.map(sanitizeConsole) : []
+  let networkEntries = included.has('network') ? snapshot.networkEntries.map(sanitizeNetwork) : []
+  let actionTimeline = included.has('actions') ? snapshot.actionTimeline.map(sanitizeAction) : []
   const truncatedFields = new Set<string>()
+  const omitted = omittedParts(snapshot, included)
 
   const build = () => ({
     url: bounded(snapshot.url, URL_LENGTH),
@@ -79,10 +115,11 @@ export function boundedBrowserPreviewSnapshotSummary(snapshot: BrowserPreviewAut
     loading: snapshot.loading,
     visibleText,
     interactiveElements,
-    accessibilityTree,
-    consoleEntries,
-    networkEntries,
-    actionTimeline,
+    ...(included.has('accessibility') ? { accessibilityTree } : {}),
+    ...(included.has('console') ? { consoleEntries } : {}),
+    ...(included.has('network') ? { networkEntries } : {}),
+    ...(included.has('actions') ? { actionTimeline } : {}),
+    ...omitted,
     screenshot: {
       mimeType: snapshot.screenshot.mimeType,
       width: snapshot.screenshot.width,

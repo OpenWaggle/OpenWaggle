@@ -3,7 +3,10 @@ import type {
   BrowserPreviewAutomationScope,
   BrowserPreviewAutomationServiceShape,
 } from '../../ports/browser-preview-automation-service'
-import { previewTabTargetParameters } from './browser-preview-automation-schemas-core'
+import {
+  previewSnapshotParameters,
+  previewTabTargetParameters,
+} from './browser-preview-automation-schemas-core'
 import { boundedBrowserPreviewSnapshotSummary } from './browser-preview-automation-snapshot-result'
 import {
   authorizeBrowserPreviewTool,
@@ -13,8 +16,18 @@ import {
   runBrowserPreviewEffect,
 } from './browser-preview-automation-tool-support'
 
+/**
+ * The entry point of the on-demand preview tools, so it carries the guidance that used to be a
+ * system prompt appendix on every request.
+ */
+const BROWSER_PREVIEW_STATUS_DESCRIPTION = [
+  "Report this Session's collaborative browser preview tab: URL, title, loading state, visibility, appearance, and viewport. Start browser work here, then preview_open if no tab exists (an omitted tabId targets the current preview), preview_navigate for another URL, and preview_snapshot to inspect the page.",
+  'Prefer semantic locators such as role=button[name="Save"] or stable CSS selectors over coordinates; click and type wait for their targets, and preview_wait_for waits for explicit conditions. Snapshot again after navigation or a large UI change.',
+  'If a preview action fails, diagnose this preview instead of switching to another browser integration: the user sees and can take over the same page, and their input wins immediately. Record (preview_recording_start/stop) only when a bounded visual trace helps.',
+].join(' ')
+
 interface RegistrationInput {
-  readonly pi: ExtensionAPI
+  readonly pi: Pick<ExtensionAPI, 'registerTool'>
   readonly scope: BrowserPreviewAutomationScope
   readonly service: BrowserPreviewAutomationServiceShape
 }
@@ -23,10 +36,7 @@ export function registerBrowserPreviewInspectionTools(input: RegistrationInput) 
   input.pi.registerTool({
     name: 'preview_status',
     label: 'Get preview status',
-    description:
-      'Report the current session-owned collaborative browser tab, URL, title, loading state, visibility, appearance, and viewport.',
-    promptSnippet:
-      'For browser work, call preview_status first, then preview_open if no tab is available.',
+    description: BROWSER_PREVIEW_STATUS_DESCRIPTION,
     parameters: previewTabTargetParameters,
     executionMode: 'sequential',
     async execute(_id, params, signal) {
@@ -42,20 +52,21 @@ export function registerBrowserPreviewInspectionTools(input: RegistrationInput) 
     name: 'preview_snapshot',
     label: 'Inspect browser page',
     description:
-      'Inspect page text, semantic elements, accessibility data, diagnostics, action history, and a PNG screenshot.',
-    parameters: previewTabTargetParameters,
+      'Inspect the page: visible text, interactive elements, and a PNG screenshot. Add include for the accessibility tree, console, network, or action history.',
+    parameters: previewSnapshotParameters,
     executionMode: 'sequential',
     async execute(_id, params, signal, _update, ctx) {
       const operation = 'inspect browser preview page'
       if (!(await authorizeBrowserPreviewTool({ operation, params, signal, ctx }))) {
         return deniedBrowserPreviewResult(operation)
       }
+      const { include, ...target } = params
       const snapshot = await runBrowserPreviewEffect(
-        input.service.snapshot(input.scope, params),
+        input.service.snapshot(input.scope, target),
         signal,
       )
       const { data } = snapshot.screenshot
-      const summary = boundedBrowserPreviewSnapshotSummary(snapshot)
+      const summary = boundedBrowserPreviewSnapshotSummary(snapshot, include)
       return {
         content: [
           { type: 'text', text: JSON.stringify(summary) },

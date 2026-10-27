@@ -44,15 +44,10 @@ export const previewPressParameters = Type.Object({
   ...previewTabTargetParameters.properties,
   key: Type.String({ minLength: 1, maxLength: MAX_KEY_LENGTH }),
   modifiers: Type.Optional(
-    Type.Array(
-      Type.Union([
-        Type.Literal('Alt'),
-        Type.Literal('Control'),
-        Type.Literal('Meta'),
-        Type.Literal('Shift'),
-      ]),
-      { maxItems: MAX_MODIFIERS, uniqueItems: true },
-    ),
+    Type.Array(Type.Enum(['Alt', 'Control', 'Meta', 'Shift']), {
+      maxItems: MAX_MODIFIERS,
+      uniqueItems: true,
+    }),
   ),
 })
 

@@ -12,6 +12,7 @@ import type { ActionCatalogServiceShape } from '../../ports/action-catalog-servi
 import type { ActionRunServiceShape, ActionRunWorkspace } from '../../ports/action-run-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
 import { proposeRepair } from './project-actions-repair-proposal'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
@@ -61,7 +62,7 @@ type ProjectActionParameters = Static<(typeof parameterVariants)[number]>
 const parameters = Type.Unsafe<ProjectActionParameters>({
   type: 'object',
   properties: {
-    action: Type.Union(parameterVariants.map((variant) => variant.properties.action)),
+    action: Type.Enum(parameterVariants.map((variant) => variant.properties.action.const)),
     actionId: Type.Optional(identifier),
     restartRunId: Type.Optional(identifier),
     runId: Type.Optional(identifier),
@@ -218,9 +219,12 @@ async function execute(
     .exhaustive()
 }
 
+const PROJECT_ACTIONS_RULE =
+  "This Workspace's saved project actions and dev servers (project_actions: list, start, output, stop) load with tool_search or run from codemode."
+
 export function createProjectActionsToolExtension(input: ProjectActionToolInput): ExtensionFactory {
   return (pi) => {
-    pi.registerTool({
+    onDemandToolRegistration(pi).registerTool({
       name: 'project_actions',
       label: 'Project Actions',
       description:
@@ -245,5 +249,6 @@ export function createProjectActionsToolExtension(input: ProjectActionToolInput)
         }
       },
     })
+    announceOnDemandTools(pi, { rule: PROJECT_ACTIONS_RULE })
   }
 }

@@ -18,7 +18,7 @@ import {
 } from './browser-preview-automation-tool-support'
 
 interface RegistrationInput {
-  readonly pi: ExtensionAPI
+  readonly pi: Pick<ExtensionAPI, 'registerTool'>
   readonly scope: BrowserPreviewAutomationScope
   readonly service: BrowserPreviewAutomationServiceShape
 }
@@ -42,7 +42,6 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
     label: 'Open browser preview',
     description:
       'Initialize a collaborative browser tab. It opens in this session by default; set open=false for background-only automation.',
-    promptSnippet: 'Open and drive the session-owned collaborative browser preview.',
     parameters: previewOpenParameters,
     executionMode: 'sequential',
     execute: (_id, params, signal, _update, ctx) =>
