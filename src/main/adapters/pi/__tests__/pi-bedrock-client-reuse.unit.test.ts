@@ -1,4 +1,5 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http'
+import { createServer as createHttp2Server } from 'node:http2'
 import type { AddressInfo } from 'node:net'
 import type { Context } from '@earendil-works/pi-ai'
 import { stream as streamBedrock } from '@earendil-works/pi-ai/api/bedrock-converse-stream'
@@ -273,5 +274,41 @@ describe('Amazon Bedrock cache points', () => {
 
     expect(body.system).toHaveLength(1)
     expect(body.toolConfig?.tools).toHaveLength(1)
+  })
+})
+
+describe('Amazon Bedrock HTTP/2 sessions', () => {
+  it('share one session between requests, where the SDK default opened one per request', async () => {
+    const server = createHttp2Server()
+    let sessions = 0
+    server.on('session', () => {
+      sessions += 1
+    })
+    server.on('stream', (stream) => {
+      stream.on('data', () => undefined)
+      stream.on('end', () => {
+        stream.respond({ ':status': 200, 'content-type': 'application/vnd.amazon.eventstream' })
+        stream.end(TEXT_FRAMES)
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address: AddressInfo | string | null = server.address()
+      if (address === null || typeof address === 'string') throw new Error('No TCP address')
+      const baseUrl = `http://127.0.0.1:${String(address.port)}`
+      const env = { AWS_BEDROCK_SKIP_AUTH: '1', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' }
+      for (let index = 0; index < 3; index++) {
+        const result = await streamBedrock({ ...MODEL, baseUrl }, normalizeContext(userContext()), {
+          region: 'eu-west-1',
+          maxRetries: 0,
+          env,
+        }).result()
+        expect(result.stopReason).toBe('stop')
+      }
+      expect(sessions).toBe(1)
+    } finally {
+      clearBedrockClients()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })
