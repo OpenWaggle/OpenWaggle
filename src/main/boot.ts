@@ -17,6 +17,7 @@ import { app } from 'electron'
 import {
   enableMainCompileCache,
   flushMainCompileCacheAfterLoad,
+  flushMainCompileCacheOnceStarted,
   type MainCompileCache,
 } from './boot/main-compile-cache'
 import { mainCompileCacheLocation } from './boot/main-compile-cache-location'
@@ -59,8 +60,9 @@ if (outcome !== 'answered') {
   }
   createRequire(__filename)('./index.js')
   if (compileCache) {
-    flushMainCompileCacheAfterLoad(compileCache, (callback, delayMs) =>
-      setTimeout(callback, delayMs),
-    )
+    const schedule = (callback: () => void, delayMs: number) => setTimeout(callback, delayMs)
+    // The window and the Host run for minutes: their first write waits until they are up.
+    if (outcome === 'main-bundle') flushMainCompileCacheAfterLoad(compileCache, schedule)
+    else flushMainCompileCacheOnceStarted(compileCache, schedule)
   }
 }

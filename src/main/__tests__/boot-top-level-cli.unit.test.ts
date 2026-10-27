@@ -82,7 +82,12 @@ describe('answerTopLevelCliInBoot', () => {
   it('leaves the desktop app, commands and command groups to the main bundle untouched', () => {
     expect(answer([])).toBe('desktop-app')
     expect(answer(['-psn_0_12345'])).toBe('desktop-app')
-    for (const args of [['run', 'hello'], ['hive', 'list'], ['session-host-internal']]) {
+    expect(answer(['session-host-internal'])).toBe('session-host')
+    for (const args of [
+      ['run', 'hello'],
+      ['hive', 'list'],
+      ['host', 'start'],
+    ]) {
       expect(answer(args)).toBe('main-bundle')
     }
     expect(mocks.exit).not.toHaveBeenCalled()

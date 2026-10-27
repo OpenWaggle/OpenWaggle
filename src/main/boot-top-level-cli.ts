@@ -30,9 +30,12 @@ function writeAnswer(answer: TopLevelCliAnswer, outputFd: number | null) {
 
 /**
  * What the boot shim did with an invocation: `answered` it and is exiting, or left it to the main
- * bundle, which opens the `desktop-app` window or runs a command (`main-bundle`).
+ * bundle, which opens the `desktop-app` window, runs the detached `session-host`, or runs a
+ * command (`main-bundle`).
  */
-export type BootTopLevelCliOutcome = 'answered' | 'desktop-app' | 'main-bundle'
+export type BootTopLevelCliOutcome = 'answered' | 'desktop-app' | 'session-host' | 'main-bundle'
+
+const SESSION_HOST_COMMAND = 'session-host-internal'
 
 const DESKTOP_APP_ROUTES = new Set(['gui', 'open-project', 'open-session-link'])
 
@@ -54,7 +57,11 @@ export function answerTopLevelCliInBoot(input: BootTopLevelCliInput): BootTopLev
   const argv = applicationCliArguments(input.argv, { isPackaged: app.isPackaged })
   const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(app.isPackaged))
   const answer = topLevelCliAnswer(route, app.getVersion())
-  if (!answer) return DESKTOP_APP_ROUTES.has(route.kind) ? 'desktop-app' : 'main-bundle'
+  if (!answer) {
+    if (DESKTOP_APP_ROUTES.has(route.kind)) return 'desktop-app'
+    if (route.kind === 'delegate' && route.argv[0] === SESSION_HOST_COMMAND) return 'session-host'
+    return 'main-bundle'
+  }
   hideCliFromDock(input.platform)
   ignoreCliOutputStreamErrors()
   writeCliOutputAndExit(() => writeAnswer(answer, outputFd), answer.exitCode, writeStderr)
