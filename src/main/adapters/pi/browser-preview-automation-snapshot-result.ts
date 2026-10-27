@@ -120,11 +120,16 @@ export function boundedBrowserPreviewSnapshotSummary(
     ...(included.has('network') ? { networkEntries } : {}),
     ...(included.has('actions') ? { actionTimeline } : {}),
     ...omitted,
-    screenshot: {
-      mimeType: snapshot.screenshot.mimeType,
-      width: snapshot.screenshot.width,
-      height: snapshot.screenshot.height,
-    },
+    screenshot: snapshot.screenshot
+      ? {
+          mimeType: snapshot.screenshot.mimeType,
+          width: snapshot.screenshot.width,
+          height: snapshot.screenshot.height,
+        }
+      : null,
+    ...(snapshot.screenshotUnavailable
+      ? { screenshotUnavailable: bounded(snapshot.screenshotUnavailable, DIAGNOSTIC_TEXT_LENGTH) }
+      : {}),
     ...(truncatedFields.size > 0 ? { truncatedFields: [...truncatedFields] } : {}),
   })
 

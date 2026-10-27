@@ -65,12 +65,13 @@ export function registerBrowserPreviewInspectionTools(input: RegistrationInput) 
         input.service.snapshot(input.scope, target),
         signal,
       )
-      const { data } = snapshot.screenshot
       const summary = boundedBrowserPreviewSnapshotSummary(snapshot, include)
       return {
         content: [
           { type: 'text', text: JSON.stringify(summary) },
-          { type: 'image', data, mimeType: 'image/png' },
+          ...(snapshot.screenshot
+            ? [{ type: 'image' as const, data: snapshot.screenshot.data, mimeType: 'image/png' }]
+            : []),
         ],
         details: {
           kind: 'browser-preview',
