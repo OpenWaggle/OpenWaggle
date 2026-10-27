@@ -137,16 +137,14 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
 
 type SessionHostRefresh = ReturnType<typeof takePendingSessionHostRefresh>
 
-function emptyPendingRefresh(): PendingSessionHostRefresh {
-  return {
-    sessionIds: new Set(),
-    catalogEntrySessionIds: new Set(),
-    queueSessionIds: new Set(),
-    catalog: false,
-    archivedBranches: false,
-    relationshipMayHaveChanged: false,
-    scheduled: false,
-  }
+function useSessionTitleUpdates(updateSessionTitle: ChatLifecycle['updateSessionTitle']) {
+  useEffect(
+    () =>
+      api.onSessionTitleUpdated(({ sessionId, title }) => {
+        updateSessionTitle(sessionId, title)
+      }),
+    [updateSessionTitle],
+  )
 }
 
 /** The catalog entries to read again: every changed Session's, or only those of entry changes. */
@@ -195,14 +193,16 @@ export function useSessionHostRefresh(input: {
   } = input
   const queryClient = useQueryClient()
   const latestHostCursor = useRef<HostCursor | null>(null)
-  const pendingRefresh = useRef<PendingSessionHostRefresh>(emptyPendingRefresh())
-  useEffect(
-    () =>
-      api.onSessionTitleUpdated(({ sessionId, title }) => {
-        updateSessionTitle(sessionId, title)
-      }),
-    [updateSessionTitle],
-  )
+  const pendingRefresh = useRef<PendingSessionHostRefresh>({
+    sessionIds: new Set(),
+    catalogEntrySessionIds: new Set(),
+    queueSessionIds: new Set(),
+    catalog: false,
+    archivedBranches: false,
+    relationshipMayHaveChanged: false,
+    scheduled: false,
+  })
+  useSessionTitleUpdates(updateSessionTitle)
   useEffect(() => {
     let active = true
     const flush = () => {
