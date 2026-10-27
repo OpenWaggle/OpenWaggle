@@ -107,9 +107,11 @@ function createRunSessionsExtension(
   input: AgentKernelRunInput,
   workingDirectory: string,
   projectPath: string,
+  scratchDirectory: string | undefined,
 ) {
   return createSessionsToolExtension({
     sessionId: input.session.id,
+    ...(scratchDirectory ? { scratchDirectory } : {}),
     runId: input.runId,
     workingDirectory,
     projectPath,
@@ -182,7 +184,12 @@ function runPiAgentKernelTurn(
         ],
         { concurrency: 'unbounded' },
       ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
-    const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
+    const sessionsExtensionFactory = createRunSessionsExtension(
+      input,
+      executionPath,
+      projectPath,
+      scratchDirectory,
+    )
     const browserPreviewResources = createBrowserPreviewRuntimeResources({
       enabled: dependencies.enableBrowserPreviewAutomation,
       sessionId: input.session.id,

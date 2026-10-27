@@ -6,6 +6,7 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
+import { isRecord } from '@shared/utils/validation'
 import type { TSchema } from 'typebox'
 import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
 import { createLogger } from '../../logger'
@@ -29,6 +30,7 @@ import { hiveHelp } from './sessions-tool-help'
 import { HIVE_HELP_ACTION } from './sessions-tool-hot-schema'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
+import { hiveResultText } from './sessions-tool-result'
 import {
   executeSessionsToolSchedule,
   isSessionsToolScheduleAction,
@@ -46,6 +48,8 @@ interface SessionsToolExtensionInput {
   readonly agentDefinitionToggles?: Readonly<Record<string, boolean>>
   readonly sessionCapabilities?: readonly SessionCapability[]
   readonly modelMultiAgentEnabled?: boolean
+  /** The Session scratch directory, where a result too large for the model is saved whole. */
+  readonly scratchDirectory?: string
 }
 
 type SessionsToolPayload = ReturnType<typeof buildSessionsToolPayload>
@@ -235,6 +239,12 @@ function sendSessionsToolCommand(
   })
 }
 
+function withoutVerbose(params: unknown) {
+  if (!isRecord(params)) return params
+  const { verbose: _verbose, ...rest } = params
+  return rest
+}
+
 function helpResult(rawParams: unknown, grant: SessionsToolActionGrant) {
   const help = hiveHelp({
     variants: permittedSessionsToolVariants(grant),
@@ -252,8 +262,25 @@ async function executeSessionsToolCall(
   signal?: AbortSignal,
 ) {
   if (signal?.aborted) throw new Error('aborted')
-  assertSessionsToolActionArguments(rawParams)
-  const params = resolveSessionsToolSessionLinks(rawParams)
+  // `verbose` asks for the whole result envelope; it is no action's parameter.
+  const verbose = isMatching({ verbose: true }, rawParams)
+  const callParams = withoutVerbose(rawParams)
+  assertSessionsToolActionArguments(callParams)
+  const params = resolveSessionsToolSessionLinks(callParams)
+  const successfulToolResult = async (result: unknown) => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: await hiveResultText({
+          result,
+          verbose,
+          toolCallId,
+          ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
+        }),
+      },
+    ],
+    details: result,
+  })
   if (isAgentDefinitionAction(params)) {
     return successfulToolResult(
       await queryAgentDefinitionsForTool(
@@ -275,10 +302,6 @@ async function executeSessionsToolCall(
   await authorizeAttachments(initialPayload, ctx, signal)
   const payload = await authorizeExport(initialPayload, input, ctx, signal)
   return successfulToolResult(await sendSessionsToolCommand(input, payload, signal))
-}
-
-function successfulToolResult(result: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result }
 }
 
 function failedToolResult(error: unknown) {

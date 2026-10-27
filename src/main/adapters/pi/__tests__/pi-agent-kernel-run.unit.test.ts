@@ -139,6 +139,8 @@ describe('runPiAgentKernel', () => {
       projectPath: '/repo',
       sessionCapabilities: ['sessions:spawn', 'sessions:read'],
       modelMultiAgentEnabled: false,
+      // Where a hive result too large for the model is saved whole.
+      scratchDirectory: '/scratch/session-1',
     })
     expect(runMocks.runPiSession).toHaveBeenCalledWith(
       expect.objectContaining({
