@@ -14,7 +14,9 @@ import {
 import { type ReactNode, useState } from 'react'
 import {
   describeSchedule,
+  heartbeatSummaryText,
   heartbeatsForSession,
+  lastCheckText,
   launchScheduleForSession,
   nextRunAbsoluteText,
   nextRunText,
@@ -33,6 +35,8 @@ import { SessionSummarySection } from './SessionSummaryPrimitives'
 const MENU_POPOVER_CLASS = 'w-56 overflow-hidden p-1.5'
 
 function nextRunTooltip(task: ScheduledTask) {
+  const check = lastCheckText(task, Date.now())
+  if (check) return check
   const next = nextRunAbsoluteText(task)
   if (!task.enabled || next === null || task.waitingSince !== null) {
     return nextRunText(task, Date.now())
@@ -274,7 +278,7 @@ function ScheduledRows({
           key={task.id}
           task={task}
           label={task.name}
-          value={describeSchedule(task.schedule)}
+          value={heartbeatSummaryText(task) ?? describeSchedule(task.schedule)}
           icon={<HeartPulse className="size-4" />}
           deleting={deletingId === task.id}
           onDelete={(next) => setDeletingId(next.id)}

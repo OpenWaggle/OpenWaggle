@@ -1,7 +1,7 @@
 import type { ScheduledTask } from '@shared/types/scheduled-task'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pause, Play, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SessionsToolScheduledTask } from '@/features/chat/lib/sessions-tool-schedule'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import {
@@ -9,7 +9,7 @@ import {
   useOpenScheduledTask,
   useSetScheduledTaskEnabled,
 } from '@/features/scheduled-tasks'
-import { scheduledTasksListQueryOptions } from '@/queries/scheduled-tasks'
+import { scheduledTasksListQueryOptions, scheduledTasksQueryKeys } from '@/queries/scheduled-tasks'
 import { Button } from '@/shared/ui/Button'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -31,6 +31,21 @@ function useLiveScheduledTask(taskId: string | null) {
 }
 
 /**
+ * A schedule action that finishes while the row is on screen may have changed a task, beyond what
+ * the polled task list knows yet (a Wake check the user just approved in the Session, an outcome
+ * that paused it): read the tasks again once. A row mounted with its result already there does not.
+ */
+function useRefreshScheduledTasksOnResult(hasResult: boolean) {
+  const queryClient = useQueryClient()
+  const hadResult = useRef(hasResult)
+  useEffect(() => {
+    if (!hasResult || hadResult.current) return
+    hadResult.current = true
+    void queryClient.invalidateQueries({ queryKey: scheduledTasksQueryKeys.all })
+  }, [hasResult, queryClient])
+}
+
+/**
  * A hive-tool row over a Scheduled task names the task by its current name. The row of a call
  * that created or changed a task also carries its Open, Pause/Resume and Delete controls, which
  * follow the task list, so they show the task's state now; a task deleted since says so instead.
@@ -40,6 +55,7 @@ export function ScheduledTaskToolCallBlock({
   ...props
 }: ScheduledTaskToolCallBlockProps) {
   const live = useLiveScheduledTask(scheduled.taskId)
+  useRefreshScheduledTasksOnResult(props.result !== undefined)
   const name = live.task?.name ?? scheduled.name
   return (
     <ToolCallBlock

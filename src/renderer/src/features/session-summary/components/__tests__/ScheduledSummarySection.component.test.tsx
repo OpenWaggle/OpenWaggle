@@ -38,7 +38,12 @@ vi.mock('@/features/scheduled-tasks', async (importOriginal) => {
   }
 })
 
-import { heartbeatTask, scheduledTask } from '@/test-utils/scheduled-task-fixtures'
+import {
+  heartbeatSettings,
+  heartbeatTask,
+  scheduledTask,
+  scheduledTaskRun,
+} from '@/test-utils/scheduled-task-fixtures'
 import { ScheduledSummarySection } from '../ScheduledSummarySection'
 
 describe('Session Summary › Scheduled', () => {
@@ -152,5 +157,43 @@ describe('Session Summary › Scheduled', () => {
   it('renders nothing for a Session no task touches', async () => {
     const { container } = renderWithQueryClient(<ScheduledSummarySection sessionId="other" />)
     await vi.waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('shows a skipped Wake check and an Auto-pause on the Heartbeat row', async () => {
+    mocks.tasks.splice(
+      0,
+      mocks.tasks.length,
+      heartbeatTask({
+        heartbeat: heartbeatSettings({
+          wakeCheck: {
+            command: 'true',
+            onFailure: 'wake',
+            approval: 'approved',
+            pendingSince: null,
+          },
+        }),
+        lastRun: scheduledTaskRun({
+          status: 'skipped',
+          reason: 'wake-check-idle',
+          wakeCheck: 'idle',
+        }),
+      }),
+      heartbeatTask({
+        id: 'heartbeat-2',
+        name: 'Review comments',
+        enabled: false,
+        heartbeat: heartbeatSettings({
+          autoPause: { reason: 'done', message: 'auto-paused: done — merged', since: 1 },
+        }),
+      }),
+    )
+    renderWithQueryClient(<ScheduledSummarySection sessionId="session-1" />)
+
+    const gated = await screen.findByRole('button', { name: 'Open CI watch' })
+    expect(gated).toHaveTextContent('Nothing to do')
+    expect(gated).toHaveAttribute('title', expect.stringMatching(/^Last check .* · nothing to do/))
+    const paused = screen.getByRole('button', { name: 'Open Review comments' })
+    expect(paused).toHaveTextContent('Auto-paused')
+    expect(paused).toHaveAttribute('title', 'auto-paused: done — merged')
   })
 })

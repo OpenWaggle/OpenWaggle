@@ -3,6 +3,7 @@ import {
   SCHEDULED_TASK_JITTER_MINUTES,
 } from '@shared/domain/scheduled-tasks/task-schedule'
 import type {
+  HeartbeatRunOutcome,
   ScheduledTask,
   ScheduledTaskKind,
   ScheduledTaskNotificationPolicy,
@@ -10,6 +11,7 @@ import type {
   ScheduledTaskRunReason,
   ScheduledTaskRunStatus,
   ScheduledTaskRunTrigger,
+  ScheduledTaskRunWakeCheck,
 } from '@shared/types/scheduled-task'
 import { machineTimeZone } from '@shared/utils/zoned-time'
 
@@ -50,6 +52,24 @@ const RUN_REASON_LABELS: Readonly<Record<ScheduledTaskRunReason, string>> = {
   'launch-refused': 'The Session launch was refused',
   'dispatch-failed': 'Delivery failed',
   'interrupted-by-host-stop': 'The Session Host stopped during the run',
+  'wake-check-idle': 'Nothing to do',
+  'wake-check-failed': 'The wake check failed',
+  'wake-check-unapproved': 'Waiting for you to approve its wake check',
+}
+
+export const RUN_OUTCOME_LABELS: Readonly<Record<HeartbeatRunOutcome, string>> = {
+  acted: 'Acted',
+  idle: 'Idle',
+  done: 'Done',
+}
+
+/** "Idle (reported: nothing changed)", "Acted (inferred)". */
+export function runOutcomeText(run: Pick<ScheduledTaskRun, 'outcome'>) {
+  const outcome = run.outcome
+  if (!outcome) return null
+  const label = RUN_OUTCOME_LABELS[outcome.value]
+  if (outcome.source === 'inferred') return `${label} (inferred from the tools it used)`
+  return outcome.note ? `${label}: ${outcome.note}` : label
 }
 
 export function defaultNotificationPolicy(
@@ -176,9 +196,62 @@ export function formatPreviewTime(at: number, now: number, timeZone?: string | n
   return previewFormatter(sameDay ? 'time' : 'date-time', timeZone).format(at)
 }
 
+export const WAKE_CHECK_APPROVAL_TEXT = 'Waiting for you to approve its wake check'
+
+/** Whether a Heartbeat is held until the user approves its Wake check. */
+export function wakeCheckPending(task: ScheduledTask) {
+  return task.heartbeat?.wakeCheck?.approval === 'pending'
+}
+
+/** A Heartbeat created before stop conditions, or one set to run forever: it has no end. */
+export function heartbeatHasNoEnd(task: ScheduledTask) {
+  const heartbeat = task.heartbeat
+  if (!heartbeat) return false
+  return (
+    heartbeat.indefinite &&
+    heartbeat.stopWhen === null &&
+    task.endsAt === null &&
+    task.maxRuns === null
+  )
+}
+
+const WAKE_CHECK_RESULT_TEXT: Readonly<Record<ScheduledTaskRunWakeCheck, string>> = {
+  idle: 'nothing to do',
+  woke: 'woke the Run',
+  failed: 'check failed',
+}
+
+/**
+ * "Last check 07:04 · nothing to do · next 07:34" for a gated Heartbeat whose last firing the
+ * Wake check decided; null otherwise.
+ */
+export function lastCheckText(task: ScheduledTask, now: number) {
+  const run = task.lastRun
+  if (!task.heartbeat?.wakeCheck || !run?.wakeCheck) return null
+  const zone = differingTimeZone(task)
+  const result = WAKE_CHECK_RESULT_TEXT[run.wakeCheck]
+  const next =
+    task.enabled && task.nextRunAt !== null
+      ? ` · next ${formatPreviewTime(task.nextRunAt, now, zone)}`
+      : ''
+  return `Last check ${formatPreviewTime(run.firedAt, now, zone)} · ${result}${next}`
+}
+
+/** A Heartbeat's state in a word or two, for the Session Summary; null when it just runs. */
+export function heartbeatSummaryText(task: ScheduledTask) {
+  const heartbeat = task.heartbeat
+  if (!heartbeat) return null
+  if (heartbeat.autoPause && !task.enabled) return 'Auto-paused'
+  if (wakeCheckPending(task)) return 'Approve wake check'
+  if (task.enabled && task.lastRun?.wakeCheck === 'idle') return 'Nothing to do'
+  return null
+}
+
 /** What the row says about the next firing. */
 export function nextRunText(task: ScheduledTask, now: number) {
+  if (task.heartbeat?.autoPause && !task.enabled) return task.heartbeat.autoPause.message
   if (!task.enabled) return 'Paused'
+  if (wakeCheckPending(task)) return WAKE_CHECK_APPROVAL_TEXT
   if (task.waitingSince !== null) return 'Waiting for the Session to be idle'
   if (task.nextRunAt === null) return 'Schedule ended'
   return `Next ${formatRelativeTime(task.nextRunAt, now)}`

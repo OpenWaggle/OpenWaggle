@@ -12,13 +12,20 @@ function isNotificationPolicy(value: string): value is ScheduledTaskNotification
   return value === 'every-run' || value === 'failures-only'
 }
 
+/** With no end date or run limit, a Heartbeat still ends at its Stop condition. */
+function noEndText(editor: ScheduledTaskEditorState) {
+  const { draft } = editor
+  if (draft.kind !== 'heartbeat' || draft.indefinite) return 'Never ends'
+  return draft.stopWhen.trim() ? 'Ends at its Stop condition' : 'No end date or run limit'
+}
+
 function summary(editor: ScheduledTaskEditorState) {
   const { draft } = editor
   const ends = [
     draft.endDate ? `ends ${draft.endDate}` : null,
     draft.maxRuns.trim() ? `at most ${draft.maxRuns.trim()} runs` : null,
   ].filter((part): part is string => part !== null)
-  const endText = ends.length > 0 ? ends.join(', ') : 'Never ends'
+  const endText = ends.length > 0 ? ends.join(', ') : noEndText(editor)
   return `${endText} · Notifies on ${NOTIFICATION_POLICY_LABELS[draft.notificationPolicy].toLowerCase()}`
 }
 
@@ -33,7 +40,7 @@ export function EditorMoreFields({ editor }: { readonly editor: ScheduledTaskEdi
         variant="unstyled"
         aria-expanded={open}
         aria-controls={open ? 'scheduled-task-more' : undefined}
-        className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
+        className="flex items-center gap-1 text-left text-xs text-text-secondary hover:text-text-primary"
         onClick={() => setOpen(!open)}
       >
         <Icon aria-hidden="true" className="size-3.5" />

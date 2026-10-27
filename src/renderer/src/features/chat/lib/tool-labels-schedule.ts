@@ -13,6 +13,7 @@ const SCHEDULE_VERBS: Readonly<
   schedule_update: { running: 'Updating', done: 'Updated' },
   schedule_delete: { running: 'Deleting', done: 'Deleted' },
   schedule_run_now: { running: 'Running', done: 'Ran' },
+  schedule_outcome: { running: 'Reporting the outcome of', done: 'Reported the outcome of' },
 }
 
 export const SCHEDULE_ACTION_NAMES: readonly string[] = [

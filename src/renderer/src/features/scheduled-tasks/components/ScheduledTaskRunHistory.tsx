@@ -4,7 +4,12 @@ import { ExternalLink } from 'lucide-react'
 import { scheduledTaskRunsQueryOptions } from '@/queries/scheduled-tasks'
 import { Button } from '@/shared/ui/Button'
 import { useOpenScheduledSession } from '../hooks/useOpenScheduledSession'
-import { formatAbsoluteTime, RUN_TRIGGER_LABELS, runReasonText } from '../lib/task-format'
+import {
+  formatAbsoluteTime,
+  RUN_TRIGGER_LABELS,
+  runOutcomeText,
+  runReasonText,
+} from '../lib/task-format'
 import { ScheduledTaskRunStatus } from './ScheduledTaskParts'
 
 function triggerText(run: ScheduledTaskRun) {
@@ -23,6 +28,7 @@ function RunRow({
   readonly onOpenSession: (sessionId: string) => void
 }) {
   const reason = runReasonText(run)
+  const outcome = runOutcomeText(run)
   const showNominal = run.trigger !== 'run-now' && run.nominalAt !== run.firedAt
   return (
     <li className="flex items-start gap-3 border-b border-border px-3 py-2 text-xs last:border-b-0">
@@ -38,6 +44,7 @@ function RunRow({
           <div className="text-text-muted">Due {formatAbsoluteTime(run.nominalAt, timeZone)}</div>
         ) : null}
         {reason ? <div className="text-text-secondary">{reason}</div> : null}
+        {outcome ? <div className="text-text-tertiary">Outcome: {outcome}</div> : null}
       </div>
       {run.sessionId ? (
         <Button

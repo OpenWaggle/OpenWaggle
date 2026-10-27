@@ -60,7 +60,7 @@ export function useScheduledTaskEditor(
 
   const submit = () => {
     if (target.mode === 'edit') {
-      const patch = taskPatchFromDraft(draft)
+      const patch = taskPatchFromDraft(draft, target.task)
       if (!patch.ok) {
         setValidationError(patch.error)
         return

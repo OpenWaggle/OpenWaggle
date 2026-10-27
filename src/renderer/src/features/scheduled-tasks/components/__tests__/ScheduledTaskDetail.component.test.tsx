@@ -47,7 +47,10 @@ describe('Scheduled task detail', () => {
       if (command.operation === 'runs') return { effect: 'runs-listed', runs: RUNS }
       if (command.operation === 'run-now') return { effect: 'run-requested', task: TASK }
       if (command.operation === 'update') {
-        return { effect: 'updated', task: { ...TASK, ...command.patch } }
+        return {
+          effect: 'updated',
+          task: { ...TASK, enabled: command.patch.enabled ?? TASK.enabled },
+        }
       }
       if (command.operation === 'delete') return { effect: 'deleted', taskId: command.taskId }
       return { effect: 'listed', tasks: [TASK] }
