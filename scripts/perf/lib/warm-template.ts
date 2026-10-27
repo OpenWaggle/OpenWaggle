@@ -40,6 +40,19 @@ async function waitForIdleHost(userData: string) {
   }
 }
 
+/** Starts the profile's Host, waits for it to go idle, and returns how long it took to listen. */
+async function startHostUntilIdle(app: PerfApp, profile: PerfProfile) {
+  const startedAt = Date.now()
+  const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
+  const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
+  const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
+  await stopProcessGroup(started.child)
+  if (code !== 0) throw new Error(`host start failed while warming ${profile.root}`)
+  const listeningMs = Date.now() - startedAt
+  await waitForIdleHost(profile.userData)
+  return listeningMs
+}
+
 /**
  * A copy of a generated profile that one build's Host has already opened once: its migrations,
  * recovery and background indexing are done, so every measured launch starts from the steady
@@ -59,15 +72,9 @@ export async function warmTemplateFor(app: PerfApp, templateRoot: string) {
     projectPath: path.join(target, 'projects', 'project-0'),
   }
   const startedAt = Date.now()
-  let listeningMs: number | null = null
+  let listeningMs: number
   try {
-    const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
-    const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
-    const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
-    await stopProcessGroup(started.child)
-    if (code !== 0) throw new Error(`host start failed while warming ${target}`)
-    listeningMs = Date.now() - startedAt
-    await waitForIdleHost(profile.userData)
+    listeningMs = await startHostUntilIdle(app, profile)
   } finally {
     // Never leave a warming Host behind, even when warming failed: it would keep indexing.
     await stopProfileHost(profile)
