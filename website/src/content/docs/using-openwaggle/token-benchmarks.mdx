@@ -1,6 +1,6 @@
 ---
 title: "Token benchmarks"
-description: "Historical first-call input measurements, their source data, and limits of the comparison."
+description: "First-call input size of OpenWaggle and four other coding agents, how it was measured, and the limits of the comparison."
 order: 6
 section: "Using OpenWaggle"
 ---
@@ -11,11 +11,9 @@ export const sortedEntries = [...benchmarkRun.entry].sort(
   (a, b) => a.turnOneTokens - b.turnOneTokens,
 );
 
-*Measured {benchmarkRun.measuredAt}. These are historical results, not measurements of the current releases.*
+*Measured {benchmarkRun.measuredAt} with model `{benchmarkRun.model}` through OpenRouter.*
 
-A model request includes more than your message. It can contain system instructions, tool definitions, project context, and conversation history. This chart records input tokens for the first model call using the prompt "{benchmarkRun.probePrompt}" and model `{benchmarkRun.model}` through OpenRouter.
-
-The OpenWaggle row comes from a separate bundled-Pi-SDK probe, not a fully configured GUI session. The other seven rows come from container runs through a logging proxy. Different tool profiles and provider routes limit direct comparisons.
+A model request carries more than your message. It also holds system instructions, tool definitions, project context and conversation history, and the agent sends that again with every turn. This chart shows the input tokens of each agent's first model call for the prompt "{benchmarkRun.probePrompt}" in an empty project.
 
 <div class="my-8 flex flex-col gap-2.5">
   {sortedEntries.map((candidate) => (
@@ -39,59 +37,45 @@ The OpenWaggle row comes from a separate bundled-Pi-SDK probe, not a fully confi
 
 The largest value is {benchmarkMaxTokens.toLocaleString('en-US')} tokens. Short bars have a minimum visible width of 6% and enough room for their label, so use the printed counts for exact comparisons.
 
+OpenWaggle's first call is smaller than opencode's, Codex's and Claude Code's, and about three times the size of the Pi CLI it is built on. The difference from Pi is mostly the `hive` tool for Worker Sessions, `codemode` and `tool_search`. OpenWaggle declares 7 tools on the first turn. Its other first-party tools (browser preview, project actions, source control, docs and MCP server tools) stay behind `tool_search` until a task needs them.
+
 ## Details worth knowing
 
-- The container runs used empty projects. Real repositories can add instructions, repository maps, skills, extensions, and MCP tools.
-- The DeepSeek Harness row used its `sdk-minimal` profile, not its full interactive toolset.
-- The Reasonix archive contains one model call with 5,279 input tokens, while its CLI reported 10,558. The chart uses the recorded API usage. The archive does not establish why its CLI reported double.
+- Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 8,980 o200k tokens. MCP tools are not declared on the first turn; the skills listing is most of the increase.
+- The counts are provider-reported prompt tokens of the first call, including the probe message. The proxy log also holds an o200k count of each first request's system prompt and tool declarations.
+- OpenWaggle also asks the model for a Session title in the same run. That call is not counted.
 - Codex used an explicit `model_reasoning_effort` setting for its OpenRouter Responses request.
-- OpenWaggle and Pi CLI used different provider routes. The recorded difference does not by itself establish that tool serialization was the only cause.
 
 ## How we measured
 
-The seven non-OpenWaggle rows used pinned versions in separate Docker containers, fresh home directories, and empty projects. The [archived proxy logs](https://github.com/OpenWaggle/OpenWaggle/tree/main/scripts/benchmark-docker/results) contain their first-call API usage. The parser counts prompt tokens, including the probe message. For Anthropic-style usage, it adds uncached input, cache writes, and cache reads.
+`scripts/benchmark-docker/run.sh` runs Pi, opencode, Codex and Claude Code at pinned versions in separate Docker containers, each with a fresh home and an empty project. With `BENCH_OPENWAGGLE_APP` set, it also runs a packaged OpenWaggle app on the host in hidden automation, with a throwaway profile, its first-party extensions and default settings. All five send their traffic through one local logging proxy that holds the OpenRouter key and records each request and its usage. The proxy listens on loopback only.
 
-OpenWaggle was measured separately with `scripts/benchmark-first-turn-tokens.ts`, which creates temporary project and agent directories and reads assistant usage from the bundled Pi SDK. Its published value is retained in [the website dataset](https://github.com/OpenWaggle/OpenWaggle/blob/main/website/src/data/benchmark-results.json). The container archive does not include the raw output for that separate run, so its value was not independently reverified from those logs during the documentation audit.
+The raw output of this run is in [`scripts/benchmark-docker/results/`](https://github.com/OpenWaggle/OpenWaggle/tree/main/scripts/benchmark-docker/results): `results.json`, `request-tokens.json` and the proxy logs.
 
-These are individual recorded runs, not repeated trials with error estimates. The chart measures first-call input size, not total task usage or a bill. Provider pricing and caching policies affect cost.
+Each agent ran once. The numbers have no error estimates, but the request contents of these agents do not change from run to run in an empty project. The chart measures first-call input size, not total task usage or a bill. Provider pricing and caching change cost.
 
 ## What this benchmark is not
 
-This does not measure code quality, task completion, latency, or equivalent capabilities. An agent with fewer initial tokens can still use more tokens over a task or produce a worse result.
-
-The historical OpenWaggle measurement used Pi 0.84.4. The current repository uses a newer runtime and additional app integrations. Do not use this chart as a current-release performance claim.
+It does not measure code quality, task completion, latency or equivalent capabilities. An agent with fewer initial tokens can still use more tokens over a task or produce a worse result.
 
 ## Run it yourself
 
-The two measurement paths are separate:
-
-- `scripts/benchmark-docker/` contains the historical container runner and proxy. It also runs an older Pi 0.81.1 comparison that is not plotted here. Its parser writes `scripts/benchmark-docker/results/results.json`; it does not update the website dataset automatically.
-- `scripts/benchmark-first-turn-tokens.ts` inspects the bundled Pi SDK. Its offline mode estimates tokens from the prompt and tool schema text. Live mode reads provider-reported usage.
-
-The container runner currently needs fixes before it can support repeatable reruns. Its proxy also binds to all interfaces. Do not run it with credentials on an untrusted network. The archived counts remain available for inspection, but the runner is not a supported reproduction command.
-
-For an offline SDK inspection from a development checkout with dependencies installed:
+The run sends requests to OpenRouter and can incur charges. From a development checkout with Docker running:
 
 ```sh
-pnpm exec tsx scripts/benchmark-first-turn-tokens.ts --no-skills
+pnpm build && pnpm exec electron-builder --dir
+BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=sk-or-... \
+  scripts/benchmark-docker/run.sh
 ```
 
-A live SDK measurement requires provider credentials in `~/.pi/agent/auth.json`, access to the requested model, and network access. It sends a request to the provider and can incur charges:
+Without `BENCH_OPENWAGGLE_APP` it runs only the four container agents. Keep the source revision, versions and raw proxy output with any new result.
 
-```sh
-pnpm exec tsx scripts/benchmark-first-turn-tokens.ts --live --no-skills --second-turn \
-  --provider openrouter --model z-ai/glm-5.3-flash
-```
-
-Running today's checkout produces a new measurement. It does not reproduce the historical runtime or establish the overhead of a configured OpenWaggle session. Keep the source revision, versions, configuration, route, and raw usage output with any new result.
+To measure OpenWaggle's first request without a provider, `pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty` captures a packaged app's first request with a local recording provider and counts it in o200k tokens per section and per tool. `--setup maintainer` adds MCP servers, skills and an `AGENTS.md`.
 
 ## Versions measured
 
-- [Pi CLI](https://github.com/badlogic/pi-mono) 0.84.4
-- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) 0.3.0-alpha.63
-- [Aider](https://github.com/Aider-AI/aider) 0.86.2
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 0.1.2a3, sdk-minimal profile
-- [DeepSeek Reasonix](https://github.com/esengine/DeepSeek-Reasonix) 1.35.0
-- [opencode](https://github.com/sst/opencode) 1.18.26
-- [Codex CLI](https://github.com/openai/codex) 0.150.1
-- [Claude Code](https://github.com/anthropics/claude-code) 2.1.247
+- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle), the v1 performance build
+- [Pi CLI](https://github.com/badlogic/pi-mono) 1.4.0
+- [opencode](https://github.com/sst/opencode) 1.19.4
+- [Codex CLI](https://github.com/openai/codex) 0.164.0
+- [Claude Code](https://github.com/anthropics/claude-code) 2.1.311
