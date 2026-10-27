@@ -1,0 +1,10 @@
+{
+  "name": "openwaggle-perf-mcp-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dependency-free MCP stdio server for OpenWaggle performance measurements.",
+  "type": "module",
+  "bin": {
+    "openwaggle-perf-mcp-fixture": "server.ts"
+  }
+}

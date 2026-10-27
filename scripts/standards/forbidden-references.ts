@@ -31,8 +31,6 @@ const forbiddenReferenceExemptFiles: string[] = [
   // results/ is untracked raw evidence; the curated copy is exempt below.
   'scripts/benchmark-docker/parse-results.py',
   'scripts/benchmark-docker/results/results.json',
-  'scripts/benchmark-first-turn-tokens.ts',
-  'scripts/benchmark-report-shared.ts',
   'website/src/content/docs/using-openwaggle/token-benchmarks.mdx',
   'website/src/data/benchmark-results.json',
   'website/src/data/benchmarks.ts',

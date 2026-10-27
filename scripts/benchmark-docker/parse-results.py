@@ -156,8 +156,8 @@ def cli_reasonix(results_dir: Path):
 
 
 PARSERS = {
-    "pi081": lambda results_dir: cli_pi(results_dir, "pi081"),
-    "pi084": lambda results_dir: cli_pi(results_dir, "pi084"),
+    "openwaggle": lambda results_dir: {"error": "wire only"},
+    "pi": lambda results_dir: cli_pi(results_dir, "pi"),
     "claude": cli_claude,
     "codex": cli_codex,
     "opencode": cli_opencode,
@@ -169,11 +169,11 @@ PARSERS = {
 NAMES = {
     "aider": "Aider 0.86.2",
     "dsh": "DeepSeek Harness (sdk-minimal)",
-    "pi081": "Pi CLI 0.81.1 (OpenWaggle-bundled)",
-    "pi084": "Pi CLI 0.84.4",
-    "claude": "Claude Code 2.1.247",
-    "codex": "Codex CLI 0.150.1",
-    "opencode": "opencode 1.18.26",
+    "openwaggle": "OpenWaggle (packaged app, first-party extensions, default settings)",
+    "pi": "Pi CLI 1.4.0 (the version OpenWaggle bundles)",
+    "claude": "Claude Code 2.1.311",
+    "codex": "Codex CLI 0.164.0",
+    "opencode": "opencode 1.19.4",
     "reasonix": "DeepSeek Reasonix 1.35.0",
 }
 
@@ -185,12 +185,20 @@ def main():
         "environment": (
             "Docker (node:24-bookworm-slim), pinned agent versions, fresh home per agent, "
             "empty project, no AGENTS.md/skills/plugins/extensions/MCP; all traffic through "
-            "a local logging proxy injecting the OpenRouter key"
+            "a local logging proxy injecting the OpenRouter key. The openwaggle row is the "
+            "packaged app on the host (hidden automation, first-party extensions on) through "
+            "the same proxy and model."
         ),
         "agents": {},
     }
+    request_tokens_path = results_dir / "request-tokens.json"
+    request_tokens = json.loads(request_tokens_path.read_text()) if request_tokens_path.exists() else {}
     for agent, cli_parser in PARSERS.items():
+        if not (results_dir / f"{agent}.proxy.jsonl").exists():
+            continue
         entry = {"name": NAMES[agent]}
+        if agent in request_tokens:
+            entry["requestO200k"] = request_tokens[agent]
         wire = wire_truth(results_dir, agent)
         if wire:
             entry["turnOneTokens"] = wire["turnOneTokens"]
