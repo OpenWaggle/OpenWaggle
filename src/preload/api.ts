@@ -2,8 +2,8 @@ import type { OpenWaggleApi } from '@shared/types/ipc'
 import { browserPreviewApi } from './browser-preview-api'
 import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
-import { startupApi } from './startup-api'
 import { sessionDataApi } from './session-data-api'
+import { startupApi } from './startup-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
