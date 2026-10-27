@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import type { WorkspaceFileReadResult, WorkspaceTextEncoding } from '@shared/types/workspace-files'
-import { parse as parseEditorConfig } from 'editorconfig'
+import { lazyModule } from '../utils/lazy-module'
 import {
   editorModelContent,
   resolveEditorConfigIndentStyle,
@@ -26,6 +26,9 @@ import { readBoundedFileRange } from './workspace-file-handle-reader'
 import { resolveExistingWorkspaceFile } from './workspace-file-paths'
 import { rememberWorkspaceFile } from './workspace-file-search'
 import { shebangLanguage, vscodeLanguageAssociation } from './workspace-language-detection'
+
+// editorconfig and its WASM INI parser load on the first text read, not at startup.
+const loadEditorConfig = lazyModule(() => import('editorconfig'))
 
 const FILE_KIND_SAMPLE_BYTES = 8 * 1024
 
@@ -67,6 +70,7 @@ async function textReadResult(input: {
   }
   const lineEnding = detectWorkspaceLineEnding(decoded.content)
   const content = editorModelContent(decoded.content, lineEnding)
+  const { parse: parseEditorConfig } = await loadEditorConfig()
   const editorConfig = await parseEditorConfig(input.realFilePath, { root: input.projectRoot })
   const inferredIndentation = inferIndentation(content)
   const editorConfigPolicy = resolveEditorConfigPolicy(editorConfig)

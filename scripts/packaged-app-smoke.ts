@@ -4,6 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
 
 const execFile = promisify(execFileCallback)
 
@@ -204,6 +205,13 @@ function assertPiPackageAssets(header: AsarNode) {
   }
 }
 
+function assertRuntimeTrim(header: AsarNode) {
+  const issues = prunedRuntimeIssues(collectAsarEntries(header))
+  if (issues.length > 0) {
+    throw new Error(`Packaged app asar runtime trim is wrong: ${issues.join('; ')}.`)
+  }
+}
+
 async function assertRequiredFiles(rootPath: string, relativeFiles: readonly string[]) {
   const missingFiles: string[] = []
 
@@ -271,6 +279,7 @@ async function smokePackagedApp(appPath: string) {
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
   assertPiPackageAssets(asarHeader)
+  assertRuntimeTrim(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
   await assertRequiredFiles(

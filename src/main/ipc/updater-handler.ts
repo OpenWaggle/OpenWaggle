@@ -15,15 +15,17 @@ import {
   type UpdateRestartChoice,
   type UpdateRestartState,
 } from '../update-restart'
-import {
-  checkForUpdates,
-  getUpdateStatus,
-  installUpdate,
-  setUpdateWaitingForRuns,
-} from '../updater'
+import { getUpdateStatus, setUpdateWaitingForRuns } from '../update-status'
+import { lazyModule } from '../utils/lazy-module'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('update-restart')
+/**
+ * The updater brings electron-updater, which took the GUI ≈40–60 ms (and seconds on a busy
+ * machine) to load while it registered IPC handlers, before the window opened (A-F4). The status
+ * lives in update-status.ts, so only a check or an install loads it.
+ */
+const loadUpdater = lazyModule(() => import('../updater'))
 const UPDATE_RESTART_POLL_INTERVAL_MS = 3_000
 const UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS = 30_000
 const RESTART_CHOICES: readonly UpdateRestartChoice[] = ['when-idle', 'now', 'cancel']
@@ -92,7 +94,7 @@ const updateRestart = createUpdateRestartController({
   interruptActiveRuns,
   updateState: () => updateRestartState(getUpdateStatus()),
   reportWaiting: setUpdateWaitingForRuns,
-  install: installUpdate,
+  install: async () => (await loadUpdater()).installUpdate(),
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   pollIntervalMs: UPDATE_RESTART_POLL_INTERVAL_MS,
   interruptSettleTimeoutMs: UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS,
@@ -103,8 +105,9 @@ const updateRestart = createUpdateRestartController({
 
 export function registerUpdaterHandlers(): void {
   typedHandle('updater:check', (_event, rawChannel?: unknown) =>
-    Effect.sync(() => {
-      checkForUpdates(parseUpdateChannel(rawChannel))
+    Effect.promise(async () => {
+      const channel = parseUpdateChannel(rawChannel)
+      ;(await loadUpdater()).checkForUpdates(channel)
     }),
   )
 

@@ -27,6 +27,8 @@ overrides:
   '@hono/node-server': 2.0.11
   '@effect/sql-sqlite-node>better-sqlite3': 13.0.3
   '@huggingface/transformers>onnxruntime-node': 1.23.2
+  '@pierre/diffs>shiki': 4.4.3
+  '@pierre/theming>shiki': 4.4.3
   adm-zip: 0.6.1
   js-yaml@^4: ^4.3.2
   '@xmldom/xmldom@<0.8.15': 0.8.15
@@ -72,33 +74,15 @@ importers:
       '@earendil-works/pi-mcp':
         specifier: catalog:pi-runtime
         version: 1.4.0
-      '@headless-tree/core':
-        specifier: 1.7.0
-        version: 1.7.0
-      '@headless-tree/react':
-        specifier: 1.7.0
-        version: 1.7.0(@headless-tree/core@1.7.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@huggingface/transformers':
         specifier: 4.3.0
         version: 4.3.0(@types/node@24.13.3)
-      '@lexical/react':
-        specifier: 0.50.0
-        version: 0.50.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(yjs@13.6.32)
-      '@lobehub/icons-static-svg':
-        specifier: 1.95.0
-        version: 1.95.0
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
-      '@modelcontextprotocol/ext-apps':
-        specifier: 2.0.0
-        version: 2.0.0(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/core@2.0.0)(@modelcontextprotocol/server@2.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
       '@modelcontextprotocol/node':
         specifier: 2.0.0
         version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)
-      '@modelcontextprotocol/sdk':
-        specifier: 1.30.0
-        version: 1.30.0(supports-color@7.2.0)(zod@4.6.5)
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
@@ -114,18 +98,9 @@ importers:
       '@openwaggle/waggle-core':
         specifier: workspace:*
         version: link:packages/waggle-core
-      '@pierre/diffs':
-        specifier: 1.4.2
-        version: 1.4.2(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@silvia-odwyer/photon-node':
         specifier: 0.3.4
         version: 0.3.4
-      '@tanstack/react-hotkeys':
-        specifier: 0.10.0
-        version: 0.10.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@tanstack/react-router':
-        specifier: 1.170.36
-        version: 1.170.36(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
@@ -138,9 +113,6 @@ importers:
       electron-updater:
         specifier: 6.8.10
         version: 6.8.10(supports-color@7.2.0)
-      hast-util-to-jsx-runtime:
-        specifier: 2.3.6
-        version: 2.3.6(supports-color@7.2.0)
       ignore:
         specifier: 7.0.9
         version: 7.0.9
@@ -150,9 +122,6 @@ importers:
       jszip:
         specifier: 3.10.2
         version: 3.10.2
-      lexical:
-        specifier: 0.50.0
-        version: 0.50.0(typescript@7.0.2)
       lucide:
         specifier: 1.46.0
         version: 1.46.0
@@ -180,15 +149,9 @@ importers:
       remark-parse:
         specifier: 11.0.0
         version: 11.0.0(supports-color@7.2.0)
-      remark-rehype:
-        specifier: 11.1.2
-        version: 11.1.2
       sharp:
         specifier: 0.35.4
         version: 0.35.4(@types/node@24.13.3)
-      shiki:
-        specifier: 4.4.3
-        version: 4.4.3
       smol-toml:
         specifier: 1.8.0
         version: 1.8.0
@@ -265,9 +228,30 @@ importers:
       '@floating-ui/dom':
         specifier: 1.8.0
         version: 1.8.0
+      '@headless-tree/core':
+        specifier: 1.7.0
+        version: 1.7.0
+      '@headless-tree/react':
+        specifier: 1.7.0
+        version: 1.7.0(@headless-tree/core@1.7.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@lexical/react':
+        specifier: 0.50.0
+        version: 0.50.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(yjs@13.6.32)
+      '@lobehub/icons-static-svg':
+        specifier: 1.95.0
+        version: 1.95.0
       '@modelcontextprotocol/conformance':
         specifier: 0.2.0-alpha.11
         version: 0.2.0-alpha.11(supports-color@7.2.0)
+      '@modelcontextprotocol/ext-apps':
+        specifier: 2.0.0
+        version: 2.0.0(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/core@2.0.0)(@modelcontextprotocol/server@2.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(supports-color@7.2.0)(zod@4.6.5)
+      '@pierre/diffs':
+        specifier: 1.4.2
+        version: 1.4.2(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -289,9 +273,15 @@ importers:
       '@tanstack/eslint-plugin-router':
         specifier: 1.162.0
         version: 1.162.0(eslint@10.10.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@7.0.2)
+      '@tanstack/react-hotkeys':
+        specifier: 0.10.0
+        version: 0.10.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tanstack/react-query':
         specifier: 5.102.8
         version: 5.102.8(react@19.3.0)
+      '@tanstack/react-router':
+        specifier: 1.170.36
+        version: 1.170.36(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tanstack/react-router-ssr-query':
         specifier: 1.167.2
         version: 1.167.2(@tanstack/query-core@5.102.8)(@tanstack/react-query@5.102.8(react@19.3.0))(@tanstack/react-router@1.170.36(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@tanstack/router-core@1.171.30)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -397,6 +387,9 @@ importers:
       fast-glob:
         specifier: 3.3.3
         version: 3.3.3
+      hast-util-to-jsx-runtime:
+        specifier: 2.3.6
+        version: 2.3.6(supports-color@7.2.0)
       husky:
         specifier: 9.1.7
         version: 9.1.7
@@ -406,6 +399,9 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1(@noble/hashes@2.3.0)
+      lexical:
+        specifier: 0.50.0
+        version: 0.50.0(typescript@7.0.2)
       lucide-react:
         specifier: 1.46.0
         version: 1.46.0(react@19.3.0)
@@ -442,6 +438,12 @@ importers:
       remark-gfm:
         specifier: 4.0.1
         version: 4.0.1(supports-color@7.2.0)
+      remark-rehype:
+        specifier: 11.1.2
+        version: 11.1.2
+      shiki:
+        specifier: 4.4.3
+        version: 4.4.3
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
@@ -2888,7 +2890,7 @@ packages:
       '@shikijs/themes': ^3.0.0 || ^4.0.0
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
-      shiki: ^3.0.0 || ^4.0.0
+      shiki: 4.4.3
     peerDependenciesMeta:
       '@pierre/theme':
         optional: true
@@ -10597,12 +10599,12 @@ snapshots:
   '@pierre/diffs@1.4.2(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@pierre/theme': 2.0.0
-      '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)
+      '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.4.3)
       '@shikijs/transformers': 4.4.3
       diff: 9.0.0
       hast-util-to-html: 9.0.5
       lru_map: 0.4.1
-      shiki: 4.3.1
+      shiki: 4.4.3
     optionalDependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
@@ -10611,13 +10613,13 @@ snapshots:
 
   '@pierre/theme@2.0.0': {}
 
-  '@pierre/theming@1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)':
+  '@pierre/theming@1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.4.3)':
     optionalDependencies:
       '@pierre/theme': 2.0.0
       '@shikijs/themes': 4.4.3
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      shiki: 4.3.1
+      shiki: 4.4.3
 
   '@playwright/test@1.63.0':
     dependencies:
