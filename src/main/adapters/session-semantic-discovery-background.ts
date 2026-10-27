@@ -14,6 +14,11 @@ import { SqliteSessionSemanticProjection } from './sqlite-session-semantic-proje
 import { SqliteSessionTranscriptSemanticProjection } from './sqlite-session-transcript-semantic-projection'
 
 const IDLE_POLL_INTERVAL = '2 seconds'
+/**
+ * A Session that changed is embedded once it has been quiet this long: a Run's messages each
+ * re-queue it, and embedding after every one re-embedded the Session many times per Run (D3).
+ */
+const SEMANTIC_REEMBED_SETTLE_MS = 15_000
 const FAILURE_RETRY_INTERVAL = '30 seconds'
 const logger = createLogger('semantic-session-discovery')
 
@@ -118,7 +123,12 @@ function transcriptProjectionLoop(
 
 export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
-  const projection = new SqliteSessionSemanticProjection(sql, defaultSessionEmbeddingModel)
+  const projection = new SqliteSessionSemanticProjection(
+    sql,
+    defaultSessionEmbeddingModel,
+    undefined,
+    { settleMs: SEMANTIC_REEMBED_SETTLE_MS },
+  )
   const transcriptProjection = new SqliteSessionTranscriptSemanticProjection(
     sql,
     defaultSessionEmbeddingModel,
