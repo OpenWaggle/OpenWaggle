@@ -6,10 +6,10 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_ARCHIVED_ITEMS_METHODS } from './preload-archived-items-methods'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
-import { PRELOAD_SCHEDULED_TASKS_METHODS } from './preload-scheduled-tasks-methods'
 import { PRELOAD_SESSION_DATA_METHODS } from './preload-session-data-methods'
 import { PRELOAD_SOURCE_CONTROL_METHODS } from './preload-source-control-methods'
 import { PRELOAD_APP_LIFECYCLE_METHODS } from './preload-startup-methods'
+import { PRELOAD_TERMINAL_METHODS } from './preload-terminal-methods'
 import { PRELOAD_UPDATE_METHODS } from './preload-update-methods'
 import { PRELOAD_USAGE_COST_METHODS } from './preload-usage-cost-methods'
 
@@ -17,8 +17,8 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   ...PRELOAD_USAGE_COST_METHODS,
   ...PRELOAD_ARCHIVED_ITEMS_METHODS,
   ...PRELOAD_APP_LIFECYCLE_METHODS,
-  ...PRELOAD_SCHEDULED_TASKS_METHODS,
   ...PRELOAD_SESSION_DATA_METHODS,
+  ...PRELOAD_TERMINAL_METHODS,
   'getCliShimStatus',
   'installCliShim',
   'removeCliShim',
@@ -172,21 +172,6 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'onGitStackedActionProgress',
   'onSessionTitleUpdated',
   'onSessionListInvalidated',
-  // Terminal
-  'getTerminalActivitySnapshot',
-  'openTerminal',
-  'detachTerminal',
-  'clearTerminal',
-  'restartTerminal',
-  'closeTerminal',
-  'resizeTerminal',
-  'writeTerminal',
-  'sendTerminalInputNow',
-  'acknowledgeTerminalOutput',
-  'assessTerminalClose',
-  'migrateTerminalOwner',
-  'onTerminalEvent',
-  'onTerminalActivitySnapshot',
   // Browser preview
   'openBrowserPreview',
   'setBrowserPreviewBounds',

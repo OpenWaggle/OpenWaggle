@@ -4,6 +4,7 @@ import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
 import { sessionDataApi } from './session-data-api'
 import { startupApi } from './startup-api'
+import { terminalApi } from './terminal-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -176,27 +177,12 @@ export const api: OpenWaggleApi = {
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
   onGitStackedActionProgress: on('git:stacked-action:progress'),
 
-  // Terminal
-  getTerminalActivitySnapshot: invoke('terminal:get-activity-snapshot'),
-  openTerminal: invoke('terminal:open'),
-  detachTerminal: invoke('terminal:detach'),
-  resizeTerminal: invoke('terminal:resize'),
-  clearTerminal: invoke('terminal:clear'),
-  restartTerminal: invoke('terminal:restart'),
-  assessTerminalClose: invoke('terminal:assess-close'),
-  closeTerminal: invoke('terminal:close'),
-  writeTerminal: invoke('terminal:write'),
-  sendTerminalInputNow: invoke('terminal:send-input-now'),
-  acknowledgeTerminalOutput: send('terminal:ack-output'),
-  migrateTerminalOwner: invoke('terminal:migrate-owner'),
-  onTerminalEvent: on('terminal:event'),
-  onTerminalActivitySnapshot: on('terminal:activity-snapshot'),
-
   // Browser preview
   ...browserPreviewApi,
   ...scheduledTasksApi,
   ...startupApi,
   ...sessionDataApi,
+  ...terminalApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),
