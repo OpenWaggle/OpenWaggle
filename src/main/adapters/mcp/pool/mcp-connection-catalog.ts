@@ -128,6 +128,11 @@ export class McpConnectionCatalog {
     return this.served?.initialize
   }
 
+  /** Every cached `tools/list` page. */
+  servedToolPages(): readonly unknown[] {
+    return Object.values(this.served?.toolsPages ?? {})
+  }
+
   /** The cached `tools/list` page for the request's cursor. */
   servedToolsPage(params: unknown): { readonly result: unknown } | undefined {
     const page = this.served?.toolsPages[cursorOf(params)]

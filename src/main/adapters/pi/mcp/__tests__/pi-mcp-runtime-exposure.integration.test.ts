@@ -14,12 +14,18 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadMcpRuntimeConfig } from '../../../mcp/config/mcp-runtime-config'
+import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { forgetMcpAppTools } from '../mcp-app-registry'
-import { withKnownMcpAppToolsOf, withOpenWaggleMcpExposure } from '../mcp-openwaggle-exposure'
+import {
+  type CachedMcpAppTools,
+  withKnownMcpAppToolsOf,
+  withOpenWaggleMcpExposure,
+} from '../mcp-openwaggle-exposure'
 import { forgetKnownMcpServerStates } from '../mcp-server-status-registry'
 import { openWaggleMcpConnectionHooks } from '../mcp-session-context'
+import { cachedMcpAppToolNames } from '../mcp-tool-catalogs'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
 /** A stdio MCP server with a plain tool and one that opens an MCP App. */
@@ -77,7 +83,10 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 10_000) {
  * MCP extensions, and the Session's pooled connection with OpenWaggle's hooks. Returns the tools
  * active when the model was first asked, and the tools active and registered afterwards.
  */
-async function runOnce(pool: McpSessionConnectionPool) {
+async function runOnce(
+  pool: McpSessionConnectionPool,
+  options: { readonly coldWaitMs?: number; readonly cached?: CachedMcpAppTools } = {},
+) {
   const config = await loadMcpRuntimeConfig({ roots, resolveSecret: async (name) => name })
   const directory = mkdtempSync(path.join(root, 'run-'))
   const faux = fauxProvider({ provider: 'exposure-provider', models: [{ id: 'exposure-model' }] })
@@ -110,17 +119,22 @@ async function runOnce(pool: McpSessionConnectionPool) {
         SESSION_ID,
         config.loaded,
         createMcpExtension({
-          loadConfig: () => withKnownMcpAppToolsOf(SESSION_ID, config.loaded),
+          loadConfig: () => withKnownMcpAppToolsOf(SESSION_ID, config.loaded, options.cached),
           createTransport: (entry, cwd) =>
             pool.lease(SESSION_ID, {
               name: entry.name,
               fingerprint: 'v1',
               identity: mcpServerIdentity(entry.name, entry.config),
+              catalogKey: entry.name,
+              lazyStart: true,
               open: () =>
                 openPiMcpUpstream({ entry, transport: 'stdio', cwd, authProvider: undefined }),
             }),
           startupWaitMs: 5_000,
         }),
+        options.coldWaitMs === undefined
+          ? undefined
+          : { waitMs: options.coldWaitMs, ...(options.cached ? { cached: options.cached } : {}) },
       ),
       (pi: ExtensionAPI) => {
         probe = pi
@@ -181,5 +195,43 @@ describe('MCP exposure as OpenWaggle runs it', () => {
     expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({
       mcpServers: { fixture: { exposure: 'direct' } },
     })
+  }, 60_000)
+
+  it('declares an App tool in the first request of a cold profile’s first Session (C2)', async () => {
+    configureDirectServer()
+    const pool = new McpSessionConnectionPool({ hooks: openWaggleMcpConnectionHooks })
+    cleanups.push(() => pool.closeAll())
+
+    const cold = await runOnce(pool, { coldWaitMs: 5_000 })
+
+    // Nothing knew the server: the first request waited for it, so turn 2 declares the same.
+    expect(cold.activeAtFirstRequest).toContain('mcp__fixture__show')
+    expect(cold.activeAtFirstRequest).not.toContain('mcp__fixture__search')
+  }, 60_000)
+
+  it('declares an App tool from the cached catalog after a Host restart', async () => {
+    configureDirectServer()
+    const store = memoryMcpToolCatalogStore()
+    const cached: CachedMcpAppTools = (entry) => cachedMcpAppToolNames(entry.name, store)
+    const first = new McpSessionConnectionPool({
+      hooks: openWaggleMcpConnectionHooks,
+      catalogStore: store,
+    })
+    cleanups.push(() => first.closeAll())
+    await runOnce(first, { coldWaitMs: 5_000, cached })
+    await first.closeAll()
+    // A new Host: nothing in memory, only the catalog.
+    forgetKnownMcpServerStates()
+    forgetMcpAppTools(SESSION_ID)
+    const restarted = new McpSessionConnectionPool({
+      hooks: openWaggleMcpConnectionHooks,
+      catalogStore: store,
+    })
+    cleanups.push(() => restarted.closeAll())
+
+    expect(cached({ name: 'fixture', config: { command: 'x' }, source: 'x' })).toEqual(['show'])
+    const { activeAtFirstRequest } = await runOnce(restarted, { coldWaitMs: 0, cached })
+
+    expect(activeAtFirstRequest).toContain('mcp__fixture__show')
   }, 60_000)
 })

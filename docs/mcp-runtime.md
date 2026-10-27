@@ -474,6 +474,11 @@ a lease on the pool, which can answer without a server process:
   so the next Session starts it at once and reports the failure. Each Session still has its own
   process (ADR 0013); a Session that never calls a server never starts it. URL servers connect as
   before (they hold no process, and sign-in needs the handshake).
+- **App tools from the first request (C2).** A server's MCP App tools are known from this Session's
+  listings, the Host's last listing, or its cached catalog, and are declared `direct`, so Pi waits
+  for the server before the first request. A server none of them knows (a cold profile) is waited
+  for too, at most `MCP_STARTUP_WAIT_MS`, until it listed and Pi registered its App tools
+  (`mcp-app-tool-startup-wait.ts`), so the declared tools do not change between turn 1 and turn 2.
 - **Stable `<mcp_servers>` (C9).** A server without a configured `description` is described by the
   first line of its cached `instructions`, so the section Pi renders is the same before and after
   the server connects.

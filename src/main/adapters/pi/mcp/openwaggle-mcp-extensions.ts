@@ -5,6 +5,7 @@ import {
   createMcpExtension,
   type ExtensionAPI,
   type InlineExtension,
+  type McpServerEntry,
   type McpTransportFactory,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
@@ -32,7 +33,11 @@ import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { registerMcpToolApproval } from './mcp-tool-approval-hook'
-import { mcpToolCatalogKeyOf, withCachedMcpDescriptions } from './mcp-tool-catalogs'
+import {
+  cachedMcpAppToolNames,
+  mcpToolCatalogKeyOf,
+  withCachedMcpDescriptions,
+} from './mcp-tool-catalogs'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { openWaggleMcpUpdateRefusal } from './openwaggle-mcp-configuration'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
@@ -238,6 +243,8 @@ export async function createOpenWaggleMcpExtensions(
     ])
   }
   const extensionServers = createMcpExtensionServers()
+  const cachedAppTools = (entry: McpServerEntry) =>
+    cachedMcpAppToolNames(mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }))
   const mcp = forOpenWaggleMcpSurface(
     withOpenWaggleMcpExposure(
       input.sessionId,
@@ -245,7 +252,9 @@ export async function createOpenWaggleMcpExtensions(
       createMcpExtension({
         loadConfig: () =>
           withCachedMcpDescriptions(
-            withShellResolvedClientSecrets(withKnownMcpAppToolsOf(input.sessionId, config.loaded)),
+            withShellResolvedClientSecrets(
+              withKnownMcpAppToolsOf(input.sessionId, config.loaded, cachedAppTools),
+            ),
             (entry) => mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
           ),
         createTransport: openWaggleMcpTransport(input, config),
@@ -264,6 +273,8 @@ export async function createOpenWaggleMcpExtensions(
         ),
         startupWaitMs: MCP_STARTUP_WAIT_MS,
       }),
+      // A server never listed (cold profile) may still offer an App tool: wait for it too (C2).
+      { waitMs: MCP_STARTUP_WAIT_MS, cached: cachedAppTools },
     ),
   )
   return [

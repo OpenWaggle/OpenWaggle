@@ -9,6 +9,7 @@ import {
   mcpToolCatalogKey,
 } from '../../mcp/pool/mcp-connection-catalog'
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
+import { mcpAppToolNamesOf } from './mcp-app-registry'
 import { mcpConnectionConfig } from './pi-mcp-server-oauth'
 
 /** The Host's MCP tool catalogs, next to its other MCP state (D1.3). */
@@ -66,4 +67,17 @@ export function withCachedMcpDescriptions<
     return description ? { ...entry, config: { ...entry.config, description } } : entry
   })
   return { ...loaded, servers }
+}
+
+/**
+ * The MCP App tools a server's cached catalog lists, or undefined without a fresh catalog: what
+ * a Session knows of a server before it lists its tools in this Host process.
+ */
+export function cachedMcpAppToolNames(
+  key: string,
+  store: McpToolCatalogStore = hostMcpToolCatalogStore,
+) {
+  const catalog = new McpConnectionCatalog(store, key)
+  if (!catalog.canServe) return undefined
+  return catalog.servedToolPages().flatMap(mcpAppToolNamesOf)
 }
