@@ -83,7 +83,8 @@ function readState(sql: SqlClient.SqlClient) {
       SELECT session_id FROM session_resource_backfill_state
     `
     const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-      SELECT id, name FROM _migrations WHERE id > ${HIVE_TOOL_NAME_MIGRATION_ID} ORDER BY id
+      SELECT id, name FROM _migrations WHERE id > ${HIVE_TOOL_NAME_MIGRATION_ID}
+        AND id <= ${DELEGATION_ATTENTION_CAUSE_MIGRATION_ID} ORDER BY id
     `
     return {
       resources: resources.map((row) => row.id),
@@ -129,8 +130,6 @@ describe('upgrading a beta.25 database through migrations 72 and 73', () => {
         [72, 'session-host-deferred-discovery-refresh'],
         [73, 'session-resource-docs-image-references'],
         [74, 'delegation-attention-cause'],
-        [82, 'session-node-duplicate-index'],
-        [83, 'session-authority-revision'],
       ],
     })
 

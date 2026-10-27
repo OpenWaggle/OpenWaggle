@@ -16,10 +16,10 @@ import { reconcileSnapshotNodes } from './snapshot-node-reconciliation'
 import { transcriptTermProjectionNodeIds } from './snapshot-transcript-term-changes'
 import { reconcileWithTranscriptTermProjection } from './snapshot-transcript-term-projection'
 import type {
+  ComparedSessionNodeRow,
   DerivedSessionBranch,
   SessionActiveRunRow,
   SessionBranchStateRow,
-  SessionNodeRow,
 } from './types'
 
 export interface SnapshotProjectionInput {
@@ -29,8 +29,9 @@ export interface SnapshotProjectionInput {
   readonly branchIds: ReadonlySet<string>
   readonly branches: readonly DerivedSessionBranch[]
   readonly branchStateById: ReadonlyMap<string, SessionBranchStateRow>
+  readonly contentHashByNodeId: ReadonlyMap<string, string>
   readonly existingActiveRuns: readonly SessionActiveRunRow[]
-  readonly existingNodes: readonly SessionNodeRow[]
+  readonly existingNodes: readonly ComparedSessionNodeRow[]
   readonly input: PersistSessionSnapshotInput
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly now: number
@@ -191,6 +192,7 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
             existingNodes: input.existingNodes,
             nodes: input.nodes,
             branchHintByNodeId: input.branchHintByNodeId,
+            contentHashByNodeId: input.contentHashByNodeId,
           }),
         ),
       ),

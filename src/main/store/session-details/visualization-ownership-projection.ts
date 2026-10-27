@@ -28,17 +28,26 @@ function mergeVisualizationOwner(metadataJson: string, ownerSessionId: string) {
   }
 }
 
+/** The snapshot's assistant nodes that reference an inline visualization. */
+export function inlineVisualizationNodeIds(nodes: readonly ProjectedSessionNodeInput[]) {
+  return new Set(
+    nodes
+      .filter(
+        (node) =>
+          node.kind === 'assistant_message' &&
+          containsInlineVisualizationReference(node.contentJson),
+      )
+      .map((node) => node.id),
+  )
+}
+
 export function preserveVisualizationOwnership(
   nodes: readonly ProjectedSessionNodeInput[],
   existingMetadataByNodeId: ReadonlyMap<string, string>,
+  candidateNodeIds: ReadonlySet<string> = inlineVisualizationNodeIds(nodes),
 ) {
   return nodes.map((node) => {
-    if (
-      node.kind !== 'assistant_message' ||
-      !containsInlineVisualizationReference(node.contentJson)
-    ) {
-      return node
-    }
+    if (!candidateNodeIds.has(node.id)) return node
     const owner = readVisualizationOwner(existingMetadataByNodeId.get(node.id) ?? '')
     if (!owner || readVisualizationOwner(node.metadataJson)) return node
     return { ...node, metadataJson: mergeVisualizationOwner(node.metadataJson, owner) }

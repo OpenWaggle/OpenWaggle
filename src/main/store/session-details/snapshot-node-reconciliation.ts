@@ -6,7 +6,7 @@ import type {
 } from '../../ports/session-repository'
 import { makeEventLoopSlicer } from '../../utils/event-loop-slice'
 import { nodeProjectionChanged, searchProjectionChanged } from './snapshot-transcript-term-changes'
-import type { SessionNodeRow } from './types'
+import type { ComparedSessionNodeRow, SessionNodeShapeRow } from './types'
 
 /**
  * Rewrites a Session's node rows to match a snapshot. The order of work is the point of this
@@ -22,14 +22,23 @@ import type { SessionNodeRow } from './types'
  */
 export interface NodeReconciliationInput {
   readonly branchHintByNodeId: ReadonlyMap<string, string>
-  readonly existingNodes: readonly SessionNodeRow[]
+  /** `sessionNodeContentHash` of every snapshot node, which each node write stores with it. */
+  readonly contentHashByNodeId: ReadonlyMap<string, string>
+  readonly existingNodes: readonly ComparedSessionNodeRow[]
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly sessionId: PersistSessionSnapshotInput['sessionId']
   readonly sql: SqlClient.SqlClient
 }
 
+function contentHashOf(input: NodeReconciliationInput, node: ProjectedSessionNodeInput) {
+  const contentHash = input.contentHashByNodeId.get(node.id)
+  if (contentHash === undefined) throw new Error(`No content hash for snapshot node ${node.id}`)
+  return contentHash
+}
+
 function projectedNode(input: NodeReconciliationInput, node: ProjectedSessionNodeInput) {
   return {
+    contentHash: contentHashOf(input, node),
     parentId: node.parentId,
     piEntryType: node.piEntryType,
     kind: node.kind,
@@ -55,8 +64,8 @@ function updateSnapshotNode(input: {
       UPDATE session_nodes SET
         parent_id = ${input.next.parentId}, pi_entry_type = ${input.next.piEntryType},
         timestamp_ms = ${input.next.timestampMs},
-        metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
-        path_depth = ${input.next.pathDepth}
+        metadata_json = ${input.next.metadataJson}, content_hash = ${input.next.contentHash},
+        branch_hint_id = ${input.next.branchHintId}, path_depth = ${input.next.pathDepth}
       WHERE id = ${input.nodeId} AND session_id = ${input.sessionId}
     `
   }
@@ -65,8 +74,9 @@ function updateSnapshotNode(input: {
       parent_id = ${input.next.parentId}, pi_entry_type = ${input.next.piEntryType},
       kind = ${input.next.kind}, role = ${input.next.role},
       timestamp_ms = ${input.next.timestampMs}, content_json = ${input.next.contentJson},
-      metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
-      path_depth = ${input.next.pathDepth}, created_order = ${input.next.createdOrder}
+      metadata_json = ${input.next.metadataJson}, content_hash = ${input.next.contentHash},
+      branch_hint_id = ${input.next.branchHintId}, path_depth = ${input.next.pathDepth},
+      created_order = ${input.next.createdOrder}
     WHERE id = ${input.nodeId} AND session_id = ${input.sessionId}
   `
 }
@@ -77,7 +87,7 @@ function updateSnapshotNode(input: {
  * written back through the full update below, so its final `created_order` is restored.
  */
 export function nodesToPark(input: {
-  readonly existingNodes: readonly SessionNodeRow[]
+  readonly existingNodes: readonly Pick<SessionNodeShapeRow, 'id' | 'created_order'>[]
   readonly nodes: readonly ProjectedSessionNodeInput[]
 }) {
   const nextOrderById = new Map(input.nodes.map((node) => [node.id, node.createdOrder]))
@@ -108,6 +118,23 @@ function parkNodeOrders(
     UPDATE session_nodes SET created_order = -1 - created_order
     WHERE session_id = ${sessionId} AND created_order >= 0
       AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
+  `
+}
+
+/**
+ * Stores the digest of a row stored before digests existed whose content the snapshot left as it
+ * was, so the Session's next snapshot compares it by digest (D6). Only the digest changes, so no
+ * search or export trigger runs for it.
+ */
+function backfillContentHash(
+  sql: SqlClient.SqlClient,
+  sessionId: PersistSessionSnapshotInput['sessionId'],
+  nodeId: string,
+  contentHash: string,
+) {
+  return sql`
+    UPDATE session_nodes SET content_hash = ${contentHash}
+    WHERE id = ${nodeId} AND session_id = ${sessionId} AND content_hash IS NULL
   `
 }
 
@@ -151,7 +178,12 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
       // A parked row must be written back with its final created_order, which only the full update
       // includes; force it rather than trusting searchProjectionChanged to compare created_order.
       const restoreParkedOrder = parked.has(node.id)
-      if (!restoreParkedOrder && !nodeProjectionChanged(existing, next)) continue
+      if (!restoreParkedOrder && !nodeProjectionChanged(existing, next)) {
+        if (existing.content_hash !== null) continue
+        yield* backfillContentHash(input.sql, input.sessionId, node.id, next.contentHash)
+        yield* slice
+        continue
+      }
       yield* updateSnapshotNode({
         sql: input.sql,
         sessionId: input.sessionId,
@@ -175,6 +207,7 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
         sql: input.sql,
         sessionId: input.sessionId,
         branchHintByNodeId: input.branchHintByNodeId,
+        contentHash: contentHashOf(input, node),
         node,
       })
       yield* slice
@@ -186,17 +219,19 @@ function insertSnapshotNode(input: {
   readonly sql: SqlClient.SqlClient
   readonly sessionId: PersistSessionSnapshotInput['sessionId']
   readonly branchHintByNodeId: ReadonlyMap<string, string>
+  readonly contentHash: string
   readonly node: ProjectedSessionNodeInput
 }) {
   return input.sql`
     INSERT INTO session_nodes (
       id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
-      metadata_json, branch_hint_id, path_depth, created_order
+      metadata_json, content_hash, branch_hint_id, path_depth, created_order
     )
     VALUES (
       ${input.node.id}, ${input.sessionId}, ${input.node.parentId}, ${input.node.piEntryType},
       ${input.node.kind}, ${input.node.role}, ${input.node.timestampMs}, ${input.node.contentJson},
-      ${input.node.metadataJson}, ${input.branchHintByNodeId.get(input.node.id) ?? null},
+      ${input.node.metadataJson}, ${input.contentHash},
+      ${input.branchHintByNodeId.get(input.node.id) ?? null},
       ${input.node.pathDepth}, ${input.node.createdOrder}
     )
   `

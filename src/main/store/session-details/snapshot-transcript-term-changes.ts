@@ -1,5 +1,5 @@
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
-import type { SessionNodeRow } from './types'
+import type { ComparedSessionNodeRow } from './types'
 
 interface ProjectedNodeValues {
   readonly parentId: string | null
@@ -14,40 +14,58 @@ interface ProjectedNodeValues {
   readonly createdOrder: number
 }
 
-export function searchProjectionChanged(existing: SessionNodeRow, next: ProjectedNodeValues) {
+/*
+ * A compared row without `content` has the snapshot node's digest, so its content and metadata are
+ * unchanged (D6); one with `content` is compared value by value, as before digests existed.
+ */
+function contentChanged(existing: ComparedSessionNodeRow, next: { readonly contentJson: string }) {
+  return existing.content !== null && existing.content.content_json !== next.contentJson
+}
+
+function metadataChanged(
+  existing: ComparedSessionNodeRow,
+  next: { readonly metadataJson: string },
+) {
+  return existing.content !== null && existing.content.metadata_json !== next.metadataJson
+}
+
+export function searchProjectionChanged(
+  existing: ComparedSessionNodeRow,
+  next: ProjectedNodeValues,
+) {
   return (
-    existing.content_json !== next.contentJson ||
+    contentChanged(existing, next) ||
     existing.role !== next.role ||
     existing.kind !== next.kind ||
     existing.created_order !== next.createdOrder
   )
 }
 
-export function nodeProjectionChanged(existing: SessionNodeRow, next: ProjectedNodeValues) {
+export function nodeProjectionChanged(existing: ComparedSessionNodeRow, next: ProjectedNodeValues) {
   return (
     searchProjectionChanged(existing, next) ||
     existing.parent_id !== next.parentId ||
     existing.pi_entry_type !== next.piEntryType ||
     existing.timestamp_ms !== next.timestampMs ||
-    existing.metadata_json !== next.metadataJson ||
+    metadataChanged(existing, next) ||
     existing.branch_hint_id !== next.branchHintId ||
     existing.path_depth !== next.pathDepth
   )
 }
 
-function termProjectionChanged(existing: SessionNodeRow, next: ProjectedSessionNodeInput) {
+function termProjectionChanged(existing: ComparedSessionNodeRow, next: ProjectedSessionNodeInput) {
   return (
-    existing.content_json !== next.contentJson ||
+    contentChanged(existing, next) ||
     existing.role !== next.role ||
     existing.kind !== next.kind ||
     existing.created_order !== next.createdOrder ||
-    existing.metadata_json !== next.metadataJson
+    metadataChanged(existing, next)
   )
 }
 
 /** Returns nodes whose token contribution or deterministic first-evidence data can change. */
 export function transcriptTermProjectionNodeIds(input: {
-  readonly existingNodes: readonly SessionNodeRow[]
+  readonly existingNodes: readonly ComparedSessionNodeRow[]
   readonly nodes: readonly ProjectedSessionNodeInput[]
 }) {
   const existingById = new Map(input.existingNodes.map((node) => [node.id, node]))

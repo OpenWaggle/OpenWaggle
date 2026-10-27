@@ -8,10 +8,18 @@ import {
 } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { deriveBranchHints, deriveSessionBranchesForSnapshot } from './branch-derivation'
+import { sessionNodeContentHash } from './node-content-hash'
 import { replaceSnapshotProjection } from './persist-snapshot-projection'
 import { assertNoSessionNodeIdConflicts } from './snapshot-node-ownership'
-import { loadSnapshotPersistenceState } from './snapshot-persistence-state'
-import { preserveVisualizationOwnership } from './visualization-ownership-projection'
+import {
+  compareWithStoredNodes,
+  loadSnapshotPersistenceState,
+  selectExistingVisualizationMetadata,
+} from './snapshot-persistence-state'
+import {
+  inlineVisualizationNodeIds,
+  preserveVisualizationOwnership,
+} from './visualization-ownership-projection'
 
 export function persistSessionSnapshotWithSql(
   sql: SqlClient.SqlClient,
@@ -30,10 +38,26 @@ export function persistSessionSnapshotWithSql(
       input.sessionId,
       sortedNodes.filter((node) => !heldIds.has(node.id)).map((node) => node.id),
     )
+    const visualizationNodeIds = inlineVisualizationNodeIds(sortedNodes)
+    const existingVisualizationMetadata = yield* selectExistingVisualizationMetadata(
+      sql,
+      input.sessionId,
+      [...visualizationNodeIds],
+    )
     const nodes = preserveVisualizationOwnership(
       sortedNodes,
-      new Map(state.existingVisualizationMetadata.map((row) => [row.id, row.metadata_json])),
+      new Map(existingVisualizationMetadata.map((row) => [row.id, row.metadata_json])),
+      visualizationNodeIds,
     )
+    const contentHashByNodeId = new Map(
+      nodes.map((node) => [node.id, sessionNodeContentHash(node.contentJson, node.metadataJson)]),
+    )
+    const existingNodes = yield* compareWithStoredNodes({
+      sql,
+      sessionId: input.sessionId,
+      existingNodes: state.existingNodes,
+      contentHashByNodeId,
+    })
     const derived = deriveSessionBranchesForSnapshot({
       sessionId: String(input.sessionId),
       nodes,
@@ -55,8 +79,9 @@ export function persistSessionSnapshotWithSql(
       branchStateById: new Map(
         state.existingBranchStates.map((branchState) => [branchState.branch_id, branchState]),
       ),
+      contentHashByNodeId,
       existingActiveRuns: state.existingActiveRuns,
-      existingNodes: state.existingNodes,
+      existingNodes,
       input,
       nodes,
       now,
