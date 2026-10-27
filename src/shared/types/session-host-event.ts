@@ -64,6 +64,11 @@ export type SessionHostEventPayload =
       readonly kind: 'session-list-changed'
       readonly sessionId: string
       readonly change: 'created' | 'updated' | 'archived' | 'unarchived' | 'deleted'
+      /**
+       * Only the Session's catalog entry changed (a pin or its read receipt), not its transcript
+       * or tree: windows refresh the entry and need not read the Session again.
+       */
+      readonly catalogOnly?: true
     }
   | {
       readonly kind: 'semantic-discovery-readiness-changed'
