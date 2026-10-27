@@ -5,20 +5,23 @@ import { lazySurfaceChunkFiles, parseRendererManifest } from './renderer-chunk-g
 const KIBIBYTE = 1024
 const ASSETS_DIRECTORY = path.resolve('out/renderer/assets')
 const RENDERER_MANIFEST = path.resolve('out/renderer/.vite/manifest.json')
-// Minified (B4). Unminified, the entry was 694 KB and the initial graph 4.4 MiB.
+// Minified (B4). Unminified, the entry was 694 KB and the initial graph 4.4 MiB; minified 1.92 MiB,
+// then 1.59 MiB after the lazy feature surfaces (B8).
 const MAX_INITIAL_RENDERER_BYTES = 384 * KIBIBYTE
-const MAX_INITIAL_RENDERER_GRAPH_BYTES = 2_400 * KIBIBYTE
+const MAX_INITIAL_RENDERER_GRAPH_BYTES = 2_048 * KIBIBYTE
 /**
  * The chat surface: what the welcome and Session routes load right after the shell renders, before
  * the composer or a transcript appears (renderer-load.md, B8). It was 2.7 MB unminified and
- * 1.07 MiB minified when this budget was added; only the `index.html` graph was budgeted before.
+ * 1.07 MiB minified when this budget was added, and 743 KiB once the chat surface moved into the
+ * route chunk and its heavy panels became lazy (B1, B8); only the `index.html` graph was budgeted
+ * before. The budget keeps about 30% headroom over the last measurement.
  */
-const MAX_CHAT_SURFACE_GRAPH_BYTES = 1_280 * KIBIBYTE
+const MAX_CHAT_SURFACE_GRAPH_BYTES = 960 * KIBIBYTE
 const CHAT_SURFACE_SOURCES: readonly RegExp[] = [
   /^src\/routes\/_chat\.index\.tsx\?tsr-split=component$/u,
   /^src\/routes\/sessions\.\$sessionId\.tsx\?tsr-split=component$/u,
 ]
-/** Lazily imported by both chat routes today; counted while it remains its own chunk. */
+/** A chunk of its own before B1 moved the surface into the route chunks; counted if it is one again. */
 const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [/^src\/routes\/-chat-route-surface\.tsx$/u]
 // Minified (B4); unminified they were 391, 408 and 428 KiB.
 const MAX_SYNTAX_WORKER_BYTES = 320 * KIBIBYTE
