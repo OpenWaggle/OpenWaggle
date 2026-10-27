@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 // Must be first: renames dev builds before any module reads app userData.
 import './apply-build-identity'
 import './restore-host-temporary-directory' // before any module caches a temp path
@@ -12,7 +13,6 @@ import {
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from './adapters/multilingual-e5-session-embedding-model'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
-import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
@@ -20,15 +20,19 @@ import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
-import { startErrorReporting } from './error-reporting'
+import { disposeGuiAutoUpdater, isGuiInstallingUpdate } from './gui-auto-updater'
+import { holdGuiBackendGate } from './gui-backend-gate'
 import {
-  disposeGuiAutoUpdater,
-  isGuiInstallingUpdate,
-  startGuiAutoUpdater,
-} from './gui-auto-updater'
-import { exitAfterBootstrapFailure } from './gui-bootstrap-failure'
+  clearGuiBackend,
+  describeStartupFailure,
+  guiDesktopServicesCleanup,
+  guiSessionHostLifecycle,
+  publishStartupStatus,
+  startGuiBackend,
+} from './gui-backend-startup'
+import { exitAfterBootstrapFailure, reportGuiStartupFailure } from './gui-bootstrap-failure'
+import { createGuiStartupCoordinator, type GuiStartupCoordinator } from './gui-startup-coordinator'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
-import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
 import { claimAppInstance } from './open-project-requests'
@@ -38,19 +42,16 @@ import {
 } from './renderer-protocol'
 import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
 import { configureAppStoragePaths } from './session-data'
-import {
-  type GuiSessionHostLifecycle,
-  prepareGuiSessionHostLifecycle,
-} from './session-host/gui-session-host-lifecycle'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { installSessionLinkProtocol } from './session-link-protocol'
 import { requestOpenSessionLink } from './session-link-requests'
+import { createStartupMark } from './startup-timing'
 import { startTopLevelCli, type TopLevelCliLaunch } from './top-level-cli-entry'
 
 const FAILURE_EXIT_CODE = 1
-const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
-const STARTUP_TIMING_PRECISION = 1
 const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
+/** At most this long the window waits for the Host process to be launched or reached. */
+const HOST_LAUNCH_HEAD_START_MAX_MS = 150
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
   'openwaggle-automation-single-instance-lock-denied-marker'
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
@@ -58,7 +59,6 @@ const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-l
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importIpcHandlersModule = () => import('./ipc/handlers')
 const importRuntimeModule = () => import('./runtime')
-const importSettingsStoreModule = () => import('./store/settings')
 
 type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
@@ -80,23 +80,13 @@ const appIconPath = is.dev
 // generated rounded-square macOS icon rather than the free-form window icon.
 const devDockIconPath = join(__dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)
 const logger = createLogger('main/index')
-const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
 let mainWindowCreated = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
-let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
-let cleanupDesktopServicesOnce: (() => Promise<void>) | null = null
 
-function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) return
-
-  logger.info('Startup timing', {
-    label,
-    elapsedMs: Number((performance.now() - startupStartedAt).toFixed(STARTUP_TIMING_PRECISION)),
-  })
-}
+const startupMark = createStartupMark('main/index')
 
 function quitAutomationSecondInstance() {
   const markerPath = app.commandLine.getSwitchValue(
@@ -122,24 +112,24 @@ function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
   return runtimeModulePromise
 }
-async function registerIpcHandlersOnce() {
+async function registerIpcHandlersOnce(startup: GuiStartupCoordinator) {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
     return
   }
 
-  const [ipcHandlersModule, agentHandlerModule, usageStatisticsModule] = await Promise.all([
+  const [ipcHandlersModule, agentHandlerModule, startupHandlerModule] = await Promise.all([
     importIpcHandlersModule(),
     importAgentHandlerModule(),
-    import('./usage-statistics/usage-statistics-gui'),
+    import('./ipc/startup-handler'),
   ])
 
   ipcHandlersRegistered = true
   cleanupTerminalsOnce = ipcHandlersModule.cleanupTerminals
   persistAllActiveRunsOnce = agentHandlerModule.persistAllActiveRuns
 
-  // Settings are hydrated from the Host by now; handlers record GUI-only observations here.
-  usageStatisticsModule.startGuiUsageStatistics()
+  startupHandlerModule.registerStartupHandlers(startup)
+  // Registered before the backend is ready; they wait at the backend gate until it is.
   ipcHandlersModule.registerAllIpcHandlers()
 }
 
@@ -156,65 +146,45 @@ async function persistActiveRunsBeforeQuit() {
 
 async function bootstrapServicesAndWindow() {
   startupMark('bootstrap-start')
-
-  sessionHostLifecycleOnce = await prepareGuiSessionHostLifecycle({
-    userDataRoot: app.getPath('userData'),
-    clientVersion: app.getVersion(),
-    startupMark,
+  // Not awaited before the window or the Host: only terminals and git need it (A-F7).
+  const shellEnvironment = installDesktopShellEnvironment().catch((error: unknown) => {
+    logger.warn('The login-shell environment could not be read', describeError(error))
   })
-
   const { configureAppDatabaseAccess } = await import('./services/database-service')
   configureAppDatabaseAccess('client-isolated')
 
-  const [runtimeModule, settingsStoreModule] = await Promise.all([
-    getRuntimeModule(),
-    importSettingsStoreModule(),
-    installDesktopShellEnvironment(),
-  ])
-  startupMark('desktop-shell-environment-installed')
-  startupMark('startup-modules-imported')
-
-  await runtimeModule.initializeAppRuntime()
-  startupMark('app-runtime-initialized')
-
-  await settingsStoreModule.initializeSettingsStore()
-  startupMark('settings-store-initialized')
-
-  const automationProjectPatch =
-    isAutomationMode() && env.OPENWAGGLE_AUTOMATION_PROJECT_PATH
-      ? {
-          projectPath: env.OPENWAGGLE_AUTOMATION_PROJECT_PATH,
-          recentProjects: [env.OPENWAGGLE_AUTOMATION_PROJECT_PATH],
-        }
-      : null
-
-  await sessionHostLifecycleOnce.start()
-
-  await applyInstallerUpdateChannelIntent(app.getPath('userData'), async (channel) => {
-    const update = await invokeConfiguredHostUi('settings:update', [{ updateChannel: channel }])
-    if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+  // Renderer requests wait here until the backend is ready (A-F2).
+  holdGuiBackendGate()
+  const hostUnderway = Promise.withResolvers<void>()
+  const hostHeadStart = Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
+  const startup = createGuiStartupCoordinator({
+    start: (progress, signal) =>
+      startGuiBackend({
+        progress,
+        signal,
+        shellEnvironment,
+        onHostUnderway: hostUnderway.resolve,
+        hostHeadStart,
+        startupMark,
+        loadRuntime: getRuntimeModule,
+      }),
+    publish: (status) => publishStartupStatus(startupMark, status),
+    onFailure: reportGuiStartupFailure,
+    describeFailure: describeStartupFailure,
+    restart: () => {
+      app.relaunch()
+      app.quit()
+    },
   })
+  // The Host launch starts now, in parallel with the window (A-F1). Its process is spawned
+  // before this one evaluates the IPC handlers and opens the window, which keep its thread busy;
+  // a Host that takes longer to reach (an update hand-off) does not hold the window back.
+  startup.run()
+  await hostHeadStart
+  startupMark('session-host-underway')
 
-  if (automationProjectPatch) {
-    const update = await invokeConfiguredHostUi('settings:update', [automationProjectPatch])
-    if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
-  }
-  const settings = await invokeConfiguredHostUi('settings:get', [])
-  if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
-  settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
-  startupMark('settings-store-hydrated-from-host')
-  // Settings decide whether errors are reported; the main window must know before it opens.
-  const errorReportingStart = startErrorReporting('gui')
-
-  const { startAppGuiDesktopServices } = await import('./gui-desktop-services')
-  cleanupDesktopServicesOnce = await startAppGuiDesktopServices({
-    client: sessionHostLifecycleOnce.client,
-    runEffect: runtimeModule.runAppEffect,
-    disposeRuntime: runtimeModule.disposeAppRuntime,
-  })
-  startupMark('desktop-native-ownership-reconciled')
-
-  await registerIpcHandlersOnce()
+  const runtimeModule = await getRuntimeModule()
+  await registerIpcHandlersOnce(startup)
   startupMark('ipc-handlers-registered')
 
   registerApplicationProtocols({
@@ -223,12 +193,9 @@ async function bootstrapServicesAndWindow() {
   })
   startupMark('protocol-handlers-registered')
 
-  await errorReportingStart
   createMainWindowWithVisualizationGuard()
   mainWindowCreated = true
   startupMark('main-window-created')
-
-  if (!isAutomationMode()) void startGuiAutoUpdater()
 }
 
 /** A later launch focuses the window, or creates one after startup as the Dock icon does. */
@@ -260,7 +227,7 @@ function registerAppLifecycle() {
         exitAfterBootstrapFailure({
           error,
           cliSetup,
-          cleanupDesktopServices: async () => cleanupDesktopServicesOnce?.(),
+          cleanupDesktopServices: async () => guiDesktopServicesCleanup()?.(),
           exit: (code) => app.exit(code),
         }),
       )
@@ -286,21 +253,21 @@ function registerAppLifecycle() {
     disposeAutoUpdater: disposeGuiAutoUpdater,
     persistActiveRuns: persistActiveRunsBeforeQuit,
     cleanupTerminals: async () => {
-      if (cleanupDesktopServicesOnce) await cleanupDesktopServicesOnce()
+      const cleanupDesktopServices = guiDesktopServicesCleanup()
+      if (cleanupDesktopServices) await cleanupDesktopServices()
       else await cleanupTerminalsOnce?.()
     },
     disposeRuntime: async () => {
       try {
         // The installer cannot replace the app while its detached Host still runs (ADR 0047).
-        await sessionHostLifecycleOnce?.stop({
+        await guiSessionHostLifecycle()?.stop({
           releaseHostForUpdate: isGuiInstallingUpdate(),
         })
       } finally {
         try {
           await (await getRuntimeModule()).disposeAppRuntime()
         } finally {
-          sessionHostLifecycleOnce = null
-          cleanupDesktopServicesOnce = null
+          clearGuiBackend()
         }
       }
     },

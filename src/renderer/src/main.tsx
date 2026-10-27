@@ -4,8 +4,12 @@ import { createRoot } from 'react-dom/client'
 import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'
 import { App } from './App'
 import './shared/lib/appearance'
+import { restoreCachedAppearancePreferences } from './shared/lib/appearance-preferences-runtime'
 import './styles/globals.css'
 import { startWindowErrorReporting } from './window-error-reporting'
+
+// The startup skeleton paints in the last appearance before the Session Host answers.
+restoreCachedAppearancePreferences()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Root element not found')

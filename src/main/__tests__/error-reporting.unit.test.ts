@@ -4,12 +4,30 @@ type Enablement = { enabled: true } | { enabled: false; reason: string }
 
 const state = vi.hoisted(() => {
   const listeners = new Set<(enabled: boolean) => void>()
-  const initial: { enablement: Enablement; listeners: Set<(enabled: boolean) => void> } = {
+  const initial: {
+    enablement: Enablement
+    listeners: Set<(enabled: boolean) => void>
+    buildChannel: string
+    env: Record<string, string | undefined>
+  } = {
     enablement: { enabled: true },
     listeners,
+    buildChannel: 'beta',
+    env: {},
   }
   return initial
 })
+
+/** The process environment and build that each fixed opt-out stands for. */
+const FIXED_OPT_OUT_SOURCES: Readonly<
+  Record<string, { buildChannel?: string; env?: Record<string, string> }>
+> = {
+  'dev-build': { buildChannel: 'dev' },
+  automation: { env: { OPENWAGGLE_AUTOMATION: '1' } },
+  'do-not-track': { env: { DO_NOT_TRACK: '1' } },
+  'pi-telemetry': { env: { PI_TELEMETRY: '0' } },
+  ci: { env: { CI: 'true' } },
+}
 
 const adapter = vi.hoisted(() => {
   const reporter = {
@@ -20,8 +38,16 @@ const adapter = vi.hoisted(() => {
 })
 
 vi.mock('@shared/build-identity-runtime', () => ({
-  BUILD_CHANNEL: 'beta',
+  get BUILD_CHANNEL() {
+    return state.buildChannel
+  },
   PRODUCT_NAME: 'OpenWaggle',
+}))
+vi.mock('../env', () => ({
+  logLevel: 'info',
+  get env() {
+    return state.env
+  },
 }))
 vi.mock('electron', () => ({ app: { getVersion: () => '1.0.0-beta.4' } }))
 vi.mock('../adapters/error-reporting/sentry-main-error-reporter', () => ({
@@ -51,6 +77,8 @@ describe('main-process error reporting', () => {
     vi.clearAllMocks()
     state.enablement = { enabled: true }
     state.listeners.clear()
+    state.buildChannel = 'beta'
+    state.env = {}
     process.getSystemVersion = () => '15.2'
   })
 
@@ -62,6 +90,8 @@ describe('main-process error reporting', () => {
     'never loads the SDK or tells the renderer to start under the %s opt-out',
     async (reason) => {
       state.enablement = { enabled: false, reason }
+      state.buildChannel = FIXED_OPT_OUT_SOURCES[reason]?.buildChannel ?? 'beta'
+      state.env = { ...FIXED_OPT_OUT_SOURCES[reason]?.env }
       const errorReporting = await loadErrorReporting()
 
       await errorReporting.startErrorReporting('gui')
@@ -130,6 +160,17 @@ describe('main-process error reporting', () => {
     expect(errorReporting.errorReportingRendererArguments()).toEqual([
       '--openwaggle-error-reporting',
     ])
+  })
+
+  it('decides the switch from the fixed opt-outs alone, before Settings load or the SDK starts', async () => {
+    state.enablement = { enabled: false, reason: 'settings-unavailable' }
+    const errorReporting = await loadErrorReporting()
+
+    // No start yet: the window opens before the Session Host answers (A-F2).
+    expect(errorReporting.errorReportingRendererArguments()).toEqual([
+      '--openwaggle-error-reporting',
+    ])
+    expect(adapter.startSentryMainErrorReporter).not.toHaveBeenCalled()
   })
 
   it('gives the renderer no switch when the SDK failed to start', async () => {

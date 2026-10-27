@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -235,3 +236,59 @@ describe('hostHandle follow-up after the Session Host answered', () => {
     expect(followUps).toEqual([])
   })
 })
+
+describe('the backend gate (A-F2)', () => {
+  beforeEach(async () => {
+    ipcMainHandleMock.mockReset()
+    ipcMainOnMock.mockReset()
+    const { releaseGuiBackendGate } = await import('../../gui-backend-gate')
+    releaseGuiBackendGate()
+  })
+
+  it('holds a renderer request registered before the backend is ready until it is', async () => {
+    const { holdGuiBackendGate, releaseGuiBackendGate } = await import('../../gui-backend-gate')
+    const body = vi.fn(() => '1.0.0')
+    typedHandle('app:get-version', () => Effect.sync(body))
+    const handler = ipcMainHandleMock.mock.calls[0]?.[1]
+    if (typeof handler !== 'function') throw new Error('expected a registered handler')
+
+    holdGuiBackendGate()
+    const pending = handler(fromPartialEvent())
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(body).not.toHaveBeenCalled()
+
+    releaseGuiBackendGate()
+    await expect(pending).resolves.toBe('1.0.0')
+    expect(body).toHaveBeenCalledOnce()
+  })
+
+  it('answers the startup status, Retry and the logs folder while the gate is held', async () => {
+    const { holdGuiBackendGate } = await import('../../gui-backend-gate')
+    holdGuiBackendGate()
+    typedHandle('app:get-startup-status', () => Effect.succeed({ state: 'starting' as const }))
+    const handler = ipcMainHandleMock.mock.calls[0]?.[1]
+    if (typeof handler !== 'function') throw new Error('expected a registered handler')
+
+    await expect(handler(fromPartialEvent())).resolves.toEqual({ state: 'starting' })
+  })
+
+  it('holds a one-way renderer message too', async () => {
+    const { holdGuiBackendGate, releaseGuiBackendGate } = await import('../../gui-backend-gate')
+    const body = vi.fn()
+    typedOn('terminal:ack-output', () => Effect.sync(body))
+    const listener = ipcMainOnMock.mock.calls[0]?.[1]
+    if (typeof listener !== 'function') throw new Error('expected a registered listener')
+
+    holdGuiBackendGate()
+    listener(fromPartialEvent(), 'owner', 'terminal', 1, 0)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(body).not.toHaveBeenCalled()
+
+    releaseGuiBackendGate()
+    await vi.waitFor(() => expect(body).toHaveBeenCalledOnce())
+  })
+})
+
+function fromPartialEvent(): IpcMainInvokeEvent {
+  return fromPartial<IpcMainInvokeEvent>({})
+}

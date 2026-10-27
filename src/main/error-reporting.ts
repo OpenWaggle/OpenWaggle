@@ -8,7 +8,9 @@
  * statistics on. Once started, every report still waits on Usage statistics being on at the
  * moment it would be sent. Unless a fixed opt-out applies or the SDK failed to start, the main
  * window gets the error-reporting switch, so its renderer can start its own SDK once Usage
- * statistics are on, even when the user turns them on after the window opened.
+ * statistics are on, even when the user turns them on after the window opened. The switch is
+ * decided from the fixed opt-outs alone, so the window can open before Settings load and before
+ * the SDK starts (A-F2, A-F16); an SDK that fails later takes it back from later windows.
  */
 import { homedir, tmpdir } from 'node:os'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
@@ -17,7 +19,9 @@ import {
   ERROR_REPORTING_RENDERER_SWITCH,
   errorReportingRelease,
 } from '@shared/error-reporting/error-report-constants'
+import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
 import { app } from 'electron'
+import { env } from './env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 import type { ErrorReporter, ErrorReportOrigin } from './ports/error-reporter'
@@ -54,8 +58,23 @@ const OPERATING_SYSTEM_NAMES: Readonly<Partial<Record<NodeJS.Platform, string>>>
 let startup: Promise<void> | null = null
 /** Set once the SDK started. */
 let reporter: ErrorReporter | null = null
-/** Whether this process reports errors once Usage statistics are on: no fixed opt-out, no failure. */
-let available = false
+/** Set once the SDK failed to start; this process then reports nothing. */
+let failed = false
+
+/** The build or environment opt-out, which holds for the life of the process. */
+function fixedOptOutApplies() {
+  return (
+    resolveUsageStatisticsEnvironmentBlock({
+      buildChannel: BUILD_CHANNEL,
+      env: {
+        DO_NOT_TRACK: env.DO_NOT_TRACK,
+        PI_TELEMETRY: env.PI_TELEMETRY,
+        CI: env.CI,
+        OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
+      },
+    }) !== null
+  )
+}
 
 function operatingSystem() {
   return {
@@ -82,7 +101,7 @@ async function startSdk(
 }
 
 function stopAfterFailure(error: unknown) {
-  available = false
+  failed = true
   logger.warn('Error reporting did not start', describeError(error))
 }
 
@@ -102,7 +121,6 @@ async function beginErrorReporting(processKind: ErrorReportingProcess) {
     const enablement = await importUsageStatisticsEnablement()
     const current = enablement.currentUsageStatisticsEnablement()
     if (!current.enabled && FIXED_OPT_OUTS.has(current.reason)) return
-    available = true
     if (current.enabled) await startSdk(processKind, enablement)
     else startSdkWhenEnabled(processKind, enablement)
   } catch (error) {
@@ -124,7 +142,7 @@ export function startErrorReporting(processKind: ErrorReportingProcess): Promise
  * report reaches nothing until this process's SDK runs, and is dropped while statistics are off.
  */
 export function errorReportingRendererArguments(): readonly string[] {
-  return available ? [ERROR_REPORTING_RENDERER_SWITCH] : []
+  return failed || fixedOptOutApplies() ? [] : [ERROR_REPORTING_RENDERER_SWITCH]
 }
 
 /**

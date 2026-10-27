@@ -20,6 +20,7 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type { AgentExtensionCommand } from './extension-command'
+import type { GuiStartupStatus } from './gui-startup'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -265,6 +266,9 @@ export interface OpenWaggleApi
   readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
+  getStartupStatus(): Promise<GuiStartupStatus>
+  retryStartup(): Promise<void>
+  onStartupStatusChanged(callback: (status: GuiStartupStatus) => void): () => void
   openPath(path: string): Promise<void>
   revealPath(path: string): Promise<void>
 

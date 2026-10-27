@@ -334,6 +334,7 @@ describe('preload api surface contract', () => {
       'onBrowserPreviewRecordingCancel',
       'onFullscreenChanged',
       'onOpenProjectRequested',
+      'onStartupStatusChanged',
       'onWaggleEvent',
       'onWaggleTurnEvent',
       'onOAuthStatus',

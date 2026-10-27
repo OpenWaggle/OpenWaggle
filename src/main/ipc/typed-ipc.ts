@@ -14,6 +14,7 @@ import * as Option from 'effect/Option'
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
 import { invokeConfiguredHostUiRaw } from '../application/local-session-command-dispatcher'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
+import { waitForGuiBackend } from '../gui-backend-gate'
 import { createLogger } from '../logger'
 import type { AppServices } from '../runtime'
 import { runAppEffect, runAppEffectExit } from '../runtime'
@@ -122,13 +123,26 @@ function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
 }
 
 /**
+ * Channels the window answers before its backend is ready: its startup state, Retry, and the
+ * logs the Host error screen opens. Every other request waits at the backend gate (A-F2).
+ */
+export const GUI_BACKEND_GATE_EXEMPT_CHANNELS: ReadonlySet<IpcInvokeChannel> = new Set([
+  'app:get-startup-status',
+  'app:retry-startup',
+  'app:open-logs-dir',
+  'app:get-logs-path',
+])
+
+/**
  * Type-safe wrapper around `ipcMain.handle()`.
  * Internal — all public handlers should use the Effect-based `typedHandle`.
  */
 function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>) {
-  ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) =>
-    handler(event, ...args),
-  )
+  const gated = !GUI_BACKEND_GATE_EXEMPT_CHANNELS.has(channel)
+  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) => {
+    if (gated) await waitForGuiBackend()
+    return handler(event, ...args)
+  })
 }
 
 export function typedHandle<C extends IpcInvokeChannel>(
@@ -227,7 +241,9 @@ function rawOn<C extends IpcSendChannel>(
   channel: C,
   listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
 ) {
-  ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => listener(event, ...args))
+  ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => {
+    void waitForGuiBackend().then(() => listener(event, ...args))
+  })
 }
 
 type EffectIpcOnHandler<C extends IpcSendChannel> = (

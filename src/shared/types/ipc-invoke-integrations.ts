@@ -10,6 +10,7 @@ import type {
   FeedbackSubmitResult,
   GhCliStatus,
 } from './feedback'
+import type { GuiStartupStatus } from './gui-startup'
 import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
@@ -92,6 +93,15 @@ export interface IpcIntegrationInvokeChannelMap
     return: string
   }
   'app:open-logs-dir': {
+    args: []
+    return: undefined
+  }
+  /** Answered before the Session Host is ready, like `app:retry-startup` and the logs folder. */
+  'app:get-startup-status': {
+    args: []
+    return: GuiStartupStatus
+  }
+  'app:retry-startup': {
     args: []
     return: undefined
   }
