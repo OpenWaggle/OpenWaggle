@@ -93,6 +93,8 @@ function manualClock() {
         ticks.delete(tick)
       }
     },
+    // Warming sessions never schedule one-off work.
+    after: () => () => undefined,
     advance(ms: number) {
       now += ms
       for (const tick of [...ticks]) tick()
