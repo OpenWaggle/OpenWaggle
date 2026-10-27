@@ -1152,6 +1152,50 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const branch = this.sessionManager.getBranch();
          const latestCompaction = getLatestCompactionEntry(branch);
          if (latestCompaction) {
+diff --git a/dist/core/cache-warmer.js b/dist/core/cache-warmer.js
+index 6613a864325dae98f212b8b24b23c0a3fa600d3f..d84580737f9342569bc499564c7ffa421cb36135 100644
+--- a/dist/core/cache-warmer.js
++++ b/dist/core/cache-warmer.js
+@@ -1,4 +1,4 @@
+-import { calculateCost, } from "@earendil-works/pi-ai";
++import { bedrockClaudePromptCache, calculateCost, claudeUsesAdaptiveThinking, isClaudeModelRef, } from "@earendil-works/pi-ai";
+ import { getProviderEnvValue } from "@earendil-works/pi-ai/utils/provider-env";
+ /** Streaming warming never continues past this long after the real request that started it. */
+ const MAX_WARMING_AGE_MS = 60 * 60_000;
+@@ -28,20 +28,29 @@ export function getPromptCacheTtlMs(model, options) {
+         (getProviderEnvValue("PI_CACHE_RETENTION", options?.env) === "long" ? "long" : "short");
+     if (retention === "none")
+         return undefined;
+-    const seconds = model.promptCache?.[retention];
++    // Bedrock models from a remote catalog or models.json carry no lifetimes; derive the ones the
++    // Bedrock transport writes cache points for.
++    const promptCache = model.promptCache ??
++        (model.api === "bedrock-converse-stream" ? bedrockClaudePromptCache(model.id, model.name) : undefined);
++    const seconds = promptCache?.[retention];
+     return seconds === undefined ? undefined : seconds * 1000;
+ }
+ /**
+  * Whether replaying the request with a one-token output cap leaves its cache
+  * entry untouched. Anthropic's budget-based thinking (Claude models without
+- * adaptive thinking) derives `budget_tokens` from `max_tokens`; the replay
++ * adaptive thinking, on the Anthropic API or Bedrock) derives `budget_tokens` from `max_tokens`; the replay
+  * would get a different budget, which Anthropic keys the message cache on,
+  * and the model could still think for thousands of tokens.
+  */
+ export function isReplayable(model, options) {
+-    if (!options?.reasoning || model.api !== "anthropic-messages")
++    if (!options?.reasoning)
+         return true;
+-    return model.compat?.forceAdaptiveThinking === true;
++    if (model.api === "anthropic-messages")
++        return model.compat?.forceAdaptiveThinking === true;
++    // Bedrock derives budget-based Claude thinking from maxTokens the same way.
++    if (model.api === "bedrock-converse-stream" && isClaudeModelRef(model.id, model.name))
++        return claudeUsesAdaptiveThinking(model.id, model.name);
++    return true;
+ }
+ /** Prompt size of the most recent real request on the branch, as reported by the provider. */
+ function lastPromptTokens(entries) {
 diff --git a/dist/core/client-identity.d.ts b/dist/core/client-identity.d.ts
 index 7fcd8111839dfe1dcae88e10449bb5e6b703303e..987684cef4f02a23a7a29ab5b8ec3b3f9159bf35 100644
 --- a/dist/core/client-identity.d.ts
@@ -1203,7 +1247,7 @@ index bb263af7e5acf406be56edbdd1aafb32828af835..09a7d3a9675e05ad08fdafa936d11383
  //# sourceMappingURL=client-identity.js.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23d6cbf55e 100644
+index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..493c5f50011fbbf3e18e4d637f6fd227926c45a1 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -6,7 +6,7 @@
@@ -1224,7 +1268,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      summary: string;
      firstKeptEntryId: string;
      tokensBefore: number;
-@@ -25,10 +27,12 @@ export interface CompactionResult<T = unknown> {
+@@ -25,10 +27,14 @@ export interface CompactionResult<T = unknown> {
      /** Extension-specific data (e.g., ArtifactIndex, version markers for structured compaction) */
      details?: T;
  }
@@ -1234,18 +1278,23 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      reserveTokens: number;
      keepRecentTokens: number;
 +    thresholdPercent: number;
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    maxThresholdTokens?: number;
  }
  export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
  /**
-@@ -57,6 +61,7 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
+@@ -56,7 +62,10 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
+ /**
   * Check if compaction should trigger based on context usage.
   */
++/** Context tokens at which compaction runs: the percentage, capped by the reserve boundary and `maxThresholdTokens`. */
++export declare function getCompactionThresholdTokens(contextWindow: number, settings: CompactionSettings): number;
  export declare function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean;
 +export declare function selectCompactionMechanism(model: Model<any>): "native" | "portable";
  /**
   * Estimate token count for a message using chars/4 heuristic.
   * This is conservative (overestimates tokens).
-@@ -120,6 +125,8 @@ export interface CompactionPreparation {
+@@ -120,6 +129,8 @@ export interface CompactionPreparation {
      firstKeptEntryId: string;
      /** Messages that will be summarized and discarded */
      messagesToSummarize: AgentMessage[];
@@ -1254,7 +1303,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -131,8 +138,16 @@ export interface CompactionPreparation {
+@@ -131,8 +142,16 @@ export interface CompactionPreparation {
      fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
@@ -1272,7 +1321,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -141,5 +156,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -141,5 +160,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1281,7 +1330,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae5ede1fa6 100644
+index 9b1a409d96b39413d8598c79f14fee72f4cd533c..55927a0819d56d4fd0f5a076323ade744ac25571 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -1306,14 +1355,28 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  };
  // ============================================================================
  // Token calculation
-@@ -173,7 +175,53 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
+@@ -167,13 +169,67 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
+     }
+     return { tokens, usageTokens: 0, trailingTokens: tokens, lastUsageIndex: null };
+ }
++/**
++ * Context tokens at which compaction runs: the configured percentage of the window, capped by the
++ * reserve-token safety boundary and, when set, by the absolute `maxThresholdTokens` ceiling.
++ */
++export function getCompactionThresholdTokens(contextWindow, settings) {
++    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
++    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
++    const ceiling = settings.maxThresholdTokens ?? Number.POSITIVE_INFINITY;
++    return Math.min(configuredThreshold, reserveThreshold, ceiling);
++}
+ /**
+  * Check if compaction should trigger based on context usage.
+  */
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
 -    return contextTokens > contextWindow - settings.reserveTokens;
-+    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
-+    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
-+    return contextTokens >= Math.min(configuredThreshold, reserveThreshold);
++    return contextTokens >= getCompactionThresholdTokens(contextWindow, settings);
 +}
 +export function selectCompactionMechanism(model) {
 +    const responsesApi = model.api === "openai-responses" ||
@@ -1361,7 +1424,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  }
  // ============================================================================
  // Cut point detection
-@@ -376,76 +424,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -376,76 +432,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -1452,7 +1515,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -509,25 +502,23 @@ function buildSummarizationContext(promptText) {
+@@ -509,25 +510,23 @@ function buildSummarizationContext(promptText) {
          ],
      });
  }
@@ -1487,7 +1550,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      const completionOptions = createSummarizationOptions(model, apiKey, headers, env, signal, thinkingLevel, sessionId);
      const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
      const failure = getSummarizationFailure(response, "Summarization");
-@@ -559,9 +550,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -559,9 +558,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
          if (entry.sourceEntry.type !== "compaction" && entry.messages.some(isCutPointMessage))
              cutPoints.push(i);
      }
@@ -1498,7 +1561,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      let accumulatedTokens = 0;
      let exceededBudget = false;
      let cutIndex = cutPoints[0];
-@@ -576,9 +566,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -576,9 +574,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
              break;
          }
      }
@@ -1508,7 +1571,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      const suffix = entries.slice(cutIndex + 1, endIndex);
      const isIntrinsicallyVisible = (entry) => entry.sourceEntry.type !== "context_edit" && sessionEntryToContextMessages(entry.sourceEntry).length > 0;
      const isOmitted = (entry) => isIntrinsicallyVisible(entry) && entry.messages.length === 0;
-@@ -600,58 +587,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -600,58 +595,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
      }
      const startsTurn = isProjectedTurnStart(entries[cutIndex]);
      const turnStartIndex = startsTurn ? -1 : findProjectedTurnStartIndex(entries, cutIndex, startIndex);
@@ -1600,7 +1663,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -660,6 +651,26 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -660,6 +659,26 @@ export function prepareCompaction(pathEntries, settings) {
          settings,
      };
  }
@@ -1627,7 +1690,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -676,7 +687,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
+@@ -676,7 +695,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
  ## Context Needed to Continue
  - [Information from these messages needed to understand the later work]
  
@@ -1747,7 +1810,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -685,8 +807,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
+@@ -685,8 +815,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1822,7 +1885,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -720,7 +906,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -720,7 +914,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1982,7 +2045,7 @@ index b54a221e7465da093891e35886798fcd6257f997..3c021d2ab9869156df0cc8d7ac0dcf13
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c96f756c31 100644
+index 9d1f2466deab699388e7ced0021500362c6150b6..eca8c5c58d123bd3f35edf9a19362b1414351741 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -13,7 +13,7 @@ import { convertToLlm } from "./messages.js";
@@ -2059,8 +2122,13 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
          const providerRetrySettings = settingsManager.getProviderRetrySettings();
          const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
          const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
-@@ -203,9 +239,16 @@ export async function createAgentSession(options = {}) {
+@@ -201,11 +237,21 @@ export async function createAgentSession(options = {}) {
+             websocketConnectTimeoutMs: options.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs(),
+             maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
              maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
++            // Everything before `cwd` (preamble, tools, rules, docs, project context, skills) is the same
++            // for every session of a project; `cwd` and the custom sections after it are per session.
++            systemCacheBoundary: options.systemCacheBoundary ?? "cwd",
              // Replaces the agent loop's default identity; read per request so telemetry changes apply at once.
              identity: getClientIdentity(settingsManager),
 -            transformHeaders: async (headers) => headerRunner?.hasHandlers("before_provider_headers")
@@ -2079,7 +2147,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
          };
      };
      // Warm only requests for the selected model. Requests a virtual selection routed, or that an
-@@ -255,11 +298,11 @@ export async function createAgentSession(options = {}) {
+@@ -255,11 +301,11 @@ export async function createAgentSession(options = {}) {
              model,
              thinkingLevel,
              tools: [],
@@ -2093,7 +2161,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
              // Compaction and summaries use their own routing ids; only session requests
              // replace the cache entry, so warming restarts from them. Keep warming while
              // the current transcript still extends the request's prefix. Agent state may
-@@ -301,6 +344,8 @@ export async function createAgentSession(options = {}) {
+@@ -301,6 +347,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -2590,33 +2658,41 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
      /**
       * Get session header.
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index a40ba7fa48c51d73a6db798f51b9e4beda56b687..cd300533e2add9214129995f1a7ef0454a251bf1 100644
+index a40ba7fa48c51d73a6db798f51b9e4beda56b687..979080a9e99502dd7759a74ae4e11eda7bf9d294 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
-@@ -126,11 +126,13 @@ export declare class SettingsManager {
+@@ -126,11 +126,16 @@ export declare class SettingsManager {
      private getCompactionTokenSetting;
      getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number;
      getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number;
 +    getCompactionThresholdPercent(): number;
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    getCompactionMaxThresholdTokens(): number | undefined;
      /** Resolve each token setting through model override, ordinary setting, then built-in default. */
      getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
          enabled: boolean;
          reserveTokens: number;
          keepRecentTokens: number;
 +        thresholdPercent: number;
++        maxThresholdTokens: number | undefined;
      };
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index d5ce9cd266ebd529469fe19694a66a000b2bd194..b0ee5018b5349eb97bb9a95dec93dbb3e63e24a9 100644
+index d5ce9cd266ebd529469fe19694a66a000b2bd194..686331ab9748d54e4aa95013408b4d393c95ce17 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
-@@ -663,12 +663,16 @@ export class SettingsManager {
+@@ -663,12 +663,22 @@ export class SettingsManager {
      getCompactionKeepRecentTokens(model) {
          return this.getCompactionTokenSetting("keepRecentTokens", model);
      }
 +    getCompactionThresholdPercent() {
 +        return this.settings.compaction?.thresholdPercent ?? 80;
++    }
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    getCompactionMaxThresholdTokens() {
++        const value = this.settings.compaction?.maxThresholdTokens;
++        return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 +    }
      /** Resolve each token setting through model override, ordinary setting, then built-in default. */
      getCompactionSettings(model) {
@@ -2625,44 +2701,160 @@ index d5ce9cd266ebd529469fe19694a66a000b2bd194..b0ee5018b5349eb97bb9a95dec93dbb3
              reserveTokens: this.getCompactionReserveTokens(model),
              keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 +            thresholdPercent: this.getCompactionThresholdPercent(),
++            maxThresholdTokens: this.getCompactionMaxThresholdTokens(),
          };
      }
      getBranchSummarySettings() {
 diff --git a/dist/core/settings-schema.d.ts b/dist/core/settings-schema.d.ts
-index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..fcf9b9a994afc9efd6fa0696a9bd38d28767df15 100644
+index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..ec6956cb319f654c202129f54d28ef8d4241b3c0 100644
 --- a/dist/core/settings-schema.d.ts
 +++ b/dist/core/settings-schema.d.ts
-@@ -7,6 +7,7 @@ declare const CompactionSettingsSchema: Type.TObject<{
+@@ -7,6 +7,8 @@ declare const CompactionSettingsSchema: Type.TObject<{
      enabled: Type.TOptional<Type.TBoolean>;
      reserveTokens: Type.TOptional<Type.TInteger>;
      keepRecentTokens: Type.TOptional<Type.TInteger>;
 +    thresholdPercent: Type.TOptional<Type.TNumber>;
++    maxThresholdTokens: Type.TOptional<Type.TInteger>;
      modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
-@@ -88,6 +89,7 @@ export declare const SettingsSchema: Type.TObject<{
+@@ -88,6 +90,8 @@ export declare const SettingsSchema: Type.TObject<{
          enabled: Type.TOptional<Type.TBoolean>;
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
 +        thresholdPercent: Type.TOptional<Type.TNumber>;
++        maxThresholdTokens: Type.TOptional<Type.TInteger>;
          modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
              reserveTokens: Type.TOptional<Type.TInteger>;
              keepRecentTokens: Type.TOptional<Type.TInteger>;
 diff --git a/dist/core/settings-schema.js b/dist/core/settings-schema.js
-index 28c00ed743203b6027df2aae8c07d8544deb5022..3f7a228fa0a38aed292f886821aa526ad34b7ada 100644
+index 28c00ed743203b6027df2aae8c07d8544deb5022..fe518854f240e207f23c4e4f22156229a032e837 100644
 --- a/dist/core/settings-schema.js
 +++ b/dist/core/settings-schema.js
-@@ -15,6 +15,8 @@ const CompactionSettingsSchema = Type.Object({
+@@ -15,6 +15,10 @@ const CompactionSettingsSchema = Type.Object({
      enabled: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.compaction.enabled })),
      reserveTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.reserveTokens })),
      keepRecentTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.keepRecentTokens })),
 +    // OpenWaggle patch: percent of the model's context window at which compaction runs.
 +    thresholdPercent: Type.Optional(Type.Number({ description: "Percent of the model's context window at which compaction runs.", default: 80 })),
++    // OpenWaggle patch: an absolute ceiling on the threshold, so a very large window still compacts.
++    maxThresholdTokens: Type.Optional(nonNegativeSafeInteger({ description: "Most context tokens before compaction runs, whatever the window." })),
      modelOverrides: Type.Optional(Type.Record(Type.String(), CompactionModelOverrideSchema, {
          description: 'Per-model overrides keyed by exact "provider/modelId" strings.',
      })),
+diff --git a/dist/core/tools/bash.js b/dist/core/tools/bash.js
+index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f2799ad54ba 100644
+--- a/dist/core/tools/bash.js
++++ b/dist/core/tools/bash.js
+@@ -12,6 +12,13 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "./truncate.js"
+ const MAX_TIMEOUT_MS = 2_147_483_647;
+ /** Output limit of `structuredContent.output`, which programmatic callers such as codemode scripts receive. */
+ const STRUCTURED_OUTPUT_MAX_BYTES = 1024 * 1024;
++/**
++ * Most a command's result shows the model. Longer output keeps its first and last halves around
++ * an omission marker, and the whole output is saved to a temp file the model can read. Every
++ * result stays in the conversation and is re-read on each later request until compaction, and
++ * only a few percent of results are longer than this.
++ */
++export const MODEL_OUTPUT_MAX_BYTES = 16 * 1024;
+ const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
+ function resolveTimeoutMs(timeout) {
+     if (timeout === undefined)
+@@ -163,7 +170,7 @@ export function createShellToolDefinition(cwd, config, options) {
+     return {
+         name: config.name,
+         label: config.label,
+-        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
++        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output over ${MODEL_OUTPUT_MAX_BYTES / 1024}KB keeps its first and last ${MODEL_OUTPUT_MAX_BYTES / 2048}KB, and output over ${DEFAULT_MAX_LINES} lines its last ${DEFAULT_MAX_LINES} lines; the full output is then saved to a temp file. Optionally provide a timeout in seconds.`,
+         promptSnippet: config.promptSnippet,
+         promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined,
+         parameters: bashSchema,
+@@ -172,7 +179,7 @@ export function createShellToolDefinition(cwd, config, options) {
+         async execute(_toolCallId, { command, timeout }, signal, onUpdate, ctx) {
+             const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
+             const spawnContext = resolveSpawnContext(resolvedCommand, ctx?.cwd || cwd, spawnHook, exposeSessionEnvironment, ctx);
+-            const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
++            const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix, maxBytes: MODEL_OUTPUT_MAX_BYTES });
+             let acceptingOutput = true;
+             let updateTimer;
+             let updateDirty = false;
+@@ -230,11 +237,17 @@ export function createShellToolDefinition(cwd, config, options) {
+                 await output.closeTempFile();
+                 return snapshot;
+             };
+-            const formatOutput = (snapshot, emptyText = "(no output)") => {
++            const formatOutput = async (snapshot, emptyText = "(no output)") => {
+                 const truncation = snapshot.truncation;
+                 let text = snapshot.content || emptyText;
+                 let details;
+-                if (truncation.truncated) {
++                if (truncation.truncated && truncation.totalBytes > MODEL_OUTPUT_MAX_BYTES && snapshot.fullOutputPath) {
++                    // Errors and stack traces are often at the start, summaries at the end: keep both.
++                    details = { truncation, fullOutputPath: snapshot.fullOutputPath };
++                    const visible = await output.readFullOutput(MODEL_OUTPUT_MAX_BYTES);
++                    text = `${visible.content}\n\n[Output is ${formatSize(truncation.totalBytes)} in ${truncation.totalLines} lines; showing its first and last ${formatSize(MODEL_OUTPUT_MAX_BYTES / 2)}. Full output: ${snapshot.fullOutputPath}]`;
++                }
++                else if (truncation.truncated) {
+                     details = { truncation, fullOutputPath: snapshot.fullOutputPath };
+                     const startLine = truncation.totalLines - truncation.outputLines + 1;
+                     const endLine = truncation.totalLines;
+@@ -246,7 +259,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                         text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines}. Full output: ${snapshot.fullOutputPath}]`;
+                     }
+                     else {
+-                        text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Full output: ${snapshot.fullOutputPath}]`;
++                        text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(MODEL_OUTPUT_MAX_BYTES)} limit). Full output: ${snapshot.fullOutputPath}]`;
+                     }
+                 }
+                 return { text, details };
+@@ -266,7 +279,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                 }
+                 catch (err) {
+                     const snapshot = await finishOutput();
+-                    const { text } = formatOutput(snapshot, "");
++                    const { text } = await formatOutput(snapshot, "");
+                     if (err instanceof Error && err.message === "aborted") {
+                         throw new Error(appendStatus(text, "Command aborted"));
+                     }
+@@ -277,7 +290,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                     throw err;
+                 }
+                 const snapshot = await finishOutput();
+-                const { text: outputText, details } = formatOutput(snapshot);
++                const { text: outputText, details } = await formatOutput(snapshot);
+                 if (exitCode === null) {
+                     throw new Error(appendStatus(outputText, "Command terminated without an exit code"));
+                 }
+diff --git a/dist/extensions/codemode/tool.js b/dist/extensions/codemode/tool.js
+index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d75e8b392e 100644
+--- a/dist/extensions/codemode/tool.js
++++ b/dist/extensions/codemode/tool.js
+@@ -47,7 +47,7 @@ export const codemodeToolSystemPromptContribution = {
+ /** The reference for scripts: globals, tool results, `store()`, the `models` API, and limits. */
+ export const CODEMODE_DOCS_PATH = join(getDocsPath(), "codemode.md");
+ const DESCRIPTION_INTRO = `Run JavaScript that calls other tools. The input is raw JavaScript (not JSON, no code fence), run as an async function body in a QuickJS sandbox: top-level \`await\` and \`return\` work. No Node, file system, network, or timers.
+-- \`await tools.<name>({ ...args })\` resolves to a string, or an object if the tool's declaration says so, and rejects with an Error on failure. A tool whose declaration returns an object resolves on failure too when it returned that object; check its fields. Calls still running when the script ends are cancelled.
++- \`await tools.<name>({ ...args })\` resolves to a string, or an object if the tool's declaration says so, and rejects with an Error on failure. Tools declared to you are callable this way too, by their own name unless their description gives a codemode one. A tool whose declaration returns an object resolves on failure too when it returned that object; check its fields. Calls still running when the script ends are cancelled.
+ - Optional first line: \`// @options: {"max_output_tokens": 10000, "timeout_ms": 60000}\``;
+ /** One line per global. The details live in {@link CODEMODE_DOCS_PATH}. */
+ function describeGlobals(models) {
+@@ -192,7 +192,13 @@ function describeOutput(schema) {
+  * arguments are the tool's declared parameters, so they are not repeated.
+  */
+ function describeScriptCall(tool) {
+-    return `${tool.description.trim()}\n\nCodemode: \`tools.${toCodemodeIdentifier(tool.name)}(args)\` resolves to ${describeOutput(toCodemodeDeclaration(tool).outputSchema)}.`;
++    const identifier = toCodemodeIdentifier(tool.name);
++    const output = describeOutput(toCodemodeDeclaration(tool).outputSchema);
++    // The codemode description already says a declared tool is called by its name and resolves to
++    // a string, so only the exceptions spend tokens on every declared tool.
++    if (identifier === tool.name && output === "a string")
++        return tool.description;
++    return `${tool.description.trim()}\n\nCodemode: \`tools.${identifier}(args)\` resolves to ${output}.`;
+ }
+ /**
+  * How the codemode tool presents tools that are both declared and callable from scripts:
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f714449348351 100644
+index 3821d9f41564a68e990d233b260427d6a5681f42..b64b6c4950352420b58c75da42d6e86b4c8b4d7e 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2670,7 +2862,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f7144
  export { readStoredCredential } from "./core/auth-storage.ts";
  export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
 -export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
-+export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getCompactionThresholdTokens, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
  export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
@@ -2697,7 +2889,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f7144
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b6056efb3a1f 100644
+index ab5cfccc3a90939e533b9118122189507a7af326..739a2dc2495e57f145a3110ec6735c998de2268f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2705,7 +2897,7 @@ index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b605
  export { readStoredCredential } from "./core/auth-storage.js";
  // Compaction
 -export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
-+export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
++export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getCompactionThresholdTokens, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
  export { createEventBus } from "./core/event-bus.js";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
@@ -2732,4 +2924,3 @@ index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b605
 +export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";
 +export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.js";
  //# sourceMappingURL=index.js.map
-\ No newline at end of file

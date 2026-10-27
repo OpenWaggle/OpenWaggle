@@ -51,8 +51,8 @@ overrides:
   '@tanstack/virtual-file-routes': 1.162.0
 
 patchedDependencies:
-  '@earendil-works/pi-ai@1.4.0': 44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4
-  '@earendil-works/pi-coding-agent@1.4.0': 5ca901cf19533b46fc2265cfa42b85569fefd168ceb33ecd969e41aa60bb38b3
+  '@earendil-works/pi-ai@1.4.0': b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c
+  '@earendil-works/pi-coding-agent@1.4.0': 33ea9780306196062a934e4005d48d7055b7f92aa75655e16c25d839aeb85377
   dmg-builder@26.17.0: 0c1a8a4cfcc58bc25217acf6b36638da9e8279b4ceaa526c90d3820104fda321
   node-pty@1.1.0: 74077b861173245cdcb2d2f92715b7a5a2195e447f964a73b65f6f7292b7d0fe
 
@@ -65,10 +65,10 @@ importers:
         version: 1.6.2
       '@earendil-works/pi-ai':
         specifier: catalog:pi-runtime
-        version: 1.4.0(patch_hash=44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 1.4.0(patch_hash=b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-coding-agent':
         specifier: catalog:pi-runtime
-        version: 1.4.0(patch_hash=5ca901cf19533b46fc2265cfa42b85569fefd168ceb33ecd969e41aa60bb38b3)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
+        version: 1.4.0(patch_hash=33ea9780306196062a934e4005d48d7055b7f92aa75655e16c25d839aeb85377)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-mcp':
         specifier: catalog:pi-runtime
         version: 1.4.0
@@ -537,10 +537,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: catalog:pi-runtime
-        version: 1.4.0(patch_hash=44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 1.4.0(patch_hash=b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-coding-agent':
         specifier: catalog:pi-runtime
-        version: 1.4.0(patch_hash=5ca901cf19533b46fc2265cfa42b85569fefd168ceb33ecd969e41aa60bb38b3)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
+        version: 1.4.0(patch_hash=33ea9780306196062a934e4005d48d7055b7f92aa75655e16c25d839aeb85377)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-tui':
         specifier: catalog:pi-runtime
         version: 1.4.0
@@ -8998,7 +8998,7 @@ snapshots:
 
   '@earendil-works/pi-agent-core@1.4.0(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+      '@earendil-works/pi-ai': 1.4.0(patch_hash=b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
       typebox: 1.3.27
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -9013,7 +9013,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.4.0(patch_hash=44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)':
+  '@earendil-works/pi-ai@1.4.0(patch_hash=b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.5)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
@@ -9042,10 +9042,10 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.4.0(patch_hash=5ca901cf19533b46fc2265cfa42b85569fefd168ceb33ecd969e41aa60bb38b3)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)':
+  '@earendil-works/pi-coding-agent@1.4.0(patch_hash=33ea9780306196062a934e4005d48d7055b7f92aa75655e16c25d839aeb85377)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
       '@earendil-works/pi-agent-core': 1.4.0(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=44035c5e03bbf28b3e12f014ac67774ecb6c0de1902d2b2f83c25490121125b4)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+      '@earendil-works/pi-ai': 1.4.0(patch_hash=b43e1e53593fbe0e1c6d09f6adff3003163f07064b1dfedd9c3708f0cd4b0b4c)(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(@smithy/signature-v4@5.6.12)(supports-color@7.2.0)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-codemode': 1.4.0
       '@earendil-works/pi-mcp': 1.4.0
       '@earendil-works/pi-tui': 1.4.0

@@ -62,11 +62,35 @@ index c88f27ee93a6f267f6abf9f69b13d0ad2303c8b2..faa0efa09c31101ad04bcd25c7bc1090
                  // Streaming scratch buffers are only used during parsing; never persist them.
                  delete block.partialJson;
                  delete block.customInput;
+diff --git a/dist/api/bedrock-converse-stream.d.ts b/dist/api/bedrock-converse-stream.d.ts
+index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a5ff3c7a9 100644
+--- a/dist/api/bedrock-converse-stream.d.ts
++++ b/dist/api/bedrock-converse-stream.d.ts
+@@ -35,4 +35,11 @@ export interface BedrockOptions extends StreamOptions {
+ }
+ export declare const stream: StreamFunction<"bedrock-converse-stream", BedrockOptions>;
+ export declare const streamSimple: StreamFunction<"bedrock-converse-stream", SimpleStreamOptions>;
++/**
++ * Close every cached Bedrock client. Requests already streaming keep theirs until they end; the
++ * next request builds a new client and resolves credentials again.
++ */
++export declare function clearBedrockClients(): void;
++/** Number of cached Bedrock clients, for tests and diagnostics. */
++export declare function getBedrockClientCacheSize(): number;
+ //# sourceMappingURL=bedrock-converse-stream.d.ts.map
+\ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..bf9c42219416a11a38502aa57b2462a9dedbceeb 100644
+index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..3ca4f08ea7bdd1398764985fb1d79d1d509e1c6a 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
-@@ -8,7 +8,7 @@ import { normalizeProviderError } from "../utils/error-body.js";
+@@ -1,5 +1,6 @@
+ import { BedrockRuntimeClient, BedrockRuntimeServiceException, StopReason as BedrockStopReason, CachePointType, CacheTTL, ConversationRole, ConverseStreamCommand, ImageFormat, ToolResultStatus, } from "@aws-sdk/client-bedrock-runtime";
+ import { NodeHttpHandler } from "@smithy/node-http-handler";
++import { createHash } from "node:crypto";
+ import { HttpProxyAgent } from "http-proxy-agent";
+ import { HttpsProxyAgent } from "https-proxy-agent";
+ import { calculateCost } from "../models.js";
+@@ -8,11 +9,12 @@ import { normalizeProviderError } from "../utils/error-body.js";
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { providerHeadersToRecord } from "../utils/headers.js";
  import { getClientVersion } from "../utils/identity.js";
@@ -74,8 +98,265 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..bf9c42219416a11a38502aa57b2462a9
 +import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
++import { claudeUsesAdaptiveThinking } from "../utils/claude-capabilities.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-@@ -473,7 +473,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+-import { getSystemMessageText } from "../utils/text.js";
++import { contentText, getSystemMessageText } from "../utils/text.js";
+ import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage, withoutInitialSystemMessage, } from "../utils/transcript.js";
+ import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
+ import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext, clampReasoning, } from "./simple-options.js";
+@@ -50,6 +52,9 @@ export const stream = (model, context, options = {}) => {
+         // chain already prefers a configured profile over env keys, but only when
+         // `credentials` is not set on the client config. See #6957.
+         const optionsProfile = options.profile || options.env?.AWS_PROFILE;
++        // The request handler is created only when a new client is built: a cached client keeps its
++        // own handler, so its HTTP/2 session is reused.
++        let requestHandlerSpec;
+         const config = {
+             profile: optionsProfile || getProviderEnvValue("AWS_PROFILE", options.env),
+             customUserAgent: bedrockUserAgent(options.identity),
+@@ -105,14 +110,17 @@ export const stream = (model, context, options = {}) => {
+                 // Bedrock runtime uses NodeHttp2Handler by default since v3.798.0, which is based
+                 // on `http2` module and has no support for http agent.
+                 // Use NodeHttpHandler to support HTTP(S) proxy agents.
+-                config.requestHandler = new NodeHttpHandler({
+-                    httpAgent: new HttpProxyAgent(proxyUrl),
+-                    httpsAgent: new HttpsProxyAgent(proxyUrl),
+-                });
++                requestHandlerSpec = {
++                    key: `proxy:${proxyUrl}`,
++                    create: () => new NodeHttpHandler({
++                        httpAgent: new HttpProxyAgent(proxyUrl),
++                        httpsAgent: new HttpsProxyAgent(proxyUrl),
++                    }),
++                };
+             }
+             else if (getProviderEnvValue("AWS_BEDROCK_FORCE_HTTP1", options.env) === "1") {
+                 // Some custom endpoints require HTTP/1.1 instead of HTTP/2
+-                config.requestHandler = new NodeHttpHandler();
++                requestHandlerSpec = { key: "http1", create: () => new NodeHttpHandler() };
+             }
+         }
+         else {
+@@ -128,32 +136,25 @@ export const stream = (model, context, options = {}) => {
+         // Kept outside the try so the catch can still correlate a mid-stream failure:
+         // exceptions delivered as stream events carry no HTTP metadata of their own.
+         let responseRequestId;
++        let clientLease;
+         try {
+             const supportsStrictMode = model.compat?.supportsStrictMode ?? false;
+-            const client = new BedrockRuntimeClient(config);
++            clientLease = acquireBedrockClient(config, requestHandlerSpec);
++            const client = clientLease.client;
+             let observedRawResponse = false;
+-            if (options.onResponse) {
+-                addResponseHeadersMiddleware(client, options.onResponse, model, () => {
+-                    observedRawResponse = true;
+-                });
+-            }
+-            const customHeaders = providerHeadersToRecord(options.headers);
+-            if (customHeaders) {
+-                addCustomHeadersMiddleware(client, customHeaders);
+-            }
+             const cacheRetention = resolveCacheRetention(options.cacheRetention, options.env);
+             const inferenceMaxTokens = options.maxTokens ?? (isAnthropicClaudeModel(model) ? model.maxTokens : undefined);
+             const initialSystemMessage = getInitialSystemMessage(normalizedContext.messages);
+-            const initialSystemPrompt = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : undefined;
++            const promptCaching = cacheRetention !== "none" && supportsPromptCaching(model, options.env);
+             let commandInput = {
+                 modelId: model.id,
+                 messages: convertMessages(normalizedContext, model, cacheRetention, options.env),
+-                system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
++                system: buildSystemPrompt(initialSystemMessage, promptCaching ? cacheRetention : "none", options.systemCacheBoundary),
+                 inferenceConfig: {
+                     ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
+                     ...(options.temperature !== undefined && { temperature: options.temperature }),
+                 },
+-                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode),
++                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, promptCaching ? cacheRetention : "none"),
+                 additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
+                 ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
+             };
+@@ -162,6 +163,16 @@ export const stream = (model, context, options = {}) => {
+                 commandInput = nextCommandInput;
+             }
+             const command = new ConverseStreamCommand(commandInput);
++            // Per-request middleware goes on the command: the client is shared between requests.
++            if (options.onResponse) {
++                addResponseHeadersMiddleware(command, options.onResponse, model, () => {
++                    observedRawResponse = true;
++                });
++            }
++            const customHeaders = providerHeadersToRecord(options.headers);
++            if (customHeaders) {
++                addCustomHeadersMiddleware(command, customHeaders);
++            }
+             const response = await client.send(command, { abortSignal: options.signal });
+             responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
+             if (!observedRawResponse && response.$metadata.httpStatusCode !== undefined) {
+@@ -242,9 +253,125 @@ export const stream = (model, context, options = {}) => {
+             stream.push({ type: "error", reason: output.stopReason, error: output });
+             stream.end();
+         }
++        finally {
++            clientLease?.release();
++        }
+     })();
+     return stream;
+ };
++/** Clients kept at once; the least recently used one is closed first. */
++const BEDROCK_CLIENT_CACHE_SIZE = 8;
++/** A client unused this long is closed, with its credential provider and HTTP/2 session. */
++const BEDROCK_CLIENT_IDLE_MS = 10 * 60_000;
++const bedrockClients = new Map();
++let bedrockClientSweep;
++function fingerprint(value) {
++    return createHash("sha256").update(value).digest("hex");
++}
++/**
++ * Everything a client is built from. Secrets enter only as hashes. Two requests with the same key
++ * share one client, so the SDK's credential provider (an SSO or STS call) and its HTTP/2 session
++ * are resolved once instead of once per model call.
++ */
++function bedrockClientKey(config, requestHandlerSpec) {
++    const credentials = config.credentials;
++    return JSON.stringify([
++        config.region ?? null,
++        config.endpoint ?? null,
++        config.profile ?? null,
++        config.customUserAgent ?? null,
++        credentials
++            ? fingerprint(`${credentials.accessKeyId}\u0000${credentials.secretAccessKey}\u0000${credentials.sessionToken ?? ""}`)
++            : null,
++        config.token ? fingerprint(config.token.token) : null,
++        config.authSchemePreference ?? null,
++        requestHandlerSpec?.key ?? null,
++    ]);
++}
++function retireBedrockClient(entry) {
++    entry.retired = true;
++    if (entry.inFlight === 0)
++        entry.client.destroy();
++}
++function sweepIdleBedrockClients(now = Date.now()) {
++    for (const [key, entry] of bedrockClients) {
++        if (entry.inFlight === 0 && now - entry.lastUsedAt >= BEDROCK_CLIENT_IDLE_MS) {
++            bedrockClients.delete(key);
++            retireBedrockClient(entry);
++        }
++    }
++}
++function scheduleBedrockClientSweep() {
++    if (bedrockClientSweep !== undefined || bedrockClients.size === 0)
++        return;
++    bedrockClientSweep = setTimeout(() => {
++        bedrockClientSweep = undefined;
++        sweepIdleBedrockClients();
++        scheduleBedrockClientSweep();
++    }, BEDROCK_CLIENT_IDLE_MS);
++    bedrockClientSweep.unref?.();
++}
++function acquireBedrockClient(config, requestHandlerSpec) {
++    const key = bedrockClientKey(config, requestHandlerSpec);
++    sweepIdleBedrockClients();
++    let entry = bedrockClients.get(key);
++    if (entry) {
++        // Re-insert so iteration order stays least recently used first.
++        bedrockClients.delete(key);
++    }
++    else {
++        entry = {
++            client: new BedrockRuntimeClient({
++                ...config,
++                ...(requestHandlerSpec ? { requestHandler: requestHandlerSpec.create() } : {}),
++            }),
++            inFlight: 0,
++            lastUsedAt: Date.now(),
++            retired: false,
++        };
++    }
++    bedrockClients.set(key, entry);
++    while (bedrockClients.size > BEDROCK_CLIENT_CACHE_SIZE) {
++        const [oldestKey, oldest] = bedrockClients.entries().next().value;
++        bedrockClients.delete(oldestKey);
++        retireBedrockClient(oldest);
++    }
++    entry.inFlight++;
++    entry.lastUsedAt = Date.now();
++    scheduleBedrockClientSweep();
++    let released = false;
++    const leased = entry;
++    return {
++        client: leased.client,
++        release: () => {
++            if (released)
++                return;
++            released = true;
++            leased.inFlight--;
++            leased.lastUsedAt = Date.now();
++            if (leased.retired && leased.inFlight === 0)
++                leased.client.destroy();
++        },
++    };
++}
++/**
++ * Close every cached Bedrock client. Requests already streaming keep theirs until they end; the
++ * next request builds a new client and resolves credentials again. Call it when credentials
++ * failed (expired SSO token, rotated keys) so a retry does not reuse the failing provider.
++ */
++export function clearBedrockClients() {
++    for (const entry of bedrockClients.values())
++        retireBedrockClient(entry);
++    bedrockClients.clear();
++    if (bedrockClientSweep !== undefined) {
++        clearTimeout(bedrockClientSweep);
++        bedrockClientSweep = undefined;
++    }
++}
++/** Number of cached Bedrock clients, for tests and diagnostics. */
++export function getBedrockClientCacheSize() {
++    return bedrockClients.size;
++}
+ /**
+  * Human-readable prefixes for Bedrock SDK exception names.
+  * The downstream retry logic in agent-session matches patterns like
+@@ -356,7 +483,7 @@ function bedrockUserAgent(identity) {
+  * SigV4 / auth headers (`x-amz-*`, `authorization`, `host`) are silently skipped;
+  * all other caller headers override any existing same-named header on the request.
+  */
+-function addCustomHeadersMiddleware(client, headers) {
++function addCustomHeadersMiddleware(target, headers) {
+     const middleware = (next) => async (args) => {
+         const request = args.request;
+         if (request && typeof request === "object" && "headers" in request) {
+@@ -369,7 +496,7 @@ function addCustomHeadersMiddleware(client, headers) {
+         }
+         return next(args);
+     };
+-    client.middlewareStack.add(middleware, { step: "build", name: "pi-ai-custom-headers", priority: "low" });
++    target.middlewareStack.add(middleware, { step: "build", name: "pi-ai-custom-headers", priority: "low" });
+ }
+ function isSmithyHttpResponse(response) {
+     if (!response || typeof response !== "object")
+@@ -388,7 +515,7 @@ function toProviderResponse(response) {
+  * `onResponse`. Capture the raw Smithy HTTP response at the deserialize step,
+  * after the SDK receives the response but before the event stream is consumed.
+  */
+-function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
++function addResponseHeadersMiddleware(target, onResponse, model, onObserved) {
+     const middleware = (next) => async (args) => {
+         const result = await next(args);
+         const providerResponse = toProviderResponse(result.response);
+@@ -398,7 +525,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
+         }
+         return result;
+     };
+-    client.middlewareStack.add(middleware, { step: "deserialize", name: "pi-ai-response-headers" });
++    target.middlewareStack.add(middleware, { step: "deserialize", name: "pi-ai-response-headers" });
+ }
+ export const streamSimple = (model, context, options) => {
+     const base = {
+@@ -473,7 +600,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -84,7 +365,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..bf9c42219416a11a38502aa57b2462a9
          stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
      }
      else if (delta?.reasoningContent) {
-@@ -540,6 +540,10 @@ function flushRedactedContent(block) {
+@@ -540,6 +667,10 @@ function flushRedactedContent(block) {
   */
  function finalizeStreamingBlock(block) {
      delete block.index;
@@ -95,6 +376,101 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..bf9c42219416a11a38502aa57b2462a9
      // partialJson is only a streaming scratch buffer; never persist it.
      delete block.partialJson;
      flushRedactedContent(block);
+@@ -591,15 +722,7 @@ function getModelMatchCandidates(modelId, modelName) {
+     });
+ }
+ function supportsAdaptiveThinking(modelId, modelName) {
+-    const candidates = getModelMatchCandidates(modelId, modelName);
+-    return candidates.some((s) => s.includes("opus-4-6") ||
+-        s.includes("opus-4-7") ||
+-        s.includes("opus-4-8") ||
+-        s.includes("opus-5") ||
+-        s.includes("sonnet-4-6") ||
+-        s.includes("sonnet-5") ||
+-        s.includes("haiku-5") ||
+-        s.includes("fable-5"));
++    return claudeUsesAdaptiveThinking(modelId, modelName);
+ }
+ function supportsNativeXhighEffort(model) {
+     const candidates = getModelMatchCandidates(model.id, model.name);
+@@ -715,17 +838,50 @@ function supportsPromptCaching(model, env) {
+ function supportsThinkingSignature(model) {
+     return isAnthropicClaudeModel(model);
+ }
+-function buildSystemPrompt(systemPrompt, model, cacheRetention, env) {
++function cachePointBlock(cacheRetention) {
++    return {
++        cachePoint: { type: CachePointType.DEFAULT, ...(cacheRetention === "long" ? { ttl: CacheTTL.ONE_HOUR } : {}) },
++    };
++}
++/**
++ * The leading system message split at `boundary`: the text before that section and the text from
++ * it on, each as the leading prompt renders it. Undefined when it cannot be split.
++ */
++function splitSystemPrompt(message, boundary) {
++    if (!boundary || !message.sections || !(boundary in message.sections))
++        return undefined;
++    const head = [contentText(message.content)];
++    const tail = [];
++    let inTail = false;
++    for (const [name, text] of Object.entries(message.sections)) {
++        if (name === boundary)
++            inTail = true;
++        if (text !== null)
++            (inTail ? tail : head).push(text);
++    }
++    const headText = head.filter((part) => part.length > 0).join("\n\n");
++    const tailText = tail.filter((part) => part.length > 0).join("\n\n");
++    return headText.length > 0 && tailText.length > 0 ? { headText, tailText } : undefined;
++}
++function buildSystemPrompt(systemMessage, cacheRetention, boundary) {
++    const systemPrompt = systemMessage ? getSystemMessageText(systemMessage) : undefined;
+     if (!systemPrompt)
+         return undefined;
+-    const blocks = [{ text: sanitizeSurrogates(systemPrompt) }];
+-    // Add cache point for supported Claude models when caching is enabled
+-    if (cacheRetention !== "none" && supportsPromptCaching(model, env)) {
+-        blocks.push({
+-            cachePoint: { type: CachePointType.DEFAULT, ...(cacheRetention === "long" ? { ttl: CacheTTL.ONE_HOUR } : {}) },
+-        });
++    if (cacheRetention === "none")
++        return [{ text: sanitizeSurrogates(systemPrompt) }];
++    // Sessions that share tools and the sections before the boundary share the first entry;
++    // the second covers the per-session sections. Together with the tools and conversation
++    // cache points this is Bedrock's limit of four.
++    const split = splitSystemPrompt(systemMessage, boundary);
++    if (split) {
++        return [
++            { text: sanitizeSurrogates(split.headText) },
++            cachePointBlock(cacheRetention),
++            { text: sanitizeSurrogates(split.tailText) },
++            cachePointBlock(cacheRetention),
++        ];
+     }
+-    return blocks;
++    return [{ text: sanitizeSurrogates(systemPrompt) }, cachePointBlock(cacheRetention)];
+ }
+ function normalizeToolCallId(id) {
+     const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+@@ -924,7 +1080,7 @@ function convertMessages(context, model, cacheRetention, env) {
+     }
+     return result;
+ }
+-function convertToolConfig(tools, toolChoice, supportsStrictMode) {
++function convertToolConfig(tools, toolChoice, supportsStrictMode, cacheRetention = "none") {
+     if (!tools?.length)
+         return undefined;
+     if (toolChoice === "none")
+@@ -940,6 +1096,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+             },
+         };
+     });
++    // Tools lead the prompt, so their own cache point lets sessions with other system prompts reuse them.
++    if (cacheRetention !== "none")
++        bedrockTools.push(cachePointBlock(cacheRetention));
+     let bedrockToolChoice;
+     switch (toolChoice) {
+         case "auto":
 diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
 index 193e8e42a40402a33d208e1f9c18e7cff893ce47..a2b5253659ea4ae144b7e33519c23a4d9f83c88d 100644
 --- a/dist/api/mistral-conversations.js
@@ -447,6 +823,86 @@ index d58f22e64ee924dcc69b504580457590d343bfef..8fa132ac1cd36990b0be42a57552b3dd
                  break;
              }
              case "toolcall_end":
+diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
+index ed753df7ea29238c5ef2f1543c3568173be00df7..f1c8392a48a169dd32f6c31b09d8ed14907813ab 100644
+--- a/dist/api/simple-options.js
++++ b/dist/api/simple-options.js
+@@ -27,6 +27,7 @@ export function buildBaseOptions(model, context, options, apiKey) {
+         fetch: options?.fetch,
+         transport: options?.transport,
+         cacheRetention: options?.cacheRetention,
++        systemCacheBoundary: options?.systemCacheBoundary,
+         sessionId: options?.sessionId,
+         headers: options?.headers,
+         identity: options?.identity,
+diff --git a/dist/bedrock-provider.d.ts b/dist/bedrock-provider.d.ts
+index a60900ad2becaa711ee76ed0d01f8a47bfadb080..05ba73b5edc3b55ee7c7a346ce6cb62df2c05e4c 100644
+--- a/dist/bedrock-provider.d.ts
++++ b/dist/bedrock-provider.d.ts
+@@ -1,3 +1,4 @@
++export { clearBedrockClients, getBedrockClientCacheSize } from "./api/bedrock-converse-stream.ts";
+ export declare const bedrockProviderModule: {
+     stream: import("./types.ts").StreamFunction<"bedrock-converse-stream", import("./api/bedrock-converse-stream.ts").BedrockOptions>;
+     streamSimple: import("./types.ts").StreamFunction<"bedrock-converse-stream", import("./types.ts").SimpleStreamOptions>;
+diff --git a/dist/bedrock-provider.js b/dist/bedrock-provider.js
+index cb66f6ffd9dfab26428509bb9b553abff21e6014..51ee723f1076efa8c41099d9b786aa8561364c25 100644
+--- a/dist/bedrock-provider.js
++++ b/dist/bedrock-provider.js
+@@ -1,4 +1,5 @@
+ import { stream, streamSimple } from "./api/bedrock-converse-stream.js";
++export { clearBedrockClients, getBedrockClientCacheSize } from "./api/bedrock-converse-stream.js";
+ export const bedrockProviderModule = {
+     stream,
+     streamSimple,
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 226fa3e6578dacc5744ce5c9271dd20d4a3b5b23..247b386beacd4349e50cf9d469440ec9c2daa140 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -22,6 +22,7 @@ export * from "./models-store.ts";
+ export * from "./providers/faux.ts";
+ export * from "./session-resources.ts";
+ export * from "./types.ts";
++export { bedrockClaudePromptCache, claudeUsesAdaptiveThinking, isClaudeModelRef } from "./utils/claude-capabilities.ts";
+ export * from "./utils/diagnostics.ts";
+ export * from "./utils/event-stream.ts";
+ export * from "./utils/identity.ts";
+diff --git a/dist/index.js b/dist/index.js
+index d8d81e85328ff551562c9da1d645339a2ddf9f93..e57d5b29f6701d9d093a45515fc052fdf0e91237 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -9,6 +9,7 @@ export * from "./models-store.js";
+ export * from "./providers/faux.js";
+ export * from "./session-resources.js";
+ export * from "./types.js";
++export { bedrockClaudePromptCache, claudeUsesAdaptiveThinking, isClaudeModelRef } from "./utils/claude-capabilities.js";
+ export * from "./utils/diagnostics.js";
+ export * from "./utils/event-stream.js";
+ export * from "./utils/identity.js";
+diff --git a/dist/providers/amazon-bedrock.models.js b/dist/providers/amazon-bedrock.models.js
+index 6c16daf36b5c0b6f00499a7af7d892504faadcaa..e2286feb5cc51b8935ac4172d4b2194e61a3125e 100644
+--- a/dist/providers/amazon-bedrock.models.js
++++ b/dist/providers/amazon-bedrock.models.js
+@@ -2,7 +2,18 @@
+ // Do not edit manually - run 'npm run generate-models' to update
+ import values from "./data/amazon-bedrock.json" with { type: "json" };
+ import { flattenChatModelCatalog, flattenClassifierModelCatalog, flattenImageModelCatalog } from "../model-catalog.js";
+-export const AMAZON_BEDROCK_MODELS = flattenChatModelCatalog("amazon-bedrock", values);
++import { bedrockClaudePromptCache } from "../utils/claude-capabilities.js";
++/**
++ * The generated Bedrock catalog has no prompt cache lifetimes, so nothing could keep a Bedrock
++ * cache entry warm. Declare them for the Claude models the transport writes cache points for.
++ */
++function withBedrockPromptCache(models) {
++    return Object.fromEntries(Object.entries(models).map(([id, model]) => {
++        const promptCache = model.promptCache ?? bedrockClaudePromptCache(model.id, model.name);
++        return [id, promptCache ? { ...model, promptCache } : model];
++    }));
++}
++export const AMAZON_BEDROCK_MODELS = withBedrockPromptCache(flattenChatModelCatalog("amazon-bedrock", values));
+ export const AMAZON_BEDROCK_IMAGE_MODELS = flattenImageModelCatalog("amazon-bedrock", values);
+ export const AMAZON_BEDROCK_CLASSIFIER_MODELS = flattenClassifierModelCatalog("amazon-bedrock", values);
+ //# sourceMappingURL=amazon-bedrock.models.js.map
+\ No newline at end of file
 diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts
 index 681c7d626372d485351672fc7e4c11e3ed2351ee..b963fcd41972068665c7e70747020147008b6be5 100644
 --- a/dist/providers/compat-schema.d.ts
@@ -512,6 +968,98 @@ index d1a99cf32531f99472ad88352fb4c329132a335b..34cc4ca5343eed7078d6cb27854d95a1
  export const OPENAI_CLASSIFIER_MODELS = flattenClassifierModelCatalog("openai", values);
  //# sourceMappingURL=openai.models.js.map
 \ No newline at end of file
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index e92eefd0889876a84929584675ef2ec441051a2b..ec3567680c2815e732fcd41d960e914c93b1220a 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -136,6 +136,13 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
+      * Default: "short".
+      */
+     cacheRetention?: CacheRetention;
++    /**
++     * Name of the first section of the leading system message that differs between sessions.
++     * Transports with explicit cache points (Bedrock) end a cache entry right before it, so
++     * sessions whose tools and earlier sections match share that entry. Ignored when the
++     * section is absent or the prompt has no sections.
++     */
++    systemCacheBoundary?: string;
+     /**
+      * Optional session identifier for providers that support session-based caching.
+      * Providers can use this to enable prompt caching, request routing, or other
+diff --git a/dist/utils/claude-capabilities.d.ts b/dist/utils/claude-capabilities.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..235b71793e07d58b3449360546e3b7baaded8013
+--- /dev/null
++++ b/dist/utils/claude-capabilities.d.ts
+@@ -0,0 +1,10 @@
++import type { ModelPromptCache } from "../providers/model-schema.ts";
++/** Whether the model names a Claude model. */
++export declare function isClaudeModelRef(modelId: string, modelName?: string): boolean;
++/** Claude models that think adaptively (Opus 4.6+, Sonnet 4.6+, Claude 5). Their thinking config does not depend on `maxTokens`. */
++export declare function claudeUsesAdaptiveThinking(modelId: string, modelName?: string): boolean;
++/**
++ * Prompt cache lifetimes, in seconds, of a Claude model on Bedrock, or undefined when Bedrock does
++ * not cache its prompts. Matches the models the Bedrock transport writes cache points for.
++ */
++export declare function bedrockClaudePromptCache(modelId: string, modelName?: string): ModelPromptCache | undefined;
+diff --git a/dist/utils/claude-capabilities.js b/dist/utils/claude-capabilities.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..85821b6ab60544e7ffbb3a978867bc63eb1285eb
+--- /dev/null
++++ b/dist/utils/claude-capabilities.js
+@@ -0,0 +1,52 @@
++/**
++ * Claude capabilities read from a model id or name. Shared by the Bedrock transport, its model
++ * catalog and callers that must know whether replaying a request keeps its prompt cache entry.
++ * Checks the name too, so application inference profiles whose ARNs omit the model are covered.
++ */
++function getModelMatchCandidates(modelId, modelName) {
++    const values = modelName ? [modelId, modelName] : [modelId];
++    return values.flatMap((value) => {
++        const lower = value.toLowerCase();
++        return [lower, lower.replace(/[\s_.:]+/g, "-")];
++    });
++}
++/** Whether the model names a Claude model. */
++export function isClaudeModelRef(modelId, modelName) {
++    return getModelMatchCandidates(modelId, modelName).some((s) => s.includes("claude"));
++}
++/** Claude models that think adaptively (Opus 4.6+, Sonnet 4.6+, Claude 5). Their thinking config does not depend on `maxTokens`. */
++export function claudeUsesAdaptiveThinking(modelId, modelName) {
++    return getModelMatchCandidates(modelId, modelName).some((s) => s.includes("opus-4-6") ||
++        s.includes("opus-4-7") ||
++        s.includes("opus-4-8") ||
++        s.includes("opus-5") ||
++        s.includes("sonnet-4-6") ||
++        s.includes("sonnet-5") ||
++        s.includes("haiku-5") ||
++        s.includes("fable-5"));
++}
++/** Claude models whose Bedrock cache points accept a one-hour TTL (Claude 4.5 and later). */
++function claudeSupportsOneHourCache(candidates) {
++    return candidates.some((s) => s.includes("fable-5") ||
++        s.includes("opus-5") ||
++        s.includes("sonnet-5") ||
++        s.includes("haiku-5") ||
++        /(?:opus|sonnet|haiku)-4-(?:[5-9])/.test(s));
++}
++/**
++ * Prompt cache lifetimes, in seconds, of a Claude model on Bedrock, or undefined when Bedrock does
++ * not cache its prompts. Matches the models the Bedrock transport writes cache points for.
++ */
++export function bedrockClaudePromptCache(modelId, modelName) {
++    const candidates = getModelMatchCandidates(modelId, modelName);
++    if (!candidates.some((s) => s.includes("claude")))
++        return undefined;
++    const cached = candidates.some((s) => s.includes("fable-5") || s.includes("opus-5") || s.includes("sonnet-5") || s.includes("haiku-5")) ||
++        candidates.some((s) => s.includes("-4-")) ||
++        candidates.some((s) => s.includes("claude-3-7-sonnet")) ||
++        candidates.some((s) => s.includes("claude-3-5-haiku"));
++    if (!cached)
++        return undefined;
++    return claudeSupportsOneHourCache(candidates) ? { short: 300, long: 3600 } : { short: 300 };
++}
++//# sourceMappingURL=claude-capabilities.js.map
 diff --git a/dist/utils/json-parse.d.ts b/dist/utils/json-parse.d.ts
 index ec52a744f1001a3ebb8169f7d8df1524ba1de5a9..7323ce54492d7f0ed54911b0652b423d9cda05e3 100644
 --- a/dist/utils/json-parse.d.ts
@@ -720,3 +1268,46 @@ index 1ae291c296dc5d35a7b827e1098977e0d0db32cf..b66e472141a97895d5c4263192a86350
          return false;
      return RETRYABLE_PROVIDER_ERROR_PATTERN.test(errorMessage);
  }
+diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
+index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..ab91884312f3ce3c32ef11ea4fdf6a25330c4b2f 100644
+--- a/dist/utils/transcript.js
++++ b/dist/utils/transcript.js
+@@ -50,6 +50,29 @@ export function getCurrentTools(messages) {
+     }
+     return [...tools.values()];
+ }
++/**
++ * Order collapsed tools so the same tool set always serializes to the same bytes. Replay keeps
++ * insertion order, so a tool removed and added again (an MCP server reconnecting at the start of
++ * a run) moved to the end, in whatever order its servers connected, and a provider without
++ * mid-conversation tool changes lost its whole prompt cache. Tools the leading system message
++ * declared keep that message's order; tools added later follow, sorted by name.
++ */
++function inStableToolOrder(messages, tools) {
++    const leading = getInitialSystemMessage(messages);
++    const leadingOrder = new Map((leading?.toolsAdded ?? []).map((tool, index) => [tool.name, index]));
++    const compareNames = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
++    return [...tools].sort((left, right) => {
++        const leftIndex = leadingOrder.get(left.name);
++        const rightIndex = leadingOrder.get(right.name);
++        if (leftIndex !== undefined && rightIndex !== undefined)
++            return leftIndex - rightIndex;
++        if (leftIndex !== undefined)
++            return -1;
++        if (rightIndex !== undefined)
++            return 1;
++        return compareNames(left.name, right.name);
++    });
++}
+ /**
+  * Replay every system message into one leading system message holding the current
+  * prompt and tools. Later `content` is appended to the base prompt, `sections` are
+@@ -73,7 +96,7 @@ export function getCurrentSystemMessage(messages) {
+                 sections.set(name, value);
+         }
+     }
+-    const tools = getCurrentTools(messages);
++    const tools = inStableToolOrder(messages, getCurrentTools(messages));
+     if (timestamp === undefined && tools.length === 0)
+         return undefined;
+     return {
