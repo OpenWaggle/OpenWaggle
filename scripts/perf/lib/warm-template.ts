@@ -1,9 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { rm, writeFile } from 'node:fs/promises'
-import { createConnection } from 'node:net'
 import path from 'node:path'
-import { resolveLocalSessionHostPaths } from '../../../src/main/session-host/local-session-paths'
 import { launchApp, type PerfApp, stopProcessGroup } from './perf-app'
 import { profileHostPids, sampleProcesses } from './perf-processes'
 import { type PerfProfile, profileEnvironment, stopProfileHost } from './perf-profile'
@@ -44,39 +42,26 @@ async function waitForIdleHost(userData: string) {
   }
 }
 
-function canConnect(endpoint: string) {
-  return new Promise<boolean>((resolve) => {
-    const socket = createConnection(endpoint)
-    socket.once('connect', () => {
-      socket.destroy()
-      resolve(true)
-    })
-    socket.once('error', () => resolve(false))
-  })
-}
-
 /**
- * Runs the profile's Host directly (as `host start` would launch it) until it accepts clients and
- * then goes idle, and returns how long it took to listen. `host start` itself gives up while a
- * large profile's first start is still preparing its semantic index.
+ * Starts the profile's Host with `openwaggle host start` (which returns once it listens and keeps
+ * it running for its idle grace period), waits for it to go idle, and returns how long it took to
+ * listen. The Host is always stopped, even when warming fails: it would keep indexing otherwise.
  */
 async function startHostUntilIdle(app: PerfApp, profile: PerfProfile) {
   const startedAt = Date.now()
-  const host = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'session-host-internal'])
+  const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
   try {
-    const { endpoint } = resolveLocalSessionHostPaths({ userDataRoot: profile.userData })
-    while (!(await canConnect(endpoint))) {
-      if (Date.now() - startedAt > HOST_START_TIMEOUT_MS || host.child.exitCode !== null) {
-        throw new Error(`The Host did not start while warming ${profile.root}: ${host.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
-      }
-      await delay(IDLE_SAMPLE_MS)
+    const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
+    const code = await Promise.race([exited, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
+    if (code !== 0) {
+      throw new Error(`The Host did not start while warming ${profile.root}: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
     }
     const listeningMs = Date.now() - startedAt
     await waitForIdleHost(profile.userData)
     return listeningMs
   } finally {
+    await stopProcessGroup(started.child)
     await stopProfileHost(profile)
-    await stopProcessGroup(host.child)
   }
 }
 
