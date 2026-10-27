@@ -14,3 +14,7 @@ Agent definitions, Project actions and MCP servers are files, but Scheduled task
 ## Consequences
 
 - Scheduled tasks don't travel with a repository or a dotfiles checkout; moving them is an explicit export and import, and an import is created under the importing caller's authority.
+
+## Amendment (2026-10-27): a Wake check is part of the record (#388)
+
+A Heartbeat's Wake check command and the exact command the user approved are columns of its Host record, like its prompt: no file sets one, and an export carries the command but not its approval, so an import sets it again under the importing caller, which approves it only when that caller is the user.
