@@ -51,6 +51,8 @@ function mcpExtensions(input: FirstTurnRunInput) {
  * Mirrors the extension set of one classic Run, in the Host's order: `runPiAgentKernelTurn` in
  * `pi-agent-kernel-run.ts` (sessions, MCP, preview, project actions, source control, docs) and
  * `runPiSession` in `agent-kernel/classic-run.ts` (run attribution, deliveries, Run identity).
+ * The tool allowlist guard `runPiSession` adds first is absent: it exists only for Agent
+ * definitions that restrict tools, and it changes no prompt text.
  * Keep it in step with those two functions; the packaged measurement catches any drift. Returns
  * what those functions hand to the Run's Pi runtime.
  */
@@ -74,6 +76,7 @@ export async function composeFirstTurnRun(input: FirstTurnRunInput) {
     createDelegationSpecificationUpdateExtension({ ...deliveries, pendingUpdates: [] }).factory,
     createSessionsToolExtension({
       sessionId: input.sessionId,
+      scratchDirectory: input.scratchDirectory,
       runId: input.runId,
       workingDirectory: input.projectPath,
       projectPath: input.projectPath,
@@ -105,6 +108,10 @@ export async function composeFirstTurnRun(input: FirstTurnRunInput) {
   return {
     extensionFactories,
     trustedExtensionFactories,
+    // As `runSystemPromptAppendices` in `agent-kernel/run-lifecycle.ts` orders them: the scratch
+    // guidance, then the preview's (none since C5). Pi puts them, after the visualization one, in
+    // the `openwaggle_session_directories` section that follows the working directory. The Host
+    // prepares the evidence directory before the Run; here it is named without being created.
     systemPromptAppendices: [
       scratchDirectorySystemPrompt(
         input.scratchDirectory,
