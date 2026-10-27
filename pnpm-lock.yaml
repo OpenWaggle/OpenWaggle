@@ -27,6 +27,8 @@ overrides:
   '@hono/node-server': 2.0.11
   '@effect/sql-sqlite-node>better-sqlite3': 13.0.3
   '@huggingface/transformers>onnxruntime-node': 1.23.2
+  '@pierre/diffs>shiki': 4.4.3
+  '@pierre/theming>shiki': 4.4.3
   adm-zip: 0.6.1
   js-yaml@^4: ^4.3.2
   '@xmldom/xmldom@<0.8.15': 0.8.15
@@ -2888,7 +2890,7 @@ packages:
       '@shikijs/themes': ^3.0.0 || ^4.0.0
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
-      shiki: ^3.0.0 || ^4.0.0
+      shiki: 4.4.3
     peerDependenciesMeta:
       '@pierre/theme':
         optional: true
@@ -10597,12 +10599,12 @@ snapshots:
   '@pierre/diffs@1.4.2(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@pierre/theme': 2.0.0
-      '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)
+      '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.4.3)
       '@shikijs/transformers': 4.4.3
       diff: 9.0.0
       hast-util-to-html: 9.0.5
       lru_map: 0.4.1
-      shiki: 4.3.1
+      shiki: 4.4.3
     optionalDependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
@@ -10611,13 +10613,13 @@ snapshots:
 
   '@pierre/theme@2.0.0': {}
 
-  '@pierre/theming@1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)':
+  '@pierre/theming@1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.4.3)':
     optionalDependencies:
       '@pierre/theme': 2.0.0
       '@shikijs/themes': 4.4.3
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      shiki: 4.3.1
+      shiki: 4.4.3
 
   '@playwright/test@1.63.0':
     dependencies:

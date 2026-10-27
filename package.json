@@ -79,6 +79,7 @@
     "check:pi-runtime": "tsx scripts/check-pi-runtime-alignment.ts",
     "check:usage-statistics-catalog": "tsx scripts/generate-usage-statistics-catalog.ts --check",
     "usage-statistics-catalog:generate": "tsx scripts/generate-usage-statistics-catalog.ts",
+    "syntax-languages:generate": "tsx scripts/generate-syntax-language-metadata.ts",
     "check:syntax-bundle": "tsx scripts/check-syntax-bundle.ts",
     "check:main-bundle": "tsx scripts/check-main-bundle.ts",
     "check:renderer-bundle": "electron-vite build && pnpm check:syntax-bundle && pnpm check:main-bundle",
