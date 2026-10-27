@@ -1,4 +1,4 @@
-import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import type { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
@@ -12,10 +12,8 @@ interface UseGitRefreshOptions {
   readonly workingPath: WorkingPath | null
   /** Repository the branch list belongs to. */
   readonly repositoryPath: RepositoryPath | null
-  readonly activeSessionId: SessionId | null
   readonly refreshGitStatus: (workingPath: WorkingPath | null) => Promise<void>
   readonly refreshGitBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
-  readonly refreshSession: (id: SessionId) => Promise<void>
 }
 
 /**
@@ -31,10 +29,8 @@ interface UseGitRefreshOptions {
 export function useGitRefresh({
   workingPath,
   repositoryPath,
-  activeSessionId,
   refreshGitStatus,
   refreshGitBranches,
-  refreshSession,
 }: UseGitRefreshOptions): void {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
@@ -42,12 +38,10 @@ export function useGitRefresh({
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-    const unsubscribe = subscribeAgentEvents(({ sessionId, event }) => {
+    // The Session's transcript is re-read when its Run settles (`agent:run-completed`); reading
+    // it again on the transport event fetched the whole detail twice per Run (D5).
+    const unsubscribe = subscribeAgentEvents(({ event }) => {
       if (!isTerminalTransportEvent(event)) return
-
-      if (activeSessionId === sessionId) {
-        void refreshSession(activeSessionId)
-      }
       if (workingPath !== null || repositoryPath !== null) {
         if (refreshTimer) clearTimeout(refreshTimer)
         refreshTimer = setTimeout(() => {
@@ -62,15 +56,7 @@ export function useGitRefresh({
       unsubscribe()
       if (refreshTimer) clearTimeout(refreshTimer)
     }
-  }, [
-    activeSessionId,
-    bumpDiffRefreshKey,
-    workingPath,
-    repositoryPath,
-    refreshSession,
-    refreshGitBranches,
-    refreshGitStatus,
-  ])
+  }, [bumpDiffRefreshKey, workingPath, repositoryPath, refreshGitBranches, refreshGitStatus])
 
   /*
    * Converge on invalidations broadcast by the main process. Any window that
