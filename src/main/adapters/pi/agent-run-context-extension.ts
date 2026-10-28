@@ -1,4 +1,5 @@
 import type {
+  ExtensionAPI,
   ExtensionFactory,
   NormalizedBuildSystemPromptOptions,
 } from '@earendil-works/pi-coding-agent'
@@ -10,6 +11,7 @@ import {
   runIdentityEntryData,
   withRunIdentities,
 } from './agent-run-identity'
+import { OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE } from './openwaggle-on-demand-tools'
 
 export interface AgentRunContextExtensionInput {
   /** User-authored instructions frozen into the Session execution profile at creation time. */
@@ -81,6 +83,29 @@ export function agentRunContextAllowlists(input: {
   }
 }
 
+/**
+ * The tools a Run with an allowlist declares: the active ones it allows, plus every OpenWaggle
+ * on-demand tool it names. Those are `deferred`, so without this a definition listing
+ * `project_actions` (or `preview_*`, `source_control`, `openwaggle_docs`) could not reach it: the
+ * allowlist leaves out `tool_search` and codemode unless it names them. Declaring the named tool
+ * directly, as before on-demand loading, also keeps `tool_search` from offering tools the
+ * definition forbids.
+ */
+function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => boolean) {
+  const active = pi.getActiveTools().filter(allows)
+  const named = pi
+    .getAllTools()
+    .filter(
+      (tool) =>
+        tool.exposure === 'deferred' &&
+        tool.namespace?.name === OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE.name &&
+        allows(tool.name) &&
+        !active.includes(tool.name),
+    )
+    .map((tool) => tool.name)
+  return [...active, ...named]
+}
+
 /** Pi wraps each named section in a tag of the same name; Pi requires `[a-z][a-z0-9_-]*`. */
 export const AGENT_DEFINITION_PROMPT_SECTION = 'openwaggle_agent_definition'
 export const SESSION_IDENTITY_PROMPT_SECTION = 'openwaggle_session_identity'
@@ -122,7 +147,7 @@ export function createAgentRunContextExtension(
     // identity can name it; once per Run, though `before_agent_start` fires on every turn.
     let runIdentityStored = !runIdentity
     pi.on('before_agent_start', (event) => {
-      if (allows) pi.setActiveTools(pi.getActiveTools().filter(allows))
+      if (allows) pi.setActiveTools(allowedToolLoadout(pi, allows))
 
       setSection(
         event.systemPromptOptions,

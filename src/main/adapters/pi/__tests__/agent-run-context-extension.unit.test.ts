@@ -3,6 +3,7 @@ import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
   ExtensionContext,
+  ToolInfo,
 } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -13,6 +14,7 @@ import {
   RUN_IDENTITY_CUSTOM_TYPE,
   SESSION_IDENTITY_PROMPT_SECTION,
 } from '../agent-run-context-extension'
+import { OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE } from '../openwaggle-on-demand-tools'
 
 type BeforeAgentStartHandler = (
   event: { readonly systemPromptOptions: { sections: Record<string, string> } },
@@ -32,6 +34,7 @@ type ToolCallHandler = (event: {
 function installExtension(
   input: Parameters<typeof createAgentRunContextExtension>[0],
   activeTools: readonly string[] = ['read', 'bash', 'hive'],
+  allTools: readonly ToolInfo[] = [],
 ) {
   let handler: BeforeAgentStartHandler | undefined
   let toolCall: ToolCallHandler | undefined
@@ -45,6 +48,7 @@ function installExtension(
       if (event === 'before_agent_start') handler = candidate
     },
     getActiveTools: () => [...activeTools],
+    getAllTools: () => allTools,
     setActiveTools,
     appendEntry,
   })
@@ -202,6 +206,30 @@ describe('Agent run context extension', () => {
     const compacted = storedIdentity('run-1', promptOf('First', 10))
 
     expect(extension.context([promptOf('Later', 20)], [compacted.entry])).toBeUndefined()
+  })
+
+  it('declares an on-demand OpenWaggle tool the allowlist names, and only that one', async () => {
+    const onDemand = (name: string) =>
+      fromPartial<ToolInfo>({
+        name,
+        exposure: 'deferred',
+        namespace: OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE,
+      })
+    const extension = installExtension(
+      { sessionIdentityContext: '- Session ID: s', toolAllowlist: ['read', 'project_actions'] },
+      ['read', 'bash', 'tool_search'],
+      [
+        onDemand('project_actions'),
+        onDemand('source_control'),
+        fromPartial<ToolInfo>({ name: 'mcp__figma__get_file', exposure: 'deferred' }),
+      ],
+    )
+
+    await extension.start()
+
+    expect(extension.setActiveTools).toHaveBeenCalledWith(['read', 'project_actions'])
+    expect(extension.callTool('project_actions')).toBeUndefined()
+    expect(extension.callTool('source_control')).toMatchObject({ block: true })
   })
 
   it('does not change the active tool set when the profile has no tool restriction', async () => {

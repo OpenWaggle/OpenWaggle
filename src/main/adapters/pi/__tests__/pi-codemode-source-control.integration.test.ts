@@ -7,7 +7,10 @@ import {
   clearAgentLoopInteractionBrokerForTests,
   submitAgentLoopInteractionResponse,
 } from '../../../application/agent-loop-interaction-broker'
-import { createAgentToolAllowlistGuard } from '../agent-run-context-extension'
+import {
+  createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
+} from '../agent-run-context-extension'
 import { createSourceControlToolExtension } from '../source-control-tool-extension'
 import {
   cleanupOpenWagglePiSessions,
@@ -139,5 +142,37 @@ describe('the source_control tool under codemode', () => {
 
     expect(backend.openWorkingTree).not.toHaveBeenCalled()
     expect(scriptResult(session.messages)).toContain('does not allow the tool source_control')
+  })
+
+  it('is declared and callable when the Agent definition names it, without tool_search', async () => {
+    const { backend, extension } = sourceControlTool()
+    const allowlist = { toolAllowlist: ['read', 'source_control'] }
+    const guard = createAgentToolAllowlistGuard(allowlist)
+    if (!guard) throw new Error('expected an allowlist guard')
+    const { session, faux } = await createOpenWagglePiSession({
+      extensionFactories: [
+        guard,
+        extension,
+        createAgentRunContextExtension({ sessionIdentityContext: '- Session ID: s', ...allowlist }),
+      ],
+    })
+    faux.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall('source_control', { action: 'status' }, { id: 'direct-1' }),
+          fauxToolCall('bash', { command: 'echo refused' }, { id: 'direct-2' }),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('done'),
+    ])
+
+    await session.prompt('Why does View PR not work?')
+
+    expect(session.getActiveToolNames()).toEqual(['read', 'source_control'])
+    expect(backend.openWorkingTree).toHaveBeenCalled()
+    expect(scriptResult(session.messages)).toContain('git.acme.io')
+    // A tool outside the allowlist is still neither declared nor run.
+    expect(scriptResult(session.messages)).toMatch(/"toolName":"bash".*"isError":true/)
   })
 })
