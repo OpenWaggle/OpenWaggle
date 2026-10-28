@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hostBackgroundGate } from '../../application/host-background-gate'
 import {
   describeLocalSessionCommand,
   isLongPollLocalSessionCommand,
@@ -144,5 +145,37 @@ describe('Local Session in-flight command diagnostics', () => {
       longPollCount: 2,
       oldestInflightCommands: [{ command: 'host-ui-v1:sessions:get-detail', ageMs: 4_000 }],
     })
+  })
+
+  it('tells the background gate about every command but long-polls, until each ends (W12)', () => {
+    const events: string[] = []
+    const inflight = new LocalSessionInflightCommands(
+      () => 0,
+      () => {
+        events.push('start')
+        return () => events.push('end')
+      },
+    )
+    const untrackPoll = inflight.track(DESKTOP_POLL)
+    const untrackDetail = inflight.track({
+      contract: 'host-ui-v1',
+      request: { channel: 'sessions:get-detail' },
+    })
+    expect(events).toEqual(['start'])
+    untrackPoll()
+    expect(events).toEqual(['start'])
+    untrackDetail()
+    expect(events).toEqual(['start', 'end'])
+  })
+
+  it('tells the Host background gate by default', () => {
+    const before = hostBackgroundGate.foregroundCommandCount
+    const untrack = new LocalSessionInflightCommands().track({
+      contract: 'host-ui-v1',
+      request: { channel: 'sessions:get-detail' },
+    })
+    expect(hostBackgroundGate.foregroundCommandCount).toBe(before + 1)
+    untrack()
+    expect(hostBackgroundGate.foregroundCommandCount).toBe(before)
   })
 })

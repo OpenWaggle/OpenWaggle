@@ -1,7 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { hostBackgroundGate } from '../application/host-background-gate'
+import { awaitHostBackgroundTurn } from '../application/host-background-turn'
 import { createLogger } from '../logger'
 import {
   currentSemanticDiscoverySourceRevision,
@@ -31,8 +31,11 @@ function waitForSemanticDiscoverySourceChange(afterRevision: number) {
   })
 }
 
-/** Background work waits while no client is attached, and after one attaches (A-F9). */
-export const awaitHostBackgroundWindow = Effect.promise(() => hostBackgroundGate.whenOpen())
+/**
+ * Background work waits while no client is attached, after one attaches (A-F9), and while the
+ * clients' requests are in flight (W12).
+ */
+export const awaitHostBackgroundWindow = awaitHostBackgroundTurn
 
 function publishReadiness(projection: SqliteSessionSemanticProjection) {
   return projection.readiness().pipe(
