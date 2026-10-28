@@ -132,7 +132,9 @@ export function enableMainCompileCache(
       const current = api.getCompileCacheDir?.()
       if (!current) return
       // Only below the directory this shim chose (Node reports it resolved, /tmp as /private/tmp).
-      const chosen = await fileSystem.realpath(location.directory).catch(() => path.resolve(location.directory))
+      const chosen = await fileSystem
+        .realpath(location.directory)
+        .catch(() => path.resolve(location.directory))
       if (path.dirname(current) !== chosen) return
       await pruneStaleCompileCaches(current, fileSystem, now())
     },

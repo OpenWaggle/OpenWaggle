@@ -135,7 +135,10 @@ describe('stale compile cache sweep (R6 P3-11)', () => {
       readdir: async () => Object.keys(entries),
       stat: async (entry) => {
         const age = entries[path.basename(entry)]
-        return { mtimeMs: NOW - (typeof age === 'number' ? age : 0) * DAY_MS, isDirectory: () => age !== 'file' }
+        return {
+          mtimeMs: NOW - (typeof age === 'number' ? age : 0) * DAY_MS,
+          isDirectory: () => age !== 'file',
+        }
       },
       rm: async (entry) => {
         removed.push(entry)
@@ -164,10 +167,18 @@ describe('stale compile cache sweep (R6 P3-11)', () => {
   })
 
   it('sweeps after the first write of a long-lived process, once, and only below its own directory', async () => {
-    const { fileSystem, removed } = fakeFileSystem({ 'v24.22.1-arm64-964aae3f-501': 0, 'v20.0.0-x64-0-501': 90 })
+    const { fileSystem, removed } = fakeFileSystem({
+      'v24.22.1-arm64-964aae3f-501': 0,
+      'v20.0.0-x64-0-501': 90,
+    })
     const { api } = fakeApi(STATUS.ENABLED)
     const withDir = { ...api, getCompileCacheDir: () => CURRENT }
-    const cache = enableMainCompileCache({ kind: 'enabled', directory: PARENT }, withDir, fileSystem, () => NOW)
+    const cache = enableMainCompileCache(
+      { kind: 'enabled', directory: PARENT },
+      withDir,
+      fileSystem,
+      () => NOW,
+    )
     const scheduled: Array<() => void> = []
 
     flushMainCompileCacheOnceStarted(cache, (callback) => {
