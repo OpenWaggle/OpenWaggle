@@ -6,6 +6,8 @@ place of the agent's per-run token, streams the upstream status, headers and bod
 exactly once (SSE clients see chunks as they arrive), and appends one JSONL record per
 request: the upstream status, the request body (agents' requests carry no credentials;
 the Authorization header is never logged) and every usage object in the response.
+Records are appended when a response ends; each carries `seq`, the request's arrival
+order, which readers sort by to find an agent's first request.
 
 The listener binds to 127.0.0.1 unless BENCH_PROXY_BIND names another local address
 (run.sh passes Docker's bridge gateway on Linux). Binding alone does not isolate it:
@@ -27,6 +29,7 @@ import os
 import ssl
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
@@ -56,6 +59,17 @@ ALLOWED_ROUTES = {
 HTTP_NO_CONTENT = 204
 HTTP_FORBIDDEN = 403
 log_lock = threading.Lock()
+arrival_lock = threading.Lock()
+arrivals = 0
+
+
+def next_arrival():
+    """Arrival order of the requests: the log is written in completion order, and a short
+    background call (a Session title) can finish before the first model call it overlaps."""
+    global arrivals
+    with arrival_lock:
+        arrivals += 1
+        return arrivals
 
 
 def tls_context():
@@ -188,6 +202,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == READY_PATH:
             self._respond_locally(HTTP_NO_CONTENT)
             return
+        seq = next_arrival()
+        arrived_at = time.time()
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else None
         agent, upstream_path = split_agent_path(self.path)
@@ -203,6 +219,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             request = None
         log({
+            "seq": seq,
+            "arrived_at": arrived_at,
             "command": self.command,
             "agent": agent,
             "path": upstream_path,

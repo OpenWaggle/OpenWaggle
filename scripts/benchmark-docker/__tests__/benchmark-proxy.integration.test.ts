@@ -1,11 +1,11 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { requestTokens } from '../request-tokens'
+import { firstRequestOf, requestTokens } from '../request-tokens'
 
 /**
  * The first-turn token benchmark's credential-injecting proxy and container script (MEMORY
@@ -15,6 +15,11 @@ import { requestTokens } from '../request-tokens'
  * benchmark's endpoints and model, and keeps the real key off its argv.
  */
 const PROXY = path.join(import.meta.dirname, '..', 'proxy.py')
+const PARSE_RESULTS = path.join(import.meta.dirname, '..', 'parse-results.py')
+const SLOW_FIRST_RESPONSE_MS = 200
+const ARRIVAL_GAP_MS = 50
+const FIRST_CALL_PROMPT_TOKENS = 4175
+const TITLE_CALL_PROMPT_TOKENS = 515
 const INSIDE = path.join(import.meta.dirname, '..', 'inside.sh')
 const RUN = path.join(import.meta.dirname, '..', 'run.sh')
 const REAL_KEY = 'sk-or-real-key'
@@ -41,16 +46,20 @@ function freePort() {
   })
 }
 
-async function startUpstream() {
+/** `respond` lets a test shape each response; by default every request gets `SSE_BODY` at once. */
+async function startUpstream(respond: (index: number) => Promise<string> = async () => SSE_BODY) {
   const seen: IncomingHttpHeaders[] = []
   const paths: string[] = []
   const server: Server = createServer((request, response) => {
+    const index = seen.length
     seen.push(request.headers)
     paths.push(request.url ?? '')
     request.resume()
     request.on('end', () => {
-      response.writeHead(UPSTREAM_STATUS, { 'content-type': 'text/event-stream' })
-      response.end(SSE_BODY)
+      void respond(index).then((body) => {
+        response.writeHead(UPSTREAM_STATUS, { 'content-type': 'text/event-stream' })
+        response.end(body)
+      })
     })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
@@ -193,6 +202,39 @@ describe('benchmark proxy', () => {
     const argv = execFileSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8' })
     expect(argv).toContain('proxy.py')
     expect(argv).not.toContain(REAL_KEY)
+  })
+
+  it('records arrival order, so the first request wins even when a later one finishes first', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-proxy-'))
+    cleanups.push(() => rm(directory, { recursive: true, force: true }))
+    const logPath = path.join(directory, 'proxy-log.jsonl')
+    const usageBody = (promptTokens: number) => `data: {"usage":{"prompt_tokens":${String(promptTokens)},"completion_tokens":1}}\n\ndata: [DONE]\n\n`
+    // The first model call streams for a while; the title call sent after it returns at once.
+    const upstream = await startUpstream(async (index) => {
+      if (index > 0) return usageBody(TITLE_CALL_PROMPT_TOKENS)
+      await new Promise((resolve) => setTimeout(resolve, SLOW_FIRST_RESPONSE_MS))
+      return usageBody(FIRST_CALL_PROMPT_TOKENS)
+    })
+    const { port } = await startProxy(upstream.url, logPath)
+    const url = `http://127.0.0.1:${String(port)}/agent/openwaggle/api/v1/chat/completions`
+    const send = (content: string) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${RUN_TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: MODEL, messages: [{ role: 'system', content }] }),
+      }).then((response) => response.text())
+    const first = send('first model call')
+    await new Promise((resolve) => setTimeout(resolve, ARRIVAL_GAP_MS))
+    await Promise.all([first, send('title call')])
+
+    const lines = (await readFile(logPath, 'utf8')).trim().split('\n')
+    // The log is in completion order: the title call is written first.
+    expect(JSON.parse(lines[0] ?? '{}')).toMatchObject({ seq: 2, request: { messages: [{ content: 'title call' }] } })
+    expect(firstRequestOf(lines)).toMatchObject({ messages: [{ content: 'first model call' }] })
+    await writeFile(path.join(directory, 'openwaggle.proxy.jsonl'), `${lines.join('\n')}\n`)
+    execFileSync('python3', [PARSE_RESULTS, directory], { stdio: 'ignore' })
+    const results = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'))
+    expect(results.agents.openwaggle).toMatchObject({ turnOneTokens: FIRST_CALL_PROMPT_TOKENS, modelCalls: 2 })
   })
 
   it('refuses to start without the real key, the run token or the model', () => {

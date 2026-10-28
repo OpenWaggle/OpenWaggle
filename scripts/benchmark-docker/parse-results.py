@@ -28,6 +28,13 @@ def read_jsonl(path: Path):
     return events
 
 
+def arrival_order(records):
+    """The proxy appends a record when its response ends, so the log is in completion order: a
+    short title call that overlaps the first model call can come first. Sort by the arrival
+    sequence the proxy records (records without one, from older logs, keep file order)."""
+    return sorted(records, key=lambda record: record.get("seq", float("inf")))
+
+
 def wire_truth(results_dir: Path, agent: str):
     """First model call's prompt tokens from the proxy log, plus call count.
 
@@ -36,7 +43,7 @@ def wire_truth(results_dir: Path, agent: str):
     injected = input + cache_creation + cache_read.
     """
     events = read_jsonl(results_dir / f"{agent}.proxy.jsonl")
-    posts = [event for event in events if event.get("command") == "POST"]
+    posts = arrival_order([event for event in events if event.get("command") == "POST"])
     for record in posts:
         prompts = []
         for usage in record.get("usage_events", []):
