@@ -11,6 +11,8 @@ interface LazyStartHost {
   /** Opens the server process (or HTTP session). */
   readonly startUpstream: () => Promise<void>
   readonly close: () => void
+  /** Whether OpenWaggle closed the connection on purpose, rather than the server failing. */
+  readonly closedByOwner: () => boolean
   readonly sendInternal: (method: string, params: unknown) => Promise<unknown>
   readonly leases: () => Iterable<McpConnectionLease>
   readonly options: Pick<McpPooledConnectionOptions, 'observeResult' | 'adaptResult'>
@@ -42,7 +44,8 @@ export class McpConnectionLazyStart {
   /**
    * Starts the server and initializes it as its clients were, then checks its tools against the
    * catalog they were given. A server that cannot start loses its catalog, so the next Session
-   * starts it at once and shows why.
+   * starts it at once and shows why. A start OpenWaggle interrupted by closing the connection (an
+   * idle close, an eviction, an archive) keeps it (review R5 P3-1).
    */
   wake() {
     if (this.started) return Promise.resolve()
@@ -52,7 +55,7 @@ export class McpConnectionLazyStart {
         this.started = true
         await this.host.handshake.replay()
       } catch (error) {
-        this.host.catalog.forget()
+        if (!this.host.closedByOwner()) this.host.catalog.forget()
         this.host.close()
         throw error
       }

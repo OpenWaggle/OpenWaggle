@@ -42,6 +42,11 @@ const RETIRE_GRACE_MS = 30_000
  */
 export class McpPooledConnection {
   private closed = false
+  /**
+   * Closed by OpenWaggle (idle close, eviction, archive, a settings change, Host stop), not by a
+   * failure of the server: a lazy start it interrupts says nothing against the catalog.
+   */
+  private closedByOwner = false
   /** No longer offered to new clients; closes once its open requests are answered. */
   private retiring = false
   private lastErrorValue: string | undefined
@@ -104,6 +109,7 @@ export class McpPooledConnection {
       handshake: this.handshake,
       startUpstream: () => this.slot.start(),
       close: () => void this.close(),
+      closedByOwner: () => this.closedByOwner,
       sendInternal: (method, params) => this.sendInternal(method, params),
       leases: () => this.leases,
     })
@@ -166,8 +172,10 @@ export class McpPooledConnection {
   }
 
   async close() {
-    if (!this.closed)
+    if (!this.closed) {
+      this.closedByOwner = true
       this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
+    }
     await this.slot.release()
   }
 

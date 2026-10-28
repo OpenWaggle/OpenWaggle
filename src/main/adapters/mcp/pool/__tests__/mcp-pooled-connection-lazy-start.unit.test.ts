@@ -210,3 +210,30 @@ describe('catalogs of servers whose answers changed (review R5 P2-5)', () => {
     expect(off.store.read('browser-key')).toBeUndefined()
   })
 })
+
+describe('a lazy start OpenWaggle interrupts (review R5 P3-1)', () => {
+  it('keeps the catalog when the connection is closed on purpose while its server starts', async () => {
+    const { store, pool, spec } = harness()
+    store.write('browser-key', seeded())
+    const opening = Promise.withResolvers<void>()
+    const slow = {
+      ...spec,
+      open: async () => {
+        await opening.promise
+        return spec.open()
+      },
+    }
+    const lease = pool.lease('s1', slow)
+    await connect(lease)
+    const call = lease.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'x' } })
+    await flush()
+
+    // An idle close, an eviction or an archive lands while the call wakes the server.
+    await pool.closeSession('s1')
+    opening.resolve()
+    await call.catch(() => undefined)
+    await flush()
+
+    expect(store.read('browser-key')).toBeDefined()
+  })
+})
