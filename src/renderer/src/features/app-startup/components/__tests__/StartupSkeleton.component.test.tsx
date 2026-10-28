@@ -7,11 +7,11 @@ import { StartupSkeleton } from '../StartupSkeleton'
 // Component tests run from the repository root.
 const INDEX_HTML = path.resolve('src/renderer/index.html')
 
-/** The markup the page paints before its scripts run: everything inside `#root`. */
+/** The markup the page paints before its scripts run, in its `#startup-frame` cover. */
 function pageStartupFrame() {
   const html = readFileSync(INDEX_HTML, 'utf8')
-  const match = /<div id="root">([\s\S]*?<\/main>)<\/div>/u.exec(html)
-  if (!match?.[1]) throw new Error('index.html has no startup frame inside #root')
+  const match = /<div id="startup-frame"[^>]*>([\s\S]*?<\/main>)<\/div>/u.exec(html)
+  if (!match?.[1]) throw new Error('index.html has no startup frame')
   return match[1]
 }
 
@@ -41,6 +41,13 @@ describe('startup frame', () => {
     expect(comparable(pageStartupFrame())).toBe(
       comparable(renderToStaticMarkup(<StartupSkeleton />)),
     )
+  })
+
+  it("covers the window from outside React's root, hidden from assistive technology", () => {
+    const html = readFileSync(INDEX_HTML, 'utf8')
+
+    expect(html).toContain('<div id="root"></div>')
+    expect(html).toContain('<div id="startup-frame" aria-hidden="true" class="fixed inset-0">')
   })
 
   it('warms the fonts only once React renders the frame, after the first paint', () => {

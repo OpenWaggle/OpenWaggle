@@ -15,11 +15,14 @@
     <script>(()=>{try{const s=JSON.parse(localStorage.getItem('openwaggle.last-appearance-preferences.v1')??'null')?.typography?.interfaceScale;if(typeof s==='number'&&s>=85&&s<=125&&s!==100)document.documentElement.style.fontSize=`${s}%`}catch{}})()</script>
   </head>
   <body>
+    <div id="root"></div>
     <!--
       The startup frame (StartupSkeleton.tsx, kept identical by a component test), painted before
-      the renderer's scripts run; React replaces it with the same frame, then the shell.
+      the renderer's scripts run. It stays over the window until the app shows the shell, the Host
+      error screen or the update notice (static-startup-frame.ts): replaced earlier, the browser
+      would drop its first paint as the largest contentful one. React renders the same frame below.
     -->
-    <div id="root"><main data-startup-skeleton="" aria-busy="true" aria-label="OpenWaggle is starting" class="flex size-full overflow-hidden bg-bg"><div class="flex h-full w-79 shrink-0 flex-col border-r border-border bg-bg-secondary"><div class="drag-region h-8 shrink-0"></div><div class="drag-region flex shrink-0 items-center px-3.5 pt-2.5 pb-1.5"><img src="./src/assets/openwaggle-lockup.png" alt="OpenWaggle" class="h-7 w-auto object-contain"/></div></div><div class="flex min-w-0 flex-1 flex-col overflow-hidden"><div class="drag-region h-12 shrink-0 border-b border-border bg-bg"></div><div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6"><img src="./src/assets/openwaggle-mark.png?inline" alt="" decoding="sync" class="size-20 object-contain"/></div><div class="shrink-0 px-5 pb-5"><div aria-hidden="true" class="mx-auto h-24 w-full max-w-3xl rounded-xl border border-border bg-bg-secondary opacity-60"></div></div></div></main></div>
+    <div id="startup-frame" aria-hidden="true" class="fixed inset-0"><main data-startup-skeleton="" aria-busy="true" aria-label="OpenWaggle is starting" class="flex size-full overflow-hidden bg-bg"><div class="flex h-full w-79 shrink-0 flex-col border-r border-border bg-bg-secondary"><div class="drag-region h-8 shrink-0"></div><div class="drag-region flex shrink-0 items-center px-3.5 pt-2.5 pb-1.5"><img src="./src/assets/openwaggle-lockup.png" alt="OpenWaggle" class="h-7 w-auto object-contain"/></div></div><div class="flex min-w-0 flex-1 flex-col overflow-hidden"><div class="drag-region h-12 shrink-0 border-b border-border bg-bg"></div><div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6"><img src="./src/assets/openwaggle-mark.png?inline" alt="" decoding="sync" class="size-20 object-contain"/></div><div class="shrink-0 px-5 pb-5"><div aria-hidden="true" class="mx-auto h-24 w-full max-w-3xl rounded-xl border border-border bg-bg-secondary opacity-60"></div></div></div></main></div>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

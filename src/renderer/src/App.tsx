@@ -6,6 +6,7 @@ import {
   retryGuiStartup,
   StartupSkeleton,
   useGuiStartupStatus,
+  useStaticStartupFrameUntil,
 } from '@/features/app-startup'
 import { usePreferences, useSettingsSetup } from '@/features/settings/hooks'
 import { router, useInitialRouteLoadSettled } from '@/router'
@@ -22,6 +23,8 @@ const FINISHING_UPDATE_NOTICE = 'Finishing an update…'
  */
 function AppStartupView() {
   const startup = useGuiStartupStatus()
+  // The page's frame shows neither the Host error screen nor the update notice.
+  useStaticStartupFrameUntil(startup.state === 'starting' || startup.state === 'ready')
   if (startup.state === 'failed') {
     return (
       <HostStartupErrorView
@@ -86,7 +89,9 @@ export function App() {
 
   // Keep the skeleton until the launch route has loaded too, so the first route render does not
   // suspend and React does not hold the reveal for its fallback throttle (renderer-load B1).
-  if (!isLoaded || (loadError === null && !initialRouteLoadSettled)) {
+  const starting = !isLoaded || (loadError === null && !initialRouteLoadSettled)
+  useStaticStartupFrameUntil(starting)
+  if (starting) {
     return <AppStartupView />
   }
 
