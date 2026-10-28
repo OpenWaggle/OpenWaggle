@@ -1,5 +1,5 @@
 import { fromPartial } from '@total-typescript/shoehorn'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createDomViewportGeometry, firstRowIndexBelow } from '../transcript-viewport-geometry'
 
 /** A viewport-relative box; the unit environment has no DOM. */
@@ -76,5 +76,47 @@ describe('firstRowIndexBelow', () => {
   it('returns the row count when every row ends above the edge', () => {
     expect(firstRowIndexBelow(rows(3, []), 1_000)).toBe(3)
     expect(firstRowIndexBelow([], 0)).toBe(0)
+  })
+})
+
+describe('createDomViewportGeometry row lookup', () => {
+  function row(key: string, top: number) {
+    const state = { connected: true }
+    const element = fromPartial<HTMLElement>({
+      get isConnected() {
+        return state.connected
+      },
+      getAttribute: () => key,
+      getBoundingClientRect: () => rect(top, 50),
+    })
+    return { element, unmount: () => (state.connected = false) }
+  }
+
+  it('finds a row once while it stays mounted, and again once it is replaced', () => {
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    const first = row('message:a', 100)
+    const querySelector = vi.fn(() => first.element)
+    const content = fromPartial<HTMLElement>({
+      querySelector,
+      contains: (node: HTMLElement) => node.isConnected,
+    })
+    const scroller = fromPartial<HTMLElement>({ getBoundingClientRect: () => rect(0, 500) })
+    const geometry = createDomViewportGeometry({
+      scroller: () => scroller,
+      content: () => content,
+      endSpace: () => null,
+    })
+
+    expect(geometry.getRowTop('message:a')).toBe(100)
+    expect(geometry.getRowHeight('message:a')).toBe(50)
+    expect(geometry.getRowTop('message:a')).toBe(100)
+    expect(querySelector).toHaveBeenCalledTimes(1)
+
+    first.unmount()
+    const replacement = row('message:a', 160)
+    querySelector.mockReturnValue(replacement.element)
+    expect(geometry.getRowTop('message:a')).toBe(160)
+    expect(querySelector).toHaveBeenCalledTimes(2)
+    vi.unstubAllGlobals()
   })
 })
