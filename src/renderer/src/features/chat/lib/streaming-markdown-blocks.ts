@@ -3,9 +3,15 @@
  *
  * A completed block never changes again while the answer streams, so it is parsed and rendered
  * once; only the tail is re-read per token. Blocks end:
- * - after a blank line outside fenced code;
+ * - after a blank line outside fenced code, once the next non-blank line shows it does not continue
+ *   the block: a list continues across a blank line into an indented line or the next item, and
+ *   any block into a line indented as code (or as a footnote's or list item's next paragraph);
  * - before a fence that opens at column 0 (a fence ends any paragraph, list, quote, or table above
  *   it), and after that fence's closing line.
+ *
+ * Each block is parsed as a document of its own, so a block must never end where the whole text
+ * would read on: a loose list cut at its blank lines rendered as several lists and paragraphs while
+ * streaming, and as one list once settled.
  *
  * A tail that is a column-0 fence still open is code the reader sees as plain text until it
  * closes, so it is not parsed at all: re-parsing a long open fence on every token was quadratic.
@@ -49,15 +55,47 @@ const TILDE = '~'
 const MIN_FENCE_LENGTH = 3
 const MAX_FENCE_INDENT = 3
 const SPACE = ' '
+const TAB = '\t'
+/** A tab moves to the next multiple of four columns, as CommonMark reads indentation. */
+const TAB_STOP = 4
+/** Indented this far, a line is code, or the next paragraph of a footnote or list item. */
+const INDENTED_CODE_COLUMNS = 4
+/** A list item's marker: a bullet, or up to nine digits with `.` or `)`, then a space or the end. */
+const LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/u
+/** A line still streaming that may yet become a list marker. */
+const PARTIAL_LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)]?)$/u
 
 /**
- * A link reference definition anywhere: one makes links in other blocks resolve, so blocks that
- * hold one are parsed together. Matches inside quotes and list items too, where definitions are
- * still global.
+ * A link reference or footnote definition anywhere: one makes references in other blocks resolve,
+ * so text that holds one is read as one document, the live tail included (a definition still
+ * streaming resolves references in blocks above it). Matches inside quotes and list items too,
+ * where definitions are still global.
  */
 const REFERENCE_DEFINITION_PATTERN = /^[ \t>]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?\[[^\]\n]+\]:/mu
 /** An HTML block runs to the next blank line, past any fence line inside it. */
 const HTML_BLOCK_START_PATTERN = /^ {0,3}</u
+/**
+ * The HTML blocks that run past blank lines, to their end marker (CommonMark HTML block kinds 1–5):
+ * raw text elements, comments, processing instructions, declarations and CDATA.
+ */
+const RAW_HTML_BLOCKS: ReadonlyArray<{ readonly start: RegExp; readonly end: RegExp }> = [
+  {
+    start: /^ {0,3}<(?:pre|script|style|textarea)(?:[\s>]|$)/iu,
+    end: /<\/(?:pre|script|style|textarea)>/iu,
+  },
+  { start: /^ {0,3}<!--/u, end: /-->/u },
+  { start: /^ {0,3}<\?/u, end: /\?>/u },
+  { start: /^ {0,3}<![A-Za-z]/u, end: />/u },
+  { start: /^ {0,3}<!\[CDATA\[/u, end: /\]\]>/u },
+]
+
+/** The end marker of a raw HTML block the line opens and does not close, if any. */
+function rawHtmlBlockEnd(line: string) {
+  const kind = RAW_HTML_BLOCKS.find((candidate) => candidate.start.test(line))
+  if (!kind) return null
+  const opening = line.match(kind.start)?.[0].length ?? 0
+  return kind.end.test(line.slice(opening)) ? null : kind.end
+}
 
 interface FenceRun {
   readonly character: '`' | '~'
@@ -95,6 +133,38 @@ function closesFence(run: FenceRun | null, fence: Fence) {
 
 function isBlank(line: string) {
   return line.trim().length === 0
+}
+
+/** The line's indentation in columns, and the text after it. */
+function indentation(line: string) {
+  let columns = 0
+  let index = 0
+  while (index < line.length && (line[index] === SPACE || line[index] === TAB)) {
+    columns = line[index] === TAB ? columns + TAB_STOP - (columns % TAB_STOP) : columns + 1
+    index += 1
+  }
+  return { columns, rest: line.slice(index) }
+}
+
+/** A list item's line, at most three columns in, as CommonMark starts one. */
+function isListItemLine(line: string) {
+  const { columns, rest } = indentation(line)
+  return columns < INDENTED_CODE_COLUMNS && LIST_MARKER_PATTERN.test(rest)
+}
+
+type Continuation = 'continues' | 'ends' | 'undecided'
+
+/**
+ * Whether the first non-blank line after a blank line continues the block above it. Unsure means
+ * it continues: parsing two blocks together reads them as the whole text does.
+ */
+function continuation(line: MarkdownLine, blockHasList: boolean): Continuation {
+  const { columns, rest } = indentation(line.text)
+  if (columns >= INDENTED_CODE_COLUMNS) return 'continues'
+  if (!blockHasList) return 'ends'
+  if (columns > 0) return 'continues'
+  if (LIST_MARKER_PATTERN.test(rest)) return 'continues'
+  return !line.complete && PARTIAL_LIST_MARKER_PATTERN.test(rest) ? 'undecided' : 'ends'
 }
 
 function fenceLanguage(openingLine: string) {
@@ -140,46 +210,78 @@ class BlockBoundaryScanner {
   private blockStart = 0
   private blockHasHtml = false
   private blockHasContent = false
+  private blockHasList = false
+  /** After the block's first blank line: where it ends unless the next non-blank line goes on. */
+  private blankEnd: number | null = null
+  /** The end marker of the raw HTML block open here: blank lines inside it end nothing. */
+  private rawHtmlEnd: RegExp | null = null
 
   /** Ends the block at `offset`; blank lines before a block's content stay with that block. */
-  private endBlockAt(offset: number) {
+  endBlockAt(offset: number) {
     if (this.blockHasContent && offset > this.blockStart) {
       this.boundaries.push(offset)
       this.blockStart = offset
     }
     this.blockHasHtml = false
     this.blockHasContent = false
+    this.blockHasList = false
+    this.blankEnd = null
+    this.rawHtmlEnd = null
+  }
+
+  /** Ends the block at its blank line unless `line` continues it; `false` while that is unknown. */
+  private resolveBlankLine(line: MarkdownLine) {
+    if (this.blankEnd === null || isBlank(line.text)) return true
+    const next = continuation(line, this.blockHasList)
+    if (next === 'undecided') return false
+    if (next === 'ends') this.endBlockAt(this.blankEnd)
+    else this.blankEnd = null
+    return true
+  }
+
+  private readRawHtml(line: MarkdownLine, end: RegExp) {
+    if (!line.complete) return false
+    if (end.test(line.text)) this.rawHtmlEnd = null
+    return true
+  }
+
+  private readFenced(line: MarkdownLine, run: FenceRun | null, fence: Fence) {
+    // A closing line still streaming already closes it: CommonMark closes a fence at the end.
+    if (!closesFence(run, fence)) return true
+    this.fence = null
+    if (line.complete && fence.topLevel) this.endBlockAt(line.end)
+    return true
+  }
+
+  private openFence(line: MarkdownLine, run: FenceRun) {
+    const topLevel = run.indent === 0 && !this.blockHasHtml
+    if (topLevel) this.endBlockAt(line.start)
+    this.fence = { character: run.character, length: run.length, topLevel, start: line.start }
+    this.blockHasContent = true
+    return true
   }
 
   /** Reads one line; `false` once a line still streaming ends the scan. */
   read(line: MarkdownLine) {
     const run = fenceRun(line.text)
     const fence = this.fence
-    if (fence) {
-      // A closing line still streaming already closes it: CommonMark closes a fence at the end.
-      if (!closesFence(run, fence)) return true
-      this.fence = null
-      if (line.complete && fence.topLevel) this.endBlockAt(line.end)
-      return true
-    }
-    if (run && opensFence(run)) {
-      const topLevel = run.indent === 0 && !this.blockHasHtml
-      if (topLevel) this.endBlockAt(line.start)
-      this.fence = { character: run.character, length: run.length, topLevel, start: line.start }
-      this.blockHasContent = true
-      return true
-    }
+    if (!fence && !this.resolveBlankLine(line)) return false
+    if (this.rawHtmlEnd) return this.readRawHtml(line, this.rawHtmlEnd)
+    if (fence) return this.readFenced(line, run, fence)
+    if (run && opensFence(run)) return this.openFence(line, run)
     const blank = isBlank(line.text)
     if (!line.complete) {
       this.blockHasContent ||= !blank
       return false
     }
     if (blank) {
-      this.endBlockAt(line.end)
+      if (this.blockHasContent) this.blankEnd ??= line.end
       return true
     }
     this.blockHasContent = true
     this.blockHasHtml ||= HTML_BLOCK_START_PATTERN.test(line.text)
+    this.blockHasList ||= isListItemLine(line.text)
+    this.rawHtmlEnd = rawHtmlBlockEnd(line.text)
     return true
   }
 }
@@ -193,11 +295,29 @@ function completedBlocks(text: string, boundaries: readonly number[]): Streaming
   })
 }
 
-export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
+function scan(text: string) {
   const scanner = new BlockBoundaryScanner()
   for (const line of markdownLines(text)) {
     if (!scanner.read(line)) break
   }
+  return scanner
+}
+
+/**
+ * The blocks of text that ends where a split ended a block (the text before a split's tail): the
+ * same blocks the split found there, its end included, though no line after it shows it ended.
+ */
+export function completedMarkdownBlocks(prefix: string): StreamingMarkdownBlock[] {
+  const scanner = scan(prefix)
+  scanner.endBlockAt(prefix.length)
+  return completedBlocks(prefix, scanner.boundaries)
+}
+
+export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
+  if (REFERENCE_DEFINITION_PATTERN.test(text)) {
+    return { blocks: [], tail: text ? { kind: 'markdown', start: 0, text } : null }
+  }
+  const scanner = scan(text)
   const blocks = completedBlocks(text, scanner.boundaries)
   const prefixEnd = scanner.boundaries.at(-1) ?? 0
   if (prefixEnd >= text.length) return { blocks, tail: null }
