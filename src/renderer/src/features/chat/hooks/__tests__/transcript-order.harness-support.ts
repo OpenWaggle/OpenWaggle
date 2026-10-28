@@ -3,6 +3,16 @@ import { act } from '@testing-library/react'
 /** How far the renderer's clock runs behind each event's Host timestamp. */
 export const DEFAULT_LAG_MS = 50
 
+export interface TranscriptOrderHarnessOptions {
+  readonly lagMs?: number
+  /**
+   * Streamed deltas coalesce in the GUI main process (`transcript-order.main-delivery.ts`) and
+   * reach the window only on `flushDeltas`, another event of the Session, or a stream buffer read.
+   * Off, every event reaches the window as the Host publishes it.
+   */
+  readonly coalesceDeltas?: boolean
+}
+
 export type RunEndTail = 'compaction' | 'stoppedRetry'
 
 export interface EndRunOptions {

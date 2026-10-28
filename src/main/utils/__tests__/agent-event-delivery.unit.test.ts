@@ -135,6 +135,23 @@ describe('AgentEventDelivery', () => {
     ])
   })
 
+  it('flushes only the named Session on a stream buffer read', () => {
+    const delivery = new AgentEventDelivery()
+    const window = target()
+    delivery.setShownSessions(window.value.id, [SHOWN])
+    delivery.deliver([window.value], OTHER, textDelta('background', 1))
+    delivery.deliver([window.value], SHOWN, textDelta('shown', 2))
+
+    delivery.flushSession([window.value], OTHER)
+
+    expect(window.sent).toEqual([{ sessionId: OTHER, event: textDelta('background', 1) }])
+    vi.advanceTimersByTime(BACKGROUND_SESSION_FLUSH_MS)
+    expect(window.sent).toEqual([
+      { sessionId: OTHER, event: textDelta('background', 1) },
+      { sessionId: SHOWN, event: textDelta('shown', 2) },
+    ])
+  })
+
   it('forgets a closed window', () => {
     const delivery = new AgentEventDelivery()
     const window = target()

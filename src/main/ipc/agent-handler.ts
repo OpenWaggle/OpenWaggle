@@ -17,7 +17,7 @@ import { cleanupSessionRun } from '../agent/session-cleanup'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
-import { setWindowShownSessions } from '../utils/broadcast'
+import { readAfterFlushingSession, setWindowShownSessions } from '../utils/broadcast'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -209,7 +209,9 @@ function registerAgentStateHandlers() {
   )
 
   typedHandle('agent:get-background-run', (_event, sessionId: SessionId) =>
-    Effect.sync(() => getStreamBuffer(sessionId)),
+    // The snapshot holds every delta the buffer has seen; the ones still coalescing go out first,
+    // so none reaches the window after a snapshot that already contains its text.
+    Effect.sync(() => readAfterFlushingSession(sessionId, () => getStreamBuffer(sessionId))),
   )
 
   hostHandle('agent:list-active-runs')
