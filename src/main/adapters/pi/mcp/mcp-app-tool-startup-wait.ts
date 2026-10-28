@@ -4,15 +4,24 @@ import {
   getMcpToolExposure,
   type McpServerEntry,
 } from '@earendil-works/pi-coding-agent'
+import { mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { mcpAppToolNames } from './mcp-app-registry'
 import { type CachedMcpAppTools, knownMcpAppTools } from './mcp-openwaggle-exposure'
+import { knownMcpServerState } from './mcp-server-status-registry'
 
 const POLL_INTERVAL_MS = 10
+
+/** A server last seen failing or signed out: it lists no tools until that changes. */
+function lastSeenUnusable(server: McpServerEntry) {
+  const state = knownMcpServerState(mcpServerIdentity(server.name, server.config))?.state
+  return state === 'failed' || state === 'needs-sign-in'
+}
 
 /**
  * Servers a Run cannot yet tell whether they offer MCP App tools: on, not hidden, and listed
  * nowhere (not in this Session, this Host, or a cached catalog). Only these can add a declared
- * tool after the first request.
+ * tool after the first request. A server last seen failing or needing sign-in is known to offer
+ * none for now (review R5 P2-2).
  */
 function serversWithUnknownApps(
   sessionId: string,
@@ -23,7 +32,8 @@ function serversWithUnknownApps(
     (server) =>
       server.config.enabled !== false &&
       (server.config.exposure ?? 'codemode') !== 'hidden' &&
-      knownMcpAppTools(sessionId, server, cached) === undefined,
+      knownMcpAppTools(sessionId, server, cached) === undefined &&
+      !lastSeenUnusable(server),
   )
 }
 
@@ -55,6 +65,11 @@ export function registerUnknownMcpAppToolWait(
     readonly waitMs: number
     /** Whether Pi registered the MCP tool labelled `<server>/<tool>` in this session. */
     readonly registered: (label: string) => boolean
+    /**
+     * Whether the server's connection in this Session failed or closed since the Run leased it:
+     * it will not list tools in this Run, so the wait stops for it.
+     */
+    readonly failed?: (server: McpServerEntry) => boolean
   },
 ) {
   let waiting: readonly McpServerEntry[] = []
@@ -68,8 +83,13 @@ export function registerUnknownMcpAppToolWait(
     if (servers.length === 0) return
     const deadline = Date.now() + input.waitMs
     while (Date.now() < deadline && !ctx.signal?.aborted) {
-      if (servers.every((server) => listedAndRegistered(input.registered, input.sessionId, server)))
-        return
+      const settled = servers.every(
+        (server) =>
+          input.failed?.(server) === true ||
+          lastSeenUnusable(server) ||
+          listedAndRegistered(input.registered, input.sessionId, server),
+      )
+      if (settled) return
       await sleep(POLL_INTERVAL_MS)
     }
   })

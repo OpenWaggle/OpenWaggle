@@ -277,8 +277,13 @@ export async function createOpenWaggleMcpExtensions(
         ),
         startupWaitMs: MCP_STARTUP_WAIT_MS,
       }),
-      // A server never listed (cold profile) may still offer an App tool: wait for it too (C2).
-      { waitMs: MCP_STARTUP_WAIT_MS, cached: cachedAppTools },
+      // A server never listed (cold profile) may still offer an App tool: wait for it too (C2),
+      // but not for one whose connection failed.
+      {
+        waitMs: MCP_STARTUP_WAIT_MS,
+        cached: cachedAppTools,
+        failed: (server) => input.pool.connectionFailed(input.sessionId, server.name),
+      },
     ),
   )
   return [

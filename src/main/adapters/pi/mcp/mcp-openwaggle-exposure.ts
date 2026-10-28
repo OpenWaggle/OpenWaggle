@@ -36,7 +36,12 @@ export function withOpenWaggleMcpExposure(
   loaded: { readonly servers: readonly McpServerEntry[] },
   factory: ExtensionFactory,
   /** The first request also waits for servers whose App tools are not known yet, this long. */
-  unknownApps?: { readonly waitMs: number; readonly cached?: CachedMcpAppTools },
+  unknownApps?: {
+    readonly waitMs: number
+    readonly cached?: CachedMcpAppTools
+    /** Whether the server's connection failed in this Run, so it will not list its tools. */
+    readonly failed?: (server: McpServerEntry) => boolean
+  },
 ): ExtensionFactory {
   return (pi) => {
     const registeredLabels = new Set<string>()

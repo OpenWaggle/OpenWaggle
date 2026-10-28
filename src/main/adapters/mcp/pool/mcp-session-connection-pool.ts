@@ -75,6 +75,17 @@ export class McpSessionConnectionPool {
     return server && !server.connection.isClosed ? server.connection : undefined
   }
 
+  /**
+   * Whether a Run of the Session leased the server and its connection then failed or closed: it
+   * lists no tools until Pi reconnects it. False before the lease.
+   */
+  connectionFailed(sessionId: string, serverName: string) {
+    const session = this.sessions.get(sessionId)
+    if (!session?.leased.has(serverName)) return false
+    const server = session.servers.get(serverName)
+    return !server || server.connection.isClosed
+  }
+
   /** The Session's connection to a server, opened when it has none. */
   connectionFor(sessionId: string, spec: McpPooledServerSpec) {
     // A Run's lease and an MCP App request alike: a Session closed on purpose stays closed.

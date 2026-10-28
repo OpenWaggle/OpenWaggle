@@ -10,6 +10,7 @@ export type McpConnectionPool = Pick<
   McpSessionConnectionPool,
   | 'lease'
   | 'connection'
+  | 'connectionFailed'
   | 'connectionFor'
   | 'connectionStates'
   | 'closeServerIdentity'
