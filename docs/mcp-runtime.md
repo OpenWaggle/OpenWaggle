@@ -485,6 +485,9 @@ a lease on the pool, which can answer without a server process:
   for the server before the first request. A server none of them knows (a cold profile) is waited
   for too, at most `MCP_STARTUP_WAIT_MS`, until it listed and Pi registered its App tools
   (`mcp-app-tool-startup-wait.ts`), so the declared tools do not change between turn 1 and turn 2.
+  The wait stops for a server whose connection in this Session failed, or that a check or listing
+  saw failing or signed out after the Run started; an older Host-wide state (kept by identity, with
+  no project) does not skip it.
 - **Stable `<mcp_servers>` (C9).** A server without a configured `description` is described by the
   first line of its cached `instructions`, so the section Pi renders is the same before and after
   the server connects.
