@@ -8,7 +8,13 @@ const {
   probeLocalSessionHostMock,
   startRemoteSessionHostRendererBridgeMock,
   stopRendererBridgeMock,
+  waitForLocalSessionHostReleaseMock,
+  UpgradePendingError,
 } = vi.hoisted(() => ({
+  waitForLocalSessionHostReleaseMock: vi.fn(
+    async (_endpoint: string, _options?: { readonly signal?: AbortSignal }) => false,
+  ),
+  UpgradePendingError: class extends Error {},
   releaseSessionHostForUpdateMock: vi.fn(async () => 'stopped'),
   configureGuiSessionCommandClientMock: vi.fn(),
   ensureLocalSessionHostMock: vi.fn(
@@ -24,14 +30,14 @@ vi.mock('../../application/gui-session-command-router', () => ({
   configureGuiSessionCommandClient: configureGuiSessionCommandClientMock,
 }))
 vi.mock('../local-session-client', () => ({
-  LocalSessionHostUpgradePendingError: class extends Error {},
+  LocalSessionHostUpgradePendingError: UpgradePendingError,
   probeLocalSessionHost: probeLocalSessionHostMock,
 }))
 vi.mock('../local-session-host-launcher', () => ({
   ensureLocalSessionHost: ensureLocalSessionHostMock,
   isLocalSessionHostUnavailable: (error: unknown) =>
     typeof error === 'object' && error !== null && 'code' in error,
-  waitForLocalSessionHostRelease: vi.fn(async () => false),
+  waitForLocalSessionHostRelease: waitForLocalSessionHostReleaseMock,
 }))
 vi.mock('../local-session-paths', () => ({
   prepareLocalSessionHostPaths: prepareLocalSessionHostPathsMock,
@@ -74,6 +80,7 @@ describe('GUI Session Host lifecycle', () => {
     startRemoteSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
     stopRendererBridgeMock.mockReset()
     releaseSessionHostForUpdateMock.mockClear()
+    waitForLocalSessionHostReleaseMock.mockReset().mockResolvedValue(false)
   })
 
   it('leaves the detached Host running on a normal quit', async () => {
@@ -111,6 +118,65 @@ describe('GUI Session Host lifecycle', () => {
     expect(releaseSessionHostForUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ clientVersion: 'test', clientKind: 'gui' }),
     )
+  })
+
+  it('stops waiting for an updating Host to hand over once the start is aborted', async () => {
+    probeLocalSessionHostMock.mockRejectedValue(new UpgradePendingError('updating'))
+    waitForLocalSessionHostReleaseMock.mockImplementation(
+      (_endpoint, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason))
+        }),
+    )
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    const controller = new AbortController()
+    const start = lifecycle.start(controller.signal)
+    const outcome = start.then(
+      () => 'attached',
+      () => 'stopped',
+    )
+    await vi.waitFor(() => expect(waitForLocalSessionHostReleaseMock).toHaveBeenCalled())
+
+    controller.abort(new Error('Startup was retried.'))
+    const pending = new Promise((resolve) => setTimeout(() => resolve('still waiting'), 50))
+    expect(await Promise.race([outcome, pending])).toBe('stopped')
+  })
+
+  it('says when an updating Host has handed over, so the startup deadline applies again', async () => {
+    probeLocalSessionHostMock.mockRejectedValueOnce(new UpgradePendingError('updating'))
+    waitForLocalSessionHostReleaseMock.mockResolvedValueOnce(true)
+    const order: string[] = []
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+      onUpgradePending: () => order.push('updating'),
+      onUpgradeReleased: () => order.push('updated'),
+    })
+
+    await lifecycle.start()
+
+    expect(order).toEqual(['updating', 'updated'])
+    expect(isGuiAttachedToRemoteSessionHost()).toBe(true)
+  })
+
+  it('attaches once when started again while attached', async () => {
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    await lifecycle.start()
+    await lifecycle.start()
+
+    // A second bridge would forward every Host event twice, and the first would never stop.
+    expect(startRemoteSessionHostRendererBridgeMock).toHaveBeenCalledOnce()
+    await lifecycle.stop()
+    expect(stopRendererBridgeMock).toHaveBeenCalledOnce()
   })
 
   it('attaches to an existing detached Host and awaits bridge shutdown before detaching', async () => {

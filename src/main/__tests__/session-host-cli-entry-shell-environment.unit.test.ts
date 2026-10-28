@@ -32,6 +32,9 @@ const mocks = vi.hoisted(() => {
       fromCache: false,
     })),
     disableHardwareAcceleration: vi.fn(),
+    installSessionBus: vi.fn(() => void order.push('session-bus')),
+    refreshedSince: vi.fn((): number | undefined => undefined),
+    whenReady: vi.fn(async () => void order.push('when-ready')),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
     hostLogError: vi.fn(),
@@ -55,7 +58,7 @@ vi.mock('electron', () => ({
     exit: mocks.exit,
     getPath: vi.fn(() => '/tmp/openwaggle-profile'),
     getVersion: vi.fn(() => '1.0.0'),
-    whenReady: vi.fn(async () => undefined),
+    whenReady: mocks.whenReady,
     setActivationPolicy: vi.fn(),
     disableHardwareAcceleration: mocks.disableHardwareAcceleration,
     on: vi.fn(),
@@ -70,6 +73,8 @@ vi.mock('../env', () => ({
   logLevel: 'error',
   installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
     mocks.installShellEnvironment(options),
+  installLinuxSessionBusEnvironment: () => mocks.installSessionBus(),
+  takeShellEnvironmentRefreshedSince: () => mocks.refreshedSince(),
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
@@ -179,8 +184,23 @@ describe('detached Session Host shell environment and GPU', () => {
     expect(position('acquire-ownership')).toBeLessThan(position('shell-environment-started'))
     expect(position('shell-environment-started')).toBeLessThan(position('initialize-runtime'))
     expect(position('start-host')).toBeLessThan(position('shell-environment-refreshed'))
+    // Only the desktop app writes the cache: this Host may have been started from a terminal.
     expect(mocks.installShellEnvironment).toHaveBeenCalledWith({
       cacheFile: '/tmp/openwaggle-profile/shell-environment.json',
+      writeCache: false,
+    })
+  })
+
+  it('waits for the refresh of the desktop app that launched it instead of a second login shell', async () => {
+    mocks.refreshedSince.mockReturnValueOnce(1_800_000_000_000)
+
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
+
+    expect(mocks.installShellEnvironment).toHaveBeenLastCalledWith({
+      cacheFile: '/tmp/openwaggle-profile/shell-environment.json',
+      writeCache: false,
+      refreshedElsewhereSince: 1_800_000_000_000,
     })
   })
 
@@ -200,5 +220,12 @@ describe('detached Session Host shell environment and GPU', () => {
     expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
 
     expect(mocks.disableHardwareAcceleration).toHaveBeenCalledOnce()
+  })
+
+  it("fills the Linux session bus before Electron is ready, for Electron's secret store", () => {
+    mocks.order.length = 0
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+
+    expect(mocks.order.slice(0, 2)).toEqual(['session-bus', 'when-ready'])
   })
 })

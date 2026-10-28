@@ -14,15 +14,19 @@ import { releaseGuiBackendGate } from './gui-backend-gate'
 import type * as GuiRuntimeModule from './gui-runtime'
 import { type GuiStartupProgress, GuiStartupRestartRequiredError } from './gui-startup-coordinator'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
+import { awaitWithSignal } from './session-host/await-with-signal'
 import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
 } from './session-host/gui-session-host-lifecycle'
 import type { StartupMark } from './startup-timing'
 import type * as SettingsStore from './store/settings'
+import type * as UsageStatisticsGuiModule from './usage-statistics/usage-statistics-gui'
 import { userFacingErrorDetail } from './utils/describe-error'
 
 let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
+/** Shared, so two attempts never prepare (and cut a legacy store over) twice. */
+let sessionHostLifecyclePreparation: Promise<GuiSessionHostLifecycle> | null = null
 let cleanupDesktopServicesOnce: (() => Promise<void>) | null = null
 
 /** The Host lifecycle once a start prepared it; quit stops it. */
@@ -37,6 +41,7 @@ export function guiDesktopServicesCleanup() {
 
 export function clearGuiBackend() {
   sessionHostLifecycleOnce = null
+  sessionHostLifecyclePreparation = null
   cleanupDesktopServicesOnce = null
 }
 
@@ -72,16 +77,26 @@ export async function startGuiBackend(input: {
 }) {
   const { startupMark } = input
   const { signal } = input
-  if (!sessionHostLifecycleOnce) {
-    sessionHostLifecycleOnce = await prepareGuiSessionHostLifecycle({
-      userDataRoot: app.getPath('userData'),
-      clientVersion: app.getVersion(),
-      startupMark,
-      onUpgradePending: input.progress.updating,
-      onHostUnderway: input.onHostUnderway,
-    })
-  }
-  const lifecycle = sessionHostLifecycleOnce
+  sessionHostLifecyclePreparation ??= prepareGuiSessionHostLifecycle({
+    userDataRoot: app.getPath('userData'),
+    clientVersion: app.getVersion(),
+    startupMark,
+    onUpgradePending: input.progress.updating,
+    onUpgradeReleased: input.progress.updated,
+    onHostUnderway: input.onHostUnderway,
+  }).then(
+    (lifecycle) => {
+      sessionHostLifecycleOnce = lifecycle
+      return lifecycle
+    },
+    (error: unknown) => {
+      // A Retry prepares again.
+      sessionHostLifecyclePreparation = null
+      throw error
+    },
+  )
+  const lifecycle = await sessionHostLifecyclePreparation
+  signal.throwIfAborted()
   const hostStart = lifecycle.start(signal)
   // Unhandled until awaited below; a rejection is not lost meanwhile.
   hostStart.catch(() => undefined)
@@ -97,10 +112,14 @@ export async function startGuiBackend(input: {
   await runtimeModule.initializeGuiRuntime()
   startupMark('gui-runtime-initialized')
   await hostStart
+  let usageStatisticsModule: typeof UsageStatisticsGuiModule
   try {
     signal.throwIfAborted()
-    await hydrateSettingsFromHost(settingsStoreModule)
+    // An aborted attempt stops waiting for a Host that does not answer, so a Retry can begin.
+    await awaitWithSignal(hydrateSettingsFromHost(settingsStoreModule), signal)
     startupMark('settings-store-hydrated-from-host')
+    usageStatisticsModule = await import('./usage-statistics/usage-statistics-gui')
+    // The last point an aborted attempt can stop at: desktop services are not undone.
     signal.throwIfAborted()
   } catch (error) {
     // Detach, so a Retry attaches once more instead of beside this attachment.
@@ -109,7 +128,6 @@ export async function startGuiBackend(input: {
   }
   // Settings decide whether errors are reported; the window's switch did not wait (A-F16).
   void startErrorReporting('gui')
-  const usageStatisticsModule = await import('./usage-statistics/usage-statistics-gui')
   usageStatisticsModule.startGuiUsageStatistics()
 
   // Desktop services start without the login-shell probe: terminals, project actions and git

@@ -1,5 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -28,7 +30,7 @@ function decide(overrides: Partial<SessionHostPrelaunchDecisionInput> = {}) {
     userDataRoot: PROFILE,
     temporaryRoot: () => TEMPORARY_ROOT,
     pathExists: () => false,
-    fileHasContent: () => false,
+    legacyStorePresent: () => false,
     ...overrides,
   })
 }
@@ -68,14 +70,16 @@ describe('sessionHostPrelaunchDecision', () => {
   })
 
   it('leaves a legacy store to the GUI, which moves it under its single-instance lock', () => {
-    const fileHasContent = (target: string) => target === LEGACY_DATABASE
+    const legacyStorePresent = (target: string) => target === LEGACY_DATABASE
 
-    expect(decide({ fileHasContent })).toEqual({ kind: 'skip', reason: 'legacy-store-to-move' })
-    // Already moved, or empty (#357): nothing for the GUI to move first.
-    expect(decide({ fileHasContent, pathExists: (target) => target === TARGET_DATABASE })).toEqual({
+    expect(decide({ legacyStorePresent })).toEqual({ kind: 'skip', reason: 'legacy-store-to-move' })
+    // Already moved, or nothing in it (#357): nothing for the GUI to move first.
+    expect(
+      decide({ legacyStorePresent, pathExists: (target) => target === TARGET_DATABASE }),
+    ).toEqual({
       kind: 'launch',
     })
-    expect(decide({ fileHasContent: () => false })).toEqual({ kind: 'launch' })
+    expect(decide({ legacyStorePresent: () => false })).toEqual({ kind: 'launch' })
   })
 })
 
@@ -110,13 +114,15 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
       OPENWAGGLE_LOG_LEVEL: 'debug',
       OPENWAGGLE_STARTUP_TIMINGS: '1',
       ANTHROPIC_API_KEY: 'provider-key',
+      OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1',
     },
     platform: 'darwin',
     executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
     homeDirectory: '/Users/person',
     temporaryDirectory: () => '/agent/scratch',
+    now: () => 1_800_000_000_000,
     pathExists: () => false,
-    fileHasContent: () => false,
+    legacyStorePresent: () => false,
     spawn,
     record,
     ...overrides,
@@ -125,6 +131,31 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
 }
 
 describe('startSessionHostPrelaunch', () => {
+  it('leaves an empty legacy database whose WAL holds frames to the GUI, as the Host would', async () => {
+    const profile = await mkdtemp(path.join(tmpdir(), 'ow-prelaunch-'))
+    try {
+      await writeFile(path.join(profile, 'openwaggle.db'), '')
+      await writeFile(path.join(profile, 'openwaggle.db-wal'), 'wal frames')
+      const { input, spawn } = prelaunchInput({
+        app: { ...prelaunchInput().input.app, getPath: () => profile },
+        temporaryDirectory: () => profile,
+      })
+      const { pathExists: _pathExists, legacyStorePresent: _legacyStorePresent, ...real } = input
+
+      expect(startSessionHostPrelaunch(real)).toEqual({
+        kind: 'skip',
+        reason: 'legacy-store-to-move',
+      })
+      expect(spawn).not.toHaveBeenCalled()
+
+      // With no WAL frames it holds nothing, and the Host is launched.
+      await writeFile(path.join(profile, 'openwaggle.db-wal'), '')
+      expect(startSessionHostPrelaunch(real)).toEqual({ kind: 'launch' })
+    } finally {
+      await rm(profile, { recursive: true, force: true })
+    }
+  })
+
   it("launches the Host as the GUI would, with the Host's environment, and records it", () => {
     const { input, spawn, record } = prelaunchInput()
 
@@ -142,6 +173,8 @@ describe('startSessionHostPrelaunch', () => {
       ANTHROPIC_API_KEY: 'provider-key',
       // An agent shell's scratch directory is not the Host's temp directory (ADR 0042).
       TMPDIR: '/var/folders/xy/T',
+      // The app this shim starts refreshes the login-shell cache; the Host waits for that.
+      OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1800000000000',
     })
     expect(launch?.environment.PATH?.startsWith('/usr/bin')).toBe(true)
     for (const clientScoped of [
@@ -152,6 +185,37 @@ describe('startSessionHostPrelaunch', () => {
       expect(launch?.environment).not.toHaveProperty(clientScoped)
     }
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ userDataRoot: PROFILE }))
+  })
+
+  it('gives a Linux Host the session bus the GUI used to hydrate before launching it', () => {
+    const linux = (overrides: Partial<SessionHostPrelaunchInput>) => {
+      const { input, spawn } = prelaunchInput({
+        platform: 'linux',
+        executablePath: '/opt/OpenWaggle/openwaggle',
+        ...overrides,
+      })
+      startSessionHostPrelaunch(input)
+      return spawn.mock.calls[0]?.[0]?.environment
+    }
+    const runtime = { ...prelaunchInput().input.environment, XDG_RUNTIME_DIR: '/run/user/1000' }
+
+    expect(
+      linux({ environment: runtime, pathExists: (target) => target === '/run/user/1000/bus' }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })
+    // Without XDG_RUNTIME_DIR, the user's own runtime directory.
+    expect(
+      linux({ uid: 1001, pathExists: (target) => target === '/run/user/1001/bus' }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1001/bus' })
+    // The launch's own address wins, and no bus means none is made up.
+    expect(
+      linux({
+        environment: { ...runtime, DBUS_SESSION_BUS_ADDRESS: 'unix:path=/tmp/dbus-launch' },
+        pathExists: () => false,
+      }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/tmp/dbus-launch' })
+    expect(linux({ environment: runtime, pathExists: () => false })).not.toHaveProperty(
+      'DBUS_SESSION_BUS_ADDRESS',
+    )
   })
 
   it('launches for the profile OPENWAGGLE_USER_DATA_DIR names', () => {

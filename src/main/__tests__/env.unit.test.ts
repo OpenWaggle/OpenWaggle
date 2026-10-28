@@ -12,6 +12,7 @@ import {
   getSessionHostChildEnv,
   getWindowsSecurityChildEnv,
   restoreHostTemporaryDirectory,
+  takeShellEnvironmentRefreshedSince,
 } from '../env'
 
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
@@ -122,6 +123,20 @@ describe('main process environment helpers', () => {
     expect(getSessionHostChildEnv()).not.toHaveProperty('OPENWAGGLE_PROFILE_CREDENTIAL_FILE')
     expect(getSessionHostChildEnv()).not.toHaveProperty('OPENWAGGLE_CLI_OUTPUT_FD')
     expect(getSessionHostChildEnv()).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+  })
+
+  it("takes the launching app's login-shell refresh time out of a Host's environment", () => {
+    vi.stubEnv('OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE', '1800000000000')
+    // A Host this process launches gets its own value, never one this process inherited.
+    expect(getSessionHostChildEnv()).not.toHaveProperty(
+      'OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE',
+    )
+
+    expect(takeShellEnvironmentRefreshedSince()).toBe(1_800_000_000_000)
+    // Taken once: it is gone from this process's environment.
+    expect(takeShellEnvironmentRefreshedSince()).toBeUndefined()
+    vi.stubEnv('OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE', 'soon')
+    expect(takeShellEnvironmentRefreshedSince()).toBeUndefined()
   })
 
   it('passes only required desktop-session variables to browser credential helpers', () => {

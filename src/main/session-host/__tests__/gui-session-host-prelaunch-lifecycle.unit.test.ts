@@ -157,6 +157,51 @@ describe('GUI Session Host lifecycle with a Host launched by the boot shim', () 
     await lifecycle.stop()
   })
 
+  it('moves a missing store itself before launching, once that Host ended without answering', async () => {
+    const order: string[] = []
+    let ended = false
+    const launched: SessionHostPrelaunch = {
+      userDataRoot: PROFILE,
+      ended: new Promise(() => undefined),
+      hasEnded: () => ended,
+    }
+    mocks.cutover.mockImplementation(async () => {
+      order.push('cutover')
+    })
+    mocks.ensure.mockImplementation(async () => {
+      order.push('launch')
+    })
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: PROFILE,
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+      hasPrelaunchedHost: () => true,
+      takePrelaunchedHost: () => launched,
+      waitForPrelaunchedHost: async () => {
+        ended = true
+        return false
+      },
+    })
+    expect(mocks.cutover).not.toHaveBeenCalled()
+
+    await lifecycle.start()
+
+    expect(mocks.targetExists).toHaveBeenCalledOnce()
+    expect(order).toEqual(['cutover', 'launch'])
+    await lifecycle.stop()
+  })
+
+  it('leaves the store to that Host while it lives, even when it has not answered yet', async () => {
+    const prepared = prelaunchedLifecycle({ answered: false })
+    const lifecycle = await prepared.lifecycle
+
+    await lifecycle.start()
+
+    expect(mocks.targetExists).not.toHaveBeenCalled()
+    expect(mocks.cutover).not.toHaveBeenCalled()
+    await lifecycle.stop()
+  })
+
   it('takes that Host once: a Retry starts the usual way', async () => {
     const prepared = prelaunchedLifecycle({ answered: true })
     const lifecycle = await prepared.lifecycle

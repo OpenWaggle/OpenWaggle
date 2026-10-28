@@ -65,6 +65,8 @@ vi.mock('../env', () => ({
   env: {},
   logLevel: 'error',
   installDesktopShellEnvironment: () => mocks.installShellEnvironment(),
+  installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,

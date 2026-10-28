@@ -56,6 +56,7 @@ if (outcome !== 'answered') {
       executablePath: process.execPath,
       homeDirectory: homedir(),
       temporaryDirectory: tmpdir,
+      ...(process.getuid ? { uid: process.getuid() } : {}),
     })
   }
   createRequire(__filename)('./index.js')

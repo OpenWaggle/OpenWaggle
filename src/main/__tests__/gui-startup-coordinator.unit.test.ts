@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createGuiStartupCoordinator,
   GUI_STARTUP_TIMEOUT_MESSAGE,
+  GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE,
   type GuiStartupCoordinatorInput,
   type GuiStartupProgress,
   GuiStartupRestartRequiredError,
 } from '../gui-startup-coordinator'
+
+const SLOW_AFTER_MS = 10_000
+const UPDATE_SLOW_AFTER_MS = 300_000
 
 interface Attempt {
   readonly progress: GuiStartupProgress
@@ -18,7 +22,7 @@ interface Attempt {
 function harness(overrides: Partial<GuiStartupCoordinatorInput> = {}) {
   const attempts: Attempt[] = []
   const published: GuiStartupStatus[] = []
-  const timers: { callback: () => void; cancelled: boolean }[] = []
+  const timers: { callback: () => void; milliseconds: number; cancelled: boolean }[] = []
   const onFailure = vi.fn()
   const restart = vi.fn()
   const coordinator = createGuiStartupCoordinator({
@@ -30,8 +34,10 @@ function harness(overrides: Partial<GuiStartupCoordinatorInput> = {}) {
     onFailure,
     describeFailure: (error) => (error instanceof Error ? error.message : String(error)),
     restart,
-    setTimer: (callback) => {
-      const timer = { callback, cancelled: false }
+    slowAfterMs: SLOW_AFTER_MS,
+    updateSlowAfterMs: UPDATE_SLOW_AFTER_MS,
+    setTimer: (callback, milliseconds) => {
+      const timer = { callback, milliseconds, cancelled: false }
       timers.push(timer)
       return () => {
         timer.cancelled = true
@@ -39,8 +45,13 @@ function harness(overrides: Partial<GuiStartupCoordinatorInput> = {}) {
     },
     ...overrides,
   })
-  const fireDeadline = () => {
-    for (const timer of timers) if (!timer.cancelled) timer.callback()
+  /** Fires the live deadlines, or only those of `milliseconds`. */
+  const fireDeadline = (milliseconds?: number) => {
+    for (const timer of timers) {
+      if (timer.cancelled) continue
+      if (milliseconds !== undefined && timer.milliseconds !== milliseconds) continue
+      timer.callback()
+    }
   }
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   return { coordinator, attempts, published, onFailure, restart, fireDeadline, settle }
@@ -93,14 +104,41 @@ describe('the window startup coordinator', () => {
     expect(h.coordinator.status()).toEqual({ state: 'ready' })
   })
 
-  it('says an update is finishing, with no deadline, while the Host hands over', async () => {
+  it('says an update is finishing, with the longer deadline, while the Host hands over', async () => {
     const h = harness()
     h.coordinator.run()
     await h.settle()
     h.attempts[0]?.progress.updating()
-    h.fireDeadline()
+    h.fireDeadline(SLOW_AFTER_MS)
 
     expect(h.coordinator.status()).toEqual({ state: 'updating' })
+
+    h.fireDeadline(UPDATE_SLOW_AFTER_MS)
+    expect(h.coordinator.status()).toEqual({
+      state: 'failed',
+      reason: 'timeout',
+      message: GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE,
+    })
+  })
+
+  it('applies the usual deadline again once the hand-off is done, and accepts Retry', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await h.settle()
+    h.attempts[0]?.progress.updating()
+    h.attempts[0]?.progress.updated()
+    expect(h.coordinator.status()).toEqual({ state: 'starting' })
+
+    h.fireDeadline(SLOW_AFTER_MS)
+    expect(h.coordinator.status()).toEqual({
+      state: 'failed',
+      reason: 'timeout',
+      message: GUI_STARTUP_TIMEOUT_MESSAGE,
+    })
+    h.coordinator.retry()
+    await h.settle()
+    expect(h.attempts[0]?.signal.aborted).toBe(true)
+    expect(h.coordinator.status()).toEqual({ state: 'starting' })
   })
 
   it('retries a failed start with a new attempt', async () => {
@@ -120,7 +158,7 @@ describe('the window startup coordinator', () => {
     expect(h.coordinator.status()).toEqual({ state: 'ready' })
   })
 
-  it('aborts a start that is past its deadline before retrying, and ignores its late result', async () => {
+  it('aborts a start that is past its deadline, and retries once it has settled', async () => {
     const h = harness()
     h.coordinator.run()
     await h.settle()
@@ -129,12 +167,51 @@ describe('the window startup coordinator', () => {
     h.coordinator.retry()
     await h.settle()
     expect(h.attempts[0]?.signal.aborted).toBe(true)
-    expect(h.attempts).toHaveLength(2)
+    expect(h.coordinator.status()).toEqual({ state: 'starting' })
+    // Both would share one Host attachment: the new attempt waits for the aborted one.
+    expect(h.attempts).toHaveLength(1)
 
     h.attempts[0]?.reject(new Error('aborted'))
     await h.settle()
+    expect(h.attempts).toHaveLength(2)
     expect(h.coordinator.status()).toEqual({ state: 'starting' })
     expect(h.onFailure).not.toHaveBeenCalled()
+    h.attempts[1]?.resolve()
+    await h.settle()
+    expect(h.coordinator.status()).toEqual({ state: 'ready' })
+  })
+
+  it('becomes ready without a new attempt when the aborted one finishes anyway', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await h.settle()
+    h.fireDeadline()
+
+    h.coordinator.retry()
+    await h.settle()
+    h.attempts[0]?.resolve()
+    await h.settle()
+
+    expect(h.attempts).toHaveLength(1)
+    expect(h.coordinator.status()).toEqual({ state: 'ready' })
+  })
+
+  it('asks for a restart when the aborted attempt left nothing to retry in place', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await h.settle()
+    h.fireDeadline()
+
+    h.coordinator.retry()
+    await h.settle()
+    const cause = new Error('desktop services could not attach')
+    h.attempts[0]?.reject(new GuiStartupRestartRequiredError(cause))
+    await h.settle()
+
+    expect(h.attempts).toHaveLength(1)
+    expect(h.onFailure).toHaveBeenCalledWith(cause)
+    h.coordinator.retry()
+    expect(h.restart).toHaveBeenCalledOnce()
   })
 
   it('does nothing on Retry while a start is still within its deadline', async () => {

@@ -38,7 +38,12 @@ vi.mock('electron', () => ({
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
-vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
+vi.mock('../env', () => ({
+  env: {},
+  installDesktopShellEnvironment: async () => undefined,
+  installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
+}))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: async () => null,
 }))

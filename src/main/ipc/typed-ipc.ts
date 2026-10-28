@@ -14,9 +14,10 @@ import * as Option from 'effect/Option'
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
 import { invokeConfiguredHostUiRaw } from '../application/gui-session-command-router'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
-import { waitForGuiBackend } from '../gui-backend-gate'
+import { isGuiBackendGateHeld, waitForGuiBackend } from '../gui-backend-gate'
 import { type GuiServices, runGuiEffect, runGuiEffectExit } from '../gui-runtime'
 import { createLogger } from '../logger'
+import { GatedSenderGoneError, rememberGatedSender } from './gated-ipc-sender'
 
 const logger = createLogger('ipc')
 
@@ -132,6 +133,11 @@ export const GUI_BACKEND_GATE_EXEMPT_CHANNELS: ReadonlySet<IpcInvokeChannel> = n
   'app:get-logs-path',
 ])
 
+/** Messages the window handles itself, with nothing of the backend: they never wait for it. */
+const GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS: ReadonlySet<IpcSendChannel> = new Set([
+  'clipboard:write-text',
+])
+
 /**
  * Type-safe wrapper around `ipcMain.handle()`.
  * Internal — all public handlers should use the Effect-based `typedHandle`.
@@ -139,7 +145,11 @@ export const GUI_BACKEND_GATE_EXEMPT_CHANNELS: ReadonlySet<IpcInvokeChannel> = n
 function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>) {
   const gated = !GUI_BACKEND_GATE_EXEMPT_CHANNELS.has(channel)
   ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) => {
-    if (gated) await waitForGuiBackend()
+    if (gated && isGuiBackendGateHeld()) {
+      const senderStillThere = rememberGatedSender(event)
+      await waitForGuiBackend()
+      if (!senderStillThere()) throw new GatedSenderGoneError(channel)
+    }
     return handler(event, ...args)
   })
 }
@@ -244,8 +254,16 @@ function rawOn<C extends IpcSendChannel>(
   channel: C,
   listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
 ) {
+  const gated = !GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS.has(channel)
   ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => {
-    void waitForGuiBackend().then(() => listener(event, ...args))
+    if (!gated || !isGuiBackendGateHeld()) {
+      listener(event, ...args)
+      return
+    }
+    const senderStillThere = rememberGatedSender(event)
+    void waitForGuiBackend().then(() => {
+      if (senderStillThere()) listener(event, ...args)
+    })
   })
 }
 

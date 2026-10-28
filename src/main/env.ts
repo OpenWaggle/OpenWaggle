@@ -1,6 +1,10 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import { installProcessDesktopShellEnvironment } from './desktop-shell-environment-process'
+import {
+  installProcessDesktopShellEnvironment,
+  type ProcessDesktopShellEnvironmentOptions,
+} from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -9,11 +13,15 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
   withShellPiPackageDirectory,
 } from './pi-package-directory-environment'
-import { sessionHostSafeEnvironment } from './session-host/session-host-launch-command'
+import {
+  SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE,
+  sessionHostSafeEnvironment,
+} from './session-host/session-host-launch-command'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
@@ -56,7 +64,10 @@ const envSchema = Schema.Struct({
   USERPROFILE: Schema.optional(Schema.String),
 })
 
-export { desktopShellEnvironmentReady } from './desktop-shell-environment-process'
+export {
+  desktopShellEnvironmentReady,
+  desktopShellEnvironmentRefreshStartedAt,
+} from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
@@ -91,8 +102,24 @@ const TERMINAL_COLOR_TYPE = 'truecolor'
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
 /** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
-export const installDesktopShellEnvironment = (options: { readonly cacheFile?: string } = {}) =>
-  installProcessDesktopShellEnvironment(process.env, options)
+export const installDesktopShellEnvironment = (
+  options: ProcessDesktopShellEnvironmentOptions = {},
+) => installProcessDesktopShellEnvironment(process.env, options)
+
+/** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
+export function takeShellEnvironmentRefreshedSince(): number | undefined {
+  const since = Number(process.env[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE])
+  Reflect.deleteProperty(process.env, SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE)
+  return Number.isSafeInteger(since) && since > 0 ? since : undefined
+}
+
+/** Fills a missing Linux session bus address in this process before Electron is ready. */
+export const installLinuxSessionBusEnvironment = () =>
+  fillLinuxSessionBusAddress(process.env, {
+    platform: process.platform,
+    ...(process.getuid ? { uid: process.getuid() } : {}),
+    exists: existsSync,
+  })
 
 /** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
 export const applyPiPackageDirectory = (directory?: string) =>

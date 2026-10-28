@@ -4,11 +4,17 @@ import {
   LOCAL_SESSION_PROTOCOL_NAME,
 } from '@shared/types/local-session-protocol'
 import { describe, expect, it, vi } from 'vitest'
+import { LocalSessionHostUpgradePendingError } from '../local-session-client-connection'
+import { LocalSessionClientProtocolError } from '../local-session-client-protocol-error'
 import {
+  HOST_TAKEOVER_TIMEOUT_MS,
   type LocalSessionHostLauncherDependencies,
-  waitForPrelaunchedLocalSessionHost,
 } from '../local-session-host-launcher'
 import { HOST_FAST_POLL_INTERVAL_MS } from '../local-session-host-polling'
+import {
+  PRELAUNCHED_HOST_ANSWER_TIMEOUT_MS,
+  waitForPrelaunchedLocalSessionHost,
+} from '../local-session-host-prelaunch-wait'
 
 const paths = {
   stateRoot: '/state',
@@ -118,5 +124,50 @@ describe('waitForPrelaunchedLocalSessionHost', () => {
         launcher,
       ),
     ).rejects.toThrow('retried')
+  })
+
+  it('says why once a listening Host keeps refusing the window, instead of waiting 15 minutes', async () => {
+    const refusal = new LocalSessionClientProtocolError(
+      'authentication_failed',
+      'Local Session authentication failed.',
+    )
+    const probe = vi.fn<LocalSessionHostLauncherDependencies['probe']>().mockRejectedValue(refusal)
+    const launcher = dependencies({ canConnect: vi.fn(async () => true), probe })
+
+    await expect(
+      waitForPrelaunchedLocalSessionHost(
+        { ...client, prelaunch: { hasEnded: () => false } },
+        launcher,
+      ),
+    ).rejects.toBe(refusal)
+    expect(launcher.now()).toBeGreaterThanOrEqual(PRELAUNCHED_HOST_ANSWER_TIMEOUT_MS)
+    expect(launcher.now()).toBeLessThan(HOST_TAKEOVER_TIMEOUT_MS)
+  })
+
+  it('leaves a Host that has not listened in time to the usual path', async () => {
+    const launcher = dependencies({ canConnect: vi.fn(async () => false) })
+
+    await expect(
+      waitForPrelaunchedLocalSessionHost(
+        { ...client, prelaunch: { hasEnded: () => false } },
+        launcher,
+      ),
+    ).resolves.toBe(false)
+    expect(launcher.now()).toBeLessThan(HOST_TAKEOVER_TIMEOUT_MS)
+  })
+
+  it('leaves a Host handing over to an update to the usual path, which says so', async () => {
+    const probe = vi
+      .fn<LocalSessionHostLauncherDependencies['probe']>()
+      .mockRejectedValue(new LocalSessionHostUpgradePendingError('host-old', [], []))
+    const launcher = dependencies({ canConnect: vi.fn(async () => true), probe })
+
+    await expect(
+      waitForPrelaunchedLocalSessionHost(
+        { ...client, prelaunch: { hasEnded: () => false } },
+        launcher,
+      ),
+    ).resolves.toBe(false)
+    expect(probe).toHaveBeenCalledOnce()
   })
 })
