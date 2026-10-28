@@ -82,6 +82,7 @@ export async function startGuiBackend(input: {
     clientVersion: app.getVersion(),
     startupMark,
     onUpgradePending: input.progress.updating,
+    onUpgradeReleased: input.progress.updated,
     onHostUnderway: input.onHostUnderway,
   }).then(
     (lifecycle) => {

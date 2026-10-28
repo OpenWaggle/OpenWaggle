@@ -146,6 +146,24 @@ describe('GUI Session Host lifecycle', () => {
     expect(await Promise.race([outcome, pending])).toBe('stopped')
   })
 
+  it('says when an updating Host has handed over, so the startup deadline applies again', async () => {
+    probeLocalSessionHostMock.mockRejectedValueOnce(new UpgradePendingError('updating'))
+    waitForLocalSessionHostReleaseMock.mockResolvedValueOnce(true)
+    const order: string[] = []
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+      onUpgradePending: () => order.push('updating'),
+      onUpgradeReleased: () => order.push('updated'),
+    })
+
+    await lifecycle.start()
+
+    expect(order).toEqual(['updating', 'updated'])
+    expect(isGuiAttachedToRemoteSessionHost()).toBe(true)
+  })
+
   it('attaches once when started again while attached', async () => {
     const lifecycle = await prepareGuiSessionHostLifecycle({
       userDataRoot: '/tmp/openwaggle-test',

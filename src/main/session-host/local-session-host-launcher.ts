@@ -199,11 +199,18 @@ async function waitForCompatibleHost(
 }
 
 async function waitForLocalSessionHostAuthority(
-  input: LocalSessionClientConnectionInput & { readonly onUpgradePending?: () => void },
+  input: LocalSessionClientConnectionInput & {
+    readonly onUpgradePending?: () => void
+    readonly onUpgradeReleased?: () => void
+  },
   timeoutMs: number,
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
+  /** Past an update hand-off this call waited for, the caller's start goes on. */
+  const released = () => {
+    if (upgradePendingError) input.onUpgradeReleased?.()
+  }
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     input.signal?.throwIfAborted()
@@ -212,10 +219,12 @@ async function waitForLocalSessionHostAuthority(
       await awaitWithSignal(dependencies.canConnect(paths.endpoint, input.signal), input.signal)
     ) {
       try {
-        return {
-          status: 'connected' as const,
-          negotiation: await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal),
-        }
+        const negotiation = await awaitWithSignal(
+          dependencies.probe({ ...input, paths }),
+          input.signal,
+        )
+        released()
+        return { status: 'connected' as const, negotiation }
       } catch (error) {
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
         if (!upgradePendingError) input.onUpgradePending?.()
@@ -230,6 +239,7 @@ async function waitForLocalSessionHostAuthority(
     if (ownership) {
       await ownership.release()
       input.signal?.throwIfAborted()
+      released()
       return { status: 'launch' as const }
     }
     await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
@@ -250,6 +260,8 @@ export async function ensureLocalSessionHost(
     readonly takeoverTimeoutMs?: number
     /** Called once when the running Host is handing over to an update and this call waits. */
     readonly onUpgradePending?: () => void
+    /** Called once that Host has handed over, before this call attaches or launches. */
+    readonly onUpgradeReleased?: () => void
     /** Called once this call has launched a Host process, before it waits for it to listen. */
     readonly onLaunched?: () => void
   },

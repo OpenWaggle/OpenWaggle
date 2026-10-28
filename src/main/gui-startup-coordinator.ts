@@ -4,7 +4,8 @@
  * One attempt at a time brings the backend up: attach to or launch the Session Host, hydrate
  * Settings, start desktop services. The window shows a skeleton while the state is `starting`,
  * "Finishing an update…" while the Host hands over to an update, and an error screen with Retry
- * and Open logs once an attempt fails or has not finished after `slowAfterMs`. An attempt that
+ * and Open logs once an attempt fails or has not finished after `slowAfterMs` (the hand-off has
+ * `updateSlowAfterMs`, and `slowAfterMs` applies again once it is done). An attempt that
  * finishes after the deadline still makes the window ready. Retry starts a new attempt; one that
  * is still running past its deadline is aborted first, since a Host that died while starting
  * would otherwise keep it waiting for minutes. The new attempt starts only once the aborted one
@@ -12,10 +13,16 @@
  * services, so an aborted attempt that unwinds late would detach the new one. An aborted attempt
  * that got past its last abort check before it noticed still makes the window ready.
  */
-import { GUI_STARTUP_SLOW_AFTER_MS, type GuiStartupStatus } from '@shared/types/gui-startup'
+import {
+  GUI_STARTUP_SLOW_AFTER_MS,
+  GUI_STARTUP_UPDATE_SLOW_AFTER_MS,
+  type GuiStartupStatus,
+} from '@shared/types/gui-startup'
 
 export const GUI_STARTUP_TIMEOUT_MESSAGE =
   'The Session Host did not start in time. It may still be starting.'
+export const GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE =
+  'The Session Host did not finish its update in time. It may still be finishing.'
 
 /** Thrown by a start whose failure left this process unable to retry it in place. */
 export class GuiStartupRestartRequiredError extends Error {
@@ -26,8 +33,10 @@ export class GuiStartupRestartRequiredError extends Error {
 }
 
 export interface GuiStartupProgress {
-  /** The running Host is handing over to an update; the deadline does not apply meanwhile. */
+  /** The running Host is handing over to an update; the longer update deadline applies. */
   readonly updating: () => void
+  /** The hand-off is done and the start goes on: the usual deadline applies again. */
+  readonly updated: () => void
 }
 
 export interface GuiStartupCoordinatorInput {
@@ -40,6 +49,7 @@ export interface GuiStartupCoordinatorInput {
   /** Retry after a failure that `start` marked as needing a fresh process. */
   readonly restart: () => void
   readonly slowAfterMs?: number
+  readonly updateSlowAfterMs?: number
   readonly setTimer?: (callback: () => void, milliseconds: number) => () => void
 }
 
@@ -75,6 +85,7 @@ export function createGuiStartupCoordinator(
 ): GuiStartupCoordinator {
   const setTimer = input.setTimer ?? defaultSetTimer
   const slowAfterMs = input.slowAfterMs ?? GUI_STARTUP_SLOW_AFTER_MS
+  const updateSlowAfterMs = input.updateSlowAfterMs ?? GUI_STARTUP_UPDATE_SLOW_AFTER_MS
   let current: GuiStartupStatus = { state: 'starting' }
   let attempt: Attempt | null = null
   let cancelDeadline: (() => void) | null = null
@@ -88,20 +99,31 @@ export function createGuiStartupCoordinator(
     cancelDeadline?.()
     cancelDeadline = null
   }
-  const armDeadline = () => {
+  /** Shows the error screen once the start is still in `state` after its deadline. */
+  const armDeadline = (state: 'starting' | 'updating' = 'starting') => {
     clearDeadline()
-    cancelDeadline = setTimer(() => {
-      cancelDeadline = null
-      if (current.state !== 'starting') return
-      publish({ state: 'failed', reason: 'timeout', message: GUI_STARTUP_TIMEOUT_MESSAGE })
-    }, slowAfterMs)
+    cancelDeadline = setTimer(
+      () => {
+        cancelDeadline = null
+        if (current.state !== state) return
+        const message =
+          state === 'updating' ? GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE : GUI_STARTUP_TIMEOUT_MESSAGE
+        publish({ state: 'failed', reason: 'timeout', message })
+      },
+      state === 'updating' ? updateSlowAfterMs : slowAfterMs,
+    )
   }
 
   const progress: GuiStartupProgress = {
     updating: () => {
       if (current.state === 'ready' || current.state === 'updating') return
-      clearDeadline()
       publish({ state: 'updating' })
+      armDeadline('updating')
+    },
+    updated: () => {
+      if (current.state !== 'updating') return
+      publish({ state: 'starting' })
+      armDeadline()
     },
   }
 

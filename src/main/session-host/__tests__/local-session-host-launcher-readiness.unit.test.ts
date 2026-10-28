@@ -114,6 +114,45 @@ describe('Local Session Host launcher readiness', () => {
     expect(onUpgradePending).toHaveBeenCalledOnce()
   })
 
+  it('says once that the hand-off is done, before it launches the new Host', async () => {
+    const pending = new LocalSessionHostUpgradePendingError('host-old', [], [])
+    const order: string[] = []
+    // The old Host answers "updating" twice, then stops listening; the new one listens at once.
+    const canConnect = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true)
+    const probe = vi
+      .fn()
+      .mockRejectedValueOnce(pending)
+      .mockRejectedValueOnce(pending)
+      .mockResolvedValue(accepted)
+    const launcher = dependencies({ canConnect, probe })
+    launcher.launch = vi.fn(() => {
+      order.push('launch')
+    })
+
+    await ensureLocalSessionHost(
+      {
+        ...client,
+        onUpgradePending: () => order.push('updating'),
+        onUpgradeReleased: () => order.push('updated'),
+      },
+      launcher,
+    )
+
+    expect(order).toEqual(['updating', 'updated', 'launch'])
+  })
+
+  it('never says a hand-off is done when there was none', async () => {
+    const onUpgradeReleased = vi.fn()
+    await ensureLocalSessionHost({ ...client, onUpgradeReleased }, dependencies())
+
+    expect(onUpgradeReleased).not.toHaveBeenCalled()
+  })
+
   it('asks a Host launched by a measuring GUI to mark its startup too', () => {
     expect(
       sessionHostChildEnvironment({

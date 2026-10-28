@@ -42,6 +42,7 @@ async function attachToRemoteSessionHost(input: {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly isStopping: () => boolean
   readonly onUpgradePending?: () => void
+  readonly onUpgradeReleased?: () => void
   /** An aborted start stops waiting for an updating Host to hand over. */
   readonly signal?: AbortSignal
 }) {
@@ -63,7 +64,10 @@ async function attachToRemoteSessionHost(input: {
       const released = await waitForLocalSessionHostRelease(currentPaths.endpoint, {
         ...(input.signal ? { signal: input.signal } : {}),
       })
-      if (released) return null
+      if (released) {
+        input.onUpgradeReleased?.()
+        return null
+      }
     }
     if (isLocalSessionHostUnavailable(error)) return null
     throw error
@@ -76,6 +80,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
   readonly startupMark: (label: string) => void
   /** The running Host is handing over to an update, and attaching waits until it has. */
   readonly onUpgradePending?: () => void
+  /** The updating Host has handed over, and the start goes on. */
+  readonly onUpgradeReleased?: () => void
   /** This start attached to a running Host or launched one: the Host's own startup is under way. */
   readonly onHostUnderway?: () => void
   /** Whether the boot shim launched this profile's Host (`boot/session-host-prelaunch`). */
@@ -97,6 +103,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
       client: remoteClient,
       isStopping: () => stopping,
       ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
+      ...(input.onUpgradeReleased ? { onUpgradeReleased: input.onUpgradeReleased } : {}),
       ...(signal ? { signal } : {}),
     })
     if (!stopBridge) return false
@@ -137,6 +144,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
           clientKind: 'gui',
           ...(signal ? { signal } : {}),
           ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
+          ...(input.onUpgradeReleased ? { onUpgradeReleased: input.onUpgradeReleased } : {}),
           onLaunched: () => {
             input.startupMark('session-host-launched')
             input.onHostUnderway?.()
