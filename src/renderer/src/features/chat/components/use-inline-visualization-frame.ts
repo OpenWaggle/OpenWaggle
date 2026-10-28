@@ -20,59 +20,73 @@ function customProtocolOrigin(frameUrl: string) {
   return `${url.protocol}//${url.host}`
 }
 
-/*
- * Plain functions, memoized by the compiler: hand-written `useCallback`/`useMemo` here could not be
- * preserved and left both hooks uncompiled. Refs are written only through these functions.
- */
-function useFrameControls(input: {
+/** What the frame's controls read when they run: the latest render's, never one captured earlier. */
+interface FrameCallbacks {
   readonly registrationId: string | null
+  readonly onDismiss: () => void
   readonly onUnavailable: (reason: string) => void
   readonly onStateChange: (state: JsonValue | null) => void
-  readonly setErrorReason: (reason: string) => void
-}) {
-  const { registrationId, onUnavailable, onStateChange, setErrorReason } = input
-  const healthCheckTimeoutRef = useRef<number | null>(null)
-  const healthCheckIntervalRef = useRef<number | null>(null)
-  const pendingStateRef = useRef<JsonValue | null | undefined>(undefined)
-  const stateTimeoutRef = useRef<number | null>(null)
-  const telemetryRef = useRef({ startedAt: 0, count: 0, blocked: false })
+}
+
+/*
+ * The frame's timers and coalescing, created once per mount (in a `useState` initializer) and
+ * reading the latest callbacks through `latest`. Their identity used to come from compiler
+ * memoization on the callbacks; the layout effect that sets `frame.src` depends on them, so a new
+ * callback, or the compiler bailing out of the hook (the build runs with `panicThreshold: 'none'`),
+ * reloaded the visualization on every render (PR #391 review R2 P3-10).
+ */
+function createFrameControls(
+  latest: { readonly current: FrameCallbacks },
+  setErrorReason: (reason: string) => void,
+) {
+  let healthCheckTimeout: number | null = null
+  let healthCheckInterval: number | null = null
+  let pendingState: JsonValue | null | undefined
+  let stateTimeout: number | null = null
+  const telemetry = { startedAt: 0, count: 0, blocked: false }
   const clearHealthCheckTimeout = () => {
-    if (healthCheckTimeoutRef.current === null) return
-    window.clearTimeout(healthCheckTimeoutRef.current)
-    healthCheckTimeoutRef.current = null
+    if (healthCheckTimeout === null) return
+    window.clearTimeout(healthCheckTimeout)
+    healthCheckTimeout = null
   }
   const clearHealthCheckInterval = () => {
-    if (healthCheckIntervalRef.current === null) return
-    window.clearInterval(healthCheckIntervalRef.current)
-    healthCheckIntervalRef.current = null
+    if (healthCheckInterval === null) return
+    window.clearInterval(healthCheckInterval)
+    healthCheckInterval = null
   }
   const startHealthCheckInterval = (check: () => void, intervalMs: number) => {
     clearHealthCheckInterval()
-    healthCheckIntervalRef.current = window.setInterval(check, intervalMs)
+    healthCheckInterval = window.setInterval(check, intervalMs)
   }
   const resetTelemetry = () => {
-    telemetryRef.current = { startedAt: performance.now(), count: 0, blocked: false }
+    telemetry.startedAt = performance.now()
+    telemetry.count = 0
+    telemetry.blocked = false
   }
   const clearPendingState = () => {
-    if (stateTimeoutRef.current !== null) window.clearTimeout(stateTimeoutRef.current)
-    stateTimeoutRef.current = null
-    pendingStateRef.current = undefined
+    if (stateTimeout !== null) window.clearTimeout(stateTimeout)
+    stateTimeout = null
+    pendingState = undefined
   }
   const flushStateChange = () => {
-    if (stateTimeoutRef.current !== null) window.clearTimeout(stateTimeoutRef.current)
-    stateTimeoutRef.current = null
-    const state = pendingStateRef.current
-    pendingStateRef.current = undefined
-    if (state !== undefined) onStateChange(state)
+    if (stateTimeout !== null) window.clearTimeout(stateTimeout)
+    stateTimeout = null
+    const state = pendingState
+    pendingState = undefined
+    if (state !== undefined) latest.current.onStateChange(state)
   }
   const scheduleStateChange = (state: JsonValue | null) => {
-    pendingStateRef.current = state
-    if (stateTimeoutRef.current !== null) return
-    stateTimeoutRef.current = window.setTimeout(flushStateChange, STATE_COALESCE_MS)
+    pendingState = state
+    if (stateTimeout !== null) return
+    stateTimeout = window.setTimeout(flushStateChange, STATE_COALESCE_MS)
+  }
+  const becomeUnavailable = (reason: string) => {
+    setErrorReason(reason)
+    clearPendingState()
+    latest.current.onUnavailable(reason)
   }
   const acceptMessage = () => {
     const now = performance.now()
-    const telemetry = telemetryRef.current
     if (now - telemetry.startedAt >= FRAME_TELEMETRY_WINDOW_MS) {
       telemetry.startedAt = now
       telemetry.count = 0
@@ -81,25 +95,22 @@ function useFrameControls(input: {
     if (telemetry.count <= MAX_FRAME_TELEMETRY_PER_WINDOW) return true
     if (!telemetry.blocked) {
       telemetry.blocked = true
-      setErrorReason('resource-limit')
-      clearPendingState()
-      onUnavailable('resource-limit')
+      becomeUnavailable('resource-limit')
     }
     return false
   }
   const armHealthCheckTimeout = () => {
     clearHealthCheckTimeout()
-    if (!registrationId) return
-    healthCheckTimeoutRef.current = window.setTimeout(() => {
-      healthCheckTimeoutRef.current = null
-      setErrorReason('unresponsive')
-      clearPendingState()
-      onUnavailable('unresponsive')
+    if (!latest.current.registrationId) return
+    healthCheckTimeout = window.setTimeout(() => {
+      healthCheckTimeout = null
+      becomeUnavailable('unresponsive')
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
   }
   return {
     acceptMessage,
     armHealthCheckTimeout,
+    becomeUnavailable,
     clearHealthCheckInterval,
     clearHealthCheckTimeout,
     clearPendingState,
@@ -123,12 +134,13 @@ export function useInlineVisualizationFrame(input: {
   const [errorReason, setErrorReason] = useState<string | null>(null)
   const capabilityRef = useRef<string | null>(null)
   const brokerPendingRef = useRef(false)
-  const controls = useFrameControls({
-    registrationId: input.registrationId,
-    onUnavailable: input.onUnavailable,
-    onStateChange: input.onStateChange,
-    setErrorReason,
+  const { registrationId, onDismiss, onUnavailable, onStateChange } = input
+  const latest = useRef<FrameCallbacks>({ registrationId, onDismiss, onUnavailable, onStateChange })
+  // Declared before the frame's effect, so the callbacks it reads are this render's.
+  useLayoutEffect(() => {
+    latest.current = { registrationId, onDismiss, onUnavailable, onStateChange }
   })
+  const [controls] = useState(() => createFrameControls(latest, setErrorReason))
 
   const postToFrame = useCallback(
     (message: Record<string, unknown>) => {
@@ -158,9 +170,7 @@ export function useInlineVisualizationFrame(input: {
 
     const frameWindow = frame.contentWindow
     if (!frameWindow) {
-      setErrorReason('unresponsive')
-      controls.clearPendingState()
-      input.onUnavailable('unresponsive')
+      controls.becomeUnavailable('unresponsive')
       return controls.clearHealthCheckTimeout
     }
     const origin = customProtocolOrigin(input.frameUrl)
@@ -174,13 +184,9 @@ export function useInlineVisualizationFrame(input: {
         flushStateChange: controls.flushStateChange,
         sendTheme,
         postToFrame,
-        setErrorReason: (reason) => {
-          controls.clearPendingState()
-          setErrorReason(reason)
-          input.onUnavailable(reason)
-        },
+        setErrorReason: controls.becomeUnavailable,
         setHeight,
-        onDismiss: input.onDismiss,
+        onDismiss: () => latest.current.onDismiss(),
         scheduleStateChange: controls.scheduleStateChange,
       })
     })
@@ -201,8 +207,6 @@ export function useInlineVisualizationFrame(input: {
   }, [
     controls,
     input.frameUrl,
-    input.onDismiss,
-    input.onUnavailable,
     input.registrationId,
     input.interactionSessionId,
     postToFrame,
