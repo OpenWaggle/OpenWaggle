@@ -1,4 +1,6 @@
 import { PERCENT_BASE } from '@shared/constants/math'
+import { parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
+import { appearancePreferencesSchema } from '@shared/schemas/appearance-preferences'
 import {
   type AppearancePreferences,
   DEFAULT_APPEARANCE_PREFERENCES,
@@ -123,7 +125,59 @@ function applyAppearancePreferences(preferences: AppearancePreferences) {
   }
 }
 
+/**
+ * The last appearance this window applied, kept so the startup skeleton opens in it before the
+ * Session Host answers (maintainer decision 3). A cache only: Settings always replace it.
+ */
+export const APPEARANCE_PREFERENCES_CACHE_KEY = 'openwaggle.last-appearance-preferences.v1'
+
+function appearanceCacheStorage(): Storage | null {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : null
+  } catch {
+    return null
+  }
+}
+
+function cacheAppearancePreferences(preferences: AppearancePreferences) {
+  try {
+    appearanceCacheStorage()?.setItem(APPEARANCE_PREFERENCES_CACHE_KEY, JSON.stringify(preferences))
+  } catch {
+    // A full or unavailable storage only costs the next launch its cached appearance.
+  }
+}
+
+/** Applies the cached appearance, if there is a valid one; a damaged cache is dropped. */
+export function restoreCachedAppearancePreferences(): boolean {
+  const storage = appearanceCacheStorage()
+  let raw: string | null
+  try {
+    raw = storage?.getItem(APPEARANCE_PREFERENCES_CACHE_KEY) ?? null
+  } catch {
+    return false
+  }
+  if (raw === null) return false
+  const preferences = decodeCachedAppearancePreferences(raw)
+  if (!preferences) {
+    storage?.removeItem(APPEARANCE_PREFERENCES_CACHE_KEY)
+    return false
+  }
+  useAppearancePreferencesRuntimeStore.setState({ preferences })
+  applyAppearancePreferences(preferences)
+  return true
+}
+
+function decodeCachedAppearancePreferences(raw: string): AppearancePreferences | null {
+  try {
+    const decoded = safeDecodeUnknown(appearancePreferencesSchema, parseJsonUnknown(raw))
+    return decoded.success ? decoded.data : null
+  } catch {
+    return null
+  }
+}
+
 export function setRuntimeAppearancePreferences(preferences: AppearancePreferences) {
   useAppearancePreferencesRuntimeStore.setState({ preferences })
   applyAppearancePreferences(preferences)
+  cacheAppearancePreferences(preferences)
 }

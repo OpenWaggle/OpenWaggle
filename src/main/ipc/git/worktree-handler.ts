@@ -3,8 +3,6 @@ import { decodeUnknownOrThrow } from '@shared/schema'
 import type { SessionWorktreeCheck } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import {
-  createHostUiWorktree,
-  removeHostUiWorktree,
   worktreeCreatePayloadSchema,
   worktreeRemovePayloadSchema,
 } from '../../application/host-ui-worktree-operation'
@@ -37,11 +35,7 @@ export function registerGitWorktreeHandlers(): void {
     }),
   )
 
-  hostHandle('git:worktrees:create', (_event, rawPath: unknown, rawPayload: unknown) =>
-    createHostUiWorktree(rawPath, rawPayload),
-  )
+  hostHandle('git:worktrees:create')
 
-  hostHandle('git:worktrees:remove', (_event, rawPath: unknown, rawPayload: unknown) =>
-    removeHostUiWorktree(rawPath, rawPayload),
-  )
+  hostHandle('git:worktrees:remove')
 }

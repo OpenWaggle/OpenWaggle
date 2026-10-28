@@ -21,6 +21,25 @@ vi.mock('electron', () => ({
   },
 }))
 
+/*
+ * The window reads a visualization's owning Session from the Session Host (A-F5). The Host's own
+ * operation answers here, in this process's runtime, after the restart below.
+ */
+vi.mock('../../application/gui-session-command-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../application/gui-session-command-router')>()),
+  invokeConfiguredHostUi: async (channel: string, args: readonly unknown[]) => {
+    if (channel !== 'inline-visualization:prepare-source') return { handled: false }
+    const [{ runAppEffect }, { prepareInlineVisualizationSourceOwner }] = await Promise.all([
+      import('../../runtime'),
+      import('../../application/inline-visualization-source-owner'),
+    ])
+    return {
+      handled: true,
+      result: await runAppEffect(prepareInlineVisualizationSourceOwner(args[0])),
+    }
+  },
+}))
+
 beforeEach(async () => {
   state.userDataDir = await lifecycleFs.mkdtemp(
     lifecyclePath.join(lifecycleOs.tmpdir(), 'ow-visualization-replay-'),

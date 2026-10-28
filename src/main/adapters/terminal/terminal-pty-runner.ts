@@ -2,7 +2,7 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
 import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
-import { getInteractiveTerminalEnv } from '../../env'
+import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
 import { installTerminalProcessKernelApi } from './terminal-process-kernel-api'
@@ -163,6 +163,8 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
     } catch (error) {
       return { ok: false, error: toError(error) } satisfies PtySpawnOutcome
     }
+    // A terminal is the user's command authority: it starts with their login-shell environment.
+    await desktopShellEnvironmentReady()
     const environment = getInteractiveTerminalEnv(options.appVersion, request.env)
     let candidates: readonly TerminalShellCandidate[]
     try {

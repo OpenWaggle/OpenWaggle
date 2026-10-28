@@ -3,12 +3,49 @@
 import { DEFAULT_APPEARANCE_PREFERENCES } from '@shared/types/appearance-preferences'
 import { afterEach, describe, expect, it } from 'vitest'
 import { testHexColor } from '@/test-utils/test-color'
-import { setRuntimeAppearancePreferences } from '../appearance-preferences-runtime'
+import {
+  APPEARANCE_PREFERENCES_CACHE_KEY,
+  restoreCachedAppearancePreferences,
+  setRuntimeAppearancePreferences,
+  useAppearancePreferencesRuntimeStore,
+} from '../appearance-preferences-runtime'
 
 describe('appearance preferences runtime', () => {
   afterEach(() => {
     document.documentElement.removeAttribute('style')
     delete document.documentElement.dataset.motion
+    localStorage.clear()
+  })
+
+  it('opens the next window in the last applied appearance, before Settings load', () => {
+    const preferences = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      motion: 'reduced' as const,
+      typography: { ...DEFAULT_APPEARANCE_PREFERENCES.typography, interfaceScale: 115 },
+    }
+    setRuntimeAppearancePreferences(preferences)
+    document.documentElement.removeAttribute('style')
+    delete document.documentElement.dataset.motion
+    useAppearancePreferencesRuntimeStore.setState({ preferences: DEFAULT_APPEARANCE_PREFERENCES })
+
+    expect(restoreCachedAppearancePreferences()).toBe(true)
+
+    expect(document.documentElement.style.fontSize).toBe('115%')
+    expect(document.documentElement.dataset.motion).toBe('reduced')
+    expect(useAppearancePreferencesRuntimeStore.getState().preferences).toEqual(preferences)
+  })
+
+  it('drops a damaged appearance cache instead of applying it', () => {
+    localStorage.setItem(APPEARANCE_PREFERENCES_CACHE_KEY, '{"typography":{"interfaceScale":9000}}')
+
+    expect(restoreCachedAppearancePreferences()).toBe(false)
+
+    expect(localStorage.getItem(APPEARANCE_PREFERENCES_CACHE_KEY)).toBeNull()
+    expect(document.documentElement.style.fontSize).toBe('')
+  })
+
+  it('starts in the default appearance when nothing is cached', () => {
+    expect(restoreCachedAppearancePreferences()).toBe(false)
   })
 
   it('applies typography through root variables without rebuilding the renderer', () => {

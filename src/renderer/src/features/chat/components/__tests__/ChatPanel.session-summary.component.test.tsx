@@ -1,23 +1,26 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
 import { useUIStore } from '@/shell/ui-store'
-import { createSections, makeMessage } from './ChatPanel.test-utils'
+import { makeMessage } from './ChatPanel.test-utils'
 import {
   advanceSessionResourceBackfill,
-  chatPanelElement,
+  findSessionSummary,
   listSessionResources,
   notifyResize,
+  preloadSessionSummaryOverlay,
   renderPanel,
+  renderPanelSettled,
   SESSION,
   setupChatPanelSessionSummaryHarness,
   toggleSessionSummaryPanel,
-  useChatPanelSectionsMock,
 } from './chat-panel-session-summary.test-harness'
 
-describe('ChatPanel session summary and setup dock', () => {
+describe('ChatPanel session summary', () => {
+  preloadSessionSummaryOverlay()
+
   beforeEach(() => {
     setupChatPanelSessionSummaryHarness()
   })
@@ -27,8 +30,8 @@ describe('ChatPanel session summary and setup dock', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does not show an empty summary for auxiliary rows before the first sent message', () => {
-    renderPanel(
+  it('does not show an empty summary for auxiliary rows before the first sent message', async () => {
+    await renderPanelSettled(
       { chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }] },
       { isFirstMessage: true, session: SESSION },
     )
@@ -37,7 +40,7 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(listSessionResources).not.toHaveBeenCalled()
   })
 
-  it('puts an empty Worker Hive in the Session Hub, not above the composer', () => {
+  it('puts an empty Worker Hive in the Session Hub, not above the composer', async () => {
     useSessionStore.setState({
       sessions: [
         {
@@ -55,12 +58,12 @@ describe('ChatPanel session summary and setup dock', () => {
         },
       ],
     })
-    renderPanel({}, { isFirstMessage: true, session: SESSION })
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    await renderPanelSettled({}, { isFirstMessage: true, session: SESSION })
+    expect(await findSessionSummary()).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Hive Sessions' })).toBeNull()
   })
 
-  it('keeps an empty Worker Hub visible while an older session tree lacks lineage', () => {
+  it('keeps an empty Worker Hub visible while an older session tree lacks lineage', async () => {
     const worker = {
       id: SessionId('session-1'),
       title: 'Worker session',
@@ -87,7 +90,7 @@ describe('ChatPanel session summary and setup dock', () => {
 
     renderPanel({}, { isFirstMessage: true, session: SESSION })
 
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
   it('keeps the transcript width independent from the floating Session Summary', () => {
@@ -117,13 +120,13 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
-  it('automatically hides the panel in a narrow chat while keeping its toggle usable', () => {
+  it('automatically hides the panel in a narrow chat while keeping its toggle usable', async () => {
     const message = makeMessage({
       id: 'u1',
       role: 'user',
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [
@@ -147,16 +150,16 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     act(() => toggleSessionSummaryPanel('session-1'))
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
-  it('auto-hides at a medium width where the panel would overlap centered chat content', () => {
+  it('auto-hides at a medium width where the panel would overlap centered chat content', async () => {
     const message = makeMessage({
       id: 'u1',
       role: 'user',
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [
@@ -180,10 +183,10 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     act(() => toggleSessionSummaryPanel('session-1'))
-    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(await findSessionSummary()).toBeInTheDocument()
   })
 
-  it('hides before paint when the chat mounts below the automatic summary width', () => {
+  it('hides before paint when the chat mounts below the automatic summary width', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
     const message = makeMessage({
       id: 'u1',
@@ -191,7 +194,7 @@ describe('ChatPanel session summary and setup dock', () => {
       parts: [{ type: 'text', content: 'Hello agent' }],
     })
 
-    renderPanel(
+    await renderPanelSettled(
       {
         messages: [message],
         chatRows: [
@@ -206,6 +209,9 @@ describe('ChatPanel session summary and setup dock', () => {
       },
       { isFirstMessage: false, session: SESSION },
     )
+    // A ResizeObserver reports its first observation after layout and before paint; its update
+    // renders synchronously, so the summary is hidden in the first painted frame.
+    act(() => notifyResize())
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
@@ -263,60 +269,5 @@ describe('ChatPanel session summary and setup dock', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: active.png' }),
     ).toBeInTheDocument()
     expect(await screen.findByLabelText('Image provenance')).toHaveTextContent('1 of 2')
-  })
-
-  it('shows the session setup dock before the first message', () => {
-    renderPanel({}, { isFirstMessage: true })
-    expect(screen.getByRole('group', { name: 'Session setup' })).toBeInTheDocument()
-  })
-
-  it('opens project selection from the session setup dock', () => {
-    renderPanel(
-      { recentProjects: ['/test/other-project'] },
-      { isFirstMessage: true, projectPath: '/test/project' },
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    expect(screen.getByRole('dialog')).toHaveClass('mb-3')
-    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Select folder…' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'other-project' })).toBeInTheDocument()
-  })
-
-  it('starts a draft in a recent project selected from the dock', () => {
-    const onSelectProjectPath = vi.fn()
-    renderPanel(
-      { recentProjects: ['/test/other-project'], onSelectProjectPath },
-      { isFirstMessage: true, projectPath: '/test/project' },
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'other-project' }))
-    expect(onSelectProjectPath).toHaveBeenCalledWith('/test/other-project')
-  })
-
-  it('opens the operating-system folder chooser from the dock project menu', () => {
-    const onOpenProject = vi.fn().mockResolvedValue(undefined)
-    renderPanel({ onOpenProject }, { isFirstMessage: true, projectPath: '/test/project' })
-    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select folder…' }))
-    expect(onOpenProject).toHaveBeenCalledOnce()
-  })
-
-  it('uses the dialog radius for both the composer and its dock', () => {
-    renderPanel({}, { isFirstMessage: true, projectPath: '/test/project' })
-    const composer = screen.getByRole('region', { name: 'Composer file drop zone' })
-    const projectTrigger = screen.getByRole('button', { name: 'Project: project' })
-    expect(composer).toHaveClass('rounded-xl')
-    expect(composer).not.toHaveClass('rounded-3xl')
-    expect(projectTrigger.closest('.rounded-t-xl')).toBeInTheDocument()
-  })
-
-  it('hides the session setup dock after the first message or while submitting it', () => {
-    const { rerender } = renderPanel({}, { isFirstMessage: false })
-    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
-    useChatPanelSectionsMock.mockReturnValue(
-      createSections({}, { isFirstMessage: true, isLoading: true, status: 'submitted' }),
-    )
-    rerender(chatPanelElement())
-    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
   })
 })

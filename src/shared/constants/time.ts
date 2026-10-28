@@ -38,6 +38,8 @@ export const AUTH_TIMEOUT = {
   CLIPBOARD_POLL_TIMEOUT_MS: TIME_UNIT.FIVE_MINUTES_MS,
   /** Auth lifecycle check interval */
   LIFECYCLE_INTERVAL_MS: TIME_UNIT.TWO_MINUTES_MS,
+  /** First auth lifecycle check, once the window has opened (it loads Pi in the window process) */
+  LIFECYCLE_FIRST_CHECK_DELAY_MS: TIME_UNIT.FIFTEEN_SECONDS_MS,
 } as const
 
 /** Voice model timeouts */

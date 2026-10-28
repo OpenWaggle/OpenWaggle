@@ -1,6 +1,11 @@
 import { isRecord } from '@shared/utils/validation'
 import { McpClientRequestLedger } from './mcp-client-request-ledger'
 import { McpConnectionHandshake } from './mcp-connection-handshake'
+import {
+  fillCatalogAfterHandshake,
+  lazyStartOf,
+  type McpConnectionLazyStart,
+} from './mcp-connection-lazy-start'
 import { McpConnectionLease } from './mcp-connection-lease'
 import {
   CANCELLED,
@@ -9,9 +14,9 @@ import {
   INITIALIZE,
   INITIALIZED,
   type McpPooledConnectionOptions,
-  McpServerError,
-  PROGRESS,
 } from './mcp-connection-support'
+import { deliverPooledResponse } from './mcp-pooled-response'
+import { deliverServerNotification } from './mcp-server-notifications'
 import { McpServerRequestRouter } from './mcp-server-request-router'
 import { McpUpstreamReplacement } from './mcp-upstream-replacement'
 import { McpUpstreamSlot } from './mcp-upstream-slot'
@@ -37,9 +42,13 @@ const RETIRE_GRACE_MS = 30_000
  */
 export class McpPooledConnection {
   private closed = false
+  /** Closed by OpenWaggle (idle close, eviction, archive, Host stop), not by a server failure. */
+  private closedByOwner = false
   /** No longer offered to new clients; closes once its open requests are answered. */
   private retiring = false
   private lastErrorValue: string | undefined
+  /** Answers from the catalog until a request needs the server (D1.3). */
+  private readonly lazyStart: McpConnectionLazyStart | undefined
   private readonly slot: McpUpstreamSlot
   /** Replaces a stuck server process; clients' messages wait while it does. */
   private readonly replacement = new McpUpstreamReplacement({
@@ -66,6 +75,11 @@ export class McpPooledConnection {
       notify: (message) => this.sendUpstream(message),
       augmentParams: options.augmentInitializeParams,
       onProtocolVersion: (version) => this.slot.current?.transport.setProtocolVersion?.(version),
+      onResult: (result) => options.catalog?.recordInitialize(result),
+      onInitialized: (result) =>
+        fillCatalogAfterHandshake(options, result, (method, params) =>
+          this.sendInternal(method, params),
+        ),
     })
     this.slot = new McpUpstreamSlot({
       serverName: options.serverName,
@@ -88,6 +102,15 @@ export class McpPooledConnection {
       leases: () => this.leases,
       options,
     })
+    this.lazyStart = lazyStartOf(options, {
+      serverName: options.serverName,
+      handshake: this.handshake,
+      startUpstream: () => this.slot.start(),
+      close: () => void this.close(),
+      closedByOwner: () => this.closedByOwner,
+      sendInternal: (method, params) => this.sendInternal(method, params),
+      leases: () => this.leases,
+    })
   }
 
   get serverName() {
@@ -99,9 +122,17 @@ export class McpPooledConnection {
     return this.closed || this.retiring
   }
 
-  /** Open and past its handshake. */
+  /** Open and past its handshake with the server itself, not one answered from its catalog. */
   get isReady() {
-    return !this.isClosed && this.handshake.isDone
+    return !this.isClosed && this.handshake.isDone && !this.isServingCatalog
+  }
+
+  /**
+   * Answering from the server's catalog without having started it (D1.3): it says nothing about
+   * whether the server runs now (review R5 P2-4).
+   */
+  get isServingCatalog() {
+    return this.lazyStart?.waiting === true
   }
 
   get attachedLeases() {
@@ -132,14 +163,17 @@ export class McpPooledConnection {
   /** An OpenWaggle request over the connection, initializing it first when no client has. */
   async request(method: string, params?: unknown, options: { signal?: AbortSignal } = {}) {
     await this.replacement.settled()
+    await this.lazyStart?.wake()
     await this.start()
     await this.handshake.ensureInitialized()
     return this.sendInternal(method, params, options.signal)
   }
 
   async close() {
-    if (!this.closed)
+    if (!this.closed) {
+      this.closedByOwner = true
       this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
+    }
     await this.slot.release()
   }
 
@@ -163,6 +197,7 @@ export class McpPooledConnection {
 
   private start() {
     if (this.isClosed) return Promise.reject(this.closedConnectionError())
+    if (this.lazyStart?.waiting) return Promise.resolve()
     return this.slot.start()
   }
 
@@ -205,6 +240,7 @@ export class McpPooledConnection {
 
   private async sendFromLease(lease: McpConnectionLease, message: JsonRpcMessage) {
     await this.replacement.settled()
+    if (this.lazyStart && (await this.lazyStart.answer(lease, message))) return
     if (isJsonRpcRequest(message)) {
       if (this.retiring) throw this.closedConnectionError()
       if (message.method === INITIALIZE) return this.handshake.answer(lease, message)
@@ -258,47 +294,19 @@ export class McpPooledConnection {
       return
     }
     if (isJsonRpcNotification(message)) {
-      this.handleServerNotification(message)
+      deliverServerNotification(message, this.ledger, this.router, this.leases)
       return
     }
     this.handleResponse(message)
   }
 
   private handleResponse(message: JsonRpcResponse) {
-    this.deliverResponse(message)
+    deliverPooledResponse(message, {
+      ledger: this.ledger,
+      replacement: this.replacement,
+      options: this.options,
+    })
     this.closeIfRetiredAndIdle()
-  }
-
-  private deliverResponse(message: JsonRpcResponse) {
-    const pending = this.ledger.forget(message.id)
-    if (!pending) return
-    if (pending.kind === 'internal') {
-      if ('result' in message) return pending.resolve(message.result)
-      const { message: text, code, data } = message.error
-      return pending.reject(new McpServerError(text, code, data))
-    }
-    if (pending.lease.isDetached) return
-    if (!('result' in message)) {
-      if (this.replacement.handleError(pending, message)) return
-      return pending.lease.deliver({ ...message, id: pending.id })
-    }
-    this.options.observeResult?.(pending.method, pending.params, message.result)
-    const result = this.options.adaptResult?.(pending.method, message.result) ?? message.result
-    pending.lease.deliver({ ...message, id: pending.id, result })
-  }
-
-  private handleServerNotification(notification: JsonRpcNotification) {
-    const params = isRecord(notification.params) ? notification.params : undefined
-    if (notification.method === PROGRESS && params) {
-      const route = this.ledger.progressRoute(params.progressToken)
-      route?.lease.deliver({ ...notification, params: { ...params, progressToken: route.token } })
-      return
-    }
-    if (notification.method === CANCELLED && params) {
-      this.router.cancelled(params.requestId)?.deliver(notification)
-      return
-    }
-    for (const lease of this.leases) lease.deliver(notification)
   }
 
   private markClosed(error: Error) {
@@ -310,6 +318,7 @@ export class McpPooledConnection {
     )
     this.handshake.fail(error)
     for (const lease of [...this.leases]) lease.detach()
+    this.options.catalog?.closed()
     this.options.onClosed()
     void this.slot.release()
   }

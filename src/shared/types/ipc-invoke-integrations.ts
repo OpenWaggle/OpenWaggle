@@ -10,6 +10,7 @@ import type {
   FeedbackSubmitResult,
   GhCliStatus,
 } from './feedback'
+import type { GuiStartupStatus } from './gui-startup'
 import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
@@ -50,6 +51,11 @@ export interface IpcIntegrationInvokeChannelMap
   'agent:get-phase': {
     args: [sessionId: SessionId]
     return: AgentPhaseState | null
+  }
+  /** The Sessions the calling window shows, whose streamed deltas it gets about 30 times a second. */
+  'agent:set-shown-sessions': {
+    args: [sessionIds: readonly SessionId[]]
+    return: undefined
   }
   'agent:get-background-run': {
     args: [sessionId: SessionId]
@@ -95,6 +101,15 @@ export interface IpcIntegrationInvokeChannelMap
     args: []
     return: undefined
   }
+  /** Answered before the Session Host is ready, like `app:retry-startup` and the logs folder. */
+  'app:get-startup-status': {
+    args: []
+    return: GuiStartupStatus
+  }
+  'app:retry-startup': {
+    args: []
+    return: undefined
+  }
   'app:get-logs-path': {
     args: []
     return: string
@@ -133,6 +148,11 @@ export interface IpcIntegrationInvokeChannelMap
   'auth:get-account-info': {
     args: [provider: OAuthProvider]
     return: OAuthAccountInfo
+  }
+  /** Every listed provider's account in one call; the settings gate read them one by one. */
+  'auth:get-account-infos': {
+    args: [providers: readonly OAuthProvider[]]
+    return: Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>
   }
   'auth:submit-code': {
     args: [provider: OAuthProvider, code: string]
@@ -229,5 +249,10 @@ export interface IpcIntegrationInvokeChannelMap
   'sessions:turn-diff-files:get': {
     args: [id: SessionId, turnId: string]
     return: readonly TurnDiffFileSummary[]
+  }
+  /** Every listed turn's changed files in one read, keyed by turn id (one call per Session open). */
+  'sessions:turn-diff-files:list': {
+    args: [id: SessionId, turnIds: readonly string[]]
+    return: Readonly<Record<string, readonly TurnDiffFileSummary[]>>
   }
 }

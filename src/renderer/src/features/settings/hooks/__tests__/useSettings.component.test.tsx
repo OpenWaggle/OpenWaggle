@@ -7,9 +7,11 @@ const {
   loadProviderModelsMock,
   loadAllAuthAccountsMock,
   onOAuthStatusMock,
+  getSettingsMock,
   setPreferencesStateMock,
   unsubscribeMock,
 } = vi.hoisted(() => ({
+  getSettingsMock: vi.fn(),
   loadSettingsMock: vi.fn(),
   loadSyntaxThemeCatalogMock: vi.fn(),
   loadProviderModelsMock: vi.fn(),
@@ -76,6 +78,7 @@ function selectAuth<T>(
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onOAuthStatus: onOAuthStatusMock,
+    getSettings: getSettingsMock,
   },
 }))
 
@@ -111,6 +114,27 @@ describe('useSettingsSetup', () => {
     loadProviderModelsMock.mockResolvedValue(undefined)
     loadAllAuthAccountsMock.mockResolvedValue(undefined)
     onOAuthStatusMock.mockReturnValue(unsubscribeMock)
+    getSettingsMock.mockResolvedValue({ projectPath: null })
+  })
+
+  it('requests settings while the Syntax theme catalog loads, and applies them after it (B11)', async () => {
+    let resolveSyntaxCatalog = () => {}
+    loadSyntaxThemeCatalogMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveSyntaxCatalog = resolve
+      }),
+    )
+
+    renderHook(() => useSettingsSetup())
+
+    // In flight at once, not after the catalog.
+    expect(getSettingsMock).toHaveBeenCalledOnce()
+    expect(loadSettingsMock).not.toHaveBeenCalled()
+    const prefetched: unknown = getSettingsMock.mock.results[0]?.value
+
+    resolveSyntaxCatalog()
+
+    await waitFor(() => expect(loadSettingsMock).toHaveBeenCalledWith(prefetched))
   })
 
   it('registers imported syntax resources before loading saved appearance settings', async () => {

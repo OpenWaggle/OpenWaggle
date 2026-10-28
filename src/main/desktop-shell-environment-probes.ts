@@ -18,6 +18,12 @@ export interface ShellEnvironmentCommand {
   readonly command: string
   readonly args: readonly string[]
   readonly timeoutMs: number
+  /**
+   * The environment the probe starts with. Without it the probe inherits this process's, which a
+   * cached result may already have changed; a login shell keeps the PATH it inherits, so a
+   * refresh would echo every cached entry back and the cache would never forget one.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>
 }
 
 export type ShellEnvironmentCommandRunner = (input: ShellEnvironmentCommand) => Promise<string>
@@ -193,6 +199,7 @@ export function runBoundedShellEnvironmentCommand(input: ShellEnvironmentCommand
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true,
+      ...(input.env ? { env: { ...input.env } } : {}),
     })
     const finish = (value: string) => {
       if (settled) return
@@ -259,12 +266,14 @@ async function safeRun(
 export async function readLoginShellEnvironment(
   shell: string,
   runner: ShellEnvironmentCommandRunner,
+  env?: Readonly<Record<string, string | undefined>>,
 ): Promise<ShellEnvironmentPatch> {
   const output = await safeRun(runner, {
     probe: 'login-shell',
     command: shell,
     args: ['-ilc', capturePosixEnvironmentCommand(LOGIN_SHELL_ENV_NAMES, shell)],
     timeoutMs: LOGIN_SHELL_TIMEOUT_MS,
+    ...(env ? { env } : {}),
   })
   return extractShellEnvironment(output, LOGIN_SHELL_ENV_NAMES)
 }

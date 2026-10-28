@@ -129,7 +129,7 @@ describe('openwaggle mcp registry', () => {
         '--name',
         'forecast',
         '--exposure',
-        'direct',
+        'hidden',
       ],
       { 'mcp:install-registry-server': () => installed('forecast') },
     )
@@ -140,7 +140,7 @@ describe('openwaggle mcp registry', () => {
       registryName: 'io.github.example/weather',
       method: 'npm',
       serverName: 'forecast',
-      exposure: 'direct',
+      exposure: 'hidden',
     })
     expect(result.logs).toContain('openwaggle mcp list -l')
   })
@@ -177,6 +177,7 @@ describe('openwaggle mcp registry', () => {
     [['add'], /Usage: openwaggle mcp registry/],
     [['add', 'io.github.example/weather', '--package', 'cargo'], /--package must be one of/],
     [['add', 'io.github.example/weather', '--trust'], /Unknown option --trust/],
+    [['add', 'io.github.example/weather', '--exposure', 'direct'], /Use --exposure codemode/],
     [['remove', 'io.github.example/weather'], /Usage: openwaggle mcp registry/],
   ])('refuses %j as a usage error', async (args, message) => {
     const result = await run('registry', args, {})

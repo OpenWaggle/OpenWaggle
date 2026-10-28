@@ -58,6 +58,7 @@ it('shows retained cleanup recovery when Settings reopens without another remova
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
   mocks.manage.mockImplementation(
@@ -77,6 +78,7 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'succeeded', output: '' },
   })
   mocks.manage.mockImplementation(
@@ -110,6 +112,7 @@ it('shows why the Host could not match the checkout', async () => {
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'succeeded', output: '' },
   })
   mocks.manage.mockImplementation(
@@ -153,6 +156,7 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'succeeded', output: '' },
   })
   mocks.manage.mockImplementation(
@@ -219,6 +223,7 @@ it('leaves a failed or refused cleanup reason to the row instead of a brief toas
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
   mocks.manage.mockImplementation(
@@ -251,6 +256,7 @@ it('puts the full reason in the toast when the list cannot show it', async () =>
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
   let retainedCalls = 0
@@ -277,6 +283,7 @@ it('names the reason when removal itself fails', async () => {
     workspaceId: 'workspace',
     revision: 3,
     snapshot: { definitions: [] },
+    setup: { status: 'idle' },
     cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
   })
   mocks.manage.mockImplementation(

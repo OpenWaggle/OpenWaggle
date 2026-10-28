@@ -20,6 +20,7 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type { AgentExtensionCommand } from './extension-command'
+import type { GuiStartupStatus } from './gui-startup'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -27,7 +28,7 @@ import type {
   InlineVisualizationFrameUnregisterInput,
 } from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
-import type { ProviderInfo, SupportedModelId } from './llm'
+import type { ProviderCatalogScope, ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
@@ -62,6 +63,8 @@ import type {
   SessionWorktreePlan,
 } from './session'
 import type { SessionTitleRegenerationResult } from './session-title'
+import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
+import type { SessionTreeSearchCursor, SessionTreeSearchPage } from './session-tree-search'
 import type { Settings, ThinkingLevel } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -115,6 +118,11 @@ export interface OpenWaggleApi
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
   getAgentPhase(sessionId: SessionId): Promise<AgentPhaseState | null>
+  /**
+   * Names the Sessions this window shows. Their streamed deltas arrive about 30 times a second; other
+   * Sessions' arrive merged on a slower beat, for activity and route-switch snapshots.
+   */
+  setShownSessions(sessionIds: readonly SessionId[]): Promise<void>
   getBackgroundRun(sessionId: SessionId): Promise<BackgroundRunSnapshot | null>
   listActiveRuns(): Promise<ActiveRunInfo[]>
   getContextUsage(
@@ -161,7 +169,10 @@ export interface OpenWaggleApi
   getUsageCostSessions(query: UsageCostSessionQuery): Promise<UsageCostSessionsResult>
 
   // Providers
-  getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
+  getProviderModels(
+    projectPath?: string | null,
+    scope?: ProviderCatalogScope,
+  ): Promise<ProviderInfo[]>
 
   registerInlineVisualizationFrame(
     input: InlineVisualizationFrameRegisterInput,
@@ -170,10 +181,14 @@ export interface OpenWaggleApi
   saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
-  getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  getSessionDetail(id: SessionId, cursor?: SessionDetailCursor): Promise<SessionDetail | null>
   dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiffFiles(id: SessionId, turnId: string): Promise<readonly TurnDiffFileSummary[]>
+  listTurnDiffFiles(
+    id: SessionId,
+    turnIds: readonly string[],
+  ): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
   listPinnedSessions(): Promise<PinnedSession[]>
@@ -218,7 +233,13 @@ export interface OpenWaggleApi
   getSessionWorkspace(
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,
+    request?: SessionWorkspaceRequest,
   ): Promise<SessionWorkspace | null>
+  searchSessionTree(
+    sessionId: SessionId,
+    query: string,
+    after?: SessionTreeSearchCursor,
+  ): Promise<SessionTreeSearchPage>
   navigateSessionTree(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -265,6 +286,9 @@ export interface OpenWaggleApi
   readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
+  getStartupStatus(): Promise<GuiStartupStatus>
+  retryStartup(): Promise<void>
+  onStartupStatusChanged(callback: (status: GuiStartupStatus) => void): () => void
   openPath(path: string): Promise<void>
   revealPath(path: string): Promise<void>
 
@@ -274,6 +298,9 @@ export interface OpenWaggleApi
   setProviderApiKey(provider: string, apiKey: string): Promise<void>
   disconnectAuth(provider: OAuthProvider): Promise<void>
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
+  getAuthAccountInfos(
+    providers: readonly OAuthProvider[],
+  ): Promise<Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
 
   /*

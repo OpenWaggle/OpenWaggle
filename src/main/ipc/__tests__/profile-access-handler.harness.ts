@@ -40,6 +40,9 @@ export { mocks }
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: mocks.dispatch,
 }))
+vi.mock('../../application/gui-session-command', () => ({
+  dispatchGuiSessionCommand: mocks.dispatch,
+}))
 vi.mock('../typed-ipc', () => ({ typedHandle: mocks.typedHandle }))
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp/openwaggle-user-data' } }))
 vi.mock('../../session-host/local-session-paths', () => ({

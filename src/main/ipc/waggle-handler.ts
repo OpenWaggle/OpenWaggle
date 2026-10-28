@@ -9,7 +9,7 @@ import {
 } from '@shared/types/local-session-protocol'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { typedHandle, typedOn } from './typed-ipc'
 
 export function registerWaggleHandlers() {
@@ -37,7 +37,7 @@ function registerCancelWaggleHandler() {
 function cancelWaggle(sessionId: SessionId) {
   return Effect.gen(function* () {
     const command = explicitWaggleCancellationPayload(sessionId)
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchGuiSessionCommand({
       caller: { callerId: 'gui:local-user' },
       payload: command,
     })
@@ -95,7 +95,7 @@ function handleSendWaggleMessage(
 ) {
   return Effect.gen(function* () {
     const command = explicitWagglePayload(sessionId, payload, model, config)
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchGuiSessionCommand({
       caller: { callerId: 'gui:local-user' },
       payload: command,
     })

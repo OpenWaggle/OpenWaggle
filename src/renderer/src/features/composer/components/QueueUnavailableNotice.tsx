@@ -1,5 +1,6 @@
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
+import { withFinally } from '@/shared/lib/async-outcome'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 
@@ -29,11 +30,7 @@ export function QueueUnavailableNotice({
 
   async function retry() {
     setIsRetrying(true)
-    try {
-      await onRetry()
-    } finally {
-      setIsRetrying(false)
-    }
+    await withFinally(onRetry, () => setIsRetrying(false))
   }
 
   return (

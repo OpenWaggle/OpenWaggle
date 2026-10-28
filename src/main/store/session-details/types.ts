@@ -87,6 +87,21 @@ export interface SessionNodeRow {
   readonly created_order: number
 }
 
+/** A node row as snapshot persistence first reads it: every column but the content (D6). */
+export type SessionNodeShapeRow = Omit<SessionNodeRow, 'content_json' | 'metadata_json'> & {
+  /** `sessionNodeContentHash` of the stored content and metadata, or null when unknown. */
+  readonly content_hash: string | null
+}
+
+/**
+ * A node row as snapshot persistence compares it with the snapshot. `content` is the stored
+ * content and metadata when they may differ from the snapshot node's; null when the stored digest
+ * equals the snapshot node's, so both are known to be unchanged without reading them.
+ */
+export type ComparedSessionNodeRow = SessionNodeShapeRow & {
+  readonly content: Pick<SessionNodeRow, 'content_json' | 'metadata_json'> | null
+}
+
 export interface UpdateSessionRuntimeInput {
   readonly sessionId: SessionId
   readonly piSessionId?: string

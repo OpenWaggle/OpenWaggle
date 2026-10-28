@@ -19,7 +19,7 @@ import type {
   PendingDelegationSpecificationUpdate,
   PendingSessionOrchestrationUpdate,
 } from './session-orchestration-update-repository'
-import type { ProjectedSessionNodeInput } from './session-repository'
+import type { PiSnapshotProjection, ProjectedSessionNodeInput } from './session-repository'
 
 export class AgentKernelMissingEntryError extends Error {
   readonly entryId: string
@@ -40,6 +40,8 @@ export function isAgentKernelMissingEntryError(
 export interface AgentKernelSessionSnapshot {
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly activeNodeId: string | null
+  /** Pass it on to `persistSnapshot` with the nodes (D6). */
+  readonly piProjection?: PiSnapshotProjection
 }
 
 export interface AgentKernelRunControl {

@@ -56,12 +56,17 @@ export const usePendingSendStore = create<PendingSendState>((set) => ({
     }),
 }))
 
+/** The store's actions, read outside the hook: a hook referenced as a value is not compilable. */
+function pendingSendActions() {
+  return usePendingSendStore.getState()
+}
+
 /** The chat panel's pending-send wiring for the Session (or draft) on screen. */
 export function usePendingSend(sessionId: SessionId | null) {
   const pendingSend = usePendingSendStore(
     (state) => state.bySession.get(scopeKey(sessionId)) ?? null,
   )
-  const { begin, clearSend } = usePendingSendStore.getState()
+  const { begin, clearSend } = pendingSendActions()
   return {
     /** Handed to the send workflow, which begins a send and clears it when the send throws. */
     workflow: {

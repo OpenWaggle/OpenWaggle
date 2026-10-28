@@ -1,19 +1,15 @@
-export { ActionRunPanel } from './components/ActionRunPanel'
+// Heavy components stay out of this root index: the eager shell imports it for hooks, state and
+// helpers, and re-exporting the settings, surfaces and editors here pulled them into the initial
+// renderer graph (renderer-load B8). Import them from `@/features/project-actions/components`.
+// Only light pieces are exported here: the always-mounted shell layout and effects, the
+// composer's preparation choice, and the transcript's repair proposal card.
+
 export { ActionPanelLayout } from './components/action-panel/ActionPanelLayout'
 export {
   CommandRepairProposalCard,
   commandRepairProposalFrom,
 } from './components/action-panel/CommandRepairProposalCard'
-export { ProjectActionConditionBuilder } from './components/ProjectActionConditionBuilder'
-export { ProjectActionGlyph } from './components/ProjectActionGlyph'
 export { ProjectActionsBackgroundEffects } from './components/ProjectActionsBackgroundEffects'
-export { ProjectActionsSettings } from './components/ProjectActionsSettings'
-export {
-  ProjectActionsSurface,
-  type ProjectActionsSurfaceProps,
-} from './components/ProjectActionsSurface'
-export { WorkspaceCleanupFailure } from './components/WorkspaceCleanupFailure'
-export { WorkspacePreparationStatus } from './components/WorkspacePreparationStatus'
 export { WorktreePreparationChoice } from './components/WorktreePreparationChoice'
 export { useHasActiveProjectActionRun } from './hooks/useHasActiveProjectActionRun'
 export { useActionRuns, useActionScope, useNativeActions } from './hooks/useNativeActions'
@@ -38,4 +34,8 @@ export {
   projectActionShortcutSummary,
   projectActionUnknownWhenVariables,
 } from './lib/project-action-model'
+export {
+  isProjectActionQueryAffected,
+  type ProjectActionSessionChange,
+} from './lib/project-action-query-scope'
 export { useProjectActionStore } from './state/project-action-store'

@@ -32,6 +32,9 @@ export {
   type SessionFollowUpQueueItem,
   type SessionFollowUpQueueSnapshot,
 } from './session-follow-up-queue-model'
+
+import { withFinally } from '@/shared/lib/async-outcome'
+
 export { sessionFollowUpQueueOptions } from './session-follow-up-queue-options'
 
 export function useSessionFollowUpQueue(sessionId: SessionId | null) {
@@ -81,12 +84,10 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     const command = { operation: 'queue-withdraw', sessionId, followUpIds: [followUpId] } as const
     const current = query.data
     const withdrawsHead = current?.state === 'running' && current.items[0]?.id === followUpId
-    try {
+    await withFinally(async () => {
       if (current === undefined || withdrawsHead) await mutateMayStartRun(sessionId, command)
       else await mutate(command)
-    } finally {
-      await refresh()
-    }
+    }, refresh)
   }
 
   async function promote(followUpId: string) {
@@ -119,14 +120,12 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    */
   async function setPaused(paused: boolean, expectedQueueRevision?: number) {
     if (!sessionId) return
-    try {
+    await withFinally(async () => {
       const revision = await guardRevision(sessionId, expectedQueueRevision)
       const command = { sessionId, expectedQueueRevision: revision }
       if (paused) await mutate({ operation: 'queue-pause', ...command })
       else await mutateMayStartRun(sessionId, { operation: 'queue-resume', ...command })
-    } finally {
-      await refresh()
-    }
+    }, refresh)
   }
 
   /**
@@ -137,7 +136,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    */
   async function adopt(followUpId: string, expectedQueueRevision?: number) {
     if (!sessionId) return
-    try {
+    await withFinally(async () => {
       const revision = await guardRevision(sessionId, expectedQueueRevision)
       await mutateMayStartRun(sessionId, {
         operation: 'queue-adopt',
@@ -145,9 +144,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
         followUpId,
         expectedQueueRevision: revision,
       })
-    } finally {
-      await refresh()
-    }
+    }, refresh)
   }
 
   /**
@@ -164,6 +161,22 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       orderedFollowUpIds,
     })
     await refresh()
+  }
+
+  /**
+   * Ends an open Follow-up edit without changing the item. Releasing a hold that is already gone
+   * succeeds, and the queue then delivers if it can.
+   */
+  async function cancelEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
+    if (!sessionId) return
+    await withFinally(async () => {
+      await mutateMayStartRun(sessionId, {
+        operation: 'queue-edit-cancel',
+        sessionId,
+        followUpId: edit.followUpId,
+        holdId: edit.holdId,
+      })
+    }, refresh)
   }
 
   /**
@@ -238,7 +251,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     if (isGuiOnlyComposerCommand(payload.text)) {
       throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
     }
-    try {
+    await withFinally(async () => {
       await mutateMayStartRun(sessionId, {
         operation: 'queue-edit-save',
         sessionId,
@@ -254,27 +267,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
             : {}),
         },
       })
-    } finally {
-      await refresh()
-    }
-  }
-
-  /**
-   * Ends an open Follow-up edit without changing the item. Releasing a hold that is already gone
-   * succeeds, and the queue then delivers if it can.
-   */
-  async function cancelEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
-    if (!sessionId) return
-    try {
-      await mutateMayStartRun(sessionId, {
-        operation: 'queue-edit-cancel',
-        sessionId,
-        followUpId: edit.followUpId,
-        holdId: edit.holdId,
-      })
-    } finally {
-      await refresh()
-    }
+    }, refresh)
   }
 
   return {

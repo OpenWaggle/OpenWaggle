@@ -16,7 +16,6 @@ import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-ex
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
-import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { resolveLegacyMcpServerAllowlist } from './mcp/legacy-mcp-server-allowlist'
 import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
 import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
@@ -89,7 +88,8 @@ export function createBrowserPreviewRuntimeResources(input: {
         service: input.service,
       }),
     ],
-    systemPromptAppendices: [BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT],
+    // The preview tools announce themselves with a rule; no appendix on every request (C5).
+    systemPromptAppendices: [],
   } as const
 }
 
@@ -103,13 +103,22 @@ function hasWaggleRunOptions(
   return Boolean(input.waggle)
 }
 
-function createRunSessionsExtension(
-  input: AgentKernelRunInput,
+/**
+ * The Run's `hive` tool. The first-turn prefix budget (scripts/perf/first-turn-prefix) builds its
+ * Run with this and `createRunTrustedExtensionFactories` too, so what they add is measured.
+ */
+export function createRunSessionsExtension(
+  input: Pick<
+    AgentKernelRunInput,
+    'runId' | 'agentDefinitionToggles' | 'sessionCapabilities' | 'modelMultiAgentEnabled'
+  > & { readonly session: Pick<AgentKernelRunInput['session'], 'id'> },
   workingDirectory: string,
   projectPath: string,
+  scratchDirectory: string | undefined,
 ) {
   return createSessionsToolExtension({
     sessionId: input.session.id,
+    ...(scratchDirectory ? { scratchDirectory } : {}),
     runId: input.runId,
     workingDirectory,
     projectPath,
@@ -121,6 +130,35 @@ function createRunSessionsExtension(
       ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
       : {}),
   })
+}
+
+/** The Run's trusted first-party tools: browser preview, project actions, source control, docs. */
+export function createRunTrustedExtensionFactories(input: {
+  readonly sessionId: AgentKernelRunInput['session']['id']
+  readonly runId: string
+  readonly projectPath: string
+  readonly browserPreview: ReturnType<typeof createBrowserPreviewRuntimeResources>
+  readonly projectActions: ProjectActionToolServices
+  readonly docs: OpenWaggleDocsToolServices
+  readonly docsBundlePath: string | null
+}) {
+  return [
+    ...input.browserPreview.trustedExtensionFactories,
+    createProjectActionsToolExtension({
+      ...input.projectActions,
+      sessionId: input.sessionId,
+      runId: input.runId,
+    }),
+    createSourceControlToolExtension({
+      sessionId: input.sessionId,
+      workspaces: input.projectActions.workspaces,
+    }),
+    createOpenWaggleDocsToolExtension({
+      services: input.docs,
+      projectPath: input.projectPath,
+      bundlePath: input.docsBundlePath,
+    }),
+  ]
 }
 
 export function runPiAgentKernel(
@@ -182,30 +220,27 @@ function runPiAgentKernelTurn(
         ],
         { concurrency: 'unbounded' },
       ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
-    const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
+    const sessionsExtensionFactory = createRunSessionsExtension(
+      input,
+      executionPath,
+      projectPath,
+      scratchDirectory,
+    )
     const browserPreviewResources = createBrowserPreviewRuntimeResources({
       enabled: dependencies.enableBrowserPreviewAutomation,
       sessionId: input.session.id,
       workingPath: executionPath,
       service: dependencies.browserPreviewAutomation,
     })
-    const trustedExtensionFactories = [
-      ...browserPreviewResources.trustedExtensionFactories,
-      createProjectActionsToolExtension({
-        ...dependencies.projectActions,
-        sessionId: input.session.id,
-        runId: input.runId,
-      }),
-      createSourceControlToolExtension({
-        sessionId: input.session.id,
-        workspaces: dependencies.projectActions.workspaces,
-      }),
-      createOpenWaggleDocsToolExtension({
-        services: dependencies.docs,
-        projectPath,
-        bundlePath: docsBundlePath,
-      }),
-    ]
+    const trustedExtensionFactories = createRunTrustedExtensionFactories({
+      sessionId: input.session.id,
+      runId: input.runId,
+      projectPath,
+      browserPreview: browserPreviewResources,
+      projectActions: dependencies.projectActions,
+      docs: dependencies.docs,
+      docsBundlePath,
+    })
     launchReporter.reportTaskStarting(executionPath)
     return yield* Effect.tryPromise({
       try: () =>

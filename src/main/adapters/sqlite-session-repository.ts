@@ -80,6 +80,14 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('setArchiveTimes', () => deps.store.setArchiveTimes(entries)),
     getTree: (sessionId) =>
       repositoryOperation('getSessionTree', () => deps.store.getSessionTree(sessionId)),
+    getNodeMutationRevision: (sessionId) =>
+      repositoryOperation('getSessionNodeMutationRevision', () =>
+        deps.store.getSessionNodeMutationRevision(sessionId),
+      ),
+    searchTreeNodes: (sessionId, query, after) =>
+      repositoryOperation('searchSessionTreeNodes', () =>
+        deps.store.searchSessionTreePage(sessionId, query, after),
+      ),
     listResourceProjectionPage: (sessionId, afterCreatedOrder, limit) =>
       repositoryOperation('listSessionResourceProjectionPage', () =>
         deps.store.listSessionResourceProjectionPage(sessionId, afterCreatedOrder, limit),
@@ -112,6 +120,8 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
     | 'readArchivedItemStates'
     | 'setArchiveTimes'
     | 'getTree'
+    | 'getNodeMutationRevision'
+    | 'searchTreeNodes'
     | 'listResourceProjectionPage'
     | 'getResourceProjectionNodes'
     | 'getWorkspace'

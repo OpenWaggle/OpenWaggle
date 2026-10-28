@@ -3,7 +3,7 @@
  * finish installing, releases desktop services and exits, so a broken start never keeps running.
  */
 import { describeError } from './error-description'
-import { reportErrorBeforeExit } from './error-reporting'
+import { reportError, reportErrorBeforeExit } from './error-reporting'
 import { createLogger } from './logger'
 import { waitForCliSetupBeforeExit } from './services/cli-shim-startup'
 
@@ -39,4 +39,16 @@ export async function exitAfterBootstrapFailure(input: BootstrapFailureInput) {
   }
   await reported
   input.exit(FAILURE_EXIT_CODE)
+}
+
+/**
+ * What the GUI does when its backend fails to start once its window is open (decision 3): it logs
+ * and reports the error and keeps running, so the window can show the Host error screen with
+ * Retry and Open logs instead of quitting silently. Never throws.
+ */
+export function reportGuiStartupFailure(error: unknown) {
+  logger.error('The Session Host did not start; showing the startup error screen', {
+    ...describeError(error),
+  })
+  reportError(error)
 }

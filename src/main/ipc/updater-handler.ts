@@ -4,26 +4,31 @@ import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channe
 import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
+import {
+  dispatchGuiSessionCommand,
+  GuiSessionCommandNotAttachedError,
+} from '../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
-import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
-import { interruptSessionRun } from '../application/session-run-interruption'
+import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
 import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
-import { runAppEffect } from '../runtime'
 import {
   createUpdateRestartController,
   type UpdateRestartChoice,
   type UpdateRestartState,
 } from '../update-restart'
-import {
-  checkForUpdates,
-  getUpdateStatus,
-  installUpdate,
-  setUpdateWaitingForRuns,
-} from '../updater'
+import { getUpdateStatus, setUpdateWaitingForRuns } from '../update-status'
+import { lazyModule } from '../utils/lazy-module'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('update-restart')
+/**
+ * The updater brings electron-updater, which took the GUI ≈40–60 ms (and seconds on a busy
+ * machine) to load while it registered IPC handlers, before the window opened (A-F4). The status
+ * lives in update-status.ts, so only a check or an install loads it.
+ */
+const loadUpdater = lazyModule(() => import('../updater'))
 const UPDATE_RESTART_POLL_INTERVAL_MS = 3_000
 const UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS = 30_000
 const RESTART_CHOICES: readonly UpdateRestartChoice[] = ['when-idle', 'now', 'cancel']
@@ -56,17 +61,17 @@ function parseUpdateChannel(value: unknown): UpdateChannel | undefined {
 /** Active runs and compactions across every Session the Session Host owns. */
 async function listActiveActivities() {
   const remote = await invokeConfiguredHostUi('agent:list-active-runs', [])
-  const activities = remote.handled
-    ? remote.result
-    : await runAppEffect(listHostUiActiveActivities())
-  return decodeUnknownOrThrow(activeActivitiesSchema, activities)
+  if (!remote.handled) throw new GuiSessionCommandNotAttachedError()
+  return decodeUnknownOrThrow(activeActivitiesSchema, remote.result)
 }
 
 /** Stops every active run and compaction; interruptSessionRun handles both. */
 async function interruptActiveRuns() {
   const sessionIds = new Set((await listActiveActivities()).map((activity) => activity.sessionId))
   await Promise.all(
-    [...sessionIds].map((sessionId) => runAppEffect(interruptSessionRun(SessionId(sessionId)))),
+    [...sessionIds].map((sessionId) =>
+      runGuiEffect(interruptSessionRunThrough(dispatchGuiSessionCommand, SessionId(sessionId))),
+    ),
   )
 }
 
@@ -92,7 +97,7 @@ const updateRestart = createUpdateRestartController({
   interruptActiveRuns,
   updateState: () => updateRestartState(getUpdateStatus()),
   reportWaiting: setUpdateWaitingForRuns,
-  install: installUpdate,
+  install: async () => (await loadUpdater()).installUpdate(),
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   pollIntervalMs: UPDATE_RESTART_POLL_INTERVAL_MS,
   interruptSettleTimeoutMs: UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS,
@@ -103,8 +108,9 @@ const updateRestart = createUpdateRestartController({
 
 export function registerUpdaterHandlers(): void {
   typedHandle('updater:check', (_event, rawChannel?: unknown) =>
-    Effect.sync(() => {
-      checkForUpdates(parseUpdateChannel(rawChannel))
+    Effect.promise(async () => {
+      const channel = parseUpdateChannel(rawChannel)
+      ;(await loadUpdater()).checkForUpdates(channel)
     }),
   )
 

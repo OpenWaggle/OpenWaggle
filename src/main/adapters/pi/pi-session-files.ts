@@ -19,6 +19,13 @@ import {
   PiSessionFiles,
   type PiSessionFilesShape,
 } from '../../ports/pi-session-discovery'
+import {
+  piSessionFileContentHasTail,
+  piSessionFileStillHasTail,
+  piSessionFileTailOf,
+  readPiSessionFileAfterTail,
+} from '../../store/pi-session-file-tail'
+import { readPiProjectionBase } from '../../store/session-details/pi-projection-base'
 import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
 import { runDirectoryOf, unsearchablePiSessionFolder } from './agent-kernel/pi-session-search'
 import { findExistingPiSessionFile } from './agent-kernel/session-manager'
@@ -146,6 +153,55 @@ function branchThinkingLevel(branch: readonly SessionEntry[]) {
   return change?.type === 'thinking_level_change' ? { lastThinkingLevel: change.thinkingLevel } : {}
 }
 
+type ReadSnapshotInput = Parameters<PiSessionFilesShape['readSnapshot']>[0]
+
+/**
+ * The most appended bytes taken as possibly only usage entries (a usage line is about 0.5 KB, and a
+ * warming session appends one or two per Run). More than that is read as a changed file, without
+ * reading or parsing the appended region first.
+ */
+const MAX_USAGE_ONLY_APPEND_BYTES = 64 * 1024
+/** How Pi's compact JSON lines name a usage entry; a line without it cannot be one. */
+const USAGE_ENTRY_MARKER = '"type":"usage"'
+
+function isUsageLine(line: string) {
+  if (!line.includes(USAGE_ENTRY_MARKER)) return false
+  try {
+    const entry: unknown = JSON.parse(line)
+    return typeof entry === 'object' && entry !== null && 'type' in entry && entry.type === 'usage'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether everything Pi appended since the projection's recorded tail is usage entries, read from
+ * the appended bytes alone (D6): the file still has the tail's bytes where they were, and holds
+ * only complete usage lines after it. Anything else, a partial last line or an append larger than
+ * a few usage lines included, reads the file.
+ */
+async function onlyUsageAppendedAfterTail(input: ReadSnapshotInput, size: number) {
+  const tail = input.projectedTail
+  if (!tail || size <= tail.offset) return false
+  if (size - tail.offset > MAX_USAGE_ONLY_APPEND_BYTES) return false
+  if (!piSessionFileStillHasTail(input.piSessionFile, tail)) return false
+  const appended = await readPiSessionFileAfterTail(input.piSessionFile, tail, size)
+  if (!appended || appended.length !== size - tail.offset) return false
+  const text = appended.toString('utf8')
+  if (!text.endsWith('\n')) return false
+  return text
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .every(isUsageLine)
+}
+
+/** The Session's projection a changed file's snapshot can keep entries of, if it still applies. */
+async function projectionBaseFor(input: ReadSnapshotInput, content: Buffer) {
+  if (!input.sessionId || !input.projectedTail) return null
+  const base = await readPiProjectionBase(input.sessionId)
+  return base && piSessionFileContentHasTail(content, base.tail) ? base : null
+}
+
 /**
  * Reads a Pi session file for viewing, without changing it. `SessionManager.open` upgrades a file
  * in an older Pi format by rewriting it; the file is parsed and loaded into an in-memory manager
@@ -153,13 +209,15 @@ function branchThinkingLevel(branch: readonly SessionEntry[]) {
  * The fingerprint is taken first: a write that lands while the file is read leaves it stale, so
  * the next check reads again. Reading is asynchronous; only the parse runs on the event loop.
  */
-async function readSnapshot(
-  input: Parameters<PiSessionFilesShape['readSnapshot']>[0],
-): Promise<PiSessionFileRead> {
+async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead> {
   const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
-  const fileEntries = parseSessionEntries(await readFile(file, 'utf8'))
+  if (await onlyUsageAppendedAfterTail(input, fingerprint.size)) {
+    return { kind: 'unchanged', fingerprint }
+  }
+  const content = await readFile(file)
+  const fileEntries = parseSessionEntries(content.toString('utf8'))
   if (!fileEntries.some((entry) => entry.type === 'session')) {
     throw new Error(`Pi session file has no session header: ${file}`)
   }
@@ -175,10 +233,11 @@ async function readSnapshot(
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: file,
     entryCount: entries.length,
-    fingerprint,
+    fingerprint: { ...fingerprint, tail: piSessionFileTailOf(content) },
     sessionSnapshot: projectPiSessionSnapshot(
       { sessionManager },
       piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix),
+      await projectionBaseFor(input, content),
     ),
     ...branchModelSelection(branch),
     ...branchThinkingLevel(branch),

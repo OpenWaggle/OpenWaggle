@@ -83,8 +83,9 @@ describe('Pi run orchestration', () => {
         extensionFactories: expect.any(Array),
       }),
     )
-    // Event projection, durable Follow-up tracking, and user display projection each subscribe.
-    expect(session.subscribe).toHaveBeenCalledTimes(3)
+    // Event projection, durable Follow-up tracking, user display projection, and the turn
+    // checkpoint's workspace-change observer each subscribe.
+    expect(session.subscribe).toHaveBeenCalledTimes(4)
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()

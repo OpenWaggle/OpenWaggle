@@ -1,21 +1,24 @@
-import type {
-  McpConfiguredServerView,
-  McpServerExposure,
-  McpServerToolView,
-} from '@shared/types/mcp-configuration'
-import { MCP_EXPOSURE_VALUES } from '@shared/types/mcp-configuration'
+import type { McpConfiguredServerView, McpServerToolView } from '@shared/types/mcp-configuration'
+import type { McpRuntimeExposure } from '@shared/utils/mcp-exposure'
 import { Check } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
-import { MCP_EXPOSURE_COPY, MCP_EXPOSURE_ORDER } from '../../../lib/mcp-server-model'
+import {
+  MCP_EXPOSURE_COPY,
+  mcpExposureChoices,
+  mcpShownExposure,
+} from '../../../lib/mcp-server-model'
 import { McpInlineError } from './McpLabels'
 
 const SAME_AS_SERVER = 'server'
 
-function exposureValue(value: string): McpServerExposure | null {
-  return MCP_EXPOSURE_VALUES.find((exposure) => exposure === value) ?? null
+function exposureValue(
+  value: string,
+  choices: readonly McpRuntimeExposure[],
+): McpRuntimeExposure | null {
+  return choices.find((exposure) => exposure === value) ?? null
 }
 
 function firstLine(text: string | undefined) {
@@ -26,13 +29,17 @@ const PREVIOUS_KEYS = new Set(['ArrowUp', 'ArrowLeft'])
 const NEXT_KEYS = new Set(['ArrowDown', 'ArrowRight'])
 
 /** The choice a radio-group key moves to (WAI-ARIA radio group: arrows wrap, Home and End). */
-function exposureForKey(key: string, current: McpServerExposure) {
-  const index = MCP_EXPOSURE_ORDER.indexOf(current)
-  const last = MCP_EXPOSURE_ORDER.length - 1
-  if (key === 'Home') return MCP_EXPOSURE_ORDER[0]
-  if (key === 'End') return MCP_EXPOSURE_ORDER[last]
-  if (PREVIOUS_KEYS.has(key)) return MCP_EXPOSURE_ORDER[index <= 0 ? last : index - 1]
-  if (NEXT_KEYS.has(key)) return MCP_EXPOSURE_ORDER[index >= last ? 0 : index + 1]
+function exposureForKey(
+  key: string,
+  current: McpRuntimeExposure,
+  choices: readonly McpRuntimeExposure[],
+) {
+  const index = choices.indexOf(current)
+  const last = choices.length - 1
+  if (key === 'Home') return choices[0]
+  if (key === 'End') return choices[last]
+  if (PREVIOUS_KEYS.has(key)) return choices[index <= 0 ? last : index - 1]
+  if (NEXT_KEYS.has(key)) return choices[index >= last ? 0 : index + 1]
   return undefined
 }
 
@@ -43,15 +50,18 @@ function ServerExposureChoice({
 }: {
   readonly server: McpConfiguredServerView
   readonly disabled: boolean
-  readonly onChange: (exposure: McpServerExposure) => void
+  readonly onChange: (exposure: McpRuntimeExposure) => void
 }) {
+  // A file's `direct` runs, and so shows, as codemode.
+  const current = mcpShownExposure(server.exposure)
+  const choices = mcpExposureChoices(current)
   return (
     <div
       role="radiogroup"
       aria-label="Server exposure"
       className="overflow-hidden rounded-lg border border-border bg-bg"
       onKeyDown={(event) => {
-        const next = exposureForKey(event.key, server.exposure)
+        const next = exposureForKey(event.key, current, choices)
         if (!next) return
         event.preventDefault()
         // While a choice saves, keys are ignored; the next one moves from the saved choice.
@@ -60,11 +70,11 @@ function ServerExposureChoice({
           `[role="radio"][data-exposure="${next}"]`,
         )
         radio?.focus()
-        if (next !== server.exposure) onChange(next)
+        if (next !== current) onChange(next)
       }}
     >
-      {MCP_EXPOSURE_ORDER.map((exposure) => {
-        const selected = server.exposure === exposure
+      {choices.map((exposure) => {
+        const selected = current === exposure
         return (
           <Button
             key={exposure}
@@ -113,9 +123,12 @@ function ToolExposureRow({
   readonly tool: McpServerToolView
   readonly server: McpConfiguredServerView
   readonly disabled: boolean
-  readonly onChange: (tool: string, exposure: McpServerExposure | null) => void
+  readonly onChange: (tool: string, exposure: McpRuntimeExposure | null) => void
 }) {
-  const own = server.toolExposure[tool.name]
+  const configured = server.toolExposure[tool.name]
+  const own = configured === undefined ? undefined : mcpShownExposure(configured)
+  const serverExposure = mcpShownExposure(server.exposure)
+  const choices = mcpExposureChoices(own ?? 'codemode')
   const description = firstLine(tool.description)
   return (
     <li className="flex items-center justify-between gap-4 border-b border-border px-4 py-2.5 last:border-b-0">
@@ -127,14 +140,14 @@ function ToolExposureRow({
         aria-label={`Exposure of ${tool.name}`}
         value={own ?? SAME_AS_SERVER}
         disabled={disabled}
-        onChange={(event) => onChange(tool.name, exposureValue(event.target.value))}
+        onChange={(event) => onChange(tool.name, exposureValue(event.target.value, choices))}
       >
         <option value={SAME_AS_SERVER}>
-          {own === undefined && tool.exposure !== server.exposure
-            ? `${MCP_EXPOSURE_COPY[tool.exposure].label} (by a rule)`
-            : `Same as server (${MCP_EXPOSURE_COPY[server.exposure].label})`}
+          {own === undefined && mcpShownExposure(tool.exposure) !== serverExposure
+            ? `${MCP_EXPOSURE_COPY[mcpShownExposure(tool.exposure)].label} (by a rule)`
+            : `Same as server (${MCP_EXPOSURE_COPY[serverExposure].label})`}
         </option>
-        {MCP_EXPOSURE_ORDER.map((exposure) => (
+        {choices.map((exposure) => (
           <option key={exposure} value={exposure}>
             {MCP_EXPOSURE_COPY[exposure].label}
           </option>
@@ -149,7 +162,7 @@ function ExposureRules({
   disabled,
   onRemove,
 }: {
-  readonly rules: readonly (readonly [string, McpServerExposure])[]
+  readonly rules: readonly (readonly [string, McpRuntimeExposure])[]
   readonly disabled: boolean
   readonly onRemove: (rule: string) => void
 }) {
@@ -197,8 +210,10 @@ export function McpExposureEditor({
 }) {
   const actions = useMcpConfigurationActions(projectPath)
   const toolNames = new Set(tools.map((tool) => tool.name))
-  const rules = Object.entries(server.toolExposure).filter(([rule]) => !toolNames.has(rule))
-  const setTool = (tool: string, exposure: McpServerExposure | null) =>
+  const rules = Object.entries(server.toolExposure)
+    .filter(([rule]) => !toolNames.has(rule))
+    .map(([rule, exposure]) => [rule, mcpShownExposure(exposure)] as const)
+  const setTool = (tool: string, exposure: McpRuntimeExposure | null) =>
     void actions.setExposure(server.name, { toolExposure: { [tool]: exposure } })
   return (
     <section aria-labelledby="mcp-exposure-heading" className="space-y-3">

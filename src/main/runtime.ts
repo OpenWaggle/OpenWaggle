@@ -1,8 +1,10 @@
 import * as NodeContext from '@effect/platform-node/NodeContext'
+import * as Deferred from 'effect/Deferred'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Fiber from 'effect/Fiber'
+import * as FiberId from 'effect/FiberId'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { AgentRequestedWaggleServiceLive } from './adapters/agent-requested-waggle-adapter'
@@ -45,6 +47,7 @@ import { ActiveProjectChangeServiceLive } from './application/active-project-cha
 import { promptCacheWarming } from './application/prompt-cache-warming'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { makeSourceControlSettingsAccess } from './application/source-control-settings-access'
+import { installHostIdleSlim } from './host-idle-slim'
 import { startMcpHostServices } from './mcp-host-start'
 import {
   closeHostMcpConnections,
@@ -64,6 +67,7 @@ import {
   type HostServiceOptions,
   startHostBackgroundServices,
   startHostServicesAfterListening,
+  startHostServicesOnceListening,
   stopHostServicesAfterListening,
 } from './runtime-host-services'
 import { installPiRuntimeIntegration } from './runtime-pi-integration'
@@ -246,6 +250,8 @@ const AppLayer = Layer.mergeAll(
 
 let currentRuntime = ManagedRuntime.make(AppLayer)
 let stopHostOwnedServices: (() => Promise<void>) | null = null
+/** Resolved once the Host serves clients; the owned services' later part waits for it. */
+let hostListening: Deferred.Deferred<void> | null = null
 
 installStoreEffectRunner()
 
@@ -282,29 +288,41 @@ export async function disposeAppRuntime(): Promise<void> {
 }
 
 /** Once the Host serves clients; Host start does not wait for it. */
-export const startSessionHostServicesAfterListening = startHostServicesAfterListening
+export async function startSessionHostServicesAfterListening() {
+  const listening = hostListening
+  if (listening) await getAppRuntime().runPromise(Deferred.succeed(listening, undefined))
+  await startHostServicesAfterListening()
+}
 
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
   // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
-  startMcpHostServices()
+  startMcpHostServices({ runEffect: runAppEffect })
+  // Background work waits for a client; without one the Host slims down (A-F9, decision 4).
+  installHostIdleSlim()
   promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
   let didStart = false
+  const listening = Deferred.unsafeMake<void>(FiberId.none)
+  hostListening = listening
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* startHostBackgroundServices(options)
+        yield* startHostBackgroundServices()
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()
         })
+        // Deferrable work starts only once the Host serves clients (A-F8).
+        yield* Deferred.await(listening)
+        yield* startHostServicesOnceListening(options)
         return yield* Effect.never
       }),
     ),
   )
   stopHostOwnedServices = async () => {
     stopHostOwnedServices = null
+    hostListening = null
     await getAppRuntime().runPromise(Fiber.interrupt(fiber))
   }
   void getAppRuntime()

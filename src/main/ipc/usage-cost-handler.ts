@@ -3,7 +3,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { usageCostQuerySchema, usageCostSessionQuerySchema } from '@shared/schemas/usage-cost'
 import type { UsageCostQuery, UsageCostSessionQuery } from '@shared/types/usage-cost'
 import * as Effect from 'effect/Effect'
-import { createPiUsageCostScanner } from '../adapters/pi/usage-cost/pi-usage-cost-scanner'
+import type { createPiUsageCostScanner } from '../adapters/pi/usage-cost/pi-usage-cost-scanner'
 import {
   createUsageCostService,
   type UsageCostServiceContext,
@@ -12,10 +12,13 @@ import { SettingsService } from '../services/settings-service'
 import { typedHandle } from './typed-ipc'
 
 /** One scanner instance for the app: the per-file `(size, mtime)` cache is instance state. */
-let defaultScanner: ReturnType<typeof createPiUsageCostScanner> | null = null
+let defaultScanner: Promise<ReturnType<typeof createPiUsageCostScanner>> | null = null
 
+/** The Pi scanner loads when the Usage view first opens, not with the window (A-F5). */
 function scanner() {
-  defaultScanner ??= createPiUsageCostScanner()
+  defaultScanner ??= import('../adapters/pi/usage-cost/pi-usage-cost-scanner').then((module) =>
+    module.createPiUsageCostScanner(),
+  )
   return defaultScanner
 }
 
@@ -59,8 +62,8 @@ export function registerUsageCostHandlers(): void {
     Effect.gen(function* () {
       const decoded = decodeQuery(query)
       const context = yield* serviceContextEffect()
-      return yield* Effect.tryPromise(() =>
-        createUsageCostService(scanner(), context).getView(decoded),
+      return yield* Effect.tryPromise(async () =>
+        createUsageCostService(await scanner(), context).getView(decoded),
       )
     }),
   )
@@ -69,8 +72,8 @@ export function registerUsageCostHandlers(): void {
     Effect.gen(function* () {
       const decoded = decodeSessionQuery(query)
       const context = yield* serviceContextEffect()
-      return yield* Effect.tryPromise(() =>
-        createUsageCostService(scanner(), context).getSessions(decoded),
+      return yield* Effect.tryPromise(async () =>
+        createUsageCostService(await scanner(), context).getSessions(decoded),
       )
     }),
   )

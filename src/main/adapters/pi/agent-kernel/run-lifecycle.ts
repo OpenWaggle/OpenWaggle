@@ -8,6 +8,7 @@ import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import { resolveEffectiveAuthorizationMode } from '../../../application/agent-authorization-mode'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
+import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
 import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
 import {
@@ -20,6 +21,7 @@ import {
   notePiRunProjectDefaultForUsageStatistics,
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
+import { installIdleCompaction } from './idle-compaction-install'
 import { notifyModelFallback, type PiInteractionUiContextInput } from './interaction-ui-context'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { idleCacheWarming } from './pi-idle-cache-warming'
@@ -37,6 +39,7 @@ import {
   collectPiMessagesAfterBoundary,
   collectSettledPiMessages,
 } from './run-lifecycle-failure'
+import { readRunProjectionBase } from './run-projection-base'
 import {
   createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
@@ -79,9 +82,13 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly steeringInputHook?: boolean
 }
 
-function runSystemPromptAppendices(input: CreatePiRunSessionRuntimeInput) {
+/** Scratch guidance, then the caller's; the first-turn prefix budget measures this too. */
+export function runSystemPromptAppendices(
+  input: Pick<CreatePiRunSessionRuntimeInput, 'scratchDirectory' | 'systemPromptAppendices'>,
+  describeScratchDirectory: (scratchDirectory: string) => string = scratchDirectorySystemPrompt,
+) {
   const appendices = [
-    ...(input.scratchDirectory ? [scratchDirectorySystemPrompt(input.scratchDirectory)] : []),
+    ...(input.scratchDirectory ? [describeScratchDirectory(input.scratchDirectory)] : []),
     ...(input.systemPromptAppendices ?? []),
   ]
   return appendices.length > 0 ? { systemPromptAppendices: appendices } : {}
@@ -175,6 +182,7 @@ export async function createPiRunSessionRuntime(
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
+    installIdleCompaction(input.session.id, session)
 
     return exposePiRunControl(input, selectedRuntime.runtime, session, openWaggleUi)
   } catch (error) {
@@ -207,6 +215,7 @@ export async function createPiRunSessionRuntime(
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
   readonly nodeIds: PiEntryNodeIds
+  readonly projectionBase: PiProjectionBase | null
   readonly payload: HydratedAgentSendPayload
   readonly appended: readonly unknown[]
   readonly aborted: boolean
@@ -218,7 +227,7 @@ function buildSuccessfulRunResult(input: {
     newMessages: buildPiRunNewMessages(input.payload, input.appended),
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds),
+    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds, input.projectionBase),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
@@ -282,6 +291,10 @@ export async function runSubscribedPiOperation(input: {
     return buildSuccessfulRunResult({
       session: input.session,
       nodeIds: piEntryNodeIds(input.runInput.session),
+      projectionBase: await readRunProjectionBase(
+        input.runInput.session,
+        input.session.sessionFile,
+      ),
       payload: input.runInput.payload,
       appended,
       aborted: operationAborted,

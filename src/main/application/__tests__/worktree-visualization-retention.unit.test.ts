@@ -1,9 +1,9 @@
 import { MessageId, SessionId, SessionNodeId } from '@shared/types/brand'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { sessionTreeReferencesWorktreeVisualization } from '../worktree-visualization-retention'
 
-function treeWithText(text: string): SessionTree {
+function treeWithText(text: string): SessionContentTree {
   const sessionId = SessionId('session-1')
   return {
     session: {

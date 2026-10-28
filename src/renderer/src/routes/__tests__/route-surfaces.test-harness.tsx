@@ -119,7 +119,7 @@ vi.mock('@/features/hive-panel/components', () => ({
     }),
 }))
 
-vi.mock('@/features/session-summary', () => ({
+vi.mock('@/features/session-summary/components', () => ({
   ChangeRequestPanel: ({
     requestUrl,
     onClose,
@@ -155,7 +155,7 @@ vi.mock('@/features/session-summary', () => ({
   ),
 }))
 
-vi.mock('@/features/extensions', () => ({
+vi.mock('@/features/extensions/components', () => ({
   ExtensionSidePanelSurface: ({
     target,
     onClose,
@@ -170,6 +170,9 @@ vi.mock('@/features/extensions', () => ({
       </Button>
     </aside>
   ),
+}))
+
+vi.mock('@/features/extensions', () => ({
   useExtensionSidePanelContributions: () => ({
     error: null,
     loading: false,

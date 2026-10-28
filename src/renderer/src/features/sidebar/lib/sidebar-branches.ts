@@ -1,4 +1,3 @@
-import { getMessageText } from '@shared/types/agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary, SessionTree } from '@shared/types/session'
 
@@ -42,9 +41,10 @@ function getSessionBranches(input: BuildSidebarBranchRowsInput) {
 function draftSourceLabel(input: BuildSidebarBranchRowsInput, sourceNodeId: SessionNodeId) {
   const tree = input.activeSessionTree
   if (tree?.session.id !== input.session.id) return null
-  const message = tree.nodes.find((node) => node.id === sourceNodeId)?.message
-  const firstLine = message
-    ? getMessageText(message)
+  // The tree carries the start of each message's text, which holds its first line (B5).
+  const preview = tree.nodes.find((node) => node.id === sourceNodeId)?.preview
+  const firstLine = preview
+    ? preview
         .split('\n')
         .map((line) => line.trim())
         .find((line) => line.length > 0)

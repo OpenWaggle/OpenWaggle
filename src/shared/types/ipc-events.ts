@@ -14,6 +14,7 @@ import type {
   BrowserPreviewRecordingCancelRequest,
   BrowserPreviewRecordingRequest,
 } from './browser-preview-recording-request'
+import type { GuiStartupStatus } from './gui-startup'
 import type { AgentPhaseEventPayload } from './phase'
 import type { SessionHostEventEnvelope, SessionRunTerminalStatus } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
@@ -110,6 +111,10 @@ export interface IpcEventChannelMap {
   }
   'window:fullscreen-changed': {
     payload: boolean
+  }
+  /** The window's startup moved on: starting, updating, ready, or failed (A-F2). */
+  'app:startup-status-changed': {
+    payload: GuiStartupStatus
   }
   /** A command-line launch asked to open a project; take it with `project:take-open-request`. */
   'app:open-project-requested': {

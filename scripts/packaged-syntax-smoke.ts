@@ -43,7 +43,7 @@ async function main() {
     await page.getByRole('button', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Appearance' }).click()
     await page
-      .getByRole('heading', { name: 'Syntax theme' })
+      .getByRole('heading', { name: 'Color and syntax' })
       .waitFor({ state: 'visible', timeout: STARTUP_TIMEOUT_MS })
     const previewLanguage = page.getByRole('combobox', { name: 'Preview language' })
     await page

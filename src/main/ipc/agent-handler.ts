@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { decodeUnknownOrThrow } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
@@ -7,21 +7,17 @@ import {
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { AgentLoopInteractionErrorCode } from '@shared/types/agent-loop-interaction'
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
-import { getAgentContextUsage } from '../application/agent-session-service'
-import {
-  listHostUiActiveActivities,
-  listHostUiAgentExtensionCommands,
-} from '../application/host-ui-agent-operation'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
-import { interruptSessionRun } from '../application/session-run-interruption'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
+import { readAfterFlushingSession, setWindowShownSessions } from '../utils/broadcast'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -30,6 +26,12 @@ import {
 } from '../utils/stream-bridge'
 import { cancelAllSessionRuns } from './active-agent-runs'
 import { hostHandle, typedHandle } from './typed-ipc'
+
+/** At most this many: a window shows a handful of Sessions at once. */
+const MAX_SHOWN_SESSIONS = 64
+const shownSessionIdsSchema = Schema.Array(Schema.String.pipe(Schema.fromBrand(SessionId))).pipe(
+  Schema.maxItems(MAX_SHOWN_SESSIONS),
+)
 
 function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
@@ -63,7 +65,7 @@ function registerAgentRunHandlers() {
         const validatedPayload = toAgentSendPayload(
           decodeUnknownOrThrow(agentSendPayloadSchema, payload),
         )
-        const result = yield* dispatchLocalSessionCommand({
+        const result = yield* dispatchGuiSessionCommand({
           caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
           payload: {
             contract: 'session-control-v2',
@@ -111,7 +113,7 @@ function registerAgentRunHandlers() {
         }
         return
       }
-      yield* interruptSessionRun(sessionId)
+      yield* interruptSessionRunThrough(dispatchGuiSessionCommand, sessionId)
     }),
   )
 }
@@ -121,7 +123,7 @@ function registerAgentInteractionHandlers() {
     Effect.gen(function* () {
       const decoded = decodeUnknownOrThrow(agentLoopResponseInputSchema, input)
       const normalized = toAgentLoopResponseInput(decoded)
-      const pending = yield* dispatchLocalSessionCommand({
+      const pending = yield* dispatchGuiSessionCommand({
         caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
         payload: {
           contract: 'session-query-v2',
@@ -154,7 +156,7 @@ function registerAgentInteractionHandlers() {
       }
       const authorization =
         interaction.kind === 'confirm' && interaction.purpose === 'authorization'
-      const result = yield* dispatchLocalSessionCommand({
+      const result = yield* dispatchGuiSessionCommand({
         caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
         payload: {
           contract: 'session-control-v2',
@@ -200,21 +202,23 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getPhaseForSession(sessionId)),
   )
 
+  typedHandle('agent:set-shown-sessions', (event, sessionIds: unknown) =>
+    Effect.sync(() =>
+      setWindowShownSessions(event.sender, decodeUnknownOrThrow(shownSessionIdsSchema, sessionIds)),
+    ),
+  )
+
   typedHandle('agent:get-background-run', (_event, sessionId: SessionId) =>
-    Effect.sync(() => getStreamBuffer(sessionId)),
+    // The snapshot holds every delta the buffer has seen; the ones still coalescing go out first,
+    // so none reaches the window after a snapshot that already contains its text.
+    Effect.sync(() => readAfterFlushingSession(sessionId, () => getStreamBuffer(sessionId))),
   )
 
-  hostHandle('agent:list-active-runs', () => listHostUiActiveActivities())
+  hostHandle('agent:list-active-runs')
 
-  hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
-    getAgentContextUsage({ sessionId, model }),
-  )
+  hostHandle('agent:get-context-usage')
 
-  hostHandle(
-    'agent:list-extension-commands',
-    (_event, sessionId: SessionId | null, model: SupportedModelId, projectPath?: string) =>
-      listHostUiAgentExtensionCommands(sessionId, model, projectPath),
-  )
+  hostHandle('agent:list-extension-commands')
 }
 
 function registerAgentCompactionHandlers() {
@@ -223,7 +227,7 @@ function registerAgentCompactionHandlers() {
     (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
       Effect.gen(function* () {
         const requestId = randomUUID()
-        const result = yield* dispatchLocalSessionCommand({
+        const result = yield* dispatchGuiSessionCommand({
           caller: { callerId: 'gui:local-user' },
           payload: {
             contract: 'local-compaction-v1',

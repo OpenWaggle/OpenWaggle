@@ -3,6 +3,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileManagementOutcome } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
+import { signalSessionAuthorityChanged } from './session-authority-drift-monitor'
 import { revokeAffectedRuns } from './sqlite-local-session-profile-revocation'
 import {
   auditProfileChange,
@@ -129,6 +130,8 @@ function persistRevokedProfile(
         actorCallerId: input.actorCallerId,
         now: input.now,
       })
+      // Runs whose authority descends from it recheck as soon as this transaction commits.
+      signalSessionAuthorityChanged(sql)
     }
     const revoked = yield* selectProfiles(sql, command.profileName)
     if (!revoked[0])

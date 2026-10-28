@@ -5,6 +5,7 @@ import {
 } from '@shared/types/browser-profile'
 import type { Session } from 'electron'
 import { session as electronSession } from 'electron'
+import { checkChromiumCacheSizeOnUse } from './chromium-disk-cache'
 
 const LEGACY_DEFAULT_PARTITION = 'persist:openwaggle-browser-preview'
 const PERSISTENT_PROFILE_PREFIX = 'persist:openwaggle-browser-preview-profile-'
@@ -48,6 +49,8 @@ export function browserPreviewWebPreferencesForProfile(profileId: string) {
 }
 
 export function installBrowserPreviewSessionPolicy(browserSession: Session) {
+  // A preview partition caches whatever the user browses: 853 MB HTTP and 325 MB code cache seen.
+  void checkChromiumCacheSizeOnUse(browserSession)
   if (protectedSessions.has(browserSession)) return
 
   browserSession.setPermissionCheckHandler((_contents, permission) =>

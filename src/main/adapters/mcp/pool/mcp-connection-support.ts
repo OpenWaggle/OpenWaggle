@@ -1,4 +1,5 @@
 import { isRecord } from '@shared/utils/validation'
+import type { McpConnectionCatalog } from './mcp-connection-catalog'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import {
   isJsonRpcId,
@@ -13,6 +14,10 @@ export interface McpUpstream {
   readonly stderrTail?: () => string
   /** Releases what the transport does not own, such as an HTTP server's pinned-DNS fetch. */
   readonly close?: () => Promise<void>
+}
+
+export interface McpObservedResultContext {
+  readonly served: boolean
 }
 
 export interface McpServerRequest {
@@ -32,12 +37,30 @@ export interface McpPooledConnectionOptions {
   readonly handleServerRequest?: McpServerRequestHandler
   /** The roots the layer answers `roots/list` with. */
   readonly roots?: () => readonly { readonly uri: string; readonly name?: string }[]
-  /** Sees every successful result of a client request, such as `tools/list` for MCP Apps. */
-  readonly observeResult?: (method: string, params: unknown, result: unknown) => void
+  /**
+   * Sees every successful result of a client request, such as `tools/list` for MCP Apps. `served`
+   * marks a result answered from the catalog while the server has not started: it says what the
+   * server offered when the catalog was saved, not that it runs now.
+   */
+  readonly observeResult?: (
+    method: string,
+    params: unknown,
+    result: unknown,
+    context?: McpObservedResultContext,
+  ) => void
   /** Replaces a successful result before the client sees it, such as repaired tool schemas. */
   readonly adaptResult?: (method: string, result: unknown) => unknown
   /** Called once the connection is closed, by whichever side. */
   readonly onClosed: () => void
+  /** The server's last handshake and tools, recorded and, when `lazyStart`, served (D1.3). */
+  readonly catalog?: McpConnectionCatalog
+  /**
+   * With a fresh catalog, the server is started only when a request needs it (a stdio process
+   * is the costly part); until then `initialize`, `tools/list` and `ping` are answered from it.
+   */
+  readonly lazyStart?: boolean
+  /** Another Session is filling the missing catalog: wait for it, then serve it if fresh. */
+  readonly catalogFill?: Promise<void>
 }
 
 export class McpServerError extends Error {

@@ -1,5 +1,5 @@
-import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
-import type { SessionBranch, SessionNode, SessionTree } from '@shared/types/session'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionBranch, SessionTree, SessionTreeNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { sessionTreeNodeLabel, sessionTreeNodeRoleLabel } from '../session-tree-row-labels'
 import { buildSessionTreeRowState } from '../session-tree-row-state'
@@ -23,7 +23,7 @@ function branch(input: {
   } satisfies SessionBranch
 }
 
-function tree(targetNode: SessionNode) {
+function tree(targetNode: SessionTreeNode) {
   return {
     session: {
       id: SESSION_ID,
@@ -48,18 +48,14 @@ describe('session tree row labels and state', () => {
     const messageNode = {
       ...node({ id: 'user-node', depth: 1, order: 2 }),
       kind: 'user_message',
-      message: {
-        id: MessageId('message-1'),
-        role: 'user',
-        parts: [{ type: 'text', text: '  hello\n\nworld  ' }],
-        createdAt: 1,
-      },
-    } satisfies SessionNode
+      hasMessage: true,
+      preview: 'hello\n\nworld  ',
+    } satisfies SessionTreeNode
 
     const branchSummaryNode = {
       ...node({ id: 'branch-summary-node', depth: 1, order: 3 }),
       kind: 'branch_summary',
-    } satisfies SessionNode
+    } satisfies SessionTreeNode
 
     expect(sessionTreeNodeLabel(messageNode)).toBe('hello world')
     expect(sessionTreeNodeRoleLabel(messageNode)).toBe('User')

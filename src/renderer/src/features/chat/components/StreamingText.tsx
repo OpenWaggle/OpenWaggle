@@ -7,7 +7,6 @@ import {
 import rehypeSanitize from 'rehype-sanitize'
 import { cn } from '@/shared/lib/cn'
 import { type RehypePlugins, safeMarkdownSanitizeSchema } from '@/shared/lib/markdown-safety'
-import { useChatDisplayMarkdownFormatter } from './ChatDisplayPathContext'
 import { IncrementalMarkdown } from './IncrementalMarkdown'
 import { InlineVisualization } from './InlineVisualization'
 
@@ -92,8 +91,6 @@ export function StreamingText({
   visualizationSessionId,
   visualizationInteractionSessionId,
 }: StreamingTextProps) {
-  const formatDisplayMarkdown = useChatDisplayMarkdownFormatter()
-
   if (!text) return null
 
   const segments = visualizationSessionId
@@ -116,7 +113,7 @@ export function StreamingText({
     return (
       <div key={`markdown-${String(segment.sourceOffset)}`} className={cn('prose', className)}>
         <IncrementalMarkdown
-          text={formatDisplayMarkdown(segment.text)}
+          text={segment.text}
           isStreaming={isStreaming}
           rehypePlugins={MARKDOWN_PLUGINS}
           tailRehypePlugins={isStreaming ? TAIL_STREAMING_PLUGINS : undefined}

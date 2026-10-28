@@ -1,11 +1,11 @@
 import type { SessionCapability } from '@shared/types/session-capability'
 import type { TSchema } from 'typebox'
 import {
-  actionChoices,
-  flattenSessionsToolParameters,
   type SessionsToolRuntimeVariant,
   sessionsToolParameterVariants,
+  variantActionName,
 } from './sessions-tool-flat-schema'
+import { HIVE_HELP_ACTION, hiveToolSchema } from './sessions-tool-hot-schema'
 
 const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['create', ['sessions:create']],
@@ -72,10 +72,6 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['schedule_outcome', ['schedules:manage']],
 ])
 
-function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
-  return actionChoices(variant.properties.action)[0]?.const
-}
-
 const KNOWN_ACTIONS: ReadonlySet<string> = new Set(
   sessionsToolParameterVariants.flatMap((variant) => variantActionName(variant) ?? []),
 )
@@ -134,7 +130,7 @@ export function assertSessionsToolActionPermitted(
 ): void {
   if (typeof args !== 'object' || args === null || !('action' in args)) return
   const action: unknown = args.action
-  if (typeof action !== 'string') return
+  if (typeof action !== 'string' || action === HIVE_HELP_ACTION) return
   const permission = sessionsToolActionPermission(action, grant)
   if (permission.permitted) return
   if (permission.reason === 'unknown-action') throw new Error(`Unknown hive action "${action}".`)
@@ -148,23 +144,25 @@ export function assertSessionsToolActionPermitted(
   )
 }
 
+/** The parameter variants of the actions a grant permits; every action without a derived grant. */
+export function permittedSessionsToolVariants(
+  grant: SessionsToolActionGrant,
+): readonly SessionsToolRuntimeVariant[] {
+  if (grant.capabilities === undefined) return sessionsToolParameterVariants
+  return sessionsToolParameterVariants.filter((variant) => {
+    const action = variantActionName(variant)
+    return action !== undefined && permitsSessionsToolAction(action, grant)
+  })
+}
+
 export function sessionsToolSchemaForCapabilities(input: {
   readonly capabilities: readonly SessionCapability[]
   readonly modelMultiAgentEnabled: boolean
 }) {
-  const variants = sessionsToolParameterVariants.filter((variant) => {
-    const action = variantActionName(variant)
-    return action !== undefined && permitsSessionsToolAction(action, input)
-  })
-  return flattenSessionsToolParameters(variants)
+  return hiveToolSchema(permittedSessionsToolVariants(input))
 }
 
 /** The provider schema of the hive tool; a Session without a derived grant gets every action. */
 export function sessionsToolSchemaForGrant(grant: SessionsToolActionGrant): TSchema {
-  return grant.capabilities
-    ? sessionsToolSchemaForCapabilities({
-        capabilities: grant.capabilities,
-        modelMultiAgentEnabled: grant.modelMultiAgentEnabled,
-      })
-    : flattenSessionsToolParameters(sessionsToolParameterVariants)
+  return hiveToolSchema(permittedSessionsToolVariants(grant))
 }

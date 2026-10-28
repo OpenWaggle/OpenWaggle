@@ -1,7 +1,10 @@
 import type { OpenWaggleApi } from '@shared/types/ipc'
+import { agentDefinitionsApi } from './agent-definitions-api'
 import { browserPreviewApi } from './browser-preview-api'
 import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
+import { sessionDataApi } from './session-data-api'
+import { startupApi } from './startup-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -11,11 +14,7 @@ export const api: OpenWaggleApi = {
   getCliShimStatus: invoke('cli-shim:get-status'),
   installCliShim: invoke('cli-shim:install'),
   removeCliShim: invoke('cli-shim:remove'),
-  selectAgentDefinitionSource: invoke('agent-definitions:select-source'),
-  manageAgentDefinitions: invoke('agent-definitions:manage'),
-  listAgentDefinitionDisplay: invoke('agent-definitions:list-display'),
-  getAgentDefinitionPreview: invoke('agent-definitions:get-preview'),
-  setAgentDefinitionEnabled: invoke('agent-definitions:set-enabled'),
+  ...agentDefinitionsApi,
   manageAccessProfiles: invoke('access-profiles:manage'),
   mutateSessionControl: invoke('session-control:mutate'),
   querySessionControl: invoke('session-control:query'),
@@ -27,6 +26,7 @@ export const api: OpenWaggleApi = {
   onAgentEvent: on('agent:event'),
 
   getAgentPhase: invoke('agent:get-phase'),
+  setShownSessions: invoke('agent:set-shown-sessions'),
   getBackgroundRun: invoke('agent:get-background-run'),
   listActiveRuns: invoke('agent:list-active-runs'),
   getContextUsage: invoke('agent:get-context-usage'),
@@ -192,6 +192,8 @@ export const api: OpenWaggleApi = {
   // Browser preview
   ...browserPreviewApi,
   ...scheduledTasksApi,
+  ...startupApi,
+  ...sessionDataApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),

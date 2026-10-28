@@ -179,6 +179,36 @@ describe('MCP runtime configuration', () => {
     expect(config.loaded.servers[0]?.source).toBe(path.join(homeDir, '.openwaggle', 'mcp.json'))
   })
 
+  it("runs a file's direct exposure as codemode and leaves the file's meaning to Pi", async () => {
+    write(path.join(piAgentDir, 'mcp.json'), {
+      mcpServers: {
+        browser: { command: 'browser-mcp', exposure: 'direct', toolExposure: { shot: 'direct' } },
+        docs: { url: 'https://docs.example/mcp' },
+      },
+    })
+    write(path.join(homeDir, '.openwaggle', 'mcp.json'), {
+      mcpServers: { docs: { exposure: 'direct' } },
+    })
+
+    const config = await loadMcpRuntimeConfig({
+      roots: { homeDir, piAgentDir, projectPath: null },
+      resolveSecret,
+    })
+
+    expect(config.loaded.servers.map((server) => [server.name, server.config])).toEqual([
+      [
+        'browser',
+        { command: 'browser-mcp', exposure: 'codemode', toolExposure: { shot: 'codemode' } },
+      ],
+      ['docs', { url: 'https://docs.example/mcp', exposure: 'codemode' }],
+    ])
+    // The merge Settings writes from keeps what the files say.
+    expect(config.merged.servers.map((server) => server.config.exposure)).toEqual([
+      'direct',
+      'direct',
+    ])
+  })
+
   it('does not call the override of a project server a project override of a global one', async () => {
     write(path.join(projectPath, '.mcp.json'), {
       mcpServers: { lint: { command: 'lint-mcp' } },

@@ -50,6 +50,7 @@ describe('resolveExpandedSessionTreeNodeIds', () => {
 describe('resolveSessionTreeRowExpandedNodeIds', () => {
   it('temporarily expands search result parents so matches under collapsed nodes are visible', () => {
     const resolved = resolveSessionTreeRowExpandedNodeIds({
+      nodes: LINEAR_TREE,
       filteredNodes: LINEAR_TREE,
       expandedNodeIds: [],
       searchActive: true,
@@ -63,6 +64,7 @@ describe('resolveSessionTreeRowExpandedNodeIds', () => {
 
   it('preserves user expansion state outside search', () => {
     const resolved = resolveSessionTreeRowExpandedNodeIds({
+      nodes: LINEAR_TREE,
       filteredNodes: LINEAR_TREE,
       expandedNodeIds: [SessionNodeId('linear-root')],
       searchActive: false,

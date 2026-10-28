@@ -18,10 +18,13 @@ const { typedHandleMock, listPackagesMock, writePackageMock } = vi.hoisted(() =>
   writePackageMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 import { registerExtensionsHandlers } from '../extensions-handler'
 

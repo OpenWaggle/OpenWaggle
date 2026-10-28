@@ -31,9 +31,17 @@ describe('createPiRuntimeServices', () => {
     await expect(
       fs.stat(path.join(path.dirname(visualizeSkill?.filePath ?? ''), 'scripts', 'render.py')),
     ).resolves.toMatchObject({ mode: expect.any(Number) })
-    expect(services.resourceLoader.getAppendSystemPrompt()).toEqual([
-      expect.stringContaining(JSON.stringify(visualizationDirectory)),
-    ])
+    // The directory travels in a section after cwd (see pi-provider-resources.ts), not Pi's addendum.
+    expect(services.resourceLoader.getAppendSystemPrompt()).toEqual([])
+    const handlers = services.resourceLoader
+      .getExtensions()
+      .extensions.flatMap((extension) => extension.handlers.get('before_agent_start') ?? [])
+    const sections: Record<string, string> = {}
+    const event = { systemPromptOptions: { sections, skills: [], cwd: projectPath } }
+    for (const handler of handlers) await handler(event, {})
+    expect(sections.openwaggle_session_directories).toContain(
+      JSON.stringify(visualizationDirectory),
+    )
   })
 
   it('uses Pi ModelRuntime membership as the tool-capable model contract', async () => {

@@ -6,16 +6,11 @@ import {
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { clipboard, nativeImage } from 'electron'
+import { GuiSessionCommandNotAttachedError } from '../application/gui-session-command'
 import {
   readHostSessionResourceContent,
   readHostSessionResourceThumbnail,
 } from '../application/host-ui-session-resource-content-client'
-import {
-  prepareSessionResourceContent,
-  readSessionResourceContentBytes,
-  readSessionResourceThumbnail,
-} from '../application/session-resource-content'
-import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { preferredSessionResourceFileName } from '../session-resource-content-disposition'
 import {
   activateSessionResourceContentOwner,
@@ -28,29 +23,21 @@ import {
 } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
-function requireAvailableImage(sessionId: SessionId, resourceId: string) {
+function readAvailableImageContent(sessionId: SessionId, resourceId: string) {
   return Effect.gen(function* () {
-    const repository = yield* SessionResourceRepository
-    const resource = yield* repository.findById(sessionId, resourceId, 'images')
-    if (resource?.kind !== 'image') {
-      return yield* Effect.fail(new Error('The requested Session resource is not an image.'))
-    }
-    if (!resource.available) {
-      return yield* Effect.fail(new Error('The requested Session image is unavailable.'))
-    }
-    return resource
+    const remote = yield* Effect.tryPromise({
+      try: () => readHostSessionResourceContent(sessionId, resourceId),
+      catch: hostReadError,
+    })
+    // Session resources live in the Session Host's store, never in the window (A-F5).
+    if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+    return remote.content
   })
 }
 
-function readAvailableImageContent(sessionId: SessionId, resourceId: string) {
-  return Effect.gen(function* () {
-    const remote = yield* Effect.tryPromise(() =>
-      readHostSessionResourceContent(sessionId, resourceId),
-    )
-    if (remote.handled) return remote.content
-    yield* requireAvailableImage(sessionId, resourceId)
-    return yield* readSessionResourceContentBytes(sessionId, resourceId)
-  })
+/** The Session Host's reason reaches the renderer, not Effect's generic wrapper. */
+function hostReadError(error: unknown) {
+  return error instanceof Error ? error : new Error(String(error))
 }
 
 function decodeResourceTarget(rawSessionId: unknown, rawResourceId: unknown) {
@@ -82,12 +69,12 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return null
-        const remote = yield* Effect.tryPromise(() =>
-          readHostSessionResourceContent(sessionId, resourceId),
-        )
-        const content = remote.handled
-          ? remote.content
-          : yield* prepareSessionResourceContent(sessionId, resourceId)
+        const remote = yield* Effect.tryPromise({
+          try: () => readHostSessionResourceContent(sessionId, resourceId),
+          catch: hostReadError,
+        })
+        if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+        const content = remote.content
         if (!content || !request.isCurrent()) return null
         return registerSessionResourceContentReference(
           {
@@ -108,12 +95,12 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return null
-        const remote = yield* Effect.tryPromise(() =>
-          readHostSessionResourceThumbnail(sessionId, resourceId),
-        )
-        const thumbnail = remote.handled
-          ? remote.thumbnail
-          : yield* readSessionResourceThumbnail(sessionId, resourceId)
+        const remote = yield* Effect.tryPromise({
+          try: () => readHostSessionResourceThumbnail(sessionId, resourceId),
+          catch: hostReadError,
+        })
+        if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+        const thumbnail = remote.thumbnail
         return request.isCurrent() ? thumbnail : null
       }),
   )

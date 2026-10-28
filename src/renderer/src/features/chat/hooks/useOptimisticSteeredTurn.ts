@@ -98,11 +98,12 @@ export function useOptimisticSteeredTurn(
     previewSteeredUserTurn: (
       payload: AgentSendPayload,
       deliveryState: SteerDeliveryState,
-      incorporatedContent: SteerIncorporatedContent = {
+      incorporatedContent?: SteerIncorporatedContent,
+    ) => {
+      const incorporated = incorporatedContent ?? {
         text: payload.text.trim(),
         attachmentCount: payload.attachments.length,
-      },
-    ) => {
+      }
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
       if (!sessionId) {
@@ -116,7 +117,7 @@ export function useOptimisticSteeredTurn(
       useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
-        incorporatedContent,
+        incorporatedContent: incorporated,
         durableContent: buildAgentPromptText(payload),
         baselineMaxCreatedOrder: Math.max(
           -1,

@@ -1,11 +1,11 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import sharp from 'sharp'
 import { SessionResourceThumbnailError } from '../errors'
 import {
   SessionResourceThumbnailer,
   type SessionResourceThumbnailerShape,
 } from '../ports/session-resource-thumbnailer'
+import { loadSharp } from './sharp-module'
 
 export const SESSION_RESOURCE_THUMBNAIL_LIMITS = {
   maxBytes: 512 * 1024,
@@ -26,6 +26,7 @@ export function createSharpSessionResourceThumbnailer(): SessionResourceThumbnai
           if (!mimeType.toLowerCase().startsWith('image/')) {
             throw new Error('Only image resources can be thumbnailed.')
           }
+          const sharp = await loadSharp()
           const thumbnail = await sharp(bytes, {
             animated: false,
             limitInputPixels: SESSION_RESOURCE_THUMBNAIL_LIMITS.maxInputPixels,

@@ -44,10 +44,13 @@ export const getTreeFilterModeMock: TestMock = mocks.getTreeFilterModeMock
 export const setTreeFilterModeMock: TestMock = mocks.setTreeFilterModeMock
 export const getBranchSummarySkipPromptMock: TestMock = mocks.getBranchSummarySkipPromptMock
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,

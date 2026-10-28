@@ -51,12 +51,17 @@ export function useSettingsSetup(): () => void {
     let active = true
 
     async function initialize() {
+      let prefetchedSettings: Promise<Settings> | undefined
       if (attempt === 0) {
+        // B11: the settings request is in flight while the Syntax theme catalog loads. Settings
+        // still apply after the catalog registered its imported themes, which they may select.
+        prefetchedSettings = api.getSettings()
+        prefetchedSettings.catch(() => undefined)
         await loadSyntaxThemeCatalog(null)
         if (!active) return
       }
 
-      await loadSettings()
+      await loadSettings(prefetchedSettings)
       if (!active) return
       if (usePreferencesStore.getState().loadError !== null) return
 

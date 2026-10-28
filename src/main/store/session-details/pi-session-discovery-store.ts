@@ -1,11 +1,14 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
+import { isAgentLoopAuditNode } from '@shared/utils/agent-loop-audit-node'
 import * as Effect from 'effect/Effect'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
-import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
+import {
+  type PiProjectionTail,
+  readPiProjectionFreshnessWithSql,
+} from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
-import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
 import { deletionRefusalOf } from './pi-session-deletion-refusal'
 import { assertSessionDeletable } from './session-deletion-preflight'
@@ -254,6 +257,7 @@ export interface PiSessionProjectionStateRow {
   readonly projectedNodeIds: ReadonlySet<string>
   readonly revision: number
   readonly fingerprint: { readonly size: number; readonly mtimeMs: number } | null
+  readonly projectedTail: PiProjectionTail | null
 }
 
 export async function getPiSessionProjectionState(
@@ -273,7 +277,11 @@ export async function getPiSessionProjectionState(
       `
       const session = sessions[0]
       if (!session) return null
-      const { revision, fingerprint } = yield* readPiProjectionFreshnessWithSql(sql, sessionId)
+      const {
+        revision,
+        fingerprint,
+        tail: projectedTail,
+      } = yield* readPiProjectionFreshnessWithSql(sql, sessionId)
       const nodes = yield* sql<{ readonly id: string }>`
         SELECT id FROM session_nodes WHERE session_id = ${sessionId}
       `
@@ -295,6 +303,7 @@ export async function getPiSessionProjectionState(
         projectedNodeIds: new Set(nodes.map((node) => String(node.id))),
         revision,
         fingerprint,
+        projectedTail,
       }
     }),
   )

@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { nodesToPark, reconcileSnapshotNodes } from '../snapshot-node-reconciliation'
-import type { SessionNodeRow } from '../types'
+import type { ComparedSessionNodeRow } from '../types'
 
 // Force the search predicate off so the ONLY thing that can restore a parked row's order is the
 // belt in reconcileSnapshotNodes, not searchProjectionChanged happening to compare created_order.
@@ -20,7 +20,7 @@ vi.mock('../snapshot-transcript-term-changes', () => ({
  * check would otherwise reject, without the cost of a full persistence round-trip.
  */
 
-function existing(id: string, createdOrder: number): SessionNodeRow {
+function existing(id: string, createdOrder: number): ComparedSessionNodeRow {
   return {
     id,
     session_id: 'session-x',
@@ -29,8 +29,8 @@ function existing(id: string, createdOrder: number): SessionNodeRow {
     kind: 'assistant_message',
     role: 'assistant',
     timestamp_ms: createdOrder,
-    content_json: '{"parts":[]}',
-    metadata_json: '{}',
+    content_hash: 'stored-hash',
+    content: null,
     branch_hint_id: null,
     path_depth: 0,
     created_order: createdOrder,
@@ -103,7 +103,9 @@ describe('reconcileSnapshotNodes', () => {
         sql,
         sessionId: SessionId('session-x'),
         branchHintByNodeId: new Map(),
+        contentHashByNodeId: new Map(['p', 'a', 'b'].map((id) => [id, 'stored-hash'])),
         existingNodes: [existing('a', 0), existing('b', 1)],
+        retainedIds: new Set(),
         // `a` and `b` only move: content, role, kind and parent are unchanged; a new node leads.
         nodes: [next('p', 0), next('a', 1), next('b', 2)],
       }),

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
+  desktopShellEnvironmentReadyMock,
+  getInteractiveTerminalEnvMock,
   integrationCleanupMock,
   makeRunner,
   prepareTerminalShellLaunchMock,
@@ -35,4 +37,19 @@ it('does not spawn after an action launch is canceled during preparation', async
   })
   expect(spawnMock).not.toHaveBeenCalled()
   expect(integrationCleanupMock).toHaveBeenCalledOnce()
+})
+
+it("reads a terminal's environment only once the login-shell environment is ready", async () => {
+  const ready = Promise.withResolvers<void>()
+  desktopShellEnvironmentReadyMock.mockReturnValueOnce(ready.promise)
+  const controller = new AbortController()
+  const outcome = makeRunner().spawn({ ...SPAWN_REQUEST, signal: controller.signal })
+  await Promise.resolve()
+  await Promise.resolve()
+
+  expect(getInteractiveTerminalEnvMock).not.toHaveBeenCalled()
+  controller.abort()
+  ready.resolve()
+  await outcome
+  expect(desktopShellEnvironmentReadyMock).toHaveBeenCalledOnce()
 })

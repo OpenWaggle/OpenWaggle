@@ -10,6 +10,7 @@ import {
   type useChat,
 } from '@/features/chat/hooks'
 import { useBackgroundRunStore } from '@/features/chat/state'
+import { isProjectActionQueryAffected } from '@/features/project-actions'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
@@ -29,6 +30,8 @@ type SessionTreeLifecycle = Pick<
 
 interface PendingSessionHostRefresh {
   readonly sessionIds: Set<string>
+  /** Sessions whose catalog entry alone changed (a pin, a read receipt): only that is re-read. */
+  readonly catalogEntrySessionIds: Set<string>
   readonly queueSessionIds: Set<string>
   catalog: boolean
   archivedBranches: boolean
@@ -84,6 +87,9 @@ function takePendingSessionHostRefresh(
       pending.sessionIds,
       useSessionStore.getState().sessions,
     ).map(SessionId),
+    catalogEntrySessionIds: [...pending.catalogEntrySessionIds]
+      .filter((sessionId) => !pending.sessionIds.has(sessionId))
+      .map(SessionId),
     queueSessionIds: [...pending.queueSessionIds],
     refreshActiveSession,
     refreshActiveTree: Boolean(
@@ -95,8 +101,36 @@ function takePendingSessionHostRefresh(
   pending.relationshipMayHaveChanged = false
   pending.scheduled = false
   pending.sessionIds.clear()
+  pending.catalogEntrySessionIds.clear()
   pending.queueSessionIds.clear()
   return refresh
+}
+
+/**
+ * Project Actions are no longer polled (B7/D9): a Session's Run starting or settling is when its
+ * agent may have started an action, changed the catalog, or birthed a worktree. Only the changed
+ * Sessions' queries and their projects' are read again, never discovery: invalidating every
+ * project's queries on each Worker's state change read more than the polls it replaced. A changed
+ * Session the window has not loaded falls back to every project for that batch.
+ */
+function invalidateChangedProjectActions(queryClient: QueryClient, sessionIds: readonly string[]) {
+  const changed = new Set(sessionIds)
+  const projectPaths = new Set<string>()
+  const known = new Set<string>()
+  const { sessions, archivedSessions, hiveSessions } = useSessionStore.getState()
+  for (const session of [...sessions, ...archivedSessions, ...hiveSessions]) {
+    const sessionId = String(session.id)
+    if (!changed.has(sessionId)) continue
+    known.add(sessionId)
+    if (session.projectPath) projectPaths.add(session.projectPath)
+  }
+  // The catalog reloads after this, so a Session this batch created is not loaded yet; neither is
+  // a Worker beyond the loaded page. Their project is unknown: read every project's queries.
+  const unknownProject = [...changed].some((sessionId) => !known.has(sessionId))
+  const change = { sessionIds: changed, projectPaths, unknownProject }
+  void queryClient.invalidateQueries({
+    predicate: (query) => isProjectActionQueryAffected(query.queryKey, change),
+  })
 }
 
 function invalidateSessionHostQueries(
@@ -106,6 +140,7 @@ function invalidateSessionHostQueries(
   for (const sessionId of refresh.queueSessionIds) {
     void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
   }
+  if (refresh.catalog) invalidateChangedProjectActions(queryClient, refresh.queueSessionIds)
   if (refresh.archivedBranches) {
     // Archiving, restoring, and deleting anywhere (another window, the CLI, Hive cleanup)
     // changes what Settings > Archived items lists.
@@ -122,6 +157,44 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   // A missed default change cannot be replayed either.
   void invalidateDefaultThinkingLevel(queryClient)
   void invalidateExtensionContributionsQueries(queryClient)
+}
+
+type SessionHostRefresh = ReturnType<typeof takePendingSessionHostRefresh>
+
+function useSessionTitleUpdates(updateSessionTitle: ChatLifecycle['updateSessionTitle']) {
+  useEffect(
+    () =>
+      api.onSessionTitleUpdated(({ sessionId, title }) => {
+        updateSessionTitle(sessionId, title)
+      }),
+    [updateSessionTitle],
+  )
+}
+
+/** The catalog entries to read again: every changed Session's, or only those of entry changes. */
+function catalogRefreshSessionIds(refresh: SessionHostRefresh) {
+  if (refresh.catalog) return [...refresh.catalogSessionIds, ...refresh.catalogEntrySessionIds]
+  return refresh.catalogEntrySessionIds
+}
+
+function applySessionHostRefresh(
+  refresh: SessionHostRefresh,
+  input: {
+    readonly activeSessionId: ChatLifecycle['activeSessionId']
+    readonly refreshCatalogSessions: SessionTreeLifecycle['refreshCatalogSessions']
+    readonly refreshSession: ChatLifecycle['refreshSession']
+    readonly refreshSessionTree: SessionTreeLifecycle['refreshSessionTree']
+  },
+) {
+  if (refresh.catalog) useSessionStatusStore.getState().noteHostTerminalCountChange()
+  const catalogSessionIds = catalogRefreshSessionIds(refresh)
+  if (refresh.catalog || catalogSessionIds.length > 0) {
+    void input.refreshCatalogSessions(catalogSessionIds)
+  }
+  const { activeSessionId } = input
+  if (!activeSessionId) return
+  if (refresh.refreshActiveSession) void input.refreshSession(activeSessionId)
+  if (refresh.refreshActiveTree) void input.refreshSessionTree(SessionId(String(activeSessionId)))
 }
 
 export function useSessionHostRefresh(input: {
@@ -146,35 +219,26 @@ export function useSessionHostRefresh(input: {
   const latestHostCursor = useRef<HostCursor | null>(null)
   const pendingRefresh = useRef<PendingSessionHostRefresh>({
     sessionIds: new Set(),
+    catalogEntrySessionIds: new Set(),
     queueSessionIds: new Set(),
     catalog: false,
     archivedBranches: false,
     relationshipMayHaveChanged: false,
     scheduled: false,
   })
-  useEffect(
-    () =>
-      api.onSessionTitleUpdated(({ sessionId, title }) => {
-        updateSessionTitle(sessionId, title)
-      }),
-    [updateSessionTitle],
-  )
+  useSessionTitleUpdates(updateSessionTitle)
   useEffect(() => {
     let active = true
     const flush = () => {
       if (!active) return
       const refresh = takePendingSessionHostRefresh(pendingRefresh.current, activeSessionId)
       invalidateSessionHostQueries(queryClient, refresh)
-      if (refresh.catalog) {
-        useSessionStatusStore.getState().noteHostTerminalCountChange()
-        void refreshCatalogSessions(refresh.catalogSessionIds)
-      }
-      if (refresh.refreshActiveSession && activeSessionId) {
-        void refreshSession(activeSessionId)
-      }
-      if (refresh.refreshActiveTree && activeSessionId) {
-        void refreshSessionTree(SessionId(String(activeSessionId)))
-      }
+      applySessionHostRefresh(refresh, {
+        activeSessionId,
+        refreshCatalogSessions,
+        refreshSession,
+        refreshSessionTree,
+      })
     }
     const schedule = () => {
       if (pendingRefresh.current.scheduled) return
@@ -191,6 +255,11 @@ export function useSessionHostRefresh(input: {
       }
       if (isSessionlessHostEvent(event.payload)) return
       const { sessionId } = event.payload
+      if (event.payload.kind === 'session-list-changed' && event.payload.catalogOnly === true) {
+        pendingRefresh.current.catalogEntrySessionIds.add(sessionId)
+        schedule()
+        return
+      }
       if (
         event.payload.kind === 'session-list-changed' &&
         (event.payload.change === 'archived' || event.payload.change === 'deleted')
@@ -220,6 +289,7 @@ export function useSessionHostRefresh(input: {
       pendingRefresh.current.archivedBranches = false
       pendingRefresh.current.relationshipMayHaveChanged = false
       pendingRefresh.current.sessionIds.clear()
+      pendingRefresh.current.catalogEntrySessionIds.clear()
       pendingRefresh.current.queueSessionIds.clear()
       unsubscribe()
     }

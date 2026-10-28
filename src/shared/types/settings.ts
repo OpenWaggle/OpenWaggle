@@ -78,6 +78,12 @@ export const DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT = 4
 export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
 export const DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 300_000
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
+/**
+ * Automatic compaction runs by this many context tokens at most, whatever the percentage, so a
+ * 1M-token window compacts at 400k instead of 800k (ADR 0025, amended). Every request re-reads
+ * the whole context, so the tokens past this point were most of the spend.
+ */
+export const COMPACTION_MAX_THRESHOLD_TOKENS = 400_000
 
 /**
  * Pi's `cacheWarming` setting: keep provider prompt caches warm while a Run works (`streaming`),

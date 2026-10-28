@@ -1,0 +1,22 @@
+diff --git a/dist/index.js b/dist/index.js
+index ac4a79e741a176252312419e439be74cc80998e5..5e537f84dc2eb3c92721ae55bc6f8c8c2398b369 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -81641,7 +81641,7 @@ function lowerAssignment(builder, loc, kind, lvaluePath, value, assignmentKind)
+             continue;
+           }
+           const element = property.get("value");
+-          if (!element.isLVal()) {
++          if (!element.isLVal() && !element.isAssignmentPattern()) {
+             builder.errors.push({
+               reason: `(BuildHIR::lowerAssignment) Expected object property value to be an LVal, got: ${element.type}`,
+               category: "Todo" /* Todo */,
+@@ -86056,7 +86056,7 @@ function handleAssignment(currentFn, identifiers, lvalPath) {
+       for (const property of path.get("properties")) {
+         if (property.isObjectProperty()) {
+           const valuePath = property.get("value");
+-          CompilerError.invariant(valuePath.isLVal(), {
++          CompilerError.invariant(valuePath.isLVal() || valuePath.isAssignmentPattern(), {
+             reason: `[FindContextIdentifiers] Expected object property value to be an LVal, got: ${valuePath.type}`,
+             description: null,
+             details: [

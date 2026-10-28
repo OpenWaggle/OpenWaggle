@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => {
       order.push('initialize-settings')
     }),
     applyInstallerIntent: vi.fn(async () => null),
+    installShellEnvironment: vi.fn(async () => undefined),
+    disableHardwareAcceleration: vi.fn(),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
     hostLogError: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    disableHardwareAcceleration: mocks.disableHardwareAcceleration,
     on: vi.fn(),
     off: vi.fn(),
   },
@@ -58,7 +61,13 @@ vi.mock('electron', () => ({
 
 vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
-vi.mock('../env', () => ({ env: {} }))
+vi.mock('../env', () => ({
+  env: {},
+  logLevel: 'error',
+  installDesktopShellEnvironment: () => mocks.installShellEnvironment(),
+  installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
+}))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))

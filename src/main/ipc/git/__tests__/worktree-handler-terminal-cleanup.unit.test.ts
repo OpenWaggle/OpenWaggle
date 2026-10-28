@@ -29,14 +29,17 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../typed-ipc', () => ({
-  hostHandle: vi.fn((channel: string, handler: WorktreeRemoveHandler) => {
-    handlers.set(channel, handler)
-  }),
-  typedHandle: vi.fn((channel: string, handler: WorktreeRemoveHandler) => {
-    handlers.set(channel, handler)
-  }),
-}))
+vi.mock('../../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('../../__tests__/legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation((channel: string, handler: WorktreeRemoveHandler) => {
+      handlers.set(channel, handler)
+    }),
+    typedHandle: vi.fn((channel: string, handler: WorktreeRemoveHandler) => {
+      handlers.set(channel, handler)
+    }),
+  }
+})
 
 vi.mock('../worktree-service', () => ({
   createGitWorktree: vi.fn(),

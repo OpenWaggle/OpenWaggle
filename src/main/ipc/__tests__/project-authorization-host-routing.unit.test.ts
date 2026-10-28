@@ -11,12 +11,17 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle } }))
-vi.mock('../../application/local-session-command-dispatcher', () => ({
+vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invokeHost,
 }))
 vi.mock('../../runtime', () => ({
   runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
   runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
+}))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
     Effect.runPromiseExit(effect),
 }))
 
@@ -70,13 +75,12 @@ describe('project authorization mutations in an attached GUI', () => {
     },
   )
 
-  it('retains the same validated local operations when the GUI owns its runtime', async () => {
+  it('never writes project grants itself when no Session Host answers (A-F5)', async () => {
     mocks.invokeHost.mockResolvedValue({ handled: false })
-    await invoke('authorization-grants:grant', projectPath, key)
-    expect((await loadProjectConfig(projectPath)).authorizationGrants).toEqual([
-      { ...key, grantedAt: expect.any(Number) },
-    ])
-    await invoke('authorization-grants:revoke', projectPath, key)
+    await expect(invoke('authorization-grants:grant', projectPath, key)).rejects.toThrow(
+      'needs the Session Host',
+    )
     expect((await loadProjectConfig(projectPath)).authorizationGrants ?? []).toEqual([])
+    expect(await fs.readdir(projectPath)).toEqual([])
   })
 })

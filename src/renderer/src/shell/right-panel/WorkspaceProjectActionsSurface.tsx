@@ -1,4 +1,4 @@
-import { ProjectActionsSurface } from '@/features/project-actions'
+import { ProjectActionsSurface } from '@/features/project-actions/components'
 import { useSessionProjectPath } from '@/features/sessions/hooks'
 import type { TerminalOwnerContext } from '@/features/terminal'
 import { useWorkspacePanelStore } from '../workspace-panel-store'

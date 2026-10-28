@@ -1,20 +1,18 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback } from 'react'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
-  SessionResourceViewer,
-  type SessionSummaryExtensionSidePanelTarget,
-  SessionSummaryHub,
   useSessionResourceBackfill,
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
+import type { SessionSummaryExtensionSidePanelTarget } from '@/features/session-summary/components'
 import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
-import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
+import { useSessionSummarySpace } from '../hooks/use-session-summary-space'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
@@ -24,12 +22,18 @@ import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
 import { DeletedPiSessionFileNotice } from './DeletedPiSessionFileNotice'
 
-const SESSION_SUMMARY_WIDTH_PX = 300
-const SESSION_SUMMARY_RIGHT_INSET_PX = 16
-const SESSION_SUMMARY_CONTENT_GAP_PX = 16
-const SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX =
-  CHAT_CONTENT_MAX_WIDTH_PX +
-  2 * (SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX)
+// The Summary overlay and the resource viewer are overlays over the chat, not part of its first
+// paint, so their code loads beside the chat instead of inside its route chunk (renderer-load B8).
+const LazySessionSummaryHub = lazy(() =>
+  import('@/features/session-summary/components').then((module) => ({
+    default: module.SessionSummaryHub,
+  })),
+)
+const LazySessionResourceViewer = lazy(() =>
+  import('@/features/session-summary/components').then((module) => ({
+    default: module.SessionResourceViewer,
+  })),
+)
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
@@ -39,49 +43,6 @@ interface ChatPanelContentProps {
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean
-}
-
-function useSessionSummarySpace(rightSidebarOpen: boolean) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [hasSpace, setHasSpace] = useState(true)
-
-  const measure = useCallback(() => {
-    if (rightSidebarOpen) return
-    const container = panelRef.current
-    if (!container) return
-    const width = container.clientWidth
-    if (width === 0) {
-      setHasSpace(true)
-      return
-    }
-
-    const contentFrame = container.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    const containerRect = container.getBoundingClientRect()
-    const contentRect = contentFrame?.getBoundingClientRect()
-    const hasMeasuredGeometry =
-      containerRect.width > 0 && contentRect !== undefined && contentRect.width > 0
-    const roomForSummary = hasMeasuredGeometry
-      ? containerRect.right - contentRect.right >=
-        SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
-      : width >= SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX
-    setHasSpace(roomForSummary)
-  }, [rightSidebarOpen])
-
-  useLayoutEffect(() => {
-    measure()
-  }, [measure])
-
-  useEffect(() => {
-    const element = panelRef.current
-    if (!element || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    if (contentFrame) observer.observe(contentFrame)
-    return () => observer.disconnect()
-  }, [measure])
-
-  return { panelRef, hasSpace }
 }
 
 function SessionNotificationStack({
@@ -101,9 +62,30 @@ function SessionNotificationStack({
   return <AgentNotificationStack events={events} onDismiss={handleDismiss} />
 }
 
-function transcriptPathNodeIds(section: ChatPanelSections['transcript']) {
-  if (section.activePathNodeIds) return section.activePathNodeIds
+const NODE_ID_SEPARATOR = '\u0000'
+
+function messageNodeIds(section: ChatPanelSections['transcript']) {
   return section.messages.map((message) => message.metadata?.sessionNodeId ?? message.id)
+}
+
+/**
+ * Node ids as one string. The message list is a new array whenever any message changes (a tool
+ * result, a settled answer), while its ids rarely do; deriving the id lists from this key keeps
+ * their identity, so the Session Summary and the resource viewer render only when ids change.
+ */
+function nodeIdsKey(ids: readonly string[]) {
+  return ids.join(NODE_ID_SEPARATOR)
+}
+
+/**
+ * The id list and set for a key, memoized on the key alone. Inline, they joined the memo scope of
+ * the message list and were rebuilt with it.
+ */
+function useNodeIdsForKey(key: string) {
+  // It calls no hook, so the compiler skips it unless asked.
+  'use memo'
+  const ids: readonly string[] = key === '' ? [] : key.split(NODE_ID_SEPARATOR)
+  return { ids, idSet: new Set(ids) }
 }
 
 function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible: boolean) {
@@ -151,47 +133,49 @@ export function ChatPanelContent({
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
   useSessionResourceBackfill(resourceSessionId)
-  const activeMessageNodeIds = sections.transcript.messages.map(
-    (message) => message.metadata?.sessionNodeId ?? message.id,
+  const { ids: activeMessageNodeIds, idSet: activeMessageIds } = useNodeIdsForKey(
+    nodeIdsKey(messageNodeIds(sections.transcript)),
   )
-  const activeMessageIds = new Set(activeMessageNodeIds)
-  const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
-  const summarySpace = useSessionSummarySpace(rightSidebarOpen)
+  const activePathNodeIds = sections.transcript.activePathNodeIds ?? activeMessageNodeIds
+  const { panelRef, hasSpace } = useSessionSummarySpace(rightSidebarOpen)
   const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
   return (
     <div className="flex size-full overflow-hidden">
       <div
-        ref={summarySpace.panelRef}
+        ref={panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
-        data-session-summary-space={summarySpace.hasSpace ? 'available' : 'constrained'}
+        data-session-summary-space={hasSpace ? 'available' : 'constrained'}
       >
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}
           worktreePath={sections.transcript.worktreePath}
           workingPath={sections.transcript.workingPath}
         >
-          <SessionSummaryHub
-            key={activeSessionId ?? 'no-session-summary'}
-            input={{
-              session: sections.composer.session,
-              activeBranchId: sections.transcript.activeBranchId ?? null,
-              activePathNodeIds,
-              messageCount: summaryMessageCount,
-              hiveAvailable,
-              autoHidden: summaryNeedsTransientOverlay(
-                summarySpace.hasSpace,
-                floatingPreviewVisible,
-              ),
-              rightSidebarOpen,
-              extensionRegistry: sections.extensionRegistry,
-              extensionProjectPaths: sections.extensionProjectPaths,
-              onOpenDiff,
-              onOpenChangeRequest,
-              onOpenResources,
-              onOpenExtensionSidePanel,
-            }}
-          />
+          {/* A lazy surface's chunk can fail to load (an update swapped the hashed renderer
+            chunks): its own boundary keeps the transcript and composer mounted. */}
+          <PanelErrorBoundary name="Session Summary">
+            <Suspense fallback={null}>
+              <LazySessionSummaryHub
+                key={activeSessionId ?? 'no-session-summary'}
+                input={{
+                  session: sections.composer.session,
+                  activeBranchId: sections.transcript.activeBranchId ?? null,
+                  activePathNodeIds,
+                  messageCount: summaryMessageCount,
+                  hiveAvailable,
+                  autoHidden: summaryNeedsTransientOverlay(hasSpace, floatingPreviewVisible),
+                  rightSidebarOpen,
+                  extensionRegistry: sections.extensionRegistry,
+                  extensionProjectPaths: sections.extensionProjectPaths,
+                  onOpenDiff,
+                  onOpenChangeRequest,
+                  onOpenResources,
+                  onOpenExtensionSidePanel,
+                }}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
           {/* Anchored here rather than inside the composer: the composer area is reserved for
             requests that hold the run, so the surface a user must answer is always the one nearest
             the prompt input, and a notice that can never be answered floats clear of it. */}
@@ -202,12 +186,16 @@ export function ChatPanelContent({
               sessionId={sections.transcript.activeSessionId}
             />
           </PanelErrorBoundary>
-          <SessionResourceViewer
-            activeSessionId={activeSessionId}
-            activeBranchId={sections.transcript.activeBranchId ?? null}
-            activeMessageIds={activeMessageIds}
-            activePathNodeIds={activePathNodeIds}
-          />
+          <PanelErrorBoundary name="Resource viewer">
+            <Suspense fallback={null}>
+              <LazySessionResourceViewer
+                activeSessionId={activeSessionId}
+                activeBranchId={sections.transcript.activeBranchId ?? null}
+                activeMessageIds={activeMessageIds}
+                activePathNodeIds={activePathNodeIds}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
 
           <PanelErrorBoundary
             name="Chat transcript"

@@ -1,9 +1,15 @@
 import { act, fireEvent, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { renderChatRoute, routeSurfaceMocks } from './route-surfaces.test-harness'
 
 describe('route surfaces', () => {
+  // The route sidebar is a lazy chunk; load it once so each open sidebar renders on first await.
+  beforeAll(async () => {
+    await import('../-chat-route-sidebar')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     routeSurfaceMocks.setWorkingPath('/repo')
     routeSurfaceMocks.setLastPanel('diff')
@@ -98,7 +104,7 @@ describe('route surfaces', () => {
     expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
   })
 
-  it('routes a bound change request to the in-app sidebar and clears it on close', () => {
+  it('routes a bound change request to the in-app sidebar and clears it on close', async () => {
     const onChangeRequestOpenChange = vi.fn()
     renderChatRoute({
       rightSidebar: { changeRequestUrl: 'https://github.com/o/r/pull/7' },
@@ -106,7 +112,7 @@ describe('route surfaces', () => {
     })
 
     expect(
-      screen.getByText('Change request panel: https://github.com/o/r/pull/7'),
+      await screen.findByText('Change request panel: https://github.com/o/r/pull/7'),
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close change request' }))
     expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith('change-request')
@@ -180,7 +186,7 @@ describe('route surfaces', () => {
     expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
   })
 
-  it('binds the resource sidebar to its explicit view and resource target', () => {
+  it('binds the resource sidebar to its explicit view and resource target', async () => {
     const onResourcesTargetChange = vi.fn()
 
     renderChatRoute({
@@ -188,7 +194,9 @@ describe('route surfaces', () => {
       actions: { onResourcesTargetChange },
     })
 
-    expect(screen.getByText('Session resources panel: outputs/created-pr')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Session resources panel: outputs/created-pr'),
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show sources' }))
     expect(onResourcesTargetChange).toHaveBeenCalledWith({ view: 'sources' })
 

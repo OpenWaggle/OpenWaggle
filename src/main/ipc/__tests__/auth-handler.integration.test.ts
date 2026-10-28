@@ -33,6 +33,29 @@ vi.mock('../../runtime', () => ({
       ),
     ),
 }))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, ProviderOAuthService>) =>
+    Effect.runPromiseExit(
+      Effect.provide(
+        effect,
+        Layer.succeed(
+          ProviderOAuthService,
+          ProviderOAuthService.of({
+            listProviders: () => Effect.succeed(['openrouter', 'openai']),
+            login: () => Effect.void,
+            logout: () => Effect.void,
+            isConnected: () => Effect.succeed(false),
+            getAccountInfo: (provider) =>
+              Effect.succeed({
+                provider,
+                connected: false,
+                label: 'Not connected',
+              }),
+          }),
+        ),
+      ),
+    ),
+}))
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn() }),

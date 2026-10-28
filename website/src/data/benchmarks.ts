@@ -4,8 +4,11 @@ export interface BenchmarkEntry {
   id: string
   name: string
   version: string
+  /** Provider-reported prompt tokens of the agent's first model call. */
   turnOneTokens: number
-  perTurnDelta?: number
+  /** o200k tokens of the first request's system prompt and tool declarations. */
+  prefixO200k: number
+  toolCount: number
   highlight?: boolean
   routing: string
   notes: string[]
@@ -31,68 +34,43 @@ interface EntryCopy {
 const ENTRY_COPY: Record<string, EntryCopy> = {
   openwaggle: {
     name: 'OpenWaggle',
-    version: '',
-    routing: 'Bundled Pi SDK, native OpenRouter provider, fresh agent dir',
+    version: 'v1 performance build (packaged app)',
+    routing: 'Packaged app on the host, OpenRouter provider via proxy',
     notes: [
-      'Historical bundled-SDK probe using scripts/benchmark-first-turn-tokens.ts --live, not a fully configured GUI session.',
-      'Measured separately from the container rows. The archived container logs do not include its raw run output.',
+      'The packaged app in hidden automation with its first-party extensions and default settings, not a bare SDK probe.',
+      'Its two other model calls in the run, which generate and then refine the Session title, are not counted.',
     ],
   },
   pi: {
     name: 'Pi CLI',
-    version: '0.84.4',
+    version: '1.4.0',
     routing: 'Raw openai-completions endpoint via proxy',
-    notes: ['Historical Pi 0.84.4 CLI result. Its provider route differs from the OpenWaggle SDK probe.'],
-  },
-  aider: {
-    name: 'Aider',
-    version: '0.86.2',
-    routing: 'OpenAI-compatible endpoint via proxy',
-    notes: [
-      'Measured in an empty project. Repository context can increase input size in a real project.',
-    ],
-  },
-  dsh: {
-    name: 'DeepSeek Harness',
-    version: '0.1.2a3 (sdk-minimal profile)',
-    routing: 'DeepSeek-compatible endpoint via proxy',
-    notes: [
-      'Measured using the headless sdk-minimal profile, not the full interactive toolset.',
-    ],
-  },
-  reasonix: {
-    name: 'DeepSeek Reasonix',
-    version: '1.35.0',
-    routing: 'Raw openai-completions endpoint via proxy',
-    notes: [
-      'The CLI reported 10,558 input tokens; the archive records one model call with 5,279. The chart uses API usage, without attributing the discrepancy to an unverified cause.',
-    ],
+    notes: ['The Pi version OpenWaggle bundles. OpenWaggle adds its Hive, codemode and tool search on top.'],
   },
   opencode: {
     name: 'opencode',
-    version: '1.18.26',
-    routing: 'Raw openai-completions endpoint via proxy',
-    notes: [
-      'The archived run contains one model call. Other configurations can add calls or context.',
-    ],
+    version: '1.19.4',
+    routing: 'OpenAI-compatible provider via proxy',
+    notes: ['The run made two model calls, the second a background title request; the chart counts the first.'],
   },
   codex: {
     name: 'Codex CLI',
-    version: '0.150.1',
+    version: '0.164.0',
     routing: 'Responses endpoint via proxy, model_reasoning_effort set',
-    notes: [
-      'The measured container configuration explicitly set model_reasoning_effort.',
-    ],
+    notes: ['OpenRouter needs model_reasoning_effort set for the Responses endpoint.'],
   },
   'claude-code': {
     name: 'Claude Code',
-    version: '2.1.247',
+    version: '2.1.311',
     routing: 'Anthropic-compatible endpoint via proxy',
     notes: [
       'Measured in a pristine container. Plugins and configuration on a developer machine can change input size.',
     ],
   },
 }
+
+/** The OpenWaggle build the run measured: its package version and source commit. */
+export const openwaggleBuild: { readonly appVersion: string; readonly commit: string } = results.openwaggleBuild
 
 const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
   const copy = ENTRY_COPY[result.id]
@@ -104,7 +82,8 @@ const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
     name: copy.name,
     version: copy.version,
     turnOneTokens: result.turnOneTokens,
-    ...(result.perTurnDelta !== undefined ? { perTurnDelta: result.perTurnDelta } : {}),
+    prefixO200k: result.prefixO200k,
+    toolCount: result.toolCount,
     ...(result.id === 'openwaggle' || result.id === 'pi' ? { highlight: true } : {}),
     routing: copy.routing,
     notes: [...copy.notes],
@@ -114,11 +93,11 @@ const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
 export const benchmarkRun: BenchmarkRun = {
   measuredAt: results.measuredAt,
   model: results.model,
-  routing: 'OpenRouter: seven container rows through a logging proxy; OpenWaggle measured separately through the bundled Pi SDK provider',
+  routing: 'OpenRouter, every agent through the same local logging proxy',
   probePrompt: 'Reply with exactly OK and nothing else.',
-  scriptPath: 'scripts/benchmark-first-turn-tokens.ts',
+  scriptPath: 'scripts/benchmark-docker/run.sh',
   environment:
-    'The seven non-OpenWaggle rows used pinned Docker containers with fresh homes and empty projects. The OpenWaggle row used a separate SDK probe with temporary project and agent directories. These are historical first-call measurements, not current-release task costs.',
+    'Pi, opencode, Codex and Claude Code ran in pinned Docker containers with fresh homes and empty projects. OpenWaggle ran as the packaged app on the host with a throwaway profile and an empty project. All five went through the same proxy and model.',
   entry: MEASURED_ENTRIES,
 }
 

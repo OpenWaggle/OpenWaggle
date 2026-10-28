@@ -22,6 +22,11 @@ function adjustHeight(element: HTMLElement) {
 /**
  * Auto-resizes the Lexical ContentEditable container based on content height.
  * Caps at COMPOSER_MAX_HEIGHT_PX and adds overflow-y-auto when exceeded.
+ *
+ * Measuring forces a layout, so it runs only when the height can change: an update that changed
+ * the text (not one that only moved the selection), or a change of the editor's width, which
+ * rewraps it. The observer also fires for the height set here; measuring again then found the
+ * same height and cost a second forced layout on every keystroke.
  */
 export function AutoResizePlugin(): null {
   const [editor] = useLexicalComposerContext()
@@ -32,13 +37,20 @@ export function AutoResizePlugin(): null {
     if (!rootElement) return
     rootRef.current = rootElement
 
-    const observer = new ResizeObserver(() => adjustHeight(rootElement))
+    let measuredWidth: number | null = null
+    const observer = new ResizeObserver((entries) => {
+      const width = entries.at(-1)?.contentRect.width ?? null
+      if (width !== null && width === measuredWidth) return
+      measuredWidth = width
+      adjustHeight(rootElement)
+    })
     observer.observe(rootElement)
     return () => observer.disconnect()
   }, [editor])
 
   useEffect(() => {
-    return editor.registerUpdateListener(() => {
+    return editor.registerUpdateListener(({ dirtyElements, dirtyLeaves }) => {
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return
       if (rootRef.current) adjustHeight(rootRef.current)
     })
   }, [editor])

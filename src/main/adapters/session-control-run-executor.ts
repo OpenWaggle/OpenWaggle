@@ -38,6 +38,7 @@ import type { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
 import { noteUsageStatisticsRunProjectDefault } from '../usage-statistics/usage-statistics-runs'
 import { startStreamBuffer } from '../utils/stream-bridge'
+import { authorityDriftMonitorFor } from './session-authority-drift-monitor'
 import { captureRunContinuationServices } from './session-control-run-continuation-services'
 import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
@@ -65,8 +66,6 @@ type RunExecutorDependencies =
   | SessionReportRepository
   | SqlClient.SqlClient
   | SettingsService
-
-const AUTHORITY_DRIFT_POLL_INTERVAL_MS = 100
 
 export function withRunAttachmentCleanup<A, E, R>(input: {
   readonly effect: Effect.Effect<A, E, R>
@@ -174,31 +173,23 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
       input,
     ).pipe(Effect.tapError((error) => Effect.sync(() => publishRunStartFailure(input, error))))
     let interactionTimedOut = false
-    let checkingAuthority = false
-    const authorityDriftTimer = authoritySnapshot
-      ? setInterval(() => {
-          if (checkingAuthority || input.controller.signal.aborted) return
-          checkingAuthority = true
-          void Effect.runPromise(
-            liveSessionAuthorityBlockReason(sql, input.intent.callerId, input.sessionId),
-          )
-            .then((blockReason) => {
-              if (!blockReason) return
-              input.controller.abort(
-                new Error('Run interrupted because its filesystem authority changed.'),
-              )
-            })
-            .catch(() => {
-              input.controller.abort(
-                new Error(
-                  'Run interrupted because its filesystem authority could not be verified.',
-                ),
-              )
-            })
-            .finally(() => {
-              checkingAuthority = false
-            })
-        }, AUTHORITY_DRIFT_POLL_INTERVAL_MS)
+    const stopAuthorityWatch = authoritySnapshot
+      ? authorityDriftMonitorFor(sql).watch({
+          check: () =>
+            Effect.runPromise(
+              liveSessionAuthorityBlockReason(sql, input.intent.callerId, input.sessionId),
+            ).then((blockReason) => (blockReason ? 'changed' : 'current')),
+          onDrift: (outcome) => {
+            if (input.controller.signal.aborted) return
+            input.controller.abort(
+              new Error(
+                outcome === 'changed'
+                  ? 'Run interrupted because its filesystem authority changed.'
+                  : 'Run interrupted because its filesystem authority could not be verified.',
+              ),
+            )
+          },
+        })
       : undefined
     const releaseInteractionDeadline = registerInteractionDeadline({
       execution,
@@ -223,7 +214,7 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
         Effect.ensuring(
           Effect.sync(() => {
             releaseInteractionDeadline()
-            if (authorityDriftTimer) clearInterval(authorityDriftTimer)
+            stopAuthorityWatch?.()
           }),
         ),
       ),

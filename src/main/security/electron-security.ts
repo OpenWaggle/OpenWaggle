@@ -18,11 +18,19 @@ const VALUE_SEPARATOR = ' '
 // Vite React injects a deterministic inline preamble script in dev.
 // Allow only that exact script hash so dev boot works without enabling broad unsafe-inline.
 const VITE_REACT_PREAMBLE_HASH = "'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='" as const
+/**
+ * The one inline script of src/renderer/index.html, which applies the cached interface scale
+ * before the startup frame paints. A unit test recomputes it from the file, and
+ * `pnpm check:renderer-csp` from the page the build wrote.
+ */
+export const STARTUP_APPEARANCE_SCRIPT_HASH =
+  "'sha256-AzeWj8P/bvRHuRLOMEOepvQ0Qa2MUlvQ93kUJ7hu9co='" as const
 const EXTENSION_RUNTIME_SCRIPT_SOURCE =
   `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:` as const
 const SCRIPT_SRC_VALUES = [
   "'self'",
   VITE_REACT_PREAMBLE_HASH,
+  STARTUP_APPEARANCE_SCRIPT_HASH,
   EXTENSION_RUNTIME_SCRIPT_SOURCE,
 ] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const

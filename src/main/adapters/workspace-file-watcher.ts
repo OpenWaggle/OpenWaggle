@@ -1,42 +1,55 @@
-import path from 'node:path'
 import type { WorkspaceFilesChangedEvent } from '@shared/types/workspace-files'
-import { type FSWatcher, watch } from 'chokidar'
 import type { WebContents } from 'electron'
 import { createLogger } from '../logger'
 import { invalidateWorkspaceFileIndex } from './filesystem-workspace-file-service'
+import {
+  type BackendEvents,
+  chokidarBackend,
+  GIT_EXCLUDE_PATH,
+  ignored,
+  nativeBackend,
+  relativeTo,
+  WATCH_COALESCE_MS,
+  type WatchBackend,
+  watchExternalGitExclude,
+} from './workspace-file-watcher-backends'
+import { WorkspaceGitIgnoreFilter } from './workspace-git-ignore-filter'
 
-const WATCH_COALESCE_MS = 120
 const WATCH_BATCH_PATH_LIMIT = 1_000
-const WATCH_POLL_INTERVAL_MS = 50
 const logger = createLogger('workspace-file-watcher')
 
 interface WorkspaceWatcher {
-  readonly watcher: FSWatcher
+  readonly backend: WatchBackend
   readonly subscribers: Map<number, WebContents>
   readonly changedPaths: Set<string>
+  readonly gitIgnore: WorkspaceGitIgnoreFilter | undefined
   timeout: NodeJS.Timeout | null
   overflow: boolean
-  readonly onRuntimeError: (error: unknown) => void
 }
 
 const watchers = new Map<string, WorkspaceWatcher>()
 const pendingWatchers = new Map<string, Promise<WorkspaceWatcher>>()
 const subscribersByProject = new Map<string, Map<number, WebContents>>()
 
-function ignored(candidatePath: string) {
-  const normalized = candidatePath.replaceAll('\\', '/')
-  return /(?:^|\/)(?:\.git|node_modules|dist|out|coverage)(?:\/|$)/u.test(normalized)
+let watchPlatform: NodeJS.Platform = process.platform
+
+/** Tests pick the backend: chokidar (`linux`) or one recursive native watcher (others). */
+export function setWorkspaceWatcherPlatformForTests(platform: NodeJS.Platform) {
+  watchPlatform = platform
 }
 
-function flush(projectRoot: string, entry: WorkspaceWatcher) {
+async function flush(projectRoot: string, entry: WorkspaceWatcher) {
   entry.timeout = null
-  const payload: WorkspaceFilesChangedEvent = {
-    workingPath: projectRoot,
-    paths: [...entry.changedPaths],
-    overflow: entry.overflow,
-  }
+  const overflow = entry.overflow
+  let paths = [...entry.changedPaths]
   entry.changedPaths.clear()
   entry.overflow = false
+  if (!overflow && entry.gitIgnore && paths.length > 0) {
+    paths = await entry.gitIgnore.keepNotIgnored(paths)
+    // Every change was to files git ignores: nothing to tell.
+    if (paths.length === 0) return
+  }
+  const payload: WorkspaceFilesChangedEvent = { workingPath: projectRoot, paths, overflow }
   invalidateWorkspaceFileIndex(projectRoot)
   for (const [id, subscriber] of entry.subscribers) {
     if (subscriber.isDestroyed()) {
@@ -47,17 +60,28 @@ function flush(projectRoot: string, entry: WorkspaceWatcher) {
   }
 }
 
-function queueChange(projectRoot: string, entry: WorkspaceWatcher, changedPath: string) {
-  if (entry.changedPaths.size < WATCH_BATCH_PATH_LIMIT) {
-    const relative = path.relative(projectRoot, changedPath).replaceAll('\\', '/')
-    if (relative && relative !== '..' && !relative.startsWith('../')) {
-      entry.changedPaths.add(relative)
-    }
-  } else {
-    entry.overflow = true
-  }
+function scheduleFlush(projectRoot: string, entry: WorkspaceWatcher) {
   if (entry.timeout) clearTimeout(entry.timeout)
-  entry.timeout = setTimeout(() => flush(projectRoot, entry), WATCH_COALESCE_MS)
+  entry.timeout = setTimeout(() => void flush(projectRoot, entry), WATCH_COALESCE_MS)
+}
+
+function queueChange(projectRoot: string, entry: WorkspaceWatcher, changedPath: string) {
+  const relative = relativeTo(projectRoot, changedPath)
+  if (relative === undefined) return
+  if (
+    relative !== GIT_EXCLUDE_PATH &&
+    (ignored(relative) || entry.gitIgnore?.isKnownIgnored(relative))
+  )
+    return
+  if (entry.changedPaths.size < WATCH_BATCH_PATH_LIMIT) entry.changedPaths.add(relative)
+  else entry.overflow = true
+  scheduleFlush(projectRoot, entry)
+}
+
+/** Which files changed is unknown: subscribers read the whole listing again. */
+function queueRescan(projectRoot: string, entry: WorkspaceWatcher) {
+  entry.overflow = true
+  scheduleFlush(projectRoot, entry)
 }
 
 function queueOverflow(projectRoot: string, entry: WorkspaceWatcher, error: unknown) {
@@ -65,65 +89,54 @@ function queueOverflow(projectRoot: string, entry: WorkspaceWatcher, error: unkn
     projectRoot,
     error: error instanceof Error ? error.message : String(error),
   })
-  entry.overflow = true
-  if (entry.timeout) clearTimeout(entry.timeout)
-  entry.timeout = setTimeout(() => flush(projectRoot, entry), WATCH_COALESCE_MS)
-}
-
-function waitForWatcherReady(watcher: FSWatcher): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      watcher.removeListener('ready', handleReady)
-      watcher.removeListener('error', handleError)
-    }
-    const handleReady = () => {
-      cleanup()
-      resolve()
-    }
-    const handleError = (error: unknown) => {
-      cleanup()
-      reject(error)
-    }
-    watcher.once('ready', handleReady)
-    watcher.once('error', handleError)
-  })
+  queueRescan(projectRoot, entry)
 }
 
 async function closeWatcher(entry: WorkspaceWatcher) {
   if (entry.timeout) clearTimeout(entry.timeout)
-  await entry.watcher.close()
-  entry.watcher.removeListener('error', entry.onRuntimeError)
+  await entry.backend.close()
+  entry.backend.stopErrors()
 }
 
 async function createWatcher(projectRoot: string, subscribers: Map<number, WebContents>) {
-  const watcher = watch(projectRoot, {
-    ignoreInitial: true,
-    ignored,
-    followSymlinks: false,
-    awaitWriteFinish: {
-      stabilityThreshold: WATCH_COALESCE_MS,
-      pollInterval: WATCH_POLL_INTERVAL_MS,
+  const gitIgnore = await WorkspaceGitIgnoreFilter.create(projectRoot)
+  const pending: { entry?: WorkspaceWatcher } = {}
+  const events: BackendEvents = {
+    onChange: (changedPath) => {
+      if (pending.entry) queueChange(projectRoot, pending.entry, changedPath)
     },
+    onError: (error) => {
+      if (pending.entry) queueOverflow(projectRoot, pending.entry, error)
+    },
+  }
+  const tree =
+    watchPlatform === 'linux'
+      ? await chokidarBackend(projectRoot, gitIgnore, events)
+      : await nativeBackend(projectRoot, events)
+  const exclude = watchExternalGitExclude(projectRoot, gitIgnore, () => {
+    const entry = pending.entry
+    if (!entry || !gitIgnore) return
+    // Which files git ignores changed, not which files exist: the listing is read again.
+    void gitIgnore.refresh().then(() => queueRescan(projectRoot, entry))
   })
+  const backend: WatchBackend = exclude
+    ? {
+        close: async () => {
+          exclude.close()
+          await tree.close()
+        },
+        stopErrors: tree.stopErrors,
+      }
+    : tree
   const entry: WorkspaceWatcher = {
-    watcher,
+    backend,
     subscribers,
     changedPaths: new Set(),
+    gitIgnore,
     timeout: null,
     overflow: false,
-    onRuntimeError: (error) => queueOverflow(projectRoot, entry, error),
   }
-  const onChange = (_eventName: string, changedPath: string) =>
-    queueChange(projectRoot, entry, changedPath)
-  watcher.on('all', onChange)
-  try {
-    await waitForWatcherReady(watcher)
-  } catch (error) {
-    watcher.removeListener('all', onChange)
-    await watcher.close().catch(() => undefined)
-    throw error
-  }
-  watcher.on('error', entry.onRuntimeError)
+  pending.entry = entry
   return entry
 }
 

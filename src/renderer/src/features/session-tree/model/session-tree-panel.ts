@@ -1,4 +1,4 @@
-import type { SessionNode, SessionTree, SessionTreeFilterMode } from '@shared/types/session'
+import type { SessionTree, SessionTreeFilterMode, SessionTreeNode } from '@shared/types/session'
 import type { RefObject } from 'react'
 import type { SessionTreeRow } from './session-tree-row'
 
@@ -7,8 +7,8 @@ export interface SessionTreePanelProps {
 }
 
 export interface ExpandedNodeIdsOverride {
-  readonly sessionId: SessionNode['sessionId']
-  readonly nodeIds: readonly SessionNode['id'][]
+  readonly sessionId: SessionTreeNode['sessionId']
+  readonly nodeIds: readonly SessionTreeNode['id'][]
 }
 
 export interface SessionTreePanelState {
@@ -31,17 +31,17 @@ export interface SessionTreeRowsView {
   readonly activePathIds: ReadonlySet<string>
   readonly clampedFocusIndex: number
   readonly draftBranch: {
-    readonly sessionId: SessionNode['sessionId']
-    readonly sourceNodeId: SessionNode['id']
+    readonly sessionId: SessionTreeNode['sessionId']
+    readonly sourceNodeId: SessionTreeNode['id']
   } | null
-  readonly rowExpandedNodeIds: readonly SessionNode['id'][]
+  readonly rowExpandedNodeIds: readonly SessionTreeNode['id'][]
   readonly tree: SessionTree
   readonly visibleRows: readonly SessionTreeRow[]
 }
 
 export interface SessionTreeRowActions {
   readonly focusIndex: (index: number) => void
-  readonly selectNode: (node: SessionNode) => void
+  readonly selectNode: (node: SessionTreeNode) => void
   readonly toggleNodeExpanded: (row: SessionTreeRow) => void
 }
 

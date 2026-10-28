@@ -1,7 +1,10 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
-import { configureGuiSessionCommandClient } from '../application/local-session-command-dispatcher'
+import { configureGuiSessionCommandClient } from '../application/gui-session-command-router'
 import { createLogger } from '../logger'
-import { prepareGuiSessionHostStartup } from './gui-session-host-startup'
+import {
+  moveLegacySessionStoreIfNeeded,
+  prepareGuiSessionHostStartup,
+} from './gui-session-host-startup'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
 import {
@@ -9,8 +12,14 @@ import {
   isLocalSessionHostUnavailable,
   waitForLocalSessionHostRelease,
 } from './local-session-host-launcher'
+import { waitForPrelaunchedLocalSessionHost } from './local-session-host-prelaunch-wait'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
+import {
+  hasSessionHostPrelaunch,
+  type SessionHostPrelaunch,
+  takeSessionHostPrelaunch,
+} from './session-host-prelaunch-handoff'
 import { startRemoteSessionHostRendererBridge } from './session-host-renderer-bridge'
 import { releaseSessionHostForUpdate } from './session-host-update-release'
 
@@ -27,13 +36,18 @@ export interface GuiSessionHostStopOptions {
 
 export interface GuiSessionHostLifecycle {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
-  readonly start: () => Promise<void>
+  /** An aborted start stops waiting for a Host to listen; a Retry starts a new one. */
+  readonly start: (signal?: AbortSignal) => Promise<void>
   readonly stop: (options?: GuiSessionHostStopOptions) => Promise<void>
 }
 
 async function attachToRemoteSessionHost(input: {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly isStopping: () => boolean
+  readonly onUpgradePending?: () => void
+  readonly onUpgradeReleased?: () => void
+  /** An aborted start stops waiting for an updating Host to hand over. */
+  readonly signal?: AbortSignal
 }) {
   let currentPaths = input.client.paths
   try {
@@ -49,8 +63,14 @@ async function attachToRemoteSessionHost(input: {
     return startRemoteSessionHostRendererBridge(client)
   } catch (error) {
     if (error instanceof LocalSessionHostUpgradePendingError) {
-      const released = await waitForLocalSessionHostRelease(currentPaths.endpoint)
-      if (released) return null
+      input.onUpgradePending?.()
+      const released = await waitForLocalSessionHostRelease(currentPaths.endpoint, {
+        ...(input.signal ? { signal: input.signal } : {}),
+      })
+      if (released) {
+        input.onUpgradeReleased?.()
+        return null
+      }
     }
     if (isLocalSessionHostUnavailable(error)) return null
     throw error
@@ -61,33 +81,97 @@ export async function prepareGuiSessionHostLifecycle(input: {
   readonly userDataRoot: string
   readonly clientVersion: string
   readonly startupMark: (label: string) => void
+  /** The running Host is handing over to an update, and attaching waits until it has. */
+  readonly onUpgradePending?: () => void
+  /** The updating Host has handed over, and the start goes on. */
+  readonly onUpgradeReleased?: () => void
+  /** This start attached to a running Host or launched one: the Host's own startup is under way. */
+  readonly onHostUnderway?: () => void
+  /** Whether the boot shim launched this profile's Host (`boot/session-host-prelaunch`). */
+  readonly hasPrelaunchedHost?: (userDataRoot: string) => boolean
+  /** That Host, taken once: a Retry launches as usual. */
+  readonly takePrelaunchedHost?: (userDataRoot: string) => SessionHostPrelaunch | null
+  /** Waits for that Host to answer; false once it ended without answering. */
+  readonly waitForPrelaunchedHost?: typeof waitForPrelaunchedLocalSessionHost
 }): Promise<GuiSessionHostLifecycle> {
-  const { paths } = await prepareGuiSessionHostStartup(input)
+  const takePrelaunchedHost = input.takePrelaunchedHost ?? takeSessionHostPrelaunch
+  const hostPrelaunched = (input.hasPrelaunchedHost ?? hasSessionHostPrelaunch)(input.userDataRoot)
+  const { paths } = await prepareGuiSessionHostStartup({ ...input, hostPrelaunched })
   const remoteClient = guiRemoteClient(paths, input.clientVersion)
   let stopRendererBridge: (() => void | Promise<void>) | null = null
   let stopping = false
+  /** The boot shim's Host, once taken; while it lives, it creates or moves the store itself. */
+  let claimedPrelaunch: SessionHostPrelaunch | null = null
+  let storeLeftToPrelaunchedHost = hostPrelaunched
 
-  const attachToExistingHost = async () => {
+  /**
+   * Before this process launches a Host itself: a prelaunched Host that ended (it failed to start,
+   * or the profile was another Host's) left the store to move, which only this process may do.
+   */
+  const moveStoreUnlessPrelaunchedHostLives = async () => {
+    if (!storeLeftToPrelaunchedHost) return
+    if (claimedPrelaunch && !claimedPrelaunch.hasEnded()) return
+    await moveLegacySessionStoreIfNeeded({ paths, startupMark: input.startupMark })
+    storeLeftToPrelaunchedHost = false
+  }
+
+  const attachToExistingHost = async (signal?: AbortSignal) => {
     const stopBridge = await attachToRemoteSessionHost({
       client: remoteClient,
       isStopping: () => stopping,
+      ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
+      ...(input.onUpgradeReleased ? { onUpgradeReleased: input.onUpgradeReleased } : {}),
+      ...(signal ? { signal } : {}),
     })
     if (!stopBridge) return false
     stopRendererBridge = stopBridge
+    input.onHostUnderway?.()
     return true
+  }
+
+  /** Attaches to the Host the boot shim launched, once it answers; false if it ended first. */
+  const attachToPrelaunchedHost = async (signal?: AbortSignal) => {
+    const prelaunch = takePrelaunchedHost(input.userDataRoot)
+    if (!prelaunch) return false
+    claimedPrelaunch = prelaunch
+    input.startupMark('session-host-prelaunch-adopted')
+    input.onHostUnderway?.()
+    const waitForPrelaunchedHost =
+      input.waitForPrelaunchedHost ?? waitForPrelaunchedLocalSessionHost
+    const answered = await waitForPrelaunchedHost({
+      ...remoteClient,
+      clientKind: 'gui',
+      prelaunch,
+      ...(signal ? { signal } : {}),
+    })
+    signal?.throwIfAborted()
+    return answered && (await attachToExistingHost(signal))
   }
 
   return {
     client: remoteClient,
-    start: async () => {
+    start: async (signal) => {
       stopping = false
-      if (!(await attachToExistingHost())) {
+      // Attached already: a second attachment would forward every Host event twice and leak.
+      if (stopRendererBridge) return
+      if (!(await attachToExistingHost(signal)) && !(await attachToPrelaunchedHost(signal))) {
         if (stopping) throw new Error('GUI Session Host startup was stopped.')
+        signal?.throwIfAborted()
+        await moveStoreUnlessPrelaunchedHostLives()
+        signal?.throwIfAborted()
         await ensureLocalSessionHost({
           ...remoteClient,
           clientKind: 'gui',
+          ...(signal ? { signal } : {}),
+          ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
+          ...(input.onUpgradeReleased ? { onUpgradeReleased: input.onUpgradeReleased } : {}),
+          onLaunched: () => {
+            input.startupMark('session-host-launched')
+            input.onHostUnderway?.()
+          },
         })
-        if (!(await attachToExistingHost())) {
+        signal?.throwIfAborted()
+        if (!(await attachToExistingHost(signal))) {
           if (stopping) throw new Error('GUI Session Host startup was stopped.')
           throw new Error('The isolated GUI could not attach to an authoritative Session Host.')
         }

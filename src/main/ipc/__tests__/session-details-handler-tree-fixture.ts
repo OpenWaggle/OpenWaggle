@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 
-export const SESSION_DETAILS_HANDLER_SOURCE_TREE: SessionTree = {
+export const SESSION_DETAILS_HANDLER_SOURCE_TREE: SessionContentTree = {
   session: {
     id: SessionId('session-source'),
     title: 'Source session',

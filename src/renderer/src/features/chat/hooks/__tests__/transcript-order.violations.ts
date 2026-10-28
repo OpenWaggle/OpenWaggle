@@ -1,4 +1,6 @@
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { withLiveStreamMessages } from '../../state/live-stream-message-store'
 import { segmentsKey } from './transcript-order.answers'
 
 /**
@@ -15,6 +17,11 @@ export function messageKey(message: UIMessage) {
   )
   if (!text && message.parts.every((part) => part.type === 'tool-result')) return null
   return `${message.role}:${text}`
+}
+
+/** The keys of what the transcript renders: a streamed token reaches its bubble before state. */
+export function renderedMessageKeys(sessionId: SessionId, messages: readonly UIMessage[]) {
+  return withLiveStreamMessages(sessionId, messages).flatMap((message) => messageKey(message) ?? [])
 }
 
 /**

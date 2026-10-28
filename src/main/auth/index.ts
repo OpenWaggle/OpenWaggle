@@ -7,9 +7,9 @@ import type {
 } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { openExternal } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
-import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
 
@@ -30,6 +30,7 @@ const inFlightOAuthFlows = new Map<OAuthProvider, InFlightOAuthFlow>()
 const canceledOAuthFlows = new Set<OAuthProvider>()
 const lifecycleConnectivity = new Map<OAuthProvider, boolean>()
 let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
+let authLifecycleFirstCheck: ReturnType<typeof setTimeout> | null = null
 let authLifecycleTickInFlight = false
 
 export function submitCode(provider: OAuthProvider, code: string): void {
@@ -84,22 +85,37 @@ export async function cancelOAuth(
   logger.info('OAuth flow cancelled', { provider })
 }
 
-export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+function stopAuthLifecycleTimers() {
   if (authLifecycleTimer) {
     clearInterval(authLifecycleTimer)
+    authLifecycleTimer = null
   }
+  if (authLifecycleFirstCheck) {
+    clearTimeout(authLifecycleFirstCheck)
+    authLifecycleFirstCheck = null
+  }
+}
 
-  void runAuthLifecycleTick(emitStatus)
+/**
+ * Watches for OAuth sign-ins that expire while the app runs. The first check waits until the
+ * window has opened: it loads Pi and builds a model runtime in this process (≈95 ms of the main
+ * thread on a cold start, W11), and the window lists the accounts itself once Settings load.
+ */
+export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+  stopAuthLifecycleTimers()
+
+  authLifecycleFirstCheck = setTimeout(() => {
+    authLifecycleFirstCheck = null
+    void runAuthLifecycleTick(emitStatus)
+  }, AUTH_TIMEOUT.LIFECYCLE_FIRST_CHECK_DELAY_MS)
+  authLifecycleFirstCheck.unref?.()
   authLifecycleTimer = setInterval(() => {
     void runAuthLifecycleTick(emitStatus)
   }, AUTH_TIMEOUT.LIFECYCLE_INTERVAL_MS)
   authLifecycleTimer.unref?.()
 
   return () => {
-    if (authLifecycleTimer) {
-      clearInterval(authLifecycleTimer)
-      authLifecycleTimer = null
-    }
+    stopAuthLifecycleTimers()
     lifecycleConnectivity.clear()
   }
 }
@@ -121,7 +137,7 @@ async function runOAuthFlow(
   })
 
   try {
-    await runAppEffect(
+    await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
@@ -235,7 +251,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
   authLifecycleTickInFlight = true
 
   try {
-    const providerStates = await runAppEffect(
+    const providerStates = await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         const providers = yield* authService.listProviders()
@@ -272,7 +288,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
 }
 
 async function logoutOAuthProvider(provider: OAuthProvider) {
-  await runAppEffect(
+  await runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       yield* authService.logout(provider)
@@ -287,7 +303,7 @@ export async function disconnect(provider: OAuthProvider): Promise<void> {
 }
 
 export async function getAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo> {
-  return runAppEffect(
+  return runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       return yield* authService.getAccountInfo(provider)

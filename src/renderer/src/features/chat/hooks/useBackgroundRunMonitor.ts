@@ -13,9 +13,11 @@ import {
   useExtensionStatusStore,
 } from '@/features/chat/state/extension-status-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { releaseLiveStreamMessage } from '@/features/chat/state/live-stream-message-store'
 import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
 import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -59,7 +61,7 @@ export function useBackgroundRunMonitor(): void {
   useLayoutEffect(() => {
     const compactionOnlySessionIds = new Set<string>()
     const startedRuns = createStartedRuns()
-    const unsubEvent = api.onAgentEvent((payload) => {
+    const unsubEvent = subscribeAgentEvents((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       trackRunFinishing(payload.sessionId, payload.event)
       trackExtensionStatus(payload.sessionId, payload.event)
@@ -107,6 +109,7 @@ export function useBackgroundRunMonitor(): void {
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      releaseLiveStreamMessage(payload.sessionId)
       // A settled Run's extension statuses go with it, whatever runs next.
       useExtensionStatusStore.getState().clearRun(payload.sessionId, payload.runId)
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)

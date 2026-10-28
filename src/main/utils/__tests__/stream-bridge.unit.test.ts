@@ -7,6 +7,7 @@ const { broadcastToWindowsMock } = vi.hoisted(() => ({
 
 vi.mock('../broadcast', () => ({
   broadcastToWindows: broadcastToWindowsMock,
+  broadcastAgentEvent: (payload: unknown) => broadcastToWindowsMock('agent:event', payload),
 }))
 
 import {

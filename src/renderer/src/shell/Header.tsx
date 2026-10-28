@@ -2,10 +2,9 @@ import { match } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { GitCommitSuccess } from '@shared/types/git'
 import type { SessionSummary } from '@shared/types/session'
-import { useLayoutEffect, useState } from 'react'
+import { lazy, Suspense, useLayoutEffect, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
-import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
 import {
   isSessionSummaryPanelVisible,
@@ -17,6 +16,7 @@ import { useTerminalCommands } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
 import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
@@ -27,6 +27,11 @@ import {
 } from './HeaderControls'
 import { FeedbackButton } from './HeaderFeedbackButton'
 import { RightPanelToggleButton } from './right-panel/RightPanelToggleButton'
+
+// The commit dialog renders only after the Commit button is pressed (renderer-load B8).
+const LazyCommitDialog = lazy(() =>
+  import('@/features/git/components').then((module) => ({ default: module.CommitDialog })),
+)
 
 function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
   const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
@@ -216,16 +221,20 @@ export function Header() {
       </header>
 
       {commitOpen && (
-        <CommitDialog
-          projectPath={projectPath}
-          status={git.status}
-          statusError={git.error}
-          isRefreshing={git.isLoading}
-          isCommitting={git.isCommitting}
-          onRefresh={handleRefreshGit}
-          onCommit={handleCommitGit}
-          onClose={() => setCommitOpen(false)}
-        />
+        <PanelErrorBoundary name="Commit">
+          <Suspense fallback={null}>
+            <LazyCommitDialog
+              projectPath={projectPath}
+              status={git.status}
+              statusError={git.error}
+              isRefreshing={git.isLoading}
+              isCommitting={git.isCommitting}
+              onRefresh={handleRefreshGit}
+              onCommit={handleCommitGit}
+              onClose={() => setCommitOpen(false)}
+            />
+          </Suspense>
+        </PanelErrorBoundary>
       )}
     </>
   )

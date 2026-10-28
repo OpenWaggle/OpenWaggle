@@ -1,3 +1,5 @@
+import { hostBackgroundGate } from './host-background-gate'
+
 export const SESSION_HOST_LIVENESS_KINDS = [
   'client',
   'run',
@@ -236,10 +238,12 @@ export class SessionHostLiveness {
     }
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
     if (kind === 'client') this.acceptedClient = true
+    const releasePresence = hostBackgroundGate.presenceOf(kind)
     let released = false
     return () => {
       if (released) return
       released = true
+      releasePresence?.()
       const count = this.owners.get(kind) ?? 0
       if (count <= 1) this.owners.delete(kind)
       else this.owners.set(kind, count - 1)

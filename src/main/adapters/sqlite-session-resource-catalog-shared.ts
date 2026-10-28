@@ -206,6 +206,56 @@ function occurrenceRowsByResource(rows: readonly SessionResourceOccurrenceRow[])
   return byResource
 }
 
+function selectAllOccurrences(
+  sql: SqlClient.SqlClient,
+  resourceIds: readonly string[],
+  view: SessionResourceCatalogView,
+) {
+  return sql<SessionResourceOccurrenceRow>`
+    SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+           display_name, display_order, created_at
+    FROM session_resource_occurrences
+    WHERE resource_id IN ${sql.in(resourceIds)}
+      AND ${activityFilter(sql, view)}
+    ORDER BY resource_id ASC, created_at ASC, id ASC
+  `
+}
+
+function selectRankedOccurrences(
+  sql: SqlClient.SqlClient,
+  sessionId: SessionId,
+  resourceIds: readonly string[],
+  view: SessionResourceCatalogView,
+  identity: SessionResourceCatalogIdentity,
+) {
+  const branch = identity.branch ?? '__openwaggle:no-active-branch__'
+  return sql<SessionResourceOccurrenceRow>`
+    WITH RECURSIVE active_path(node_id) AS (
+      ${activeCatalogPath(sql, sessionId, identity)}
+    ), ranked_occurrences AS (
+      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+             display_name, display_order, created_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY resource_id
+          ORDER BY CASE
+            WHEN node_id IN (SELECT node_id FROM active_path) THEN 0
+            WHEN branch_id = ${branch}
+              AND (node_id IS NULL OR NOT EXISTS (SELECT 1 FROM active_path)) THEN 0
+            ELSE 1
+          END ASC, created_at DESC, id DESC
+        ) AS occurrence_rank
+      FROM session_resource_occurrences
+      WHERE resource_id IN ${sql.in(resourceIds)}
+        AND ${activityFilter(sql, view)}
+    )
+    SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+           display_name, display_order, created_at
+    FROM ranked_occurrences
+    WHERE occurrence_rank <= ${SESSION_RESOURCE_OCCURRENCE_PREVIEW_LIMIT}
+    ORDER BY resource_id ASC, created_at ASC, id ASC
+  `
+}
+
 export function hydrateResources(
   sql: SqlClient.SqlClient,
   sessionId: SessionId,
@@ -214,36 +264,27 @@ export function hydrateResources(
   identity: SessionResourceCatalogIdentity,
 ) {
   if (rows.length === 0) return Effect.succeed([])
-  const branch = identity.branch ?? '__openwaggle:no-active-branch__'
-  return Effect.map(
-    sql<SessionResourceOccurrenceRow>`
-      WITH RECURSIVE active_path(node_id) AS (
-        ${activeCatalogPath(sql, sessionId, identity)}
-      ), ranked_occurrences AS (
-        SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
-               display_name, display_order, created_at,
-          ROW_NUMBER() OVER (
-            PARTITION BY resource_id
-            ORDER BY CASE
-              WHEN node_id IN (SELECT node_id FROM active_path) THEN 0
-              WHEN branch_id = ${branch}
-                AND (node_id IS NULL OR NOT EXISTS (SELECT 1 FROM active_path)) THEN 0
-              ELSE 1
-            END ASC, created_at DESC, id DESC
-          ) AS occurrence_rank
-        FROM session_resource_occurrences
-        WHERE resource_id IN ${sql.in(rows.map(({ id }) => id))}
-          AND ${activityFilter(sql, view)}
-      )
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
-             display_name, display_order, created_at
-      FROM ranked_occurrences
-      WHERE occurrence_rank <= ${SESSION_RESOURCE_OCCURRENCE_PREVIEW_LIMIT}
-      ORDER BY resource_id ASC, created_at ASC, id ASC
-    `,
-    (occurrences) => {
-      const byResource = occurrenceRowsByResource(occurrences)
-      return rows.map((row) => rowToResource(row, byResource.get(row.id) ?? []))
-    },
-  )
+  const resourceIds = rows.map(({ id }) => id)
+  return Effect.gen(function* () {
+    /*
+     * Ranking by the active path only decides which occurrences a resource over the preview limit
+     * shows. Walking that path recurses through the whole branch, ~1.5 ms on a 2k-node Session
+     * for every captured link of a backfill, so it is skipped when every resource fits the limit.
+     */
+    const counts = yield* sql<{ readonly occurrences: number }>`
+      SELECT COUNT(*) AS occurrences
+      FROM session_resource_occurrences
+      WHERE resource_id IN ${sql.in(resourceIds)}
+        AND ${activityFilter(sql, view)}
+      GROUP BY resource_id
+      ORDER BY occurrences DESC
+      LIMIT 1
+    `
+    const fitsPreview = (counts[0]?.occurrences ?? 0) <= SESSION_RESOURCE_OCCURRENCE_PREVIEW_LIMIT
+    const occurrences = fitsPreview
+      ? yield* selectAllOccurrences(sql, resourceIds, view)
+      : yield* selectRankedOccurrences(sql, sessionId, resourceIds, view, identity)
+    const byResource = occurrenceRowsByResource(occurrences)
+    return rows.map((row) => rowToResource(row, byResource.get(row.id) ?? []))
+  })
 }

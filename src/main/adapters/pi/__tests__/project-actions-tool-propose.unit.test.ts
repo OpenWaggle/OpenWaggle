@@ -65,6 +65,7 @@ function registrationWith(saved: ActionDefinition) {
       registerTool: (registered: ToolDefinition) => {
         tool = registered
       },
+      on: () => undefined,
     }),
   )
   if (!tool) throw new Error('Tool was not registered')

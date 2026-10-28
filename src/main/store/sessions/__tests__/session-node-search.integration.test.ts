@@ -1,0 +1,288 @@
+import lifecycleFs from 'node:fs/promises'
+import lifecycleOs from 'node:os'
+import lifecyclePath from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSession, persistSessionSnapshot } from '../../session-details'
+import { runStoreEffect } from '../../store-runtime'
+import { listTurnDiffFiles, recordTurnCheckpoint } from '../../turn-checkpoints'
+import { getSessionNodeMutationRevision, searchSessionTreePage } from '../session-node-search'
+
+async function searchSessionTreeNodes(sessionId: SessionId, query: string) {
+  return (await searchSessionTreePage(sessionId, query)).nodeIds
+}
+
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
+}))
+
+getPathMock.mockImplementation(() => state.userDataDir)
+
+vi.mock('electron', () => ({
+  app: { getPath: getPathMock },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (value: string) => Buffer.from(value, 'utf8'),
+    decryptString: (value: Buffer) => value.toString('utf8'),
+  },
+}))
+
+beforeEach(async () => {
+  state.userDataDir = await lifecycleFs.mkdtemp(
+    lifecyclePath.join(lifecycleOs.tmpdir(), 'ow-session-node-search-'),
+  )
+  const { resetAppRuntimeForTests } = await import('../../../runtime')
+  await resetAppRuntimeForTests()
+})
+
+afterEach(async () => {
+  const temporaryDirectory = state.userDataDir
+  const { resetAppRuntimeForTests } = await import('../../../runtime')
+  await resetAppRuntimeForTests()
+  await lifecycleFs.rm(temporaryDirectory, { recursive: true, force: true })
+})
+
+async function sessionWithTexts(suffix: string, texts: readonly string[]) {
+  const session = await createSession({
+    projectPath: `/tmp/project-node-search-${suffix}`,
+    piSessionId: `pi-node-search-${suffix}`,
+    piSessionFile: `/tmp/pi-node-search-${suffix}.jsonl`,
+  })
+  const sessionId = SessionId(String(session.id))
+  await sessionWithTextsAgain(sessionId, suffix, texts)
+  return sessionId
+}
+
+async function sessionWithTextsAgain(
+  sessionId: SessionId,
+  suffix: string,
+  texts: readonly string[],
+) {
+  await persistSessionSnapshot({
+    sessionId,
+    piSessionId: `pi-node-search-${suffix}`,
+    piSessionFile: `/tmp/pi-node-search-${suffix}.jsonl`,
+    activeNodeId: `${suffix}-${String(texts.length - 1)}`,
+    nodes: texts.map((text, index) => ({
+      id: `${suffix}-${String(index)}`,
+      parentId: index === 0 ? null : `${suffix}-${String(index - 1)}`,
+      piEntryType: 'message',
+      kind: index % 2 === 0 ? ('user_message' as const) : ('assistant_message' as const),
+      role: index % 2 === 0 ? ('user' as const) : ('assistant' as const),
+      timestampMs: index + 1,
+      contentJson: JSON.stringify({ parts: [{ type: 'text', text }], model: null }),
+      metadataJson: '{}',
+      pathDepth: index,
+      createdOrder: index,
+    })),
+  })
+}
+
+/** The control state a Session Host gives every Session; it carries the node mutation revision. */
+async function withControlState(sessionId: SessionId) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO session_control_states (
+          session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+        ) VALUES (${sessionId}, 0, NULL, 'running', 0, 1)
+      `
+    }),
+  )
+}
+
+describe('Session tree search on the Host (B5)', () => {
+  it('finds nodes whose full text contains the query, folding case and whitespace', async () => {
+    const filler = 'lorem ipsum '.repeat(400)
+    const sessionId = await sessionWithTexts('a', [
+      'Start here',
+      `${filler} the Grüne   Needle is deep in this answer`,
+      'Unrelated reply',
+    ])
+    await sessionWithTexts('b', ['grüne needle in another Session'])
+
+    expect((await searchSessionTreeNodes(sessionId, '  GRÜNE needle ')).map(String)).toEqual([
+      'a-1',
+    ])
+    expect(await searchSessionTreeNodes(sessionId, '   ')).toEqual([])
+  })
+
+  it('matches tool-call arguments, tool output and metadata, not only message text', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/project-node-search-tools',
+      piSessionId: 'pi-node-search-tools',
+    })
+    const sessionId = SessionId(String(session.id))
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-node-search-tools',
+      activeNodeId: 'tools-result',
+      nodes: [
+        {
+          id: 'tools-user',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 1,
+          contentJson: JSON.stringify({ parts: [{ type: 'text', text: 'read it' }], model: null }),
+          metadataJson: JSON.stringify({ openWaggle: { label: 'Checkpoint Gamma' } }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'tools-call',
+          parentId: 'tools-user',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 2,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'tool-call',
+                toolCall: {
+                  id: 'tool-1',
+                  name: 'read',
+                  args: { filePath: 'src/deep/needle-path.ts' },
+                  state: 'input-complete',
+                },
+              },
+            ],
+            model: 'openai/gpt-5.4',
+          }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+        {
+          id: 'tools-result',
+          parentId: 'tools-call',
+          piEntryType: 'message',
+          kind: 'tool_result',
+          role: null,
+          timestampMs: 3,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'tool-result',
+                toolResult: {
+                  id: 'tool-1',
+                  name: 'read',
+                  args: {},
+                  result: { content: [{ type: 'text', text: 'export const ResultToken42 = 1' }] },
+                  isError: false,
+                  duration: 4,
+                },
+              },
+            ],
+            model: null,
+          }),
+          metadataJson: '{}',
+          pathDepth: 2,
+          createdOrder: 2,
+        },
+      ],
+    })
+
+    expect((await searchSessionTreeNodes(sessionId, 'needle-path.ts')).map(String)).toEqual([
+      'tools-call',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'resulttoken42')).map(String)).toEqual([
+      'tools-result',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'checkpoint gamma')).map(String)).toEqual([
+      'tools-user',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'gpt-5.4')).map(String)).toEqual(['tools-call'])
+  })
+
+  /*
+   * Review V2 P3-1: a query left open in the tree filter read and folded the whole Session again
+   * on every append while a Run streamed. After an append, only the appended nodes are read; once a
+   * node it read changes, the search reads every node again.
+   */
+  it('reads only the nodes appended since the last search while no node changed', async () => {
+    const sessionId = await sessionWithTexts('grow', ['needle one', 'reply'])
+    await withControlState(sessionId)
+    const first = await searchSessionTreePage(sessionId, 'needle')
+    expect(first.nodeIds.map(String)).toEqual(['grow-0'])
+    expect(first.incremental).toBe(false)
+    expect(first.cursor?.throughCreatedOrder).toBe(1)
+    const cursor = first.cursor ?? undefined
+
+    await sessionWithTextsAgain(sessionId, 'grow', ['needle one', 'reply', 'needle two', 'end'])
+    const appended = await searchSessionTreePage(sessionId, 'needle', cursor)
+    expect(appended).toEqual({
+      nodeIds: ['grow-2'],
+      incremental: true,
+      cursor: { throughCreatedOrder: 3, nodeMutationRevision: cursor?.nodeMutationRevision },
+    })
+    // Nothing appended since: nothing to read.
+    expect(
+      (await searchSessionTreePage(sessionId, 'needle', appended.cursor ?? undefined)).nodeIds,
+    ).toEqual([])
+
+    await sessionWithTextsAgain(sessionId, 'grow', ['edited', 'reply', 'needle two', 'end'])
+    const edited = await searchSessionTreePage(sessionId, 'needle', appended.cursor ?? undefined)
+    expect(edited.incremental).toBe(false)
+    expect(edited.nodeIds.map(String)).toEqual(['grow-2'])
+    expect(edited.cursor?.nodeMutationRevision).not.toBe(cursor?.nodeMutationRevision)
+  })
+
+  it('reads a long Session page by page and still finds its last node', async () => {
+    const texts = Array.from({ length: 1_203 }, (_, index) =>
+      index === 1_202 ? 'the final pagedneedle' : `filler ${String(index)}`,
+    )
+    const sessionId = await sessionWithTexts('paged', texts)
+
+    expect((await searchSessionTreeNodes(sessionId, 'PagedNeedle')).map(String)).toEqual([
+      'paged-1202',
+    ])
+    expect(await searchSessionTreeNodes(sessionId, 'filler')).toHaveLength(1_202)
+  })
+
+  it('has no revision without a control state, so nothing is reused', async () => {
+    const sessionId = await sessionWithTexts('no-state', ['one'])
+
+    expect(await getSessionNodeMutationRevision(sessionId)).toBeNull()
+    expect((await searchSessionTreePage(sessionId, 'one')).cursor).toBeNull()
+  })
+
+  it('bumps the revision when an existing node changes, not when nodes are appended', async () => {
+    const sessionId = await sessionWithTexts('rev', ['one', 'two'])
+    await withControlState(sessionId)
+    const start = await getSessionNodeMutationRevision(sessionId)
+    await sessionWithTextsAgain(sessionId, 'rev', ['one', 'two', 'three'])
+    const afterAppend = await getSessionNodeMutationRevision(sessionId)
+    await sessionWithTextsAgain(sessionId, 'rev', ['one, edited', 'two', 'three'])
+
+    expect(afterAppend).toBe(start)
+    expect(await getSessionNodeMutationRevision(sessionId)).toBeGreaterThan(afterAppend ?? 0)
+  })
+})
+
+describe('batched turn changed files (B5)', () => {
+  it('reads every listed turn in one call and names turns without a checkpoint', async () => {
+    const sessionId = await sessionWithTexts('turns', ['one'])
+    const diff = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -0,0 +1,1 @@
++alpha
+`
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', diff })
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-2', diff: '' })
+
+    expect(await listTurnDiffFiles(sessionId, ['turn-1', 'turn-2', 'missing'])).toEqual({
+      'turn-1': [{ path: 'a.ts', additions: 1, deletions: 0 }],
+      'turn-2': [],
+      missing: [],
+    })
+    expect(await listTurnDiffFiles(sessionId, [])).toEqual({})
+  })
+})

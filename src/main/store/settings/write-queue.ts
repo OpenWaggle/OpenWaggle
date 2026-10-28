@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
+import { isAppDatabaseClientIsolated } from '../../services/database-access-mode'
 import { runStoreEffect } from '../store-runtime'
 import type { SettingsPatchWrite } from './persistence-plan'
 
@@ -45,6 +46,9 @@ export function flushWriteQueue(): Promise<void> {
 }
 
 export async function writeStoredSettingsToDb(writes: readonly SettingsPatchWrite[]) {
+  // The desktop window has no database (A-F5): the Session Host persists Settings, and this
+  // process's cache follows its snapshot.
+  if (isAppDatabaseClientIsolated()) return
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

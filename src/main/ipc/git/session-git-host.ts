@@ -9,11 +9,8 @@ import type {
   SessionGitWorkingPathVerification,
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { GuiSessionCommandNotAttachedError } from '../../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../../application/gui-session-command-router'
-import {
-  recordSessionGitOutputsOperation,
-  verifySessionGitWorkingPath,
-} from '../../application/session-git-outputs'
 
 const verificationSchema = Schema.Union(
   Schema.Struct({ owned: Schema.Literal(false) }),
@@ -42,8 +39,8 @@ const recordingSchema = Schema.Struct({
 })
 
 /**
- * Ask whoever owns Sessions whether this working path is the Session's. The desktop window's
- * database is isolated, so it asks the Session Host; the owning process checks locally.
+ * Ask the Session Host, which owns Sessions, whether this working path is the Session's. The
+ * desktop window has no Session store of its own (A-F5).
  */
 export function verifySessionGitContext(sessionId: SessionId, workingPath: string) {
   return Effect.gen(function* () {
@@ -53,13 +50,11 @@ export function verifySessionGitContext(sessionId: SessionId, workingPath: strin
         WorkingPath(workingPath),
       ]),
     )
-    if (remote.handled) {
-      return decodeUnknownOrThrow(
-        verificationSchema,
-        remote.result,
-      ) satisfies SessionGitWorkingPathVerification
-    }
-    return yield* verifySessionGitWorkingPath(sessionId, workingPath)
+    if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+    return decodeUnknownOrThrow(
+      verificationSchema,
+      remote.result,
+    ) satisfies SessionGitWorkingPathVerification
   })
 }
 
@@ -96,8 +91,8 @@ export function recordSessionGitOutputsWhereOwned(
           }
         : { handled: false as const }
     })
-    if (remote.handled) return remote.recording satisfies SessionGitOutputsRecording
-    return yield* recordSessionGitOutputsOperation(sessionId, payload)
+    if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
+    return remote.recording satisfies SessionGitOutputsRecording
   }).pipe(Effect.catchAll((error) => Effect.succeed(unrecordedOutputs(payload, error))))
 }
 

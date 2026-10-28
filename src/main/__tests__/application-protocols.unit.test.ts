@@ -92,15 +92,8 @@ describe('registerApplicationProtocols', () => {
     )
   }
 
-  it('falls back to the local resource stream when no Session Host is attached', async () => {
-    const localStream = Symbol('local stream effect')
+  it('serves nothing when no Session Host is attached: the window has no resource store (A-F5)', async () => {
     mocks.readHostSessionResourceContent.mockResolvedValue({ handled: false })
-    mocks.openSessionResourceContentStream.mockReturnValue(localStream)
-    mocks.runAppEffect.mockResolvedValue({
-      fileName: 'screenshot.png',
-      mimeType: 'image/png',
-      body: new Blob([new Uint8Array([4, 5])]).stream(),
-    })
     const reference = await registeredReference()
 
     const response = await sessionResourceHandler()({
@@ -109,13 +102,9 @@ describe('registerApplicationProtocols', () => {
       url: reference.url,
     })
 
-    expect(response.status).toBe(200)
-    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([4, 5])
-    expect(mocks.openSessionResourceContentStream).toHaveBeenCalledWith(
-      SessionId('session-one'),
-      'image-one',
-    )
-    expect(mocks.runAppEffect).toHaveBeenCalledWith(localStream)
+    expect(response.status).toBe(404)
+    expect(mocks.openSessionResourceContentStream).not.toHaveBeenCalled()
+    expect(mocks.runAppEffect).not.toHaveBeenCalled()
   })
 
   it('answers 404 when the Session Host has no such image', async () => {

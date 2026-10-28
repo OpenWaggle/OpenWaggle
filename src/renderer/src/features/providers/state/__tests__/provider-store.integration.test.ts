@@ -180,7 +180,7 @@ describe('provider-store integration', () => {
 
     await useProviderStore.getState().loadProviderModels(settings)
 
-    expect(apiMock.getProviderModels).toHaveBeenCalledWith('/repo/demo')
+    expect(apiMock.getProviderModels).toHaveBeenCalledWith('/repo/demo', 'available')
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
   })
 

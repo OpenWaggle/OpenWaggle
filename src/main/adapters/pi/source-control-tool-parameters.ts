@@ -19,13 +19,10 @@ const hostChoice = Type.Union(
       'Which software the host runs; "unsupported" when it is neither GitHub nor GitLab, so OpenWaggle stops asking. null forgets the choice. "unsupported" is only valid for set-host-provider.',
   },
 )
-const scope = Type.Union(
-  [Type.Literal('user'), Type.Literal('project-local'), Type.Literal('project-shared')],
-  {
-    description:
-      '"user": the user\'s default for every project. "project-local": this project, only on this machine. "project-shared": this project for everyone, written to .openwaggle/settings.json in the Session\'s working tree.',
-  },
-)
+const scope = Type.Enum(['user', 'project-local', 'project-shared'], {
+  description:
+    '"user": the user\'s default for every project. "project-local": this project, only on this machine. "project-shared": this project for everyone, written to .openwaggle/settings.json in the Session\'s working tree.',
+})
 const destination = Type.Union([Type.Literal('inspector'), Type.Literal('website'), Type.Null()], {
   description:
     'Where opening a change request goes: "inspector" (in OpenWaggle) or "website" (the provider\'s page). null clears the override at that scope.',
@@ -67,14 +64,14 @@ export type SourceControlChangeParameters = Extract<
 export const sourceControlToolParameters = Type.Unsafe<SourceControlToolParameters>({
   type: 'object',
   properties: {
-    action: Type.Union([Type.Literal('status'), configure], {
+    action: Type.Enum(['status', configure.const], {
       description:
         '"status" diagnoses source control (read-only). "configure" applies exactly one change and asks the user to authorize it.',
     }),
     change: Type.Optional(
-      Type.Union(
+      Type.Enum(
         parameterVariants.flatMap((variant) =>
-          'change' in variant.properties ? [variant.properties.change] : [],
+          'change' in variant.properties ? [variant.properties.change.const] : [],
         ),
         {
           description:

@@ -89,6 +89,10 @@ vi.mock('../typed-ipc', () => ({
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
 }))
+vi.mock('../../application/gui-session-command', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../application/gui-session-command')>()),
+  dispatchGuiSessionCommand: dispatchLocalSessionCommandMock,
+}))
 
 vi.mock('../../logger', () => ({
   createLogger: createLoggerMock.mockImplementation(() => attachmentsLoggerMock),

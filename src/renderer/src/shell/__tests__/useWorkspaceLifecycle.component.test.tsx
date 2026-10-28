@@ -51,10 +51,8 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
       workingPath: '/repo/.worktrees/session-1',
       repositoryPath: '/repo',
-      activeSessionId: SessionId('session-1'),
       refreshGitStatus: lifecycleMocks.refreshGitStatus,
       refreshGitBranches: lifecycleMocks.refreshGitBranches,
-      refreshSession: lifecycleMocks.refreshSession,
     })
     expect(lifecycleMocks.useSessionStatusMonitor).toHaveBeenCalledOnce()
 
@@ -137,9 +135,14 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(2)
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(3)
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: queryKeys.archivedItems,
+    })
+    // Project Actions are read on Host Session-state changes instead of polled (B7/D9), only
+    // the changed Session's and its project's (useSessionHostRefresh.project-actions).
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      predicate: expect.any(Function),
     })
     expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
       initialCountRevision + 1,

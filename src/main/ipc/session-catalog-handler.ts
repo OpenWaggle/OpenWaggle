@@ -1,20 +1,9 @@
-import { dispatchHostBackedSessionGuiOperation } from '../application/host-ui-session-operation-dispatcher'
-import { hostHandle as typedHandle } from './typed-ipc'
+import { hostHandle } from './typed-ipc'
 
 export function registerSessionCatalogHandlers() {
-  typedHandle('sessions:list-by-ids', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-by-ids', args),
-  )
-  typedHandle('sessions:list-page', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-page', args),
-  )
-  typedHandle('sessions:list-projects', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-projects', args),
-  )
-  typedHandle('sessions:list-hive-page', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-hive-page', args),
-  )
-  typedHandle('sessions:list-hive-tree-page', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-hive-tree-page', args),
-  )
+  hostHandle('sessions:list-by-ids')
+  hostHandle('sessions:list-page')
+  hostHandle('sessions:list-projects')
+  hostHandle('sessions:list-hive-page')
+  hostHandle('sessions:list-hive-tree-page')
 }

@@ -102,3 +102,22 @@ The native transport calls the documented `POST /responses/compact` endpoint and
 Capability publication is deliberately conservative. The patched built-in catalog marks only model transports for which the public endpoint contract is known: documented OpenAI Responses examples and current OpenAI Codex transports. A model using the Responses API without that explicit metadata remains Portable. Generated provider catalogs are patched at the installed-package boundary, so every Pi upgrade must re-evaluate and regenerate this capability list rather than carrying it forward by model-name inference.
 
 Credential resolution is part of the compatibility identity. If authentication selects a different effective base URL, Pi treats that endpoint as a different target even when provider and model ids are unchanged. Startup and model switching resolve only target credentials, rebuild model-visible history for that effective target, and make no request to the model being left.
+
+## Amendment: An Absolute Ceiling And Idle Compaction (October 2026)
+
+Two parts of the decision above changed for models with very large windows. Measured on 10 days of real use, 74% of spend was on requests above 200k tokens and 48% above 400k, and the 1M-window Opus Sessions compacted only at 800–837k: every request re-reads the whole context, so the tokens past a few hundred thousand were most of the bill.
+
+**Automatic compaction has an absolute ceiling.**
+
+- The threshold is `min(configured percentage of the window, 400,000 tokens)`, still capped by the reserve-token safety boundary. The percentage stays the only user setting; the ceiling is not configurable, and it applies to every project and Session.
+- Pi carries it as `compaction.maxThresholdTokens`. OpenWaggle injects it next to the global percentage after project settings merge and strips it before Pi persists project settings, like the percentage.
+- 400k rather than 300k: replaying 528 real Opus 5.5 Sessions (47,872 calls) from copies, a 400k ceiling cut simulated spend by 30.5% with 106 compactions; 300k cut it by 33.0% with 472. The extra 2.5 points did not justify four times as many lossy summaries. The replay script and its output are kept with the v1 performance evidence (`compaction-ceiling-replay.py`).
+
+**Idle compaction replaces "never as idle background work" for large idle Sessions.**
+
+- After a Run settles with at least 200,000 tokens of context, when Pi's cache warming is `streaming` (the default), the Host keeps the Run's Pi session (extensions shut down, as for a warming session) and, one minute before the last request's prompt cache entry expires, asks the active model for the Portable handoff.
+- That request is the Session's own last request, byte-identical (tools, system prompt, messages, thinking settings and cache points), followed by the answer it produced and the handoff instruction, so its prefix is a cache read. A normal Portable compaction sends a serialized transcript, which shares nothing with the cache. On Bedrock Opus 5.5 the handoff request read 18,057 of 18,128 prompt tokens from the cache.
+- The handoff is kept in the Host's memory. A Run that starts after the cache entry expired installs it before its first request, exactly where threshold compaction would run, and the transcript shows `Context automatically compacted`. A Run that starts sooner drops it, since the full context is still cached. It is also dropped when the branch no longer ends where it was computed, the model changed, the Session is archived or deleted, or the Host stops; nothing is persisted except the request's usage.
+- It never interrupts a stream, never runs for a Session whose last Run was aborted, and is skipped when cache warming is `off` or `idle` (the latter keeps the cache itself). Requests only replay when Pi's cache warmer could replay them: budget-based Claude thinking, which derives its budget from `maxTokens`, is skipped.
+- The rest of the policy is unchanged: one global percentage, Native or Portable mechanism chosen by transport capability, the append-only branch stays authoritative, and the precomputed handoff uses the same Portable envelope (`details.precomputed: "idle"`).
+

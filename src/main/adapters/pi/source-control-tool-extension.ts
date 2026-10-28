@@ -3,6 +3,7 @@ import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-codi
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
+import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
 import {
   LIVE_SOURCE_CONTROL_TOOL_BACKEND,
   type SourceControlToolBackend,
@@ -47,9 +48,12 @@ async function execute(
     .exhaustive()
 }
 
+const SOURCE_CONTROL_RULE =
+  'How OpenWaggle reaches GitHub or GitLab for this remote, and why View PR/MR fails (source_control), loads with tool_search or runs from codemode.'
+
 export function createSourceControlToolExtension(input: SourceControlToolInput): ExtensionFactory {
   return (pi) => {
-    pi.registerTool({
+    onDemandToolRegistration(pi).registerTool({
       name: 'source_control',
       label: 'Source Control',
       description: DESCRIPTION,
@@ -75,5 +79,6 @@ export function createSourceControlToolExtension(input: SourceControlToolInput):
         }
       },
     })
+    announceOnDemandTools(pi, { rule: SOURCE_CONTROL_RULE })
   }
 }

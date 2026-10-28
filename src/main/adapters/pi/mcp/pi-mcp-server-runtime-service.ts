@@ -26,6 +26,7 @@ import { deferredMcpSecret, resolveDeferredMcpSecrets } from '../../mcp/config/m
 import { loadMcpRuntimeConfig, mcpLeftOutServerNotice } from '../../mcp/config/mcp-runtime-config'
 import {
   deferredMcpVaultSecret,
+  mcpVaultSecretStamps,
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
@@ -33,6 +34,7 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { showSignInPage } from './mcp-sign-in-page'
+import { forgetMcpToolCatalog } from './mcp-tool-catalogs'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
@@ -77,6 +79,8 @@ async function findServer(
     roots: scopeRoots,
     resolveSecret: secrets === 'checked' ? deferredMcpVaultSecret : unreadMcpSecret,
     serverAllowlist: [input.name],
+    // Stamped as a Run stamps them, so the server's catalog key is the one its Sessions use.
+    secretStamp: mcpVaultSecretStamps(),
   })
   const entry = config.loaded.servers.find((server) => server.name === input.name)
   const unavailable = config.unavailable.get(input.name)
@@ -90,7 +94,9 @@ async function findServer(
     })
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
-  return { entry, transport }
+  const forgetCatalog = () =>
+    forgetMcpToolCatalog({ entry, config, projectPath: input.projectPath ?? null })
+  return { entry, transport, forgetCatalog }
 }
 
 /**
@@ -109,9 +115,11 @@ export async function inspectMcpServer(
     if (!(error instanceof McpConfigurationError) || error.reason !== 'validation') throw error
     return { name: input.name, state: 'failed', tools: [], error: error.message }
   }
-  const { entry, transport } = found
+  const { entry, transport, forgetCatalog } = found
   const inspection = await connectAndList(entry, transport, input.projectPath ?? homedir())
   recordMcpServerCheck(mcpServerIdentity(entry.name, entry.config), inspection)
+  // Whatever the check found, the next Session starts the server and lists what it offers now.
+  if (inspection.state !== 'disabled') forgetCatalog()
   return inspection
 }
 
@@ -151,6 +159,8 @@ async function connectAndList(
       transport,
       cwd,
       authProvider: hardenedMcpAuthProvider(entry, authProvider),
+      // A check launches `npx pkg@latest` as configured, so a new version is picked up.
+      refreshPackage: true,
     })
     await client.connect(upstream.transport)
     const tools = client.serverCapabilities?.tools ? await client.listTools() : []
@@ -180,7 +190,7 @@ async function signIn(
   pool: McpConnectionPool,
   input: McpServerScopeInput,
 ): Promise<McpSignInResult> {
-  const { entry } = await findServer(input, defaultMcpServerRuntimeRoots(), 'unread')
+  const { entry, forgetCatalog } = await findServer(input, defaultMcpServerRuntimeRoots(), 'unread')
   const url = mcpOAuthUrl(entry)
   if (!url) {
     throw new McpConfigurationError({
@@ -235,16 +245,18 @@ async function signIn(
   const identity = mcpServerIdentity(entry.name, entry.config)
   await pool.closeServerIdentity(identity)
   forgetKnownMcpServerState(identity)
+  forgetCatalog()
   return { signedIn: true }
 }
 
 async function signOut(pool: McpConnectionPool, input: McpServerScopeInput) {
-  const { entry } = await findServer(input, defaultMcpServerRuntimeRoots(), 'unread')
+  const { entry, forgetCatalog } = await findServer(input, defaultMcpServerRuntimeRoots(), 'unread')
   const url = mcpOAuthUrl(entry)
   if (url) getOpenWaggleMcpCredentials().remove(entry.name, url)
   const identity = mcpServerIdentity(entry.name, entry.config)
   await pool.closeServerIdentity(identity)
   forgetKnownMcpServerState(identity)
+  forgetCatalog()
 }
 
 function toConfigurationError(error: unknown) {

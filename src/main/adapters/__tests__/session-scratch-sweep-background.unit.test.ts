@@ -10,7 +10,10 @@ import {
   prepareSessionScratchDirectory,
   sessionScratchRoot,
 } from '../../utils/session-scratch-directory'
-import { sweepSessionScratchDirectoriesOnce } from '../session-scratch-sweep-background'
+import {
+  sweepOrphanedModelDownloadsOnce,
+  sweepSessionScratchDirectoriesOnce,
+} from '../session-scratch-sweep-background'
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 
@@ -51,5 +54,22 @@ describe('Session scratch sweep at Host startup', () => {
     expect((await fs.stat(active)).isDirectory()).toBe(true)
     await expect(fs.access(archived)).rejects.toThrow()
     await expect(fs.access(deleted)).rejects.toThrow()
+  })
+
+  it('also removes model downloads an interrupted download left behind', async () => {
+    const models = path.join(temporaryDirectory, 'models', 'transformers', 'onnx')
+    await fs.mkdir(models, { recursive: true })
+    const orphan = path.join(models, 'decoder_model_merged.onnx.tmp.76206.l1lcuz')
+    await fs.writeFile(orphan, Buffer.alloc(1024))
+
+    const result = await Effect.runPromise(
+      sweepOrphanedModelDownloadsOnce({
+        root: path.join(temporaryDirectory, 'models'),
+        now: Date.now() + TWO_HOURS_MS,
+      }),
+    )
+
+    expect(result).toEqual({ removedFiles: 1, removedBytes: 1024 })
+    await expect(fs.access(orphan)).rejects.toThrow()
   })
 })

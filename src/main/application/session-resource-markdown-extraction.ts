@@ -189,6 +189,67 @@ function httpLink(
   }
 }
 
+interface MarkdownResourceCandidate {
+  readonly image: CapturedLocalImage | null
+  readonly link: CapturedLink | null
+}
+
+/**
+ * Parsed candidates by origin and text. A Session's resource backfill reads the same messages
+ * several times per page (display metadata, occurrence ids, capture) and again on every page the
+ * renderer requests until the page is fully captured; parsing each text once instead was most of
+ * a link-heavy Session's backfill time. Bounded by the characters of the texts it keeps.
+ */
+const MARKDOWN_CANDIDATE_CACHE_CHARACTERS = 4_000_000
+const markdownCandidateCache = new Map<string, readonly MarkdownResourceCandidate[]>()
+let markdownCandidateCacheCharacters = 0
+
+function imageOriginKey(imageOrigin: MarkdownImageOrigin) {
+  return imageOrigin.kind === 'website' ? `website:${imageOrigin.origin}` : imageOrigin.kind
+}
+
+function parseMarkdownCandidates(text: string, imageOrigin: MarkdownImageOrigin) {
+  const root = markdownParser.parse(text)
+  const knownDefinitions = definitions(root)
+  const candidates: MarkdownResourceCandidate[] = []
+  const pending: unknown[] = [root]
+  while (pending.length > 0) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    const image = localImage(candidate, knownDefinitions, imageOrigin)
+    const link = httpLink(candidate, knownDefinitions, imageOrigin)
+    if (image || link) candidates.push({ image, link })
+    enqueueChildren(candidate, pending)
+  }
+  return candidates
+}
+
+function markdownCandidates(text: string, imageOrigin: MarkdownImageOrigin) {
+  const key = `${imageOriginKey(imageOrigin)}\u0000${text}`
+  const cached = markdownCandidateCache.get(key)
+  if (cached) {
+    // Most recently used last, so eviction drops the oldest.
+    markdownCandidateCache.delete(key)
+    markdownCandidateCache.set(key, cached)
+    return cached
+  }
+  const candidates = parseMarkdownCandidates(text, imageOrigin)
+  if (key.length > MARKDOWN_CANDIDATE_CACHE_CHARACTERS) return candidates
+  markdownCandidateCache.set(key, candidates)
+  markdownCandidateCacheCharacters += key.length
+  for (const oldest of markdownCandidateCache.keys()) {
+    if (markdownCandidateCacheCharacters <= MARKDOWN_CANDIDATE_CACHE_CHARACTERS) break
+    markdownCandidateCache.delete(oldest)
+    markdownCandidateCacheCharacters -= oldest.length
+  }
+  return candidates
+}
+
+/** Test-only: how many texts the parse cache holds. */
+export function markdownCandidateCacheSize() {
+  return markdownCandidateCache.size
+}
+
 export function collectMarkdownResources(
   text: string,
   images: CapturedImage[],
@@ -201,26 +262,15 @@ export function collectMarkdownResources(
     links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
   )
     return
-  const root = markdownParser.parse(text)
-  const knownDefinitions = definitions(root)
-  const pending: unknown[] = [root]
-  while (pending.length > 0) {
-    const candidate = pending.pop()
-    if (!isRecord(candidate)) continue
-    const image = localImage(candidate, knownDefinitions, imageOrigin)
+  for (const { image, link } of markdownCandidates(text, imageOrigin)) {
     if (image && images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
       order.push({ kind: 'image', index: images.length })
-      images.push(image)
-      enqueueChildren(candidate, pending)
+      images.push({ ...image })
       continue
     }
-    if (links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
-      const link = httpLink(candidate, knownDefinitions, imageOrigin)
-      if (link) {
-        order.push({ kind: 'link', index: links.length })
-        links.push(link)
-      }
+    if (link && links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
+      order.push({ kind: 'link', index: links.length })
+      links.push({ ...link })
     }
-    enqueueChildren(candidate, pending)
   }
 }

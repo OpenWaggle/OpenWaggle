@@ -61,6 +61,7 @@ const [
   scheduledTasksCapability,
   hiveDefaultsCapability,
   heartbeatEfficiencyCapability,
+  sessionDataCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -103,6 +104,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(scheduledTasksCapability),
   Schema.Literal(hiveDefaultsCapability),
   Schema.Literal(heartbeatEfficiencyCapability),
+  Schema.Literal(sessionDataCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

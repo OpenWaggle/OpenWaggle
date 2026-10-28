@@ -46,7 +46,12 @@ function oversizedSnapshot(): BrowserPreviewAutomationSnapshot {
 
 describe('boundedBrowserPreviewSnapshotSummary', () => {
   it('retains useful metadata while staying below the Pi text-result ceiling', () => {
-    const summary = boundedBrowserPreviewSnapshotSummary(oversizedSnapshot())
+    const summary = boundedBrowserPreviewSnapshotSummary(oversizedSnapshot(), [
+      'accessibility',
+      'console',
+      'network',
+      'actions',
+    ])
     const serialized = JSON.stringify(summary)
 
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(
@@ -58,5 +63,30 @@ describe('boundedBrowserPreviewSnapshotSummary', () => {
       screenshot: { mimeType: 'image/png', width: 1_200, height: 800 },
       truncatedFields: expect.arrayContaining(['accessibilityTree']),
     })
+  })
+
+  it('sends text, elements, and the screenshot by default and counts what it left out', () => {
+    const summary = boundedBrowserPreviewSnapshotSummary(oversizedSnapshot())
+
+    expect(summary).not.toHaveProperty('accessibilityTree')
+    expect(summary).not.toHaveProperty('consoleEntries')
+    expect(summary).not.toHaveProperty('networkEntries')
+    expect(summary).not.toHaveProperty('actionTimeline')
+    expect(summary).toMatchObject({
+      omitted: { accessibility: 1, console: 256, network: 256 },
+      screenshot: { mimeType: 'image/png', width: 1_200, height: 800 },
+    })
+    expect(summary.visibleText.length).toBeGreaterThan(0)
+  })
+
+  it('sends only the parts include names', () => {
+    const summary = boundedBrowserPreviewSnapshotSummary(
+      { ...oversizedSnapshot(), visibleText: 'Ready', interactiveElements: [] },
+      ['console'],
+    )
+
+    expect(summary).toHaveProperty('consoleEntries')
+    expect(summary).not.toHaveProperty('networkEntries')
+    expect(summary).toMatchObject({ omitted: { accessibility: 1, network: 256 } })
   })
 })

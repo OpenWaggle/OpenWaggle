@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   hooks: new Map<string, SpawnHook>(),
   createSession: vi.fn(),
   preparedEvidence: vi.fn(),
+  offersPowerShell: vi.fn(),
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
@@ -28,6 +29,9 @@ vi.mock('../../../../utils/session-evidence-directory', () => ({
   SESSION_EVIDENCE_DIRECTORY_ENV: 'OPENWAGGLE_EVIDENCE_DIR',
   preparedSessionEvidenceDirectory: mocks.preparedEvidence,
 }))
+vi.mock('../powershell-availability', () => ({
+  offersPowerShellTool: mocks.offersPowerShell,
+}))
 vi.mock('../../pi-session-lifecycle', () => ({
   createOpenWaggleAgentSessionFromServices: mocks.createSession,
 }))
@@ -38,6 +42,25 @@ beforeEach(() => {
   mocks.hooks.clear()
   mocks.createSession.mockResolvedValue({ session: { setThinkingLevel: vi.fn() } })
   mocks.preparedEvidence.mockReset().mockReturnValue('/private/evidence/session-a')
+  mocks.offersPowerShell.mockReset().mockReturnValue(true)
+})
+
+it('leaves PowerShell out where Pi cannot run it', async () => {
+  mocks.offersPowerShell.mockReturnValue(false)
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: { PATH: '/prepared/bin' },
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+    }),
+  )
+
+  expect(mocks.offersPowerShell).toHaveBeenCalledWith(process.platform)
+  expect(mocks.createSession).toHaveBeenCalledWith(
+    expect.objectContaining({ customTools: [{ name: 'bash' }] }),
+  )
 })
 
 it('applies persisted removals to both Pi shell tools without mutating their ambient environment', async () => {

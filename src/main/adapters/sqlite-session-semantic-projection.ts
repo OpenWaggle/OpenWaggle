@@ -25,8 +25,10 @@ import {
 
 export { sessionDiscoveryDocument } from './session-discovery-document'
 
-const DEFAULT_PROJECTION_BATCH_SIZE = 128
-const EMBEDDING_INFERENCE_BATCH_SIZE = 32
+/** Sessions per committed batch: progress is saved every few seconds of inference (D3). */
+const DEFAULT_PROJECTION_BATCH_SIZE = 64
+/** Passages per inference call: 32 raised the ONNX arena peak by ~250 MB (D3). */
+export const EMBEDDING_INFERENCE_BATCH_SIZE = 8
 interface SemanticStateRow {
   readonly status: 'preparing' | 'ready' | 'failed'
   readonly model_id: string
@@ -48,6 +50,8 @@ export class SqliteSessionSemanticProjection {
     private readonly sql: SqlClient.SqlClient,
     private readonly model: SessionEmbeddingModel,
     private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+    /** `settleMs`: a Session is embedded once it has not changed for this long (D3). */
+    private readonly options: { readonly settleMs?: number; readonly now?: () => number } = {},
   ) {
     if (!Number.isSafeInteger(storagePolicy.recordLimit) || storagePolicy.recordLimit < 1) {
       throw new Error('Semantic discovery record limit must be a positive safe integer.')
@@ -116,6 +120,9 @@ export class SqliteSessionSemanticProjection {
         this.sql,
         limit,
         this.storagePolicy.recordLimit,
+        this.options.settleMs === undefined
+          ? undefined
+          : (this.options.now ?? Date.now)() - this.options.settleMs,
       )
       if (rows.length === 0) {
         return { prepared: 0, pending: 0 }

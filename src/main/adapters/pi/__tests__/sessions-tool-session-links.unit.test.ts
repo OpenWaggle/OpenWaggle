@@ -7,6 +7,7 @@ import { LocalSessionCommandAuthorizationError } from '../../../errors'
 import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 import { resolveSessionsToolSessionLinks } from '../sessions-tool-session-links'
+import { hiveHelpText } from './hive-help.test-utils'
 
 const SESSION_ID = '4bc96a8e-3b0a-456f-8ac3-64b8be7dc940'
 const LINK = `openwaggle://sessions/${SESSION_ID}`
@@ -105,7 +106,7 @@ describe('Session links in the Hive tool', () => {
       workingDirectory: '/project',
     })(fromPartial<ExtensionAPI>({ registerTool }))
 
-    const guidelines: unknown = registerTool.mock.calls[0]?.[0]?.promptGuidelines
+    const guidelines = (await hiveHelpText(registerTool.mock.calls[0]?.[0])).split('\n')
     expect(guidelines).toEqual(
       expect.arrayContaining([expect.stringContaining('openwaggle://sessions/<session-id>')]),
     )

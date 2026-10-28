@@ -1,16 +1,44 @@
 import { RouterProvider } from '@tanstack/react-router'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import {
+  HostStartupErrorView,
+  openStartupLogs,
+  retryGuiStartup,
+  StartupSkeleton,
+  useGuiStartupStatus,
+  useStaticStartupFrameUntil,
+} from '@/features/app-startup'
 import { usePreferences, useSettingsSetup } from '@/features/settings/hooks'
-import { router } from '@/router'
+import { router, useInitialRouteLoadSettled } from '@/router'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 
-function AppLoadingView() {
+const FINISHING_UPDATE_NOTICE = 'Finishing an update…'
+
+/**
+ * Before Settings load the window shows the startup skeleton (decision 3): Settings come from
+ * the Session Host, which may still be starting. A failed or late Host start shows its error
+ * screen, and a Host handing over to an update says so.
+ */
+function AppStartupView() {
+  const startup = useGuiStartupStatus()
+  // The page's frame shows neither the Host error screen nor the update notice.
+  useStaticStartupFrameUntil(startup.state === 'starting' || startup.state === 'ready')
+  if (startup.state === 'failed') {
+    return (
+      <HostStartupErrorView
+        reason={startup.reason}
+        message={startup.message}
+        onRetry={retryGuiStartup}
+        onOpenLogs={openStartupLogs}
+      />
+    )
+  }
   return (
-    <div className="flex h-full items-center justify-center bg-bg">
-      <div className="text-text-tertiary text-sm">Loading…</div>
-    </div>
+    <StartupSkeleton
+      {...(startup.state === 'updating' ? { notice: FINISHING_UPDATE_NOTICE } : {})}
+    />
   )
 }
 
@@ -57,9 +85,14 @@ export function App() {
   const retrySettings = useSettingsSetup()
 
   const { isLoaded, loadError } = usePreferences()
+  const initialRouteLoadSettled = useInitialRouteLoadSettled()
 
-  if (!isLoaded) {
-    return <AppLoadingView />
+  // Keep the skeleton until the launch route has loaded too, so the first route render does not
+  // suspend and React does not hold the reveal for its fallback throttle (renderer-load B1).
+  const starting = !isLoaded || (loadError === null && !initialRouteLoadSettled)
+  useStaticStartupFrameUntil(starting)
+  if (starting) {
+    return <AppStartupView />
   }
 
   if (loadError !== null) {

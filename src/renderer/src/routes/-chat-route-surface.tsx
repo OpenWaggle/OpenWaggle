@@ -1,3 +1,4 @@
+import { type ComponentProps, lazy, Suspense } from 'react'
 import { ChatPanelContent } from '@/features/chat/components'
 import { useChatPanelSections } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
@@ -13,11 +14,41 @@ import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { CHAT_MIN_WIDTH, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
-import { ChatRouteSidebar } from './-chat-route-sidebar'
 import { useChatRouteSurfaceActions } from './-chat-route-surface-actions'
 import { routePanelRequestKey, useRoutePanelClaim } from './-right-sidebar-coordination'
 import { isExtensionRightSidebarPanel, resolveChatRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
+
+// The route's right sidebar (diff, files, Hive, Session tree, resources, change requests,
+// extension panels) renders only while it is open, so its panels load on first open instead of
+// with the chat (renderer-load B8).
+const LazyChatRouteSidebar = lazy(() =>
+  import('./-chat-route-sidebar').then((module) => ({ default: module.ChatRouteSidebar })),
+)
+
+function ChatRouteSidebarSlot({
+  input,
+}: {
+  readonly input: ComponentProps<typeof LazyChatRouteSidebar>['input']
+}) {
+  return (
+    <PanelErrorBoundary name="Session sidebar" className="size-full">
+      <Suspense
+        fallback={
+          <output
+            aria-label="Loading"
+            className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
+            aria-live="polite"
+          >
+            Loading…
+          </output>
+        }
+      >
+        <LazyChatRouteSidebar input={input} />
+      </Suspense>
+    </PanelErrorBoundary>
+  )
+}
 
 const OVERFLOW_TOLERANCE_PX = 0.5
 /** Route panels share the Right panel's one width and narrow-window rule (ADR 0043). */
@@ -212,7 +243,7 @@ export function ChatRouteSurface({
           }}
           shouldAcceptWidth={shouldAcceptDiffWidth}
           sidebar={
-            <ChatRouteSidebar
+            <ChatRouteSidebarSlot
               input={{
                 activePathNodeIds,
                 handlers,

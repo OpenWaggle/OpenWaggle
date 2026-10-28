@@ -20,12 +20,17 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, rename: mocks.rename, default: { ...actual, rename: mocks.rename } }
 })
 vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle } }))
-vi.mock('../../application/local-session-command-dispatcher', () => ({
+vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invokeHost,
 }))
 vi.mock('../../runtime', () => ({
   runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
   runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
+}))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
     Effect.runPromiseExit(effect),
 }))
 

@@ -1,37 +1,38 @@
 import { homedir } from 'node:os'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import {
   createMcpExtension,
   type ExtensionAPI,
   type InlineExtension,
-  type McpTransportFactory,
+  type McpServerEntry,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
-import { resolveDeferredMcpSecrets } from '../../mcp/config/mcp-deferred-secrets'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import {
   deferredMcpVaultSecret,
   mcpVaultSecretStamps,
-  resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
-import {
-  type McpConnectionPool,
-  mcpConnectionFingerprint,
-  mcpServerIdentity,
-} from '../../mcp/pool/mcp-connection-pool-api'
+import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
-import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
+import {
+  mcpCodemodeReach,
+  withDirectKeptWithoutCodemode,
+  withKnownMcpAppToolsOf,
+  withOpenWaggleMcpExposure,
+} from './mcp-openwaggle-exposure'
 import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
-import { approveMcpToolCall } from './mcp-tool-approval'
-import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
+import { registerMcpToolApproval } from './mcp-tool-approval-hook'
+import {
+  cachedMcpAppToolNames,
+  mcpToolCatalogKeyOf,
+  withCachedMcpDescriptions,
+} from './mcp-tool-catalogs'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { openWaggleMcpUpdateRefusal } from './openwaggle-mcp-configuration'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
@@ -39,10 +40,12 @@ import {
   migrateOpenWaggleMcpFilesOnce,
   migrateOpenWaggleMcpSignInsOnce,
 } from './openwaggle-mcp-migration'
-import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
-import { openPiMcpUpstream } from './pi-mcp-upstream'
+import { openWaggleMcpTransport } from './openwaggle-mcp-transport'
+import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 
-/** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0051). */
+export { openWaggleMcpTransport }
+
+/** How long a server with MCP App tools known at Run start can delay a message (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
 
 export interface OpenWaggleMcpSessionInput {
@@ -66,22 +69,6 @@ function serverIdentities(config: McpRuntimeConfig) {
       { identity: mcpServerIdentity(server.name, server.config) },
     ]),
   )
-}
-
-/** The configured server a Pi MCP tool belongs to, found through its tool namespace. */
-function serverOfTool(
-  pi: ExtensionAPI,
-  config: Pick<McpRuntimeConfig, 'loaded'>,
-  toolName: string,
-) {
-  const namespace = mcpToolNamespace(pi, toolName)
-  if (!namespace) return undefined
-  const server = mcpServerEntryOfNamespace(config, namespace)
-  if (server) {
-    return { name: server.name, identity: mcpServerIdentity(server.name, server.config) }
-  }
-  // A server an extension registered: still asked about, under its namespace.
-  return { name: namespace.replace(/^mcp__/, ''), identity: `mcp-extension:${namespace}` }
 }
 
 /**
@@ -168,76 +155,6 @@ function companionExtension(
 }
 
 /**
- * Asks before every MCP server tool runs, through Pi's `tool_call` hook, which also fires for the
- * calls a codemode script makes (`parentToolCallId` set).
- */
-export function registerMcpToolApproval(
-  pi: ExtensionAPI,
-  config: Pick<McpRuntimeConfig, 'loaded'>,
-) {
-  pi.on('tool_call', async (event, ctx) => {
-    if (!event.toolName.startsWith('mcp__')) return undefined
-    const server = serverOfTool(pi, config, event.toolName)
-    if (!server) return undefined
-    const approved = await approveMcpToolCall({
-      ctx,
-      serverName: server.name,
-      serverIdentity: server.identity,
-      toolName: event.toolName,
-      input: event.input,
-      fromScript: event.parentToolCallId !== undefined,
-    })
-    return approved ? undefined : { block: true, reason: 'The user declined this MCP tool call.' }
-  })
-}
-
-/**
- * The transport of each server a Run connects: a lease on the Session's pooled connection. Servers
- * an Agent definition does not list are refused here too, since servers Pi extensions register
- * (`pi.registerMcpServer`) never pass through `loadConfig`.
- */
-export function openWaggleMcpTransport(
-  input: Pick<OpenWaggleMcpSessionInput, 'sessionId' | 'pool' | 'serverAllowlist' | 'projectPath'>,
-  config: Pick<McpRuntimeConfig, 'transports'> &
-    Partial<Pick<McpRuntimeConfig, 'connectionConfigs'>>,
-): McpTransportFactory {
-  return (entry, cwd, authProvider) => {
-    if (input.serverAllowlist && !input.serverAllowlist.includes(entry.name)) {
-      throw new Error(
-        `This Session's Agent definition does not use the MCP server "${entry.name}".`,
-      )
-    }
-    const transport =
-      config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
-    return input.pool.lease(input.sessionId, {
-      name: entry.name,
-      // Vault values by their stamp: deferred in one Run and read in the next, a server that is
-      // turned on keeps its connection. Servers Pi extensions register are taken as given.
-      fingerprint: mcpConnectionFingerprint({
-        config: mcpConnectionConfig(config.connectionConfigs, entry),
-        transport,
-        cwd,
-      }),
-      identity: mcpServerIdentity(entry.name, entry.config),
-      projectPath: input.projectPath,
-      ...(entry.scope === 'extension' ? { fromExtension: true } : {}),
-      // A server that was off when the Run started reads its vault secrets only now.
-      open: async () =>
-        openPiMcpUpstream({
-          entry: {
-            ...entry,
-            config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
-          },
-          transport,
-          cwd,
-          authProvider: hardenedMcpAuthProvider(entry, authProvider),
-        }),
-      roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
-    })
-  }
-}
-
-/**
  * Pi's built-in MCP extension with OpenWaggle's plug-in points, plus OpenWaggle's companion
  * extension (approval, sampling and elicitation context). Every Pi session OpenWaggle creates
  * for a Run loads these. Like codemode and tool search (`pi-built-in-extensions.ts`), MCP is the
@@ -274,25 +191,53 @@ export async function createOpenWaggleMcpExtensions(
     ])
   }
   const extensionServers = createMcpExtensionServers()
+  const cachedAppTools = (entry: McpServerEntry) =>
+    cachedMcpAppToolNames(mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }))
+  // With codemode off (`-builtin:codemode`), a file's `direct` stays `direct` (review R5 P2-3).
+  const codemode = mcpCodemodeReach(config.loaded.autoEnableCodemode ?? true)
+  const fileConfigOf = (name: string) =>
+    config.merged.servers.find((server) => server.name === name)?.config
   const mcp = forOpenWaggleMcpSurface(
-    createMcpExtension({
-      loadConfig: () => withShellResolvedClientSecrets(config.loaded),
-      createTransport: openWaggleMcpTransport(input, config),
-      credentials: getOpenWaggleMcpCredentials(),
-      logPath: openWaggleMcpLogPath(),
-      // Servers Pi extensions registered sign in too; the companion reads them at session start.
-      openUrl: createRunSignInOpener(() => [
-        ...config.loaded.servers,
-        ...extensionServers.entries(),
-      ]),
-      updateConfig: createMcpUpdateConfig(
-        (filePath) => input.onConfigChanged?.(filePath),
-        (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
-        // As Settings: a change made before the scope's migration succeeds would be undone by it.
-        openWaggleMcpUpdateRefusal(input.projectPath),
-      ),
-      startupWaitMs: MCP_STARTUP_WAIT_MS,
-    }),
+    withOpenWaggleMcpExposure(
+      input.sessionId,
+      config.loaded,
+      createMcpExtension({
+        loadConfig: () =>
+          withCachedMcpDescriptions(
+            withShellResolvedClientSecrets(
+              withKnownMcpAppToolsOf(
+                input.sessionId,
+                withDirectKeptWithoutCodemode(config.loaded, codemode, fileConfigOf),
+                cachedAppTools,
+              ),
+            ),
+            (entry) => mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
+          ),
+        createTransport: openWaggleMcpTransport(input, config),
+        credentials: getOpenWaggleMcpCredentials(),
+        logPath: openWaggleMcpLogPath(),
+        // Servers Pi extensions registered sign in too; the companion reads them at session start.
+        openUrl: createRunSignInOpener(() => [
+          ...config.loaded.servers,
+          ...extensionServers.entries(),
+        ]),
+        updateConfig: createMcpUpdateConfig(
+          (filePath) => input.onConfigChanged?.(filePath),
+          (name) => config.merged.servers.find((server) => server.name === name)?.override?.path,
+          // As Settings: a change made before the scope's migration succeeds would be undone by it.
+          openWaggleMcpUpdateRefusal(input.projectPath),
+        ),
+        startupWaitMs: MCP_STARTUP_WAIT_MS,
+      }),
+      // A server never listed (cold profile) may still offer an App tool: wait for it too (C2),
+      // but not for one whose connection failed.
+      {
+        waitMs: MCP_STARTUP_WAIT_MS,
+        cached: cachedAppTools,
+        failed: (server) => input.pool.connectionFailed(input.sessionId, server.name),
+      },
+      codemode,
+    ),
   )
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },

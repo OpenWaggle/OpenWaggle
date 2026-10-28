@@ -7,6 +7,7 @@ import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
 import { useSessionStore } from '@/features/sessions/state/session-store'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -180,7 +181,7 @@ export function useSessionStatusMonitor(): void {
         .otherwise(() => undefined)
     })
 
-    const unsubEvent = api.onAgentEvent(({ sessionId, event }) => {
+    const unsubEvent = subscribeAgentEvents(({ sessionId, event }) => {
       matchBy(event, 'type')
         .with('agent_start', () => {
           if (!activeWaggleSessions.has(sessionId)) {

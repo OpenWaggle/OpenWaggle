@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { SerializedLocalSessionFrame } from './local-session-serialized-frame'
 
 const FRAME_HEADER_BYTES = 4
 const RETAINED_CHUNK_COMPACTION_THRESHOLD = 1_024
@@ -55,7 +56,8 @@ function chunkEnvelope(input: {
 }
 
 export function encodeLocalSessionPayload(value: unknown): Buffer {
-  const payload = Buffer.from(JSON.stringify(value), 'utf8')
+  const json = value instanceof SerializedLocalSessionFrame ? value.json : JSON.stringify(value)
+  const payload = Buffer.from(json, 'utf8')
   if (payload.byteLength > MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES) {
     throw new Error(
       `Local Session logical message exceeds ${MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES} bytes.`,

@@ -7,6 +7,10 @@ import { act, cleanup } from '@testing-library/react'
 import { vi } from 'vitest'
 import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
+import {
+  resetLiveStreamMessages,
+  withLiveStreamMessages,
+} from '../../state/live-stream-message-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 
 /*
@@ -150,8 +154,9 @@ export function workerReconnectBuffer(): BackgroundRunSnapshot {
   }
 }
 
+/** The transcript as rendered: a streamed token reaches its bubble before the chat's state. */
 export function transcriptText(messages: readonly UIMessage[]) {
-  return messages.map((message) => [
+  return withLiveStreamMessages(WORKER_ID, messages).map((message) => [
     message.role,
     message.parts
       .map((part) =>
@@ -163,6 +168,7 @@ export function transcriptText(messages: readonly UIMessage[]) {
 }
 
 export function resetWorkerTranscriptState() {
+  resetLiveStreamMessages()
   apiMock.agentEventHandlers.length = 0
   apiMock.runCompletedHandlers.length = 0
   chatStoreMock.refreshSession.mockReset().mockResolvedValue(undefined)

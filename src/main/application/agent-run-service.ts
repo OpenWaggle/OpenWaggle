@@ -129,6 +129,7 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       nodes: sessionSnapshot.nodes,
       activeNodeId: sessionSnapshot.activeNodeId,
+      piProjection: sessionSnapshot.piProjection,
       piSessionId: agentResult.piSessionId,
       piSessionFile: agentResult.piSessionFile,
     })
@@ -229,6 +230,7 @@ export function reconcileInterruptedAgentRuns() {
                 sessionId: activeRun.sessionId,
                 nodes: sessionSnapshot.nodes,
                 activeNodeId: sessionSnapshot.activeNodeId,
+                piProjection: sessionSnapshot.piProjection,
                 piSessionId: result.piSessionId,
                 piSessionFile: result.piSessionFile,
               })

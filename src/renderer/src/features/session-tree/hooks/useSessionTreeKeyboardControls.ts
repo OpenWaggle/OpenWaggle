@@ -1,4 +1,4 @@
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import {
@@ -11,15 +11,15 @@ import type { SessionTreeRow } from '../model'
 interface SessionTreeKeyboardControlsInput {
   readonly clampedFocusIndex: number
   readonly focusIndex: number
-  readonly rowExpandedNodeIds: readonly SessionNode['id'][]
+  readonly rowExpandedNodeIds: readonly SessionTreeNode['id'][]
   readonly visibleRows: readonly SessionTreeRow[]
   readonly onClose: () => void
   readonly onFocusIndex: (index: number) => void
-  readonly onSelectNode: (node: SessionNode) => void
+  readonly onSelectNode: (node: SessionTreeNode) => void
   readonly onToggleNodeExpanded: (row: SessionTreeRow) => void
 }
 
-function isExpandedNode(node: SessionNode, expandedNodeIds: readonly SessionNode['id'][]) {
+function isExpandedNode(node: SessionTreeNode, expandedNodeIds: readonly SessionTreeNode['id'][]) {
   return expandedNodeIds.some((expandedNodeId) => String(expandedNodeId) === String(node.id))
 }
 

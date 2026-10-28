@@ -1,23 +1,16 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { docsResolveTopicInputSchema } from '@shared/schemas/docs'
-import type {
-  DocsDiscoveryView,
-  DocsListInput,
-  DocsResolveTopicInput,
-  FirstPartyDocsTopicSummary,
-} from '@shared/types/docs'
+import type { DocsResolveTopicInput, FirstPartyDocsTopicSummary } from '@shared/types/docs'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
 import { resolveDocsTopic } from '../application/docs-discovery-service'
-import { discoverHostUiDocs, discoverHostUiDocsWith } from '../application/host-ui-docs-operation'
-import type { AppServices } from '../runtime'
+import type { GuiServices } from '../gui-runtime'
 import { hostHandle, typedHandle } from './typed-ipc'
 
 export interface RegisterDocsHandlersDependencies {
-  readonly listDocs?: (input: DocsListInput) => EffectType<DocsDiscoveryView, unknown, AppServices>
   readonly resolveTopic?: (
     input: DocsResolveTopicInput,
-  ) => EffectType<FirstPartyDocsTopicSummary | null, unknown, AppServices>
+  ) => EffectType<FirstPartyDocsTopicSummary | null, unknown, GuiServices>
 }
 
 function decodeResolveTopicInput(value: unknown) {
@@ -31,11 +24,7 @@ function decodeResolveTopicInput(value: unknown) {
 export function registerDocsHandlers(dependencies: RegisterDocsHandlersDependencies = {}): void {
   const resolveTopic = dependencies.resolveTopic ?? resolveDocsTopic
 
-  hostHandle('docs:discover', (_event, input?: unknown) =>
-    dependencies.listDocs
-      ? discoverHostUiDocsWith(input, dependencies.listDocs)
-      : discoverHostUiDocs(input),
-  )
+  hostHandle('docs:discover')
 
   typedHandle('docs:resolve-topic', (_event, input: unknown) =>
     Effect.gen(function* () {

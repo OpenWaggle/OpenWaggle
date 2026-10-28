@@ -1,5 +1,5 @@
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { useEffect, useId } from 'react'
+import { useStableHotkey } from './useStableHotkey'
 
 const escapeStack: string[] = []
 const escapeEnabledById = new Map<string, boolean>()
@@ -55,7 +55,7 @@ export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptio
     }
   }, [enabled, id])
 
-  useHotkey(
+  useStableHotkey(
     'Escape',
     (event) => {
       if (!enabled || topmostEnabledEscapeId() !== id || options.shouldHandle?.(event) === false) {

@@ -6,23 +6,14 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import { create } from 'zustand'
-import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
   createSessionCatalogState,
   type SessionCatalogState,
 } from './session-catalog-store-actions'
+import { createSessionWorkspaceReads } from './session-workspace-reads'
 
-const logger = createRendererLogger('session-store')
-
-let latestTreeRequestId = 0
-let latestWorkspaceRequestId = 0
-
-function handleStoreError(err: unknown, action: string, setError: (message: string) => void) {
-  const message = err instanceof Error ? err.message : String(err)
-  logger.error(`Failed to ${action}`, { message })
-  setError(`Failed to ${action}: ${message}`)
-}
+const _logger = createRendererLogger('session-store')
 
 function retitleSummaries(
   summaries: readonly SessionSummary[],
@@ -60,7 +51,7 @@ export interface DraftBranchState {
   readonly sourceNodeId: SessionNodeId
 }
 
-interface SessionState extends SessionCatalogState {
+export interface SessionState extends SessionCatalogState {
   activeSessionTree: SessionTree | null
   activeWorkspace: SessionWorkspace | null
   draftBranch: DraftBranchState | null
@@ -70,6 +61,18 @@ interface SessionState extends SessionCatalogState {
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
+  /**
+   * The workspace a view shows: read unless this window already shows it or is reading it. A
+   * refresh after a change uses `refreshSessionWorkspace`, which always reads.
+   */
+  showSessionWorkspace: (
+    sessionId: SessionId | null,
+    selection?: SessionWorkspaceSelection,
+  ) => Promise<void>
+  /** Reads the next older page of the shown transcript window from the Host (ADR 0036). */
+  loadEarlierTranscript: (sessionId: SessionId) => Promise<void>
+  /** Reads the shown transcript window back to `nodeId`, for a saved reading position. */
+  loadTranscriptThrough: (sessionId: SessionId, nodeId: SessionNodeId) => Promise<void>
   setActiveSessionTree: (tree: SessionTree | null) => void
   setActiveWorkspace: (workspace: SessionWorkspace | null) => void
   setDraftBranch: (draftBranch: DraftBranchState | null) => void
@@ -94,55 +97,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   draftBranch: null,
   error: null,
 
-  async refreshSessionTree(sessionId) {
-    latestTreeRequestId += 1
-    const requestId = latestTreeRequestId
-    if (!sessionId) {
-      latestWorkspaceRequestId += 1
-      set({ activeSessionTree: null, activeWorkspace: null })
-      return
-    }
-
-    try {
-      const activeSessionTree = await api.getSessionTree(sessionId)
-      if (requestId !== latestTreeRequestId) {
-        return
-      }
-      if (activeSessionTree && activeSessionTree.session.id !== sessionId) {
-        return
-      }
-      set({ activeSessionTree, error: null })
-    } catch (err) {
-      handleStoreError(err, 'refresh session tree', (error) => set({ error }))
-    }
-  },
-
-  async refreshSessionWorkspace(sessionId, selection) {
-    latestWorkspaceRequestId += 1
-    const requestId = latestWorkspaceRequestId
-    if (!sessionId) {
-      latestTreeRequestId += 1
-      set({ activeSessionTree: null, activeWorkspace: null })
-      return
-    }
-
-    try {
-      const activeWorkspace = await api.getSessionWorkspace(sessionId, selection)
-      if (requestId !== latestWorkspaceRequestId) {
-        return
-      }
-      if (activeWorkspace && activeWorkspace.tree.session.id !== sessionId) {
-        return
-      }
-      set({
-        activeWorkspace,
-        activeSessionTree: activeWorkspace?.tree ?? null,
-        error: null,
-      })
-    } catch (err) {
-      handleStoreError(err, 'refresh session workspace', (error) => set({ error }))
-    }
-  },
+  ...createSessionWorkspaceReads(set, get),
 
   setActiveSessionTree(tree) {
     set({ activeSessionTree: tree })

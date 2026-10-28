@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs'
-import { homedir, userInfo } from 'node:os'
+import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import { installDesktopShellEnvironment as hydrateDesktopShellEnvironment } from './desktop-shell-environment'
+import {
+  installProcessDesktopShellEnvironment,
+  type ProcessDesktopShellEnvironmentOptions,
+} from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -10,10 +13,15 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
   withShellPiPackageDirectory,
 } from './pi-package-directory-environment'
+import {
+  SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE,
+  sessionHostSafeEnvironment,
+} from './session-host/session-host-launch-command'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
@@ -54,8 +62,13 @@ const envSchema = Schema.Struct({
   TEMP: Schema.optional(Schema.String),
   TMP: Schema.optional(Schema.String),
   USERPROFILE: Schema.optional(Schema.String),
+  LOCALAPPDATA: Schema.optional(Schema.String),
 })
 
+export {
+  desktopShellEnvironmentReady,
+  desktopShellEnvironmentRefreshStartedAt,
+} from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
@@ -88,32 +101,30 @@ const TERMINAL_TYPE = 'xterm-256color'
 const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
-let desktopShellEnvironmentPromise: Promise<void> | null = null
 
-function userLoginShell() {
-  if (process.platform === 'win32') return undefined
-  try {
-    return userInfo().shell || undefined
-  } catch {
-    return undefined
-  }
+/** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
+export const installDesktopShellEnvironment = (
+  options: ProcessDesktopShellEnvironmentOptions = {},
+) => installProcessDesktopShellEnvironment(process.env, options)
+
+/** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
+export function takeShellEnvironmentRefreshedSince(): number | undefined {
+  const since = Number(process.env[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE])
+  Reflect.deleteProperty(process.env, SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE)
+  return Number.isSafeInteger(since) && since > 0 ? since : undefined
 }
+
+/** Fills a missing Linux session bus address in this process before Electron is ready. */
+export const installLinuxSessionBusEnvironment = () =>
+  fillLinuxSessionBusAddress(process.env, {
+    platform: process.platform,
+    ...(process.getuid ? { uid: process.getuid() } : {}),
+    exists: existsSync,
+  })
 
 /** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
 export const applyPiPackageDirectory = (directory?: string) =>
   applyPiPackageDirectoryTo(directory, process.env)
-
-/** Hydrate GUI-launch gaps once before terminal/runtime services start. */
-export function installDesktopShellEnvironment(): Promise<void> {
-  desktopShellEnvironmentPromise ??= hydrateDesktopShellEnvironment({
-    env: process.env,
-    platform: process.platform,
-    userShell: userLoginShell(),
-    uid: process.getuid?.(),
-    exists: existsSync,
-  })
-  return desktopShellEnvironmentPromise
-}
 
 /** Safe environment for child processes: essential variables only, so no API key or other
  * secret of the parent process leaks. */
@@ -140,23 +151,12 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
   }
 }
 
-/**
- * Detached Session Hosts are the user's durable Pi runtime and need provider credentials and shell
- * agent state. Strip only client-scoped OpenWaggle credentials and Electron execution switches,
- * which must never become daemon authority.
- */
+/** The environment a detached Session Host starts with (see `sessionHostSafeEnvironment`). */
 export function getSessionHostChildEnv(): Record<string, string | undefined> {
-  const childEnvironment: NodeJS.ProcessEnv = {
-    ...withShellPiPackageDirectory(process.env),
-    PATH: getNpmCompatiblePath(),
-  }
-  delete childEnvironment.ELECTRON_RUN_AS_NODE
-  delete childEnvironment.OPENWAGGLE_CLI_OUTPUT_FD
-  delete childEnvironment.OPENWAGGLE_PROFILE
-  delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
-  delete childEnvironment.OPENWAGGLE_AGENT_RUN
-  delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
-  return childEnvironment
+  return sessionHostSafeEnvironment(
+    withShellPiPackageDirectory(process.env),
+    getNpmCompatiblePath(),
+  )
 }
 
 /**

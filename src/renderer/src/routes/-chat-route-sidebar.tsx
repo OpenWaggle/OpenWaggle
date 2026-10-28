@@ -2,16 +2,11 @@ import { match } from '@diegogbrisa/ts-match'
 import { type ComponentProps, lazy, Suspense } from 'react'
 import { loadChatDiffPane } from '@/features/chat/components'
 import type { useChatPanelSections } from '@/features/chat/hooks'
-import {
-  ExtensionSidePanelSurface,
-  type useExtensionSidePanelContributions,
-} from '@/features/extensions'
+import type { useExtensionSidePanelContributions } from '@/features/extensions'
+import { ExtensionSidePanelSurface } from '@/features/extensions/components'
 import { loadHivePanel } from '@/features/hive-panel/components'
-import {
-  ChangeRequestPanel,
-  DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
-  SessionResourcesPanel,
-} from '@/features/session-summary'
+import { DEFAULT_SESSION_RESOURCE_BROWSER_TARGET } from '@/features/session-summary'
+import { ChangeRequestPanel, SessionResourcesPanel } from '@/features/session-summary/components'
 import { loadSessionTreePanel } from '@/features/session-tree/components'
 import {
   WorkspaceFileNavigatorPanel,

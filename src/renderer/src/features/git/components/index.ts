@@ -1,1 +1,5 @@
 export { CommitDialog } from './CommitDialog'
+export { CommitMessageDialog } from './CommitMessageDialog'
+export { CommitOrPushDialog } from './CommitOrPushDialog'
+export { CommitOrPushStatusDialog } from './CommitOrPushStatusDialog'
+export { GitQuickActionButton } from './GitQuickActionButton'

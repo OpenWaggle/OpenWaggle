@@ -82,12 +82,16 @@ export async function providerToolPayloads(
     throw new Error('OpenAI payload has no tools')
   }
   return {
-    bedrock: toolsByName(bedrockPayload.toolConfig.tools, (entry) => {
-      if (!isMatching({ toolSpec: { name: P.string, inputSchema: { json: P._ } } }, entry)) {
-        throw new Error('Unexpected Bedrock tool entry')
-      }
-      return [entry.toolSpec.name, entry.toolSpec.inputSchema.json]
-    }),
+    // The last entry is the tools cache point, not a tool.
+    bedrock: toolsByName(
+      bedrockPayload.toolConfig.tools.filter((entry) => !isMatching({ cachePoint: P._ }, entry)),
+      (entry) => {
+        if (!isMatching({ toolSpec: { name: P.string, inputSchema: { json: P._ } } }, entry)) {
+          throw new Error('Unexpected Bedrock tool entry')
+        }
+        return [entry.toolSpec.name, entry.toolSpec.inputSchema.json]
+      },
+    ),
     openai: toolsByName(openAiPayload.tools, (entry) => {
       if (!isMatching({ function: { name: P.string, parameters: P._ } }, entry)) {
         throw new Error('Unexpected OpenAI tool entry')

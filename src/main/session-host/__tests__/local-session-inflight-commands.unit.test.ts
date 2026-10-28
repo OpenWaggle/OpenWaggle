@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { hostBackgroundGate } from '../../application/host-background-gate'
 import {
   describeLocalSessionCommand,
+  isLongPollLocalSessionCommand,
   LocalSessionInflightCommands,
 } from '../local-session-inflight-commands'
+
+const DESKTOP_POLL = {
+  contract: 'desktop-service-v1',
+  request: { operation: 'poll', leaseId: 'l' },
+}
 
 describe('Local Session in-flight command diagnostics', () => {
   it('names a command by contract and operation without its arguments', () => {
@@ -95,5 +102,80 @@ describe('Local Session in-flight command diagnostics', () => {
       ],
       newestInflightCommands: [{ command: 'fifth', ageMs: 100 }],
     })
+  })
+
+  it('names long-polls and Session waits as intentionally pending', () => {
+    expect(isLongPollLocalSessionCommand(DESKTOP_POLL)).toBe(true)
+    for (const operation of ['wait', 'exports-wait']) {
+      expect(
+        isLongPollLocalSessionCommand({
+          contract: 'session-query-v2',
+          request: { query: { operation, timeoutMs: 30_000 } },
+        }),
+      ).toBe(true)
+    }
+    const search = (waitTimeoutMs?: number) => ({
+      contract: 'session-query-v2',
+      request: { query: { operation: 'search', query: 'x', waitTimeoutMs } },
+    })
+    expect(isLongPollLocalSessionCommand(search(5_000))).toBe(true)
+    expect(isLongPollLocalSessionCommand(search(0))).toBe(false)
+    expect(isLongPollLocalSessionCommand(search())).toBe(false)
+    expect(
+      isLongPollLocalSessionCommand({
+        contract: 'desktop-service-v1',
+        request: { operation: 'heartbeat', leaseId: 'l' },
+      }),
+    ).toBe(false)
+    expect(isLongPollLocalSessionCommand({ operation: 'poll' })).toBe(false)
+  })
+
+  it('counts long-polls apart, so the oldest commands name the real work', () => {
+    let clock = 0
+    const inflight = new LocalSessionInflightCommands(() => clock)
+    inflight.track(DESKTOP_POLL)
+    clock = 100
+    inflight.track({ contract: 'session-query-v2', request: { query: { operation: 'wait' } } })
+    clock = 200
+    inflight.track({ contract: 'host-ui-v1', request: { channel: 'sessions:get-detail' } })
+    clock = 4_200
+
+    expect(inflight.describe(8, 4)).toEqual({
+      inflightCommandCount: 1,
+      longPollCount: 2,
+      oldestInflightCommands: [{ command: 'host-ui-v1:sessions:get-detail', ageMs: 4_000 }],
+    })
+  })
+
+  it('tells the background gate about every command but long-polls, until each ends (W12)', () => {
+    const events: string[] = []
+    const inflight = new LocalSessionInflightCommands(
+      () => 0,
+      () => {
+        events.push('start')
+        return () => events.push('end')
+      },
+    )
+    const untrackPoll = inflight.track(DESKTOP_POLL)
+    const untrackDetail = inflight.track({
+      contract: 'host-ui-v1',
+      request: { channel: 'sessions:get-detail' },
+    })
+    expect(events).toEqual(['start'])
+    untrackPoll()
+    expect(events).toEqual(['start'])
+    untrackDetail()
+    expect(events).toEqual(['start', 'end'])
+  })
+
+  it('tells the Host background gate by default', () => {
+    const before = hostBackgroundGate.foregroundCommandCount
+    const untrack = new LocalSessionInflightCommands().track({
+      contract: 'host-ui-v1',
+      request: { channel: 'sessions:get-detail' },
+    })
+    expect(hostBackgroundGate.foregroundCommandCount).toBe(before + 1)
+    untrack()
+    expect(hostBackgroundGate.foregroundCommandCount).toBe(before)
   })
 })

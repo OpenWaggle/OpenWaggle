@@ -22,7 +22,7 @@ const {
   updateSettingsMock: vi.fn(),
 }))
 
-vi.mock('../database-service', () => ({ isAppDatabaseClientIsolated: () => true }))
+vi.mock('../database-access-mode', () => ({ isAppDatabaseClientIsolated: () => true }))
 vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUi: invokeHostMock,
 }))

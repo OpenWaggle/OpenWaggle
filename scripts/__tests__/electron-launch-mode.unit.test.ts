@@ -63,6 +63,18 @@ describe('Playwright Electron launch mode', () => {
     }
   })
 
+  it('forwards a caller-chosen compile cache directory past a throwaway HOME', () => {
+    process.env.OPENWAGGLE_COMPILE_CACHE_DIR = '/tmp/perf/compile-cache'
+    try {
+      expect(buildSafeElectronEnvironment({ HOME: '/tmp/qa-scratch/home' })).toMatchObject({
+        HOME: '/tmp/qa-scratch/home',
+        OPENWAGGLE_COMPILE_CACHE_DIR: '/tmp/perf/compile-cache',
+      })
+    } finally {
+      delete process.env.OPENWAGGLE_COMPILE_CACHE_DIR
+    }
+  })
+
   it('forwards the caller Pi agent directory so a scratch one reaches the app', () => {
     const previous = process.env.PI_CODING_AGENT_DIR
     process.env.PI_CODING_AGENT_DIR = '/tmp/qa-scratch/pi-agent'

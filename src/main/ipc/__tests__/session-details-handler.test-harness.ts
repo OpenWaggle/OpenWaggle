@@ -99,7 +99,10 @@ export const {
   updateSessionTitleMock,
 }: SessionDetailsHandlerMocks = mocks
 
-vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock }))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return { hostHandle: withLegacyHostOperation(typedHandleMock) }
+})
 vi.mock('../../agent/session-cleanup', () => ({ cleanupSessionRun: cleanupSessionRunMock }))
 vi.mock('../active-agent-runs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../active-agent-runs')>()),

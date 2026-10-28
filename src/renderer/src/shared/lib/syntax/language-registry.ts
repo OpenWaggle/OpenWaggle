@@ -67,7 +67,7 @@ const BUNDLED_FILE_NAMES = new Set(Object.keys(BASENAME_LANGUAGES))
 
 function bundledLanguageClaims() {
   const claims = new Map<string, SyntaxLanguageClaim>()
-  for (const language of bundledLanguagesInfo) {
+  for (const language of BUNDLED_SYNTAX_LANGUAGES) {
     const claim = { label: language.name, scope: 'bundled' } satisfies SyntaxLanguageClaim
     claims.set(language.id, claim)
     for (const alias of language.aliases ?? []) claims.set(alias, claim)
@@ -180,7 +180,7 @@ export function registerImportedSyntaxLanguageResources(
 export function syntaxLanguageCatalog() {
   return [
     { id: 'text', name: 'Plain Text', aliases: EMPTY_ALIASES, provenance: 'bundled' },
-    ...bundledLanguagesInfo.map((language) => ({
+    ...BUNDLED_SYNTAX_LANGUAGES.map((language) => ({
       id: language.id,
       name: language.name,
       aliases: language.aliases ?? [],
@@ -206,7 +206,7 @@ export function resolveSyntaxLanguage(
       resource.registration.aliases.some((alias) => alias.toLowerCase() === normalized),
   )
   if (imported) return imported.languageId
-  const bundled = bundledLanguagesInfo.find(
+  const bundled = BUNDLED_SYNTAX_LANGUAGES.find(
     (language) =>
       language.id === normalized || language.aliases?.some((alias) => alias === normalized),
   )
@@ -232,4 +232,4 @@ export function languageFromPath(
 }
 
 import type { SyntaxLanguageResource } from '@shared/types/syntax-resources'
-import { bundledLanguagesInfo } from 'shiki'
+import { BUNDLED_SYNTAX_LANGUAGES } from './bundled-language-metadata.generated'

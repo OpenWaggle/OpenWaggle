@@ -4,18 +4,19 @@ import type { Debugger, NativeImage, WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
 import { captureBrowserPreviewAutomationSnapshot } from '../browser-preview-automation-snapshot'
-import { BrowserPreviewCaptureTimeoutError } from '../browser-preview-capture'
 
 interface ImageFixtureOptions {
   readonly width: number
   readonly height: number
   readonly data: Buffer
   readonly resized?: NativeImage
+  readonly empty?: boolean
 }
 
 function imageFixture(options: ImageFixtureOptions) {
   return fromPartial<NativeImage>({
     getSize: () => ({ width: options.width, height: options.height }),
+    isEmpty: () => options.empty === true,
     resize: vi.fn(() => options.resized ?? imageFixture(options)),
     toPNG: vi.fn(() => options.data),
   })
@@ -247,7 +248,45 @@ describe('browser preview automation snapshot', () => {
     ).resolves.toEqual({})
   })
 
-  it('bounds a permanently stalled capture and releases snapshot control', async () => {
+  it('sends text and elements without a screenshot when the page paints no frame', async () => {
+    const empty = imageFixture({ width: 0, height: 0, data: Buffer.alloc(0), empty: true })
+    const { page } = createPage(empty, { nodes: [] })
+
+    const snapshot = await captureBrowserPreviewAutomationSnapshot(
+      new BrowserPreviewAutomationController(),
+      page,
+    )
+
+    // A hidden automation window captures an empty image; the snapshot used to fail as a whole.
+    expect(snapshot).toMatchObject({
+      visibleText: 'Appearance Save',
+      screenshot: null,
+      screenshotUnavailable: expect.stringContaining('hidden'),
+    })
+  })
+
+  it('sends text and elements without a screenshot when the window has no display surface', async () => {
+    vi.useFakeTimers()
+    const source = imageFixture({ width: 800, height: 600, data: Buffer.from([1, 2, 3]) })
+    const { page } = createPage(source, { nodes: [] })
+    // What Electron rejects with for a preview in a hidden automation window.
+    vi.mocked(page.contents.capturePage).mockRejectedValue(
+      new Error('Current display surface not available for capture'),
+    )
+    const pending = captureBrowserPreviewAutomationSnapshot(
+      new BrowserPreviewAutomationController(),
+      page,
+    )
+    await vi.advanceTimersByTimeAsync(240)
+
+    await expect(pending).resolves.toMatchObject({
+      visibleText: 'Appearance Save',
+      screenshot: null,
+      screenshotUnavailable: expect.stringContaining('hidden'),
+    })
+  })
+
+  it('bounds a permanently stalled capture, answers without a screenshot, and releases control', async () => {
     vi.useFakeTimers()
     const source = imageFixture({ width: 800, height: 600, data: Buffer.from([1, 2, 3]) })
     const { page } = createPage(source, { nodes: [] })
@@ -256,7 +295,10 @@ describe('browser preview automation snapshot', () => {
       () => new Promise<NativeImage>(() => undefined),
     )
     const pending = captureBrowserPreviewAutomationSnapshot(controller, page)
-    const result = expect(pending).rejects.toBeInstanceOf(BrowserPreviewCaptureTimeoutError)
+    const result = expect(pending).resolves.toMatchObject({
+      screenshot: null,
+      visibleText: 'Appearance Save',
+    })
 
     await vi.advanceTimersByTimeAsync(3_500)
 

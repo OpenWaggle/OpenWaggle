@@ -22,11 +22,17 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    disableHardwareAcceleration: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
   },
 }))
-vi.mock('../env', () => ({ env: mocks.env }))
+vi.mock('../env', () => ({
+  env: mocks.env,
+  installDesktopShellEnvironment: async () => undefined,
+  installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
+}))
 vi.mock('../logger', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../logger')>()),
   initFileLogger: mocks.initFileLogger,

@@ -8,6 +8,7 @@ import {
   sumInsertions,
 } from '@shared/utils/turn-diff-parse'
 import * as Effect from 'effect/Effect'
+import { makeEventLoopSlicer } from '../utils/event-loop-slice'
 import { runStoreEffect } from './store-runtime'
 
 interface TurnCheckpointRow {
@@ -160,6 +161,46 @@ export async function getTurnDiffFiles(
       `
       const row = rows[0]
       return row ? parseTurnDiffFilesFromUnifiedDiff(row.diff) : []
+    }),
+  )
+}
+
+/** Most turn ids one batched changed-files read accepts; a Session opens with far fewer. */
+export const MAX_TURN_DIFF_FILE_BATCH = 500
+
+/** Turns whose diffs one statement of a batched changed-files read selects. */
+const TURN_DIFF_FILE_PAGE = 25
+
+/**
+ * Several turns' file summaries in one read, keyed by turn id. A Session open used to read them
+ * one turn at a time, one Host round trip per settled turn on screen. A diff can be several MB
+ * (generated files), so the diffs are selected a page at a time and parsed with the event loop
+ * running between slices, never all 500 in one synchronous stretch.
+ */
+export async function listTurnDiffFiles(
+  sessionId: SessionId,
+  turnIds: readonly string[],
+): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>> {
+  const unique = [...new Set(turnIds)].slice(0, MAX_TURN_DIFF_FILE_BATCH)
+  const filesByTurnId: Record<string, readonly TurnDiffFileSummary[]> = {}
+  for (const turnId of unique) filesByTurnId[turnId] = []
+  if (unique.length === 0) return filesByTurnId
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const slice = makeEventLoopSlicer()
+      for (let start = 0; start < unique.length; start += TURN_DIFF_FILE_PAGE) {
+        const page = unique.slice(start, start + TURN_DIFF_FILE_PAGE)
+        const rows = yield* sql<Pick<TurnCheckpointRow, 'turn_id' | 'diff'>>`
+          SELECT turn_id, diff FROM turn_checkpoints
+          WHERE session_id = ${sessionId} AND turn_id IN ${sql.in(page)}
+        `
+        for (const row of rows) {
+          filesByTurnId[row.turn_id] = parseTurnDiffFilesFromUnifiedDiff(row.diff)
+          yield* slice
+        }
+      }
+      return filesByTurnId
     }),
   )
 }

@@ -1,4 +1,5 @@
 import { CliError, type CliErrorKind } from './cli-error'
+import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
 import {
   LocalSessionClientProtocolError,
@@ -8,7 +9,8 @@ import {
 } from './session-host/local-session-client-protocol-error'
 
 const JSON_INDENT_SPACES = 2
-export const SESSIONS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
+
+export { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

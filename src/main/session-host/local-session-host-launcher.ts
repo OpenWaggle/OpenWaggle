@@ -1,8 +1,8 @@
 import net from 'node:net'
-import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
-import { env, getSessionHostChildEnv } from '../env'
+import { desktopShellEnvironmentRefreshStartedAt, env, getSessionHostChildEnv } from '../env'
+import { startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
 import {
@@ -10,70 +10,33 @@ import {
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
 import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
+import { HOST_POLL_INTERVAL_MS, waitForCondition } from './local-session-host-polling'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
+import {
+  type SessionHostLogLevel,
+  sessionHostChildEnvironmentFrom,
+  sessionHostLaunchCommandFor,
+} from './session-host-launch-command'
 import type { SessionHostOwnership } from './session-host-ownership'
-import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
-const HOST_POLL_INTERVAL_MS = 50
 const CONNECT_PROBE_TIMEOUT_MS = 250
 
-export function sessionHostLaunchArguments(input: {
-  readonly isPackaged: boolean
-  readonly appPath: string
-}) {
-  return input.isPackaged ? ['session-host-internal'] : [input.appPath, 'session-host-internal']
-}
-
-export function sessionHostLaunchCommand(input: {
-  readonly platform: NodeJS.Platform
-  readonly isPackaged: boolean
-  readonly executablePath: string
-  readonly appPath: string
-  readonly appImagePath?: string
-  readonly parentNoSandbox?: boolean
-  /** Chromium's --use-mock-keychain on the GUI: QA keeps credential prompts off the screen. */
-  readonly parentUseMockKeychain?: boolean
-  /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
-  readonly parentPasswordStore?: string
-}) {
-  // Restricted Linux environments may launch the GUI with this explicit Electron switch.
-  // Its detached authority needs the same policy; never disable the sandbox by default.
-  // The Host reads and writes credentials too, so it uses the GUI's credential store switches.
-  const electronArguments = [
-    ...(input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []),
-    ...(input.parentUseMockKeychain ? ['--use-mock-keychain'] : []),
-    ...(input.platform === 'linux' && input.parentPasswordStore
-      ? [`--password-store=${input.parentPasswordStore}`]
-      : []),
-  ]
-  if (
-    input.platform === 'linux' &&
-    input.isPackaged &&
-    input.appImagePath &&
-    path.isAbsolute(input.appImagePath)
-  ) {
-    return { command: input.appImagePath, args: [...electronArguments, 'session-host-internal'] }
-  }
-  return {
-    command: input.executablePath,
-    args: [...electronArguments, ...sessionHostLaunchArguments(input)],
-  }
-}
+export {
+  sessionHostLaunchArguments,
+  sessionHostLaunchCommand,
+} from './session-host-launch-command'
 
 /** The command that launches a Host with the switches this process was started with. */
 export function currentSessionHostLaunchCommand() {
-  const passwordStore = app.commandLine.getSwitchValue('password-store')
-  return sessionHostLaunchCommand({
+  return sessionHostLaunchCommandFor({
     platform: process.platform,
     isPackaged: app.isPackaged,
     executablePath: process.execPath,
     appPath: app.getAppPath(),
-    parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
-    parentUseMockKeychain: app.commandLine.hasSwitch('use-mock-keychain'),
-    ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
-    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+    appImagePath: env.APPIMAGE,
+    commandLine: app.commandLine,
   })
 }
 
@@ -85,13 +48,21 @@ export function currentSessionHostLaunchCommand() {
 export function sessionHostChildEnvironment(input: {
   readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
   readonly userDataRoot: string
-  readonly logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  readonly logLevel?: SessionHostLogLevel
+  /** The launching GUI measures its startup, so the Host marks its own too. */
+  readonly startupTimings?: boolean
+  readonly shellEnvironmentRefreshedSince?: number
 }) {
-  return {
-    ...(input.safeEnvironment ?? getSessionHostChildEnv()),
-    OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
-    ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
-  }
+  return sessionHostChildEnvironmentFrom({
+    ...input,
+    safeEnvironment: input.safeEnvironment ?? getSessionHostChildEnv(),
+  })
+}
+
+/** Whether this process (the desktop app) refreshes the login-shell cache the Host can wait for. */
+function shellEnvironmentRefresh() {
+  const since = desktopShellEnvironmentRefreshStartedAt()
+  return since === null ? {} : { shellEnvironmentRefreshedSince: since }
 }
 
 export interface LocalSessionHostLauncherDependencies {
@@ -145,14 +116,17 @@ function canConnect(endpoint: string, signal?: AbortSignal) {
   })
 }
 
-const defaultDependencies: LocalSessionHostLauncherDependencies = {
+/** The real socket, probe, ownership lock, launch and clock. */
+export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLauncherDependencies = {
   canConnect,
   probe: probeLocalSessionHost,
   tryAcquireOwnership: async (databasePath) => {
+    // Its SQLite lock loads only when no Host answers, never on the window's entry graph.
+    const ownership = await import('./session-host-ownership')
     try {
-      return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+      return await ownership.acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     } catch (error) {
-      if (isSessionHostOwnershipHeld(error)) return null
+      if (ownership.isSessionHostOwnershipHeld(error)) return null
       throw error
     }
   },
@@ -162,6 +136,8 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       environment: sessionHostChildEnvironment({
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
+        startupTimings: startupTimingsRequested(),
+        ...shellEnvironmentRefresh(),
       }),
     }),
   now: Date.now,
@@ -181,33 +157,18 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
   refreshPaths: refreshLocalSessionHostEndpoint,
 }
 
-async function waitForCondition(input: {
-  readonly timeoutMs: number
-  readonly condition: () => Promise<boolean>
-  readonly dependencies: LocalSessionHostLauncherDependencies
-  readonly signal?: AbortSignal
-}) {
-  input.signal?.throwIfAborted()
-  const deadline = input.dependencies.now() + input.timeoutMs
-  while (input.dependencies.now() < deadline) {
-    if (await awaitWithSignal(input.condition(), input.signal)) return true
-    await awaitWithSignal(
-      input.dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal),
-      input.signal,
-    )
-  }
-  return awaitWithSignal(input.condition(), input.signal)
-}
-
+/** Waits until the Host at `endpoint` stops listening; false once `timeoutMs` passed first. */
 export async function waitForLocalSessionHostRelease(
   endpoint: string,
-  timeoutMs = HOST_TAKEOVER_TIMEOUT_MS,
-  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
+  options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
 ) {
+  const { signal } = options
   return waitForCondition({
-    timeoutMs,
-    condition: async () => !(await dependencies.canConnect(endpoint)),
+    timeoutMs: options.timeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
+    condition: async () => !(await dependencies.canConnect(endpoint, signal)),
     dependencies,
+    ...(signal ? { signal } : {}),
   })
 }
 
@@ -246,11 +207,18 @@ async function waitForCompatibleHost(
 }
 
 async function waitForLocalSessionHostAuthority(
-  input: LocalSessionClientConnectionInput,
+  input: LocalSessionClientConnectionInput & {
+    readonly onUpgradePending?: () => void
+    readonly onUpgradeReleased?: () => void
+  },
   timeoutMs: number,
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
+  /** Past an update hand-off this call waited for, the caller's start goes on. */
+  const released = () => {
+    if (upgradePendingError) input.onUpgradeReleased?.()
+  }
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     input.signal?.throwIfAborted()
@@ -259,12 +227,15 @@ async function waitForLocalSessionHostAuthority(
       await awaitWithSignal(dependencies.canConnect(paths.endpoint, input.signal), input.signal)
     ) {
       try {
-        return {
-          status: 'connected' as const,
-          negotiation: await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal),
-        }
+        const negotiation = await awaitWithSignal(
+          dependencies.probe({ ...input, paths }),
+          input.signal,
+        )
+        released()
+        return { status: 'connected' as const, negotiation }
       } catch (error) {
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
+        if (!upgradePendingError) input.onUpgradePending?.()
         upgradePendingError = error
       }
       // An older executable may use a different ownership mechanism. Its authenticated listener
@@ -276,6 +247,7 @@ async function waitForLocalSessionHostAuthority(
     if (ownership) {
       await ownership.release()
       input.signal?.throwIfAborted()
+      released()
       return { status: 'launch' as const }
     }
     await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
@@ -292,8 +264,16 @@ async function waitForLocalSessionHostAuthority(
 const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
 
 export async function ensureLocalSessionHost(
-  input: LocalSessionClientConnectionInput & { readonly takeoverTimeoutMs?: number },
-  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
+  input: LocalSessionClientConnectionInput & {
+    readonly takeoverTimeoutMs?: number
+    /** Called once when the running Host is handing over to an update and this call waits. */
+    readonly onUpgradePending?: () => void
+    /** Called once that Host has handed over, before this call attaches or launches. */
+    readonly onUpgradeReleased?: () => void
+    /** Called once this call has launched a Host process, before it waits for it to listen. */
+    readonly onLaunched?: () => void
+  },
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
 ) {
   const takeoverTimeoutMs = input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
@@ -301,6 +281,7 @@ export async function ensureLocalSessionHost(
 
   await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
     await dependencies.launch()
+    input.onLaunched?.()
     signal.throwIfAborted()
     await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
   })

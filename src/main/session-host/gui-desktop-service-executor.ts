@@ -10,13 +10,55 @@ import {
   type DesktopServiceCommand,
   type DesktopServiceResult,
 } from '@shared/types/desktop-service'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import { desktopCommandTouchesFence } from '../application/desktop-service-policy'
+import { isReadOnlyDesktopCommand } from '../application/desktop-service-read-only'
+import { createLogger } from '../logger'
 import type { BrowserPreviewAutomationServiceShape } from '../ports/browser-preview-automation-service'
 import type { TerminalServiceShape } from '../ports/terminal-service'
 import { executeDesktopBrowserCommand } from './desktop-browser-executor'
 import { executeDesktopTerminalCommand } from './desktop-terminal-executor'
 import { makeGuiDesktopMutationFences } from './gui-desktop-mutation-fences'
+
+const logger = createLogger('session-host/desktop-executor')
+const UNCERTAIN_FAILURE_MESSAGE =
+  'The desktop operation failed or was interrupted. Inspect the desktop before retrying.'
+const INTERRUPTED_READ_MESSAGE = 'The desktop read was interrupted before it finished.'
+
+function causeMessage(cause: Cause.Cause<Error>) {
+  const error = Cause.squash(cause)
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * A read that failed changed nothing, so it fails plainly with its reason. Any other operation may
+ * have acted before it failed, so the Host keeps it uncertain and never replays it.
+ */
+function failedCompletion(
+  commandId: string,
+  command: DesktopServiceCommand,
+  cause: Cause.Cause<Error>,
+): DesktopCompletion {
+  const interrupted = Cause.isInterruptedOnly(cause)
+  const reason = interrupted ? 'interrupted' : causeMessage(cause)
+  logger.warn('A desktop operation failed', {
+    service: command.service,
+    operation: command.operation,
+    interrupted,
+    error: reason,
+  })
+  if (!isReadOnlyDesktopCommand(command)) {
+    return { commandId, outcome: 'failure', uncertain: true, message: UNCERTAIN_FAILURE_MESSAGE }
+  }
+  const message = interrupted ? INTERRUPTED_READ_MESSAGE : reason
+  return {
+    commandId,
+    outcome: 'failure',
+    message: message.slice(0, DESKTOP_SERVICE_LIMITS.errorLength),
+  }
+}
 
 /** Retain this executor for the GUI process lifetime, including Host reconnects. */
 export function makeGuiDesktopServiceExecutor(services: {
@@ -108,16 +150,11 @@ export function makeGuiDesktopServiceExecutor(services: {
     )
     timeout.unref?.()
     try {
-      const result = await Effect.runPromise(dispatch(command), { signal: controller.signal })
-      return { commandId: envelope.commandId, outcome: 'success', result }
-    } catch {
-      return {
-        commandId: envelope.commandId,
-        outcome: 'failure',
-        uncertain: true,
-        message:
-          'The desktop operation failed or was interrupted. Inspect the desktop before retrying.',
+      const exit = await Effect.runPromiseExit(dispatch(command), { signal: controller.signal })
+      if (Exit.isSuccess(exit)) {
+        return { commandId: envelope.commandId, outcome: 'success', result: exit.value }
       }
+      return failedCompletion(envelope.commandId, command, exit.cause)
     } finally {
       clearTimeout(timeout)
       running.delete(envelope.commandId)

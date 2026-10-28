@@ -8,10 +8,13 @@ const { typedHandleMock, invokeExtensionCapabilityMock } = vi.hoisted(() => ({
   invokeExtensionCapabilityMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 vi.mock('../../application/extension-capability-broker-service', () => ({
   invokeExtensionCapability: invokeExtensionCapabilityMock,

@@ -12,19 +12,23 @@ import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
   SessionCatalogPage,
+  SessionContentTree,
+  SessionContentWorkspace,
   SessionNode,
   SessionNodeKind,
   SessionProjectPage,
   SessionSummary,
-  SessionTree,
   SessionTreeUiStatePatch,
-  SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import type {
   HiveSessionCatalogPage,
   HiveTreeSessionCatalogPage,
 } from '@shared/types/session-hive-catalog'
+import type {
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
+} from '@shared/types/session-tree-search'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
@@ -42,6 +46,15 @@ export interface ProjectedSessionNodeInput {
   readonly createdOrder: number
 }
 
+/**
+ * How a Pi projection produced a snapshot's nodes (D6). Stored with the projection's file tail, so
+ * a later projection keeps entries only from a projection made by the same entry-projection code.
+ */
+export interface PiSnapshotProjection {
+  /** The Pi adapter's entry-projection version; bumped whenever an entry's projection changes. */
+  readonly version: number
+}
+
 export interface PersistSessionSnapshotInput {
   readonly sessionId: SessionId
   readonly nodes: readonly ProjectedSessionNodeInput[]
@@ -49,6 +62,8 @@ export interface PersistSessionSnapshotInput {
   readonly piSessionId: string
   readonly piSessionFile?: string
   readonly waggleConfig?: WaggleConfig
+  /** Present when the nodes are a Pi projection; without it no recorded tail is reused. */
+  readonly piProjection?: PiSnapshotProjection
 }
 
 export interface UpdateSessionRuntimeInput {
@@ -144,7 +159,24 @@ export interface SessionRepositoryShape {
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
-  ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>
+  ) => Effect.Effect<SessionContentTree | null, SessionProjectionRepositoryError>
+  /**
+   * The Session's node mutation revision, which bumps whenever an existing node is updated or
+   * deleted or one is inserted into history; null when the Session has no control state. Read it
+   * before the nodes it labels, so content is never newer than the revision it is labelled with.
+   */
+  readonly getNodeMutationRevision: (
+    sessionId: SessionId,
+  ) => Effect.Effect<number | null, SessionProjectionRepositoryError>
+  /**
+   * Tree node ids whose content, metadata or transcript search text contains `query`, case
+   * folded; after a cursor whose revision still holds, only among the nodes appended since.
+   */
+  readonly searchTreeNodes: (
+    sessionId: SessionId,
+    query: string,
+    after?: SessionTreeSearchCursor,
+  ) => Effect.Effect<SessionTreeSearchPage, SessionProjectionRepositoryError>
   readonly listResourceProjectionPage: (
     sessionId: SessionId,
     afterCreatedOrder: number,
@@ -164,7 +196,7 @@ export interface SessionRepositoryShape {
   readonly getWorkspace: (
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,
-  ) => Effect.Effect<SessionWorkspace | null, SessionProjectionRepositoryError>
+  ) => Effect.Effect<SessionContentWorkspace | null, SessionProjectionRepositoryError>
   readonly persistSnapshot: (
     input: PersistSessionSnapshotInput,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>

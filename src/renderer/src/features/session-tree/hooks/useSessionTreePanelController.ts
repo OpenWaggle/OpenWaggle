@@ -1,4 +1,4 @@
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 import { useDeferredValue, useReducer, useRef, useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { useSessionStore } from '@/features/sessions/state'
@@ -22,8 +22,9 @@ import { useSessionTreeFocusSync } from './useSessionTreeFocusSync'
 import { useSessionTreeKeyboardControls } from './useSessionTreeKeyboardControls'
 import { useSessionTreeNodeSelection } from './useSessionTreeNodeSelection'
 import { useSessionTreeScrollControls } from './useSessionTreeScrollControls'
+import { useSessionTreeTextSearch } from './useSessionTreeTextSearch'
 
-function isExpandedNode(node: SessionNode, expandedNodeIds: readonly SessionNode['id'][]) {
+function isExpandedNode(node: SessionTreeNode, expandedNodeIds: readonly SessionTreeNode['id'][]) {
   return expandedNodeIds.some((expandedNodeId) => String(expandedNodeId) === String(node.id))
 }
 
@@ -49,9 +50,11 @@ export function useSessionTreePanelController(
       ? (activeSession.executionModel ?? fallbackModel)
       : undefined
   const filter = useSessionTreeFilterMode(tree?.session.projectPath ?? null, showToast)
+  const textMatchNodeIds = useSessionTreeTextSearch(tree, deferredSearchQuery)
   const rows = buildSessionTreePanelRows({
     tree,
-    transcriptPath: activeWorkspace?.transcriptPath ?? [],
+    activeNodeId: activeWorkspace?.activeNodeId,
+    textMatchNodeIds,
     filterMode: filter.filterMode,
     searchQuery: deferredSearchQuery,
     focusIndex: panelState.focusIndex,
@@ -66,8 +69,8 @@ export function useSessionTreePanelController(
   })
 
   function persistExpandedNodeIds(
-    sessionId: SessionNode['sessionId'],
-    nextExpandedNodeIds: readonly SessionNode['id'][],
+    sessionId: SessionTreeNode['sessionId'],
+    nextExpandedNodeIds: readonly SessionTreeNode['id'][],
   ) {
     void api
       .updateSessionTreeUiState(sessionId, { expandedNodeIds: nextExpandedNodeIds })

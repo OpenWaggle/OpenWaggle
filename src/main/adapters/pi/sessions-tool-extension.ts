@@ -1,3 +1,4 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type {
@@ -5,22 +6,30 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
+import { isRecord } from '@shared/utils/validation'
 import type { TSchema } from 'typebox'
 import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
 import { describeError } from '../../utils/describe-error'
-import { assertFilesystemWriteScope } from '../../utils/filesystem-write-scope'
-import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { authorizeAttachments, authorizeExport } from './sessions-tool-authorization'
 import {
   assertSessionsToolActionPermitted,
+  permittedSessionsToolVariants,
+  type SessionsToolActionGrant,
   sessionsToolSchemaForGrant,
 } from './sessions-tool-capability-schema'
-import { assertSessionsToolActionArguments } from './sessions-tool-flat-schema'
-import { sessionsToolPromptGuidelines } from './sessions-tool-guidelines'
+import { parseSessionsToolActionArguments } from './sessions-tool-flat-schema'
+import {
+  sessionsToolEssentialGuidelines,
+  sessionsToolPromptGuidelines,
+} from './sessions-tool-guidelines'
+import { hiveHelp } from './sessions-tool-help'
+import { HIVE_HELP_ACTION } from './sessions-tool-hot-schema'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
+import { hiveResultText } from './sessions-tool-result'
 import { executeScheduleToolAction } from './sessions-tool-schedule-approval'
 import { isSessionsToolScheduleAction } from './sessions-tool-schedule-payload'
 import { scheduledTasksToolResult } from './sessions-tool-schedule-result'
@@ -36,9 +45,9 @@ interface SessionsToolExtensionInput {
   readonly agentDefinitionToggles?: Readonly<Record<string, boolean>>
   readonly sessionCapabilities?: readonly SessionCapability[]
   readonly modelMultiAgentEnabled?: boolean
+  /** The Session scratch directory, where a result too large for the model is saved whole. */
+  readonly scratchDirectory?: string
 }
-
-type SessionsToolPayload = ReturnType<typeof buildSessionsToolPayload>
 
 export { buildSessionsToolPayload } from './sessions-tool-payload'
 
@@ -67,149 +76,6 @@ function isAgentDefinitionAction(
   return params.action === 'agent_definitions_list' || params.action === 'agent_definitions_search'
 }
 
-async function authorizeExportWrite(input: {
-  readonly ctx: ExtensionContext
-  readonly destinationPath: string
-  readonly overwriteExisting: boolean
-  readonly signal?: AbortSignal
-}) {
-  if (!input.ctx.hasUI) {
-    throw new Error('Writing a Session export requires interactive filesystem authorization.')
-  }
-  const title = 'Allow Session export write?'
-  const message = [
-    `Destination: ${input.destinationPath}`,
-    `Overwrite existing: ${input.overwriteExisting ? 'yes' : 'no'}`,
-  ].join('\n')
-  const authorize = getOpenWaggleAuthorize(input.ctx.ui)
-  const approved = authorize
-    ? await authorize({
-        title,
-        message,
-        scopeKey: {
-          requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Hive',
-          capability: 'sessions.export-write',
-          resource: 'workspace-export',
-        },
-        ...(input.signal ? { signal: input.signal } : {}),
-      })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
-  if (!approved) throw new Error('Session export write was not authorized.')
-}
-
-async function authorizeAttachmentRead(input: {
-  readonly ctx: ExtensionContext
-  readonly paths: readonly string[]
-  readonly signal?: AbortSignal
-}) {
-  if (!input.ctx.hasUI) {
-    throw new Error('Reading Session attachments requires interactive filesystem authorization.')
-  }
-  const title = 'Allow Session attachment read?'
-  const message = `Files:\n${input.paths.map((entry) => `- ${entry}`).join('\n')}`
-  const authorize = getOpenWaggleAuthorize(input.ctx.ui)
-  const approved = authorize
-    ? await authorize({
-        title,
-        message,
-        scopeKey: {
-          requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Hive',
-          capability: 'sessions.attachment-read',
-          resource: 'workspace-attachments',
-        },
-        ...(input.signal ? { signal: input.signal } : {}),
-      })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
-  if (!approved) throw new Error('Session attachment read was not authorized.')
-}
-
-async function authorizeExportResourceRead(input: {
-  readonly ctx: ExtensionContext
-  readonly paths: readonly string[]
-  readonly signal?: AbortSignal
-}) {
-  if (!input.ctx.hasUI) {
-    throw new Error('Bundling Session resources requires interactive filesystem authorization.')
-  }
-  const title = 'Allow Session export resource read?'
-  const message = `Files:\n${input.paths.map((entry) => `- ${entry}`).join('\n')}`
-  const authorize = getOpenWaggleAuthorize(input.ctx.ui)
-  const approved = authorize
-    ? await authorize({
-        title,
-        message,
-        scopeKey: {
-          requesterId: 'openwaggle:sessions',
-          requester: 'OpenWaggle Hive',
-          capability: 'sessions.resource-read',
-          resource: 'workspace-export-resources',
-        },
-        ...(input.signal ? { signal: input.signal } : {}),
-      })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
-  if (!approved) throw new Error('Session export resource read was not authorized.')
-}
-
-async function authorizeAttachments(
-  payload: SessionsToolPayload,
-  ctx: ExtensionContext,
-  signal?: AbortSignal,
-) {
-  const attachmentPaths =
-    payload.contract === 'session-control-v2' || payload.contract === 'session-lifecycle-v2'
-      ? payload.transport?.attachmentPaths
-      : undefined
-  if (!attachmentPaths?.length) return
-  await authorizeAttachmentRead({ ctx, paths: attachmentPaths, ...(signal ? { signal } : {}) })
-}
-
-async function authorizeExport(
-  payload: SessionsToolPayload,
-  input: SessionsToolExtensionInput,
-  ctx: ExtensionContext,
-  signal?: AbortSignal,
-): Promise<SessionsToolPayload> {
-  if (
-    payload.contract !== 'session-control-v2' ||
-    payload.request.command.operation !== 'export-create'
-  ) {
-    return payload
-  }
-  const resources = payload.request.command.resources?.map((resource) => resource.path)
-  if (resources?.length) {
-    await authorizeExportResourceRead({ ctx, paths: resources, ...(signal ? { signal } : {}) })
-  }
-  await authorizeExportWrite({
-    ctx,
-    destinationPath: payload.request.command.destinationPath,
-    overwriteExisting: payload.request.command.overwriteExisting === true,
-    ...(signal ? { signal } : {}),
-  })
-  const scope = await assertFilesystemWriteScope({
-    roots: [input.workingDirectory],
-    destinationPath: payload.request.command.destinationPath,
-  })
-  return {
-    ...payload,
-    request: {
-      ...payload.request,
-      command: {
-        ...payload.request.command,
-        destinationPath: scope.destinationPath,
-        destinationRoot: scope.rootPath,
-      },
-    },
-  }
-}
-
 function sendSessionsToolCommand(
   input: SessionsToolExtensionInput,
   payload: LocalSessionCommandPayload,
@@ -225,6 +91,21 @@ function sendSessionsToolCommand(
   })
 }
 
+function withoutVerbose(params: unknown) {
+  if (!isRecord(params)) return params
+  const { verbose: _verbose, ...rest } = params
+  return rest
+}
+
+function helpResult(rawParams: unknown, grant: SessionsToolActionGrant) {
+  const help = hiveHelp({
+    variants: permittedSessionsToolVariants(grant),
+    guidelines: sessionsToolPromptGuidelines(grant.capabilities, grant.modelMultiAgentEnabled),
+    topic: isMatching({ topic: P._ }, rawParams) ? rawParams.topic : undefined,
+  })
+  return { content: [{ type: 'text' as const, text: help.text }], details: help.details }
+}
+
 async function executeSessionsToolCall(
   rawParams: unknown,
   input: SessionsToolExtensionInput,
@@ -233,8 +114,25 @@ async function executeSessionsToolCall(
   signal?: AbortSignal,
 ) {
   if (signal?.aborted) throw new Error('aborted')
-  assertSessionsToolActionArguments(rawParams)
-  const params = resolveSessionsToolSessionLinks(rawParams)
+  // `verbose` asks for the result envelope and item metadata; it is no action's parameter.
+  const verbose = isMatching({ verbose: true }, rawParams)
+  const params = resolveSessionsToolSessionLinks(
+    parseSessionsToolActionArguments(withoutVerbose(rawParams)),
+  )
+  const successfulToolResult = async (result: unknown) => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: await hiveResultText({
+          result,
+          verbose,
+          toolCallId,
+          ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
+        }),
+      },
+    ],
+    details: result,
+  })
   if (isAgentDefinitionAction(params)) {
     return successfulToolResult(
       await queryAgentDefinitionsForTool(
@@ -262,10 +160,6 @@ async function executeSessionsToolCall(
   return successfulToolResult(await sendSessionsToolCommand(input, payload, signal))
 }
 
-function successfulToolResult(result: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result }
-}
-
 function failedToolResult(error: unknown) {
   const message = sessionCommandFailureMessage(error)
   // The result text leaves out Host context such as paths in a cause; the log keeps all of it.
@@ -277,21 +171,23 @@ function failedToolResult(error: unknown) {
   }
 }
 
+const HIVE_TOOL_DESCRIPTION =
+  'Coordinate your Hive of durable OpenWaggle Sessions: spawn Workers, read and wait on Sessions, report peer context, send Follow-ups, steer or interrupt a Run, review Delegations, manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker, an ordinary Session with its own transcript that may continue after this Run. Session summaries and Delegations carry nextActor: user, parent, worker, or none.'
+
 export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
-  const grant = {
+  const grant: SessionsToolActionGrant = {
     capabilities: input.sessionCapabilities,
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
   }
   return (pi) => {
-    // Typed as a plain schema: arguments stay unknown until assertSessionsToolActionArguments.
+    // Typed as a plain schema: arguments stay unknown until parseSessionsToolActionArguments.
     pi.registerTool<TSchema, unknown>({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
-      description:
-        'Coordinate your Hive of durable OpenWaggle Sessions. Spawn Worker Sessions in the current Hive, discover and read authorized Sessions, report durable peer context, send future Follow-ups, steer an exact active Run, interrupt it, or manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker Session. Workers are ordinary Sessions with independent transcripts, listed in the Hive panel, and may continue after this Run ends. Session summaries and Delegations with a Delegation state carry nextActor: user, parent, worker, or none.',
+      description: HIVE_TOOL_DESCRIPTION,
       promptSnippet:
         'Use hive to spawn and coordinate durable Worker Sessions when parallel or delegated work is useful.',
-      promptGuidelines: sessionsToolPromptGuidelines(
+      promptGuidelines: sessionsToolEssentialGuidelines(
         input.sessionCapabilities,
         grant.modelMultiAgentEnabled,
       ),
@@ -304,6 +200,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
         try {
+          if (isMatching({ action: HIVE_HELP_ACTION }, params)) return helpResult(params, grant)
           return await executeSessionsToolCall(params, input, ctx, toolCallId, signal)
         } catch (error) {
           return failedToolResult(error)

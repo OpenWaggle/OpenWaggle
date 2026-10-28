@@ -34,20 +34,30 @@ export async function captureTurnCheckpoint(input: {
   readonly startedAt: number
   /** The Pi session file the Run wrote, when it is not yet the one the Session records. */
   readonly piSessionFile?: string
+  /**
+   * False when every tool the Run executed is known read-only (`observeRunWorkspaceMutations`).
+   * The worktree snapshot is skipped then; absent means it may have changed.
+   */
+  readonly workspaceMayHaveChanged?: boolean
 }): Promise<void> {
   try {
     const sessionId = SessionId(String(input.session.id))
-    const snapshotRef = await createWorktreeSnapshot(input.projectPath)
     const previousRef = await getLatestSnapshotRef(sessionId)
-    const piSessionFiles = [input.piSessionFile, input.session.piSessionFile]
-    const diff = await computeIncrementalDiff(
-      input.projectPath,
-      previousRef,
-      snapshotRef,
-      ownPiSessionFolders(input.projectPath, piSessionFiles),
-    )
+    if (input.workspaceMayHaveChanged === false) {
+      // Diagnosable: a wrong skip moves the Run's files into the next changing Run's diff.
+      logger.debug('Skipping the worktree snapshot of a Run that only read', {
+        sessionId,
+        runId: input.runId,
+      })
+    }
+    const { snapshotRef, diff } =
+      input.workspaceMayHaveChanged === false
+        ? // A read-only Run keeps the previous snapshot, so the next Run's diff starts from it.
+          { snapshotRef: previousRef, diff: '' }
+        : await snapshotTurn(input, previousRef)
 
-    // Anchor the snapshot so the next turn's diff base stays resolvable.
+    // Anchor the snapshot so the next turn's diff base stays resolvable, also when the turn that
+    // took it is pruned and a read-only turn after it carries it.
     if (snapshotRef) {
       const ref = turnCheckpointRef(String(sessionId), input.runId)
       const anchored = await runGit(input.projectPath, ['update-ref', ref, snapshotRef])
@@ -79,6 +89,25 @@ export async function captureTurnCheckpoint(input: {
   } catch (error) {
     logger.warn('Failed to capture turn checkpoint', { error: String(error) })
   }
+}
+
+async function snapshotTurn(
+  input: {
+    readonly session: SessionDetail
+    readonly projectPath: string
+    readonly piSessionFile?: string
+  },
+  previousRef: string | null,
+) {
+  const snapshotRef = await createWorktreeSnapshot(input.projectPath)
+  const piSessionFiles = [input.piSessionFile, input.session.piSessionFile]
+  const diff = await computeIncrementalDiff(
+    input.projectPath,
+    previousRef,
+    snapshotRef,
+    ownPiSessionFolders(input.projectPath, piSessionFiles),
+  )
+  return { snapshotRef, diff }
 }
 
 /** Remove anchor refs for checkpoints that are no longer retained (best-effort). */

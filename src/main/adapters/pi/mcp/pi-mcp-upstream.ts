@@ -8,6 +8,7 @@ import {
 import { type AuthProvider, StdioTransport, StreamableHttpTransport } from '@earendil-works/pi-mcp'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { getNpmCompatiblePath } from '../../../env'
+import { createLogger } from '../../../logger'
 import { mcpValueEnvironment } from '../../../mcp-shell-environment'
 import {
   createMcpServerFetch,
@@ -15,11 +16,16 @@ import {
   MCP_MAX_MESSAGE_BYTES,
   McpSdkTransportAdapter,
   type McpUpstream,
+  mcpStartupWaitMs,
 } from '../../mcp/pool/mcp-connection-pool-api'
+import { hostPackageRunnerBypass } from '../../mcp/runtime/host-package-runner-bypass'
 import { createLegacySseClientTransport } from '../../mcp/runtime/legacy-sse-client-transport'
+import type { StdioLaunch } from '../../mcp/runtime/mcp-package-runner-bypass'
 import { LegacyWebSocketClientTransport } from '../../mcp/runtime/websocket-transport'
 import { createMcpAuthorizedFetch } from './mcp-authorized-fetch'
 import { mcpAuthorizationServerUrls } from './mcp-sign-in-page'
+
+const logger = createLogger('mcp-upstream')
 
 /** Characters of a failed stdio server's stderr shown with its error, as in Pi. */
 const STDERR_TAIL_CHARS = 2_000
@@ -41,7 +47,12 @@ function stringEnv(values: Readonly<Record<string, string | undefined>>) {
   )
 }
 
-function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
+/**
+ * What a stdio server is spawned with before the package-runner bypass: as configured. Resolving
+ * runs each `env` value's `!command` (Pi's `resolveConfigValueOrThrow`, synchronous), so it is done
+ * once per spawn and the result passed on.
+ */
+function stdioLaunchInput(entry: McpServerEntry, cwd: string): StdioLaunch {
   if (!('command' in entry.config)) throw new Error(`MCP server "${entry.name}" has no command`)
   const { config } = entry
   const env: Record<string, string> = {}
@@ -52,13 +63,27 @@ function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
       mcpValueEnvironment(),
     )
   }
-  const transport = new StdioTransport({
+  return {
     command: expandHome(config.command),
-    ...(config.args ? { args: config.args.map(expandHome) } : {}),
+    args: (config.args ?? []).map(expandHome),
     cwd: path.resolve(cwd, expandHome(config.cwd ?? '.')),
     // Pi gives servers the user's environment (the login shell's, for a Dock-launched app); the
     // packaged app's PATH also finds npx and uvx.
     env: stringEnv({ ...mcpValueEnvironment(), PATH: getNpmCompatiblePath(), ...env }),
+  }
+}
+
+/** How long a server's first spawn waits for its package runner's bin to be resolved. */
+export const MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS = 30_000
+
+function openStdio(configured: StdioLaunch, refreshPackage: boolean): McpUpstream {
+  // A package runner (`npx`, `pnpm dlx`, `bunx`) is skipped once its bin is known (D1.2).
+  const launch = hostPackageRunnerBypass().launch(configured, { refresh: refreshPackage })
+  const transport = new StdioTransport({
+    command: launch.command,
+    ...(launch.args.length > 0 ? { args: [...launch.args] } : {}),
+    cwd: launch.cwd,
+    env: { ...launch.env },
     inheritEnv: false,
     stderr: 'pipe',
   })
@@ -190,17 +215,52 @@ function openHttp(
   }
 }
 
+interface OpenPiMcpUpstreamInput {
+  readonly entry: McpServerEntry
+  readonly transport: McpTransportKind
+  readonly cwd: string
+  readonly authProvider: AuthProvider | undefined
+  /** Settings' check: launch through the package runner and resolve its bin again. */
+  readonly refreshPackage?: boolean
+}
+
 /**
  * Opens the real connection to one server: pi-mcp's stdio transport (its own process group, so
  * closing it stops a package runner such as `npx` together with the server), streamable HTTP over
  * OpenWaggle's hardened fetch, or the legacy SSE and WebSocket transports.
  */
-export function openPiMcpUpstream(input: {
-  readonly entry: McpServerEntry
-  readonly transport: McpTransportKind
-  readonly cwd: string
-  readonly authProvider: AuthProvider | undefined
-}): McpUpstream {
-  if (input.transport === 'stdio') return openStdio(input.entry, input.cwd)
+export function openPiMcpUpstream(input: OpenPiMcpUpstreamInput): McpUpstream {
+  if (input.transport === 'stdio') {
+    return openStdio(stdioLaunchInput(input.entry, input.cwd), input.refreshPackage === true)
+  }
   return openHttp(input.entry, input.transport, input.authProvider)
+}
+
+/**
+ * `openPiMcpUpstream` for a Session's connection: before a stdio server's spawn through a package
+ * runner, its bin is resolved first (one probe per package for the whole Host, waiting a third of
+ * the server's timeout, at most `MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS`), so even the first spawn
+ * skips the runner (D1.2). The
+ * server's values are resolved once for both (review R5 P2-1): a `!command` value can be slow,
+ * prompt, or mint a token.
+ */
+export async function openPreparedPiMcpUpstream(
+  input: OpenPiMcpUpstreamInput & { readonly prepareWaitMs?: number },
+): Promise<McpUpstream> {
+  if (input.transport !== 'stdio') return openPiMcpUpstream(input)
+  const launch = stdioLaunchInput(input.entry, input.cwd)
+  try {
+    await hostPackageRunnerBypass().prepare(
+      launch,
+      input.prepareWaitMs ??
+        mcpStartupWaitMs(input.entry.config.timeout, MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS),
+    )
+  } catch (error) {
+    // The spawn below runs the command as configured and reports what is wrong with it.
+    logger.warn('Could not prepare an MCP server launch; it starts as configured', {
+      server: input.entry.name,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+  return openStdio(launch, input.refreshPackage === true)
 }

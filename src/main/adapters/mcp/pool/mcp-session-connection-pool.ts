@@ -1,4 +1,4 @@
-import { realLocation } from '../config/mcp-config-files'
+import { McpCatalogFills, mcpConnectionCatalogOptions } from './mcp-connection-catalog'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
   MCP_CLOSE_ALL_TIMEOUT_MS,
@@ -15,16 +15,9 @@ import {
   type SessionConnections,
   systemClock,
 } from './mcp-session-connection-pool-types'
+import { connectionStatesOf, poolServerStatus } from './mcp-session-connection-pool-views'
+import { McpSessionIdleClose } from './mcp-session-idle-close'
 import type { McpWireTransport } from './mcp-wire'
-
-/**
- * Whether a connection's project is `projectPath`, however either is spelled: by real folder, as
- * a Run records the Session's spelling (perhaps through a link) and Settings sends the real path.
- */
-function sameProject(projectPath: string | null) {
-  const wanted = projectPath === null ? null : realLocation(projectPath)
-  return (other: string | null) => (other === null ? null : realLocation(other)) === wanted
-}
 
 /**
  * Every Session's MCP server connections. A connection belongs to one Session and lasts across
@@ -44,13 +37,20 @@ export class McpSessionConnectionPool {
   private closedAll = false
   private readonly reopenedSessions = new Set<string>()
   private readonly clock: McpPoolClock
-  private readonly idleCloseMs: number
+  private readonly idleClose: McpSessionIdleClose
   private readonly maxWarmSessions: number
   private readonly closeAllTimeoutMs: number
+  /** One Session fills a missing catalog while the others of a cold wave wait (D1.3). */
+  private readonly catalogFills = new McpCatalogFills()
 
   constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
     this.clock = options.clock ?? systemClock
-    this.idleCloseMs = options.idleCloseMs ?? MCP_IDLE_CLOSE_MS
+    this.idleClose = new McpSessionIdleClose({
+      clock: this.clock,
+      idleCloseMs: options.idleCloseMs ?? MCP_IDLE_CLOSE_MS,
+      policy: options.idleCloseMsFor,
+      close: (sessionId) => void this.closeSessionConnections(sessionId),
+    })
     this.maxWarmSessions = options.maxWarmSessions ?? MCP_MAX_WARM_SESSIONS
     this.closeAllTimeoutMs = options.closeAllTimeoutMs ?? MCP_CLOSE_ALL_TIMEOUT_MS
   }
@@ -75,6 +75,17 @@ export class McpSessionConnectionPool {
     return server && !server.connection.isClosed ? server.connection : undefined
   }
 
+  /**
+   * Whether a Run of the Session leased the server and its connection then failed or closed: it
+   * lists no tools until Pi reconnects it. False before the lease.
+   */
+  connectionFailed(sessionId: string, serverName: string) {
+    const session = this.sessions.get(sessionId)
+    if (!session?.leased.has(serverName)) return false
+    const server = session.servers.get(serverName)
+    return !server || server.connection.isClosed
+  }
+
   /** The Session's connection to a server, opened when it has none. */
   connectionFor(sessionId: string, spec: McpPooledServerSpec) {
     // A Run's lease and an MCP App request alike: a Session closed on purpose stays closed.
@@ -93,11 +104,18 @@ export class McpSessionConnectionPool {
     // replaced: it closes itself once the requests it already sent settle, or with the Session.
     if (existing) this.retireReplaced(session, existing.connection)
     const wasWarm = session.servers.size > 0
+    const hooks = this.options.hooks?.(sessionId, spec.name, spec.identity)
     const connection: McpPooledConnection = new McpPooledConnection({
       serverName: spec.name,
       open: spec.open,
       ...(spec.roots ? { roots: spec.roots } : {}),
-      ...this.options.hooks?.(sessionId, spec.name, spec.identity),
+      ...hooks,
+      ...mcpConnectionCatalogOptions(
+        this.options.catalogStore,
+        spec,
+        hooks?.observeResult,
+        this.catalogFills,
+      ),
       onClosed: () => {
         session.replaced.delete(connection)
         if (session.servers.get(spec.name)?.connection === connection) {
@@ -107,12 +125,13 @@ export class McpSessionConnectionPool {
     })
     session.servers.set(spec.name, {
       fingerprint: spec.fingerprint,
+      catalogKey: spec.catalogKey,
       identity: spec.identity,
       projectPath: spec.projectPath ?? null,
       fromExtension: spec.fromExtension === true,
       connection,
     })
-    if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
+    if (session.activeRuns === 0) this.idleClose.schedule(sessionId, session)
     if (!wasWarm) this.evictLeastRecentlyUsed(sessionId)
     return connection
   }
@@ -134,7 +153,7 @@ export class McpSessionConnectionPool {
     if (!session) return
     this.touch(sessionId)
     if (session.activeRuns === 0 && session.servers.size > 0) {
-      this.scheduleIdleClose(sessionId, session)
+      this.idleClose.schedule(sessionId, session)
     }
   }
 
@@ -147,14 +166,14 @@ export class McpSessionConnectionPool {
     session.leased.clear()
     this.closedSessions.delete(sessionId)
     if (this.closedAll) this.reopenedSessions.add(sessionId)
-    this.cancelIdleClose(session)
+    this.idleClose.cancel(session)
     let ended = false
     return () => {
       if (ended) return
       ended = true
       session.activeRuns = Math.max(0, session.activeRuns - 1)
       if (session.activeRuns === 0 && this.sessions.get(sessionId) === session) {
-        this.scheduleIdleClose(sessionId, session)
+        this.idleClose.schedule(sessionId, session)
       }
     }
   }
@@ -171,7 +190,7 @@ export class McpSessionConnectionPool {
   private async closeSessionConnections(sessionId: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return
-    this.cancelIdleClose(session)
+    this.idleClose.cancel(session)
     const connections = [
       ...[...session.servers.values()].map((server) => server.connection),
       ...session.replaced,
@@ -187,12 +206,12 @@ export class McpSessionConnectionPool {
    * Matched by server identity, so same-named servers of other projects stay connected.
    */
   async closeServerIdentity(identity: string) {
-    const connections = [...this.sessions.values()].flatMap((session) =>
-      [...session.servers.values()]
-        .filter((server) => server.identity === identity)
-        .map((server) => server.connection),
+    const servers = [...this.sessions.values()].flatMap((session) =>
+      [...session.servers.values()].filter((server) => server.identity === identity),
     )
-    await Promise.all(connections.map((connection) => connection.close()))
+    // What the server says may have changed with it (a sign-in): its next Session lists afresh.
+    for (const server of servers) this.forgetCatalog(server)
+    await Promise.all(servers.map((server) => server.connection.close()))
   }
 
   /**
@@ -203,7 +222,14 @@ export class McpSessionConnectionPool {
     const session = this.sessions.get(sessionId)
     if (!session) return
     session.closedServers.add(serverName)
-    await session.servers.get(serverName)?.connection.close()
+    const server = session.servers.get(serverName)
+    // Turned off or removed: a catalog kept for it would only go stale.
+    if (server) this.forgetCatalog(server)
+    await server?.connection.close()
+  }
+
+  private forgetCatalog(server: PooledServer) {
+    if (server.catalogKey !== undefined) this.options.catalogStore?.forget(server.catalogKey)
   }
 
   /**
@@ -245,37 +271,21 @@ export class McpSessionConnectionPool {
   }
 
   status(sessionId: string): McpPoolServerStatus[] {
-    const session = this.sessions.get(sessionId)
-    if (!session) return []
-    return [...session.servers].map(([name, { connection }]) => ({
-      name,
-      clients: connection.attachedLeases,
-      ...(connection.lastError ? { lastError: connection.lastError } : {}),
-      stderrTail: connection.stderrTail,
-    }))
+    return poolServerStatus(this.sessions.get(sessionId))
+  }
+
+  /** The open connections to one server identity of the project's Sessions (`connectionStatesOf`). */
+  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
+    return connectionStatesOf(this.sessions.values(), identity, projectPath)
   }
 
   /**
-   * The open connections to one server identity of the project's Sessions (`null`: Sessions with
-   * no project), read without sending anything, touching recency, or handing a connection out: a
-   * connection stays its Session's alone. Another project's Session connects on its own, so its
-   * connection says nothing about the server there (ADR 0051).
+   * Closes the connections of every Session without a running Run, as an idle close does: the
+   * Host has no client (decision 4). A Session's next Run or MCP App request reconnects.
    */
-  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
-    const project = sameProject(projectPath)
-    return [...this.sessions.values()].flatMap((session) =>
-      [...session.servers.values()]
-        .filter(
-          (server) =>
-            server.identity === identity &&
-            project(server.projectPath) &&
-            !server.connection.isClosed,
-        )
-        .map(({ connection }) => ({
-          ready: connection.isReady,
-          ...(connection.lastError ? { lastError: connection.lastError } : {}),
-        })),
-    )
+  async closeIdleSessions() {
+    const idle = [...this.sessions].filter(([, session]) => session.activeRuns === 0)
+    await Promise.all(idle.map(([id]) => this.closeSessionConnections(id)))
   }
 
   private touch(sessionId: string) {
@@ -293,17 +303,9 @@ export class McpSessionConnectionPool {
     return session
   }
 
-  private scheduleIdleClose(sessionId: string, session: SessionConnections) {
-    this.cancelIdleClose(session)
-    session.idleTimer = this.clock.setTimeout(() => {
-      session.idleTimer = undefined
-      if (session.activeRuns === 0) void this.closeSessionConnections(sessionId)
-    }, this.idleCloseMs)
-  }
-
-  private cancelIdleClose(session: SessionConnections) {
-    session.idleTimer?.cancel()
-    session.idleTimer = undefined
+  /** Sets the per-Session idle close (Host start: settled Hive Workers close sooner). */
+  setIdleClosePolicy(policy: McpSessionConnectionPoolOptions['idleCloseMsFor']) {
+    this.idleClose.policy = policy
   }
 
   private evictLeastRecentlyUsed(currentSessionId: string) {

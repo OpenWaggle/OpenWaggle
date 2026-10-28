@@ -3,19 +3,26 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { NestedToolCalls } from '@shared/types/tools'
+import { lazy, Suspense } from 'react'
 import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
 import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
 import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
-import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
+import { getMcpAppLaunch } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { ToolRowSessionContext } from '../hooks/ToolRowSessionContext'
 import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
 import { WithNestedToolCalls } from './NestedToolCallList'
 import { SessionsToolCallBlock } from './SessionsToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
+
+// The MCP Apps host brings the MCP SDK and zod, so it loads only when a result launches an app.
+const LazyMcpAppHost = lazy(() =>
+  import('@/features/mcp/McpAppHost').then((module) => ({ default: module.McpAppHost })),
+)
 
 const JSON_STRINGIFY_INDENT = 2
 const EMPTY_PROJECT_PATHS: readonly string[] = []
@@ -154,13 +161,17 @@ export function ToolCallRouter({
   ) : appLaunch ? (
     <div className="space-y-3">
       {toolCallBlock}
-      <McpAppHost
-        descriptor={appLaunch.descriptor}
-        projectPath={extensionProjectPaths[0] ?? null}
-        sessionId={sessionId}
-        initialArguments={appLaunch.initialArguments}
-        initialResult={appLaunch.initialResult}
-      />
+      <PanelErrorBoundary name="MCP app">
+        <Suspense fallback={null}>
+          <LazyMcpAppHost
+            descriptor={appLaunch.descriptor}
+            projectPath={extensionProjectPaths[0] ?? null}
+            sessionId={sessionId}
+            initialArguments={appLaunch.initialArguments}
+            initialResult={appLaunch.initialResult}
+          />
+        </Suspense>
+      </PanelErrorBoundary>
     </div>
   ) : (
     toolCallBlock

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { CommandLine } from 'electron'
+import { limitChromiumHttpDiskCache } from './chromium-disk-cache'
 import { configureSessionScratchNamespace } from './utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
@@ -12,6 +14,8 @@ export interface AppPathManager {
   getPath(name: 'userData'): string
   setPath(name: 'userData' | 'sessionData', value: string): void
   setAppLogsPath(path?: string): void
+  /** Electron's `app.commandLine`, to bound the profile's Chromium disk cache before ready. */
+  readonly commandLine?: Pick<CommandLine, 'appendSwitch' | 'hasSwitch'>
 }
 
 function getChromiumDipsPaths(sessionDataPath: string) {
@@ -60,4 +64,5 @@ export function configureAppStoragePaths(
   mkdirSync(sessionDataPath, { recursive: true })
   repairChromiumDipsDatabaseOnce(sessionDataPath)
   appPaths.setPath('sessionData', sessionDataPath)
+  if (appPaths.commandLine) limitChromiumHttpDiskCache(appPaths.commandLine)
 }

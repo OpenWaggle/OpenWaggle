@@ -11,7 +11,7 @@ import {
 } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { resolveLocalSessionHostPaths } from '../session-host/local-session-paths'
 import {
   disconnectLocalSessionProfile,
@@ -225,7 +225,7 @@ export function registerProfileAccessHandlers() {
         idempotencyKey,
       })
       const dispatch = Effect.gen(function* () {
-        const result = yield* dispatchLocalSessionCommand({
+        const result = yield* dispatchGuiSessionCommand({
           caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
           payload: {
             contract: 'local-access-v1',

@@ -8,6 +8,7 @@ const { broadcastToWindowsMock } = vi.hoisted(() => ({
 
 vi.mock('../../utils/broadcast', () => ({
   broadcastToWindows: broadcastToWindowsMock,
+  broadcastAgentEvent: (payload: unknown) => broadcastToWindowsMock('agent:event', payload),
 }))
 
 import { getPhaseForSession, resetPhaseForSession } from '../../agent/phase-tracker'

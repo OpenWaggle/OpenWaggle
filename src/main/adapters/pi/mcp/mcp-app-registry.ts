@@ -51,6 +51,14 @@ export function recordMcpToolVisibility(sessionId: string, serverName: string, r
   appVisibility.set(key(sessionId, serverName), visibility)
 }
 
+/** The names of the App tools in one `tools/list` result page. */
+export function mcpAppToolNamesOf(result: unknown) {
+  if (!isRecord(result) || !Array.isArray(result.tools)) return []
+  return result.tools.flatMap((tool) =>
+    isRecord(tool) && typeof tool.name === 'string' && appResourceUri(tool) ? [tool.name] : [],
+  )
+}
+
 /** Records the App tools in one `tools/list` result page. */
 export function recordMcpAppTools(sessionId: string, serverName: string, result: unknown) {
   if (!isRecord(result) || !Array.isArray(result.tools)) return
@@ -70,6 +78,12 @@ export function recordMcpAppTools(sessionId: string, serverName: string, result:
   }
   registry.set(key(sessionId, serverName), tools)
   recordMcpToolVisibility(sessionId, serverName, result)
+}
+
+/** The App tools a server listed in this Session; undefined when it has not listed its tools. */
+export function mcpAppToolNames(sessionId: string, serverName: string) {
+  const tools = registry.get(key(sessionId, serverName))
+  return tools ? [...tools.keys()] : undefined
 }
 
 export function mcpAppTool(sessionId: string, serverName: string, toolName: string) {

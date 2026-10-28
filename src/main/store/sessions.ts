@@ -23,6 +23,10 @@ export {
 } from './sessions/session-catalog'
 export { listArchivedSessionBranches, listSessions } from './sessions/session-list'
 export {
+  getSessionNodeMutationRevision,
+  searchSessionTreePage,
+} from './sessions/session-node-search'
+export {
   getSessionResourceProjectionNodes,
   listSessionResourceProjectionPage,
 } from './sessions/session-resource-projection'

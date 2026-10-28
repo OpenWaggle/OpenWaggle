@@ -173,17 +173,13 @@ describe('Settings > MCP servers', () => {
       'aria-checked',
       'true',
     )
-    expect(
-      within(exposure).getByText(
-        'Shown to the model like built-in tools, and callable from codemode.',
-      ),
-    ).toBeInTheDocument()
-    fireEvent.click(within(exposure).getByRole('radio', { name: /Deferred/ }))
+    expect(within(exposure).getByText('Registered but unreachable.')).toBeInTheDocument()
+    fireEvent.click(within(exposure).getByRole('radio', { name: /Hidden/ }))
     await waitFor(() =>
       expect(api.setMcpServerExposure).toHaveBeenCalledWith({
         projectPath: PROJECT,
         name: 'github',
-        exposure: 'deferred',
+        exposure: 'hidden',
       }),
     )
 
@@ -240,7 +236,7 @@ describe('Settings > MCP servers', () => {
     expect(next).toHaveFocus()
     await waitFor(() =>
       expect(api.setMcpServerExposure).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'github', exposure: 'deferred' }),
+        expect.objectContaining({ name: 'github', exposure: 'hidden' }),
       ),
     )
   })
@@ -279,22 +275,23 @@ describe('Settings > MCP servers', () => {
     for (const radio of within(exposure).getAllByRole('radio')) expect(radio).toBeEnabled()
     release()
     await waitFor(() =>
-      expect(within(exposure).getByRole('radio', { name: /Deferred/ })).toHaveAttribute(
+      expect(within(exposure).getByRole('radio', { name: /Hidden/ })).toHaveAttribute(
         'aria-checked',
         'true',
       ),
     )
-    expect(within(exposure).getByRole('radio', { name: /Deferred/ })).toHaveFocus()
+    expect(within(exposure).getByRole('radio', { name: /Hidden/ })).toHaveFocus()
+    // The last choice wraps to the first.
     fireEvent.keyDown(document.activeElement ?? exposure, { key: 'ArrowDown' })
 
     await waitFor(() =>
       expect(api.setMcpServerExposure).toHaveBeenLastCalledWith(
-        expect.objectContaining({ name: 'github', exposure: 'direct' }),
+        expect.objectContaining({ name: 'github', exposure: 'codemode' }),
       ),
     )
     release()
     await waitFor(() =>
-      expect(within(exposure).getByRole('radio', { name: /Direct/ })).toHaveFocus(),
+      expect(within(exposure).getByRole('radio', { name: /Codemode/ })).toHaveFocus(),
     )
   })
 

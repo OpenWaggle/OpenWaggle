@@ -9,11 +9,12 @@ import { useSessionStatusStore, useSessionStore } from '@/features/sessions/stat
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useChatRouteEffects } from '../-chat-route-effects'
+import { testRouterStatus as router } from './-chat-route-router-status'
 
 const navigateMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@tanstack/react-router', () => ({
+vi.mock('@tanstack/react-router', async () => ({
   useNavigate: () => navigateMock,
+  useRouterState: (await import('./-chat-route-router-status')).useTestRouterState,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -39,6 +40,7 @@ describe('useChatRouteEffects', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     navigateMock.mockClear()
+    router.set('idle')
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({
       activeSessionId: null,
@@ -52,7 +54,7 @@ describe('useChatRouteEffects', () => {
       activeWorkspace: null,
       draftBranch: null,
       clearDraftBranchForSession: vi.fn(),
-      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
+      showSessionWorkspace: vi.fn().mockResolvedValue(undefined),
     })
     useSessionStatusStore.setState({
       statuses: new Map(),
@@ -184,6 +186,33 @@ describe('useChatRouteEffects', () => {
     expect(api.updateSessionTreeUiState).toHaveBeenCalledTimes(1)
   })
 
+  it('does not switch back to the routed Session while a selected one navigates (session switch)', async () => {
+    const left = SessionId('left-session')
+    const selected = SessionId('selected-session')
+    const setActiveSession = vi.fn()
+    useChatStore.setState({
+      activeSessionId: left,
+      activeSession: sessionDetail('left-session', '/old-project'),
+      setActiveSession,
+    })
+    const props = { branchId: null, diffOpen: false, nodeId: null, sessionId: String(left) }
+    const view = renderHook((input) => useChatRouteEffects(input), { initialProps: props })
+
+    // The sidebar selects first, then navigates: the route still names the Session being left.
+    act(() => {
+      useChatStore.setState({
+        activeSessionId: selected,
+        activeSession: sessionDetail('selected-session', '/old-project'),
+      })
+    })
+    view.rerender(props)
+    expect(setActiveSession).not.toHaveBeenCalled()
+
+    // Back/forward moves the route: the store follows it.
+    view.rerender({ ...props, sessionId: 'routed-later' })
+    await waitFor(() => expect(setActiveSession).toHaveBeenCalledWith(SessionId('routed-later')))
+  })
+
   it('redirects the root chat route back to the active session when no draft is active', async () => {
     useChatStore.setState({
       activeSessionId: SessionId('active-session'),
@@ -209,7 +238,7 @@ describe('useChatRouteEffects', () => {
     const routeBranchId = SessionBranchId('branch-1')
     const routeNodeId = SessionNodeId('node-1')
     const setActiveSession = vi.fn()
-    const refreshSessionWorkspace = vi.fn().mockResolvedValue(undefined)
+    const showSessionWorkspace = vi.fn().mockResolvedValue(undefined)
     const clearDraftBranchForSession = vi.fn()
     const setProjectPath = vi.fn().mockResolvedValue(undefined)
     const refreshStatus = vi.fn().mockResolvedValue(undefined)
@@ -223,7 +252,7 @@ describe('useChatRouteEffects', () => {
     useSessionStore.setState({
       draftBranch: { sessionId: routeSessionId, sourceNodeId: routeNodeId },
       clearDraftBranchForSession,
-      refreshSessionWorkspace,
+      showSessionWorkspace,
     })
     usePreferencesStore.setState({ setProjectPath })
     useGitStore.setState({ refreshStatus, refreshBranches })
@@ -240,7 +269,7 @@ describe('useChatRouteEffects', () => {
     await waitFor(() => expect(setActiveSession).toHaveBeenCalledWith(routeSessionId))
     expect(useSessionStatusStore.getState().lastVisitedAt.has(routeSessionId)).toBe(true)
     expect(clearDraftBranchForSession).toHaveBeenCalledWith(routeSessionId)
-    expect(refreshSessionWorkspace).toHaveBeenCalledWith(routeSessionId, {
+    expect(showSessionWorkspace).toHaveBeenCalledWith(routeSessionId, {
       branchId: routeBranchId,
       nodeId: routeNodeId,
     })

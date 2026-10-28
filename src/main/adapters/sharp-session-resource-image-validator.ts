@@ -1,6 +1,5 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import sharp from 'sharp'
 import {
   type ValidatedSessionResourceImage,
   validatedImageBuffer,
@@ -9,6 +8,7 @@ import {
   SessionResourceImageValidator,
   type SessionResourceImageValidatorShape,
 } from '../ports/session-resource-image-validator'
+import { loadSharp } from './sharp-module'
 
 export const SESSION_RESOURCE_IMAGE_DECODE_LIMITS = {
   maxFrames: 128,
@@ -41,6 +41,7 @@ export async function decodeSessionResourceImage(
   const structurallyValid = validatedImageBuffer(bytes, mimeType)
   if (!structurallyValid) return null
   try {
+    const sharp = await loadSharp()
     const metadata = await sharp(structurallyValid.bytes, {
       animated: true,
       failOn: 'error',

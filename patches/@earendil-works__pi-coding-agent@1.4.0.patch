@@ -1,7 +1,16 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d3669bae66a 100644
+index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a47fc3e01 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
+@@ -13,7 +13,7 @@
+  * Modes use this class and add their own I/O layer on top.
+  */
+ import { type Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool, type ThinkingLevel } from "@earendil-works/pi-agent-core";
+-import type { ImageContent, Model, TextContent } from "@earendil-works/pi-ai/compat";
++import type { ImageContent, Model, TextContent, Usage } from "@earendil-works/pi-ai/compat";
+ import { type BashResult } from "./bash-executor.ts";
+ import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
+ import { type CompactionResult } from "./compaction/index.ts";
 @@ -111,6 +111,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
  export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
  export interface AgentSessionConfig {
@@ -28,7 +37,38 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
  }
  /** Options for model/thinking mutations. */
  export interface ModelMutationOptions {
-@@ -225,6 +237,7 @@ export declare class AgentSession {
+@@ -217,6 +229,30 @@ export interface SessionStats {
+     cost: number;
+     contextUsage?: ContextUsage;
+ }
++/** OpenWaggle patch: the latest session request, for idle compaction. */
++export interface IdleCompactionCandidate {
++    sentAt: number;
++    ttlMs: number;
++    promptTokens: number;
++    model: {
++        provider: string;
++        id: string;
++    };
++}
++/** OpenWaggle patch: a compaction computed while the session was idle. */
++export interface PrecomputedCompaction {
++    summary: string;
++    firstKeptEntryId: string;
++    tokensBefore: number;
++    /** The last branch entry the model saw when it was computed. */
++    anchorEntryId: string;
++    model: {
++        provider: string;
++        id: string;
++    };
++    usage: Usage;
++    details: unknown;
++}
+ export declare class AgentSession {
+     readonly agent: Agent;
+     readonly sessionManager: SessionManager;
+@@ -225,6 +261,7 @@ export declare class AgentSession {
      private _unsubscribeAgent?;
      private _eventListeners;
      private _isAgentRunActive;
@@ -36,7 +76,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      private _agentRunAbortRequested;
      private _idleWaitPromise;
      private _resolveIdleWait;
-@@ -257,6 +270,8 @@ export declare class AgentSession {
+@@ -257,6 +294,8 @@ export declare class AgentSession {
      private _lastActivityOutcome;
      private _isBeforeSettle;
      private _abortDuringBeforeSettle;
@@ -45,7 +85,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      private _isEmittingAgentSettled;
      private readonly _deferredSettledActions;
      private _resourceLoader;
-@@ -291,6 +306,8 @@ export declare class AgentSession {
+@@ -291,6 +330,8 @@ export declare class AgentSession {
      private _extensionErrorListener?;
      private _extensionErrorUnsubscriber?;
      private _modelRuntime;
@@ -54,7 +94,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      private _cacheWarmer?;
      private _toolRegistry;
      /** Created on the first `ctx.executeTool()` call. */
-@@ -307,6 +324,9 @@ export declare class AgentSession {
+@@ -307,6 +348,9 @@ export declare class AgentSession {
      get modelRuntime(): ModelRuntime;
      private _getRequiredRequestAuth;
      private _getSummarizationRequestAuth;
@@ -64,7 +104,28 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      /**
       * The model whose limits apply to `message`, or undefined when the message came from another
       * model. Under a virtual selection, that is the physical model that produced it.
-@@ -537,6 +557,7 @@ export declare class AgentSession {
+@@ -395,6 +439,20 @@ export declare class AgentSession {
+     get state(): AgentState;
+     /** Current cache-warming state and the policy inputs that produced it. */
+     get cacheWarmingStatus(): CacheWarmingStatus | undefined;
++    /**
++     * OpenWaggle patch: what idle compaction needs to know about the latest session request, or
++     * undefined when there is none or the conversation moved on since.
++     */
++    get idleCompactionCandidate(): IdleCompactionCandidate | undefined;
++    /**
++     * OpenWaggle patch: compute the Portable handoff from the latest request's warm prompt cache,
++     * to install before the next turn with `setPendingCompaction`.
++     */
++    precomputeIdleCompaction(options?: {
++        signal?: AbortSignal;
++    }): Promise<PrecomputedCompaction | undefined>;
++    /** OpenWaggle patch: install a precomputed compaction before the next turn, if still valid. */
++    setPendingCompaction(compaction: PrecomputedCompaction | undefined): void;
+     /** Persist the cache-warming mode and immediately reconcile active warming. */
+     setCacheWarmingMode(mode: CacheWarmingMode): void;
+     /** Current model (may be undefined if not yet selected) */
+@@ -537,6 +595,7 @@ export declare class AgentSession {
       * system patch first when the prompt changed.
       */
      private _prepareRun;
@@ -72,7 +133,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      private _handlePostAgentRun;
      private _runBeforeSettleBoundary;
      private _runInputHandlers;
-@@ -550,7 +571,8 @@ export declare class AgentSession {
+@@ -550,7 +609,8 @@ export declare class AgentSession {
       * @throws Error if streaming and no streamingBehavior specified
       * @throws Error if no model selected or no API key available (when not streaming)
       */
@@ -82,7 +143,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
      /**
       * Try to execute an extension command. Returns true if command was found and executed.
       */
-@@ -574,6 +596,11 @@ export declare class AgentSession {
+@@ -574,6 +634,11 @@ export declare class AgentSession {
      steer(text: string, images?: ImageContent[], options?: {
          source?: InputSource;
      }): Promise<QueuedInputDisposition>;
@@ -95,7 +156,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..c25193e4e0bee4603a4538ae75f74d36
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668c316da35 100644
+index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5f74d2850 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -15,7 +15,7 @@
@@ -107,16 +168,18 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
  import { clampThinkingLevel, cleanupSessionResources, getSupportedThinkingLevels, isContextOverflow, isRecoverableLength, isRetryableAssistantError, modelsAreEqual, resetApiProviders, streamSimple, } from "@earendil-works/pi-ai/compat";
  import { getThemeByName, theme } from "../modes/interactive/theme/theme.js";
  import { stripFrontmatter } from "../utils/frontmatter.js";
-@@ -25,7 +25,7 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
+@@ -25,7 +25,9 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
  import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
  import { executeBashWithOperations } from "./bash-executor.js";
  import { generateBugReportSummary } from "./bug-report.js";
 -import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
++import { isReplayable } from "./cache-warmer.js";
++import { computeFileLists, formatFileOperations } from "./compaction/utils.js";
 +import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact } from "./compaction/index.js";
  import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.js";
  import { exportSessionToHtml } from "./export-html/index.js";
  import { createToolHtmlRenderer } from "./export-html/tool-renderer.js";
-@@ -37,7 +37,7 @@ import { ModelRegistry } from "./model-registry.js";
+@@ -37,7 +39,7 @@ import { ModelRegistry } from "./model-registry.js";
  import { NestedToolCallRunner } from "./nested-tool-calls.js";
  import { expandPromptTemplate } from "./prompt-templates.js";
  import { exportSessionToJsonl } from "./session-export.js";
@@ -125,7 +188,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
  import { applyToolModifiers, DEFAULT_TOOL_NAMES, } from "./settings-manager.js";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath } from "./source-info.js";
  import { buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
-@@ -64,6 +64,14 @@ export function parseSkillBlock(text) {
+@@ -64,6 +66,14 @@ export function parseSkillBlock(text) {
  // ============================================================================
  // Types
  // ============================================================================
@@ -140,7 +203,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
  function withoutDeletedHeaders(headers) {
      return headers
          ? Object.fromEntries(Object.entries(headers).filter((entry) => entry[1] !== null))
-@@ -76,6 +84,53 @@ function estimateMessagesTokens(messages) {
+@@ -76,9 +86,77 @@ function estimateMessagesTokens(messages) {
      }
      return tokens;
  }
@@ -194,7 +257,31 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
  // ============================================================================
  // AgentSession Class
  // ============================================================================
-@@ -88,6 +143,7 @@ export class AgentSession {
++/** OpenWaggle patch: the idle compaction request's output cap (the summary, plus any thinking). */
++const IDLE_COMPACTION_MAX_TOKENS = 32_000;
++/** OpenWaggle patch: the instruction appended to the conversation for an idle compaction. */
++const IDLE_COMPACTION_PROMPT = `The user is away. Before they return, perform a CONTEXT CHECKPOINT COMPACTION of this whole conversation: write a handoff summary for another LLM that will resume the task with only your summary and the most recent messages.
++
++Include:
++- Current progress and key decisions made
++- Important context, constraints, or user preferences
++- What remains to be done (clear next steps)
++- Any critical data, examples, or references needed to continue
++
++Do not call any tools and do not continue the task. Reply with the summary only.`;
++/** OpenWaggle patch: the id of the last branch entry the model sees (a message, summary or compaction). */
++function findContextAnchorEntryId(branch) {
++    for (let index = branch.length - 1; index >= 0; index--) {
++        const entry = branch[index];
++        if (entry.type === "message" || entry.type === "custom_message" || entry.type === "compaction" || entry.type === "branch_summary" || entry.type === "context_edit")
++            return entry.id;
++    }
++    return undefined;
++}
+ export class AgentSession {
+     agent;
+     sessionManager;
+@@ -88,6 +166,7 @@ export class AgentSession {
      _unsubscribeAgent;
      _eventListeners = [];
      _isAgentRunActive = false;
@@ -202,7 +289,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      _agentRunAbortRequested = false;
      _idleWaitPromise;
      _resolveIdleWait;
-@@ -125,6 +181,8 @@ export class AgentSession {
+@@ -125,6 +204,8 @@ export class AgentSession {
      _lastActivityOutcome = "completed";
      _isBeforeSettle = false;
      _abortDuringBeforeSettle = false;
@@ -211,7 +298,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      _isEmittingAgentSettled = false;
      _deferredSettledActions = [];
      _resourceLoader;
-@@ -159,6 +217,8 @@ export class AgentSession {
+@@ -159,6 +240,8 @@ export class AgentSession {
      _extensionErrorListener;
      _extensionErrorUnsubscriber;
      _modelRuntime;
@@ -220,7 +307,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      _cacheWarmer;
      // Tool registry for extension getTools/setTools
      _toolRegistry = new Map();
-@@ -181,6 +241,8 @@ export class AgentSession {
+@@ -181,6 +264,8 @@ export class AgentSession {
          this._customTools = config.customTools ?? [];
          this._cwd = config.cwd;
          this._modelRuntime = config.modelRuntime;
@@ -229,7 +316,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          this._cacheWarmer = config.cacheWarmer;
          if (this._cacheWarmer) {
              this._cacheWarmer.onWarmed = (entry) => this._emit({ type: "entry_appended", entry });
-@@ -229,11 +291,13 @@ export class AgentSession {
+@@ -229,11 +314,13 @@ export class AgentSession {
              throw error;
          }
          if (result && (result.auth.apiKey || result.auth.headers)) {
@@ -245,7 +332,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  env: result.env,
              };
          }
-@@ -258,15 +322,13 @@ export class AgentSession {
+@@ -258,15 +345,13 @@ export class AgentSession {
              return { ...(await this._getRequiredRequestAuth(model, signal)), thinkingLevel };
          }
          try {
@@ -267,7 +354,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  thinkingLevel,
              };
          }
-@@ -276,6 +338,98 @@ export class AgentSession {
+@@ -276,6 +361,98 @@ export class AgentSession {
              return { model, thinkingLevel };
          }
      }
@@ -366,7 +453,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      /**
       * The model whose limits apply to `message`, or undefined when the message came from another
       * model. Under a virtual selection, that is the physical model that produced it.
-@@ -420,26 +574,28 @@ export class AgentSession {
+@@ -420,26 +597,28 @@ export class AgentSession {
              return false;
          return shouldCompact(estimateProjectedContextTokens(projection, this.sessionManager.getBranch()).tokens, model.contextWindow, this.settingsManager.getCompactionSettings(this.model));
      }
@@ -402,7 +489,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                      // Messages declare the provider-visible loadout; context.tools keeps executable implementations.
                      tools: this.agent.state.tools.slice(),
                  };
-@@ -479,7 +635,7 @@ export class AgentSession {
+@@ -479,7 +658,7 @@ export class AgentSession {
              // the projection.
              if (this._exceedsCompactionThreshold(route.model, projection)) {
                  await this._runAutoCompaction("threshold", false);
@@ -411,7 +498,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              }
              return { ...previous, context, model: route.model, thinkingLevel: route.thinkingLevel };
          };
-@@ -532,12 +688,18 @@ export class AgentSession {
+@@ -532,12 +711,18 @@ export class AgentSession {
          };
      }
      _installAgentNextTurnRefresh() {
@@ -431,7 +518,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              const runOptions = this._runSystemPromptOptions ?? this._baseSystemPromptOptions;
-@@ -563,12 +725,18 @@ export class AgentSession {
+@@ -563,12 +748,18 @@ export class AgentSession {
                  thinkingLevel: this.agent.state.thinkingLevel,
              };
          };
@@ -452,7 +539,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          for (const entry of projection.entries) {
              for (const message of entry.messages)
                  this._entryIdsByMessage.set(message, entry.sourceEntry.id);
-@@ -590,7 +758,7 @@ export class AgentSession {
+@@ -590,7 +781,7 @@ export class AgentSession {
                      entryId = manager.appendContextEdit(draft.targetId, draft.replacement);
                      break;
                  case "compaction": {
@@ -461,7 +548,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                      entryId = manager.appendCompaction(draft.summary, draft.firstKeptEntryId, tokensBefore, draft.details, true, draft.usage);
                      break;
                  }
-@@ -613,7 +781,7 @@ export class AgentSession {
+@@ -613,7 +804,7 @@ export class AgentSession {
          return [...this.agent.peekQueuedMessages(), ...this._pendingCustomMessages];
      }
      _buildBoundaryContext(drafts, boundary) {
@@ -470,7 +557,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const pendingMessages = this._getPendingBoundaryMessages();
          const llmMessages = convertToLlm(projection.messages);
          const finalRole = llmMessages[llmMessages.length - 1]?.role;
-@@ -822,7 +990,7 @@ export class AgentSession {
+@@ -822,7 +1013,7 @@ export class AgentSession {
          const messageIndex = this.agent.state.messages.indexOf(message);
          if (messageIndex < 0)
              return undefined;
@@ -479,7 +566,133 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          let projectedIndex = 0;
          for (const entry of projection.entries) {
              for (let i = 0; i < entry.messages.length; i++) {
-@@ -1424,15 +1592,29 @@ export class AgentSession {
+@@ -1043,6 +1234,125 @@ export class AgentSession {
+     get cacheWarmingStatus() {
+         return this._cacheWarmer?.status;
+     }
++    /**
++     * OpenWaggle patch: what idle compaction needs to know about the latest session request, or
++     * undefined when there is none or the conversation moved on since.
++     */
++    get idleCompactionCandidate() {
++        const request = this._cacheWarmer?.lastRequest;
++        if (!request || !request.isCurrent() || request.ttlMs === undefined)
++            return undefined;
++        const lastAssistant = this._findLastAssistantMessage();
++        const usage = lastAssistant?.usage;
++        const promptTokens = usage ? usage.input + usage.cacheRead + usage.cacheWrite : 0;
++        return { sentAt: request.sentAt, ttlMs: request.ttlMs, promptTokens, model: { provider: request.model.provider, id: request.model.id } };
++    }
++    /**
++     * OpenWaggle patch: idle compaction. While the latest request's prompt cache entry is still
++     * warm, ask the model for the Portable handoff with that exact request (tools, system prompt,
++     * messages, thinking settings and cache points) followed by the answer it produced and the
++     * summary instruction, so the long prefix is a cache read instead of the uncached serialized
++     * transcript a normal compaction sends. Returns the compaction to install before the next
++     * turn, or undefined when it cannot be computed safely. Records the request's usage.
++     */
++    async precomputeIdleCompaction(options = {}) {
++        const request = this._cacheWarmer?.lastRequest;
++        if (!request || !request.isCurrent() || this.isStreaming || this.isCompacting)
++            return undefined;
++        const model = request.model;
++        if (!isReplayable(model, request.options) || selectCompactionMechanism(model) === "native")
++            return undefined;
++        const settings = this.settingsManager.getCompactionSettings(model);
++        if (!settings.enabled)
++            return undefined;
++        const branch = this.sessionManager.getBranch();
++        const preparation = prepareCompaction(branch, settings, model, {});
++        if (!preparation?.firstKeptEntryId)
++            return undefined;
++        // Only the answers to that request may follow it; anything else changes the prefix.
++        const later = this.agent.state.messages.slice(request.agentMessageCount ?? this.agent.state.messages.length);
++        if (request.agentMessageCount === undefined || later.some((message) => message.role !== "assistant"))
++            return undefined;
++        const anchorEntryId = findContextAnchorEntryId(branch);
++        if (!anchorEntryId)
++            return undefined;
++        const context = {
++            ...request.context,
++            messages: [
++                ...request.context.messages,
++                ...convertToLlm(later),
++                { role: "user", content: [{ type: "text", text: IDLE_COMPACTION_PROMPT }], timestamp: Date.now() },
++            ],
++        };
++        const response = await this._modelRuntime
++            .streamSimple(model, context, {
++            ...request.options,
++            maxTokens: Math.min(model.maxTokens || IDLE_COMPACTION_MAX_TOKENS, IDLE_COMPACTION_MAX_TOKENS),
++            maxRetries: 0,
++            signal: options.signal,
++        })
++            .result();
++        if (options.signal?.aborted || response.stopReason !== "stop" || response.content.some((block) => block.type === "toolCall"))
++            return undefined;
++        const text = contentText(response.content).trim();
++        if (text.length === 0)
++            return undefined;
++        try {
++            this.sessionManager.appendUsage("idle_compaction", response.provider, response.responseModel ?? response.model, response.usage);
++        }
++        catch {
++            // The file changed elsewhere; the anchor check refuses the result later.
++        }
++        const { readFiles, modifiedFiles } = computeFileLists(preparation.fileOps);
++        return {
++            summary: text + formatFileOperations(readFiles, modifiedFiles),
++            firstKeptEntryId: preparation.firstKeptEntryId,
++            tokensBefore: preparation.tokensBefore,
++            anchorEntryId,
++            model: { provider: model.provider, id: model.id },
++            usage: response.usage,
++            details: { schemaVersion: 1, mechanism: "portable", contract: "codex-handoff-v1", readFiles, modifiedFiles, precomputed: "idle" },
++        };
++    }
++    /**
++     * OpenWaggle patch: install `compaction`, computed by `precomputeIdleCompaction`, before the
++     * next turn instead of checking the threshold. Dropped unless the branch still ends where it
++     * was computed and the same model continues.
++     */
++    setPendingCompaction(compaction) {
++        this._pendingCompaction = compaction;
++    }
++    async _applyPendingCompaction() {
++        const pending = this._pendingCompaction;
++        this._pendingCompaction = undefined;
++        const model = this.model;
++        if (!pending || !model || model.provider !== pending.model.provider || model.id !== pending.model.id)
++            return false;
++        if (!this.settingsManager.getCompactionSettings(model).enabled)
++            return false;
++        const branch = this.sessionManager.getBranch();
++        if (findContextAnchorEntryId(branch) !== pending.anchorEntryId)
++            return false;
++        if (!branch.some((entry) => entry.id === pending.firstKeptEntryId))
++            return false;
++        this._emit({ type: "compaction_start", reason: "threshold" });
++        // The precompute already recorded its usage.
++        const entryId = this.sessionManager.appendCompaction(pending.summary, pending.firstKeptEntryId, pending.tokensBefore, pending.details, false, undefined, "threshold");
++        this._refreshFinalizedContext(model);
++        const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection(model).messages);
++        const entry = this.sessionManager.getEntry(entryId);
++        if (entry) {
++            await this._extensionRunner.emit({ type: "session_compact", compactionEntry: entry, fromExtension: false, reason: "threshold", willRetry: false });
++        }
++        this._emit({
++            type: "compaction_end",
++            reason: "threshold",
++            result: { entryId, summary: pending.summary, firstKeptEntryId: pending.firstKeptEntryId, tokensBefore: pending.tokensBefore, estimatedTokensAfter, usage: undefined, details: pending.details },
++            aborted: false,
++            willRetry: false,
++        });
++        return true;
++    }
+     /** Persist the cache-warming mode and immediately reconcile active warming. */
+     setCacheWarmingMode(mode) {
+         this.settingsManager.setCacheWarmingMode(mode);
+@@ -1424,15 +1734,29 @@ export class AgentSession {
          this._isAgentRunActive = true;
          this._agentRunAbortRequested = false;
          let messages;
@@ -514,7 +727,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          }
          // Messages held while the run was starting go before its starting messages, as they would
          // have while idle. No run exists yet, so they cannot split a tool call from its result.
-@@ -1445,7 +1627,19 @@ export class AgentSession {
+@@ -1445,7 +1769,19 @@ export class AgentSession {
          // The run records the loadout in the transcript; restored tools that did not register by now
          // are dropped, so a tool that never registers does not stay pending.
          this._pendingToolNames.clear();
@@ -534,7 +747,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              await this.agent.prompt(messages);
              while (!this._agentRunAbortRequested) {
                  if (await this._handlePostAgentRun()) {
-@@ -1462,6 +1656,8 @@ export class AgentSession {
+@@ -1462,6 +1798,8 @@ export class AgentSession {
              }
          }
          finally {
@@ -543,7 +756,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (this._agentRunAbortRequested)
                  this._finishCancelledRetry();
              this._failedResponse = undefined;
-@@ -1472,18 +1668,12 @@ export class AgentSession {
+@@ -1472,18 +1810,12 @@ export class AgentSession {
          }
      }
      /**
@@ -564,7 +777,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
          const result = await this._extensionRunner.emitBeforeAgentStart(trigger, this._baseSystemPromptOptions);
          // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
-@@ -1493,6 +1683,19 @@ export class AgentSession {
+@@ -1493,6 +1825,19 @@ export class AgentSession {
              result.systemPromptOptions.selectedTools.some((name, index) => name !== selectedToolsBefore[index]);
          if (!handlerEditedTools)
              result.systemPromptOptions.selectedTools = this.getActiveToolNames();
@@ -584,7 +797,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const messages = [];
          if (trigger.messageType === "custom") {
              messages.push(trigger.message);
-@@ -1526,8 +1729,20 @@ export class AgentSession {
+@@ -1526,8 +1871,23 @@ export class AgentSession {
          this._runSystemPromptOptions = result.systemPromptOptions;
          if (updateMessage)
              messages.unshift(updateMessage);
@@ -597,6 +810,9 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
 +        await this._refreshRequestModelContext((prepared) => {
 +            preparedCompactionAuth = prepared;
 +        });
++        // OpenWaggle patch: a compaction computed while the Session was idle replaces the threshold check.
++        if (await this._applyPendingCompaction())
++            return;
 +        const lastAssistant = this._findLastAssistantMessage();
 +        if (lastAssistant) {
 +            await this._checkCompaction(lastAssistant, false, true, preparedCompactionAuth);
@@ -605,7 +821,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      async _handlePostAgentRun() {
          const message = this._lastAssistantMessage;
          this._lastAssistantMessage = undefined;
-@@ -1556,7 +1771,8 @@ export class AgentSession {
+@@ -1556,7 +1916,8 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
@@ -615,7 +831,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              return !this._agentRunAbortRequested;
          }
          // The low-level loop drains both queues before agent_end. Messages queued by
-@@ -1568,6 +1784,7 @@ export class AgentSession {
+@@ -1568,6 +1929,7 @@ export class AgentSession {
              return this.agent.hasQueuedMessages();
          this._isBeforeSettle = true;
          this._abortDuringBeforeSettle = false;
@@ -623,7 +839,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          try {
              const result = await this._extensionRunner.emitBoundary({ type: "agent_before_settle", outcome: this._lastActivityOutcome }, (entries) => this._buildBoundaryContext(entries, "agent_before_settle"));
              this._commitBoundaryDrafts(result.entries);
-@@ -1585,6 +1802,7 @@ export class AgentSession {
+@@ -1585,6 +1947,7 @@ export class AgentSession {
          }
          finally {
              this._isBeforeSettle = false;
@@ -631,7 +847,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          }
      }
      async _runInputHandlers(text, images, source, streamingBehavior) {
-@@ -1635,10 +1853,17 @@ export class AgentSession {
+@@ -1635,10 +1998,17 @@ export class AgentSession {
          }
          const expandPromptTemplates = options?.expandPromptTemplates ?? true;
          const preflightResult = options?.preflightResult;
@@ -653,7 +869,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (handled) {
                  // Extension command executed, no prompt to send
                  preflightResult?.("handled");
-@@ -1648,19 +1873,15 @@ export class AgentSession {
+@@ -1648,19 +2018,15 @@ export class AgentSession {
          if (this._compactionAbortController !== undefined) {
              throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
          }
@@ -676,7 +892,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          // If streaming, queue via steer() or followUp() based on option
          if (this.isStreaming) {
              if (!options?.streamingBehavior) {
-@@ -1673,7 +1894,12 @@ export class AgentSession {
+@@ -1673,7 +2039,12 @@ export class AgentSession {
                  await this._queueSteer(expandedText, currentImages);
              }
              preflightResult?.("queued");
@@ -690,7 +906,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          }
          // Validate model
          if (!this.model) {
-@@ -1749,22 +1975,24 @@ export class AgentSession {
+@@ -1749,22 +2120,24 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -718,7 +934,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      /**
       * Queue a steering message while the agent is running.
-@@ -1776,7 +2004,13 @@ export class AgentSession {
+@@ -1776,7 +2149,13 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -733,7 +949,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1787,7 +2021,7 @@ export class AgentSession {
+@@ -1787,7 +2166,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -742,7 +958,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      /**
       * Internal: Queue a steering message (already expanded, no extension command check).
-@@ -1975,8 +2209,10 @@ export class AgentSession {
+@@ -1975,8 +2354,10 @@ export class AgentSession {
          this.abortRetry();
          this.abortCompaction();
          this.abortBranchSummary();
@@ -754,7 +970,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          this.agent.abort();
          await this.waitForIdle();
      }
-@@ -2005,14 +2241,29 @@ export class AgentSession {
+@@ -2005,14 +2386,29 @@ export class AgentSession {
       * Persists to global defaults only when options.persist is true.
       * @throws Error if no auth is configured for the model
       */
@@ -786,7 +1002,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -2021,7 +2272,7 @@ export class AgentSession {
+@@ -2021,7 +2417,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -795,7 +1011,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -2061,10 +2312,13 @@ export class AgentSession {
+@@ -2061,10 +2457,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -810,7 +1026,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -2075,8 +2329,8 @@ export class AgentSession {
+@@ -2075,8 +2474,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -821,7 +1037,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -2089,9 +2343,12 @@ export class AgentSession {
+@@ -2089,9 +2488,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -835,7 +1051,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -2099,8 +2356,8 @@ export class AgentSession {
+@@ -2099,8 +2501,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -846,7 +1062,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      // =========================================================================
      // Thinking Level Management
-@@ -2203,10 +2460,42 @@ export class AgentSession {
+@@ -2203,10 +2605,42 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -893,7 +1109,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      _clearManualCompactionState() {
          this._compactionAbortController = undefined;
-@@ -2238,9 +2527,26 @@ export class AgentSession {
+@@ -2238,9 +2672,26 @@ export class AgentSession {
              if (!model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -922,7 +1138,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -2284,7 +2590,7 @@ export class AgentSession {
+@@ -2284,7 +2735,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by automatic compaction.
@@ -931,7 +1147,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
-@@ -2294,12 +2600,11 @@ export class AgentSession {
+@@ -2294,12 +2745,11 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -948,7 +1164,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2310,6 +2615,7 @@ export class AgentSession {
+@@ -2310,6 +2760,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -956,7 +1172,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2388,7 +2694,7 @@ export class AgentSession {
+@@ -2388,7 +2839,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -965,7 +1181,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const settings = this.settingsManager.getCompactionSettings(this.model);
          if (!settings.enabled)
              return false;
-@@ -2414,7 +2720,7 @@ export class AgentSession {
+@@ -2414,7 +2865,7 @@ export class AgentSession {
          // Automatic cases 1 and 2: context overflow.
          // A length stop is recoverable when output ended below the model's original desired limit,
          // independent of the configured context size or any context-clamped provider request limit.
@@ -974,7 +1190,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const assistantEntryId = this._findPersistedMessageEntryId(assistantMessage);
          const assistantIsProjected = assistantEntryId === undefined ||
              currentProjection.entries.some((entry) => entry.sourceEntry.id === assistantEntryId &&
-@@ -2440,7 +2746,10 @@ export class AgentSession {
+@@ -2440,7 +2891,10 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -986,7 +1202,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              }
              if (this._overflowRecoveryAttempted) {
                  const errorMessage = contextOverflow
-@@ -2465,8 +2774,9 @@ export class AgentSession {
+@@ -2465,8 +2919,9 @@ export class AgentSession {
              }
              // Persistently omit the selected final attempt before post-run recovery compaction.
              this._overflowRecoveryAttempted = true;
@@ -997,7 +1213,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (retry)
                  this._failedResponse = assistantMessage;
              return retry;
-@@ -2503,8 +2813,8 @@ export class AgentSession {
+@@ -2503,8 +2958,8 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -1008,7 +1224,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          }
          return false;
      }
-@@ -2518,27 +2828,42 @@ export class AgentSession {
+@@ -2518,27 +2973,42 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
@@ -1059,7 +1275,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              let extensionCompaction;
              if (this._extensionRunner.hasHandlers("session_before_compact")) {
                  const extensionResult = (await this._extensionRunner.emit({
-@@ -2575,7 +2900,7 @@ export class AgentSession {
+@@ -2575,7 +3045,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by manual compaction.
@@ -1068,7 +1284,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -2583,12 +2908,12 @@ export class AgentSession {
+@@ -2583,12 +3053,12 @@ export class AgentSession {
                  details = compactResult.details;
              }
              abortController.signal.throwIfAborted();
@@ -1086,7 +1302,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2599,6 +2924,7 @@ export class AgentSession {
+@@ -2599,6 +3069,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -1094,7 +1310,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2641,10 +2967,16 @@ export class AgentSession {
+@@ -2641,10 +3112,16 @@ export class AgentSession {
              return false;
          }
          finally {
@@ -1114,7 +1330,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          }
      }
      /**
-@@ -2737,7 +3069,7 @@ export class AgentSession {
+@@ -2737,7 +3214,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -1123,7 +1339,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2815,7 +3147,9 @@ export class AgentSession {
+@@ -2815,7 +3292,9 @@ export class AgentSession {
              getScopedModels: () => this._scopedModels,
              isIdle: () => this.isIdle,
              isProjectTrusted: () => this.settingsManager.isProjectTrusted(),
@@ -1134,7 +1350,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
              abort: () => {
                  if (this._extensionAbortHandler) {
                      this._extensionAbortHandler();
-@@ -3332,7 +3666,7 @@ export class AgentSession {
+@@ -3332,7 +3811,7 @@ export class AgentSession {
                  const signal = this._branchSummaryAbortController.signal;
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
@@ -1143,7 +1359,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
                      signal,
                      customInstructions,
                      replaceInstructions,
-@@ -3507,7 +3841,7 @@ export class AgentSession {
+@@ -3507,7 +3986,7 @@ export class AgentSession {
          // After compaction, the last assistant usage reflects pre-compaction context size.
          // We can only trust usage from an assistant that responded after the latest compaction.
          // If no such assistant exists, context token count is unknown until the next LLM response.
@@ -1152,6 +1368,99 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..bdc25677fd1dee072a593609887d8668
          const branch = this.sessionManager.getBranch();
          const latestCompaction = getLatestCompactionEntry(branch);
          if (latestCompaction) {
+diff --git a/dist/core/cache-warmer.d.ts b/dist/core/cache-warmer.d.ts
+index 444f9743f456e691dce238636816031307738bf2..a3b04dae1ef4525807a9c3484a9279be61166734 100644
+--- a/dist/core/cache-warmer.d.ts
++++ b/dist/core/cache-warmer.d.ts
+@@ -63,6 +63,8 @@ export interface CacheWarmRequest {
+     model: Model<Api>;
+     context: Context;
+     options: ModelsSimpleStreamOptions;
++    /** OpenWaggle patch: how many agent messages the request was built from. */
++    agentMessageCount?: number;
+ }
+ /**
+  * Keeps one prompt cache entry alive by re-sending its request with a
+@@ -79,6 +81,12 @@ export declare class CacheWarmer {
+     private readonly decide;
+     /** Called with the persisted usage entry after each successful refresh. */
+     onWarmed?: (entry: UsageEntry) => void;
++    /** OpenWaggle patch: the latest session request, as sent, with its send time and cache lifetime. */
++    lastRequest?: CacheWarmRequest & {
++        isCurrent: () => boolean;
++        sentAt: number;
++        ttlMs: number | undefined;
++    };
+     constructor(models: Pick<ModelRuntime, "streamSimple">, sessionManager: Pick<SessionManager, "appendUsage" | "getBranch">, getMode: () => CacheWarmingMode, decide?: (event: CacheWarmingDecisionEvent) => Promise<CacheWarmingAction>);
+     get status(): CacheWarmingStatus;
+     /** Keep the prompt cache entry written by `request` warm while `isCurrent` holds. */
+diff --git a/dist/core/cache-warmer.js b/dist/core/cache-warmer.js
+index 6613a864325dae98f212b8b24b23c0a3fa600d3f..cb60aa3f4b40190e04b01a6532ec6be26dab3eab 100644
+--- a/dist/core/cache-warmer.js
++++ b/dist/core/cache-warmer.js
+@@ -1,4 +1,4 @@
+-import { calculateCost, } from "@earendil-works/pi-ai";
++import { bedrockClaudePromptCache, calculateCost, claudeUsesAdaptiveThinking, isClaudeModelRef, } from "@earendil-works/pi-ai";
+ import { getProviderEnvValue } from "@earendil-works/pi-ai/utils/provider-env";
+ /** Streaming warming never continues past this long after the real request that started it. */
+ const MAX_WARMING_AGE_MS = 60 * 60_000;
+@@ -28,20 +28,29 @@ export function getPromptCacheTtlMs(model, options) {
+         (getProviderEnvValue("PI_CACHE_RETENTION", options?.env) === "long" ? "long" : "short");
+     if (retention === "none")
+         return undefined;
+-    const seconds = model.promptCache?.[retention];
++    // Bedrock models from a remote catalog or models.json carry no lifetimes; derive the ones the
++    // Bedrock transport writes cache points for.
++    const promptCache = model.promptCache ??
++        (model.api === "bedrock-converse-stream" ? bedrockClaudePromptCache(model.id, model.name) : undefined);
++    const seconds = promptCache?.[retention];
+     return seconds === undefined ? undefined : seconds * 1000;
+ }
+ /**
+  * Whether replaying the request with a one-token output cap leaves its cache
+  * entry untouched. Anthropic's budget-based thinking (Claude models without
+- * adaptive thinking) derives `budget_tokens` from `max_tokens`; the replay
++ * adaptive thinking, on the Anthropic API or Bedrock) derives `budget_tokens` from `max_tokens`; the replay
+  * would get a different budget, which Anthropic keys the message cache on,
+  * and the model could still think for thousands of tokens.
+  */
+ export function isReplayable(model, options) {
+-    if (!options?.reasoning || model.api !== "anthropic-messages")
++    if (!options?.reasoning)
+         return true;
+-    return model.compat?.forceAdaptiveThinking === true;
++    if (model.api === "anthropic-messages")
++        return model.compat?.forceAdaptiveThinking === true;
++    // Bedrock derives budget-based Claude thinking from maxTokens the same way.
++    if (model.api === "bedrock-converse-stream" && isClaudeModelRef(model.id, model.name))
++        return claudeUsesAdaptiveThinking(model.id, model.name);
++    return true;
+ }
+ /** Prompt size of the most recent real request on the branch, as reported by the provider. */
+ function lastPromptTokens(entries) {
+@@ -81,6 +90,8 @@ export class CacheWarmer {
+     decide;
+     /** Called with the persisted usage entry after each successful refresh. */
+     onWarmed;
++    /** OpenWaggle patch: the latest session request, as sent, with its send time and cache lifetime. */
++    lastRequest;
+     constructor(models, sessionManager, getMode, decide = async (event) => event.action) {
+         this.models = models;
+         this.sessionManager = sessionManager;
+@@ -111,6 +122,13 @@ export class CacheWarmer {
+     /** Keep the prompt cache entry written by `request` warm while `isCurrent` holds. */
+     start(request, isCurrent) {
+         this.clearRun();
++        // OpenWaggle patch: idle compaction replays this request's prefix, warming or not.
++        this.lastRequest = {
++            ...request,
++            isCurrent,
++            sentAt: Date.now(),
++            ttlMs: getPromptCacheTtlMs(request.model, request.options),
++        };
+         const mode = this.getMode();
+         if (mode === "off") {
+             this.stop("cache warming disabled");
 diff --git a/dist/core/client-identity.d.ts b/dist/core/client-identity.d.ts
 index 7fcd8111839dfe1dcae88e10449bb5e6b703303e..987684cef4f02a23a7a29ab5b8ec3b3f9159bf35 100644
 --- a/dist/core/client-identity.d.ts
@@ -1203,7 +1512,7 @@ index bb263af7e5acf406be56edbdd1aafb32828af835..09a7d3a9675e05ad08fdafa936d11383
  //# sourceMappingURL=client-identity.js.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23d6cbf55e 100644
+index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..493c5f50011fbbf3e18e4d637f6fd227926c45a1 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -6,7 +6,7 @@
@@ -1224,7 +1533,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      summary: string;
      firstKeptEntryId: string;
      tokensBefore: number;
-@@ -25,10 +27,12 @@ export interface CompactionResult<T = unknown> {
+@@ -25,10 +27,14 @@ export interface CompactionResult<T = unknown> {
      /** Extension-specific data (e.g., ArtifactIndex, version markers for structured compaction) */
      details?: T;
  }
@@ -1234,18 +1543,23 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      reserveTokens: number;
      keepRecentTokens: number;
 +    thresholdPercent: number;
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    maxThresholdTokens?: number;
  }
  export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
  /**
-@@ -57,6 +61,7 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
+@@ -56,7 +62,10 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
+ /**
   * Check if compaction should trigger based on context usage.
   */
++/** Context tokens at which compaction runs: the percentage, capped by the reserve boundary and `maxThresholdTokens`. */
++export declare function getCompactionThresholdTokens(contextWindow: number, settings: CompactionSettings): number;
  export declare function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean;
 +export declare function selectCompactionMechanism(model: Model<any>): "native" | "portable";
  /**
   * Estimate token count for a message using chars/4 heuristic.
   * This is conservative (overestimates tokens).
-@@ -120,6 +125,8 @@ export interface CompactionPreparation {
+@@ -120,6 +129,8 @@ export interface CompactionPreparation {
      firstKeptEntryId: string;
      /** Messages that will be summarized and discarded */
      messagesToSummarize: AgentMessage[];
@@ -1254,7 +1568,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -131,8 +138,16 @@ export interface CompactionPreparation {
+@@ -131,8 +142,16 @@ export interface CompactionPreparation {
      fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
@@ -1272,7 +1586,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -141,5 +156,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -141,5 +160,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1281,7 +1595,7 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..7f00d067a838a8f5afd888ee569fff23
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae5ede1fa6 100644
+index 9b1a409d96b39413d8598c79f14fee72f4cd533c..55927a0819d56d4fd0f5a076323ade744ac25571 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -1306,14 +1620,28 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  };
  // ============================================================================
  // Token calculation
-@@ -173,7 +175,53 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
+@@ -167,13 +169,67 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
+     }
+     return { tokens, usageTokens: 0, trailingTokens: tokens, lastUsageIndex: null };
+ }
++/**
++ * Context tokens at which compaction runs: the configured percentage of the window, capped by the
++ * reserve-token safety boundary and, when set, by the absolute `maxThresholdTokens` ceiling.
++ */
++export function getCompactionThresholdTokens(contextWindow, settings) {
++    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
++    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
++    const ceiling = settings.maxThresholdTokens ?? Number.POSITIVE_INFINITY;
++    return Math.min(configuredThreshold, reserveThreshold, ceiling);
++}
+ /**
+  * Check if compaction should trigger based on context usage.
+  */
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
 -    return contextTokens > contextWindow - settings.reserveTokens;
-+    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
-+    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
-+    return contextTokens >= Math.min(configuredThreshold, reserveThreshold);
++    return contextTokens >= getCompactionThresholdTokens(contextWindow, settings);
 +}
 +export function selectCompactionMechanism(model) {
 +    const responsesApi = model.api === "openai-responses" ||
@@ -1361,7 +1689,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  }
  // ============================================================================
  // Cut point detection
-@@ -376,76 +424,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -376,76 +432,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -1452,7 +1780,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -509,25 +502,23 @@ function buildSummarizationContext(promptText) {
+@@ -509,25 +510,23 @@ function buildSummarizationContext(promptText) {
          ],
      });
  }
@@ -1487,7 +1815,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      const completionOptions = createSummarizationOptions(model, apiKey, headers, env, signal, thinkingLevel, sessionId);
      const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
      const failure = getSummarizationFailure(response, "Summarization");
-@@ -559,9 +550,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -559,9 +558,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
          if (entry.sourceEntry.type !== "compaction" && entry.messages.some(isCutPointMessage))
              cutPoints.push(i);
      }
@@ -1498,7 +1826,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      let accumulatedTokens = 0;
      let exceededBudget = false;
      let cutIndex = cutPoints[0];
-@@ -576,9 +566,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -576,9 +574,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
              break;
          }
      }
@@ -1508,7 +1836,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      const suffix = entries.slice(cutIndex + 1, endIndex);
      const isIntrinsicallyVisible = (entry) => entry.sourceEntry.type !== "context_edit" && sessionEntryToContextMessages(entry.sourceEntry).length > 0;
      const isOmitted = (entry) => isIntrinsicallyVisible(entry) && entry.messages.length === 0;
-@@ -600,58 +587,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+@@ -600,58 +595,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
      }
      const startsTurn = isProjectedTurnStart(entries[cutIndex]);
      const turnStartIndex = startsTurn ? -1 : findProjectedTurnStartIndex(entries, cutIndex, startIndex);
@@ -1600,7 +1928,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -660,6 +651,26 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -660,6 +659,26 @@ export function prepareCompaction(pathEntries, settings) {
          settings,
      };
  }
@@ -1627,7 +1955,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -676,7 +687,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
+@@ -676,7 +695,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
  ## Context Needed to Continue
  - [Information from these messages needed to understand the later work]
  
@@ -1747,7 +2075,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -685,8 +807,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
+@@ -685,8 +815,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1822,7 +2150,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..2646aea9fa1647e25de6eec33be0a0ae
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -720,7 +906,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -720,7 +914,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1982,7 +2310,7 @@ index b54a221e7465da093891e35886798fcd6257f997..3c021d2ab9869156df0cc8d7ac0dcf13
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c96f756c31 100644
+index 9d1f2466deab699388e7ced0021500362c6150b6..790330354afdadda73623343b82902b952b779e7 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -13,7 +13,7 @@ import { convertToLlm } from "./messages.js";
@@ -2059,8 +2387,13 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
          const providerRetrySettings = settingsManager.getProviderRetrySettings();
          const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
          const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
-@@ -203,9 +239,16 @@ export async function createAgentSession(options = {}) {
+@@ -201,11 +237,21 @@ export async function createAgentSession(options = {}) {
+             websocketConnectTimeoutMs: options.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs(),
+             maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
              maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
++            // Everything before `cwd` (preamble, tools, rules, docs, project context, skills) is the same
++            // for every session of a project; `cwd` and the custom sections after it are per session.
++            systemCacheBoundary: options.systemCacheBoundary ?? "cwd",
              // Replaces the agent loop's default identity; read per request so telemetry changes apply at once.
              identity: getClientIdentity(settingsManager),
 -            transformHeaders: async (headers) => headerRunner?.hasHandlers("before_provider_headers")
@@ -2079,7 +2412,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
          };
      };
      // Warm only requests for the selected model. Requests a virtual selection routed, or that an
-@@ -255,11 +298,11 @@ export async function createAgentSession(options = {}) {
+@@ -255,18 +301,18 @@ export async function createAgentSession(options = {}) {
              model,
              thinkingLevel,
              tools: [],
@@ -2093,7 +2426,15 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
              // Compaction and summaries use their own routing ids; only session requests
              // replace the cache entry, so warming restarts from them. Keep warming while
              // the current transcript still extends the request's prefix. Agent state may
-@@ -301,6 +344,8 @@ export async function createAgentSession(options = {}) {
+             // shallow-copy the messages array or refresh the model object without changing
+             // the provider request, so top-level object identity is not a valid cache key.
+             if (options?.sessionId === sessionManager.getSessionId()) {
+-                cacheWarmer.start({ model, context, options: requestOptions }, cacheContextIsCurrent(model));
++                cacheWarmer.start({ model, context, options: requestOptions, agentMessageCount: agent.state.messages.length }, cacheContextIsCurrent(model));
+             }
+             return modelRuntime.streamSimple(model, context, requestOptions);
+         },
+@@ -301,6 +347,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -2103,7 +2444,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..1f82c4a8edcd480df66e829abecbf9c9
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215a00b142b 100644
+index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd0776096907e 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -2178,7 +2519,39 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -268,7 +296,7 @@ export declare class SessionManager {
+@@ -219,6 +247,22 @@ partialSessions?: readonly SessionInfo[]) => void;
+  * Use buildSessionContext() to get the resolved message list for the LLM, which
+  * handles compaction summaries and follows the path from root to current leaf.
+  */
++/** OpenWaggle patch: how a manager reads its session file. */
++export interface SessionFileOpenOptions {
++    /**
++     * Parse only what was appended since the last cached parse of this file, when the rest of
++     * the file is unchanged; otherwise parse it whole. The loaded entry objects may be shared
++     * with other managers and must not be mutated.
++     */
++    reuseParsedFile?: boolean;
++}
++/**
++ * OpenWaggle patch: the file's entries, parsing only what was appended since the cached parse
++ * when the rest of the file is unchanged. Returns a new array; its entry objects may be shared.
++ */
++export declare function loadEntriesFromFileReusingParse(filePath: string): FileEntry[];
++/** OpenWaggle patch: forget every parsed session file. */
++export declare function clearParsedSessionFileCache(): void;
+ export declare class SessionManager {
+     private sessionId;
+     private sessionFile;
+@@ -233,7 +277,7 @@ export declare class SessionManager {
+     private leafId;
+     private constructor();
+     /** Switch to a different session file (used for resume and branching) */
+-    setSessionFile(sessionFile: string): void;
++    setSessionFile(sessionFile: string, options?: SessionFileOpenOptions): void;
+     private _setSessionFile;
+     newSession(options?: NewSessionOptions): string | undefined;
+     private _loadEntries;
+@@ -268,7 +312,7 @@ export declare class SessionManager {
      /** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
      appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry;
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2187,7 +2560,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
      /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
      appendCustomEntry(customType: string, data?: unknown): string;
      /** Append a session info entry (e.g., display name). Returns entry id. */
-@@ -313,13 +341,13 @@ export declare class SessionManager {
+@@ -313,13 +357,13 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2204,18 +2577,29 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215
      /**
       * Get session header.
       */
+@@ -375,7 +419,7 @@ export declare class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
+-    static open(path: string, sessionDir?: string, cwdOverride?: string): SessionManager;
++    static open(path: string, sessionDir?: string, cwdOverride?: string, options?: SessionFileOpenOptions): SessionManager;
+     /**
+      * Continue the most recent session, or create new if none.
+      * @param cwd Working directory
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb999abc2f4 100644
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879b048ee4c 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -1,5 +1,5 @@
+@@ -1,6 +1,6 @@
 -import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
 -import { randomUUID } from "crypto";
+-import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
 +import { getCurrentSystemMessage, uuidv7 } from "@earendil-works/pi-ai";
 +import { createHash, randomUUID } from "crypto";
- import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
++import { appendFileSync, closeSync, createReadStream, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
  import { readdir, stat } from "fs/promises";
  import { basename, join, resolve } from "path";
+ import { createInterface } from "readline";
 @@ -9,6 +9,74 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
  import { normalizePath, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
@@ -2526,7 +2910,191 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
  }
  /**
   * Compute the default session directory for a cwd.
-@@ -877,7 +1090,7 @@ export class SessionManager {
+@@ -367,6 +580,170 @@ export function loadEntriesFromFile(filePath) {
+         appendFileSync(resolvedFilePath, "\n");
+     return entries;
+ }
++/**
++ * OpenWaggle patch: parsed session files reused across managers.
++ *
++ * A session file is append-only while a session runs, and every run opens it again, so a long
++ * session paid a full parse per run (0.4 s for a 174 MB file). A file whose bytes up to the cached
++ * end are unchanged only parses what was appended. Anything else (shrunk, replaced, rewritten by
++ * `pi --resume` or a migration, a different inode, an unfinished last line) falls back to the
++ * full load, which also refreshes the cache.
++ *
++ * A file counts as unchanged up to the cached end when its device and inode match and the first
++ * and last 4 KiB before that end are byte-identical (and, at the same size, its mtime matches).
++ * Entry objects are shared by the managers that read them, so they must not be mutated; each
++ * manager gets its own array. The cache is bounded by count, by total parsed bytes and by idle
++ * time, since it holds a parsed copy of each file after its managers are gone. Parsed entries take
++ * 1.2 to 3.4 times their file size in V8 heap (a 166 MiB session held 566 MiB), so the byte bound
++ * is low, and a larger file is parsed whole on every open, as without the cache.
++ */
++const PARSED_FILE_CACHE_MAX_FILES = 4;
++const PARSED_FILE_CACHE_MAX_BYTES = 64 * 1024 * 1024;
++const PARSED_FILE_CACHE_IDLE_MS = 10 * 60_000;
++const PARSED_FILE_WINDOW_BYTES = 4096;
++const parsedSessionFiles = new Map();
++let parsedSessionFileSweep;
++function readWindow(fd, position, length) {
++    const buffer = Buffer.alloc(length);
++    let filled = 0;
++    while (filled < length) {
++        const bytesRead = readSync(fd, buffer, filled, length - filled, position + filled);
++        if (bytesRead === 0)
++            break;
++        filled += bytesRead;
++    }
++    return buffer.subarray(0, filled);
++}
++/**
++ * Parse complete lines from `start` to the end of the file. Returns undefined when the file does
++ * not end with a newline (a writer is mid-line, or the file needs Pi's repair), so the caller
++ * takes the full load, which handles that the way Pi always has.
++ */
++function readCompleteLines(fd, start) {
++    const entries = [];
++    const decoder = new StringDecoder("utf8");
++    const buffer = Buffer.allocUnsafe(SESSION_READ_BUFFER_SIZE);
++    let position = start;
++    let pending = "";
++    while (true) {
++        const bytesRead = readSync(fd, buffer, 0, buffer.length, position);
++        if (bytesRead === 0)
++            break;
++        position += bytesRead;
++        pending += decoder.write(buffer.subarray(0, bytesRead));
++        let lineStart = 0;
++        let newlineIndex = pending.indexOf("\n", lineStart);
++        while (newlineIndex !== -1) {
++            const entry = parseSessionEntryLine(pending.slice(lineStart, newlineIndex));
++            if (entry)
++                entries.push(entry);
++            lineStart = newlineIndex + 1;
++            newlineIndex = pending.indexOf("\n", lineStart);
++        }
++        pending = pending.slice(lineStart);
++    }
++    pending += decoder.end();
++    if (pending.length > 0)
++        return undefined;
++    return { entries, end: position };
++}
++function cacheParsedSessionFile(path, fd, stats, entries, end) {
++    parsedSessionFiles.delete(path);
++    const header = entries[0];
++    if (end > PARSED_FILE_CACHE_MAX_BYTES || header?.type !== "session" || (header.version ?? 1) < CURRENT_SESSION_VERSION)
++        return;
++    const headLength = Math.min(PARSED_FILE_WINDOW_BYTES, end);
++    const tailLength = Math.min(PARSED_FILE_WINDOW_BYTES, end);
++    parsedSessionFiles.set(path, {
++        dev: stats.dev,
++        ino: stats.ino,
++        end,
++        mtimeMs: stats.size === end ? stats.mtimeMs : undefined,
++        head: readWindow(fd, 0, headLength),
++        tail: readWindow(fd, end - tailLength, tailLength),
++        entries,
++        lastUsedAt: Date.now(),
++    });
++    let total = 0;
++    for (const cached of parsedSessionFiles.values())
++        total += cached.end;
++    for (const [key, cached] of parsedSessionFiles) {
++        if (parsedSessionFiles.size <= PARSED_FILE_CACHE_MAX_FILES && total <= PARSED_FILE_CACHE_MAX_BYTES)
++            break;
++        parsedSessionFiles.delete(key);
++        total -= cached.end;
++    }
++    if (parsedSessionFileSweep === undefined) {
++        parsedSessionFileSweep = setInterval(() => {
++            const now = Date.now();
++            for (const [key, cached] of parsedSessionFiles) {
++                if (now - cached.lastUsedAt >= PARSED_FILE_CACHE_IDLE_MS)
++                    parsedSessionFiles.delete(key);
++            }
++            if (parsedSessionFiles.size === 0) {
++                clearInterval(parsedSessionFileSweep);
++                parsedSessionFileSweep = undefined;
++            }
++        }, PARSED_FILE_CACHE_IDLE_MS);
++        parsedSessionFileSweep.unref?.();
++    }
++}
++function unchangedUpTo(fd, stats, cached) {
++    if (stats.dev !== cached.dev || stats.ino !== cached.ino || stats.size < cached.end)
++        return false;
++    if (stats.size === cached.end && cached.mtimeMs !== undefined && stats.mtimeMs !== cached.mtimeMs)
++        return false;
++    return (readWindow(fd, 0, cached.head.length).equals(cached.head) &&
++        readWindow(fd, cached.end - cached.tail.length, cached.tail.length).equals(cached.tail));
++}
++/**
++ * The file's entries, parsing only what was appended since the cached parse when the rest of the
++ * file is unchanged. Returns a new array each time; its entry objects may be shared.
++ */
++export function loadEntriesFromFileReusingParse(filePath) {
++    const resolvedFilePath = normalizePath(filePath);
++    if (!existsSync(resolvedFilePath)) {
++        parsedSessionFiles.delete(resolvedFilePath);
++        return [];
++    }
++    const fd = openSync(resolvedFilePath, "r");
++    try {
++        const stats = fstatSync(fd);
++        const cached = parsedSessionFiles.get(resolvedFilePath);
++        if (cached && unchangedUpTo(fd, stats, cached)) {
++            const appended = cached.end === stats.size ? { entries: [], end: cached.end } : readCompleteLines(fd, cached.end);
++            if (appended) {
++                const entries = appended.entries.length === 0 ? cached.entries : cached.entries.concat(appended.entries);
++                if (appended.end === cached.end) {
++                    cached.lastUsedAt = Date.now();
++                    cached.mtimeMs = stats.size === cached.end ? stats.mtimeMs : cached.mtimeMs;
++                }
++                else {
++                    cacheParsedSessionFile(resolvedFilePath, fd, stats, entries, appended.end);
++                }
++                return entries.slice();
++            }
++        }
++        const full = readCompleteLines(fd, 0);
++        if (full?.entries[0]?.type === "session") {
++            cacheParsedSessionFile(resolvedFilePath, fd, stats, full.entries, full.end);
++            return full.entries.slice();
++        }
++        parsedSessionFiles.delete(resolvedFilePath);
++    }
++    finally {
++        closeSync(fd);
++    }
++    return loadEntriesFromFile(resolvedFilePath);
++}
++/** Forget every parsed session file, e.g. when an idle process releases memory. */
++export function clearParsedSessionFileCache() {
++    parsedSessionFiles.clear();
++    if (parsedSessionFileSweep !== undefined) {
++        clearInterval(parsedSessionFileSweep);
++        parsedSessionFileSweep = undefined;
++    }
++}
+ /**
+  * Inspect a physical line while searching for the first parsed session entry.
+  * Blank and malformed lines are skipped to match loadEntriesFromFile().
+@@ -659,8 +1036,10 @@ export class SessionManager {
+         }
+     }
+     /** Switch to a different session file (used for resume and branching) */
+-    setSessionFile(sessionFile) {
+-        this._setSessionFile(sessionFile);
++    setSessionFile(sessionFile, options) {
++        // OpenWaggle patch: reuse a cached parse of a file that only grew.
++        const resolved = resolvePath(sessionFile);
++        this._setSessionFile(sessionFile, options?.reuseParsedFile && existsSync(resolved) ? loadEntriesFromFileReusingParse(resolved) : undefined);
+     }
+     _setSessionFile(sessionFile, preloadedFileEntries) {
+         this.sessionFile = resolvePath(sessionFile);
+@@ -877,7 +1256,7 @@ export class SessionManager {
          return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2535,7 +3103,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
          const timestamp = new Date().toISOString();
          const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
          const id = generateId(this.byId);
-@@ -892,6 +1105,7 @@ export class SessionManager {
+@@ -892,6 +1271,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -2543,7 +3111,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
              ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-@@ -1074,19 +1288,37 @@ export class SessionManager {
+@@ -1074,19 +1454,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2589,34 +3157,62 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..f69c1a5b1616484a4e4f165a84bb9cb9
      }
      /**
       * Get session header.
+@@ -1323,11 +1721,16 @@ export class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
+-    static open(path, sessionDir, cwdOverride) {
++    static open(path, sessionDir, cwdOverride, options) {
+         const resolvedPath = resolvePath(path);
+         let header = null;
+-        let preloadedFileEntries;
+-        if (cwdOverride === undefined && existsSync(resolvedPath)) {
++        // OpenWaggle patch: reuse a cached parse of a file that only grew.
++        let preloadedFileEntries = options?.reuseParsedFile && existsSync(resolvedPath) ? loadEntriesFromFileReusingParse(resolvedPath) : undefined;
++        if (preloadedFileEntries && cwdOverride === undefined) {
++            const firstEntry = preloadedFileEntries[0];
++            header = firstEntry?.type === "session" ? firstEntry : null;
++        }
++        if (cwdOverride === undefined && !preloadedFileEntries && existsSync(resolvedPath)) {
+             try {
+                 header = readSessionHeader(resolvedPath);
+             }
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index a40ba7fa48c51d73a6db798f51b9e4beda56b687..cd300533e2add9214129995f1a7ef0454a251bf1 100644
+index a40ba7fa48c51d73a6db798f51b9e4beda56b687..979080a9e99502dd7759a74ae4e11eda7bf9d294 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
-@@ -126,11 +126,13 @@ export declare class SettingsManager {
+@@ -126,11 +126,16 @@ export declare class SettingsManager {
      private getCompactionTokenSetting;
      getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number;
      getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number;
 +    getCompactionThresholdPercent(): number;
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    getCompactionMaxThresholdTokens(): number | undefined;
      /** Resolve each token setting through model override, ordinary setting, then built-in default. */
      getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
          enabled: boolean;
          reserveTokens: number;
          keepRecentTokens: number;
 +        thresholdPercent: number;
++        maxThresholdTokens: number | undefined;
      };
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index d5ce9cd266ebd529469fe19694a66a000b2bd194..b0ee5018b5349eb97bb9a95dec93dbb3e63e24a9 100644
+index d5ce9cd266ebd529469fe19694a66a000b2bd194..686331ab9748d54e4aa95013408b4d393c95ce17 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
-@@ -663,12 +663,16 @@ export class SettingsManager {
+@@ -663,12 +663,22 @@ export class SettingsManager {
      getCompactionKeepRecentTokens(model) {
          return this.getCompactionTokenSetting("keepRecentTokens", model);
      }
 +    getCompactionThresholdPercent() {
 +        return this.settings.compaction?.thresholdPercent ?? 80;
++    }
++    /** OpenWaggle patch: the most context tokens before compaction runs, whatever the window. */
++    getCompactionMaxThresholdTokens() {
++        const value = this.settings.compaction?.maxThresholdTokens;
++        return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 +    }
      /** Resolve each token setting through model override, ordinary setting, then built-in default. */
      getCompactionSettings(model) {
@@ -2625,52 +3221,171 @@ index d5ce9cd266ebd529469fe19694a66a000b2bd194..b0ee5018b5349eb97bb9a95dec93dbb3
              reserveTokens: this.getCompactionReserveTokens(model),
              keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 +            thresholdPercent: this.getCompactionThresholdPercent(),
++            maxThresholdTokens: this.getCompactionMaxThresholdTokens(),
          };
      }
      getBranchSummarySettings() {
 diff --git a/dist/core/settings-schema.d.ts b/dist/core/settings-schema.d.ts
-index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..fcf9b9a994afc9efd6fa0696a9bd38d28767df15 100644
+index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..ec6956cb319f654c202129f54d28ef8d4241b3c0 100644
 --- a/dist/core/settings-schema.d.ts
 +++ b/dist/core/settings-schema.d.ts
-@@ -7,6 +7,7 @@ declare const CompactionSettingsSchema: Type.TObject<{
+@@ -7,6 +7,8 @@ declare const CompactionSettingsSchema: Type.TObject<{
      enabled: Type.TOptional<Type.TBoolean>;
      reserveTokens: Type.TOptional<Type.TInteger>;
      keepRecentTokens: Type.TOptional<Type.TInteger>;
 +    thresholdPercent: Type.TOptional<Type.TNumber>;
++    maxThresholdTokens: Type.TOptional<Type.TInteger>;
      modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
-@@ -88,6 +89,7 @@ export declare const SettingsSchema: Type.TObject<{
+@@ -88,6 +90,8 @@ export declare const SettingsSchema: Type.TObject<{
          enabled: Type.TOptional<Type.TBoolean>;
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
 +        thresholdPercent: Type.TOptional<Type.TNumber>;
++        maxThresholdTokens: Type.TOptional<Type.TInteger>;
          modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
              reserveTokens: Type.TOptional<Type.TInteger>;
              keepRecentTokens: Type.TOptional<Type.TInteger>;
 diff --git a/dist/core/settings-schema.js b/dist/core/settings-schema.js
-index 28c00ed743203b6027df2aae8c07d8544deb5022..3f7a228fa0a38aed292f886821aa526ad34b7ada 100644
+index 28c00ed743203b6027df2aae8c07d8544deb5022..fe518854f240e207f23c4e4f22156229a032e837 100644
 --- a/dist/core/settings-schema.js
 +++ b/dist/core/settings-schema.js
-@@ -15,6 +15,8 @@ const CompactionSettingsSchema = Type.Object({
+@@ -15,6 +15,10 @@ const CompactionSettingsSchema = Type.Object({
      enabled: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.compaction.enabled })),
      reserveTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.reserveTokens })),
      keepRecentTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.keepRecentTokens })),
 +    // OpenWaggle patch: percent of the model's context window at which compaction runs.
 +    thresholdPercent: Type.Optional(Type.Number({ description: "Percent of the model's context window at which compaction runs.", default: 80 })),
++    // OpenWaggle patch: an absolute ceiling on the threshold, so a very large window still compacts.
++    maxThresholdTokens: Type.Optional(nonNegativeSafeInteger({ description: "Most context tokens before compaction runs, whatever the window." })),
      modelOverrides: Type.Optional(Type.Record(Type.String(), CompactionModelOverrideSchema, {
          description: 'Per-model overrides keyed by exact "provider/modelId" strings.',
      })),
+diff --git a/dist/core/tools/bash.js b/dist/core/tools/bash.js
+index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f2799ad54ba 100644
+--- a/dist/core/tools/bash.js
++++ b/dist/core/tools/bash.js
+@@ -12,6 +12,13 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "./truncate.js"
+ const MAX_TIMEOUT_MS = 2_147_483_647;
+ /** Output limit of `structuredContent.output`, which programmatic callers such as codemode scripts receive. */
+ const STRUCTURED_OUTPUT_MAX_BYTES = 1024 * 1024;
++/**
++ * Most a command's result shows the model. Longer output keeps its first and last halves around
++ * an omission marker, and the whole output is saved to a temp file the model can read. Every
++ * result stays in the conversation and is re-read on each later request until compaction, and
++ * only a few percent of results are longer than this.
++ */
++export const MODEL_OUTPUT_MAX_BYTES = 16 * 1024;
+ const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
+ function resolveTimeoutMs(timeout) {
+     if (timeout === undefined)
+@@ -163,7 +170,7 @@ export function createShellToolDefinition(cwd, config, options) {
+     return {
+         name: config.name,
+         label: config.label,
+-        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
++        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output over ${MODEL_OUTPUT_MAX_BYTES / 1024}KB keeps its first and last ${MODEL_OUTPUT_MAX_BYTES / 2048}KB, and output over ${DEFAULT_MAX_LINES} lines its last ${DEFAULT_MAX_LINES} lines; the full output is then saved to a temp file. Optionally provide a timeout in seconds.`,
+         promptSnippet: config.promptSnippet,
+         promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined,
+         parameters: bashSchema,
+@@ -172,7 +179,7 @@ export function createShellToolDefinition(cwd, config, options) {
+         async execute(_toolCallId, { command, timeout }, signal, onUpdate, ctx) {
+             const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
+             const spawnContext = resolveSpawnContext(resolvedCommand, ctx?.cwd || cwd, spawnHook, exposeSessionEnvironment, ctx);
+-            const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
++            const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix, maxBytes: MODEL_OUTPUT_MAX_BYTES });
+             let acceptingOutput = true;
+             let updateTimer;
+             let updateDirty = false;
+@@ -230,11 +237,17 @@ export function createShellToolDefinition(cwd, config, options) {
+                 await output.closeTempFile();
+                 return snapshot;
+             };
+-            const formatOutput = (snapshot, emptyText = "(no output)") => {
++            const formatOutput = async (snapshot, emptyText = "(no output)") => {
+                 const truncation = snapshot.truncation;
+                 let text = snapshot.content || emptyText;
+                 let details;
+-                if (truncation.truncated) {
++                if (truncation.truncated && truncation.totalBytes > MODEL_OUTPUT_MAX_BYTES && snapshot.fullOutputPath) {
++                    // Errors and stack traces are often at the start, summaries at the end: keep both.
++                    details = { truncation, fullOutputPath: snapshot.fullOutputPath };
++                    const visible = await output.readFullOutput(MODEL_OUTPUT_MAX_BYTES);
++                    text = `${visible.content}\n\n[Output is ${formatSize(truncation.totalBytes)} in ${truncation.totalLines} lines; showing its first and last ${formatSize(MODEL_OUTPUT_MAX_BYTES / 2)}. Full output: ${snapshot.fullOutputPath}]`;
++                }
++                else if (truncation.truncated) {
+                     details = { truncation, fullOutputPath: snapshot.fullOutputPath };
+                     const startLine = truncation.totalLines - truncation.outputLines + 1;
+                     const endLine = truncation.totalLines;
+@@ -246,7 +259,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                         text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines}. Full output: ${snapshot.fullOutputPath}]`;
+                     }
+                     else {
+-                        text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Full output: ${snapshot.fullOutputPath}]`;
++                        text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(MODEL_OUTPUT_MAX_BYTES)} limit). Full output: ${snapshot.fullOutputPath}]`;
+                     }
+                 }
+                 return { text, details };
+@@ -266,7 +279,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                 }
+                 catch (err) {
+                     const snapshot = await finishOutput();
+-                    const { text } = formatOutput(snapshot, "");
++                    const { text } = await formatOutput(snapshot, "");
+                     if (err instanceof Error && err.message === "aborted") {
+                         throw new Error(appendStatus(text, "Command aborted"));
+                     }
+@@ -277,7 +290,7 @@ export function createShellToolDefinition(cwd, config, options) {
+                     throw err;
+                 }
+                 const snapshot = await finishOutput();
+-                const { text: outputText, details } = formatOutput(snapshot);
++                const { text: outputText, details } = await formatOutput(snapshot);
+                 if (exitCode === null) {
+                     throw new Error(appendStatus(outputText, "Command terminated without an exit code"));
+                 }
+diff --git a/dist/extensions/codemode/tool.js b/dist/extensions/codemode/tool.js
+index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d75e8b392e 100644
+--- a/dist/extensions/codemode/tool.js
++++ b/dist/extensions/codemode/tool.js
+@@ -47,7 +47,7 @@ export const codemodeToolSystemPromptContribution = {
+ /** The reference for scripts: globals, tool results, `store()`, the `models` API, and limits. */
+ export const CODEMODE_DOCS_PATH = join(getDocsPath(), "codemode.md");
+ const DESCRIPTION_INTRO = `Run JavaScript that calls other tools. The input is raw JavaScript (not JSON, no code fence), run as an async function body in a QuickJS sandbox: top-level \`await\` and \`return\` work. No Node, file system, network, or timers.
+-- \`await tools.<name>({ ...args })\` resolves to a string, or an object if the tool's declaration says so, and rejects with an Error on failure. A tool whose declaration returns an object resolves on failure too when it returned that object; check its fields. Calls still running when the script ends are cancelled.
++- \`await tools.<name>({ ...args })\` resolves to a string, or an object if the tool's declaration says so, and rejects with an Error on failure. Tools declared to you are callable this way too, by their own name unless their description gives a codemode one. A tool whose declaration returns an object resolves on failure too when it returned that object; check its fields. Calls still running when the script ends are cancelled.
+ - Optional first line: \`// @options: {"max_output_tokens": 10000, "timeout_ms": 60000}\``;
+ /** One line per global. The details live in {@link CODEMODE_DOCS_PATH}. */
+ function describeGlobals(models) {
+@@ -192,7 +192,13 @@ function describeOutput(schema) {
+  * arguments are the tool's declared parameters, so they are not repeated.
+  */
+ function describeScriptCall(tool) {
+-    return `${tool.description.trim()}\n\nCodemode: \`tools.${toCodemodeIdentifier(tool.name)}(args)\` resolves to ${describeOutput(toCodemodeDeclaration(tool).outputSchema)}.`;
++    const identifier = toCodemodeIdentifier(tool.name);
++    const output = describeOutput(toCodemodeDeclaration(tool).outputSchema);
++    // The codemode description already says a declared tool is called by its name and resolves to
++    // a string, so only the exceptions spend tokens on every declared tool.
++    if (identifier === tool.name && output === "a string")
++        return tool.description;
++    return `${tool.description.trim()}\n\nCodemode: \`tools.${identifier}(args)\` resolves to ${output}.`;
+ }
+ /**
+  * How the codemode tool presents tools that are both declared and callable from scripts:
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f714449348351 100644
+index 3821d9f41564a68e990d233b260427d6a5681f42..66f4a0778406ee6cea3e6335084cbd1ba342e50e 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
- export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
+@@ -1,9 +1,9 @@
+ export { type Args, parseArgs } from "./cli/args.ts";
+ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.ts";
+-export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
++export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type IdleCompactionCandidate, type ModelCycleResult, type ParsedSkillBlock, type PrecomputedCompaction, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
  export { readStoredCredential } from "./core/auth-storage.ts";
  export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
 -export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
-+export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getCompactionThresholdTokens, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
  export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
@@ -2679,7 +3394,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f7144
  export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
  export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
 -export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
-+export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
++export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, clearParsedSessionFileCache, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, loadEntriesFromFileReusingParse, migrateSessionEntries, type SessionFileOpenOptions, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
  export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
 +export { type ClientIdentityTransform, setClientIdentityTransform, } from "./core/client-identity.ts";
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
@@ -2697,7 +3412,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..58ab5c3b6cabdcce47335575f40f7144
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b6056efb3a1f 100644
+index ab5cfccc3a90939e533b9118122189507a7af326..7250e8978c90b59dc2226e466bc799b4e1e01550 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2705,7 +3420,7 @@ index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b605
  export { readStoredCredential } from "./core/auth-storage.js";
  // Compaction
 -export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
-+export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
++export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getCompactionThresholdTokens, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
  export { createEventBus } from "./core/event-bus.js";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
@@ -2714,7 +3429,7 @@ index ab5cfccc3a90939e533b9118122189507a7af326..01e5cb6660e425de1732e6a69710b605
  // Tool factories (for custom cwd)
  createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
 -export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
-+export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
++export { buildContextEntries, buildSessionContext, buildSessionProjection, clearParsedSessionFileCache, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, loadEntriesFromFileReusingParse, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
  export { SettingsManager, } from "./core/settings-manager.js";
 +// OpenWaggle patch: client identity of provider requests
 +export { setClientIdentityTransform, } from "./core/client-identity.js";

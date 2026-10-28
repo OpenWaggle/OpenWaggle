@@ -1,6 +1,6 @@
 import { MessageId, SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionDetail } from '@shared/types/session'
 import type {
   AgentKernelRunResult,
   AgentKernelSessionSnapshotResult,
@@ -39,7 +39,7 @@ export const runServiceNewSession: SessionDetail = {
   updatedAt: 2,
 }
 
-export const runServiceSessionTree: SessionTree = {
+export const runServiceSessionTree: SessionContentTree = {
   session: {
     id: runServiceSessionId,
     title: 'Existing session',

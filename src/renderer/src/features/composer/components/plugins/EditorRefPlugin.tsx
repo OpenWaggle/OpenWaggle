@@ -20,7 +20,7 @@ export function EditorRefPlugin({ editorRef }: EditorRefPluginProps): null {
     editorRef.current = editor
     const store = useComposerStore.getState()
     store.setLexicalEditor(editor)
-    setEditorDraft(editor, store.input, store.selectedWagglePreset)
+    setEditorDraft(editor, store.input, store.selectedWagglePreset, { scrollIntoView: false })
     return () => {
       editorRef.current = null
       useComposerStore.getState().setLexicalEditor(null)

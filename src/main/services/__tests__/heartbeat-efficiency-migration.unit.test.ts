@@ -89,7 +89,9 @@ function readTasks(sql: SqlClient.SqlClient) {
       SELECT outcome, context_json FROM scheduled_task_runs
     `
     const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-      SELECT id, name FROM _migrations WHERE id > ${DELEGATION_ATTENTION_CAUSE_MIGRATION_ID}
+      SELECT id, name FROM _migrations
+      WHERE id > ${DELEGATION_ATTENTION_CAUSE_MIGRATION_ID}
+        AND id <= ${HEARTBEAT_EFFICIENCY_MIGRATION_ID}
     `
     return {
       indefinite: Object.fromEntries(tasks.map((task) => [task.id, task.indefinite])),
@@ -116,7 +118,9 @@ describe('upgrading beta.27 Scheduled tasks through migration 75', () => {
   it('is the newest beta migration, at 75, and one this binary supports', () => {
     expect(HEARTBEAT_EFFICIENCY_MIGRATION_ID).toBe(75)
     expect(V1_BETA_MIGRATIONS.at(-1)).toBe(HEARTBEAT_EFFICIENCY_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(HEARTBEAT_EFFICIENCY_MIGRATION_ID)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      HEARTBEAT_EFFICIENCY_MIGRATION_ID,
+    )
   })
 
   it('grandfathers only open-ended Heartbeats as indefinite, once', async () => {

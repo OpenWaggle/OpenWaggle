@@ -7,8 +7,9 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUSTOM_INTERACTION_RESPONSE_ACTION_ID } from '@/features/extensions'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
 
 const PROJECT_PATH = '/test/project'
@@ -120,6 +121,11 @@ function dispatchSurfaceAction(frame: HTMLIFrameElement) {
 }
 
 describe('ChatComposerExtensionDialogs side-panel launchers', () => {
+  // Extension side panels are a lazy chunk; load it once so the opened panel renders on first await.
+  beforeAll(async () => {
+    await import('@/features/extensions/components')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
@@ -148,7 +154,7 @@ describe('ChatComposerExtensionDialogs side-panel launchers', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval side panel/i }))
 
-    expect(screen.getByLabelText('Extension side panel')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Extension side panel')).toBeInTheDocument()
     const frame = extensionFrame()
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))

@@ -1,19 +1,19 @@
 import type { SessionNodeId } from '@shared/types/brand'
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 import { SESSION_TREE } from '../constants'
 import type { BuildSessionTreeRowsInput, SessionTreeRow } from '../model'
 import { sessionTreeNodeKey, sessionTreeParentKey } from './session-tree-node-keys'
 
 interface SessionTreeRowBuilderContext {
   readonly activePathIds: ReadonlySet<string>
-  readonly displayedChildrenByParentId: ReadonlyMap<string | null, readonly SessionNode[]>
-  readonly expandableChildrenByParentId: ReadonlyMap<string | null, readonly SessionNode[]>
+  readonly displayedChildrenByParentId: ReadonlyMap<string | null, readonly SessionTreeNode[]>
+  readonly expandableChildrenByParentId: ReadonlyMap<string | null, readonly SessionTreeNode[]>
   readonly originalOrderById: ReadonlyMap<string, number>
   readonly rows: SessionTreeRow[]
 }
 
 interface PushRowsInput {
-  readonly node: SessionNode
+  readonly node: SessionTreeNode
   readonly visibleParentId: SessionNodeId | null
   readonly visualDepth: number
   readonly parentVisualDepth: number | null
@@ -32,7 +32,7 @@ function appendGutterDepth(gutterDepths: readonly number[], nextDepth: number) {
 }
 
 function orderedChildren(
-  children: readonly SessionNode[],
+  children: readonly SessionTreeNode[],
   activePathIds: ReadonlySet<string>,
   originalOrderById: ReadonlyMap<string, number>,
 ) {
@@ -53,8 +53,8 @@ function orderedChildren(
 }
 
 function isHiddenByCollapsedAncestor(
-  node: SessionNode,
-  nodeById: ReadonlyMap<string, SessionNode>,
+  node: SessionTreeNode,
+  nodeById: ReadonlyMap<string, SessionTreeNode>,
   expandedNodeIdSet: ReadonlySet<string>,
 ) {
   let currentParentId = sessionTreeParentKey(node)
@@ -74,8 +74,8 @@ function isHiddenByCollapsedAncestor(
 }
 
 function findNearestVisibleParentId(
-  node: SessionNode,
-  nodeById: ReadonlyMap<string, SessionNode>,
+  node: SessionTreeNode,
+  nodeById: ReadonlyMap<string, SessionTreeNode>,
   visibleNodeIdSet: ReadonlySet<string>,
 ) {
   let currentParentId = sessionTreeParentKey(node)
@@ -95,9 +95,9 @@ function findNearestVisibleParentId(
 }
 
 function appendChild(
-  childrenByParentId: Map<string | null, SessionNode[]>,
+  childrenByParentId: Map<string | null, SessionTreeNode[]>,
   parentId: SessionNodeId | null,
-  child: SessionNode,
+  child: SessionTreeNode,
 ) {
   const parentMapKey = parentId ? String(parentId) : null
   const children = childrenByParentId.get(parentMapKey) ?? []
@@ -106,11 +106,11 @@ function appendChild(
 }
 
 function buildChildrenByVisibleParent(input: {
-  readonly nodes: readonly SessionNode[]
-  readonly nodeById: ReadonlyMap<string, SessionNode>
+  readonly nodes: readonly SessionTreeNode[]
+  readonly nodeById: ReadonlyMap<string, SessionTreeNode>
 }) {
   const visibleNodeIdSet = new Set(input.nodes.map(sessionTreeNodeKey))
-  const childrenByParentId = new Map<string | null, SessionNode[]>()
+  const childrenByParentId = new Map<string | null, SessionTreeNode[]>()
 
   for (const node of input.nodes) {
     appendChild(
@@ -141,7 +141,7 @@ function childVisualDepth(input: {
 
 function getOrderedChildren(
   context: SessionTreeRowBuilderContext,
-  childrenByParentId: ReadonlyMap<string | null, readonly SessionNode[]>,
+  childrenByParentId: ReadonlyMap<string | null, readonly SessionTreeNode[]>,
   parentId: SessionNodeId | null,
 ) {
   return orderedChildren(
@@ -154,8 +154,8 @@ function getOrderedChildren(
 function appendSessionTreeRow(input: {
   readonly context: SessionTreeRowBuilderContext
   readonly row: PushRowsInput
-  readonly displayedChildren: readonly SessionNode[]
-  readonly expandableChildren: readonly SessionNode[]
+  readonly displayedChildren: readonly SessionTreeNode[]
+  readonly expandableChildren: readonly SessionTreeNode[]
   readonly hasNextSibling: boolean
 }) {
   input.context.rows.push({
@@ -174,7 +174,7 @@ function appendSessionTreeRow(input: {
 
 function nextChildTraversal(input: {
   readonly row: PushRowsInput
-  readonly displayedChildren: readonly SessionNode[]
+  readonly displayedChildren: readonly SessionTreeNode[]
   readonly hasNextSibling: boolean
 }) {
   const siblingRailDepth = input.row.parentVisualDepth ?? input.row.visualDepth
@@ -271,9 +271,9 @@ export function getVisibleSessionTreeRows(
 }
 
 export function getVisibleSessionTreeNodes(
-  nodes: readonly SessionNode[],
+  nodes: readonly SessionTreeNode[],
   expandedNodeIds: readonly SessionNodeId[],
-): readonly SessionNode[] {
+): readonly SessionTreeNode[] {
   return getVisibleSessionTreeRows({
     nodes,
     filteredNodes: nodes,

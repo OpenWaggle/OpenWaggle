@@ -8,9 +8,10 @@ import {
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
-import { CommitMessageDialog, useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { CommitMessageDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
-import { ChangeRequestComposer } from '@/features/session-summary'
+import { ChangeRequestComposer } from '@/features/session-summary/components'
 import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'

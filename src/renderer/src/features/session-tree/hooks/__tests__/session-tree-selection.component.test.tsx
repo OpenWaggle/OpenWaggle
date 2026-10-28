@@ -1,22 +1,24 @@
-import { MessageId, SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type {
-  SessionBranch,
-  SessionNode,
-  SessionTree,
-  SessionWorkspace,
-} from '@shared/types/session'
+import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { node, treeUiState } from '../../lib/__tests__/session-tree-test-fixtures'
 import { useSessionTreeNodeSelection } from '../useSessionTreeNodeSelection'
+import {
+  ASSISTANT_NODE,
+  ROOT_NODE,
+  SESSION_ID,
+  tree,
+  USER_NODE,
+  workspace,
+} from './session-tree-selection-fixtures'
 
 const selectionMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   navigateSessionTree: vi.fn(),
   getPiBranchSummarySkipPrompt: vi.fn(),
+  getSessionWorkspace: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -27,65 +29,9 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getPiBranchSummarySkipPrompt: selectionMocks.getPiBranchSummarySkipPrompt,
     navigateSessionTree: selectionMocks.navigateSessionTree,
+    getSessionWorkspace: selectionMocks.getSessionWorkspace,
   },
 }))
-
-const SESSION_ID = SessionId('session-1')
-const ROOT_NODE = node({ id: 'root', depth: 0, order: 1 })
-const USER_NODE: SessionNode = {
-  ...node({ id: 'user', parentId: 'root', depth: 1, order: 2, kind: 'user_message' }),
-  role: 'user',
-  message: {
-    id: MessageId('user'),
-    role: 'user',
-    parts: [{ type: 'text', text: 'Use this prompt' }],
-    createdAt: 2,
-  },
-}
-const ASSISTANT_NODE = node({ id: 'assistant', parentId: 'user', depth: 2, order: 3 })
-
-function branch(): SessionBranch {
-  return {
-    id: SessionBranchId('branch-1'),
-    sessionId: SESSION_ID,
-    sourceNodeId: USER_NODE.id,
-    headNodeId: ASSISTANT_NODE.id,
-    name: 'branch-1',
-    isMain: false,
-    createdAt: 1,
-    updatedAt: 2,
-  }
-}
-
-function tree(): SessionTree {
-  return {
-    session: {
-      id: SESSION_ID,
-      title: 'Session tree',
-      projectPath: '/repo',
-      createdAt: 1,
-      updatedAt: 2,
-    },
-    nodes: [ROOT_NODE, USER_NODE, ASSISTANT_NODE],
-    branches: [branch()],
-    branchStates: [],
-    uiState: treeUiState({ expandedNodeIds: ['root'], expandedNodeIdsTouched: true }),
-  }
-}
-
-function workspace(): SessionWorkspace {
-  const sessionTree = tree()
-  return {
-    tree: sessionTree,
-    activeBranchId: SessionBranchId('main'),
-    activeNodeId: ASSISTANT_NODE.id,
-    transcriptPath: [
-      { node: ROOT_NODE, isActive: true },
-      { node: USER_NODE, isActive: true },
-      { node: ASSISTANT_NODE, isActive: true },
-    ],
-  }
-}
 
 describe('useSessionTreeNodeSelection', () => {
   beforeEach(() => {
@@ -210,5 +156,39 @@ describe('useSessionTreeNodeSelection', () => {
       search: expect.any(Function),
     })
     expect(refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, { nodeId: ROOT_NODE.id })
+  })
+
+  it('reads a content-free user node’s message from the Host to prefill its draft (B5)', async () => {
+    const setDraftBranch = vi.fn((draftBranch) => useSessionStore.setState({ draftBranch }))
+    const refreshSessionWorkspace = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ setDraftBranch, refreshSessionWorkspace })
+    const { message: _message, contentJson: _content, metadataJson: _metadata, ...bare } = USER_NODE
+    const contentFreeUser = { ...bare, hasMessage: true, preview: 'Use this' }
+    useComposerStore.setState({ activeDraftContextKey: null, scopedDrafts: {} })
+    selectionMocks.getSessionWorkspace.mockResolvedValue({
+      ...workspace(),
+      transcriptPath: [{ node: USER_NODE, isActive: true }],
+    })
+    const { result } = renderHook(() =>
+      useSessionTreeNodeSelection({
+        activeWorkspace: workspace(),
+        selectedModel: SupportedModelId('openai/gpt-5.5'),
+        showToast: vi.fn(),
+        tree: tree(),
+      }),
+    )
+
+    act(() => result.current.selectNode(contentFreeUser))
+
+    await waitFor(() => expect(useComposerStore.getState().input).toBe('Use this prompt'))
+    expect(selectionMocks.getSessionWorkspace).toHaveBeenCalledWith(
+      SESSION_ID,
+      { nodeId: USER_NODE.id },
+      { window: { minEntries: 1 } },
+    )
+    expect(setDraftBranch).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      sourceNodeId: ROOT_NODE.id,
+    })
   })
 })

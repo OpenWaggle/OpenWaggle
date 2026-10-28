@@ -26,6 +26,7 @@ export function persistWaggleSnapshot(input: {
       sessionId: input.sessionId,
       nodes: input.snapshot.nodes,
       activeNodeId: input.snapshot.activeNodeId,
+      piProjection: input.snapshot.piProjection,
       piSessionId: input.result.piSessionId,
       piSessionFile: input.result.piSessionFile,
       waggleConfig: input.waggleConfig,

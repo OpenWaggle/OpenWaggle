@@ -9,9 +9,9 @@ import type {
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
-import { runAppEffect } from '../runtime'
 import {
   terminalInputIdentitySchema,
   terminalInputIntentSchema,
@@ -268,7 +268,7 @@ function registerTerminalStreamHandlers() {
 
 /** Kill every terminal; wired into app shutdown by the IPC module. */
 export function cleanupTerminals(): Promise<void> {
-  return runAppEffect(
+  return runGuiEffect(
     Effect.gen(function* () {
       const service = yield* TerminalService
       yield* service.closeAll()

@@ -14,7 +14,9 @@ const hello = {
 describe('Local Session protocol revision 28 (Heartbeat efficiency, issue #388)', () => {
   it('refuses a revision-27 client, which decodes Scheduled tasks exactly without heartbeat', () => {
     expect(LOCAL_SESSION_HEARTBEAT_EFFICIENCY_REVISION).toBe(28)
-    expect(LOCAL_SESSION_CURRENT_REVISION).toBe(LOCAL_SESSION_HEARTBEAT_EFFICIENCY_REVISION)
+    expect(LOCAL_SESSION_CURRENT_REVISION).toBeGreaterThanOrEqual(
+      LOCAL_SESSION_HEARTBEAT_EFFICIENCY_REVISION,
+    )
     expect(
       negotiateLocalSessionProtocol({ ...hello, supportedRevisions: [27] }, 'host'),
     ).toMatchObject({ accepted: false })
@@ -22,10 +24,13 @@ describe('Local Session protocol revision 28 (Heartbeat efficiency, issue #388)'
 
   it('advertises the Heartbeat efficiency capability', () => {
     expect(
-      negotiateLocalSessionProtocol({ ...hello, supportedRevisions: [28] }, 'host'),
+      negotiateLocalSessionProtocol(
+        { ...hello, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] },
+        'host',
+      ),
     ).toMatchObject({
       accepted: true,
-      revision: 28,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
       capabilities: expect.arrayContaining([
         'scheduled-tasks:v1',
         'scheduled-tasks:heartbeat-efficiency-v1',

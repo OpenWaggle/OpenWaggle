@@ -7,15 +7,20 @@ const mocks = vi.hoisted(() => {
     reportErrorBeforeExit: vi.fn(async (_error: unknown, _process: string) => {
       order.push('report-error')
     }),
+    reportError: vi.fn(),
+    logError: vi.fn(),
   }
 })
 
-vi.mock('../error-reporting', () => ({ reportErrorBeforeExit: mocks.reportErrorBeforeExit }))
+vi.mock('../error-reporting', () => ({
+  reportErrorBeforeExit: mocks.reportErrorBeforeExit,
+  reportError: mocks.reportError,
+}))
 vi.mock('../logger', () => ({
-  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.logError }),
 }))
 
-import { exitAfterBootstrapFailure } from '../gui-bootstrap-failure'
+import { exitAfterBootstrapFailure, reportGuiStartupFailure } from '../gui-bootstrap-failure'
 
 describe('GUI bootstrap failure', () => {
   beforeEach(() => {
@@ -76,5 +81,15 @@ describe('GUI bootstrap failure', () => {
     report.resolve()
     await exited
     expect(exit).toHaveBeenCalledWith(1)
+  })
+
+  it('logs and reports a backend start that failed behind an open window, and keeps running', () => {
+    const error = new Error('Session Host did not start')
+
+    reportGuiStartupFailure(error)
+
+    expect(mocks.reportError).toHaveBeenCalledWith(error)
+    expect(mocks.logError).toHaveBeenCalledOnce()
+    expect(mocks.reportErrorBeforeExit).not.toHaveBeenCalled()
   })
 })

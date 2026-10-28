@@ -92,7 +92,7 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - MCP servers run through Pi's built-in MCP support. OpenWaggle reads `~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, and the project's `.mcp.json`, `.pi/mcp.json` and `.openwaggle/mcp.json`. Existing OpenWaggle MCP settings are migrated once, with a backup.
 - MCP now works as it does in `pi`. Adding a project trusts the MCP servers its files configure. The Global MCP switch, the per-server trust step and the MCP sandbox are gone, so local servers run with your user's permissions. In Ask for Approval mode every MCP tool call still asks first. In YOLO mode, the default, they run without asking.
 - After the upgrade, if you had set up MCP in OpenWaggle, the projects it already knew keep their old state: servers that connected before stay on, and the others start off. Where MCP was off, every server starts off. If you never set up MCP in OpenWaggle, and in projects you add later, servers start as their files say, including Pi's files and a repository's `.mcp.json`.
-- Each server has an exposure that decides how the agent reaches its tools: Codemode, which is the default, Deferred, Direct or Hidden. The `mcp` and `mcp_run` tools are gone. Agent definitions that list them keep working.
+- Each server has an exposure that decides how the agent reaches its tools. Settings offers Codemode, which is the default, and Hidden; a file can also say Deferred. A file's Direct runs as Codemode, so its tools' descriptions are no longer sent with every message. Tools that open an MCP App stay declared, and a session where codemode cannot run keeps Direct. The file is not changed, so the `pi` command still offers those tools directly. The `mcp` and `mcp_run` tools are gone. Agent definitions that list them keep working.
 - Codemode is on in every session. The agent can write a short script that calls several tools in one step, and only what the script prints reaches the model. Turn it off, or change prompt cache warming, in Settings > General > Agent tools.
 - Virtual models that Pi extensions register can be turned on in Available Models and picked like any other model. After a reply, the model picker shows which real model answered.
 - A stuck MCP server process is replaced instead of failing every run.
@@ -115,6 +115,7 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - `openwaggle status` shows whether the Session Host is running and what it is working on.
 - `openwaggle host start` and `openwaggle host stop` start and stop the Session Host.
 - `openwaggle <folder>` opens a folder as a project.
+- `openwaggle mcp add` and `openwaggle mcp registry add` refuse `--exposure direct` with a usage error (exit code 2) and add nothing. Pass `--exposure codemode`, which is also the default.
 - The CLI, agents and MCP clients can set a session's thinking level only when they create the session or start a run on an idle one. `hive follow-up`, `hive steer` and `hive replace` refuse `--thinking`, `--authorization` and `--yolo`, and `queue update-authorization` is gone.
 
 ### Reliability

@@ -1,3 +1,4 @@
+import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { HostModel } from './transcript-order.host-model'
 import {
@@ -23,7 +24,14 @@ export function routeView(view: 'session' | 'other', detail: SessionDetail | nul
  * the detail (slow when it is busy), then reads the Electron main replica of the stream buffer,
  * which answers at once with what it holds then. The chat store's refetch lands on the route.
  */
-export function installHostReads(host: HostModel, route: ReturnType<typeof createRouteStore>) {
+export function installHostReads(
+  host: HostModel,
+  route: ReturnType<typeof createRouteStore>,
+  /** The main process answers the buffer read; by default at once, sending nothing first. */
+  readBuffer: (
+    read: () => BackgroundRunSnapshot | null,
+  ) => Promise<BackgroundRunSnapshot | null> = async (read) => read(),
+) {
   let holding = false
   let answeredOnRelease = false
   const held: Array<{ readonly deliver: () => void; readonly serve: () => void }> = []
@@ -43,7 +51,7 @@ export function installHostReads(host: HostModel, route: ReturnType<typeof creat
     )
   })
   apiMock.getBackgroundRun.mockImplementation(async (sessionId: string) =>
-    sessionId === SESSION_ID ? host.buffer() : null,
+    sessionId === SESSION_ID ? readBuffer(() => host.buffer()) : null,
   )
   chatStoreMock.refreshSession.mockImplementation(async (sessionId: string) => {
     if (sessionId === SESSION_ID && route.get().sessionId === SESSION_ID) {

@@ -8,6 +8,7 @@ import type { TranscriptRowIndex } from './transcript-sent-turn'
 import { NEAR_BOTTOM_PX, TranscriptViewportController } from './transcript-viewport-controller'
 import {
   createDomViewportGeometry,
+  rowKeysWithin,
   TRANSCRIPT_ROW_KEY_ATTRIBUTE,
 } from './transcript-viewport-geometry'
 
@@ -110,18 +111,10 @@ export class TranscriptViewportSession {
 
   /** Keys of the rows currently intersecting the viewport. */
   visibleRowKeys(): ReadonlySet<string> {
-    const keys = new Set<string>()
     const scroller = this.scroller
-    const content = this.content
-    if (!scroller || !content) return keys
+    if (!scroller || !this.content) return new Set()
     const bounds = scroller.getBoundingClientRect()
-    for (const row of content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`)) {
-      const rect = row.getBoundingClientRect()
-      if (rect.top >= bounds.bottom) break
-      const key = row.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
-      if (key && rect.bottom > bounds.top) keys.add(key)
-    }
-    return keys
+    return rowKeysWithin(this.content, bounds.top, bounds.bottom)
   }
 
   /** Arms the saved-position restore once rows exist; hydration may still be arriving. */

@@ -28,6 +28,7 @@ import {
   recordRefusedContinuation,
   refusedContinuationFor,
 } from './pi-session-refused-continuations'
+import { snapshotReadInput } from './pi-session-snapshot-read-input'
 import { requestSessionTitleRefinement } from './session-title-scheduler'
 
 /**
@@ -119,13 +120,9 @@ function refreshProjection(
     if (!fingerprint) return 'missing'
     if (state.fingerprint && sameFingerprint(state.fingerprint, fingerprint)) return 'fresh'
 
-    const snapshot = yield* files.readSnapshot({
-      piSessionFile: state.piSessionFile,
-      cwd: state.projectPath,
-      ...(state.piEntryNodeIdPrefix ? { piEntryNodeIdPrefix: state.piEntryNodeIdPrefix } : {}),
-      projectedPiEntryCount: state.projectedPiEntryCount,
-      projectedNodeIds: state.projectedNodeIds,
-    })
+    const snapshot = yield* files.readSnapshot(
+      snapshotReadInput(sessionId, state, state.piSessionFile, state.projectPath),
+    )
     if (snapshot.kind === 'unchanged') {
       // The projection was taken from these entries (cache refreshes since add nothing to show);
       // keep it, the branch the user selected, and the Session's place in the sidebar.

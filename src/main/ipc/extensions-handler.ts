@@ -1,80 +1,27 @@
-import type {
-  ExtensionContributionRegistryView,
-  ExtensionListContributionsInput,
-} from '@shared/types/extensions'
-import type { Effect as EffectType } from 'effect/Effect'
-import {
-  acceptHostUiExtensionUpdate,
-  applyHostUiExtensionPackageRemove,
-  applyHostUiExtensionPackageWrite,
-  approveHostUiExtensionBuild,
-  listHostUiExtensionContributions,
-  listHostUiExtensionContributionsWith,
-  listHostUiExtensionPackages,
-  proposeHostUiExtensionPackageRemove,
-  proposeHostUiExtensionPackageWrite,
-  reloadHostUiExtension,
-  setHostUiExtensionEnabled,
-  setHostUiExtensionProjectDisabled,
-  setHostUiExtensionTrusted,
-} from '../application/host-ui-extension-operations'
-import type { AppServices } from '../runtime'
-import { hostHandle as typedHandle } from './typed-ipc'
+import { hostHandle } from './typed-ipc'
 
-export interface RegisterExtensionsHandlersDependencies {
-  readonly listExtensionContributionsView?: (
-    input: ExtensionListContributionsInput,
-  ) => EffectType<ExtensionContributionRegistryView, unknown, AppServices>
-}
+export function registerExtensionsHandlers(): void {
+  hostHandle('extensions:list-packages')
 
-export function registerExtensionsHandlers(
-  dependencies: RegisterExtensionsHandlersDependencies = {},
-): void {
-  typedHandle('extensions:list-packages', (_event, input?: unknown) =>
-    listHostUiExtensionPackages(input),
-  )
+  hostHandle('extensions:list-contributions')
 
-  typedHandle('extensions:list-contributions', (_event, input?: unknown) =>
-    dependencies.listExtensionContributionsView
-      ? listHostUiExtensionContributionsWith(input, dependencies.listExtensionContributionsView)
-      : listHostUiExtensionContributions(input),
-  )
+  hostHandle('extensions:propose-package-write')
 
-  typedHandle('extensions:propose-package-write', (_event, input: unknown) =>
-    proposeHostUiExtensionPackageWrite(input),
-  )
+  hostHandle('extensions:apply-package-write')
 
-  typedHandle('extensions:apply-package-write', (_event, input: unknown) =>
-    applyHostUiExtensionPackageWrite(input),
-  )
+  hostHandle('extensions:propose-package-remove')
 
-  typedHandle('extensions:propose-package-remove', (_event, input: unknown) =>
-    proposeHostUiExtensionPackageRemove(input),
-  )
+  hostHandle('extensions:apply-package-remove')
 
-  typedHandle('extensions:apply-package-remove', (_event, input: unknown) =>
-    applyHostUiExtensionPackageRemove(input),
-  )
+  hostHandle('extensions:set-trusted')
 
-  typedHandle('extensions:set-trusted', (_event, input: unknown) =>
-    setHostUiExtensionTrusted(input),
-  )
+  hostHandle('extensions:set-enabled')
 
-  typedHandle('extensions:set-enabled', (_event, input: unknown) =>
-    setHostUiExtensionEnabled(input),
-  )
+  hostHandle('extensions:set-project-disabled')
 
-  typedHandle('extensions:set-project-disabled', (_event, input: unknown) =>
-    setHostUiExtensionProjectDisabled(input),
-  )
+  hostHandle('extensions:accept-update')
 
-  typedHandle('extensions:accept-update', (_event, input: unknown) =>
-    acceptHostUiExtensionUpdate(input),
-  )
+  hostHandle('extensions:approve-build')
 
-  typedHandle('extensions:approve-build', (_event, input: unknown) =>
-    approveHostUiExtensionBuild(input),
-  )
-
-  typedHandle('extensions:reload', (_event, input: unknown) => reloadHostUiExtension(input))
+  hostHandle('extensions:reload')
 }

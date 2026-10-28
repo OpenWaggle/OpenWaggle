@@ -2,12 +2,15 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { VISUALIZE_REFERENCE_START } from '@shared/utils/inline-visualization'
 import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
+import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { EMPTY_INDEX } from './constants'
 import type {
+  ComparedSessionNodeRow,
   SessionActiveRunRow,
   SessionBranchRow,
   SessionBranchStateRow,
   SessionNodeRow,
+  SessionNodeShapeRow,
   SessionRow,
 } from './types'
 
@@ -66,14 +69,24 @@ function selectExistingActiveRuns(
   `
 }
 
-function selectExistingVisualizationMetadata(
+/**
+ * The stored metadata of the snapshot's assistant nodes that hold an inline visualization
+ * reference, which keeps the Session that owns each visualization (`visualizationSessionId`).
+ * Only the snapshot's candidates are looked up, so the Session's content is not scanned.
+ */
+export function selectExistingVisualizationMetadata(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
+  candidateNodeIds: readonly string[],
 ) {
+  if (candidateNodeIds.length === 0) {
+    return Effect.succeed<readonly ExistingVisualizationMetadataRow[]>([])
+  }
   return sql<ExistingVisualizationMetadataRow>`
     SELECT id, metadata_json
     FROM session_nodes
     WHERE session_id = ${sessionId}
+      AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(candidateNodeIds)}))
       AND kind = 'assistant_message'
       AND (
         content_json LIKE ${`%${VISUALIZE_REFERENCE_START}%`} OR
@@ -82,16 +95,73 @@ function selectExistingVisualizationMetadata(
   `
 }
 
+/** Every column but the content, which `compareWithStoredNodes` reads only where it may differ. */
 function selectExistingNodes(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
 ) {
-  return sql<SessionNodeRow>`
+  return sql<SessionNodeShapeRow>`
     SELECT id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms,
-      content_json, metadata_json, branch_hint_id, path_depth, created_order
+      content_hash, branch_hint_id, path_depth, created_order
     FROM session_nodes
     WHERE session_id = ${sessionId}
   `
+}
+
+/** Node ids per content read, so one read never holds a large Session's content at once. */
+const CONTENT_READ_BATCH_SIZE = 500
+
+function selectNodeContent(
+  sql: SqlClient.SqlClient,
+  sessionId: PersistSessionSnapshotInput['sessionId'],
+  nodeIds: readonly string[],
+) {
+  return sql<Pick<SessionNodeRow, 'id' | 'content_json' | 'metadata_json'>>`
+    SELECT id, content_json, metadata_json
+    FROM session_nodes
+    WHERE session_id = ${sessionId}
+      AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
+  `
+}
+
+/**
+ * The Session's stored nodes, ready to compare with a snapshot's: a stored node whose digest equals
+ * the snapshot node's is unchanged, so its content is not read (D6). Content is read for the
+ * others the snapshot keeps (a changed node, or one stored before digests existed); a node the
+ * snapshot drops is deleted whatever it holds, so its content is never read.
+ */
+export function compareWithStoredNodes(input: {
+  readonly sql: SqlClient.SqlClient
+  readonly sessionId: PersistSessionSnapshotInput['sessionId']
+  readonly existingNodes: readonly SessionNodeShapeRow[]
+  readonly contentHashByNodeId: ReadonlyMap<string, string>
+}) {
+  return Effect.gen(function* () {
+    const unknownIds = input.existingNodes
+      .filter((node) => {
+        const next = input.contentHashByNodeId.get(node.id)
+        return next !== undefined && (node.content_hash === null || node.content_hash !== next)
+      })
+      .map((node) => node.id)
+    const contentById = new Map<string, Pick<SessionNodeRow, 'content_json' | 'metadata_json'>>()
+    for (let start = 0; start < unknownIds.length; start += CONTENT_READ_BATCH_SIZE) {
+      if (start > 0) yield* yieldToEventLoop
+      const rows = yield* selectNodeContent(
+        input.sql,
+        input.sessionId,
+        unknownIds.slice(start, start + CONTENT_READ_BATCH_SIZE),
+      )
+      for (const row of rows) {
+        contentById.set(row.id, {
+          content_json: row.content_json,
+          metadata_json: row.metadata_json,
+        })
+      }
+    }
+    return input.existingNodes.map(
+      (node): ComparedSessionNodeRow => ({ ...node, content: contentById.get(node.id) ?? null }),
+    )
+  })
 }
 
 export function loadSnapshotPersistenceState(
@@ -105,16 +175,6 @@ export function loadSnapshotPersistenceState(
     const existingBranchStates = yield* selectExistingBranchStates(sql, existingBranches)
     const existingActiveRuns = yield* selectExistingActiveRuns(sql, input.sessionId)
     const existingNodes = yield* selectExistingNodes(sql, input.sessionId)
-    const existingVisualizationMetadata = yield* selectExistingVisualizationMetadata(
-      sql,
-      input.sessionId,
-    )
-    return {
-      existingActiveRuns,
-      existingBranches,
-      existingBranchStates,
-      existingNodes,
-      existingVisualizationMetadata,
-    }
+    return { existingActiveRuns, existingBranches, existingBranchStates, existingNodes }
   })
 }

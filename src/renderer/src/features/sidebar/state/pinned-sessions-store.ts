@@ -8,6 +8,7 @@ import {
 } from '@/features/sidebar/lib/pinned-sessions'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { readPinnedSessions } from '@/shared/lib/pinned-sessions-read'
 
 const logger = createRendererLogger('pinned-sessions')
 
@@ -70,7 +71,7 @@ export const usePinnedSessionsStore = create<PinnedSessionsState>()(
 
         loadPins: async () => {
           try {
-            set({ pins: await api.listPinnedSessions() })
+            set({ pins: await readPinnedSessions() })
           } catch (error) {
             logger.warn('Failed to load pinned sessions', { error: String(error) })
           }

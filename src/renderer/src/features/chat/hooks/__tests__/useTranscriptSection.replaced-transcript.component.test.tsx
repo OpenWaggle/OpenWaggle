@@ -51,6 +51,7 @@ function sessionNode(
     createdOrder,
     pathDepth: createdOrder,
     branchId: MAIN_BRANCH_ID,
+    hasMessage: true,
     message: {
       id: MessageId(id),
       role,
@@ -233,6 +234,10 @@ describe('useTranscriptSection after a Run replaced the transcript', () => {
         'new-answer',
       ]),
     )
-    expect(getSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, undefined)
+    expect(getSessionWorkspace).toHaveBeenCalledWith(
+      SESSION_ID,
+      undefined,
+      expect.objectContaining({ window: expect.any(Object) }),
+    )
   })
 })

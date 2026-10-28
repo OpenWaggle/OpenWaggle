@@ -1,6 +1,6 @@
 import type { VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { openChangeRequestAtDestination } from '@/features/session-summary'
+import { openChangeRequestAtDestination } from '@/features/session-summary/components'
 import { useUIStore } from '@/shell/ui-store'
 
 /**

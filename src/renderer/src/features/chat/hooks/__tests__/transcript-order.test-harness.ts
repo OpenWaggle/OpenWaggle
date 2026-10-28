@@ -2,17 +2,14 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
-import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
-import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
-import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
-import { useRunFinishingStore } from '../../state/run-finishing-store'
 import { createBridgeModel } from './transcript-order.bridge'
 import {
   DEFAULT_LAG_MS,
   type EndRunOptions,
   inAct,
   settle,
+  type TranscriptOrderHarnessOptions,
   type ViewOptions,
 } from './transcript-order.harness-support'
 import { type AnswerOptions, createHostModel } from './transcript-order.host-model'
@@ -23,11 +20,13 @@ import {
   type RunCompletedPayload,
 } from './transcript-order.ipc-mock'
 import { createTranscriptKnowledge, missingMessages } from './transcript-order.knowledge'
+import { createMainDeliveryModel } from './transcript-order.main-delivery'
 import { MODEL, SESSION_ID } from './transcript-order.persisted'
 import { createPromotions } from './transcript-order.promotions'
+import { resetRendererState } from './transcript-order.renderer-state'
 import { createRouteStore } from './transcript-order.route-store'
 import { createRunKinds } from './transcript-order.run-kinds'
-import { messageKey } from './transcript-order.violations'
+import { renderedMessageKeys } from './transcript-order.violations'
 
 vi.mock('@/shared/lib/ipc', async () => ({
   api: (await import('./transcript-order.ipc-mock')).transcriptOrderApiMock,
@@ -49,8 +48,12 @@ export async function loadTranscriptOrderHooks() {
 
 type Hooks = Awaited<ReturnType<typeof loadTranscriptOrderHooks>>
 export type TranscriptOrderHarness = ReturnType<typeof createTranscriptOrderHarness>
+export type { TranscriptOrderHarnessOptions }
 
-export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: number } = {}) {
+export function createTranscriptOrderHarness(
+  hooks: Hooks,
+  options: TranscriptOrderHarnessOptions = {},
+) {
   const lagMs = options.lagMs ?? DEFAULT_LAG_MS
   const route = createRouteStore()
   let dropping = false
@@ -59,17 +62,22 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   const forgetPromotions = () => promotions.forgetUndelivered(dropping)
   // The settlements on their way, oldest first: the bridge relays them in order.
   const pendingSettlements: Array<() => Promise<void>> = []
+  const receive = (event: AgentTransportEvent) => {
+    const tracked = useBackgroundRunStore.getState().renderSnapshotsBySessionId.has(SESSION_ID)
+    for (const handler of [...apiMock.agentEventHandlers]) handler({ sessionId: SESSION_ID, event })
+    knowledge.noteDelivered(event, tracked, viewSession())
+  }
+  const main = options.coalesceDeltas ? createMainDeliveryModel(SESSION_ID, receive) : null
   const deliver = (event: AgentTransportEvent) => {
     // One clock: the renderer's runs `lagMs` behind the Host's, whether or not the event arrives.
     vi.setSystemTime(Math.max(Date.now(), event.timestamp + lagMs))
     if (dropping) return
     if (event.type === 'agent_start') bridge.started(event.runId)
-    const tracked = useBackgroundRunStore.getState().renderSnapshotsBySessionId.has(SESSION_ID)
-    for (const handler of [...apiMock.agentEventHandlers]) handler({ sessionId: SESSION_ID, event })
-    knowledge.noteDelivered(event, tracked, viewSession())
+    if (main) main.publish(event)
+    else receive(event)
   }
   const host = createHostModel(deliver)
-  const reads = installHostReads(host, route)
+  const reads = installHostReads(host, route, main?.readBuffer)
   const knowledge = createTranscriptKnowledge(host)
   const promotions = createPromotions(host)
   vi.setSystemTime(host.now() + lagMs)
@@ -107,9 +115,11 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   }
 
   const harness = {
-    shownKeys: () => chat.result.current.messages.flatMap((message) => messageKey(message) ?? []),
+    shownKeys: () => renderedMessageKeys(SESSION_ID, chat.result.current.messages),
     truthKeys: () => host.truthKeys(),
     holdsHostReads: () => reads.pending(),
+    /** The main process's flush timers fire (`coalesceDeltas`): held deltas reach the window. */
+    flushDeltas: () => act(() => main?.flushTimers()),
     hasLastDetail: () => route.lastDetail(SESSION_ID) !== null,
     stillRunning: () =>
       quiet() && pendingSettlements.length === 0 && !host.activeRunId() && isLoading(),
@@ -273,23 +283,6 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   }
 
   return harness
-}
-
-function resetRendererState() {
-  apiMock.agentEventHandlers.length = 0
-  apiMock.runCompletedHandlers.length = 0
-  apiMock.resyncHandlers.length = 0
-  useBackgroundRunStore.setState({
-    activeRunIds: new Set(),
-    runModelBySessionId: new Map(),
-    renderSnapshotsBySessionId: new Map(),
-    worktreeLaunchBySessionId: new Map(),
-    firstSendRecoveryBySessionId: new Map(),
-  })
-  useAgentLoopEventStore.setState({ sessionsById: new Map() })
-  useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
-  useOptimisticSteerStore.setState({ previews: new Map(), runIds: new Map() })
-  useRunFinishingStore.getState().clear(SESSION_ID)
 }
 
 export function resetTranscriptOrderState() {

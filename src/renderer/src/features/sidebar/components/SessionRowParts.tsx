@@ -68,7 +68,20 @@ export function SessionRowGlyph({
       className="grid h-4.5 w-3.5 flex-none place-items-center text-(--row-color)"
     >
       {Icon === null ? null : (
-        <Icon className={cn('size-3.5', hasInterruptedRun ? null : animateClass)} />
+        /*
+         * The animation runs on an HTML box around the icon, not on the SVG: Chromium cannot run
+         * an SVG element's animation on the compositor, so a pulsing working icon restyled and
+         * repainted the window on every frame of a Run.
+         */
+        <span
+          data-qa="sidebar-row-glyph-motion"
+          className={cn(
+            'grid size-3.5 place-items-center',
+            hasInterruptedRun ? null : animateClass,
+          )}
+        >
+          <Icon className="size-3.5" />
+        </span>
       )}
     </span>
   )

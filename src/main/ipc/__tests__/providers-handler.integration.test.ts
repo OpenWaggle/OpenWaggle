@@ -13,10 +13,13 @@ const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 function makeModel(id: string): ProviderModelCapabilities {
   return {
@@ -129,5 +132,46 @@ describe('registerProvidersHandlers', () => {
         ],
       },
     ])
+  })
+
+  it('keeps every provider but only runnable models in the available scope', async () => {
+    getAllMock.mockReturnValue([
+      {
+        ...fallbackProvider,
+        models: [makeModel('gpt-4.1-mini'), { ...makeModel('gpt-5'), available: false }],
+      },
+      {
+        ...fallbackProvider,
+        id: 'anthropic',
+        displayName: 'Anthropic',
+        auth: { ...fallbackProvider.auth, configured: false, apiKeyConfigured: false },
+        models: [{ ...makeModel('claude-opus'), available: false }],
+      },
+    ])
+
+    registerProvidersHandlers()
+    const handler = registeredHandler('providers:get-models')
+    const available = await handler?.({}, null, 'available')
+    const all = await handler?.({}, null, 'all')
+
+    expect(available).toMatchObject([
+      { provider: 'openai', models: [{ id: 'openai/gpt-4.1-mini' }] },
+      { provider: 'anthropic', models: [] },
+    ])
+    expect(all).toMatchObject([
+      { provider: 'openai', models: [{ id: 'openai/gpt-4.1-mini' }, { id: 'openai/gpt-5' }] },
+      { provider: 'anthropic', models: [{ id: 'openai/claude-opus' }] },
+    ])
+  })
+
+  it('refuses an unknown catalog scope', async () => {
+    getAllMock.mockReturnValue([fallbackProvider])
+
+    registerProvidersHandlers()
+    const handler = registeredHandler('providers:get-models')
+
+    await expect(handler?.({}, null, 'everything')).rejects.toThrow(
+      'Provider catalog scope must be one of available, all.',
+    )
   })
 })

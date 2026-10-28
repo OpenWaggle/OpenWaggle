@@ -116,7 +116,7 @@ describe('renderer protocol', () => {
     }
   })
 
-  it('registers the custom renderer scheme as a privileged secure protocol', async () => {
+  it('registers the custom renderer scheme as a privileged secure protocol with V8 code caching', async () => {
     const { EXTENSION_RUNTIME_PROTOCOL, RENDERER_PROTOCOL, registerRendererScheme } =
       await loadRendererProtocol()
 
@@ -130,6 +130,7 @@ describe('renderer protocol', () => {
           secure: true,
           supportFetchAPI: true,
           corsEnabled: true,
+          codeCache: true,
         },
       },
       {
@@ -139,6 +140,7 @@ describe('renderer protocol', () => {
           secure: true,
           supportFetchAPI: true,
           corsEnabled: true,
+          codeCache: true,
         },
       },
       {
@@ -148,6 +150,7 @@ describe('renderer protocol', () => {
           secure: true,
           supportFetchAPI: true,
           corsEnabled: true,
+          codeCache: true,
         },
       },
       {

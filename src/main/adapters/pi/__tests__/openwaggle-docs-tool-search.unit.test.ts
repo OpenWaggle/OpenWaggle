@@ -1,7 +1,7 @@
 import type { DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
-import { openWaggleDocsPromptGuidelines } from '../openwaggle-docs-tool-extension'
+import { openWaggleDocsToolDescription } from '../openwaggle-docs-tool-extension'
 import {
   callJson,
   callRead,
@@ -15,29 +15,27 @@ import {
 registerDocsToolFixture()
 
 describe('openwaggle_docs prompt and schema', () => {
-  it('registers a flat schema and points the prompt at the bundle', () => {
+  it('registers a flat on-demand schema whose description points at the bundle', () => {
     const tool = registerTool()
     expect(tool.name).toBe('openwaggle_docs')
+    expect(tool).toMatchObject({ exposure: 'deferred', namespace: { name: 'openwaggle' } })
     expect(tool.parameters).toMatchObject({
       type: 'object',
       required: ['action'],
-      properties: {
-        action: { anyOf: [{ const: 'list' }, { const: 'search' }, { const: 'read' }] },
-      },
+      properties: { action: { enum: ['list', 'search', 'read'] } },
     })
     expect(tool.parameters).not.toHaveProperty('anyOf')
-    expect(tool.promptSnippet).toContain('OpenWaggle')
-    const guidelines = (tool.promptGuidelines ?? []).join('\n')
-    expect(guidelines).toContain(JSON.stringify(docsRoot()))
-    expect(guidelines).toContain('topics/pi/')
-    expect(guidelines).toContain('app.asar open with the read and ls tools')
+    // Declared only once tool search loads it, so it adds nothing to the system prompt.
+    expect(tool.promptSnippet).toBeUndefined()
+    expect(tool.promptGuidelines).toBeUndefined()
+    expect(tool.description).toContain(JSON.stringify(docsRoot()))
+    expect(tool.description).toContain('topics/pi/')
+    expect(tool.description).toContain('app.asar open with the read and ls tools')
   })
 
-  it('names no bundle path in the prompt when the bundle is unavailable', () => {
-    const guidelines = openWaggleDocsPromptGuidelines(null)
-    expect(guidelines).toHaveLength(1)
-    expect(guidelines[0]).toContain('openwaggle_docs search')
-    expect(registerTool(undefined, null).promptGuidelines).toEqual(guidelines)
+  it('names no bundle path when the bundle is unavailable', () => {
+    expect(registerTool(undefined, null).description).toBe(openWaggleDocsToolDescription(null))
+    expect(openWaggleDocsToolDescription(null)).not.toContain('installed bundle is')
   })
 })
 

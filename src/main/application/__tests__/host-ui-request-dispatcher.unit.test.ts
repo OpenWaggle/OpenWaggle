@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import { McpConfigurationService } from '../../ports/mcp-configuration-service'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
+import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
 import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
 
@@ -22,7 +23,7 @@ const mcpSecretVaultService = McpSecretVaultService.of({
   remove: () => Effect.succeed([]),
 })
 
-function request(channel: 'settings:get', args: readonly unknown[] = []) {
+function request(channel: 'settings:get' | 'providers:get-models', args: readonly unknown[] = []) {
   return {
     contractVersion: 1,
     requestId: 'request-host-ui',
@@ -187,6 +188,35 @@ describe('Host UI request dispatcher', () => {
         }).pipe(Effect.provideService(McpConfigurationService, configuration)),
       ),
     ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
+
+  it('returns only runnable models for the available provider catalog scope', async () => {
+    const providerService = fromPartial<ProviderService['Type']>({
+      getAll: () =>
+        Effect.succeed([
+          fromPartial({
+            id: 'openai',
+            displayName: 'OpenAI',
+            auth: fromPartial({ configured: true }),
+            models: [
+              fromPartial({ id: 'openai/gpt-5', modelId: 'gpt-5', available: true }),
+              fromPartial({ id: 'openai/o9', modelId: 'o9', available: false }),
+            ],
+          }),
+        ]),
+    })
+    const dispatch = (args: readonly unknown[]) =>
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'gui:local-user' },
+          request: request('providers:get-models', args),
+        }).pipe(Effect.provideService(ProviderService, providerService)),
+      )
+
+    await expect(dispatch([null, 'available'])).resolves.toMatchObject({
+      response: { result: { value: [{ provider: 'openai', models: [{ id: 'openai/gpt-5' }] }] } },
+    })
+    await expect(dispatch([null, 'everything'])).rejects.toThrow('Provider catalog scope')
   })
 
   it('validates the Host transport argument count before executing an operation', async () => {

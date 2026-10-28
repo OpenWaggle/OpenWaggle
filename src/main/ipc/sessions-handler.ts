@@ -1,43 +1,19 @@
-import { dispatchHostBackedSessionGuiOperation } from '../application/host-ui-session-operation-dispatcher'
 import { registerSessionCatalogHandlers } from './session-catalog-handler'
-import { hostHandle as typedHandle } from './typed-ipc'
+import { hostHandle } from './typed-ipc'
 
 export function registerSessionsHandlers(): void {
   registerSessionCatalogHandlers()
-  typedHandle('sessions:list-archived-branches', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-archived-branches', args),
-  )
-  typedHandle('sessions:query-archived-items', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:query-archived-items', args),
-  )
-  typedHandle('sessions:list-archived-item-refs', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-archived-item-refs', args),
-  )
-  typedHandle('sessions:set-archived-items', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:set-archived-items', args),
-  )
-  typedHandle('sessions:delete-archived-sessions', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:delete-archived-sessions', args),
-  )
-  typedHandle('sessions:get-tree', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:get-tree', args),
-  )
-  typedHandle('sessions:get-workspace', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:get-workspace', args),
-  )
-  typedHandle('sessions:navigate-tree', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:navigate-tree', args),
-  )
-  typedHandle('sessions:rename-branch', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:rename-branch', args),
-  )
-  typedHandle('sessions:archive-branch', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:archive-branch', args),
-  )
-  typedHandle('sessions:restore-branch', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:restore-branch', args),
-  )
-  typedHandle('sessions:update-tree-ui-state', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:update-tree-ui-state', args),
-  )
+  hostHandle('sessions:list-archived-branches')
+  hostHandle('sessions:query-archived-items')
+  hostHandle('sessions:list-archived-item-refs')
+  hostHandle('sessions:set-archived-items')
+  hostHandle('sessions:delete-archived-sessions')
+  hostHandle('sessions:get-tree')
+  hostHandle('sessions:get-workspace')
+  hostHandle('sessions:search-tree')
+  hostHandle('sessions:navigate-tree')
+  hostHandle('sessions:rename-branch')
+  hostHandle('sessions:archive-branch')
+  hostHandle('sessions:restore-branch')
+  hostHandle('sessions:update-tree-ui-state')
 }

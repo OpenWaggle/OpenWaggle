@@ -44,14 +44,17 @@ const mocks = vi.hoisted(() => ({
   resolveSessionWorktreeBranch: vi.fn(async () => 'ow/session-session-1'),
 }))
 
-vi.mock('../../typed-ipc', () => ({
-  hostHandle: vi.fn((channel: string, handler: WorktreeCreateHandler) => {
-    handlers.set(channel, handler)
-  }),
-  typedHandle: vi.fn((channel: string, handler: WorktreeCreateHandler) => {
-    handlers.set(channel, handler)
-  }),
-}))
+vi.mock('../../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('../../__tests__/legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation((channel: string, handler: WorktreeCreateHandler) => {
+      handlers.set(channel, handler)
+    }),
+    typedHandle: vi.fn((channel: string, handler: WorktreeCreateHandler) => {
+      handlers.set(channel, handler)
+    }),
+  }
+})
 
 vi.mock('../worktree-service', () => ({
   createGitWorktree: mocks.createGitWorktree,
@@ -86,6 +89,7 @@ const SessionProjectionLayer = Layer.succeed(
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     getTurnDiffFiles: () => Effect.succeed([]),
+    listTurnDiffFiles: () => Effect.succeed({}),
     setTurnCheckpointAnchor: () => Effect.void,
     ...PINNED_SESSION_REPOSITORY_STUB,
     resetWorktreeSetup: resetWorktreeSetupMock,

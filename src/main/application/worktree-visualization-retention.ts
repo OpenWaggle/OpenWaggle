@@ -1,10 +1,10 @@
 import path from 'node:path'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 import { extractInlineVisualizationReferences } from '@shared/utils/inline-visualization'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
 
 export function sessionTreeReferencesWorktreeVisualization(
-  tree: SessionTree,
+  tree: SessionContentTree,
   worktreePath: string,
 ) {
   const normalizedWorktreePath = path.resolve(worktreePath)

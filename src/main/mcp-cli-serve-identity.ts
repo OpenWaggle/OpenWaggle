@@ -45,7 +45,7 @@ export function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) 
   const credentialFile =
     option(arguments_, 'profile-credential-file') ?? env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
   // An empty value is unset, as everywhere else in the CLI.
-  if (profile === undefined && Boolean(credentialFile)) {
+  if (profile === undefined && credentialFile) {
     throw new Error(
       'A profile credential file (--profile-credential-file or OPENWAGGLE_PROFILE_CREDENTIAL_FILE) requires --profile <name>.',
     )

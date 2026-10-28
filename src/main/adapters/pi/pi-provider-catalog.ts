@@ -5,7 +5,7 @@ import {
   type ExtensionFactory,
   getAgentDir,
   type InlineExtension,
-  ModelRuntime,
+  type ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
@@ -19,6 +19,7 @@ import {
 } from './openwaggle-pi-settings-storage'
 import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
 import { findPiToolCapableModel } from './pi-model-reference'
+import { createPiModelRuntime } from './pi-model-runtime'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
@@ -249,7 +250,7 @@ export async function setPiProviderApiKey(providerId: string, apiKey: string) {
     throw new Error('Provider is required')
   }
 
-  const modelRuntime = await ModelRuntime.create()
+  const modelRuntime = await createPiModelRuntime()
   const trimmedKey = apiKey.trim()
   if (trimmedKey) {
     await modelRuntime.login(provider, 'api_key', {

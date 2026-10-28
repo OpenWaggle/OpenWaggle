@@ -196,6 +196,7 @@ function sessionsToolGuidelines(permits: Permits) {
     ...catalogGuidelines(permits),
     'Wherever a sessionId, sessionIds, parentSessionId, workerSessionId, or report target takes a Session identity, a Session link the user pasted (openwaggle://sessions/<session-id>) works as it is.',
     runControlGuideline(permits),
+    permits('wait') ? WAIT_ESSENTIAL : undefined,
     thinkingGuideline(permits),
     interactionGuideline(permits),
     permits('authorization_set')
@@ -246,4 +247,52 @@ export function sessionsToolPromptGuidelines(
     ...sessionsToolGuidelines((action) => permitsSessionsToolAction(action, grant)),
     ...(offersScheduledTasks(capabilities) ? SCHEDULED_TASK_GUIDELINES : []),
   ]
+}
+
+function collaborationEssential(permits: Permits) {
+  const uses = [
+    ['report', 'report for peer context that never starts or steers a Run'],
+    ['follow_up', "follow_up for work after a Session's current Run"],
+    ['steer', 'steer to append to its exact active Run'],
+  ].flatMap(([action, use]) => (action && use && permits(action) ? [use] : []))
+  return uses.length ? `Use ${both(uses)}.` : undefined
+}
+
+function cleanupEssential(permits: Permits) {
+  if (!permits('delegation_accept') && !permits('delegation_cancel')) return undefined
+  return 'Accepting or cancelling a Worker archives it once idle, unless the user interacted with it; new work restores it.'
+}
+
+/** Waking before the provider's five-minute prompt cache expires keeps the next call a cache read. */
+const WAIT_ESSENTIAL =
+  'Use timeoutMs ≤ 270000 per wait call and wait again if needed, so the prompt cache stays warm.'
+
+const HELP_ESSENTIAL =
+  'hive({ action: "help" }) lists every action with its parameters and the full Hive rules (catalog scope, thinking and authorization, nextActor, exports, schedules); read it before an action you have not used.'
+
+/**
+ * The Hive rules the system prompt carries on every request: what the tool is, the difference
+ * between its collaboration actions, how results are reviewed, and where the rest is. The full set
+ * (`sessionsToolPromptGuidelines`) is what `help` returns (C6 of the v1 performance research: the
+ * full set was 1.0–1.3k tokens per request). Like the full set, it names only permitted actions.
+ */
+export function sessionsToolEssentialGuidelines(
+  capabilities: readonly SessionCapability[] | undefined,
+  modelMultiAgentEnabled = true,
+) {
+  const grant: SessionsToolActionGrant = { capabilities, modelMultiAgentEnabled }
+  const permits: Permits = (action) => permitsSessionsToolAction(action, grant)
+  return [
+    permits('spawn')
+      ? 'Use spawn for a new Worker Session; it never creates an in-memory subagent.'
+      : undefined,
+    collaborationEssential(permits),
+    permits('wait') ? WAIT_ESSENTIAL : undefined,
+    delegationGuideline(permits),
+    cleanupEssential(permits),
+    permits('schedule_create')
+      ? 'Create a Scheduled task only when the user asks for recurring or scheduled work, or an instruction authorizes it.'
+      : undefined,
+    HELP_ESSENTIAL,
+  ].filter((guideline): guideline is string => guideline !== undefined)
 }

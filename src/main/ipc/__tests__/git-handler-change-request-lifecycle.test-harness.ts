@@ -1,7 +1,18 @@
 import type { VcsChangeRequestDetails } from '@shared/types/git'
+import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
+import {
+  mergeConfirmedSessionChangeRequest,
+  sessionChangeRequestMergeCandidate,
+} from '../../services/source-control/session-change-request-merge'
+import { loadSessionChangeRequestPanel } from '../../services/source-control/session-change-requests'
+import {
+  decodeSessionMergeArguments,
+  decodeSessionRequestArguments,
+} from '../../services/source-control/session-request-arguments'
 import { registerGitChangeRequestLifecycleHandlers } from '../git/change-request-lifecycle-handler'
+import { RelayedHostResult } from '../typed-ipc'
 
 type TestMock = Mock<(...args: unknown[]) => unknown>
 
@@ -42,9 +53,12 @@ vi.mock('../typed-ipc', () => ({
   RelayedHostResult: class {
     constructor(readonly value: unknown) {}
   },
-  hostHandle: (channel: string, handler: unknown) => {
+  // The window relays it (A-F5); the test reaches the Session Host's panel through `hostPanel`.
+  hostHandle: (channel: string) => {
     hoistedLifecycleMocks.registrationKinds.set(channel, 'host')
-    hoistedLifecycleMocks.typedHandle(channel, handler)
+    hoistedLifecycleMocks.typedHandle(channel, (...args: unknown[]) =>
+      hostPanel(args[1], args[2], args[3]),
+    )
   },
   relayingHandle: (channel: string, handler: unknown) => {
     hoistedLifecycleMocks.registrationKinds.set(channel, 'relaying')
@@ -92,13 +106,50 @@ vi.mock('../../adapters/git/run-git', async (importOriginal) => {
 
 export const lifecycleMocks: LifecycleMocks = hoistedLifecycleMocks
 
+/** What the Session Host runs for the inspector panel. */
+function hostPanel(rawSessionId: unknown, rawPath: unknown, rawUrl: unknown) {
+  const { sessionId, workingPath, requestUrl } = decodeSessionRequestArguments(
+    rawSessionId,
+    rawPath,
+    rawUrl,
+  )
+  return loadSessionChangeRequestPanel(sessionId, workingPath, requestUrl)
+}
+
+/** The ports these operations read are mocked modules above, so nothing is left to provide. */
+function runWithMockedPorts<A, E, R>(effect: Effect.Effect<A, E, R>) {
+  return Effect.runPromise(fromAny<Effect.Effect<A, E>, Effect.Effect<A, E, R>>(effect))
+}
+
+/** The Session Host's side of a merge, which the window relays its candidate and merge to. */
+async function emulateHost(channel: unknown, args: unknown) {
+  if (!Array.isArray(args)) return { handled: false }
+  const { sessionId, workingPath, payload } = decodeSessionMergeArguments(args[0], args[1], args[2])
+  if (channel === 'git:change-request:merge-candidate') {
+    const result = await runWithMockedPorts(
+      sessionChangeRequestMergeCandidate(sessionId, workingPath, payload),
+    )
+    return { handled: true, result }
+  }
+  if (channel === 'git:change-request:merge-confirmed') {
+    const result = await runWithMockedPorts(
+      mergeConfirmedSessionChangeRequest(sessionId, workingPath, payload),
+    )
+    return { handled: true, result }
+  }
+  return { handled: false }
+}
+
 export function registeredHandler(name: string) {
   const call = hoistedLifecycleMocks.typedHandle.mock.calls.find(
     (entry: unknown[]) => entry[0] === name,
   )
   const handler = call?.[1]
   return typeof handler === 'function'
-    ? (...args: unknown[]) => Effect.runPromise(handler(...args))
+    ? async (...args: unknown[]) => {
+        const result: unknown = await Effect.runPromise(handler(...args))
+        return result instanceof RelayedHostResult ? result.value : result
+      }
     : undefined
 }
 
@@ -170,7 +221,7 @@ export function resetLifecycleHandlers() {
   hoistedLifecycleMocks.mergeChangeRequest
     .mockReset()
     .mockResolvedValue({ ok: true, changeRequest: details({ state: 'merged' }) })
-  hoistedLifecycleMocks.invokeConfiguredHostUi.mockReset().mockResolvedValue({ handled: false })
+  hoistedLifecycleMocks.invokeConfiguredHostUi.mockReset().mockImplementation(emulateHost)
   hoistedLifecycleMocks.resolveSourceControlProvider.mockReset().mockResolvedValue({
     provider: {
       id: 'github',
