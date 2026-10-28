@@ -1,5 +1,4 @@
 import { tmpdir } from 'node:os'
-import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, vi } from 'vitest'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { McpConnectionPool } from '../../../../src/main/adapters/mcp/pool/mcp-connection-pool-api'
@@ -10,8 +9,8 @@ import { composeFirstTurnRun } from '../run-composition'
  * it. Each production builder below gets one extra extension or appendix; the measured composition
  * must carry all of them, so whatever the Run path adds is counted against the budget.
  */
-const INLINE_SENTINEL: InlineExtension = () => undefined
-const TRUSTED_SENTINEL: ExtensionFactory = () => undefined
+function inlineSentinel() {}
+function trustedSentinel() {}
 const APPENDIX_SENTINEL = 'appendix added to the real Run path'
 
 vi.mock('electron', () => ({
@@ -30,7 +29,7 @@ vi.mock('../../../../src/main/adapters/pi/agent-kernel/classic-run', async (impo
     ...actual,
     classicRunInlineExtensions: (input: Parameters<typeof actual.classicRunInlineExtensions>[0]) => {
       const built = actual.classicRunInlineExtensions(input)
-      return { ...built, extensionFactories: [...built.extensionFactories, INLINE_SENTINEL] }
+      return { ...built, extensionFactories: [...built.extensionFactories, inlineSentinel] }
     },
   }
 })
@@ -41,7 +40,7 @@ vi.mock('../../../../src/main/adapters/pi/pi-agent-kernel-run', async (importOri
     ...actual,
     createRunTrustedExtensionFactories: (input: Parameters<typeof actual.createRunTrustedExtensionFactories>[0]) => [
       ...actual.createRunTrustedExtensionFactories(input),
-      TRUSTED_SENTINEL,
+      trustedSentinel,
     ],
   }
 })
@@ -72,8 +71,8 @@ describe('first-turn prefix Run composition', () => {
       mcpPool: fromPartial<McpConnectionPool>({}),
     })
 
-    expect(composed.extensionFactories).toContain(INLINE_SENTINEL)
-    expect(composed.trustedExtensionFactories).toContain(TRUSTED_SENTINEL)
+    expect(composed.extensionFactories).toContain(inlineSentinel)
+    expect(composed.trustedExtensionFactories).toContain(trustedSentinel)
     expect(composed.systemPromptAppendices.at(-1)).toBe(APPENDIX_SENTINEL)
     // The scratch guidance names the evidence directory the Host prepares before a Run.
     expect(composed.systemPromptAppendices[0]).toContain('$OPENWAGGLE_EVIDENCE_DIR')
