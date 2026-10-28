@@ -156,7 +156,12 @@ export async function readPiSessionFileAfterTail(
     const buffer = Buffer.alloc(Math.max(0, end - tail.offset))
     let read = 0
     while (read < buffer.length) {
-      const { bytesRead } = await handle.read(buffer, read, buffer.length - read, tail.offset + read)
+      const { bytesRead } = await handle.read(
+        buffer,
+        read,
+        buffer.length - read,
+        tail.offset + read,
+      )
       if (bytesRead === 0) break
       read += bytesRead
     }

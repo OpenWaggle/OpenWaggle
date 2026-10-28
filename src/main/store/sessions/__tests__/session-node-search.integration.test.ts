@@ -180,9 +180,7 @@ describe('Session tree search on the Host (B5)', () => {
     expect((await searchSessionTreeNodes(sessionId, 'checkpoint gamma')).map(String)).toEqual([
       'tools-user',
     ])
-    expect((await searchSessionTreeNodes(sessionId, 'gpt-5.4')).map(String)).toEqual([
-      'tools-call',
-    ])
+    expect((await searchSessionTreeNodes(sessionId, 'gpt-5.4')).map(String)).toEqual(['tools-call'])
   })
 
   it('reads a long Session page by page and still finds its last node', async () => {

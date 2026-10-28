@@ -93,7 +93,6 @@ describe('authority drift monitor', () => {
   it('checks a Run again when the revision moves while its check is in flight', async () => {
     const host = harness({})
     const pending: Array<(outcome: AuthorityDriftOutcome) => void> = []
-    let revoked = false
     const check = vi.fn(
       () =>
         new Promise<AuthorityDriftOutcome>((resolve) => {
@@ -110,7 +109,6 @@ describe('authority drift monitor', () => {
     await host.tick()
     expect(check).toHaveBeenCalledTimes(2)
     // A revocation lands after the in-flight check read the authority it still allows.
-    revoked = true
     host.setRevision(2)
     host.advance(500)
     await host.tick()
@@ -119,7 +117,8 @@ describe('authority drift monitor', () => {
 
     // Checked again at once, not at the next safety poll.
     expect(check).toHaveBeenCalledTimes(3)
-    pending.shift()?.(revoked ? 'changed' : 'current')
+    // That check reads the revocation.
+    pending.shift()?.('changed')
     await settle()
     expect(onDrift).toHaveBeenCalledExactlyOnceWith('changed')
   })
