@@ -1,12 +1,12 @@
 import { createServer as createHttp2Server } from 'node:http2'
 import type { AddressInfo } from 'node:net'
-import type { Context } from '@earendil-works/pi-ai'
 import { stream as streamBedrock } from '@earendil-works/pi-ai/api/bedrock-converse-stream'
 import { clearBedrockClients } from '@earendil-works/pi-ai/bedrock-provider'
 import { AMAZON_BEDROCK_MODELS } from '@earendil-works/pi-ai/providers/amazon-bedrock.models'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BEDROCK_TEXT_FRAMES as TEXT_FRAMES } from './bedrock-event-stream.test-utils'
+import { userContext } from './bedrock-loopback-server.test-utils'
 
 /**
  * Pi's real Bedrock stream over HTTP/2 against a loopback server. The patched transport keeps one
@@ -14,10 +14,6 @@ import { BEDROCK_TEXT_FRAMES as TEXT_FRAMES } from './bedrock-event-stream.test-
  */
 
 const MODEL = AMAZON_BEDROCK_MODELS['eu.anthropic.claude-haiku-4-5-20251001-v1:0']
-
-function userContext(): Context {
-  return { messages: [{ role: 'user', content: 'hello', timestamp: 0 }] }
-}
 
 afterEach(() => {
   clearBedrockClients()
