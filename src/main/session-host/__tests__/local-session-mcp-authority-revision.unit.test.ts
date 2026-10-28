@@ -62,7 +62,7 @@ describe('Local Session MCP authority protocol revision', () => {
     for (const channel of ['mcp:list-secrets', 'mcp:read-resource', 'mcp:call-app-tool']) {
       const command = hostUiCommand(channel)
       expect(decodeLocalSessionCommandPayloadForRevision(command, 6)).toEqual(command)
-      expect(supportedRevisionsForCommand(command)).toEqual([28])
+      expect(supportedRevisionsForCommand(command)).toEqual([29])
     }
   })
 
@@ -70,7 +70,7 @@ describe('Local Session MCP authority protocol revision', () => {
     'requires a revision-24 Host for the MCP configuration channel %s',
     (channel) => {
       const command = hostUiCommand(channel)
-      expect(supportedRevisionsForCommand(command)).toEqual([28])
+      expect(supportedRevisionsForCommand(command)).toEqual([29])
       expect(() => decodeLocalSessionCommandPayloadForRevision(command, 23)).toThrow(/revision 24/)
       expect(decodeLocalSessionCommandPayloadForRevision(command, 24)).toEqual(command)
     },

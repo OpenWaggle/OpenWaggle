@@ -71,6 +71,8 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - The Session Host runs them, so they keep firing with every window closed. Background start can start the Host when you log in.
 - Find tasks in the Scheduled panel of the Right panel, in Settings > Scheduled tasks, and in the Session Summary. You can also ask an agent to set one up.
 - Runs missed while the Host was stopped collapse into a single catch-up run.
+- Every Heartbeat needs a way to finish: a "Stop when…" outcome, an end date, a run limit, or Runs indefinitely. Heartbeats you created during the Beta run indefinitely and say they have no end.
+- A Heartbeat can run a cheap Wake check command before each firing. When it finds nothing to do, the firing is recorded as skipped and no agent turn or model call happens. A Heartbeat pauses itself when its Run says it is done, or after 3 idle runs in a row, and tells you once, with Resume. It can also use its own, cheaper model for its Runs.
 - Manage tasks from a terminal with `openwaggle schedules`.
 
 ### Right panel and workspace

@@ -5,6 +5,7 @@ import type { AgentRunResult } from '../application/agent-run/types'
 import { executeAgentRun } from '../application/agent-run-service'
 import { explicitWaggleTerminalResult } from '../application/explicit-waggle-command-result'
 import { runRegisteredExplicitWaggle } from '../application/explicit-waggle-command-runner'
+import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
 import { requestSessionTitleRefinement } from '../application/session-title-scheduler'
 import type { WaggleExecutionContext } from '../application/waggle-run-execution-context'
 import { followUpAttachmentOwner } from '../domain/session-control/message-aggregate'
@@ -172,6 +173,26 @@ function runQueuedWaggle(
   )
 }
 
+/** A Heartbeat Run's tools decide its Run outcome when it reported none (#388). */
+function noteHeartbeatRunEnd(input: RegisteredRunInput, result: AgentRunResult) {
+  if (input.execution.scheduledTask?.kind !== 'heartbeat') return
+  scheduledTaskHooks().heartbeatRunEnded({
+    sessionId: input.request.sessionId,
+    runId: String(input.request.runId),
+    completed: result.outcome === 'success',
+    toolUses:
+      result.outcome === 'success'
+        ? result.newMessages.flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === 'tool-call'
+                ? [{ name: part.toolCall.name, args: part.toolCall.args }]
+                : [],
+            ),
+          )
+        : [],
+  })
+}
+
 function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
   return Effect.gen(function* () {
     const payload = {
@@ -187,6 +208,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       sessionId: input.request.sessionId,
       runId: input.request.runId,
       model: input.execution.model,
+      ...(input.execution.thinkingLevel ? { thinkingLevel: input.execution.thinkingLevel } : {}),
       payload,
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
@@ -218,6 +240,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         })
       },
     })
+    noteHeartbeatRunEnd(input, result)
     let ending: {
       readonly terminalEventAt?: number
       readonly failure?: { readonly code: string }

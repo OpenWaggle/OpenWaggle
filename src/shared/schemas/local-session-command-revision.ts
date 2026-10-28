@@ -17,8 +17,8 @@ import {
   HOST_UI_REVISION_24_REQUIRED_CHANNELS,
   HOST_UI_REVISION_24_SESSION_CHANNELS,
   HOST_UI_REVISION_25_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_28_ARGUMENT_COUNTS,
-  HOST_UI_REVISION_28_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_29_ARGUMENT_COUNTS,
+  HOST_UI_REVISION_29_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -73,13 +73,13 @@ function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) 
 }
 
 /**
- * Bounded Session reads ship with revision 28, Settings > Archived items with 25, MCP
+ * Bounded Session reads ship with revision 29, Settings > Archived items with 25, MCP
  * configuration and more with 24.
  */
 function newestRevisionRequirement(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   if (
-    HOST_UI_REVISION_28_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel) ||
-    usesArgumentAddedIn(HOST_UI_REVISION_28_ARGUMENT_COUNTS, request)
+    HOST_UI_REVISION_29_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel) ||
+    usesArgumentAddedIn(HOST_UI_REVISION_29_ARGUMENT_COUNTS, request)
   ) {
     return LOCAL_SESSION_SESSION_DATA_REVISION
   }

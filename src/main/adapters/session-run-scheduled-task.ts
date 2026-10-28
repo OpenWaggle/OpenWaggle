@@ -1,5 +1,9 @@
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import { SCHEDULED_TASK_KINDS } from '@shared/types/scheduled-task'
+import {
+  decodeHeartbeatRunContext,
+  type HeartbeatRunContext,
+} from '../domain/scheduled-tasks/heartbeat-run-context'
 import { createLogger } from '../logger'
 
 const logger = createLogger('session-run-scheduled-task')
@@ -21,6 +25,25 @@ export function scheduledTaskRecord(value: string | null | undefined) {
   const record: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
   if (typeof record.id !== 'string' || typeof record.name !== 'string') return undefined
   return { record, id: record.id, name: record.name }
+}
+
+/**
+ * What a Heartbeat Run is told about its task (#388), from the run record's Host-authored context.
+ * A context that does not decode is dropped with a warning: the Run still starts, without it.
+ */
+export function scheduledTaskRunContext(
+  record: Readonly<Record<string, unknown>>,
+): HeartbeatRunContext | undefined {
+  const context = record.context
+  if (typeof context !== 'string') return undefined
+  try {
+    return decodeHeartbeatRunContext(context)
+  } catch (error) {
+    logger.warn('Ignored an unreadable Heartbeat run context', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
 }
 
 /**

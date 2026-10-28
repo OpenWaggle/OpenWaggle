@@ -60,6 +60,7 @@ const [
   archivedItemsCapability,
   scheduledTasksCapability,
   hiveDefaultsCapability,
+  heartbeatEfficiencyCapability,
   sessionDataCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -102,6 +103,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(archivedItemsCapability),
   Schema.Literal(scheduledTasksCapability),
   Schema.Literal(hiveDefaultsCapability),
+  Schema.Literal(heartbeatEfficiencyCapability),
   Schema.Literal(sessionDataCapability),
 )
 

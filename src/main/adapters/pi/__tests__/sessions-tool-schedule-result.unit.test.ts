@@ -234,6 +234,7 @@ describe('Hive tool Scheduled task registration', () => {
         prompt: 'Check whether CI is green.',
         scheduleKind: 'heartbeat',
         schedule: { kind: 'daily', at: '09:00', weekdays: [1, 3] },
+        stopWhen: 'CI is green.',
       },
       new AbortController().signal,
       () => undefined,
@@ -281,6 +282,7 @@ describe('Hive tool Scheduled task registration', () => {
       'schedule_update',
       'schedule_delete',
       'schedule_run_now',
+      'schedule_outcome',
     ]) {
       expect(manager).toContain(`"${action}"`)
     }
@@ -299,6 +301,10 @@ describe('Hive tool Scheduled task registration', () => {
     expect(root).toMatch(/this Session when sessionId is omitted/)
     expect(root).toMatch(/Heartbeat fires at most every 5 minutes, a Launch schedule every 15/)
     expect(root).toMatch(/never convert them to UTC/)
-    expect(root).toMatch(/pause it with schedule_update enabled false/)
+    expect(root).toMatch(/needs a way to finish: give stopWhen/)
+    expect(root).toMatch(/call schedule_update enabled:false and state why/)
+    expect(root).toMatch(/end with schedule_outcome done, idle or acted/)
+    expect(root).toMatch(/wakeIf/)
+    expect(root).toMatch(/Launch schedule into a fresh Session/)
   })
 })

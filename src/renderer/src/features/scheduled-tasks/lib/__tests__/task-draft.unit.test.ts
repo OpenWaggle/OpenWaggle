@@ -76,6 +76,7 @@ describe('task editor draft', () => {
       ...newTaskDraft({ kind: 'heartbeat', timeZone: 'UTC' }),
       prompt: 'Check CI on the PR and stop when it is green.',
       sessionId: 'session-1',
+      stopWhen: 'CI is green',
     }
     const result = taskInputFromDraft(draft)
     expect(result.ok && result.value.name).toBe('Check CI on the PR and…')
@@ -103,22 +104,23 @@ describe('task editor draft', () => {
     expect(reopened.endDate).toBe('2026-04-30')
   })
 
-  it('round-trips a stored task and leaves a Heartbeat target out of its patch', () => {
+  it('round-trips a stored task and keeps a Heartbeat on its own Session', () => {
     const task = heartbeatTask({ maxRuns: 3 })
     const draft = draftFromTask(task)
     expect(draft).toMatchObject({ sessionId: 'session-1', maxRuns: '3', kind: 'heartbeat' })
 
-    const patch = taskPatchFromDraft({ ...draft, name: 'CI watch (daily)' })
+    const patch = taskPatchFromDraft({ ...draft, name: 'CI watch (daily)' }, task)
     expect(patch.ok && patch.value).toMatchObject({
       name: 'CI watch (daily)',
       schedule: { kind: 'interval', everyMinutes: 30 },
       maxRuns: 3,
+      target: { kind: 'heartbeat', sessionId: 'session-1' },
     })
-    expect(patch.ok && 'target' in patch.value).toBe(false)
   })
 
   it('keeps a Launch schedule target in its patch', () => {
-    const patch = taskPatchFromDraft(draftFromTask(scheduledTask()))
+    const task = scheduledTask()
+    const patch = taskPatchFromDraft(draftFromTask(task), task)
     expect(patch.ok && patch.value.target).toEqual({
       kind: 'launch',
       projectPath: '/projects/alpha',

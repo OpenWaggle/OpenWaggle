@@ -69,6 +69,7 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['schedule_update', ['schedules:manage']],
   ['schedule_delete', ['schedules:manage']],
   ['schedule_run_now', ['schedules:manage']],
+  ['schedule_outcome', ['schedules:manage']],
 ])
 
 const KNOWN_ACTIONS: ReadonlySet<string> = new Set(

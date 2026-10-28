@@ -1,4 +1,9 @@
 import {
+  HEARTBEAT_IDLE_PAUSE_MAX,
+  HEARTBEAT_IDLE_PAUSE_MIN,
+  HEARTBEAT_OUTCOME_NOTE_MAX_LENGTH,
+  HEARTBEAT_STOP_WHEN_MAX_LENGTH,
+  HEARTBEAT_WAKE_CHECK_MAX_LENGTH,
   ISO_WEEKDAYS,
   SCHEDULED_TASK_MAX_INTERVAL_MINUTES,
   SCHEDULED_TASK_MAX_RUNS_LIMIT,
@@ -82,10 +87,49 @@ const timing = {
   ),
 }
 
+/** A Heartbeat's way to finish, Wake check and idle Auto-pause (#388). */
+const heartbeatSettings = {
+  stopWhen: Type.Optional(
+    Type.Union(
+      [Type.String({ minLength: 1, maxLength: HEARTBEAT_STOP_WHEN_MAX_LENGTH }), Type.Null()],
+      {
+        description:
+          'Heartbeat: the outcome after which it should stop, in plain words; null clears it.',
+      },
+    ),
+  ),
+  indefinite: Type.Optional(
+    Type.Boolean({ description: 'Heartbeat: true only when it must never end on its own.' }),
+  ),
+  idlePauseAfter: Type.Optional(
+    Type.Integer({
+      minimum: HEARTBEAT_IDLE_PAUSE_MIN,
+      maximum: HEARTBEAT_IDLE_PAUSE_MAX,
+      description: 'Heartbeat: consecutive idle runs after which it pauses itself (default 3).',
+    }),
+  ),
+  wakeIf: Type.Optional(
+    Type.Union(
+      [Type.String({ minLength: 1, maxLength: HEARTBEAT_WAKE_CHECK_MAX_LENGTH }), Type.Null()],
+      {
+        description:
+          'Heartbeat: a shell command the Host runs first in its Session workspace; the Run starts only when it exits non-zero or prints something. null removes it.',
+      },
+    ),
+  ),
+  wakeOnFailure: Type.Optional(
+    Type.Union([Type.Literal('wake'), Type.Literal('skip')], {
+      description: 'Heartbeat: what a failed or timed-out wakeIf does (default wake).',
+    }),
+  ),
+}
+
 const launchTarget = {
   projectPath: sessionsToolProjectPath,
   workspace: Type.Optional(Type.Union([Type.Literal('new-worktree'), Type.Literal('local')])),
-  model: Type.Optional(Type.String()),
+  model: Type.Optional(
+    Type.String({ description: "This task's Runs only; a Heartbeat's Session keeps its own." }),
+  ),
   thinking: Type.Optional(Type.String()),
   agent: Type.Optional(Type.String()),
   archiveFinishedSessions: Type.Optional(Type.Boolean()),
@@ -129,6 +173,7 @@ export const sessionsToolScheduleParameters = [
     schedule,
     sessionId: Type.Optional(Type.String()),
     ...launchTarget,
+    ...heartbeatSettings,
     idempotencyKey: Type.Optional(Type.String({ minLength: 1 })),
   }),
   Type.Object({
@@ -138,5 +183,14 @@ export const sessionsToolScheduleParameters = [
     prompt: Type.Optional(content.prompt),
     ...timing,
     ...launchTarget,
+    ...heartbeatSettings,
+  }),
+  Type.Object({
+    action: Type.Literal('schedule_outcome'),
+    outcome: Type.Union([Type.Literal('acted'), Type.Literal('idle'), Type.Literal('done')], {
+      description:
+        'This Heartbeat Run: acted (did work), idle (nothing to do), done (its stopWhen is met; pauses it).',
+    }),
+    note: Type.Optional(Type.String({ maxLength: HEARTBEAT_OUTCOME_NOTE_MAX_LENGTH })),
   }),
 ] as const

@@ -1,9 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ScheduledTask } from '@shared/types/scheduled-task'
-import { fireEvent, screen } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createRendererQueryClient } from '@/queries/query-client'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 type ToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
@@ -182,5 +184,33 @@ describe('Scheduled task hive-tool rows', () => {
     )
     expect(screen.queryByRole('button', { name: /scheduled task: / })).toBeNull()
     expect(executeScheduledTasks).not.toHaveBeenCalled()
+  })
+
+  it('reads the tasks again when a schedule action finishes on screen, not when it is history', async () => {
+    listTasks([task()])
+    const part = call({ action: 'schedule_create', name: 'Morning triage', prompt: 'Check CI' })
+    const finished = scheduledResult('tc-1', { effect: 'created', task: task() })
+    const client = createRendererQueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const row = (results: ReturnType<typeof scheduledResult>) => (
+      <QueryClientProvider client={client}>
+        <ToolCallRouter
+          part={part}
+          toolResults={results}
+          sessionId={SessionId('caller')}
+          isStreaming={false}
+        />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(row(new Map()))
+    rerender(row(finished))
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1))
+    rerender(row(finished))
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    invalidate.mockClear()
+    renderRow(part, finished)
+    await screen.findAllByText('Created scheduled task · Morning triage')
+    expect(invalidate).not.toHaveBeenCalled()
   })
 })

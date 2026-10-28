@@ -19,6 +19,10 @@ import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { sessionIdFromReference } from '@shared/utils/session-link'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
+import {
+  assertHeartbeatCliCanFinish,
+  heartbeatSettingsFromOptions,
+} from './schedules-cli-heartbeat'
 
 const DAYS_PER_WEEK_PATTERN = /^[1-7](,[1-7])*$/
 const MINUTES_PER_HOUR = 60
@@ -126,16 +130,35 @@ async function promptFrom(arguments_: ParsedArguments, words: readonly string[])
   return words.length > 0 ? words.join(' ') : undefined
 }
 
-function launchTarget(projectPath: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+/** A task's own model and thinking level, for its Runs only. */
+function modelChoice(arguments_: ParsedArguments) {
   const model = option(arguments_, 'model')
   const thinking = thinkingLevel(option(arguments_, 'thinking'))
+  return {
+    ...(model ? { modelId: model } : {}),
+    ...(thinking ? { thinkingLevel: thinking } : {}),
+  }
+}
+
+const LAUNCH_ONLY_OPTIONS = ['workspace', 'agent', 'archive-finished'] as const
+
+function heartbeatTarget(sessionId: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+  const launchOnly = LAUNCH_ONLY_OPTIONS.filter((name) => option(arguments_, name) !== undefined)
+  if (launchOnly.length > 0) {
+    throw new CommandCliUsageError(
+      `${launchOnly.map((name) => `--${name}`).join(', ')} apply only to a Launch schedule.`,
+    )
+  }
+  return { kind: 'heartbeat', sessionId, ...modelChoice(arguments_) }
+}
+
+function launchTarget(projectPath: string, arguments_: ParsedArguments): ScheduledTaskTarget {
   const agent = option(arguments_, 'agent')
   return {
     kind: 'launch',
     projectPath: path.resolve(projectPath),
     workspace: workspace(option(arguments_, 'workspace')),
-    ...(model ? { modelId: model } : {}),
-    ...(thinking ? { thinkingLevel: thinking } : {}),
+    ...modelChoice(arguments_),
     ...(agent ? { agentDefinitionName: agent } : {}),
     archiveFinishedSessions: hasFlag(arguments_, 'archive-finished'),
   }
@@ -163,18 +186,27 @@ async function createCommand(arguments_: ParsedArguments): Promise<ScheduledTask
   }
   const target: ScheduledTaskTarget =
     kind === 'heartbeat'
-      ? { kind: 'heartbeat', sessionId: sessionArgument(targetArgument, 'the Heartbeat Session') }
+      ? heartbeatTarget(sessionArgument(targetArgument, 'the Heartbeat Session'), arguments_)
       : launchTarget(required(targetArgument, 'the Launch schedule project path'), arguments_)
   const schedule = scheduleFromOptions(arguments_)
   if (!schedule) throw new CommandCliUsageError('create needs --every, --daily, or --rrule.')
   const prompt = await promptFrom(arguments_, words)
+  const common = commonFields(arguments_)
+  const heartbeat = heartbeatSettingsFromOptions(arguments_)
+  if (kind === 'launch' && heartbeat) {
+    throw new CommandCliUsageError(
+      'Stop conditions, Wake checks and idle Auto-pause apply only to a Heartbeat.',
+    )
+  }
+  if (kind === 'heartbeat') assertHeartbeatCliCanFinish({ heartbeat, ...common })
   const input: ScheduledTaskInput = {
     name: required(option(arguments_, 'name'), '--name'),
     prompt: required(prompt, 'the prompt (--prompt, --prompt-file, or words)'),
     enabled: !hasFlag(arguments_, 'paused'),
     schedule,
     target,
-    ...commonFields(arguments_),
+    ...common,
+    ...(heartbeat ? { heartbeat } : {}),
   }
   return { operation: 'create', input }
 }
@@ -184,11 +216,13 @@ async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTask
   const schedule = scheduleFromOptions(arguments_)
   const name = option(arguments_, 'name')
   const prompt = await promptFrom(arguments_, words)
+  const heartbeat = heartbeatSettingsFromOptions(arguments_)
   const patch: ScheduledTaskPatch = {
     ...(name ? { name } : {}),
     ...(prompt ? { prompt } : {}),
     ...(schedule ? { schedule } : {}),
     ...commonFields(arguments_),
+    ...(heartbeat ? { heartbeat } : {}),
   }
   if (Object.keys(patch).length === 0)
     throw new CommandCliUsageError('update needs at least one change.')

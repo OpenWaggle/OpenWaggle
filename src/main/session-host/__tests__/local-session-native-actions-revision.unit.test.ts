@@ -21,7 +21,7 @@ describe('native actions wire contract', () => {
         ],
       },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([28])
+    expect(supportedRevisionsForCommand(payload)).toEqual([29])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 16)).toThrow(/revision 17/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 17)).toEqual(payload)
   })

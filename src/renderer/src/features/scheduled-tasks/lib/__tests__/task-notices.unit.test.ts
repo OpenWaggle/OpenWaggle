@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  heartbeatSettings,
   heartbeatTask,
   scheduledTask,
   scheduledTaskRun,
@@ -22,6 +23,7 @@ describe('scheduledTaskNotices', () => {
         taskId: 'heartbeat-1',
         variant: 'error',
         message: 'Scheduled task “CI watch” failed: The model is unavailable',
+        action: 'open',
       },
     ])
   })
@@ -39,6 +41,7 @@ describe('scheduledTaskNotices', () => {
         taskId: 'task-1',
         variant: 'neutral',
         message: 'Scheduled task “Morning triage” started a Session.',
+        action: 'open',
       },
     ])
   })
@@ -52,6 +55,7 @@ describe('scheduledTaskNotices', () => {
         taskId: 'heartbeat-1',
         variant: 'error',
         message: 'Scheduled task “CI watch” needs attention: Archived.',
+        action: 'open',
       },
     ])
     expect(scheduledTaskNotices(noticeSnapshots(after), after)).toEqual([])
@@ -68,5 +72,29 @@ describe('scheduledTaskNotices', () => {
     ])
     expect(notices).toHaveLength(1)
     expect(notices[0]?.message).toContain('was skipped')
+  })
+
+  it('announces each Heartbeat Auto-pause once, with Resume', () => {
+    const before = noticeSnapshots([heartbeatTask()])
+    const after = [
+      heartbeatTask({
+        enabled: false,
+        heartbeat: heartbeatSettings({
+          consecutiveIdleRuns: 3,
+          autoPause: { reason: 'idle', message: 'auto-paused: 3 idle runs', since: 9 },
+        }),
+      }),
+    ]
+    expect(scheduledTaskNotices(before, after)).toEqual([
+      {
+        taskId: 'heartbeat-1',
+        variant: 'neutral',
+        message: 'Heartbeat “CI watch” auto-paused: 3 idle runs.',
+        action: 'resume',
+      },
+    ])
+    expect(scheduledTaskNotices(noticeSnapshots(after), after)).toEqual([])
+    // A task first seen already paused announces nothing.
+    expect(scheduledTaskNotices(new Map(), after)).toEqual([])
   })
 })

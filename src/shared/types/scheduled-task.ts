@@ -1,4 +1,13 @@
+import type {
+  HeartbeatRunOutcome,
+  HeartbeatSettings,
+  HeartbeatSettingsInput,
+  ScheduledTaskRunOutcome,
+  ScheduledTaskRunWakeCheck,
+} from './scheduled-task-heartbeat'
 import type { ThinkingLevel } from './settings'
+
+export * from './scheduled-task-heartbeat'
 
 /**
  * Scheduled tasks (ADR 0057, ADR 0058): a saved prompt, Task schedule, and target, owned by one
@@ -44,18 +53,22 @@ export type TaskSchedule =
 
 export type LaunchScheduleWorkspace = 'new-worktree' | 'local'
 
+/** A model and thinking level for this task's Runs only; omitted uses the Session's or project's. */
+interface ScheduledTaskModelChoice {
+  readonly modelId?: string
+  readonly thinkingLevel?: ThinkingLevel
+}
+
 export type ScheduledTaskTarget =
-  | { readonly kind: 'heartbeat'; readonly sessionId: string }
-  | {
+  | ({ readonly kind: 'heartbeat'; readonly sessionId: string } & ScheduledTaskModelChoice)
+  | ({
       readonly kind: 'launch'
       readonly projectPath: string
       readonly workspace: LaunchScheduleWorkspace
-      readonly modelId?: string
-      readonly thinkingLevel?: ThinkingLevel
       readonly agentDefinitionName?: string
       /** Archive a launched Session once it finished, nothing needs attention, and no one touched it. */
       readonly archiveFinishedSessions: boolean
-    }
+    } & ScheduledTaskModelChoice)
 
 /** Whom a Scheduled task notifies: every run, or only failures and attention. */
 export type ScheduledTaskNotificationPolicy = 'every-run' | 'failures-only'
@@ -101,6 +114,9 @@ export const SCHEDULED_TASK_RUN_REASONS = [
   'launch-refused',
   'dispatch-failed',
   'interrupted-by-host-stop',
+  'wake-check-idle',
+  'wake-check-failed',
+  'wake-check-unapproved',
 ] as const
 export type ScheduledTaskRunReason = (typeof SCHEDULED_TASK_RUN_REASONS)[number]
 
@@ -122,6 +138,10 @@ export interface ScheduledTaskRun {
   /** The Session the run delivered into (Heartbeat) or launched (Launch schedule). */
   readonly sessionId?: string
   readonly runId?: string
+  /** What a Heartbeat's Wake check decided for this firing. */
+  readonly wakeCheck?: ScheduledTaskRunWakeCheck
+  /** A Heartbeat Run's Run outcome, once reported or inferred. */
+  readonly outcome?: ScheduledTaskRunOutcome
 }
 
 export interface ScheduledTask {
@@ -149,6 +169,7 @@ export interface ScheduledTask {
   readonly waitingSince: number | null
   readonly runCount: number
   readonly lastRun: ScheduledTaskRun | null
+  readonly heartbeat: HeartbeatSettings | null
   /** Sessions this task's recent runs started or delivered into, newest first. */
   readonly recentSessionIds: readonly string[]
   readonly createdAt: number
@@ -168,6 +189,8 @@ export interface ScheduledTaskInput {
   readonly target: ScheduledTaskTarget
   /** Omitted: failures only for a Heartbeat, every run for a Launch schedule. */
   readonly notificationPolicy?: ScheduledTaskNotificationPolicy
+  /** A Heartbeat needs `stopWhen`, `indefinite`, `endsAt` or `maxRuns` (#388). */
+  readonly heartbeat?: HeartbeatSettingsInput
 }
 
 /** A partial update; the kind and Heartbeat target Session cannot change. */
@@ -181,6 +204,7 @@ export interface ScheduledTaskPatch {
   readonly maxRuns?: number | null
   readonly target?: ScheduledTaskTarget
   readonly notificationPolicy?: ScheduledTaskNotificationPolicy
+  readonly heartbeat?: HeartbeatSettingsInput
 }
 
 export type ScheduledTasksCommand =
@@ -201,6 +225,15 @@ export type ScheduledTasksCommand =
   | { readonly operation: 'update'; readonly taskId: string; readonly patch: ScheduledTaskPatch }
   | { readonly operation: 'delete'; readonly taskId: string }
   | { readonly operation: 'run-now'; readonly taskId: string }
+  /** The user approves this exact Wake check command, which releases a held Heartbeat. */
+  | { readonly operation: 'approve-wake-check'; readonly taskId: string; readonly command: string }
+  /** A Heartbeat Run reports its Run outcome; `runId` is that Session Run's id. */
+  | {
+      readonly operation: 'report-outcome'
+      readonly runId: string
+      readonly outcome: HeartbeatRunOutcome
+      readonly note?: string
+    }
 
 export const SCHEDULED_TASKS_OPERATIONS = [
   'list',
@@ -210,6 +243,8 @@ export const SCHEDULED_TASKS_OPERATIONS = [
   'update',
   'delete',
   'run-now',
+  'approve-wake-check',
+  'report-outcome',
 ] as const
 export type ScheduledTasksOperation = (typeof SCHEDULED_TASKS_OPERATIONS)[number]
 
@@ -235,6 +270,10 @@ export const SCHEDULED_TASK_REJECTION_CODES = [
   'run_already_in_progress',
   'scheduler_unavailable',
   'schedule_ended',
+  'stop_condition_required',
+  'heartbeat_only',
+  'wake_check_changed',
+  'run_not_scheduled',
 ] as const
 export type ScheduledTaskRejectionCode = (typeof SCHEDULED_TASK_REJECTION_CODES)[number]
 
@@ -250,6 +289,11 @@ export type ScheduledTasksOutcome =
   | { readonly effect: 'updated'; readonly task: ScheduledTask }
   | { readonly effect: 'deleted'; readonly taskId: string }
   | { readonly effect: 'run-requested'; readonly task: ScheduledTask }
+  | {
+      readonly effect: 'outcome-recorded'
+      readonly task: ScheduledTask
+      readonly run: ScheduledTaskRun
+    }
   | {
       readonly effect: 'rejected'
       readonly code: ScheduledTaskRejectionCode

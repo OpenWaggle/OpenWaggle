@@ -1,4 +1,9 @@
-import type { ScheduledTask, ScheduledTaskRun } from '@shared/types/scheduled-task'
+import {
+  HEARTBEAT_IDLE_PAUSE_DEFAULT,
+  type HeartbeatSettings,
+  type ScheduledTask,
+  type ScheduledTaskRun,
+} from '@shared/types/scheduled-task'
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const
 const HEARTBEAT_EVERY_MINUTES = 30
@@ -42,6 +47,7 @@ export function scheduledTask(patch: Partial<ScheduledTask> = {}): ScheduledTask
     waitingSince: null,
     runCount: 1,
     lastRun: null,
+    heartbeat: null,
     recentSessionIds: [],
     createdAt: Date.parse('2026-03-01T09:00:00Z'),
     updatedAt: Date.parse('2026-03-01T09:00:00Z'),
@@ -49,8 +55,21 @@ export function scheduledTask(patch: Partial<ScheduledTask> = {}): ScheduledTask
   }
 }
 
+export function heartbeatSettings(patch: Partial<HeartbeatSettings> = {}): HeartbeatSettings {
+  return {
+    stopWhen: 'CI is green on main',
+    indefinite: false,
+    idlePauseAfter: HEARTBEAT_IDLE_PAUSE_DEFAULT,
+    wakeCheck: null,
+    consecutiveIdleRuns: 0,
+    autoPause: null,
+    ...patch,
+  }
+}
+
 export function heartbeatTask(patch: Partial<ScheduledTask> = {}): ScheduledTask {
   return scheduledTask({
+    heartbeat: heartbeatSettings(),
     id: 'heartbeat-1',
     name: 'CI watch',
     kind: 'heartbeat',

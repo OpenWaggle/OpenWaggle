@@ -13,6 +13,8 @@ import {
 } from '../lib/task-format'
 import type { ScheduledTaskEditorLayout } from './EditorTargetFields'
 import { ScheduledTaskActions } from './ScheduledTaskActions'
+import { ScheduledTaskHeartbeatNotices } from './ScheduledTaskHeartbeatNotices'
+import { HeartbeatSettingRows } from './ScheduledTaskHeartbeatRows'
 import {
   ScheduledTaskAttention,
   ScheduledTaskKindIcon,
@@ -25,13 +27,16 @@ function TargetLine({ task }: { readonly task: ScheduledTask }) {
   const openSession = useOpenScheduledSession()
   const { target } = task
   if (target.kind === 'heartbeat') {
+    const model = [target.modelId, target.thinkingLevel ? `thinking ${target.thinkingLevel}` : null]
+      .filter((part): part is string => Boolean(part))
+      .join(' · ')
     return (
       <span>
         Into{' '}
         <Button variant="link" size="none" onClick={() => openSession(target.sessionId)}>
           its Session
         </Button>{' '}
-        when it is idle
+        when it is idle{model ? ` · its Runs use ${model}` : ''}
       </span>
     )
   }
@@ -84,8 +89,9 @@ function TaskSettings({
       <Row label="When">
         <ScheduledTaskScheduleLine task={task} now={now} />
       </Row>
+      <HeartbeatSettingRows task={task} />
       <Row label="Last run">
-        <ScheduledTaskLastRunLine task={task} />
+        <ScheduledTaskLastRunLine task={task} now={now} />
       </Row>
       <Row label="Notifies on">{NOTIFICATION_POLICY_LABELS[task.notificationPolicy]}</Row>
       <Row label="Created by">
@@ -141,6 +147,7 @@ export function ScheduledTaskDetail({
         <ScheduledTaskActions task={task} onEdit={onEdit} onDeleted={onDeleted} align="start" />
       ) : null}
       <ScheduledTaskAttention task={task} />
+      <ScheduledTaskHeartbeatNotices task={task} />
       <TaskSettings task={task} layout={layout} />
       <ScheduledTaskRunHistory taskId={task.id} timeZone={differingTimeZone(task)} />
     </div>

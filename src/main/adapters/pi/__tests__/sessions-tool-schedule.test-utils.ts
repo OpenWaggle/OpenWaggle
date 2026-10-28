@@ -27,6 +27,7 @@ export function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
     waitingSince: null,
     runCount: 0,
     lastRun: null,
+    heartbeat: null,
     recentSessionIds: [],
     createdAt: 0,
     updatedAt: 0,
@@ -42,4 +43,23 @@ export function result(
     contract: 'scheduled-tasks-v1',
     response: { contractVersion: 1, requestId: 'request', operation, outcome },
   } satisfies LocalScheduledTasksCommandResult
+}
+
+/** A gated Heartbeat whose Wake check waits for the user's approval (#388). */
+export function gatedTask(approval: 'pending' | 'approved' | 'not-required' = 'pending') {
+  return task({
+    heartbeat: {
+      stopWhen: 'PR 42 merged',
+      indefinite: false,
+      idlePauseAfter: 3,
+      wakeCheck: {
+        command: 'gh pr checks 42 | grep fail',
+        onFailure: 'wake',
+        approval,
+        pendingSince: approval === 'pending' ? 1 : null,
+      },
+      consecutiveIdleRuns: 1,
+      autoPause: null,
+    },
+  })
 }

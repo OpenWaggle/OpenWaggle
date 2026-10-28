@@ -15,6 +15,7 @@ const NOT_ON_THE_HIVE_CLI = [
   'schedule_create',
   'schedule_delete',
   'schedule_list',
+  'schedule_outcome',
   'schedule_read',
   'schedule_run_now',
   'schedule_runs',

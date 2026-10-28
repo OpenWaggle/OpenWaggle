@@ -2,19 +2,19 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
- * Bounded Session reads ship with revision 28: the Host-side tree filter and one read for every
+ * Bounded Session reads ship with revision 29: the Host-side tree filter and one read for every
  * turn's changed files.
  */
-export const HOST_UI_REVISION_28_REQUIRED_CHANNELS = [
+export const HOST_UI_REVISION_29_REQUIRED_CHANNELS = [
   'sessions:search-tree',
   'sessions:turn-diff-files:list',
 ] as const satisfies readonly IpcInvokeChannel[]
 /**
- * Arguments existing channels gained in revision 28: the detail's cursor, which returns only
+ * Arguments existing channels gained in revision 29: the detail's cursor, which returns only
  * appended messages, the workspace's window and cached-node request, and the provider catalog's
  * scope, which reads only the available providers unless Settings asks for all (B14).
  */
-export const HOST_UI_REVISION_28_ARGUMENT_COUNTS = {
+export const HOST_UI_REVISION_29_ARGUMENT_COUNTS = {
   'providers:get-models': 2,
   'sessions:get-detail': 2,
   'sessions:get-workspace': 3,
@@ -173,7 +173,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_28_REQUIRED_CHANNELS,
+  ...HOST_UI_REVISION_29_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_25_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_24_SESSION_CHANNELS,
   ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,

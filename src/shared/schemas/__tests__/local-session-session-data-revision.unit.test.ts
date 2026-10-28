@@ -12,9 +12,9 @@ function request(channel: HostBackedGuiChannel, argumentCount: number) {
   return { channel, args }
 }
 
-describe('Session Host revision 28 requests', () => {
-  it('needs revision 28 for the arguments the v1 performance work added', () => {
-    expect(LOCAL_SESSION_SESSION_DATA_REVISION).toBe(28)
+describe('Session Host revision 29 requests', () => {
+  it('needs revision 29 for the arguments the v1 performance work added', () => {
+    expect(LOCAL_SESSION_SESSION_DATA_REVISION).toBe(29)
     for (const [channel, argumentCount] of [
       ['providers:get-models', 2],
       ['sessions:get-detail', 2],

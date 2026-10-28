@@ -6,7 +6,12 @@ import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { useNow } from '../hooks/useNow'
 import { useSetScheduledTaskEnabled } from '../hooks/useScheduledTaskMutations'
 import { describeSchedule } from '../lib/schedule-presets'
-import { nextRunText } from '../lib/task-format'
+import {
+  lastCheckText,
+  nextRunText,
+  WAKE_CHECK_APPROVAL_TEXT,
+  wakeCheckPending,
+} from '../lib/task-format'
 import { ScheduledTaskKindIcon } from './ScheduledTaskParts'
 
 export interface ScheduledTaskRowGroup {
@@ -20,7 +25,9 @@ export interface ScheduledTaskRowGroup {
 
 function rowDetail(task: ScheduledTask, now: number) {
   if (task.attention) return task.attention.message
-  return `${describeSchedule(task.schedule)} · ${nextRunText(task, now)}`
+  if (task.enabled && wakeCheckPending(task)) return WAKE_CHECK_APPROVAL_TEXT
+  const check = task.enabled ? lastCheckText(task, now) : null
+  return check ?? `${describeSchedule(task.schedule)} · ${nextRunText(task, now)}`
 }
 
 function TaskRow({

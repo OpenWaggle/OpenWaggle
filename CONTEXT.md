@@ -2685,6 +2685,22 @@ _Avoid_: heartbeat strip, heartbeat banner, automation card
 One firing of a **Scheduled task**, which produces a Run (Heartbeat) or a Session (Launch schedule) or is recorded as skipped or failed.
 _Avoid_: Run (that is the agent execution it may produce), trigger, execution
 
+**Wake check**:
+An optional shell command a **Heartbeat** carries, which the **Session Host** runs in the Heartbeat Session's Workspace before each firing, as a Project action runs a command, so that a firing with nothing to do starts no Run and calls no model.
+_Avoid_: precheck, gate script, probe, wakeIf (the tool field's name, not the concept)
+
+**Stop condition**:
+The plain-language outcome after which a **Heartbeat** should stop, which its Run reads and acts on; with an end date, a run count, or an explicit indefinite, one of the ways every Heartbeat must have to finish.
+_Avoid_: exit condition, goal, stopWhen (the field's name, not the concept)
+
+**Run outcome**:
+What a **Heartbeat**'s Run did: `acted`, `idle` or `done`, reported by the Run or, when it reports none, inferred from the tools it used.
+_Avoid_: result, status (a **Scheduled task run** has a status), verdict
+
+**Auto-pause**:
+The **Session Host** turning a **Heartbeat** off by itself, after a `done` **Run outcome** or after its threshold of consecutive idle runs, with the reason recorded and announced once.
+_Avoid_: auto-disable, expiry, stop (the user's own pause)
+
 - A **Scheduled task** is exactly one **Heartbeat** or one **Launch schedule**.
 - A **Heartbeat** targets exactly one Session; a **Launch schedule** targets one project and creates a new root Session per **Scheduled task run**, never a Worker.
 - The **Session Host** schedules every **Scheduled task**, and does not idle-exit while at least one is enabled; nothing fires while the Host is not running or the machine is asleep.
@@ -2703,6 +2719,12 @@ _Avoid_: Run (that is the agent execution it may produce), trigger, execution
 - A **Scheduled task** is opened where the user is: in the **Scheduled panel** when a chat in its project is open, otherwise in **Scheduled tasks settings**; its editor replaces the detail in that same place and is never a modal.
 - A **Launch schedule**'s Sessions are ordinary sidebar Sessions marked with a scheduled provenance icon; there is no separate inbox, and no **Scheduled task run** is required to end its reply in a particular format.
 - A **Heartbeat** notifies only on failure or attention by default and a **Launch schedule** on every run; a **Scheduled task** disabled or skipped for an authority reason always produces an **Agent notification**.
+- Every **Heartbeat** has a way to finish: a **Stop condition**, an end date, a run count, or an explicit indefinite. Creating one without is refused by the Host, the **Hive tool**, the CLI and the editor; a Heartbeat created before this rule is indefinite and says it has no end. A **Launch schedule** has no **Stop condition**, **Wake check** or **Auto-pause**.
+- A **Wake check** runs with no chat context, the Project actions environment, a 30-second limit and 16 KiB of output per stream. Exiting 0 with nothing on standard output records the firing as skipped (nothing to do), starts no Run, and counts as an idle run; printing something or exiting non-zero starts the Run, which receives the output. A check that cannot start, times out, is killed, or whose shell cannot run its command is a failure, never "nothing to do": it wakes the Run unless the Heartbeat says to skip.
+- A **Wake check** runs under the Heartbeat's **Effective authorization mode**. Under **Ask for Approval**, a command anyone but the user set waits for the user to approve that exact command, once and again whenever it changes; until then the Heartbeat is held. The user setting a command, in the app or the CLI as themselves, approves it; a **CLI client profile** never can.
+- A Heartbeat Run that reports no **Run outcome** counts as `acted` when it used any tool other than a read-only query, and `idle` otherwise; a shell command always counts as acting. `done` causes an **Auto-pause** at once; consecutive idle runs, a skipped **Wake check** included, cause one at the Heartbeat's threshold (1 to 20, 3 by default); `acted` resets the count, and a failed Run or check leaves it as it was.
+- A Heartbeat's Run identity carries its run count, consecutive idle runs, **Stop condition**, end date, run count limit and runs left, and any **Wake check** output, with the instruction to pause it and report its **Run outcome**.
+- A **Heartbeat** may carry its own model and thinking level, which apply to its Runs only; its Session keeps its own.
 - A **Launch schedule** may archive its finished Sessions automatically, only when nothing needs attention and the user never touched them, and only when that option is on.
 - A **Task schedule** keeps its stored time zone when the machine's zone changes; intervals count elapsed time, and daily and recurrence-rule times follow the wall clock across daylight-saving changes.
 - A **Heartbeat** fires at most every 5 minutes and a **Launch schedule** at most every 15; hourly-or-slower schedules fire within a few minutes of their nominal time, which the history records beside the actual time.

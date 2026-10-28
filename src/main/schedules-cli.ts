@@ -3,6 +3,7 @@ import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions, validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
+import { HEARTBEAT_CLI_FLAGS, HEARTBEAT_CLI_OPTIONS } from './schedules-cli-heartbeat'
 import { writeSchedulesCliResponses } from './schedules-cli-output'
 import { buildSchedulesCliCommands, schedulesCliRequest } from './schedules-cli-payload'
 import {
@@ -24,11 +25,14 @@ Usage:
   openwaggle schedules list [--project <path>] [--session <session>]
   openwaggle schedules show <task-id>
   openwaggle schedules runs <task-id> [--limit <n>] [--before <iso|ms>]
-  openwaggle schedules create heartbeat <session> --name <name> <schedule> [prompt...]
+  openwaggle schedules create heartbeat <session> --name <name> <schedule> <end> [prompt...]
+    [--wake-if <command>] [--wake-on-failure wake|skip] [--idle-pause-after <1-20>]
+    [--model <id>] [--thinking <level>]
   openwaggle schedules create launch <project-path> --name <name> <schedule> [prompt...]
     [--workspace new-worktree|local] [--model <id>] [--thinking <level>] [--agent <name>]
     [--archive-finished]
   openwaggle schedules update <task-id> [--name <name>] [<schedule>] [prompt...]
+  openwaggle schedules approve-wake-check <task-id>   Approve the Heartbeat's current Wake check
   openwaggle schedules pause <task-id>
   openwaggle schedules resume <task-id>
   openwaggle schedules run <task-id>
@@ -40,6 +44,14 @@ Schedule (one of):
   --every <minutes|30m|2h>                 At least 5 minutes for a Heartbeat, 15 for a Launch schedule
   --daily <HH:MM> [--weekdays 1,2,3|weekdays]   1 is Monday
   --rrule <rule>                           RFC 5545 rule without DTSTART, UNTIL or COUNT
+Heartbeat end (at least one when creating; #388):
+  --stop-when <text|none>                  The outcome after which it should stop, in plain words
+  --ends <iso|ms>  --max-runs <n>  --indefinite (never ends; --finite undoes it on update)
+Heartbeat Wake check:
+  --wake-if <command|none>                 Run first in the Session workspace; the agent Run starts
+                                           only when it exits non-zero or prints on stdout
+  --wake-on-failure wake|skip              A failed or timed-out check wakes by default
+  --idle-pause-after <1-20>                Idle runs in a row before it pauses itself (default 3)
 Task options:
   --prompt <text> | --prompt-file <path>   Or the prompt as the remaining words
   --time-zone <IANA zone>                  Default: this machine's zone
@@ -65,21 +77,35 @@ const TASK_OPTIONS = [
   'notify',
 ] as const
 const LAUNCH_OPTIONS = ['workspace', 'model', 'thinking', 'agent', 'archive-finished'] as const
+const UPDATE_OPTIONS = [...TASK_OPTIONS, ...HEARTBEAT_CLI_OPTIONS]
 const OPTIONS_BY_COMMAND: Readonly<Record<string, readonly string[]>> = {
   help: [],
   list: ['project', 'session'],
   export: ['project', 'session'],
   show: [],
   runs: ['limit', 'before'],
-  create: [...TASK_OPTIONS, ...LAUNCH_OPTIONS, 'paused', 'idempotency-key'],
-  update: TASK_OPTIONS,
+  create: [
+    ...TASK_OPTIONS,
+    ...HEARTBEAT_CLI_OPTIONS,
+    ...LAUNCH_OPTIONS,
+    'paused',
+    'idempotency-key',
+  ],
+  update: UPDATE_OPTIONS,
+  'approve-wake-check': [],
   pause: [],
   resume: [],
   run: [],
   delete: [],
   import: [],
 }
-const BOOLEAN_OPTIONS = new Set(['credential-stdin', 'json', 'paused', 'archive-finished'])
+const BOOLEAN_OPTIONS = new Set([
+  'credential-stdin',
+  'json',
+  'paused',
+  'archive-finished',
+  ...HEARTBEAT_CLI_FLAGS,
+])
 const ARGUMENTS_BY_COMMAND = {
   help: { minimum: 0, maximum: 0 },
   list: { minimum: 0, maximum: 0 },
@@ -88,6 +114,7 @@ const ARGUMENTS_BY_COMMAND = {
   runs: { minimum: 1, maximum: 1 },
   create: { minimum: 2 },
   update: { minimum: 1 },
+  'approve-wake-check': { minimum: 1, maximum: 1 },
   pause: { minimum: 1, maximum: 1 },
   resume: { minimum: 1, maximum: 1 },
   run: { minimum: 1, maximum: 1 },
@@ -144,6 +171,35 @@ async function runsTimeZone(
   }
 }
 
+/**
+ * Approves the Wake check the task runs now: it is read first, so the approval names the exact
+ * command, which the output shows (#388).
+ */
+async function approveWakeCheckCommands(client: SchedulesCliClient, taskId: string) {
+  const read = await executeSchedulesCommand(client, { operation: 'read', taskId }, undefined)
+  if (read.outcome.effect !== 'read') return [read]
+  const command = read.outcome.task.heartbeat?.wakeCheck?.command
+  if (!command) {
+    return [
+      {
+        ...read,
+        outcome: {
+          effect: 'rejected',
+          code: 'wake_check_changed',
+          message: 'This task has no Wake check to approve.',
+        },
+      } satisfies ScheduledTasksResponse,
+    ]
+  }
+  return [
+    await executeSchedulesCommand(
+      client,
+      { operation: 'approve-wake-check', taskId, command },
+      undefined,
+    ),
+  ]
+}
+
 export async function runSchedulesCli(args: readonly string[]) {
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
@@ -166,6 +222,13 @@ export async function runSchedulesCli(args: readonly string[]) {
     if (command === 'help') {
       await writeCliStdout(schedulesCliUsage())
       return EXIT.SUCCESS
+    }
+    if (command === 'approve-wake-check') {
+      const client = await createLocalSessionCliClientInput(arguments_)
+      const responses = await approveWakeCheckCommands(client, arguments_.positionals[0] ?? '')
+      await writeSchedulesCliResponses(command, responses, hasFlag(arguments_, 'json'))
+      const error = resultError(responses)
+      return error ? sessionCliExitCodeForError(error) : EXIT.SUCCESS
     }
     const commands = await buildSchedulesCliCommands(command, arguments_)
     const client = await createLocalSessionCliClientInput(arguments_)

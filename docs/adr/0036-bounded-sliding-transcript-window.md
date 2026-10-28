@@ -102,7 +102,7 @@ The window bounded the rows that mount, but every read still moved the whole bra
 - A workspace read returns the newest window of the selected path (at least 200 entries, `transcriptWindow { startIndex, pathLength }`), always a suffix ending at the selected node. Reaching the top of the loaded rows reads the next page from the Host; a saved reading position older than the loaded rows reads a window that reaches its node (`includeNodeId`), so the anchor rules above are unchanged.
 - Entries the window already holds come back without content while the Session's node mutation revision is unchanged (`cached`, `contentOmitted`), and a Session detail read with a cursor returns only the messages appended after the caller's (`messagesDelta`). The revision is read before the nodes it labels, so held content is never newer than its label.
 
-This ships with Local Session revision 28. Measured on hidden packaged-style builds: a 12-message open 720 KB → 77 KB, the 80-message open 13.2 MB → 0.40 MB (first open 15.4 → 2.5 MB).
+This ships with Local Session revision 29. Measured on hidden packaged-style builds: a 12-message open 720 KB → 77 KB, the 80-message open 13.2 MB → 0.40 MB (first open 15.4 → 2.5 MB).
 
 ### The detail is bounded too, and an open reads each part once
 

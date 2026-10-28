@@ -14,6 +14,7 @@ import {
   type ScheduledTaskRecord,
   ScheduledTaskRepository,
 } from '../ports/scheduled-task-repository'
+import { approveWakeCheck, reportHeartbeatOutcome } from './scheduled-task-heartbeat-commands'
 import { scheduledTaskHooks } from './scheduled-task-hooks'
 import {
   createScheduledTask,
@@ -150,6 +151,8 @@ function executeCommand(principal: ScheduledTaskPrincipal, request: ScheduledTas
   if (command.operation === 'runs') return listRuns(principal, command)
   if (command.operation === 'delete') return deleteTask(principal, command.taskId)
   if (command.operation === 'run-now') return runNow(principal, command.taskId)
+  if (command.operation === 'approve-wake-check') return approveWakeCheck(principal, command)
+  if (command.operation === 'report-outcome') return reportHeartbeatOutcome(principal, command)
   if (command.operation === 'create') {
     return createScheduledTask({
       principal,

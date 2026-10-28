@@ -123,7 +123,8 @@ function powerShellActionCommand(command: string) {
   ].join('\n')
 }
 
-async function processCommand(
+/** The program and arguments that run an action's invocation; a Wake check runs the same way. */
+export async function processCommand(
   invocation: ResolvedActionInvocation,
   environment: Readonly<Record<string, string>>,
 ) {
