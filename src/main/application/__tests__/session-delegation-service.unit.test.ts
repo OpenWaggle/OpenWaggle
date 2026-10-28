@@ -57,6 +57,7 @@ describe('Session Delegation service', () => {
               workerSessionId: 'worker-1',
             },
           }),
+        delegationStateOf: () => Effect.die('unused'),
       }),
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),

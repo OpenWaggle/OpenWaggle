@@ -8,11 +8,13 @@ import {
   createMcpExtension,
   DefaultResourceLoader,
   type ExtensionAPI,
+  type ExtensionUIContext,
   ModelRuntime,
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadMcpRuntimeConfig } from '../../../mcp/config/mcp-runtime-config'
 import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
@@ -20,6 +22,8 @@ import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connecti
 import { forgetMcpAppTools } from '../mcp-app-registry'
 import {
   type CachedMcpAppTools,
+  mcpCodemodeReach,
+  withDirectKeptWithoutCodemode,
   withKnownMcpAppToolsOf,
   withOpenWaggleMcpExposure,
 } from '../mcp-openwaggle-exposure'
@@ -85,9 +89,17 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 10_000) {
  */
 async function runOnce(
   pool: McpSessionConnectionPool,
-  options: { readonly coldWaitMs?: number; readonly cached?: CachedMcpAppTools } = {},
+  options: {
+    readonly coldWaitMs?: number
+    readonly cached?: CachedMcpAppTools
+    /** Pi's `-builtin:codemode`: the codemode extension is not loaded. */
+    readonly withoutCodemode?: boolean
+  } = {},
 ) {
   const config = await loadMcpRuntimeConfig({ roots, resolveSecret: async (name) => name })
+  const codemode = mcpCodemodeReach(config.loaded.autoEnableCodemode ?? true)
+  const fileConfigOf = (name: string) =>
+    config.merged.servers.find((server) => server.name === name)?.config
   const directory = mkdtempSync(path.join(root, 'run-'))
   const faux = fauxProvider({ provider: 'exposure-provider', models: [{ id: 'exposure-model' }] })
   let probe: ExtensionAPI | undefined
@@ -114,12 +126,17 @@ async function runOnce(
     noThemes: true,
     noContextFiles: true,
     extensionFactories: [
-      createCodemodeExtension(),
+      ...(options.withoutCodemode ? [] : [createCodemodeExtension()]),
       withOpenWaggleMcpExposure(
         SESSION_ID,
         config.loaded,
         createMcpExtension({
-          loadConfig: () => withKnownMcpAppToolsOf(SESSION_ID, config.loaded, options.cached),
+          loadConfig: () =>
+            withKnownMcpAppToolsOf(
+              SESSION_ID,
+              withDirectKeptWithoutCodemode(config.loaded, codemode, fileConfigOf),
+              options.cached,
+            ),
           createTransport: (entry, cwd) =>
             pool.lease(SESSION_ID, {
               name: entry.name,
@@ -135,6 +152,7 @@ async function runOnce(
         options.coldWaitMs === undefined
           ? undefined
           : { waitMs: options.coldWaitMs, ...(options.cached ? { cached: options.cached } : {}) },
+        codemode,
       ),
       (pi: ExtensionAPI) => {
         probe = pi
@@ -151,7 +169,8 @@ async function runOnce(
     sessionManager: SessionManager.inMemory(directory),
     settingsManager,
   })
-  await session.bindExtensions({})
+  const notify = vi.fn<ExtensionUIContext['notify']>()
+  await session.bindExtensions({ uiContext: fromPartial<ExtensionUIContext>({ notify }) })
   await session.prompt('Hello.')
   const registered = () => probe?.getAllTools().map((tool) => tool.name) ?? []
   await waitUntil(() => registered().includes('mcp__fixture__show'))
@@ -161,7 +180,8 @@ async function runOnce(
   )
   await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
   session.dispose()
-  return { activeAtFirstRequest, active, exposures }
+  const notices = notify.mock.calls.map(([message]) => message)
+  return { activeAtFirstRequest, active, exposures, notices }
 }
 
 describe('MCP exposure as OpenWaggle runs it', () => {
@@ -233,5 +253,20 @@ describe('MCP exposure as OpenWaggle runs it', () => {
     const { activeAtFirstRequest } = await runOnce(restarted, { coldWaitMs: 0, cached })
 
     expect(activeAtFirstRequest).toContain('mcp__fixture__show')
+  }, 60_000)
+})
+
+describe('MCP exposure in a Run without codemode (review R5 P2-3)', () => {
+  it("keeps a file's direct server direct, so its tools stay callable", async () => {
+    configureDirectServer()
+    const pool = new McpSessionConnectionPool({ hooks: openWaggleMcpConnectionHooks })
+    cleanups.push(() => pool.closeAll())
+
+    const { active, exposures, notices } = await runOnce(pool, { withoutCodemode: true })
+
+    expect(active).not.toContain('codemode')
+    expect(active).toContain('mcp__fixture__search')
+    expect(exposures.mcp__fixture__search).toBe('direct')
+    expect(notices.some((notice) => notice.includes('cannot be called'))).toBe(false)
   }, 60_000)
 })

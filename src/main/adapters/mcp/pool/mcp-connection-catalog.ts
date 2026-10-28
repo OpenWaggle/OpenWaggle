@@ -5,78 +5,25 @@
  * server's process starts only when a request needs it: a tool call, resources, prompts.
  */
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
-import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import type { McpObservedResultContext, McpPooledConnectionOptions } from './mcp-connection-support'
+import {
+  MCP_TOOL_CATALOG_MAX_AGE_MS,
+  type McpToolCatalog,
+  type McpToolCatalogStore,
+} from './mcp-tool-catalog-store'
 
-/** A catalog older than this is not served: the server starts and the catalog is refreshed. */
+export {
+  fileBackedMcpToolCatalogStore,
+  MCP_TOOL_CATALOG_MAX_AGE_MS,
+  type McpToolCatalog,
+  type McpToolCatalogStore,
+  memoryMcpToolCatalogStore,
+  pruneMcpToolCatalogs,
+} from './mcp-tool-catalog-store'
+
 /** Hex characters of a catalog key: its file name. */
 const CATALOG_KEY_LENGTH = 32
-
-export const MCP_TOOL_CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000
-
-const CatalogSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  initialize: Schema.Unknown,
-  toolsPages: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-  savedAt: Schema.Number,
-})
-export type McpToolCatalog = Omit<typeof CatalogSchema.Type, 'version'>
-
-export interface McpToolCatalogStore {
-  readonly read: (key: string) => McpToolCatalog | undefined
-  readonly write: (key: string, catalog: McpToolCatalog) => void
-  readonly forget: (key: string) => void
-}
-
-/** One file per catalog key under `directory`. */
-export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolCatalogStore {
-  const file = (key: string) => path.join(directory(), `${key}.json`)
-  return {
-    read: (key) => {
-      try {
-        const decoded = safeDecodeUnknown(
-          CatalogSchema,
-          parseJsonUnknown(readFileSync(file(key), 'utf8')),
-        )
-        if (!decoded.success) return undefined
-        const { version: _version, ...catalog } = decoded.data
-        return catalog
-      } catch {
-        return undefined
-      }
-    },
-    write: (key, catalog) => {
-      try {
-        mkdirSync(directory(), { recursive: true })
-        const temporary = `${file(key)}.${process.pid}.tmp`
-        writeFileSync(temporary, JSON.stringify({ version: 1, ...catalog }))
-        // Replaced whole, so a concurrent read sees the old or the new catalog.
-        renameSync(temporary, file(key))
-      } catch {
-        // Not cached: the server starts with its Session next time too.
-      }
-    },
-    forget: (key) => {
-      rmSync(file(key), { force: true })
-    },
-  }
-}
-
-/** An in-memory store, for tests and Hosts without user data. */
-export function memoryMcpToolCatalogStore(): McpToolCatalogStore {
-  const catalogs = new Map<string, McpToolCatalog>()
-  return {
-    read: (key) => catalogs.get(key),
-    write: (key, catalog) => {
-      catalogs.set(key, catalog)
-    },
-    forget: (key) => {
-      catalogs.delete(key)
-    },
-  }
-}
 
 /**
  * The catalog key of a server: its identity plus what the connection is made of, without the
@@ -186,8 +133,25 @@ export class McpConnectionCatalog {
   }
 }
 
-/** How long a Session waits for another Session's server to fill a missing catalog. */
+/** How long a Session waits for another Session's server to fill a missing catalog, at most. */
 export const MCP_CATALOG_FILL_WAIT_MS = 30_000
+
+/** Pi's per-request timeout of an MCP server without `timeout`, in seconds. */
+const PI_DEFAULT_REQUEST_TIMEOUT_SECONDS = 60
+const MS_PER_SECOND = 1_000
+/** Each wait before a server's own start may take this share of its request timeout. */
+const STARTUP_WAIT_SHARE = 3
+
+/**
+ * How long one step before a server answers may wait (a cold wave's catalog fill, the package
+ * runner's probe): a third of Pi's request timeout for the server (`timeout`, 60 s by default),
+ * at most `cap`, so the waits and the server's own start fit in the `initialize` or `tools/call`
+ * that waits for them (review R5 P3-5).
+ */
+export function mcpStartupWaitMs(timeoutSeconds: number | undefined, cap: number) {
+  const timeoutMs = (timeoutSeconds ?? PI_DEFAULT_REQUEST_TIMEOUT_SECONDS) * MS_PER_SECOND
+  return Math.max(0, Math.min(cap, Math.floor(timeoutMs / STARTUP_WAIT_SHARE)))
+}
 
 /**
  * Catalogs being filled, one per catalog key (cold wave). When several Sessions start a server
@@ -200,9 +164,12 @@ export class McpCatalogFills {
   private readonly fills = new Map<string, Promise<void>>()
 
   /** The fill to wait for, or none when this caller fills it: `done` ends its fill. */
-  join(key: string): { readonly fill: Promise<void> } | { readonly done: () => void } {
+  join(
+    key: string,
+    waitMs: number = MCP_CATALOG_FILL_WAIT_MS,
+  ): { readonly fill: Promise<void> } | { readonly done: () => void } {
     const fill = this.fills.get(key)
-    if (fill) return { fill }
+    if (fill) return { fill: waitAtMost(fill, waitMs) }
     const { promise, resolve } = Promise.withResolvers<void>()
     const timer = setTimeout(resolve, MCP_CATALOG_FILL_WAIT_MS)
     timer.unref()
@@ -215,6 +182,18 @@ export class McpCatalogFills {
   }
 }
 
+/** `fill`, or nothing once `waitMs` passed: a waiter's own budget, whatever the filler's is. */
+function waitAtMost(fill: Promise<void>, waitMs: number) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, waitMs)
+    timer.unref()
+    void fill.then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 /**
  * The catalog options of a pooled server's connection, when the pool keeps catalogs: the
  * catalog records every `tools/list` result the connection sees, alongside the other observers.
@@ -222,22 +201,37 @@ export class McpCatalogFills {
  */
 export function mcpConnectionCatalogOptions(
   store: McpToolCatalogStore | undefined,
-  spec: { readonly catalogKey?: string; readonly lazyStart?: boolean },
-  observeResult: ((method: string, params: unknown, result: unknown) => void) | undefined,
+  spec: {
+    readonly catalogKey?: string
+    readonly lazyStart?: boolean
+    readonly catalogFillWaitMs?: number
+  },
+  observeResult: McpPooledConnectionOptions['observeResult'],
   fills?: McpCatalogFills,
 ) {
   if (!store || spec.catalogKey === undefined) return observeResult ? { observeResult } : {}
   const catalog = new McpConnectionCatalog(store, spec.catalogKey)
   const lazyStart = spec.lazyStart === true
-  const joined = lazyStart && fills && !catalog.canServe ? fills.join(spec.catalogKey) : undefined
+  const joined =
+    lazyStart && fills && !catalog.canServe
+      ? fills.join(spec.catalogKey, spec.catalogFillWaitMs)
+      : undefined
   if (joined && 'done' in joined) catalog.filled = joined.done
   return {
     catalog,
     lazyStart,
     ...(joined && 'fill' in joined ? { catalogFill: joined.fill } : {}),
-    observeResult: (method: string, params: unknown, result: unknown) => {
-      observeResult?.(method, params, result)
-      if (method === 'tools/list') catalog.recordToolsPage(params, result)
+    observeResult: (
+      method: string,
+      params: unknown,
+      result: unknown,
+      context?: McpObservedResultContext,
+    ) => {
+      observeResult?.(method, params, result, context)
+      // A page the catalog served is its own: only what the server lists is recorded.
+      if (method === 'tools/list' && context?.served !== true) {
+        catalog.recordToolsPage(params, result)
+      }
     },
   }
 }

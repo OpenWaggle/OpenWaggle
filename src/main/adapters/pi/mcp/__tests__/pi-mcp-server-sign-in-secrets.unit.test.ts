@@ -41,6 +41,8 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   deferredMcpVaultSecret: mocks.vault,
   resolveMcpVaultSecret: mocks.vault,
+  // Stamps are only listed when a stamp is asked for, which this lookup never does.
+  mcpVaultSecretStamps: () => mocks.vault,
 }))
 vi.mock('../openwaggle-mcp-credentials', () => ({
   getOpenWaggleMcpCredentials: () => ({ remove: mocks.remove }),

@@ -1,50 +1,17 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  PACKAGE_BIN_UNPINNED_TTL_MS,
-  type PackageBinStore,
-  PackageRunnerBypass,
-  type PackageRunnerProbe,
-  type ResolvedPackageBin,
-} from '../mcp-package-runner-bypass'
+import { PACKAGE_BIN_UNPINNED_TTL_MS } from '../mcp-package-runner-bins'
+import { PackageRunnerBypass } from '../mcp-package-runner-bypass'
 import { packageBinPath, parsePackageRunnerCommand } from '../mcp-package-runner-launch'
+import type { PackageRunnerProbe } from '../mcp-package-runner-probe'
+import {
+  launchInput,
+  memoryStore,
+  removeScratchDirectories,
+  runnerCache,
+} from './package-runner-fixtures'
 
-const directories: string[] = []
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
-})
-
-/** A runner cache folder holding one package with a JavaScript bin. */
-function runnerCache(name = '@scope/server', bin: unknown = { server: 'dist/cli.js' }) {
-  const root = mkdtempSync(path.join(tmpdir(), 'ow-npx-'))
-  directories.push(root)
-  const binDirectory = path.join(root, 'node_modules', '.bin')
-  const packageDir = path.join(root, 'node_modules', ...name.split('/'))
-  mkdirSync(binDirectory, { recursive: true })
-  mkdirSync(path.join(packageDir, 'dist'), { recursive: true })
-  writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, bin }))
-  writeFileSync(path.join(packageDir, 'dist', 'cli.js'), '#!/usr/bin/env node\n')
-  return { binDirectory, script: path.join(packageDir, 'dist', 'cli.js') }
-}
-
-function memoryStore(): PackageBinStore {
-  let saved: Record<string, ResolvedPackageBin> = {}
-  return {
-    load: () => ({ ...saved }),
-    save: (entries) => {
-      saved = { ...entries }
-    },
-  }
-}
-
-const launchInput = {
-  command: 'npx',
-  args: ['-y', '@scope/server@latest', '--port', '9'],
-  cwd: '/work',
-  env: { PATH: '/usr/bin' },
-}
+afterEach(removeScratchDirectories)
 
 describe('package runner parsing (D1.2)', () => {
   it('reads npx, npm exec, pnpm dlx and bunx launches', () => {
@@ -81,7 +48,7 @@ describe('package runner parsing (D1.2)', () => {
       runner: 'pnpm-dlx',
       packageName: 'chrome-devtools-mcp',
     })
-    expect(parsePackageRunnerCommand('bunx', ['--bun', 'pkg@1.2.3'])).toMatchObject({
+    expect(parsePackageRunnerCommand('bunx', ['--silent', 'pkg@1.2.3'])).toMatchObject({
       runner: 'bunx',
       pinned: true,
     })

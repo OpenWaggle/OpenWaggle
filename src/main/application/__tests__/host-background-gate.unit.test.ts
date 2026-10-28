@@ -5,6 +5,7 @@ import {
   HOST_FOREGROUND_COMMAND_HOLD_MS,
   HOST_FOREGROUND_QUIET_MS,
   HOST_IDLE_SLIM_DELAY_MS,
+  HOST_IDLE_SLIM_MIN_INTERVAL_MS,
   HostBackgroundGate,
   type HostBackgroundGateClock,
 } from '../host-background-gate'
@@ -199,5 +200,38 @@ describe('Session Host clients and the background gate', () => {
     run()
     expect(hostBackgroundGate.attachedClients).toBe(before)
     liveness.close()
+  })
+})
+
+describe('Host background gate without a window (review R5 P3-7)', () => {
+  it('lets background work run while a Run is in progress, with no client attached', async () => {
+    const clock = new FakeClock()
+    const gate = new HostBackgroundGate(clock)
+    gate.enable()
+    const endRun = gate.runStarted()
+    clock.advance(HOST_BACKGROUND_CLIENT_SETTLE_MS)
+    expect(gate.isOpen).toBe(true)
+
+    endRun()
+    expect(gate.isOpen).toBe(false)
+  })
+
+  it('slims at most once a minute while short CLI commands come and go', () => {
+    const clock = new FakeClock()
+    const gate = new HostBackgroundGate(clock)
+    let slims = 0
+    gate.onSlim(() => {
+      slims += 1
+    })
+    gate.enable()
+    for (let command = 0; command < 10; command += 1) {
+      gate.clientAttached()()
+      clock.advance(HOST_IDLE_SLIM_DELAY_MS + 1_000)
+    }
+    expect(slims).toBe(1)
+
+    // The Host still slims once the minute has passed with no client back.
+    clock.advance(HOST_IDLE_SLIM_MIN_INTERVAL_MS)
+    expect(slims).toBe(2)
   })
 })

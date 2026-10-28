@@ -4,7 +4,13 @@ import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { forgetMcpAppTools, recordMcpAppTools } from '../mcp-app-registry'
-import { withKnownMcpAppToolsOf, withOpenWaggleMcpExposure } from '../mcp-openwaggle-exposure'
+import {
+  knownMcpAppTools,
+  mcpCodemodeReach,
+  withDirectKeptWithoutCodemode,
+  withKnownMcpAppToolsOf,
+  withOpenWaggleMcpExposure,
+} from '../mcp-openwaggle-exposure'
 import {
   forgetKnownMcpServerStates,
   recordMcpServerToolsListing,
@@ -117,5 +123,63 @@ describe("OpenWaggle's MCP exposure on Pi's MCP extension", () => {
       { show: 'direct' },
       undefined,
     ])
+  })
+})
+
+describe('codemode reach of a Run (review R5 P2-3)', () => {
+  const reaching = { name: 'codemode', reachesTools: () => 'all' as const }
+  function reach(tools: { name: string }[], active: string[], autoEnable = true) {
+    const codemode = mcpCodemodeReach(autoEnable)
+    codemode.capture(
+      fromPartial<ExtensionAPI>({
+        getAllTools: () => tools.map((tool) => fromPartial(tool)),
+        getActiveTools: () => active,
+      }),
+    )
+    return codemode
+  }
+
+  it('reaches MCP tools only through a tool-reaching codemode Pi activates or has active', () => {
+    expect(reach([reaching], []).reachable()).toBe(true)
+    expect(reach([], []).reachable()).toBe(false)
+    expect(reach([{ name: 'codemode' }], []).reachable()).toBe(false)
+    expect(reach([reaching], [], false).reachable()).toBe(false)
+    expect(reach([reaching], ['codemode'], false).reachable()).toBe(true)
+  })
+
+  it("keeps a file's direct server and direct tools direct when codemode cannot reach them", () => {
+    const loaded = {
+      servers: [
+        { name: 'a', config: { command: 'a', exposure: 'codemode' as const }, source: 'x' },
+        {
+          name: 'b',
+          config: { command: 'b', toolExposure: { t: 'codemode' as const } },
+          source: 'x',
+        },
+      ],
+    }
+    const files: Record<string, McpServerConfig> = {
+      a: { command: 'a', exposure: 'direct' },
+      b: { command: 'b', toolExposure: { t: 'direct' } },
+    }
+    const kept = withDirectKeptWithoutCodemode(loaded, reach([], []), (name) => files[name])
+    expect(kept.servers.map((server) => server.config)).toEqual([
+      { command: 'a', exposure: 'direct' },
+      { command: 'b', toolExposure: { t: 'direct' } },
+    ])
+    expect(
+      withDirectKeptWithoutCodemode(loaded, reach([reaching], []), (name) => files[name]),
+    ).toBe(loaded)
+  })
+})
+
+describe('App tools known from another project (review R5 P3-4)', () => {
+  it("prefers the project's catalog over the Host-wide listing of the same server", () => {
+    const entry = { name: 'apps', config: { command: 'apps-mcp' }, source: 'x' }
+    // Another project's Session listed the same command with an App tool.
+    recordMcpServerToolsListing(mcpServerIdentity(entry.name, entry.config), {}, APP_LISTING)
+
+    expect(knownMcpAppTools(SESSION, entry, () => [])).toEqual([])
+    expect(knownMcpAppTools(SESSION, entry, () => undefined)).toEqual(['show'])
   })
 })

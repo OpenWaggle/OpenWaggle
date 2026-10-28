@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { settledWorkerIdleCloseMs } from '../../../../mcp-settled-worker-idle-policy'
+import {
+  settledWorkerIdleCloseMs,
+  settledWorkerIdleClosePolicy,
+} from '../../../../mcp-settled-worker-idle-policy'
 import { McpSessionConnectionPool } from '../mcp-session-connection-pool'
 import {
   MCP_IDLE_CLOSE_MS,
@@ -112,6 +115,14 @@ describe('MCP pool idle policy (D1.1)', () => {
     expect(settledWorkerIdleCloseMs('working')).toBeUndefined()
     expect(settledWorkerIdleCloseMs('revision_requested')).toBeUndefined()
     expect(settledWorkerIdleCloseMs(null)).toBeUndefined()
+  })
+
+  it('reads the Delegation state through the port it is given (review R5 P3-6)', async () => {
+    const states = new Map([['worker', 'accepted' as const]])
+    const policy = settledWorkerIdleClosePolicy(async (sessionId) => states.get(sessionId) ?? null)
+
+    expect(await policy('worker')).toBe(MCP_SETTLED_WORKER_IDLE_CLOSE_MS)
+    expect(await policy('queen')).toBeUndefined()
   })
 })
 

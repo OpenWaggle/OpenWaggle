@@ -1,3 +1,4 @@
+import type { DelegationState } from '@shared/types/session-collaboration'
 import type {
   SessionControlDelegationMutationRequest,
   SessionControlMutationResponse,
@@ -11,6 +12,10 @@ export interface SessionDelegationRepositoryShape {
     readonly request: SessionControlDelegationMutationRequest
     readonly now: number
   }) => Effect.Effect<SessionControlMutationResponse, SessionControlRepositoryError>
+  /** The Delegation state of a Worker Session; null for a Session that is not a Worker. */
+  readonly delegationStateOf: (
+    sessionId: string,
+  ) => Effect.Effect<DelegationState | null, SessionControlRepositoryError>
 }
 
 export class SessionDelegationRepository extends Context.Tag(

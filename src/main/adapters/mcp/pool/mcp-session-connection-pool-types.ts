@@ -53,6 +53,8 @@ export interface McpPooledServerSpec {
   readonly catalogKey?: string
   /** Start the server on the first request that needs it when its catalog is fresh (stdio). */
   readonly lazyStart?: boolean
+  /** How long a lease waits for another Session filling the server's missing catalog. */
+  readonly catalogFillWaitMs?: number
 }
 
 export type McpConnectionHooks = Pick<
@@ -82,6 +84,8 @@ export interface McpSessionConnectionPoolOptions {
 
 export interface PooledServer {
   readonly fingerprint: string
+  /** The server's catalog (`McpPooledServerSpec.catalogKey`). */
+  readonly catalogKey: string | undefined
   readonly identity: string | undefined
   readonly projectPath: string | null
   readonly fromExtension: boolean

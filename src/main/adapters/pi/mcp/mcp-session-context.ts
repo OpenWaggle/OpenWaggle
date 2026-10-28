@@ -75,10 +75,14 @@ export function openWaggleMcpConnectionHooks(
     augmentInitializeParams: withOpenWaggleClientCapabilities,
     // Pi drops a tool's `_meta`, where an MCP App names its `ui://` resource, so it is read here.
     // The same listing is what Settings > MCP shows for the server without connecting to it.
-    observeResult: (method, params, result) => {
+    observeResult: (method, params, result, context) => {
       if (method !== 'tools/list') return
       recordMcpAppTools(sessionId, serverName, result)
-      if (identity) recordMcpServerToolsListing(identity, params, result)
+      // A page served from the catalog does not show the server connected now, and must not
+      // replace a failed check (review R5 P2-4).
+      if (identity && context?.served !== true) {
+        recordMcpServerToolsListing(identity, params, result)
+      }
     },
     adaptResult: (method, result) => repairMcpToolListResult(serverName, method, result),
     handleServerRequest: ({ method, params, signal }) => {

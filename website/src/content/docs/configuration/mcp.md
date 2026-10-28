@@ -169,7 +169,7 @@ You can give single tools their own exposure, for example to hide a delete tool.
 
 Tools that open an app (see [Apps, sampling, and input requests](#apps-sampling-and-input-requests)) are offered to the agent directly, so it calls them itself and the app shows in the conversation. Hidden app tools stay hidden.
 
-Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**: offering every tool's description to the agent on every message cost thousands of tokens per message, while agents rarely called them. You do not need to change anything, and OpenWaggle does not change the file, so the `pi` command still offers those tools directly. `deferred` keeps working: the agent searches for those tools, then calls them directly. Settings shows it while a file sets it.
+Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**: offering every tool's description to the agent on every message cost thousands of tokens per message, while agents rarely called them. You do not need to change anything, and OpenWaggle does not change the file, so the `pi` command still offers those tools directly. A session where codemode cannot run keeps `direct` as it is, so those tools stay callable there: Pi's `extensions` setting lists `-builtin:codemode`, or `autoEnableCodemode` is `false` and codemode is off. `deferred` keeps working: the agent searches for those tools, then calls them directly. Settings shows it while a file sets it.
 
 Every MCP tool call, including calls made from a script, asks for your approval in **Ask for approval** mode. **Allow** choices are remembered per server and tool.
 
@@ -231,7 +231,7 @@ openwaggle mcp doctor --local
 
 New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `mcp enable` and `mcp disable` with `--in-project` switch a global server for the current project only, as **Turn off in this project** does in Settings. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
 
-`--exposure` on `mcp add` and `mcp registry add` takes `codemode` (the default), `deferred`, or `hidden`; `direct` is refused, since OpenWaggle runs it as codemode. `mcp list` shows the exposure OpenWaggle runs, so a server whose file says `direct` shows `codemode`; with `--json`, `configuredExposure` gives what the file says. The file is not changed.
+`--exposure` on `mcp add` and `mcp registry add` takes `codemode` (the default), `deferred`, or `hidden`. `direct` is refused with a usage error (exit code 2) and nothing is added, since OpenWaggle runs it as codemode; a script that passed `--exposure direct` before 1.0 must pass `--exposure codemode` instead. `mcp list` shows the exposure OpenWaggle runs, so a server whose file says `direct` shows `codemode`; with `--json`, `configuredExposure` gives what the file says. The file is not changed.
 
 ## OpenWaggle as an MCP server
 

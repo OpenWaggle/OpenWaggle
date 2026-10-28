@@ -1,16 +1,22 @@
 import { isRecord } from '@shared/utils/validation'
+import { createLogger } from '../../../logger'
 import { hasToolsCapability, type McpConnectionCatalog } from './mcp-connection-catalog'
 import type { McpConnectionHandshake } from './mcp-connection-handshake'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import { INITIALIZE, INITIALIZED, type McpPooledConnectionOptions } from './mcp-connection-support'
 import { isJsonRpcNotification, isJsonRpcRequest, type JsonRpcMessage } from './mcp-wire'
 
+const logger = createLogger('mcp-lazy-start')
+
 interface LazyStartHost {
+  readonly serverName: string
   readonly catalog: McpConnectionCatalog
   readonly handshake: McpConnectionHandshake
   /** Opens the server process (or HTTP session). */
   readonly startUpstream: () => Promise<void>
   readonly close: () => void
+  /** Whether OpenWaggle closed the connection on purpose, rather than the server failing. */
+  readonly closedByOwner: () => boolean
   readonly sendInternal: (method: string, params: unknown) => Promise<unknown>
   readonly leases: () => Iterable<McpConnectionLease>
   readonly options: Pick<McpPooledConnectionOptions, 'observeResult' | 'adaptResult'>
@@ -42,7 +48,8 @@ export class McpConnectionLazyStart {
   /**
    * Starts the server and initializes it as its clients were, then checks its tools against the
    * catalog they were given. A server that cannot start loses its catalog, so the next Session
-   * starts it at once and shows why.
+   * starts it at once and shows why. A start OpenWaggle interrupted by closing the connection (an
+   * idle close, an eviction, an archive) keeps it (review R5 P3-1).
    */
   wake() {
     if (this.started) return Promise.resolve()
@@ -52,7 +59,7 @@ export class McpConnectionLazyStart {
         this.started = true
         await this.host.handshake.replay()
       } catch (error) {
-        this.host.catalog.forget()
+        if (!this.host.closedByOwner()) this.host.catalog.forget()
         this.host.close()
         throw error
       }
@@ -89,7 +96,7 @@ export class McpConnectionLazyStart {
     const page =
       message.method === 'tools/list' ? catalog.servedToolsPage(message.params) : undefined
     if (page) {
-      options.observeResult?.(message.method, message.params, page.result)
+      options.observeResult?.(message.method, message.params, page.result, { served: true })
       return answer(options.adaptResult?.(message.method, page.result) ?? page.result)
     }
     await this.wake()
@@ -106,8 +113,12 @@ export class McpConnectionLazyStart {
       for (const lease of this.host.leases()) {
         lease.deliver({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' })
       }
-    } catch {
+    } catch (error) {
       // The clients keep the catalog's tools; a call that needs a missing one fails clearly.
+      logger.warn('Could not check a started MCP server’s tools against its catalog', {
+        server: this.host.serverName,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 }

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import path from 'node:path'
 import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../env'
 
 const GIT_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024
@@ -34,6 +35,15 @@ async function git(root: string, args: readonly string[], input?: string) {
   })
 }
 
+/** `a/b/c.ts` -> `a/`, `a/b/`: the folders of a root-relative path, as git names directories. */
+function parentFolders(relative: string) {
+  const folders: string[] = []
+  for (let slash = relative.indexOf('/'); slash !== -1; slash = relative.indexOf('/', slash + 1)) {
+    folders.push(relative.slice(0, slash + 1))
+  }
+  return folders
+}
+
 function entries(stdout: string) {
   return stdout.split('\0').filter((entry) => entry.length > 0)
 }
@@ -50,7 +60,14 @@ export class WorkspaceGitIgnoreFilter {
   private ignoredFiles = new Set<string>()
   private loading: Promise<void> | undefined
 
-  private constructor(private readonly root: string) {}
+  private constructor(
+    private readonly root: string,
+    /**
+     * The repository's `info/exclude`, absolute. A linked worktree's is in the common git
+     * directory, outside the worktree, so the watcher watches it on its own.
+     */
+    readonly excludeFile: string | undefined,
+  ) {}
 
   /** The filter of a git working tree, or undefined for a folder git does not manage. */
   static async create(root: string) {
@@ -60,9 +77,21 @@ export class WorkspaceGitIgnoreFilter {
     } catch {
       return undefined
     }
-    const filter = new WorkspaceGitIgnoreFilter(root)
+    const exclude = await git(root, ['rev-parse', '--git-path', 'info/exclude']).catch(
+      () => undefined,
+    )
+    const excludePath = exclude?.stdout.trim()
+    const filter = new WorkspaceGitIgnoreFilter(
+      root,
+      excludePath ? path.resolve(root, excludePath) : undefined,
+    )
     await filter.reload()
     return filter
+  }
+
+  /** Reads the ignore list again, after a source outside the batches changed (`info/exclude`). */
+  refresh() {
+    return this.reload()
   }
 
   /** Whether the listed ignored files or directories cover the root-relative `/` path. */
@@ -85,14 +114,18 @@ export class WorkspaceGitIgnoreFilter {
     }
     const unknown = relatives.filter((relative) => !this.isKnownIgnored(relative))
     if (unknown.length === 0) return []
+    // Each path's folders are asked about too: one git ignores (a `build/` or `.venv/` created
+    // after the list was read) then answers its later changes without asking git again.
+    const folders = [...new Set(unknown.flatMap(parentFolders))]
     try {
       const result = await git(
         this.root,
         ['check-ignore', '--stdin', '-z'],
-        `${unknown.join('\0')}\0`,
+        `${[...unknown, ...folders].join('\0')}\0`,
       )
       const ignored = new Set(entries(result.stdout))
-      return unknown.filter((relative) => !ignored.has(relative))
+      for (const folder of folders) if (ignored.has(folder)) this.ignoredDirectories.add(folder)
+      return unknown.filter((relative) => !ignored.has(relative) && !this.isKnownIgnored(relative))
     } catch {
       return unknown
     }

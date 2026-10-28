@@ -7,9 +7,11 @@ export const MCP_CLI_EXPOSURE_VALUES = MCP_EXPOSURE_VALUES.filter(
   (exposure): exposure is McpRuntimeExposure => exposure !== 'direct',
 )
 
+/** Maintainer decision 1: `direct` is refused (usage error, exit 2), never rewritten silently. */
 export const MCP_CLI_DIRECT_EXPOSURE_MESSAGE =
   'OpenWaggle no longer offers --exposure direct: it runs direct servers as codemode, so their ' +
-  'tool schemas stay out of every request (MCP App tools stay declared). Use --exposure codemode.'
+  'tool schemas stay out of every request (MCP App tools stay declared). Nothing was added. ' +
+  'Use --exposure codemode.'
 
 /** `--exposure` as OpenWaggle writes it; `direct` is refused, not rewritten. */
 export function mcpCliExposureOption(value: string | undefined): McpRuntimeExposure | undefined {

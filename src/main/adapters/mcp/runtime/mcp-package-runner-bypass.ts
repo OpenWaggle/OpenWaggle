@@ -6,46 +6,24 @@
  * configured command stays the fallback: whenever the resolution is missing, expired, or its files
  * are gone, the runner launches the server as configured and the probe runs again.
  */
-import { execFile } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
+import type { PackageBinStore } from './mcp-package-runner-bin-store'
+import {
+  PACKAGE_BIN_PINNED_TTL_MS,
+  PACKAGE_BIN_UNPINNED_TTL_MS,
+  type ResolvedPackageBin,
+  readJson,
+  resolveBinFromProbe,
+} from './mcp-package-runner-bins'
 import {
   type PackageRunnerLaunch,
-  packageBinPath,
   parsePackageRunnerCommand,
   probeCommand,
 } from './mcp-package-runner-launch'
-
-export interface ResolvedPackageBin {
-  /** What to spawn: the runner's `node` for a JavaScript bin, else the bin itself. */
-  readonly command: string
-  /** The bin script first for a JavaScript bin. */
-  readonly prefixArgs: readonly string[]
-  /** The runner's `node_modules/.bin`, kept first on PATH as the runner had it. */
-  readonly binDirectory: string
-  readonly resolvedAt: number
-  readonly pinned: boolean
-}
-
-/** A tag or range (`@latest`, none) is resolved again after a day, so updates still arrive. */
-export const PACKAGE_BIN_UNPINNED_TTL_MS = 24 * 60 * 60 * 1_000
-/** An exact version only needs its files to still exist. */
-export const PACKAGE_BIN_PINNED_TTL_MS = 7 * PACKAGE_BIN_UNPINNED_TTL_MS
-const PROBE_TIMEOUT_MS = 180_000
-const PROBE_OUTPUT_BYTES = 1_000_000
-const SHEBANG_BYTES = 256
-
-const PackageJsonSchema = Schema.Struct({ bin: Schema.optional(Schema.Unknown) })
-
-function readJson(text: string): unknown {
-  try {
-    return parseJsonUnknown(text)
-  } catch {
-    return undefined
-  }
-}
+import { execProbe, type PackageRunnerProbe } from './mcp-package-runner-probe'
 
 /** Whether the package is installed in a project above `cwd`: a runner uses that copy. */
 function installedNear(cwd: string, packageName: string) {
@@ -59,6 +37,32 @@ function installedNear(cwd: string, packageName: string) {
   }
 }
 
+/**
+ * Package-manager files a runner reads from the server's folder and its parents: a project
+ * `.npmrc` can name another registry, and `pnpm dlx` reads the nearest `pnpm-workspace.yaml`. Their
+ * nearest copies, by content, so folders that read the same configuration share a resolution.
+ */
+const FOLDER_CONFIG_FILES = ['.npmrc', 'pnpm-workspace.yaml'] as const
+
+function folderConfigOf(cwd: string) {
+  const hash = createHash('sha256')
+  for (const name of FOLDER_CONFIG_FILES) {
+    for (let directory = path.resolve(cwd); ; directory = path.dirname(directory)) {
+      const file = path.join(directory, name)
+      if (existsSync(file)) {
+        try {
+          hash.update(`${name}\0${readFileSync(file, 'utf8')}\0`)
+        } catch {
+          hash.update(`${name}\0${file}\0`)
+        }
+        break
+      }
+      if (path.dirname(directory) === directory) break
+    }
+  }
+  return hash.digest('hex')
+}
+
 /** The runner launch the bypass may replace: not one the folder's own install answers. */
 function runnerLaunchOf(input: {
   readonly command: string
@@ -69,119 +73,7 @@ function runnerLaunchOf(input: {
   return launch && !installedNear(input.cwd, launch.packageName) ? launch : undefined
 }
 
-function isJavaScriptBin(file: string) {
-  if (/\.[cm]?js$/u.test(file)) return true
-  try {
-    const head = readFileSync(file, { encoding: 'utf8', flag: 'r' }).slice(0, SHEBANG_BYTES)
-    return head.startsWith('#!') && /\bnode\b/u.test(head.split('\n', 1)[0] ?? '')
-  } catch {
-    return false
-  }
-}
-
-/**
- * The bin a runner's PATH leads to: the first `node_modules/.bin` entry next to the package. The
- * package's own `package.json` names the file, so Windows `.cmd` shims are never needed.
- */
-export async function resolveBinFromProbe(
-  probe: { readonly path: string; readonly node: string },
-  launch: PackageRunnerLaunch,
-  now: number,
-): Promise<ResolvedPackageBin | undefined> {
-  for (const entry of probe.path.split(path.delimiter)) {
-    if (!/node_modules[\\/]\.bin[\\/]?$/u.test(entry)) continue
-    const packageDir = path.join(entry, '..', ...launch.packageName.split('/'))
-    let text: string
-    try {
-      text = await readFile(path.join(packageDir, 'package.json'), 'utf8')
-    } catch {
-      continue
-    }
-    const packageJson = safeDecodeUnknown(PackageJsonSchema, readJson(text))
-    if (!packageJson.success) continue
-    const relative = packageBinPath(packageJson.data, launch.packageName, launch.binName)
-    if (!relative) return undefined
-    const file = path.resolve(packageDir, relative)
-    if (!existsSync(file)) return undefined
-    const javascript = isJavaScriptBin(file)
-    return {
-      command: javascript ? probe.node : file,
-      prefixArgs: javascript ? [file] : [],
-      binDirectory: entry,
-      resolvedAt: now,
-      pinned: launch.pinned,
-    }
-  }
-  return undefined
-}
-
-export type PackageRunnerProbe = (input: {
-  readonly command: string
-  readonly args: readonly string[]
-  readonly cwd: string
-  readonly env: Readonly<Record<string, string>>
-}) => Promise<string>
-
-const execProbe: PackageRunnerProbe = (input) =>
-  new Promise((resolve, reject) => {
-    execFile(
-      input.command,
-      [...input.args],
-      {
-        cwd: input.cwd,
-        env: { ...input.env },
-        timeout: PROBE_TIMEOUT_MS,
-        maxBuffer: PROBE_OUTPUT_BYTES,
-        windowsHide: true,
-        // `npx.cmd` on Windows.
-        shell: process.platform === 'win32',
-      },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
-    )
-  })
-
-const ResolvedPackageBinSchema = Schema.Struct({
-  command: Schema.String,
-  prefixArgs: Schema.Array(Schema.String),
-  binDirectory: Schema.String,
-  resolvedAt: Schema.Number,
-  pinned: Schema.Boolean,
-})
-const StoredResolutionsSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  entries: Schema.Record({ key: Schema.String, value: ResolvedPackageBinSchema }),
-})
 const ProbeOutputSchema = Schema.Struct({ path: Schema.String, node: Schema.String })
-
-export interface PackageBinStore {
-  readonly load: () => Record<string, ResolvedPackageBin>
-  readonly save: (entries: Record<string, ResolvedPackageBin>) => void
-}
-
-/** A JSON file of resolutions, so a new Session Host does not start every server via its runner. */
-export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
-  return {
-    load: () => {
-      let text: string
-      try {
-        text = readFileSync(file(), 'utf8')
-      } catch {
-        return {}
-      }
-      const stored = safeDecodeUnknown(StoredResolutionsSchema, readJson(text))
-      return stored.success ? { ...stored.data.entries } : {}
-    },
-    save: (entries) => {
-      try {
-        mkdirSync(path.dirname(file()), { recursive: true })
-        const stored = { version: 1, entries } satisfies typeof StoredResolutionsSchema.Type
-        writeFileSync(file(), JSON.stringify(stored))
-      } catch {
-        // A resolution that is not saved is probed again by the next Host.
-      }
-    },
-  }
-}
 
 export interface PackageRunnerBypassOptions {
   readonly store?: PackageBinStore
@@ -201,6 +93,12 @@ export interface StdioLaunch {
 export class PackageRunnerBypass {
   private entries: Record<string, ResolvedPackageBin> | undefined
   private readonly probing = new Map<string, Promise<void>>()
+  /**
+   * When a launch's probe last failed or found no bin: it is not probed again (or waited for)
+   * until the unpinned TTL passes or Settings checks the server, so a broken probe costs once a
+   * day instead of once per spawn.
+   */
+  private readonly failedAt = new Map<string, number>()
   private readonly probe: PackageRunnerProbe
   private readonly now: () => number
 
@@ -210,20 +108,33 @@ export class PackageRunnerBypass {
   }
 
   private key(launch: PackageRunnerLaunch, input: StdioLaunch) {
-    // The PATH picks the runner and the `node` it runs. The folder does not, unless the package is
-    // installed in its project, which `installedNear` leaves to the runner.
+    // The PATH picks the runner and the `node` it runs. The folder matters only through what the
+    // runner reads from it: a `file:` spec's package (relative to the folder, so the same spec
+    // names another package elsewhere) and the folder's registry configuration. A package
+    // installed in the folder's project is left to the runner (`installedNear`).
     return JSON.stringify([
       launch.runner,
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
       input.env.PATH ?? '',
+      launch.localFolder ?? null,
+      folderConfigOf(input.cwd),
     ])
   }
 
   private cache() {
     this.entries ??= this.options.store?.load() ?? {}
     return this.entries
+  }
+
+  private failedRecently(key: string) {
+    const failed = this.failedAt.get(key)
+    if (failed === undefined) return false
+    const age = this.now() - failed
+    if (age >= 0 && age < PACKAGE_BIN_UNPINNED_TTL_MS) return true
+    this.failedAt.delete(key)
+    return false
   }
 
   private fresh(entry: ResolvedPackageBin) {
@@ -253,7 +164,8 @@ export class PackageRunnerBypass {
         env: { ...input.env, PATH },
       }
     }
-    this.resolveInBackground(key, launch, input)
+    if (options.refresh) this.failedAt.delete(key)
+    if (!this.failedRecently(key)) this.resolveInBackground(key, launch, input)
     return input
   }
 
@@ -267,7 +179,7 @@ export class PackageRunnerBypass {
     if (!launch) return
     const key = this.key(launch, input)
     const entry = this.cache()[key]
-    if (entry && this.fresh(entry)) return
+    if ((entry && this.fresh(entry)) || this.failedRecently(key)) return
     this.resolveInBackground(key, launch, input)
     let timer: ReturnType<typeof setTimeout> | undefined
     await Promise.race([
@@ -296,11 +208,19 @@ export class PackageRunnerBypass {
         if (!parsed.success) throw new Error('The package runner probe printed no PATH.')
         const resolved = await resolveBinFromProbe(parsed.data, launch, this.now())
         const entries = this.cache()
-        if (resolved) entries[key] = resolved
-        else delete entries[key]
+        if (resolved) {
+          entries[key] = resolved
+          this.failedAt.delete(key)
+        } else {
+          delete entries[key]
+          this.failedAt.set(key, this.now())
+        }
         this.options.store?.save(entries)
       })
-      .catch((error: unknown) => this.options.onProbeFailed?.(error, launch))
+      .catch((error: unknown) => {
+        this.failedAt.set(key, this.now())
+        this.options.onProbeFailed?.(error, launch)
+      })
       .finally(() => this.probing.delete(key))
     this.probing.set(key, work)
   }

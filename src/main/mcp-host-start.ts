@@ -1,21 +1,32 @@
+import * as Effect from 'effect/Effect'
 import { forgetStatesOfSwitchedMcpServers } from './adapters/pi/mcp/mcp-server-status-freshness'
 import { installMcpTurnedOffServerClosing } from './adapters/pi/mcp/mcp-turned-off-servers'
 import { getOpenWaggleMcpConfigurationService } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { createLogger } from './logger'
 import { hostMcpConnectionPool } from './mcp-runtime-layers'
 import { installMcpSessionRemoval } from './mcp-session-removal'
-import { settledWorkerIdleCloseMs, workerDelegationState } from './mcp-settled-worker-idle-policy'
+import {
+  settledWorkerIdleClosePolicy,
+  type WorkerDelegationStateOf,
+} from './mcp-settled-worker-idle-policy'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
+import { SessionDelegationRepository } from './ports/session-delegation-repository'
 
 const logger = createLogger('mcp-host-start')
 
-/** Settled Hive Workers close their MCP servers a minute after their Run (D1.1). */
-function installSettledWorkerIdleClose() {
-  hostMcpConnectionPool.setIdleClosePolicy(async (sessionId) => {
-    // Lazily: the runtime imports this module.
-    const { runAppEffect } = await import('./runtime')
-    return settledWorkerIdleCloseMs(await runAppEffect(workerDelegationState(sessionId)))
-  })
+export interface McpHostServiceDependencies {
+  /** Runs an effect in the Host's app runtime, which provides the Delegation repository. */
+  readonly runEffect: <A, E>(effect: Effect.Effect<A, E, SessionDelegationRepository>) => Promise<A>
+}
+
+/** A Worker's Delegation state, read through the Delegation repository port (D1.1). */
+function workerDelegationState(dependencies: McpHostServiceDependencies): WorkerDelegationStateOf {
+  return (sessionId) =>
+    dependencies.runEffect(
+      Effect.flatMap(SessionDelegationRepository, (delegations) =>
+        delegations.delegationStateOf(sessionId),
+      ),
+    )
 }
 
 function installMcpServerStatusFreshness() {
@@ -35,10 +46,13 @@ function installMcpServerStatusFreshness() {
  * whose MCP channels are all Host-backed: it would read the login shell's environment, tokens
  * included, and install connection pool hooks for nothing.
  */
-export function startMcpHostServices() {
+export function startMcpHostServices(dependencies: McpHostServiceDependencies) {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
   installMcpSessionRemoval(hostMcpConnectionPool)
-  installSettledWorkerIdleClose()
+  // Settled Hive Workers close their MCP servers a minute after their Run (D1.1).
+  hostMcpConnectionPool.setIdleClosePolicy(
+    settledWorkerIdleClosePolicy(workerDelegationState(dependencies)),
+  )
   // A server turned off or removed stops being used by MCP Apps and running Runs alike.
   installMcpTurnedOffServerClosing(hostMcpConnectionPool)
   // A server turned off or on no longer shows a state from before, wherever it was switched.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MCP_CATALOG_FILL_WAIT_MS,
   MCP_TOOL_CATALOG_MAX_AGE_MS,
+  McpCatalogFills,
   type McpToolCatalog,
+  mcpStartupWaitMs,
   memoryMcpToolCatalogStore,
 } from '../mcp-connection-catalog'
 import { McpSessionConnectionPool } from '../mcp-session-connection-pool'
@@ -192,5 +195,67 @@ describe('cold wave: one Session fills a missing catalog (D1.3)', () => {
 
     expect(upstreams).toHaveLength(2)
     expect(secondClient.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: TOOLS })
+  })
+})
+
+describe('catalogs of servers whose answers changed (review R5 P2-5)', () => {
+  it('are forgotten when the server is signed in or out, and when it is turned off', async () => {
+    const signedIn = harness()
+    signedIn.store.write('browser-key', seeded())
+    await connect(signedIn.pool.lease('s1', { ...signedIn.spec, identity: 'id-browser' }))
+    await signedIn.pool.closeServerIdentity('id-browser')
+    expect(signedIn.store.read('browser-key')).toBeUndefined()
+
+    const off = harness()
+    off.store.write('browser-key', seeded())
+    await connect(off.pool.lease('s2', off.spec))
+    await off.pool.closeServer('s2', 'browser')
+    expect(off.store.read('browser-key')).toBeUndefined()
+  })
+})
+
+describe('a lazy start OpenWaggle interrupts (review R5 P3-1)', () => {
+  it('keeps the catalog when the connection is closed on purpose while its server starts', async () => {
+    const { store, pool, spec } = harness()
+    store.write('browser-key', seeded())
+    const opening = Promise.withResolvers<void>()
+    const slow = {
+      ...spec,
+      open: async () => {
+        await opening.promise
+        return spec.open()
+      },
+    }
+    const lease = pool.lease('s1', slow)
+    await connect(lease)
+    const call = lease.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'x' } })
+    await flush()
+
+    // An idle close, an eviction or an archive lands while the call wakes the server.
+    await pool.closeSession('s1')
+    opening.resolve()
+    await call.catch(() => undefined)
+    await flush()
+
+    expect(store.read('browser-key')).toBeDefined()
+  })
+})
+
+describe('waits before a server answers fit its request timeout (review R5 P3-5)', () => {
+  it('takes a third of the server timeout, at most the cap', () => {
+    expect(mcpStartupWaitMs(undefined, MCP_CATALOG_FILL_WAIT_MS)).toBe(20_000)
+    expect(mcpStartupWaitMs(10, MCP_CATALOG_FILL_WAIT_MS)).toBe(3_333)
+    expect(mcpStartupWaitMs(600, MCP_CATALOG_FILL_WAIT_MS)).toBe(MCP_CATALOG_FILL_WAIT_MS)
+  })
+
+  it('lets a waiting Session stop waiting for another Session’s fill after its own budget', async () => {
+    const fills = new McpCatalogFills()
+    const filler = fills.join('key')
+    const waiter = fills.join('key', 20)
+    if (!('fill' in waiter) || !('done' in filler)) throw new Error('expected one filler')
+    const started = Date.now()
+    await waiter.fill
+    expect(Date.now() - started).toBeLessThan(1_000)
+    filler.done()
   })
 })

@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type { McpServerEntry } from '@earendil-works/pi-coding-agent'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
+import { realLocation } from '../../mcp/config/mcp-config-files'
 import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
 import {
   fileBackedMcpToolCatalogStore,
@@ -37,6 +38,24 @@ export function mcpToolCatalogKeyOf(input: {
     }),
     projectPath: input.projectPath,
   })
+}
+
+/**
+ * Forgets a server's catalog, so the next Session starts the server and records what it offers
+ * now: after Check connection (which may have picked up a new version, and whose own handshake,
+ * without OpenWaggle's client capabilities, cannot stand in for a Session's), and after signing in
+ * or out (review R5 P2-5). The project is matched however it is spelled, as Sessions and Settings
+ * may spell it differently.
+ */
+export function forgetMcpToolCatalog(
+  input: Parameters<typeof mcpToolCatalogKeyOf>[0],
+  store: McpToolCatalogStore = hostMcpToolCatalogStore,
+) {
+  const projects = new Set([
+    input.projectPath,
+    input.projectPath === null ? null : realLocation(input.projectPath),
+  ])
+  for (const projectPath of projects) store.forget(mcpToolCatalogKeyOf({ ...input, projectPath }))
 }
 
 /** The first line of the server instructions its last handshake gave. */

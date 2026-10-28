@@ -4,11 +4,9 @@ import path from 'node:path'
 import { McpClient } from '@earendil-works/pi-mcp'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setHostPackageRunnerBypassForTests } from '../../../mcp/runtime/host-package-runner-bypass'
-import {
-  type PackageBinStore,
-  PackageRunnerBypass,
-  type ResolvedPackageBin,
-} from '../../../mcp/runtime/mcp-package-runner-bypass'
+import type { PackageBinStore } from '../../../mcp/runtime/mcp-package-runner-bin-store'
+import type { ResolvedPackageBin } from '../../../mcp/runtime/mcp-package-runner-bins'
+import { PackageRunnerBypass } from '../../../mcp/runtime/mcp-package-runner-bypass'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
 /** An MCP server that answers a tool call with its parent pid and its arguments. */

@@ -238,7 +238,7 @@ export class SessionHostLiveness {
     }
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
     if (kind === 'client') this.acceptedClient = true
-    const releasePresence = kind === 'client' ? hostBackgroundGate.clientAttached() : undefined
+    const releasePresence = hostBackgroundGate.presenceOf(kind)
     let released = false
     return () => {
       if (released) return

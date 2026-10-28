@@ -16,6 +16,10 @@ export interface McpUpstream {
   readonly close?: () => Promise<void>
 }
 
+export interface McpObservedResultContext {
+  readonly served: boolean
+}
+
 export interface McpServerRequest {
   readonly method: string
   readonly params: unknown
@@ -33,8 +37,17 @@ export interface McpPooledConnectionOptions {
   readonly handleServerRequest?: McpServerRequestHandler
   /** The roots the layer answers `roots/list` with. */
   readonly roots?: () => readonly { readonly uri: string; readonly name?: string }[]
-  /** Sees every successful result of a client request, such as `tools/list` for MCP Apps. */
-  readonly observeResult?: (method: string, params: unknown, result: unknown) => void
+  /**
+   * Sees every successful result of a client request, such as `tools/list` for MCP Apps. `served`
+   * marks a result answered from the catalog while the server has not started: it says what the
+   * server offered when the catalog was saved, not that it runs now.
+   */
+  readonly observeResult?: (
+    method: string,
+    params: unknown,
+    result: unknown,
+    context?: McpObservedResultContext,
+  ) => void
   /** Replaces a successful result before the client sees it, such as repaired tool schemas. */
   readonly adaptResult?: (method: string, result: unknown) => unknown
   /** Called once the connection is closed, by whichever side. */

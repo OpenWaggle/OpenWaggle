@@ -297,7 +297,7 @@ export async function startSessionHostServicesAfterListening() {
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
   // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
-  startMcpHostServices()
+  startMcpHostServices({ runEffect: runAppEffect })
   // Background work waits for a client; without one the Host slims down (A-F9, decision 4).
   installHostIdleSlim()
   promptCacheWarming().start()

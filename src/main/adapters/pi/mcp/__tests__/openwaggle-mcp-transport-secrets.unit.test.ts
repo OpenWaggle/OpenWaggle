@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../pi-mcp-upstream', () => ({
   openPiMcpUpstream: mocks.open,
-  preparePiMcpUpstream: async () => undefined,
+  openPreparedPiMcpUpstream: async (input: { readonly entry: { readonly config: unknown } }) =>
+    mocks.open(input),
 }))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../mcp/encrypted-mcp-secret-vault-service')>()),
