@@ -14,6 +14,8 @@ export const TRANSCRIPT_TERM_REBUILD_SLICE_NODES = 400
 export const TRANSCRIPT_TERM_REBUILD_PUBLISH_CHUNK = 1_000
 /** Times a sliced rebuild starts over after the Session changed under it, before one last pass. */
 const SLICED_REBUILD_MAX_RESTARTS = 3
+/** Times one attempt goes back to counting nodes appended while it published, before restarting. */
+const SLICED_REBUILD_MAX_CATCH_UPS = 3
 const NO_CREATED_ORDER = Number.MIN_SAFE_INTEGER
 const ACCUMULATOR_TABLE = 'session_transcript_rebuild_terms'
 
@@ -95,6 +97,16 @@ function accumulateSlice(
   })
 }
 
+/** The newest node's created order, or `NO_CREATED_ORDER` for a Session without nodes. */
+function lastCreatedOrder(sql: SqlClient.SqlClient, sessionId: string) {
+  return Effect.map(
+    sql<{ readonly last: number | null }>`
+      SELECT MAX(created_order) AS last FROM session_nodes WHERE session_id = ${sessionId}
+    `,
+    (rows) => rows[0]?.last ?? NO_CREATED_ORDER,
+  )
+}
+
 function sessionExists(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.map(
     sql<{ readonly id: string }>`SELECT id FROM sessions WHERE id = ${sessionId}`,
@@ -162,7 +174,12 @@ function publishAccumulatedTermsStep(
 
 type RebuildStep =
   | { readonly kind: 'accumulate'; readonly afterCreatedOrder: number }
-  | { readonly kind: 'publish'; readonly cursor: PublishCursor }
+  | {
+      readonly kind: 'publish'
+      readonly cursor: PublishCursor
+      /** The last created order the accumulated totals counted. */
+      readonly countedThrough: number
+    }
   | { readonly kind: 'done' }
   | { readonly kind: 'changed' }
 
@@ -176,14 +193,27 @@ function rebuildStep(
 ): Effect.Effect<RebuildStep, SqlError> {
   return Effect.gen(function* () {
     if ((yield* nodeMutationRevision(sql, sessionId)) !== revision) return { kind: 'changed' }
+    let countedThrough: number
     if (current.kind === 'accumulate') {
       const slice = yield* accumulateSlice(sql, sessionId, current.afterCreatedOrder, sliceNodes)
       if (slice.count >= sliceNodes) return { kind: 'accumulate', afterCreatedOrder: slice.last }
       // Every node is counted: start replacing the terms in this same transaction.
+      countedThrough = slice.last
+    } else {
+      countedThrough = current.countedThrough
+      /*
+       * Appends do not bump the node-mutation revision, and a snapshot that appends to a Session
+       * without a term document skips its incremental delta. A node appended while the terms are
+       * published would otherwise be missing from the published index for good: count it, then
+       * publish again from the start (the partly inserted rows are replaced with the old ones).
+       */
+      if ((yield* lastCreatedOrder(sql, sessionId)) > countedThrough) {
+        return { kind: 'accumulate', afterCreatedOrder: countedThrough }
+      }
     }
     const cursor: PublishCursor = current.kind === 'publish' ? current.cursor : { phase: 'delete' }
     const next = yield* publishAccumulatedTermsStep(sql, sessionId, cursor, publishChunk)
-    return next === null ? { kind: 'done' } : { kind: 'publish', cursor: next }
+    return next === null ? { kind: 'done' } : { kind: 'publish', cursor: next, countedThrough }
   })
 }
 
@@ -197,7 +227,9 @@ function rebuildStep(
  * The totals accumulate in a temporary table and the term document is written by the last step,
  * so a reader never sees a partial index: until then the Session has no term document, the stale
  * marker search already skips. Appended nodes land after the cursor and are picked up by a later
- * slice; an edit, deletion or historical insert bumps the Session's node-mutation revision, and the
+ * slice; one appended while publishing is counted before the next publish step, which then starts
+ * publishing again (each publish step checks the newest created order in its transaction, so the
+ * document is never written over a node it did not count); an edit, deletion or historical insert bumps the Session's node-mutation revision, and the
  * rebuild starts over. After `SLICED_REBUILD_MAX_RESTARTS` it does one single-transaction rebuild.
  */
 export function rebuildSessionTranscriptTermsInSlices(
@@ -229,10 +261,16 @@ export function rebuildSessionTranscriptTermsInSlices(
       )
       if (initial === null) return
       let step: RebuildStep = { kind: 'accumulate', afterCreatedOrder: NO_CREATED_ORDER }
+      let catchUps = 0
       while (step.kind === 'accumulate' || step.kind === 'publish') {
+        const previous: RebuildStep = step
         step = yield* sql.withTransaction(
           rebuildStep(sql, sessionId, step, initial, sliceNodes, publishChunk),
         )
+        if (previous.kind === 'publish' && step.kind === 'accumulate') {
+          catchUps += 1
+          if (catchUps > SLICED_REBUILD_MAX_CATCH_UPS) step = { kind: 'changed' }
+        }
         if (step.kind !== 'done') yield* betweenSlices
       }
       if (step.kind === 'done') return

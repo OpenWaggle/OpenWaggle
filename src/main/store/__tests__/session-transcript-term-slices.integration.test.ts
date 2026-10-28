@@ -58,10 +58,8 @@ function nodeText(index: number) {
   return `${WORDS[index % WORDS.length]} ${WORDS[(index * 3) % WORDS.length]} marker${index % 5}`
 }
 
-async function seedSession(label: string) {
-  const session = await createSession({ projectPath: `/tmp/${label}`, piSessionId: `pi-${label}` })
-  const sessionId = SessionId(String(session.id))
-  const nodes = Array.from({ length: NODE_COUNT }, (_, index) =>
+function seedNodes(label: string) {
+  return Array.from({ length: NODE_COUNT }, (_, index) =>
     transcriptNode(
       `${label}-${String(index)}`,
       index === 0 ? null : `${label}-${String(index - 1)}`,
@@ -70,6 +68,12 @@ async function seedSession(label: string) {
       `run-${String(Math.floor(index / 4))}`,
     ),
   )
+}
+
+async function seedSession(label: string) {
+  const session = await createSession({ projectPath: `/tmp/${label}`, piSessionId: `pi-${label}` })
+  const sessionId = SessionId(String(session.id))
+  const nodes = seedNodes(label)
   await persistSessionSnapshot({
     sessionId,
     piSessionId: `pi-${label}`,
@@ -218,6 +222,49 @@ it('starts over when a node is edited between slices, and picks up appended node
   const terms = sliced.terms.map((row) => row.term)
   expect(terms).toContain('omega')
   expect(terms).toContain('sigma')
+})
+
+it('counts a node a snapshot appends while the rebuild publishes its terms', async () => {
+  const sessionId = await seedSession('publish-append')
+  const nodes = seedNodes('publish-append')
+  const appended = transcriptNode(
+    'publish-append-new',
+    'publish-append-22',
+    NODE_COUNT,
+    'appendedomega',
+    'run-late',
+  )
+  let step = 0
+  let appendedAtStep = 0
+  await withSql((sql) =>
+    Effect.gen(function* () {
+      // Stale with its old rows present, so the appending snapshot skips its incremental delta.
+      yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
+      yield* rebuildSessionTranscriptTermsInSlices(sql, sessionId, {
+        // One accumulate step, then many publish steps.
+        sliceNodes: 100,
+        publishChunk: 2,
+        betweenSlices: Effect.gen(function* () {
+          step += 1
+          if (step !== 3) return
+          appendedAtStep = step
+          yield* Effect.promise(() =>
+            persistSessionSnapshot({
+              sessionId,
+              piSessionId: 'pi-publish-append',
+              activeNodeId: appended.id,
+              nodes: [...nodes, appended],
+            }),
+          )
+        }),
+      })
+    }),
+  )
+  expect(appendedAtStep).toBe(3)
+  const sliced = await readTermProjection(sessionId)
+  expect(sliced.terms.map((row) => row.term)).toContain('appendedomega')
+  await withSql((sql) => refreshSessionTranscriptTerms(sql, [sessionId]))
+  expect(sliced).toEqual(await readTermProjection(sessionId))
 })
 
 it('repairs every stale Session while giving the event loop a turn between them', async () => {
