@@ -8,7 +8,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { getSafeChildEnv } from '../env'
+import { getNativeRuntimeChildEnv } from '../env'
 
 export const SESSION_EMBEDDING_IDLE_EXIT_MS = 60_000
 const STDERR_TAIL_CHARS = 2_000
@@ -81,10 +81,15 @@ interface PendingEmbedding {
 
 export type EmbeddingChildFactory = (config: string) => ChildProcess
 
+/** Electron's binary runs as Node; the child needs no secrets, but on Windows it needs the
+ * system and profile roots onnxruntime-node and the model cache resolve from. */
+export function embeddingChildEnv(platform: NodeJS.Platform = process.platform) {
+  return { ...getNativeRuntimeChildEnv(platform), ELECTRON_RUN_AS_NODE: '1' }
+}
+
 const spawnEmbeddingChild: EmbeddingChildFactory = (config) =>
   spawn(process.execPath, ['-e', EMBEDDING_PROCESS_SOURCE, config], {
-    // Electron's binary runs as Node; the child needs no secrets.
-    env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+    env: embeddingChildEnv(),
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
     windowsHide: true,
