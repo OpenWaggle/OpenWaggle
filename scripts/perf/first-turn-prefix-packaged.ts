@@ -7,6 +7,7 @@
  *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty --out <dir>
  *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup maintainer --out <dir>
  *
+ * `real-home` is an empty project whose HOME has a slow `.zshrc` exporting the user PATH.
  * `maintainer` adds the heavy-user MCP setup, this repository's AGENTS.md and project skills at the
  * baseline commit, sixteen user-global skills and a home AGENTS.md; its first request runs a short
  * `bash sleep` so the second request carries the MCP tools, as a Run's later calls do.
@@ -16,6 +17,7 @@ import { parseArgs } from 'node:util'
 import { measurePrefixTokens } from './first-turn-prefix/prefix-tokens'
 import { startCliRun } from './lib/cli-run'
 import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeProvider } from './lib/fake-openai-provider'
+import { writeSlowLoginShellHome } from './lib/login-shell-home'
 import { createMaintainerLikeProject, writeMaintainerLikeHome } from './lib/maintainer-like-setup'
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp } from './lib/perf-app'
@@ -71,6 +73,7 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
         prepareProfile: async (profile) => {
           await configureFakeProvider(profile.agentDir, provider.baseUrl)
           if (maintainer) await prepareMaintainerLike(profile)
+          if (setup === 'real-home') await writeSlowLoginShellHome(profile.home)
         },
       },
       async ({ profile }) => {
@@ -90,7 +93,7 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer]\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer|real-home]\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const setup = values.setup ?? 'empty'

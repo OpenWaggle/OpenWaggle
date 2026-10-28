@@ -18,6 +18,7 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { LAUNCH_METRICS, type LaunchMode, measureLaunch } from './lib/launch-measurement'
 import { type CompileCacheMode, compileCacheSeedFor, primeCompileCache, seedCompileCache } from './lib/compile-cache'
+import { writeSlowLoginShellHome } from './lib/login-shell-home'
 import { type PerfApp, resolvePerfApp } from './lib/perf-app'
 import { createPerfProfile, disposePerfProfile, profileEnvironment } from './lib/perf-profile'
 import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
@@ -48,6 +49,8 @@ const { values } = parseArgs({
     'warm-host-idle-ms': { type: 'string' },
     out: { type: 'string' },
     'compile-cache': { type: 'string', default: 'cold' },
+    /** `slow` gives every measured HOME a `.zshrc` that takes 0.3 s, like a real user's. */
+    'login-shell': { type: 'string', default: 'none' },
   },
 })
 
@@ -101,7 +104,10 @@ async function measureOnce(
     timeoutMs: numberOption(values['timeout-ms'], DEFAULT_TIMEOUT_MS),
     warmHostIdleMs: numberOption(values['warm-host-idle-ms'], DEFAULT_WARM_HOST_IDLE_MS),
     settleMs: DEFAULT_SETTLE_MS,
-    ...(seed ? { prepareProfile: (profile) => seedCompileCache(profile, seed) } : {}),
+    prepareProfile: async (profile) => {
+      if (seed) await seedCompileCache(profile, seed)
+      if (values['login-shell'] === 'slow') await writeSlowLoginShellHome(profile.home)
+    },
   })
 }
 
@@ -161,8 +167,9 @@ async function main() {
   const summary = Object.fromEntries(
     Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]),
   )
-  const report = { kind: `startup-${mode}`, compileCache, environment: measurementEnvironment(), runs, summary, results }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache.json`, report)}`)
+  const loginShell = values['login-shell']
+  const report = { kind: `startup-${mode}`, compileCache, loginShell, environment: measurementEnvironment(), runs, summary, results }
+  if (values.out) log(`Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache${loginShell === 'slow' ? '-slow-login-shell' : ''}.json`, report)}`)
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }
 
