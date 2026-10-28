@@ -17,11 +17,13 @@ import {
   openSync,
   readFileSync,
   readSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
+import { createLogger } from '../../../logger'
 import {
   type PackageRunnerLaunch,
   packageBinPath,
@@ -48,6 +50,10 @@ export const PACKAGE_BIN_PINNED_TTL_MS = 7 * PACKAGE_BIN_UNPINNED_TTL_MS
 const PROBE_TIMEOUT_MS = 180_000
 const PROBE_OUTPUT_BYTES = 1_000_000
 const SHEBANG_BYTES = 256
+const BINS_DIRECTORY_MODE = 0o700
+const BINS_FILE_MODE = 0o600
+
+const logger = createLogger('mcp-package-runner')
 
 const PackageJsonSchema = Schema.Struct({ bin: Schema.optional(Schema.Unknown) })
 
@@ -266,11 +272,18 @@ export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
     },
     save: (entries) => {
       try {
-        mkdirSync(path.dirname(file()), { recursive: true })
+        // The keys hold the user's PATH: private, like the rest of `<userData>/mcp`, and replaced
+        // whole, so a crash mid-write does not lose every resolution (review R5 P3-2).
+        mkdirSync(path.dirname(file()), { recursive: true, mode: BINS_DIRECTORY_MODE })
         const stored = { version: 1, entries } satisfies typeof StoredResolutionsSchema.Type
-        writeFileSync(file(), JSON.stringify(stored))
-      } catch {
+        const temporary = `${file()}.${process.pid}.tmp`
+        writeFileSync(temporary, JSON.stringify(stored), { mode: BINS_FILE_MODE })
+        renameSync(temporary, file())
+      } catch (error) {
         // A resolution that is not saved is probed again by the next Host.
+        logger.warn('Could not save the MCP package runner resolutions', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     },
   }

@@ -6,6 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
@@ -41,9 +42,41 @@ export interface McpToolCatalogStore {
   readonly forget: (key: string) => void
 }
 
+/**
+ * Catalogs hold server instructions (sometimes an account or tenant name), so they are private to
+ * the user like the rest of `<userData>/mcp` (review R5 P3-2).
+ */
+const CATALOG_DIRECTORY_MODE = 0o700
+const CATALOG_FILE_MODE = 0o600
+
+/**
+ * Removes catalogs too old to be served (and temporary files a crash left), which nothing reads
+ * again: a removed server, an edited configuration, or a deleted project leaves one behind.
+ */
+export async function pruneMcpToolCatalogs(directory: string, now: number = Date.now()) {
+  let names: string[]
+  try {
+    names = await readdir(directory)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!name.endsWith('.json') && !name.endsWith('.tmp')) continue
+    const file = path.join(directory, name)
+    try {
+      const { mtimeMs } = await stat(file)
+      if (now - mtimeMs >= MCP_TOOL_CATALOG_MAX_AGE_MS) await rm(file, { force: true })
+    } catch (error) {
+      logger.warn('Could not prune an MCP tool catalog', { file: name, error: errorText(error) })
+    }
+  }
+}
+
 /** One file per catalog key under `directory`. */
 export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolCatalogStore {
   const file = (key: string) => path.join(directory(), `${key}.json`)
+  // Once per Host, at its first write: by then the directory is known to be in use.
+  let pruned = false
   return {
     read: (key) => {
       try {
@@ -60,13 +93,20 @@ export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolC
     },
     write: (key, catalog) => {
       try {
-        mkdirSync(directory(), { recursive: true })
+        mkdirSync(directory(), { recursive: true, mode: CATALOG_DIRECTORY_MODE })
         const temporary = `${file(key)}.${process.pid}.tmp`
-        writeFileSync(temporary, JSON.stringify({ version: 1, ...catalog }))
+        writeFileSync(temporary, JSON.stringify({ version: 1, ...catalog }), {
+          mode: CATALOG_FILE_MODE,
+        })
         // Replaced whole, so a concurrent read sees the old or the new catalog.
         renameSync(temporary, file(key))
-      } catch {
+      } catch (error) {
         // Not cached: the server starts with its Session next time too.
+        logger.warn('Could not save an MCP tool catalog', { key, error: errorText(error) })
+      }
+      if (!pruned) {
+        pruned = true
+        void pruneMcpToolCatalogs(directory())
       }
     },
     forget: (key) => {
