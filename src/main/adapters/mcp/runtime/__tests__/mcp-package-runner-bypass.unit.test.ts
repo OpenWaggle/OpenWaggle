@@ -98,6 +98,22 @@ describe('package runner parsing (D1.2)', () => {
     expect(parsePackageRunnerCommand('npx', ['-y'])).toBeUndefined()
   })
 
+  it('reads the package name of a local `file:` folder from its package.json', () => {
+    const cache = runnerCache('local-fixture')
+    const folder = path.join(path.dirname(cache.binDirectory), 'local-fixture')
+    const cwd = path.dirname(folder)
+    expect(
+      parsePackageRunnerCommand('npx', ['-y', 'file:./local-fixture', 'atlassian'], cwd),
+    ).toMatchObject({
+      packageSpec: 'file:./local-fixture',
+      packageName: 'local-fixture',
+      serverArgs: ['atlassian'],
+      pinned: false,
+    })
+    expect(parsePackageRunnerCommand('npx', ['-y', 'file:./missing'], cwd)).toBeUndefined()
+    expect(parsePackageRunnerCommand('npx', ['-y', 'file:./local-fixture'])).toBeUndefined()
+  })
+
   it('picks the bin npm would run', () => {
     expect(packageBinPath({ bin: 'cli.js' }, '@s/tool', undefined)).toBe('cli.js')
     expect(packageBinPath({ bin: { only: 'a.js' } }, 'tool', undefined)).toBe('a.js')

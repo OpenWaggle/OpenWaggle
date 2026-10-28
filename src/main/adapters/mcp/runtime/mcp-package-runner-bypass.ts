@@ -65,7 +65,7 @@ function runnerLaunchOf(input: {
   readonly args: readonly string[]
   readonly cwd: string
 }) {
-  const launch = parsePackageRunnerCommand(input.command, input.args)
+  const launch = parsePackageRunnerCommand(input.command, input.args, input.cwd)
   return launch && !installedNear(input.cwd, launch.packageName) ? launch : undefined
 }
 
