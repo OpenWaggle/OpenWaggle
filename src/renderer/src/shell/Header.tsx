@@ -16,6 +16,7 @@ import { useTerminalCommands } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
 import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
@@ -220,18 +221,20 @@ export function Header() {
       </header>
 
       {commitOpen && (
-        <Suspense fallback={null}>
-          <LazyCommitDialog
-            projectPath={projectPath}
-            status={git.status}
-            statusError={git.error}
-            isRefreshing={git.isLoading}
-            isCommitting={git.isCommitting}
-            onRefresh={handleRefreshGit}
-            onCommit={handleCommitGit}
-            onClose={() => setCommitOpen(false)}
-          />
-        </Suspense>
+        <PanelErrorBoundary name="Commit">
+          <Suspense fallback={null}>
+            <LazyCommitDialog
+              projectPath={projectPath}
+              status={git.status}
+              statusError={git.error}
+              isRefreshing={git.isLoading}
+              isCommitting={git.isCommitting}
+              onRefresh={handleRefreshGit}
+              onCommit={handleCommitGit}
+              onClose={() => setCommitOpen(false)}
+            />
+          </Suspense>
+        </PanelErrorBoundary>
       )}
     </>
   )

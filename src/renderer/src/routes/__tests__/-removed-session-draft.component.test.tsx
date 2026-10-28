@@ -15,7 +15,11 @@ import { api } from '@/shared/lib/ipc'
 import { useChatRouteEffects } from '../-chat-route-effects'
 
 const navigateMock = vi.hoisted(() => vi.fn())
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
+  useRouterState: ({ select }: { select: (state: { status: 'idle' }) => unknown }) =>
+    select({ status: 'idle' }),
+}))
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     updateSessionTreeUiState: vi.fn().mockResolvedValue(undefined),

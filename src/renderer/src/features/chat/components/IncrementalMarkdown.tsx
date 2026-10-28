@@ -12,6 +12,7 @@ import { unified } from 'unified'
 import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
 import { remarkStreamingListTail } from '@/features/chat/lib/streaming-list-tail'
 import {
+  completedMarkdownBlocks,
   type StreamingMarkdownTail,
   splitStreamingMarkdown,
 } from '@/features/chat/lib/streaming-markdown-blocks'
@@ -189,7 +190,7 @@ function LiveTail({
  * Mapped inline, every block's component ran again on each token.
  */
 function CompletedBlocks({ prefix }: { readonly prefix: string }) {
-  return splitStreamingMarkdown(prefix).blocks.map((block) => (
+  return completedMarkdownBlocks(prefix).map((block) => (
     <StreamingMarkdownBlock key={block.start} text={block.text} />
   ))
 }

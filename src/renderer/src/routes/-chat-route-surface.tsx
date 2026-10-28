@@ -32,19 +32,21 @@ function ChatRouteSidebarSlot({
   readonly input: ComponentProps<typeof LazyChatRouteSidebar>['input']
 }) {
   return (
-    <Suspense
-      fallback={
-        <output
-          aria-label="Loading"
-          className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
-          aria-live="polite"
-        >
-          Loading…
-        </output>
-      }
-    >
-      <LazyChatRouteSidebar input={input} />
-    </Suspense>
+    <PanelErrorBoundary name="Session sidebar" className="size-full">
+      <Suspense
+        fallback={
+          <output
+            aria-label="Loading"
+            className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
+            aria-live="polite"
+          >
+            Loading…
+          </output>
+        }
+      >
+        <LazyChatRouteSidebar input={input} />
+      </Suspense>
+    </PanelErrorBoundary>
   )
 }
 

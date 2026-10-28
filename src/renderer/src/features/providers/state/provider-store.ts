@@ -1,6 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderCatalogScope, ProviderInfo } from '@shared/types/llm'
-import { parseModelRef } from '@shared/types/llm'
+import { generateDisplayName, parseModelRef } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
@@ -112,17 +112,31 @@ function catalogModel(providerModels: readonly ProviderInfo[], model: SupportedM
   return undefined
 }
 
-/** Why a Session cannot run on `model`, and what the user can do about it. */
+function signInMessage(modelName: string, providerName: string) {
+  return `${modelName} needs a sign-in to ${providerName}. Connect ${providerName} in Settings > Connections, or choose another model.`
+}
+
+/**
+ * Why a Session cannot run on `model`, and what the user can do about it. The startup catalog
+ * (`available` scope) lists every provider but only the models that can run, so a signed-out
+ * provider's model is missing from it while its provider, with its sign-in state, is listed.
+ */
 export function modelUnavailableMessage(
   providerModels: readonly ProviderInfo[],
   model: SupportedModelId | undefined,
 ) {
   if (!model) return 'Select a model before sending.'
   const found = catalogModel(providerModels, model)
-  if (!found) {
-    return `${model} is not available in this project. Add its provider in Settings > Connections, or choose another model.`
+  if (found) return signInMessage(found.name, found.providerName)
+  const ref = parseModelRef(model)
+  const provider = providerModels.find((group) => group.provider === ref?.provider)
+  if (ref && provider && !provider.auth.configured) {
+    return signInMessage(generateDisplayName(ref.modelId), provider.displayName)
   }
-  return `${found.name} needs a sign-in to ${found.providerName}. Connect ${found.providerName} in Settings > Connections, or choose another model.`
+  if (provider) {
+    return `${model} is not available from ${provider.displayName}. Choose another model.`
+  }
+  return `${model} is not available in this project. Add its provider in Settings > Connections, or choose another model.`
 }
 
 function dedupeProviderModels(

@@ -9,11 +9,12 @@ import { useSessionStatusStore, useSessionStore } from '@/features/sessions/stat
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useChatRouteEffects } from '../-chat-route-effects'
+import { testRouterStatus as router } from './-chat-route-router-status'
 
 const navigateMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@tanstack/react-router', () => ({
+vi.mock('@tanstack/react-router', async () => ({
   useNavigate: () => navigateMock,
+  useRouterState: (await import('./-chat-route-router-status')).useTestRouterState,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -39,6 +40,7 @@ describe('useChatRouteEffects', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     navigateMock.mockClear()
+    router.set('idle')
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({
       activeSessionId: null,

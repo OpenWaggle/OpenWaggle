@@ -50,6 +50,21 @@ export function broadcastAgentEvent(payload: {
   }
 }
 
+/**
+ * Reads a Session's stream buffer for a window, after sending every window that Session's pending
+ * deltas. The buffer already holds the pending text, so the delta must reach the window before the
+ * snapshot does, or the window appends that text a second time.
+ */
+export function readAfterFlushingSession<T>(sessionId: SessionId, read: () => T): T {
+  let targets: AgentEventTarget[] = []
+  try {
+    targets = agentEventTargets()
+  } catch {
+    // Electron windows may not be available in test environments
+  }
+  return agentEvents.readFlushed(targets, sessionId, read)
+}
+
 /** The Sessions a window shows, whose deltas it gets about 30 times a second. */
 export function setWindowShownSessions(webContents: WebContents, sessionIds: readonly SessionId[]) {
   agentEvents.setShownSessions(webContents.id, sessionIds)

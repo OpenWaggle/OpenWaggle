@@ -6,6 +6,7 @@ import type {
   SessionWorkspace,
 } from '@shared/types/session'
 import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useRef } from 'react'
 import {
   createBranchDraftSelectionFromNode,
   isSessionModelActionable,
@@ -50,6 +51,23 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
   const setDraftBranch = useSessionStore((state) => state.setDraftBranch)
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
+  // Bumped by every selection and on unmount: a Host read answering later applies only if no
+  // other selection came after it.
+  const selectionGeneration = useRef(0)
+  useEffect(
+    () => () => {
+      selectionGeneration.current += 1
+    },
+    [],
+  )
+
+  /** Whether a read begun at `generation` may still act: nothing was selected since, same Session. */
+  function isCurrentSelection(generation: number, sessionId: SessionTreeNode['sessionId']) {
+    return (
+      selectionGeneration.current === generation &&
+      useSessionStore.getState().activeWorkspace?.tree.session.id === sessionId
+    )
+  }
 
   function selectMaterializedBranch(
     node: SessionTreeNode,
@@ -90,22 +108,28 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
 
   /**
    * A branch drafted from a user message is prefilled with its text, which the tree does not carry
-   * (B5): read the one entry from the Host first. Any other node drafts at once.
+   * (B5): read the one entry from the Host first. Any other node drafts at once. A read that
+   * answers after the user selected another node, left the Session, or closed the tree drafts
+   * nothing: it would switch the composer and navigate back to where the user was.
    */
   function selectDraftBranch(node: SessionTreeNode) {
     if (node.kind !== 'user_message' || !node.hasMessage || 'message' in node) {
       draftBranchFrom(node)
       return
     }
+    const generation = selectionGeneration.current
+    const draftIfCurrent = (draftNode: SessionTranscriptNode) => {
+      if (isCurrentSelection(generation, node.sessionId)) draftBranchFrom(draftNode)
+    }
     void api
       .getSessionWorkspace(node.sessionId, { nodeId: node.id }, { window: { minEntries: 1 } })
       .then(
         (workspace) => {
           const entry = workspace?.transcriptPath.at(-1)
-          draftBranchFrom(entry?.node.id === node.id && entry.node.message ? entry.node : node)
+          draftIfCurrent(entry?.node.id === node.id && entry.node.message ? entry.node : node)
         },
         // Unreadable: draft the branch without prefill rather than not at all.
-        () => draftBranchFrom(node),
+        () => draftIfCurrent(node),
       )
   }
 
@@ -151,6 +175,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
   }
 
   function selectNode(node: SessionTreeNode) {
+    selectionGeneration.current += 1
     const materializedBranch = input.tree?.branches.find((branch) => branch.headNodeId === node.id)
     if (materializedBranch) {
       selectMaterializedBranch(node, materializedBranch)

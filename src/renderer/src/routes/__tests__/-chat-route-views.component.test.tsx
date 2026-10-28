@@ -11,6 +11,8 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ sessionId: 'session-1' }),
   useSearch: () => ({}),
+  useRouterState: ({ select }: { select: (state: { status: 'idle' }) => unknown }) =>
+    select({ status: 'idle' }),
 }))
 
 vi.mock('../-chat-route-surface', () => ({

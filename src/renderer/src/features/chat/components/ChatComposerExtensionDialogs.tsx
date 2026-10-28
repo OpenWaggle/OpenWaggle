@@ -20,6 +20,7 @@ import {
   surfaceLabel,
   surfaceTarget,
 } from '@/features/extensions'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { responseFromExtensionAction } from '../lib/agent-loop-interaction-response-actions'
 import { toExtensionInteractionView } from '../lib/agent-loop-interaction-view'
 import {
@@ -226,9 +227,11 @@ function ActiveComposerSidePanelSurface({
 
   return (
     <div className="fixed inset-y-4 right-4 left-4 z-50 ml-auto max-w-105 overflow-hidden rounded-2xl border border-border bg-diff-bg shadow-2xl">
-      <Suspense fallback={null}>
-        <LazyExtensionSidePanelSurfaceContent {...surfaceProps} />
-      </Suspense>
+      <PanelErrorBoundary name="Extension side panel">
+        <Suspense fallback={null}>
+          <LazyExtensionSidePanelSurfaceContent {...surfaceProps} />
+        </Suspense>
+      </PanelErrorBoundary>
     </div>
   )
 }
@@ -293,21 +296,23 @@ export function ChatComposerExtensionDialogs({
       <ComposerExtensionActions launchers={launchers} />
       {error ? <p className="mb-2 text-xs text-error wrap-anywhere">{error}</p> : null}
       {activeSurface?.kind === 'dialog' ? (
-        <Suspense fallback={null}>
-          <LazyExtensionDialogSurfaceContent
-            actions={{
-              onClose: () => dispatch({ type: 'close' }),
-              onRefresh: noOp,
-              onSurfaceAction: handleSurfaceAction,
-            }}
-            error={null}
-            loading={false}
-            projectPaths={extensionProjectPaths}
-            registry={extensionRegistry}
-            surfacePayload={activeSurface.surfacePayload}
-            target={activeSurface.target}
-          />
-        </Suspense>
+        <PanelErrorBoundary name="Extension dialog">
+          <Suspense fallback={null}>
+            <LazyExtensionDialogSurfaceContent
+              actions={{
+                onClose: () => dispatch({ type: 'close' }),
+                onRefresh: noOp,
+                onSurfaceAction: handleSurfaceAction,
+              }}
+              error={null}
+              loading={false}
+              projectPaths={extensionProjectPaths}
+              registry={extensionRegistry}
+              surfacePayload={activeSurface.surfacePayload}
+              target={activeSurface.target}
+            />
+          </Suspense>
+        </PanelErrorBoundary>
       ) : null}
       {activeSurface?.kind === 'side-panel' ? (
         <ActiveComposerSidePanelSurface

@@ -59,6 +59,15 @@ import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
 const PARAGRAPHS = 30
+const BLOCK_TAGS = new Set(['OL', 'UL', 'LI', 'P', 'PRE', 'BLOCKQUOTE'])
+
+/** The nesting of a rendered answer's block elements, as `ol(li(p p) li(p))`. */
+function blockStructure(element: Element): string {
+  const children = [...element.children].map(blockStructure).filter(Boolean).join(' ')
+  if (!BLOCK_TAGS.has(element.tagName)) return children
+  const tag = element.tagName.toLowerCase()
+  return children ? `${tag}(${children})` : tag
+}
 
 function streamed(text: string, isStreaming = true) {
   return (
@@ -149,5 +158,34 @@ describe('streaming Markdown blocks', () => {
     expect(streaming.container.querySelectorAll('li')).toHaveLength(2)
     expect(streaming.container.querySelector('table')).not.toBeNull()
     expect(streaming.container.querySelector('a')?.getAttribute('href')).toBe('https://example.com')
+  })
+
+  // PR #391 review R2 P2-1: each block parsed alone cut a loose list at its blank lines, so it
+  // streamed as lists and paragraphs side by side and jumped to one list when the Run settled.
+  it('renders a loose list with paragraphs and code in its items the same while streaming', () => {
+    const text = [
+      '1. Install it:',
+      '',
+      '   Run the installer first.',
+      '',
+      '   ```sh',
+      '   pnpm install',
+      '',
+      '   pnpm test',
+      '   ```',
+      '',
+      '2. Configure it',
+      '',
+      '   - nested',
+      '',
+      '   - items',
+      '',
+      'Done.',
+    ].join('\n')
+    const streaming = render(streamed(text))
+    const settled = render(streamed(text, false))
+
+    expect(blockStructure(streaming.container)).toBe(blockStructure(settled.container))
+    expect(blockStructure(settled.container)).toBe('ol(li(p p pre) li(p ul(li(p) li(p)))) p')
   })
 })

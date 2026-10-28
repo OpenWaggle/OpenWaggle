@@ -1,6 +1,7 @@
 import type { SessionSummary } from '@shared/types/session'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { useInterruptedSessionCount } from '../useInterruptedSessionCount'
 
 const apiMocks = vi.hoisted(() => ({ querySessionControl: vi.fn() }))
@@ -52,5 +53,29 @@ describe('interrupted Session chip count', () => {
     rerender({ sessions: noSessions() })
 
     await waitFor(() => expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(1))
+  })
+
+  // PR 391 review R2 P3-7: an interruption in a Session beyond the loaded catalog changes neither
+  // the catalog's length nor its interrupted ids, so the count went stale until it did.
+  it('asks the Host again when it reports a change outside the loaded catalog', async () => {
+    apiMocks.querySessionControl
+      .mockResolvedValueOnce({
+        contractVersion: 2,
+        requestId: 'interrupted-count',
+        outcome: { operation: 'list', sessions: [], totalCount: 3 },
+      })
+      .mockResolvedValueOnce({
+        contractVersion: 2,
+        requestId: 'interrupted-count',
+        outcome: { operation: 'list', sessions: [], totalCount: 4 },
+      })
+    const sessions: readonly SessionSummary[] = []
+    const { result } = renderHook(() => useInterruptedSessionCount(sessions))
+    await waitFor(() => expect(result.current).toBe(3))
+
+    act(() => useSessionStatusStore.getState().noteHostTerminalCountChange())
+
+    await waitFor(() => expect(result.current).toBe(4))
+    expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(2)
   })
 })

@@ -15,7 +15,10 @@ import type {
  * in the background (their render snapshot still needs the text, so they are merged, not dropped).
  *
  * Order is kept: any other event of the Session is delivered after its pending delta, and any
- * other message the main process sends flushes every pending delta first (`flushAll`).
+ * other message the main process sends flushes every pending delta first (`flushAll`), and a
+ * window's read of a Session's stream buffer flushes that Session's delta first (`flushSession`):
+ * the buffer already holds the delta's text, and a delta arriving after the snapshot that contains
+ * it would be appended a second time.
  */
 
 /**
@@ -91,10 +94,24 @@ export function mergeDeltaEvents(pending: DeltaEvent, next: DeltaEvent): DeltaEv
 
 interface PendingDelta {
   event: DeltaEvent
-  readonly timer: ReturnType<typeof setTimeout>
+  readonly cancel: () => void
+}
+
+/** Runs a flush after a delay; returns what cancels it. Tests drive the flushes themselves. */
+export type DeliveryScheduler = (flush: () => void, delayMs: number) => () => void
+
+const timerScheduler: DeliveryScheduler = (flush, delayMs) => {
+  const timer = setTimeout(flush, delayMs)
+  return () => clearTimeout(timer)
 }
 
 export class AgentEventDelivery {
+  private readonly schedule: DeliveryScheduler
+
+  constructor(schedule: DeliveryScheduler = timerScheduler) {
+    this.schedule = schedule
+  }
+
   /** Per target, the pending delta of each Session. */
   private readonly pending = new Map<number, Map<SessionId, PendingDelta>>()
   /** Per target, the Sessions it shows; a target that never said shows every Session. */
@@ -107,7 +124,7 @@ export class AgentEventDelivery {
   /** Drops a closed target's state; its pending deltas have nowhere to go. */
   forgetTarget(targetId: number) {
     for (const entry of this.pending.get(targetId)?.values() ?? []) {
-      clearTimeout(entry.timer)
+      entry.cancel()
     }
     this.pending.delete(targetId)
     this.shown.delete(targetId)
@@ -126,6 +143,20 @@ export class AgentEventDelivery {
     }
   }
 
+  /**
+   * Sends one Session's pending delta now. A window that reads the stream buffer gets text the
+   * buffer already holds, so the delta carrying that text must reach it before the read's answer.
+   */
+  flushSession(targets: readonly AgentEventTarget[], sessionId: SessionId) {
+    for (const target of targets) this.flush(target, sessionId)
+  }
+
+  /** Reads a Session's stream buffer for the targets, after sending them its pending delta. */
+  readFlushed<T>(targets: readonly AgentEventTarget[], sessionId: SessionId, read: () => T): T {
+    this.flushSession(targets, sessionId)
+    return read()
+  }
+
   private deliverTo(target: AgentEventTarget, sessionId: SessionId, event: AgentTransportEvent) {
     const sessions = this.pending.get(target.id)
     const pending = sessions?.get(sessionId)
@@ -141,7 +172,7 @@ export class AgentEventDelivery {
       target.send({ sessionId, event })
       return
     }
-    const timer = setTimeout(
+    const cancel = this.schedule(
       () => this.flush(target, sessionId),
       this.flushDelayMs(target.id, sessionId),
     )
@@ -151,7 +182,7 @@ export class AgentEventDelivery {
       targetSessions = new Map()
       this.pending.set(target.id, targetSessions)
     }
-    targetSessions.set(sessionId, { event, timer })
+    targetSessions.set(sessionId, { event, cancel })
   }
 
   private flush(target: AgentEventTarget, sessionId: SessionId) {
@@ -160,7 +191,7 @@ export class AgentEventDelivery {
     if (!sessions || !pending) return
     sessions.delete(sessionId)
     if (sessions.size === 0) this.pending.delete(target.id)
-    clearTimeout(pending.timer)
+    pending.cancel()
     target.send({ sessionId, event: pending.event })
   }
 

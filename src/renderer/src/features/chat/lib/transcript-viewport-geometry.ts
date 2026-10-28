@@ -83,33 +83,59 @@ function queryRowElement(content: HTMLElement, key: string) {
 }
 
 /**
+ * At most this many rows are remembered: a layout pass reads a handful (the held message, the
+ * anchored row, a restore target).
+ */
+export const ROW_ELEMENT_LOOKUP_CAPACITY = 8
+
+/**
  * Row elements by key, checked on every use. A layout pass reads the same few rows several times
  * (the held message's top and height, the anchored row), and each read searched the whole
  * transcript with an attribute selector, on every streamed frame. A row keeps its element while
  * its key stays mounted, so a found element is reused for as long as it is still that row.
+ *
+ * It forgets a row once it leaves the document, and keeps the most recently read few: keys read
+ * once (one per sent turn, anchors, restore targets) otherwise kept their unmounted rows'
+ * subtrees reachable for as long as the reader stayed on the Session.
  */
-function createRowElementLookup() {
+export function createRowElementLookup(
+  query: (content: HTMLElement, key: string) => HTMLElement | null = queryRowElement,
+) {
   const found = new Map<string, HTMLElement>()
-  return (content: HTMLElement | null, key: string) => {
-    if (!content) return null
-    const cached = found.get(key)
-    if (
-      cached?.isConnected &&
-      cached.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE) === key &&
-      content.contains(cached)
-    ) {
-      return cached
+  function forgetDetached() {
+    for (const [key, element] of found) if (!element.isConnected) found.delete(key)
+  }
+  function remember(key: string, row: HTMLElement) {
+    found.delete(key)
+    found.set(key, row)
+    for (const oldest of found.keys()) {
+      if (found.size <= ROW_ELEMENT_LOOKUP_CAPACITY) break
+      found.delete(oldest)
     }
-    const row = queryRowElement(content, key)
-    if (row) found.set(key, row)
-    else found.delete(key)
-    return row
+  }
+  return {
+    find(content: HTMLElement | null, key: string) {
+      if (!content) return null
+      forgetDetached()
+      const cached = found.get(key)
+      if (cached?.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE) === key && content.contains(cached)) {
+        remember(key, cached)
+        return cached
+      }
+      const row = query(content, key)
+      if (row) remember(key, row)
+      else found.delete(key)
+      return row
+    },
+    /** How many rows it holds on to. */
+    size: () => found.size,
   }
 }
 
 /** The browser-backed geometry the viewport controller reads and writes. */
 export function createDomViewportGeometry(elements: TranscriptViewportElements): ViewportGeometry {
-  const rowElement = createRowElementLookup()
+  const rowLookup = createRowElementLookup()
+  const rowElement = (content: HTMLElement | null, key: string) => rowLookup.find(content, key)
   function viewportTop() {
     return elements.scroller()?.getBoundingClientRect().top ?? 0
   }

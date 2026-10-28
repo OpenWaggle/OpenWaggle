@@ -3,6 +3,7 @@ import {
   createTranscriptOrderHarness,
   loadTranscriptOrderHooks,
   type TranscriptOrderHarness,
+  type TranscriptOrderHarnessOptions,
 } from './transcript-order.test-harness'
 import { transcriptOrderViolations } from './transcript-order.violations'
 
@@ -18,7 +19,7 @@ const hooks = await loadTranscriptOrderHooks()
 
 export type ScenarioStep = (harness: TranscriptOrderHarness) => unknown
 
-export function createScenarioHarness(options: { readonly lagMs?: number } = {}) {
+export function createScenarioHarness(options: TranscriptOrderHarnessOptions = {}) {
   return createTranscriptOrderHarness(hooks, options)
 }
 
@@ -50,7 +51,7 @@ export function assertTranscriptOrder(
 /** Runs the steps, checking the invariant after each, then that the transcript is the Pi log. */
 export async function expectCompleteTranscript(
   steps: readonly ScenarioStep[],
-  options: { readonly lagMs?: number } = {},
+  options: TranscriptOrderHarnessOptions = {},
 ) {
   const harness = createScenarioHarness(options)
   const trace: string[] = []

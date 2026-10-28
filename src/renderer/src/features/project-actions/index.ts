@@ -34,4 +34,8 @@ export {
   projectActionShortcutSummary,
   projectActionUnknownWhenVariables,
 } from './lib/project-action-model'
+export {
+  isProjectActionQueryAffected,
+  type ProjectActionSessionChange,
+} from './lib/project-action-query-scope'
 export { useProjectActionStore } from './state/project-action-store'
