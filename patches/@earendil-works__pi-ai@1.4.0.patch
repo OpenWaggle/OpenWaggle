@@ -80,7 +80,7 @@ index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a
  //# sourceMappingURL=bedrock-converse-stream.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296bd07d178 100644
+index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f121afe6883 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
 @@ -1,5 +1,6 @@
@@ -99,7 +99,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
 +import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
-+import { claudeUsesAdaptiveThinking } from "../utils/claude-capabilities.js";
++import { claudeUsesAdaptiveThinking, isClaudeModelRef } from "../utils/claude-capabilities.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 -import { getSystemMessageText } from "../utils/text.js";
 +import { contentText, getSystemMessageText } from "../utils/text.js";
@@ -145,7 +145,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
              }
          }
          else {
-@@ -128,32 +142,25 @@ export const stream = (model, context, options = {}) => {
+@@ -128,32 +142,27 @@ export const stream = (model, context, options = {}) => {
          // Kept outside the try so the catch can still correlate a mid-stream failure:
          // exceptions delivered as stream events carry no HTTP metadata of their own.
          let responseRequestId;
@@ -180,11 +180,13 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
                      ...(options.temperature !== undefined && { temperature: options.temperature }),
                  },
 -                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode),
-+                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, promptCaching ? cacheRetention : "none"),
++                // Bedrock documents tool cache checkpoints for Claude models only; others, such as Nova, take
++                // them in system and messages. AWS_BEDROCK_FORCE_CACHE caches any model, so check here.
++                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, promptCaching && isClaudeModelRef(model.id, model.name) ? cacheRetention : "none"),
                  additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
                  ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
              };
-@@ -162,6 +169,16 @@ export const stream = (model, context, options = {}) => {
+@@ -162,6 +171,16 @@ export const stream = (model, context, options = {}) => {
                  commandInput = nextCommandInput;
              }
              const command = new ConverseStreamCommand(commandInput);
@@ -201,7 +203,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
              const response = await client.send(command, { abortSignal: options.signal });
              responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
              if (!observedRawResponse && response.$metadata.httpStatusCode !== undefined) {
-@@ -242,9 +259,125 @@ export const stream = (model, context, options = {}) => {
+@@ -242,9 +261,125 @@ export const stream = (model, context, options = {}) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -327,7 +329,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
  /**
   * Human-readable prefixes for Bedrock SDK exception names.
   * The downstream retry logic in agent-session matches patterns like
-@@ -356,7 +489,7 @@ function bedrockUserAgent(identity) {
+@@ -356,7 +491,7 @@ function bedrockUserAgent(identity) {
   * SigV4 / auth headers (`x-amz-*`, `authorization`, `host`) are silently skipped;
   * all other caller headers override any existing same-named header on the request.
   */
@@ -336,7 +338,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
      const middleware = (next) => async (args) => {
          const request = args.request;
          if (request && typeof request === "object" && "headers" in request) {
-@@ -369,7 +502,7 @@ function addCustomHeadersMiddleware(client, headers) {
+@@ -369,7 +504,7 @@ function addCustomHeadersMiddleware(client, headers) {
          }
          return next(args);
      };
@@ -345,7 +347,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
  }
  function isSmithyHttpResponse(response) {
      if (!response || typeof response !== "object")
-@@ -388,7 +521,7 @@ function toProviderResponse(response) {
+@@ -388,7 +523,7 @@ function toProviderResponse(response) {
   * `onResponse`. Capture the raw Smithy HTTP response at the deserialize step,
   * after the SDK receives the response but before the event stream is consumed.
   */
@@ -354,7 +356,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
      const middleware = (next) => async (args) => {
          const result = await next(args);
          const providerResponse = toProviderResponse(result.response);
-@@ -398,7 +531,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
+@@ -398,7 +533,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
          }
          return result;
      };
@@ -363,7 +365,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
  }
  export const streamSimple = (model, context, options) => {
      const base = {
-@@ -473,7 +606,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+@@ -473,7 +608,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -372,7 +374,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
          stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
      }
      else if (delta?.reasoningContent) {
-@@ -540,6 +673,10 @@ function flushRedactedContent(block) {
+@@ -540,6 +675,10 @@ function flushRedactedContent(block) {
   */
  function finalizeStreamingBlock(block) {
      delete block.index;
@@ -383,7 +385,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
      // partialJson is only a streaming scratch buffer; never persist it.
      delete block.partialJson;
      flushRedactedContent(block);
-@@ -591,15 +728,7 @@ function getModelMatchCandidates(modelId, modelName) {
+@@ -591,15 +730,7 @@ function getModelMatchCandidates(modelId, modelName) {
      });
  }
  function supportsAdaptiveThinking(modelId, modelName) {
@@ -400,7 +402,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
  }
  function supportsNativeXhighEffort(model) {
      const candidates = getModelMatchCandidates(model.id, model.name);
-@@ -715,17 +844,50 @@ function supportsPromptCaching(model, env) {
+@@ -715,17 +846,50 @@ function supportsPromptCaching(model, env) {
  function supportsThinkingSignature(model) {
      return isAnthropicClaudeModel(model);
  }
@@ -459,7 +461,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
  }
  function normalizeToolCallId(id) {
      const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-@@ -924,7 +1086,7 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -924,7 +1088,7 @@ function convertMessages(context, model, cacheRetention, env) {
      }
      return result;
  }
@@ -468,7 +470,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..683e2c3177afd806a225e27ead1e5296
      if (!tools?.length)
          return undefined;
      if (toolChoice === "none")
-@@ -940,6 +1102,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+@@ -940,6 +1104,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
              },
          };
      });

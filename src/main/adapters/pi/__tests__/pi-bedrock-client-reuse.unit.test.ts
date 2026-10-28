@@ -260,6 +260,23 @@ describe('Amazon Bedrock cache points', () => {
     expect(body.system?.[1]).toEqual({ cachePoint: { type: 'default' } })
   })
 
+  it('writes no tools cache point for a non-Claude model that forces caching', async () => {
+    const nova = AMAZON_BEDROCK_MODELS['amazon.nova-pro-v1:0']
+    const body = await withServer(async (baseUrl, requests) => {
+      await streamBedrock({ ...nova, baseUrl }, normalizeContext(sectionedContext()), {
+        region: 'eu-west-1',
+        maxRetries: 0,
+        env: { ...ENV, AWS_BEDROCK_FORCE_CACHE: '1' },
+      }).result()
+      return parseBody(requests[0]?.body ?? '{}')
+    })
+
+    // Bedrock documents tool checkpoints for Claude only; system ones still apply.
+    expect(body.toolConfig?.tools).toHaveLength(1)
+    expect(JSON.stringify(body.toolConfig)).not.toContain('cachePoint')
+    expect(body.system?.at(-1)).toEqual({ cachePoint: { type: 'default' } })
+  })
+
   it('writes no cache points when prompt caching is off', async () => {
     const body = await withServer(async (baseUrl, requests) => {
       await streamBedrock({ ...MODEL, baseUrl }, normalizeContext(sectionedContext()), {
