@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { forgetMcpAppTools, recordMcpAppTools } from '../mcp-app-registry'
 import {
+  knownMcpAppTools,
   mcpCodemodeReach,
   withDirectKeptWithoutCodemode,
   withKnownMcpAppToolsOf,
@@ -169,5 +170,16 @@ describe('codemode reach of a Run (review R5 P2-3)', () => {
     expect(withDirectKeptWithoutCodemode(loaded, reach([reaching], []), (name) => files[name])).toBe(
       loaded,
     )
+  })
+})
+
+describe('App tools known from another project (review R5 P3-4)', () => {
+  it("prefers the project's catalog over the Host-wide listing of the same server", () => {
+    const entry = { name: 'apps', config: { command: 'apps-mcp' }, source: 'x' }
+    // Another project's Session listed the same command with an App tool.
+    recordMcpServerToolsListing(mcpServerIdentity(entry.name, entry.config), {}, APP_LISTING)
+
+    expect(knownMcpAppTools(SESSION, entry, () => [])).toEqual([])
+    expect(knownMcpAppTools(SESSION, entry, () => undefined)).toEqual(['show'])
   })
 })
