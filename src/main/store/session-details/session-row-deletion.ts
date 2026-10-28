@@ -56,6 +56,13 @@ function deleteTermChunk(sql: SqlClient.SqlClient, id: SessionId) {
  * statements of 290 and 350 ms, now chunks of at most ~35 ms (190 ms in total). The node triggers'
  * lexical discovery rebuild is suspended for the Session, which disappears at the end anyway.
  *
+ * The yields free the Host's thread, not the database: this runs inside the caller's transaction,
+ * and the SQL client holds its one connection for the whole of it, so every other database
+ * request (another Session's read included) still waits for the whole deletion, twice with the
+ * foreign-key preflight. Sockets, timers and work that needs no query run between chunks. Only
+ * committing chunks in separate transactions, recovered through the deletion journal
+ * (`session_deletion_operations`), would let queries in between.
+ *
  * The Session's branches go first: they name its nodes without a cascade (`head_node_id`,
  * `source_node_id`), and the Session delete would remove them with their cascades anyway. Every
  * statement still checks its foreign keys immediately, so a deletion something else depends on
