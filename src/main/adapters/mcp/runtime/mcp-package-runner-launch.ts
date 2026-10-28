@@ -165,9 +165,13 @@ export function packageBinPath(
   return entries.find(([key]) => key === unscoped)?.[1]
 }
 
-/** The probe prints the runner's PATH and the `node` it would run a JavaScript bin with. */
-const PROBE_SOURCE =
-  'process.stdout.write(JSON.stringify({path:process.env.PATH||process.env.Path||"",node:process.execPath}))'
+/**
+ * The probe prints the runner's PATH and the `node` it would run a JavaScript bin with. It holds
+ * no space, quote, `|`, `&` or `^`, so it reaches node intact even through the `.cmd` shim of a
+ * Windows runner, whose `%*` hands the arguments to `cmd.exe` once more.
+ */
+export const PROBE_SOURCE =
+  "process.stdout.write(JSON.stringify({path:process.env.PATH??process.env.Path??'',node:process.execPath}))"
 
 /** The runner command that prints what it puts on PATH for the package. */
 export function probeCommand(command: string, launch: PackageRunnerLaunch) {
@@ -182,4 +186,35 @@ export function probeCommand(command: string, launch: PackageRunnerLaunch) {
     .with('pnpm-dlx', () => ({ command, args: [`--package=${spec}`, 'dlx', ...probe] }))
     .with('bunx', () => ({ command, args: ['--package', spec, ...probe] }))
     .exhaustive()
+}
+
+/** Characters `cmd.exe` reads as syntax, escaped with `^` as cross-spawn does. */
+const CMD_META_CHARACTERS = /([()\][%!^"`<>&|;, *?])/gu
+/** An npm cmd-shim re-reads its arguments through `cmd.exe`, so they are escaped twice. */
+const NPM_CMD_SHIM = /node_modules[\\/]\.bin[\\/][^\\/]+\.cmd$/iu
+
+function cmdEscapedArgument(argument: string, twice: boolean) {
+  // Backslashes before a quote, or at the end (before the closing quote), are doubled, and the
+  // quote itself escaped, as the C runtime of the program parses its command line.
+  const quoted = `"${argument
+    .replace(/(\\*)"/gu, '$1$1\\"')
+    .replace(/(\\*)$/u, '$1$1')}"`
+  const escaped = quoted.replace(CMD_META_CHARACTERS, '^$1')
+  return twice ? escaped.replace(CMD_META_CHARACTERS, '^$1') : escaped
+}
+
+/**
+ * The `cmd.exe /d /s /c "…"` command line that runs a Windows runner (`npx.cmd`, `pnpm.cmd`) with
+ * exactly these arguments. Node's `shell: true` joins arguments unquoted, so `cmd.exe` split the
+ * probe at `||` and the probe never worked on Windows (review R5 P1-2).
+ */
+export function windowsCommandLine(command: string, args: readonly string[]) {
+  const twice = NPM_CMD_SHIM.test(command)
+  // The program in plain quotes, which `cmd.exe` keeps (a path cannot hold a quote): an absolute
+  // `C:\Program Files\nodejs\npx.cmd` stays one word.
+  const line = [
+    `"${path.win32.normalize(command)}"`,
+    ...args.map((argument) => cmdEscapedArgument(argument, twice)),
+  ].join(' ')
+  return `"${line}"`
 }

@@ -17,6 +17,7 @@ import {
   packageBinPath,
   parsePackageRunnerCommand,
   probeCommand,
+  windowsCommandLine,
 } from './mcp-package-runner-launch'
 
 export interface ResolvedPackageBin {
@@ -149,19 +150,37 @@ export type PackageRunnerProbe = (input: {
   readonly env: Readonly<Record<string, string>>
 }) => Promise<string>
 
+/** How a probe is spawned: never through Node's `shell`, which leaves arguments unquoted. */
+export function probeSpawnOf(
+  input: Parameters<PackageRunnerProbe>[0],
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return { file: input.command, args: [...input.args], windowsVerbatimArguments: false }
+  }
+  // `npx.cmd` needs `cmd.exe` (Node refuses to spawn a `.cmd` without it), which gets one line
+  // escaped for it.
+  return {
+    file: input.env.ComSpec ?? input.env.COMSPEC ?? 'cmd.exe',
+    args: ['/d', '/s', '/c', windowsCommandLine(input.command, input.args)],
+    windowsVerbatimArguments: true,
+  }
+}
+
 const execProbe: PackageRunnerProbe = (input) =>
   new Promise((resolve, reject) => {
+    const spawned = probeSpawnOf(input)
     execFile(
-      input.command,
-      [...input.args],
+      spawned.file,
+      spawned.args,
       {
         cwd: input.cwd,
         env: { ...input.env },
         timeout: PROBE_TIMEOUT_MS,
         maxBuffer: PROBE_OUTPUT_BYTES,
         windowsHide: true,
-        // `npx.cmd` on Windows.
-        shell: process.platform === 'win32',
+        windowsVerbatimArguments: spawned.windowsVerbatimArguments,
+        shell: false,
       },
       (error, stdout) => (error ? reject(error) : resolve(stdout)),
     )
@@ -228,6 +247,12 @@ export interface StdioLaunch {
 export class PackageRunnerBypass {
   private entries: Record<string, ResolvedPackageBin> | undefined
   private readonly probing = new Map<string, Promise<void>>()
+  /**
+   * When a launch's probe last failed or found no bin: it is not probed again (or waited for)
+   * until the unpinned TTL passes or Settings checks the server, so a broken probe costs once a
+   * day instead of once per spawn.
+   */
+  private readonly failedAt = new Map<string, number>()
   private readonly probe: PackageRunnerProbe
   private readonly now: () => number
 
@@ -257,6 +282,15 @@ export class PackageRunnerBypass {
     return this.entries
   }
 
+  private failedRecently(key: string) {
+    const failed = this.failedAt.get(key)
+    if (failed === undefined) return false
+    const age = this.now() - failed
+    if (age >= 0 && age < PACKAGE_BIN_UNPINNED_TTL_MS) return true
+    this.failedAt.delete(key)
+    return false
+  }
+
   private fresh(entry: ResolvedPackageBin) {
     const ttl = entry.pinned ? PACKAGE_BIN_PINNED_TTL_MS : PACKAGE_BIN_UNPINNED_TTL_MS
     const age = this.now() - entry.resolvedAt
@@ -284,7 +318,8 @@ export class PackageRunnerBypass {
         env: { ...input.env, PATH },
       }
     }
-    this.resolveInBackground(key, launch, input)
+    if (options.refresh) this.failedAt.delete(key)
+    if (!this.failedRecently(key)) this.resolveInBackground(key, launch, input)
     return input
   }
 
@@ -298,7 +333,7 @@ export class PackageRunnerBypass {
     if (!launch) return
     const key = this.key(launch, input)
     const entry = this.cache()[key]
-    if (entry && this.fresh(entry)) return
+    if ((entry && this.fresh(entry)) || this.failedRecently(key)) return
     this.resolveInBackground(key, launch, input)
     let timer: ReturnType<typeof setTimeout> | undefined
     await Promise.race([
@@ -327,11 +362,19 @@ export class PackageRunnerBypass {
         if (!parsed.success) throw new Error('The package runner probe printed no PATH.')
         const resolved = await resolveBinFromProbe(parsed.data, launch, this.now())
         const entries = this.cache()
-        if (resolved) entries[key] = resolved
-        else delete entries[key]
+        if (resolved) {
+          entries[key] = resolved
+          this.failedAt.delete(key)
+        } else {
+          delete entries[key]
+          this.failedAt.set(key, this.now())
+        }
         this.options.store?.save(entries)
       })
-      .catch((error: unknown) => this.options.onProbeFailed?.(error, launch))
+      .catch((error: unknown) => {
+        this.failedAt.set(key, this.now())
+        this.options.onProbeFailed?.(error, launch)
+      })
       .finally(() => this.probing.delete(key))
     this.probing.set(key, work)
   }

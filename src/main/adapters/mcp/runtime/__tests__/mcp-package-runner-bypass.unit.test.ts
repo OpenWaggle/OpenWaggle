@@ -7,9 +7,15 @@ import {
   type PackageBinStore,
   PackageRunnerBypass,
   type PackageRunnerProbe,
+  probeSpawnOf,
   type ResolvedPackageBin,
 } from '../mcp-package-runner-bypass'
-import { packageBinPath, parsePackageRunnerCommand } from '../mcp-package-runner-launch'
+import {
+  PROBE_SOURCE,
+  packageBinPath,
+  parsePackageRunnerCommand,
+  probeCommand,
+} from '../mcp-package-runner-launch'
 
 const directories: string[] = []
 afterEach(() => {
@@ -317,6 +323,120 @@ describe('package runner bypass and the server folder (review P1-1)', () => {
     })
     await bypass.prepare({ ...launchInput, cwd: plain }, 5_000)
     await bypass.prepare({ ...launchInput, cwd: custom }, 5_000)
+    expect(probes).toBe(2)
+  })
+})
+
+/**
+ * What a program run by `cmd.exe /d /s /c "<line>"` receives: `cmd` strips the outer quotes, ends
+ * the command at an unescaped `&`, `|`, `<` or `>` outside quotes, and drops each escaping `^`; the
+ * program's C runtime then splits the rest into arguments.
+ */
+function argumentsCmdPasses(line: string) {
+  expect(line.startsWith('"') && line.endsWith('"')).toBe(true)
+  const inner = line.slice(1, -1)
+  let unescaped = ''
+  let quoted = false
+  for (let index = 0; index < inner.length; index += 1) {
+    const character = inner[index] ?? ''
+    if (character === '^' && !quoted) {
+      unescaped += inner[index + 1] ?? ''
+      index += 1
+      continue
+    }
+    if (character === '"') quoted = !quoted
+    if (!quoted && '&|<>'.includes(character)) throw new Error(`cmd splits at ${character}`)
+    unescaped += character
+  }
+  expect(quoted).toBe(false)
+  const args: string[] = []
+  let current = ''
+  let inQuotes = false
+  let started = false
+  for (let index = 0; index < unescaped.length; index += 1) {
+    const character = unescaped[index] ?? ''
+    if (character === '\\') {
+      let slashes = 0
+      while (unescaped[index] === '\\') {
+        slashes += 1
+        index += 1
+      }
+      if (unescaped[index] === '"') {
+        current += '\\'.repeat(Math.floor(slashes / 2))
+        if (slashes % 2 === 1) current += '"'
+        else {
+          inQuotes = !inQuotes
+        }
+        started = true
+      } else {
+        current += '\\'.repeat(slashes)
+        index -= 1
+        started = true
+      }
+      continue
+    }
+    if (character === '"') {
+      inQuotes = !inQuotes
+      started = true
+      continue
+    }
+    if (character === ' ' && !inQuotes) {
+      if (started) args.push(current)
+      current = ''
+      started = false
+      continue
+    }
+    current += character
+    started = true
+  }
+  if (started) args.push(current)
+  return args
+}
+
+describe('package runner probe on Windows (review P1-2)', () => {
+  const launch = parsePackageRunnerCommand('npx', ['-y', '@scope/server@^1.2.0||>=2<3&x'])
+
+  it('builds a cmd.exe line that hands the runner its exact arguments', () => {
+    if (!launch) throw new Error('not a runner launch')
+    const npx = 'C:\\Program Files\\nodejs\\npx.cmd'
+    const probe = probeCommand(npx, launch)
+    const spawned = probeSpawnOf(
+      { ...probe, cwd: 'C:\\work', env: { PATH: 'C:\\nodejs', ComSpec: 'C:\\cmd.exe' } },
+      'win32',
+    )
+
+    expect(spawned.file).toBe('C:\\cmd.exe')
+    expect(spawned.windowsVerbatimArguments).toBe(true)
+    expect(spawned.args.slice(0, 3)).toEqual(['/d', '/s', '/c'])
+    const line = spawned.args[3] ?? ''
+    expect(argumentsCmdPasses(line)).toEqual([npx, ...probe.args])
+    // The probe source itself survives an npx `.cmd` shim's second pass through cmd.exe.
+    expect(PROBE_SOURCE).not.toMatch(/[\s"|&^%<>]/u)
+  })
+
+  it('spawns the runner itself, with no shell, elsewhere', () => {
+    const spawned = probeSpawnOf({ command: 'npx', args: ['a|b'], cwd: '/w', env: {} }, 'darwin')
+    expect(spawned).toEqual({ file: 'npx', args: ['a|b'], windowsVerbatimArguments: false })
+  })
+
+  it('does not probe again, or wait, after a probe failed', async () => {
+    let probes = 0
+    const bypass = new PackageRunnerBypass({
+      store: memoryStore(),
+      probe: async () => {
+        probes += 1
+        throw new Error('cmd.exe split the probe')
+      },
+    })
+    await bypass.prepare(launchInput, 5_000)
+    await bypass.prepare(launchInput, 5_000)
+    bypass.launch(launchInput)
+    await bypass.settled()
+    expect(probes).toBe(1)
+
+    // Settings' check probes again.
+    bypass.launch(launchInput, { refresh: true })
+    await bypass.settled()
     expect(probes).toBe(2)
   })
 })
