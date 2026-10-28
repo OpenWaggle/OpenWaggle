@@ -1,6 +1,7 @@
 import type { SessionSummary } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { useEffect, useRef, useState } from 'react'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { sessionHasInterruptedRun } from '../lib/sidebar-row-state'
 
@@ -24,7 +25,10 @@ export function useInterruptedSessionCount(sessions: readonly SessionSummary[]) 
   const [count, setCount] = useState(() => loadedInterruptedCount(sessions))
   // Re-count when the loaded catalog's interruptions change, not on every new array of the same
   // Sessions: startup rebuilt it three times and asked the Host three times (boot fetch dedupe).
-  const catalogKey = interruptedCatalogKey(sessions)
+  // The Host counts every Session, so a change it reports to a Session beyond the loaded catalog
+  // (its count revision) re-counts too.
+  const hostRevision = useSessionStatusStore((state) => state.hostTerminalCountRevision)
+  const catalogKey = `${String(hostRevision)}#${interruptedCatalogKey(sessions)}`
   const fallbackCount = loadedInterruptedCount(sessions)
   const countedKey = useRef<string | null>(null)
   const generation = useRef(0)
