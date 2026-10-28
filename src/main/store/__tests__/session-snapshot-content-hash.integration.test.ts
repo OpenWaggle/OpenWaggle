@@ -203,6 +203,37 @@ describe('snapshot persistence compares nodes by content hash', () => {
     expect(await readTermProjection(sessionId)).toEqual(await rebuiltTermProjection(sessionId))
   })
 
+  it('stores digests of unchanged nodes without moving the node-mutation revision', async () => {
+    const sessionId = await newSession()
+    const nodes = chain(['alpha', 'beta', 'gamma'])
+    await persist(sessionId, nodes)
+    await withSql(
+      (sql) => sql`
+        INSERT OR IGNORE INTO session_control_states (
+          session_id, state_revision, queue_state, queue_revision, node_mutation_revision,
+          updated_at
+        ) VALUES (${sessionId}, 0, 'running', 0, 0, 0)
+      `,
+    )
+    await clearHashes(sessionId)
+    const revision = () =>
+      withSql(
+        (sql) => sql<{ readonly node_mutation_revision: number }>`
+          SELECT node_mutation_revision FROM session_control_states WHERE session_id = ${sessionId}
+        `,
+      ).then((rows) => rows[0]?.node_mutation_revision)
+    const before = await revision()
+
+    // The first snapshot after the upgrade: same nodes, every stored digest missing.
+    await persist(sessionId, nodes)
+
+    const rows = await readNodes(sessionId)
+    expect(rows.map((row) => row.content_hash)).toEqual(
+      rows.map((row) => sessionNodeContentHash(row.content_json, row.metadata_json)),
+    )
+    expect(await revision()).toBe(before)
+  })
+
   it('does not trust a digest another writer left behind when it changed the content', async () => {
     const sessionId = await newSession()
     const nodes = chain(['alpha', 'beta'])

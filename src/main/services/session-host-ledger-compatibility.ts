@@ -39,6 +39,7 @@ import {
   SESSION_MCP_SWITCH_MIGRATION_ID,
   SESSION_NODE_CONTENT_HASH_MIGRATION_ID,
   SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID,
+  SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID,
   SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
   SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
@@ -130,6 +131,10 @@ const currentIdentities = [
   {
     id: PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID,
     name: 'pi-session-file-tail-projection-version',
+  },
+  {
+    id: SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID,
+    name: 'session-node-mutation-revision-columns',
   },
 ]
 

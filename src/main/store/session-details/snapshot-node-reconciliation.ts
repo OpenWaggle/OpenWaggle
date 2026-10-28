@@ -167,8 +167,9 @@ function parkNodeOrders(
 
 /**
  * Stores the digest of a row stored before digests existed whose content the snapshot left as it
- * was, so the Session's next snapshot compares it by digest (D6). Only the digest changes, so no
- * search or export trigger runs for it.
+ * was, so the Session's next snapshot compares it by digest (D6). Only the digest changes: no
+ * search or export trigger runs for it, and the node-mutation revision does not move (migration
+ * 85 limits that trigger to the columns a reader sees).
  */
 function backfillContentHash(
   sql: SqlClient.SqlClient,
