@@ -125,4 +125,33 @@ describe('Amazon Bedrock client reuse', () => {
     expect(result.stopReason).toBe('stop')
     expect(connections).toEqual([1, 2])
   })
+
+  it('drops the client whose credentials AWS refused, so fixed credentials apply at once', async () => {
+    const { first, second, connections } = await withServer(
+      async (baseUrl, requests) => {
+        const retrying = withExpiredCredentialRetry(streamBedrock, {
+          delayMs: 0,
+          invalidateClients: clearBedrockClients,
+        })
+        const call = () =>
+          retrying({ ...MODEL, baseUrl }, normalizeContext(userContext()), {
+            region: 'eu-west-1',
+            maxRetries: 0,
+            env: ENV,
+          }).result()
+        const first = await call()
+        // Refused credentials are not retried: the same ones would be refused again.
+        expect(requests).toHaveLength(1)
+        expect(getBedrockClientCacheSize()).toBe(0)
+        const second = await call()
+        return { first, second, connections: requests.map((request) => request.connection) }
+      },
+      { rejectInvalid: 1 },
+    )
+
+    expect(first.errorMessage).toContain('UnrecognizedClientException')
+    expect(second.stopReason).toBe('stop')
+    // The second request built a new client, with a new connection and credential chain.
+    expect(connections).toEqual([1, 2])
+  })
 })

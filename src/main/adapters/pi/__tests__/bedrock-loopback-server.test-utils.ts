@@ -15,6 +15,8 @@ export interface RecordedRequest {
 export interface ServerOptions {
   /** The first `rejectExpired` requests fail like AWS rejects expired STS credentials. */
   readonly rejectExpired?: number
+  /** The first `rejectInvalid` requests fail like AWS rejects a revoked or rotated access key. */
+  readonly rejectInvalid?: number
 }
 
 function rejection(options: ServerOptions, request: number) {
@@ -22,6 +24,12 @@ function rejection(options: ServerOptions, request: number) {
     return {
       type: 'ExpiredTokenException',
       message: 'The security token included in the request is expired',
+    }
+  }
+  if (request <= (options.rejectInvalid ?? 0)) {
+    return {
+      type: 'UnrecognizedClientException',
+      message: 'The security token included in the request is invalid.',
     }
   }
   return undefined
