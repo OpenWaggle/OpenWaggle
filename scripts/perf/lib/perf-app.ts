@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
+import { interruptCleanup } from './interrupt-cleanup'
 
 /** An OpenWaggle build to launch: a packaged `.app`, or a repository whose `out/` was built. */
 export interface PerfApp {
@@ -75,7 +76,11 @@ function forwardLines(stream: Readable, onLine: (line: string) => void) {
   })
 }
 
-/** Starts the app in its own process group, recording the main process's startup timing marks. */
+/**
+ * Starts the app in its own process group, recording the main process's startup timing marks.
+ * Until it exits, an interrupted harness stops the group (interrupt-cleanup.ts): Ctrl-C reaches
+ * only the harness's own group.
+ */
 export function launchApp(
   app: PerfApp,
   environment: Readonly<Record<string, string>>,
@@ -104,6 +109,9 @@ export function launchApp(
   }
   forwardLines(child.stdout, onLine)
   forwardLines(child.stderr, onLine)
+  const unregister = interruptCleanup.register('process', () => stopProcessGroup(child))
+  child.once('exit', unregister)
+  child.once('error', unregister)
   return { child, spawnedAt, marks, logLines }
 }
 
