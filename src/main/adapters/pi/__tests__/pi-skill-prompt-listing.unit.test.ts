@@ -30,6 +30,30 @@ describe('skills listing in the system prompt', () => {
     expect(promptSkillDescription('Short one.')).toBe('Short one.')
   })
 
+  it('keeps the trigger sentence that follows a long opening and shortens the opening instead', () => {
+    const opening =
+      `Analyze coding-agent transcript history to show daily token usage ${'broken down by repository and project in detail '.repeat(2)}`.trim()
+    const trigger = 'Use when the user asks about agent usage or a token breakdown.'
+    const listed = promptSkillDescription(`${opening}. ${trigger} More detail follows here.`)
+
+    expect(listed.length).toBeLessThanOrEqual(SKILL_PROMPT_DESCRIPTION_LIMIT)
+    expect(listed).toContain(trigger)
+    expect(listed.startsWith('Analyze coding-agent transcript history')).toBe(true)
+  })
+
+  it('keeps a trigger introduced by "Use this skill for" or "Triggers on"', () => {
+    const opening =
+      'Codebase intelligence that finds unused code, duplicates, cycles and complexity hotspots across very large JavaScript and TypeScript repositories'
+    for (const trigger of [
+      'Use this skill for dead-code audits.',
+      'Triggers on fallow or code-health requests.',
+    ]) {
+      const listed = promptSkillDescription(`${opening}. ${trigger}`)
+      expect(listed.length).toBeLessThanOrEqual(SKILL_PROMPT_DESCRIPTION_LIMIT)
+      expect(listed).toContain(trigger)
+    }
+  })
+
   it('changes only the prompt copy of each skill', async () => {
     let handler: ((event: BeforeAgentStartEvent) => unknown) | undefined
     await skillPromptListingExtension()(

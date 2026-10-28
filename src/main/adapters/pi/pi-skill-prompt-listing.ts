@@ -24,13 +24,44 @@ export function promptSkillLocation(filePath: string, cwd: string, home = homedi
   return filePath
 }
 
-/** The description, cut at a word before the limit when longer. */
+/** Shortest part of a skill's opening kept when its trigger sentence needs the room. */
+const SKILL_PROMPT_MIN_LEAD = 72
+
+/**
+ * Where a description says when to use the skill ("Use when…", "Use this skill for…", "Triggers
+ * on…"). That clause is what the model matches a request against, so it survives the cap.
+ */
+const SKILL_TRIGGER_PATTERN =
+  /(?:^|[.;:!?]\s+|\s[-–—]\s+)((?:Use|Load|Invoke|Apply|Run)\b[^.]*?\b(?:when|whenever|for|to|if|after|before|while)\b|Triggers?\b|Must always apply\b)/iu
+
+/** `text` cut at a word so it fits `limit` with its ellipsis. */
+function cutAtWord(text: string, limit: number) {
+  if (text.length <= limit) return text
+  const cut = text.slice(0, limit - ELLIPSIS.length)
+  const lastSpace = cut.lastIndexOf(' ')
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.]+$/, '')}${ELLIPSIS}`
+}
+
+/**
+ * The description within the limit. A long one keeps its trigger sentence ("Use when…") whole when
+ * it can, and shortens the opening before it instead: descriptions often spend their first
+ * sentence on what the skill is and only then say when to use it, which a plain cut at the limit
+ * would drop.
+ */
 export function promptSkillDescription(description: string) {
   const text = description.trim().replace(/\s+/g, ' ')
   if (text.length <= SKILL_PROMPT_DESCRIPTION_LIMIT) return text
-  const cut = text.slice(0, SKILL_PROMPT_DESCRIPTION_LIMIT - ELLIPSIS.length)
-  const lastSpace = cut.lastIndexOf(' ')
-  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.]+$/, '')}${ELLIPSIS}`
+  const trigger = SKILL_TRIGGER_PATTERN.exec(text)
+  const triggerStart = trigger ? trigger.index + trigger[0].length - (trigger[1]?.length ?? 0) : -1
+  if (triggerStart <= 0) return cutAtWord(text, SKILL_PROMPT_DESCRIPTION_LIMIT)
+  const lead = text.slice(0, triggerStart).trim()
+  const rest = text.slice(triggerStart).trim()
+  const leadBudget = Math.max(
+    SKILL_PROMPT_MIN_LEAD,
+    SKILL_PROMPT_DESCRIPTION_LIMIT - rest.length - 1,
+  )
+  const shortLead = cutAtWord(lead, leadBudget)
+  return cutAtWord(`${shortLead} ${rest}`, SKILL_PROMPT_DESCRIPTION_LIMIT)
 }
 
 /**
