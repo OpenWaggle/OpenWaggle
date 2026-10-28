@@ -19,6 +19,8 @@ const FOOTPRINT_SCRIPT = path.join(import.meta.dirname, 'process-footprint.py')
 const PID_COLUMN = 0
 const PPID_COLUMN = 1
 const COMMAND_START_COLUMN = 2
+const APP_BUNDLE_SUFFIX = '.app/'
+const PRIVATE_PREFIX = '/private/'
 
 function listProcesses(withEnvironment: boolean): ProcessRow[] {
   const output = execFileSync(
@@ -82,13 +84,30 @@ export function sampleProcesses(pids: readonly number[]): Map<number, ProcessSam
   return samples
 }
 
-/** A coarse role for each process of an OpenWaggle tree, for per-role memory totals. */
-export function processRole(command: string) {
+/** The `.app` bundle an executable belongs to, or its directory for a development Electron. */
+export function appBundleOf(executable: string) {
+  const end = executable.indexOf(APP_BUNDLE_SUFFIX)
+  return end < 0 ? path.dirname(executable) : executable.slice(0, end + APP_BUNDLE_SUFFIX.length - 1)
+}
+
+function withoutPrivatePrefix(value: string) {
+  return value.startsWith(PRIVATE_PREFIX) ? value.slice(PRIVATE_PREFIX.length - 1) : value
+}
+
+/**
+ * A coarse role for each process of an OpenWaggle tree, for per-role memory totals. App processes
+ * are the ones whose executable lies inside the measured app bundle (`/tmp` and `/private/tmp` are
+ * one path on macOS); anything else in the tree is an MCP server or its `npm exec` wrapper, even
+ * when its own path happens to contain "OpenWaggle". The Host's transient embedding child (the app
+ * executable run as Node with the transformers.js path) is counted as the Host's.
+ */
+export function processRole(command: string, appBundle: string) {
+  const fromApp = withoutPrivatePrefix(command).startsWith(`${withoutPrivatePrefix(appBundle)}/`)
+  if (!fromApp) return /\bnpm exec\b|\bnpx\b/.test(command) ? 'mcp-npm-wrapper' : 'mcp-server'
   if (command.includes('session-host-internal')) return 'host'
+  if (command.includes('transformersPath')) return 'host-embedding'
   if (command.includes('--type=renderer')) return 'renderer'
   if (command.includes('--type=gpu-process')) return 'gpu'
   if (command.includes('--type=utility')) return 'utility'
-  if (/\bnpm exec\b|\bnpx\b/.test(command)) return 'mcp-npm-wrapper'
-  if (command.includes('OpenWaggle') || command.includes('Electron')) return 'gui-main'
-  return 'mcp-server'
+  return 'gui-main'
 }

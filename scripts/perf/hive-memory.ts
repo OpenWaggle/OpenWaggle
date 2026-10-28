@@ -44,10 +44,10 @@ const { values } = parseArgs({
   },
 })
 
-async function sampleWhileActive(guiPid: number | undefined, userData: string) {
+async function sampleWhileActive(guiPid: number | undefined, userData: string, appExecutable: string) {
   const samples: AppMemorySample[] = []
   for (let index = 0; index < SAMPLE_COUNT; index += 1) {
-    samples.push(sampleAppMemory(guiPid, userData))
+    samples.push(sampleAppMemory({ guiPid, userData, appExecutable }))
     await delay(SAMPLE_EVERY_MS)
   }
   return samples
@@ -83,7 +83,7 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
         })
         const active = await Promise.race([hive.allActive.then(() => true), delay(ALL_ACTIVE_TIMEOUT_MS).then(() => false)])
         const allActiveAfterMs = Date.now() - startedAt
-        const samples = await sampleWhileActive(launched.child.pid, profile.userData)
+        const samples = await sampleWhileActive(launched.child.pid, profile.userData, app.executable)
         const settled = await Promise.race([run.exited, delay(DRAIN_GRACE_MS).then(() => 'timeout')])
         if (settled === 'timeout') await stopProcessGroup(run.launched.child)
         if (values.out) await writeJsonResult(values.out, `hive-provider-requests-${app.label}.json`, provider.requests)

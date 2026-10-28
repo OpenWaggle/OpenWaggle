@@ -50,16 +50,17 @@ function hostOnly(userData: string) {
 }
 
 /** The Host's footprint, its tree's footprint, and its CPU share over a 20-second window. */
-async function sampleIdleHost(userData: string, secondsAfterClose: number) {
+async function sampleIdleHost(userData: string, secondsAfterClose: number, appExecutable: string) {
   const before = hostOnly(userData)
   await delay(CPU_WINDOW_MS)
   const after = hostOnly(userData)
-  const tree = sampleAppMemory(undefined, userData)
+  const tree = sampleAppMemory({ guiPid: undefined, userData, appExecutable })
   return {
     secondsAfterClose,
     hostFootprintMb: Math.round(after.footprint / BYTES_PER_MEGABYTE),
     hostTreeFootprintMb: tree.footprintMb,
     hostTreeProcesses: tree.processCount,
+    hostTreeByRole: tree.byRole,
     hostCpuPercent: Math.round(((after.cpuNs - before.cpuNs) / NANOSECONDS_PER_MILLISECOND / CPU_WINDOW_MS) * PERCENT * PERCENT) / PERCENT,
   }
 }
@@ -87,7 +88,7 @@ async function measureIdle(appPath: string, label: string | undefined) {
         const run = startCliRun(app, profile, { prompt: 'What is the answer?', model: FAKE_MODEL_REFERENCE, environment: HEAVY_USER_MCP_ENVIRONMENT })
         await Promise.race([run.exited, delay(RUN_TIMEOUT_MS)])
         await stopProcessGroup(run.launched.child)
-        const attached = sampleAppMemory(launched.child.pid, profile.userData)
+        const attached = sampleAppMemory({ guiPid: launched.child.pid, userData: profile.userData, appExecutable: app.executable })
         await browser.close().catch(() => undefined)
         await stopProcessGroup(launched.child)
         const closedAt = Date.now()
@@ -95,7 +96,7 @@ async function measureIdle(appPath: string, label: string | undefined) {
         for (const seconds of SAMPLE_AFTER_SECONDS) {
           const wait = closedAt + seconds * MILLISECONDS_PER_SECOND - CPU_WINDOW_MS - Date.now()
           if (wait > 0) await delay(wait)
-          samples.push(await sampleIdleHost(profile.userData, seconds))
+          samples.push(await sampleIdleHost(profile.userData, seconds, app.executable))
         }
         const last = samples.at(-1)
         return {
