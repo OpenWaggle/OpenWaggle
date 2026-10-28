@@ -7,7 +7,10 @@
  * and Open logs once an attempt fails or has not finished after `slowAfterMs`. An attempt that
  * finishes after the deadline still makes the window ready. Retry starts a new attempt; one that
  * is still running past its deadline is aborted first, since a Host that died while starting
- * would otherwise keep it waiting for minutes.
+ * would otherwise keep it waiting for minutes. The new attempt starts only once the aborted one
+ * has settled: both would share this process's one Host attachment, renderer bridge and desktop
+ * services, so an aborted attempt that unwinds late would detach the new one. An aborted attempt
+ * that got past its last abort check before it noticed still makes the window ready.
  */
 import { GUI_STARTUP_SLOW_AFTER_MS, type GuiStartupStatus } from '@shared/types/gui-startup'
 
@@ -46,6 +49,22 @@ export interface GuiStartupCoordinator {
   readonly status: () => GuiStartupStatus
 }
 
+/** How an attempt settled. */
+type AttemptOutcome =
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'failed'; readonly error: unknown }
+
+interface Attempt {
+  readonly controller: AbortController
+  /** Settles once the attempt has; it never rejects. */
+  readonly settled: Promise<AttemptOutcome>
+}
+
+const NO_PREVIOUS_ATTEMPT: Promise<AttemptOutcome> = Promise.resolve({
+  kind: 'failed',
+  error: null,
+})
+
 function defaultSetTimer(callback: () => void, milliseconds: number) {
   const timer = setTimeout(callback, milliseconds)
   return () => clearTimeout(timer)
@@ -57,7 +76,7 @@ export function createGuiStartupCoordinator(
   const setTimer = input.setTimer ?? defaultSetTimer
   const slowAfterMs = input.slowAfterMs ?? GUI_STARTUP_SLOW_AFTER_MS
   let current: GuiStartupStatus = { state: 'starting' }
-  let attempt: { readonly controller: AbortController } | null = null
+  let attempt: Attempt | null = null
   let cancelDeadline: (() => void) | null = null
   let restartRequired = false
 
@@ -86,32 +105,44 @@ export function createGuiStartupCoordinator(
     },
   }
 
-  const begin = () => {
+  /** Starts an attempt once `previous` (an aborted one) has settled, adopting its success. */
+  const begin = (previous: Promise<AttemptOutcome> = NO_PREVIOUS_ATTEMPT) => {
     restartRequired = false
     if (current.state !== 'starting') publish({ state: 'starting' })
     armDeadline()
-    const running = { controller: new AbortController() }
-    attempt = running
+    const controller = new AbortController()
     // Only the latest attempt may change the state; an aborted one settles unheard.
-    const isCurrent = () => attempt === running
-    void Promise.resolve()
-      .then(() => input.start(progress, running.controller.signal))
+    const isCurrent = () => attempt?.controller === controller
+    const settled = previous
+      .then((outcome) => {
+        // It got past its last abort check, so the backend is up: starting again would attach twice.
+        if (outcome.kind === 'ready') return
+        // It left nothing to retry in place; this attempt cannot either.
+        if (outcome.error instanceof GuiStartupRestartRequiredError) throw outcome.error
+        controller.signal.throwIfAborted()
+        return input.start(progress, controller.signal)
+      })
       .then(
-        () => {
-          if (!isCurrent()) return
-          attempt = null
-          clearDeadline()
-          publish({ state: 'ready' })
+        (): AttemptOutcome => {
+          if (isCurrent()) {
+            attempt = null
+            clearDeadline()
+            publish({ state: 'ready' })
+          }
+          return { kind: 'ready' }
         },
-        (error: unknown) => {
-          if (!isCurrent()) return
-          attempt = null
-          clearDeadline()
-          restartRequired = error instanceof GuiStartupRestartRequiredError
-          input.onFailure(error instanceof GuiStartupRestartRequiredError ? error.failure : error)
-          publish({ state: 'failed', reason: 'error', message: input.describeFailure(error) })
+        (error: unknown): AttemptOutcome => {
+          if (isCurrent()) {
+            attempt = null
+            clearDeadline()
+            restartRequired = error instanceof GuiStartupRestartRequiredError
+            input.onFailure(error instanceof GuiStartupRestartRequiredError ? error.failure : error)
+            publish({ state: 'failed', reason: 'error', message: input.describeFailure(error) })
+          }
+          return { kind: 'failed', error }
         },
       )
+    attempt = { controller, settled }
   }
 
   return {
@@ -125,8 +156,7 @@ export function createGuiStartupCoordinator(
         // Only a late attempt is shown as failed; the user saw it and asked for a new one.
         if (current.state !== 'failed') return
         attempt.controller.abort(new Error('Startup was retried.'))
-        attempt = null
-        begin()
+        begin(attempt.settled)
         return
       }
       if (restartRequired) {

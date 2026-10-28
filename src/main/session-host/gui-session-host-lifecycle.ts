@@ -122,6 +122,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
     client: remoteClient,
     start: async (signal) => {
       stopping = false
+      // Attached already: a second attachment would forward every Host event twice and leak.
+      if (stopRendererBridge) return
       if (!(await attachToExistingHost()) && !(await attachToPrelaunchedHost(signal))) {
         if (stopping) throw new Error('GUI Session Host startup was stopped.')
         signal?.throwIfAborted()

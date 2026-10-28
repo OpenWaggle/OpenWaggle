@@ -113,6 +113,21 @@ describe('GUI Session Host lifecycle', () => {
     )
   })
 
+  it('attaches once when started again while attached', async () => {
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    await lifecycle.start()
+    await lifecycle.start()
+
+    // A second bridge would forward every Host event twice, and the first would never stop.
+    expect(startRemoteSessionHostRendererBridgeMock).toHaveBeenCalledOnce()
+    await lifecycle.stop()
+    expect(stopRendererBridgeMock).toHaveBeenCalledOnce()
+  })
+
   it('attaches to an existing detached Host and awaits bridge shutdown before detaching', async () => {
     const lifecycle = await prepareGuiSessionHostLifecycle({
       userDataRoot: '/tmp/openwaggle-test',

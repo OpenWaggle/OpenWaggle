@@ -120,7 +120,7 @@ describe('the window startup coordinator', () => {
     expect(h.coordinator.status()).toEqual({ state: 'ready' })
   })
 
-  it('aborts a start that is past its deadline before retrying, and ignores its late result', async () => {
+  it('aborts a start that is past its deadline, and retries once it has settled', async () => {
     const h = harness()
     h.coordinator.run()
     await h.settle()
@@ -129,12 +129,51 @@ describe('the window startup coordinator', () => {
     h.coordinator.retry()
     await h.settle()
     expect(h.attempts[0]?.signal.aborted).toBe(true)
-    expect(h.attempts).toHaveLength(2)
+    expect(h.coordinator.status()).toEqual({ state: 'starting' })
+    // Both would share one Host attachment: the new attempt waits for the aborted one.
+    expect(h.attempts).toHaveLength(1)
 
     h.attempts[0]?.reject(new Error('aborted'))
     await h.settle()
+    expect(h.attempts).toHaveLength(2)
     expect(h.coordinator.status()).toEqual({ state: 'starting' })
     expect(h.onFailure).not.toHaveBeenCalled()
+    h.attempts[1]?.resolve()
+    await h.settle()
+    expect(h.coordinator.status()).toEqual({ state: 'ready' })
+  })
+
+  it('becomes ready without a new attempt when the aborted one finishes anyway', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await h.settle()
+    h.fireDeadline()
+
+    h.coordinator.retry()
+    await h.settle()
+    h.attempts[0]?.resolve()
+    await h.settle()
+
+    expect(h.attempts).toHaveLength(1)
+    expect(h.coordinator.status()).toEqual({ state: 'ready' })
+  })
+
+  it('asks for a restart when the aborted attempt left nothing to retry in place', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await h.settle()
+    h.fireDeadline()
+
+    h.coordinator.retry()
+    await h.settle()
+    const cause = new Error('desktop services could not attach')
+    h.attempts[0]?.reject(new GuiStartupRestartRequiredError(cause))
+    await h.settle()
+
+    expect(h.attempts).toHaveLength(1)
+    expect(h.onFailure).toHaveBeenCalledWith(cause)
+    h.coordinator.retry()
+    expect(h.restart).toHaveBeenCalledOnce()
   })
 
   it('does nothing on Retry while a start is still within its deadline', async () => {
