@@ -14,7 +14,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
-function itemsResult(count: number, contentBytes = 1_000) {
+function itemsResult(count: number, contentBytes: number | ((index: number) => number) = 1_000) {
+  const bytesOf = typeof contentBytes === 'number' ? () => contentBytes : contentBytes
   return {
     contract: 'session-query-v2',
     response: {
@@ -30,7 +31,7 @@ function itemsResult(count: number, contentBytes = 1_000) {
           role: 'assistant',
           kind: 'message',
           createdOrder: index + 1,
-          content: 'x'.repeat(contentBytes),
+          content: 'x'.repeat(bytesOf(index)),
           metadata: { usage: { input: 1 }, cost: { total: 1 }, model: 'opus' },
         })),
       },
@@ -102,6 +103,24 @@ describe('hive results the model reads', () => {
     })
     const fullResult = path.join(scratchDirectory, 'hive-results', 'call_1.json')
     expect(parsed(await readFile(fullResult, 'utf8'))).toEqual(result)
+  })
+
+  it('an oversized first item still advances the cursor', async () => {
+    const result = itemsResult(2, (index) => (index === 0 ? 40 * 1024 : 5))
+
+    const text = await hiveResultText({ result, verbose: false, toolCallId: 'call-3' })
+    const page = parsed(text)
+
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(HIVE_RESULT_TEXT_LIMIT_BYTES)
+    expect(page).toMatchObject({
+      outcome: {
+        nextCreatedOrder: 1,
+        items: [
+          { nodeId: 'node-0', createdOrder: 1, truncated: true, preview: expect.any(String) },
+        ],
+      },
+      truncated: { omittedItems: 1 },
+    })
   })
 
   it('previews an oversized result that has no items to page', async () => {
