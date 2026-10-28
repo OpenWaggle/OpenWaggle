@@ -19,6 +19,8 @@ export interface AuthorityDriftMonitorOptions {
   readonly revisionPollMs?: number
   readonly safetyPollMs?: number
   readonly setTimer?: (callback: () => void, intervalMs: number) => () => void
+  /** A monotonic clock in milliseconds; the wall clock can move backwards. */
+  readonly now?: () => number
 }
 
 /** How often one Host-wide query reads the authority revision while any Run is watched. */
@@ -43,21 +45,30 @@ function defaultTimer(callback: () => void, intervalMs: number) {
  * One Host-wide timer now reads a single trigger-maintained revision. Any write to a profile,
  * grant, lineage, execution profile, Workspace binding or Workspace bumps it, so a revocation is
  * seen within `revisionPollMs`, and `signal()` lets an in-Host writer have it checked at once.
- * The full check runs only on a revision change, a signal, or the slower safety poll.
+ * The full check runs when a Run starts being watched, on a revision change, a signal, or the
+ * slower safety poll. A change seen while a Run's check is in flight may have been read by that
+ * check before it was written, so the Run is checked again as soon as that check settles.
  */
 export function createAuthorityDriftMonitor(options: AuthorityDriftMonitorOptions) {
   const revisionPollMs = options.revisionPollMs ?? AUTHORITY_REVISION_POLL_INTERVAL_MS
   const safetyPollMs = options.safetyPollMs ?? AUTHORITY_SAFETY_POLL_INTERVAL_MS
   const setTimer = options.setTimer ?? defaultTimer
+  const now = options.now ?? (() => performance.now())
   const watches = new Set<AuthorityDriftWatch>()
   const checking = new Set<AuthorityDriftWatch>()
+  /** Watches a change reached while their check was in flight: checked again once it settles. */
+  const recheck = new Set<AuthorityDriftWatch>()
   let stopTimer: (() => void) | undefined
   let lastRevision: number | null | undefined
   let lastFullCheckAt = 0
   let ticking = false
 
   function checkWatch(watch: AuthorityDriftWatch) {
-    if (checking.has(watch) || !watches.has(watch)) return
+    if (!watches.has(watch)) return
+    if (checking.has(watch)) {
+      recheck.add(watch)
+      return
+    }
     checking.add(watch)
     // A check that throws before it returns its promise fails closed like one that rejects.
     void Promise.resolve()
@@ -70,12 +81,13 @@ export function createAuthorityDriftMonitor(options: AuthorityDriftMonitorOption
       })
       .finally(() => {
         checking.delete(watch)
+        if (recheck.delete(watch)) checkWatch(watch)
         if (watches.size === 0) stop()
       })
   }
 
   function checkAll() {
-    lastFullCheckAt = Date.now()
+    lastFullCheckAt = now()
     for (const watch of [...watches]) checkWatch(watch)
   }
 
@@ -86,7 +98,7 @@ export function createAuthorityDriftMonitor(options: AuthorityDriftMonitorOption
       const revision = await options.readRevision().catch(() => null)
       const changed = revision === null || revision !== lastRevision
       lastRevision = revision
-      if (changed || Date.now() - lastFullCheckAt >= safetyPollMs) checkAll()
+      if (changed || now() - lastFullCheckAt >= safetyPollMs) checkAll()
     } finally {
       ticking = false
     }
@@ -105,8 +117,11 @@ export function createAuthorityDriftMonitor(options: AuthorityDriftMonitorOption
         lastRevision = undefined
         stopTimer = setTimer(() => void tick(), Math.min(revisionPollMs, safetyPollMs))
       }
+      // Checked at once, not at the next revision change or safety poll.
+      checkWatch(watch)
       return () => {
         watches.delete(watch)
+        recheck.delete(watch)
         if (watches.size === 0) stop()
       }
     },
