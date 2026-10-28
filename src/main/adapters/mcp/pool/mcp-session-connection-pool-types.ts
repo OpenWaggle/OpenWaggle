@@ -82,6 +82,8 @@ export interface McpSessionConnectionPoolOptions {
 
 export interface PooledServer {
   readonly fingerprint: string
+  /** The server's catalog (`McpPooledServerSpec.catalogKey`). */
+  readonly catalogKey: string | undefined
   readonly identity: string | undefined
   readonly projectPath: string | null
   readonly fromExtension: boolean

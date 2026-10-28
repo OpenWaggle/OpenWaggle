@@ -9,15 +9,22 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import path from 'node:path'
 import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import { createLogger } from '../../../logger'
 import type {
   McpObservedResultContext,
   McpPooledConnectionOptions,
 } from './mcp-connection-support'
 
-/** A catalog older than this is not served: the server starts and the catalog is refreshed. */
+const logger = createLogger('mcp-tool-catalogs')
+
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** Hex characters of a catalog key: its file name. */
 const CATALOG_KEY_LENGTH = 32
 
+/** A catalog older than this is not served: the server starts and the catalog is refreshed. */
 export const MCP_TOOL_CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000
 
 const CatalogSchema = Schema.Struct({
@@ -63,7 +70,12 @@ export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolC
       }
     },
     forget: (key) => {
-      rmSync(file(key), { force: true })
+      try {
+        rmSync(file(key), { force: true })
+      } catch (error) {
+        // A catalog that stays is still checked against its server when the server starts.
+        logger.warn('Could not forget an MCP tool catalog', { key, error: errorText(error) })
+      }
     },
   }
 }

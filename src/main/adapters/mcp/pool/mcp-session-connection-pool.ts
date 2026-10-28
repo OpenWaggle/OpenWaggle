@@ -125,6 +125,7 @@ export class McpSessionConnectionPool {
     })
     session.servers.set(spec.name, {
       fingerprint: spec.fingerprint,
+      catalogKey: spec.catalogKey,
       identity: spec.identity,
       projectPath: spec.projectPath ?? null,
       fromExtension: spec.fromExtension === true,
@@ -205,12 +206,12 @@ export class McpSessionConnectionPool {
    * Matched by server identity, so same-named servers of other projects stay connected.
    */
   async closeServerIdentity(identity: string) {
-    const connections = [...this.sessions.values()].flatMap((session) =>
-      [...session.servers.values()]
-        .filter((server) => server.identity === identity)
-        .map((server) => server.connection),
+    const servers = [...this.sessions.values()].flatMap((session) =>
+      [...session.servers.values()].filter((server) => server.identity === identity),
     )
-    await Promise.all(connections.map((connection) => connection.close()))
+    // What the server says may have changed with it (a sign-in): its next Session lists afresh.
+    for (const server of servers) this.forgetCatalog(server)
+    await Promise.all(servers.map((server) => server.connection.close()))
   }
 
   /**
@@ -221,7 +222,14 @@ export class McpSessionConnectionPool {
     const session = this.sessions.get(sessionId)
     if (!session) return
     session.closedServers.add(serverName)
-    await session.servers.get(serverName)?.connection.close()
+    const server = session.servers.get(serverName)
+    // Turned off or removed: a catalog kept for it would only go stale.
+    if (server) this.forgetCatalog(server)
+    await server?.connection.close()
+  }
+
+  private forgetCatalog(server: PooledServer) {
+    if (server.catalogKey !== undefined) this.options.catalogStore?.forget(server.catalogKey)
   }
 
   /**

@@ -194,3 +194,19 @@ describe('cold wave: one Session fills a missing catalog (D1.3)', () => {
     expect(secondClient.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: TOOLS })
   })
 })
+
+describe('catalogs of servers whose answers changed (review R5 P2-5)', () => {
+  it('are forgotten when the server is signed in or out, and when it is turned off', async () => {
+    const signedIn = harness()
+    signedIn.store.write('browser-key', seeded())
+    await connect(signedIn.pool.lease('s1', { ...signedIn.spec, identity: 'id-browser' }))
+    await signedIn.pool.closeServerIdentity('id-browser')
+    expect(signedIn.store.read('browser-key')).toBeUndefined()
+
+    const off = harness()
+    off.store.write('browser-key', seeded())
+    await connect(off.pool.lease('s2', off.spec))
+    await off.pool.closeServer('s2', 'browser')
+    expect(off.store.read('browser-key')).toBeUndefined()
+  })
+})
