@@ -39,7 +39,12 @@ function stateChanged(sessionId: SessionId): SessionHostEventEnvelope {
   return {
     cursor: { hostInstanceId: 'host', sequence },
     timestamp: 1,
-    payload: { kind: 'session-state-changed', sessionId: String(sessionId) },
+    payload: {
+      kind: 'session-state-changed',
+      sessionId: String(sessionId),
+      stateRevision: sequence,
+      operation: 'run-started',
+    },
   }
 }
 
