@@ -7,8 +7,9 @@
  *     --model amazon-bedrock/eu.anthropic.claude-opus-5-5 --reps 5 --out <dir>
  *   pnpm evaluate:agent-context ... --out <dir> --baseline <baseline out dir>
  *
- * Bedrock models use the caller's AWS_PROFILE (and AWS_REGION); the user's ~/.aws is linked into
- * each throwaway home. Results append to `<out>/runs.jsonl`, so an interrupted evaluation resumes
+ * Bedrock models use the caller's AWS_PROFILE (and AWS_REGION): before each Run its short-lived
+ * role credentials are exported into the Run's environment, and the throwaway home holds no AWS
+ * configuration (evaluate-agent-context-aws.ts). Results append to `<out>/runs.jsonl`, so an interrupted evaluation resumes
  * where it stopped; `<out>/summary.json` holds pass counts, tokens and cost per task and group.
  */
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -16,6 +17,7 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { resolvePerfApp } from './perf/lib/perf-app'
 import { log, measurementEnvironment, exitWhenFlushed } from './perf/lib/perf-results'
+import { shortLivedAwsEnvironment } from './evaluate-agent-context-aws'
 import { type EvalRunRecord, runEvalTask } from './evaluate-agent-context-runner'
 import { compareWithBaseline, summarizeEvalRuns } from './evaluate-agent-context-summary'
 import { AGENT_CONTEXT_TASKS } from './evaluate-agent-context-tasks'
@@ -108,7 +110,7 @@ async function main() {
   log(`${String(jobs.length)} runs to go (${String(done.length)} already recorded) on ${model}`)
   await runPool(jobs, Number.parseInt(values.concurrency ?? String(DEFAULT_CONCURRENCY), DECIMAL), async ({ task, rep }) => {
     try {
-      const record = await runEvalTask({ app, task, rep, model, environment: forwardedEnvironment() })
+      const record = await runEvalTask({ app, task, rep, model, environment: shortLivedAwsEnvironment(forwardedEnvironment()) })
       await appendFile(runsFile, `${JSON.stringify(record)}\n`)
       log(`${task.id} #${String(rep)}: ${record.pass ? 'pass' : 'FAIL'} (${record.reason}) ${String(record.totalTokens)} tok $${record.usage.costUsd.toFixed(COST_DECIMALS)} ${String(Math.round(record.wallMs / MILLISECONDS_PER_SECOND))}s`)
     } catch (error) {

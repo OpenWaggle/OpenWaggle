@@ -1,7 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import os from 'node:os'
 import path from 'node:path'
 import { startCliRun } from './perf/lib/cli-run'
 import type { PerfApp } from './perf/lib/perf-app'
@@ -28,7 +27,7 @@ export interface EvalRunInput {
   readonly task: EvalTask
   readonly rep: number
   readonly model: string
-  /** Environment for the app and the CLI, such as AWS_PROFILE for Bedrock. */
+  /** Environment for the app and the CLI, such as short-lived AWS credentials for Bedrock. */
   readonly environment: Readonly<Record<string, string>>
 }
 
@@ -44,9 +43,12 @@ async function servePage(html: string | undefined) {
   return { url: `http://${LOCALHOST}:${String(port)}/`, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-/** The fixture project, the inventory MCP server and the user's AWS configuration (read-only use). */
-async function prepareTaskProfile(task: EvalTask, profile: PerfProfile) {
-  await symlink(path.join(os.userInfo().homedir, '.aws'), path.join(profile.home, '.aws')).catch(() => undefined)
+/**
+ * The fixture project and the inventory MCP server. Nothing of the user's home is linked in: the
+ * Run has YOLO authority over this home, and AWS access comes as short-lived credentials in its
+ * environment (evaluate-agent-context-aws.ts).
+ */
+export async function prepareTaskProfile(task: EvalTask, profile: PerfProfile) {
   await task.setup?.(profile.projectPath)
   execFileSync('git', ['add', '-A'], { cwd: profile.projectPath })
   execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'fixture'], { cwd: profile.projectPath })
