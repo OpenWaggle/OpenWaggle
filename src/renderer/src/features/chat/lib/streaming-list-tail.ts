@@ -39,42 +39,58 @@ export interface ListTailSplit {
   readonly last: string
 }
 
-const MARKER_LINE = /^(?:([-+*])|\d{1,9}([.)])) (?=\S|$)/u
+const MARKER_LINE = /^(?:(?<bullet>[-+*])|\d{1,9}(?<delimiter>[.)])) (?=\S|$)/u
 const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/u
 const FENCE_LINE = /^[ \t]*(?:`{3,}|~{3,})/u
 const REFERENCE_OR_FOOTNOTE = /\[[^\]\n]*\]:|\[\^/u
 const MAX_CACHED_HEADS = 8
+/** A head needs one finished item and the last item another. */
+const MIN_SPLIT_ITEMS = 2
+
+/** The item marker a line starts with: its style, and how far its content is indented. */
+function itemMarker(line: string) {
+  const match = MARKER_LINE.exec(line)
+  if (!match || THEMATIC_BREAK.test(line)) return null
+  return {
+    style: match.groups?.bullet ?? match.groups?.delimiter ?? null,
+    contentIndent: match[0].length,
+  }
+}
+
+/** Whether a line that starts no item continues the item before it, indented under its content. */
+function continuesItem(line: string, isStreamingEnd: boolean, contentIndent: number) {
+  // A line still streaming at the end may be anything so far.
+  if (isStreamingEnd && line.length === 0) return true
+  if (line.trim().length === 0) return false
+  return line.length - line.trimStart().length >= contentIndent
+}
 
 /** Where the last item starts, when the text is a list whose items cannot affect each other. */
 export function splitListTail(text: string): ListTailSplit | null {
   if (REFERENCE_OR_FOOTNOTE.test(text)) return null
-  const lines = text.split('\n')
   let marker: string | null = null
   let contentIndent = 0
   let lastItemOffset = -1
   let items = 0
   let offset = 0
-  for (const line of lines) {
+  for (const line of text.split('\n')) {
     const lineOffset = offset
     offset += line.length + 1
     if (FENCE_LINE.test(line)) return null
-    const match = MARKER_LINE.exec(line)
-    if (match && !THEMATIC_BREAK.test(line)) {
-      const style = match[1] ?? match[2] ?? null
-      if (marker !== null && style !== marker) return null
-      marker = style
-      contentIndent = match[0].length
+    const item = itemMarker(line)
+    if (item) {
+      if (marker !== null && item.style !== marker) return null
+      marker = item.style
+      contentIndent = item.contentIndent
       lastItemOffset = lineOffset
       items += 1
       continue
     }
-    // The first line is an item, and a line still streaming at the end may be anything so far.
+    // The first line is an item.
     if (items === 0) return null
-    if (lineOffset + line.length === text.length && line.length === 0) continue
-    if (line.trim().length === 0) return null
-    if (line.length - line.trimStart().length < contentIndent) return null
+    if (!continuesItem(line, lineOffset + line.length === text.length, contentIndent)) return null
   }
-  if (items < 2) return null
+  if (items < MIN_SPLIT_ITEMS) return null
   return { head: text.slice(0, lastItemOffset), last: text.slice(lastItemOffset) }
 }
 
