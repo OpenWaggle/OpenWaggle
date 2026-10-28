@@ -8,13 +8,27 @@ import {
 } from './terminal-context'
 
 const TERMINAL_ATTACHMENT_LABEL_MAX_LENGTH = 80
+/** Keeps the whole name, which is also its prompt file's name, within a 255-byte file name. */
+const TERMINAL_ATTACHMENT_LABEL_MAX_BYTES = 160
+const utf8 = new TextEncoder()
+
+/** The label's leading characters, whole code points, within both bounds. */
+function boundedLabel(label: string) {
+  let bounded = ''
+  let bytes = 0
+  for (const character of Array.from(label).slice(0, TERMINAL_ATTACHMENT_LABEL_MAX_LENGTH)) {
+    bytes += utf8.encode(character).byteLength
+    if (bytes > TERMINAL_ATTACHMENT_LABEL_MAX_BYTES) break
+    bounded += character
+  }
+  return bounded
+}
 
 function attachmentName(payload: TerminalContextPayload) {
   const entry = payload.entries[0]
-  const label = (entry?.terminalLabel ?? 'selection')
-    .replace(/[^\p{L}\p{N}_. -]+/gu, '-')
-    .trim()
-    .slice(0, TERMINAL_ATTACHMENT_LABEL_MAX_LENGTH)
+  const label = boundedLabel(
+    (entry?.terminalLabel ?? 'selection').replace(/[^\p{L}\p{N}_. -]+/gu, '-').trim(),
+  )
   const range = entry?.range
   const lines =
     range === null || range === undefined
@@ -38,11 +52,15 @@ export async function appendTerminalContextToComposer(
     )
   }
   const draftContextKey = composer.activeDraftContextKey
-  const prepared = await api.prepareAttachmentFromText(payload.xml, crypto.randomUUID())
+  const prepared = await api.prepareAttachmentFromText(
+    payload.xml,
+    crypto.randomUUID(),
+    attachmentName(payload),
+  )
   const currentComposer = useComposerStore.getState()
   if (currentComposer.activeDraftContextKey !== draftContextKey) {
     throw new Error('The active draft changed before terminal context was attached.')
   }
-  currentComposer.addAttachments([{ ...prepared, name: attachmentName(payload) }])
+  currentComposer.addAttachments([prepared])
   return payload
 }

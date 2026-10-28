@@ -1,5 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
-import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import { createLogger } from '../logger'
 import { scheduleAttachmentExtraction } from './attachment-extraction-scheduler'
 import { validateOfficeArchive } from './attachment-office-archive-validation'
@@ -37,33 +37,26 @@ async function withExtractionFallback(
   }
 }
 
-function normalizeText(value: string) {
-  const trimmed = value.trim()
-  if (trimmed.length <= ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS) return trimmed
-  const suffix = '\n...[truncated]'
-  return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS - suffix.length)}${suffix}`
-}
-
 async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
   await validateOfficeArchive(buffer, signal)
-  return normalizeText(await runAttachmentParserWorker({ kind: 'docx', buffer }, signal))
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'docx', buffer }, signal))
 }
 
 async function extractTextFromOdt(buffer: Buffer, signal: AbortSignal) {
   await validateOfficeArchive(buffer, signal)
-  return normalizeText(await runAttachmentParserWorker({ kind: 'odt', buffer }, signal))
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'odt', buffer }, signal))
 }
 
 async function extractTextFromPdf(buffer: Buffer, signal: AbortSignal) {
-  return normalizeText(await runAttachmentParserWorker({ kind: 'pdf', buffer }, signal))
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'pdf', buffer }, signal))
 }
 
 async function extractTextFromImage(buffer: Buffer, signal: AbortSignal) {
-  return normalizeText(await runAttachmentParserWorker({ kind: 'image', buffer }, signal))
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'image', buffer }, signal))
 }
 
 async function extractTextFromRtf(buffer: Buffer, signal: AbortSignal) {
-  return normalizeText(await runAttachmentParserWorker({ kind: 'rtf', buffer }, signal))
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'rtf', buffer }, signal))
 }
 
 export async function extractAttachmentText(input: {
@@ -100,6 +93,6 @@ export async function extractAttachmentText(input: {
             extractTextFromRtf(input.buffer, signal),
           ),
         )
-        .otherwise(() => Promise.resolve(normalizeText(input.buffer.toString('utf8')))),
+        .otherwise(() => Promise.resolve(boundedAttachmentText(input.buffer.toString('utf8')))),
     )
 }

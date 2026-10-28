@@ -263,7 +263,11 @@ export interface OpenWaggleApi
     projectPath: string,
     files: readonly File[],
   ): Promise<PreparedSelectedAttachment[]>
-  prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
+  prepareAttachmentFromText(
+    text: string,
+    operationId: string,
+    name?: string,
+  ): Promise<PreparedAttachment>
   discardPreparedAttachment(attachment: PreparedAttachment): Promise<void>
   onPrepareAttachmentFromTextProgress(
     callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,

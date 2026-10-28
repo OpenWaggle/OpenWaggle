@@ -6,5 +6,8 @@
  * whenever an entry's projected `kind`, `role`, `contentJson` or `metadataJson` changes, so every
  * Session's next projection reads every entry again and repairs its stored rows, as every Run did
  * before D6.
+ *
+ * Version 2: a user message keeps the attachment of a display projection recorded with an
+ * auto-paste's whole prompt (bounded), instead of falling back to its typed text.
  */
-export const PI_ENTRY_PROJECTION_VERSION = 1
+export const PI_ENTRY_PROJECTION_VERSION = 2

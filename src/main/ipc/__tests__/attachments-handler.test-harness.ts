@@ -165,7 +165,7 @@ export function registerFile(
   })
 }
 
-function registerDirectory(path: string, mtimeMs = Date.now()) {
+export function registerDirectory(path: string, mtimeMs = Date.now()) {
   files.set(path, {
     size: 0,
     content: Buffer.alloc(0),

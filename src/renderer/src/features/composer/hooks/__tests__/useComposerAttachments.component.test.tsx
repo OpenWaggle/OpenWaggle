@@ -5,7 +5,8 @@ import { useComposerStore } from '../../state/composer-store'
 import { useComposerAttachments } from '../useComposerAttachments'
 
 const mocks = vi.hoisted(() => ({
-  prepareAttachmentFromText: vi.fn<() => Promise<PreparedAttachment>>(),
+  prepareAttachmentFromText:
+    vi.fn<(text: string, operationId: string, name?: string) => Promise<PreparedAttachment>>(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -98,5 +99,24 @@ describe('composer long-paste isolation', () => {
     })
     expect(hook.result.current.attachments.map((attachment) => attachment.id)).toEqual(['pasted-a'])
     expect(hook.result.current.hasPreparingTextAttachment).toBe(false)
+  })
+
+  it('asks the Host to name a long paste after its chip, so the sent message shows that name', async () => {
+    mocks.prepareAttachmentFromText.mockImplementation(async (_text, _operationId, name) => ({
+      ...pastedAttachment,
+      name: name ?? pastedAttachment.name,
+    }))
+    const hook = renderHook(() => useComposerAttachments({ projectPath: '/project' }))
+    await act(async () => {
+      expect(hook.result.current.checkAndConvertPaste(pastedText, '')).toBe(true)
+    })
+    expect(mocks.prepareAttachmentFromText).toHaveBeenCalledWith(
+      pastedText,
+      expect.any(String),
+      'Pasted Text 1.md',
+    )
+    expect(hook.result.current.attachments.map((attachment) => attachment.name)).toEqual([
+      'Pasted Text 1.md',
+    ])
   })
 })

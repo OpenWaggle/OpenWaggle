@@ -41,7 +41,8 @@ export interface IpcIntegrationInvokeChannelMap
     return: PreparedAttachment[]
   }
   'attachments:prepare-from-text': {
-    args: [text: string, operationId: string]
+    /** `name`: the composer's label; the prompt file is named after it, and so is the attachment. */
+    args: [text: string, operationId: string, name?: string]
     return: PreparedAttachment
   }
   'attachments:discard': {

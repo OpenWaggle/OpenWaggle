@@ -1,15 +1,19 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema, preparedAttachmentSchema } from '@shared/schemas/validation'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   broadcastToWindowsMock,
+  dispatchLocalSessionCommandMock,
   files,
   loadAttachmentHandlers,
   openMock,
   readdirMock,
+  registerDirectory,
   registeredHandler,
   resetAttachmentHandlerMocks,
+  rmMock,
+  unlinkMock,
 } from './attachments-handler.test-harness'
 
 describe('attachments:prepare-from-text', () => {
@@ -65,6 +69,40 @@ describe('attachments:prepare-from-text', () => {
     })
   })
 
+  it('names the attachment after the label the composer shows, through its file name', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-from-text')
+    const longText = 'x'.repeat(50_000)
+
+    const result = decodeUnknownExactOrThrow(
+      preparedAttachmentSchema,
+      await handler?.({}, longText, 'operation-named', 'Pasted Text 1.md'),
+    )
+
+    expect(result.name).toBe('Pasted Text 1.md')
+    expect(result.path).toMatch(
+      /^\/tmp\/user-data\/temp-attachments\/prompt-\d+-[0-9a-f]{8}\/Pasted Text 1\.md$/,
+    )
+    expect(files.get(result.path)?.content.toString('utf8')).toBe(longText)
+  })
+
+  it.each([
+    '',
+    '../escape.md',
+    'nested/name.md',
+    '.hidden.md',
+    'Pasted Text 1.txt',
+    'line\nbreak.md',
+    '[Attachment: x].md',
+    `${'终'.repeat(100)}.md`,
+  ])('rejects the attachment name %j', async (name) => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-from-text')
+
+    await expect(handler?.({}, 'text', 'operation-unnamed', name)).rejects.toThrow()
+    expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
+  })
+
   it('rejects empty text input', async () => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-from-text')
@@ -80,6 +118,25 @@ describe('attachments:prepare-from-text', () => {
     await expect(handler?.({}, oversizedText, 'operation-oversized')).rejects.toThrow(
       'Generated attachment exceeds 8 MB.',
     )
+  })
+
+  it('removes stale named prompt directories and keeps fresh or unrelated ones', async () => {
+    const root = '/tmp/user-data/temp-attachments'
+    const day = 24 * 60 * 60 * 1000
+    registerDirectory(`${root}/prompt-1-0123abcd`, Date.now() - 2 * day)
+    registerDirectory(`${root}/prompt-2-89abcdef`)
+    registerDirectory(`${root}/notes`, Date.now() - 2 * day)
+    readdirMock.mockResolvedValueOnce(['prompt-1-0123abcd', 'prompt-2-89abcdef', 'notes'])
+
+    registerAttachmentHandlers()
+    await vi.waitFor(() =>
+      expect(rmMock).toHaveBeenCalledWith(`${root}/prompt-1-0123abcd`, {
+        recursive: true,
+        force: true,
+      }),
+    )
+    expect(rmMock).toHaveBeenCalledTimes(1)
+    expect(unlinkMock).not.toHaveBeenCalled()
   })
 
   it('runs cleanup on registration and ignores cleanup errors', async () => {

@@ -15,9 +15,8 @@ import {
 } from '../utils/attachment-registry'
 import { discardRegisteredImageAttachment } from './attachment-preparation'
 import {
-  buildTempPromptFilename,
   cleanupTempAttachments,
-  ensureTempAttachmentsDirectory,
+  createTempPromptPath,
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
@@ -36,9 +35,21 @@ const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
   paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
 })
+/** The longest file name common file systems (ext4, APFS, NTFS in UTF-8) accept. */
+const MAX_FILE_NAME_BYTES = 255
+/**
+ * The file name a prompt attachment is written under, which the Host shows as its name: a single
+ * Markdown file name of letters, digits, spaces, and `_ . · -`, so it can neither leave its
+ * directory nor carry markup into the `[Attachment: …]` line the model reads.
+ */
+const promptAttachmentNameSchema = Schema.String.pipe(
+  Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
+  Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+)
 const prepareFromTextArgsSchema = Schema.Struct({
   text: Schema.String.pipe(Schema.minLength(1)),
   operationId: Schema.String.pipe(Schema.minLength(1)),
+  name: Schema.optional(promptAttachmentNameSchema),
 })
 
 function describeUnknownError(error: unknown) {
@@ -93,11 +104,12 @@ function registerPrepareAttachmentHandler() {
 function registerPrepareFromTextAttachmentHandler() {
   typedHandle(
     'attachments:prepare-from-text',
-    (_event, rawText: unknown, rawOperationId: unknown) =>
+    (_event, rawText: unknown, rawOperationId: unknown, rawName?: unknown) =>
       Effect.gen(function* () {
-        const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
+        const { text, operationId, name } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
           text: rawText,
           operationId: rawOperationId,
+          ...(rawName === undefined ? {} : { name: rawName }),
         })
         const sizeBytes = Buffer.byteLength(text, 'utf8')
         if (sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) {
@@ -106,9 +118,9 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        const tempAttachmentsDir = yield* Effect.promise(() => ensureTempAttachmentsDirectory())
-        const fileName = buildTempPromptFilename(Date.now())
-        const filePath = path.join(tempAttachmentsDir, fileName)
+        // Named after the composer's label, so the sent message shows the chip's name.
+        const filePath = yield* Effect.promise(() => createTempPromptPath(name))
+        const fileName = path.basename(filePath)
 
         yield* Effect.promise(() => writePromptTextFileWithProgress(filePath, text, operationId))
         const stats = yield* Effect.promise(() => fs.stat(filePath))

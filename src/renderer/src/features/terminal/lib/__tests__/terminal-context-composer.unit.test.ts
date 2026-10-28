@@ -29,7 +29,13 @@ describe('appendTerminalContextToComposer', () => {
       lexicalEditor: null,
       cursorIndex: 0,
     })
-    mocks.prepareAttachmentFromText.mockResolvedValue(PREPARED_ATTACHMENT)
+    // The Host names the attachment after the label it is given.
+    mocks.prepareAttachmentFromText.mockImplementation(
+      async (_text: string, _operationId: string, name: string) => ({
+        ...PREPARED_ATTACHMENT,
+        name,
+      }),
+    )
   })
 
   it('preserves the draft and adds explicitly untrusted data as a removable context chip', async () => {
@@ -47,7 +53,11 @@ describe('appendTerminalContextToComposer', () => {
     expect(payload).not.toBeNull()
     expect(useComposerStore.getState().input).toBe('Please diagnose this.')
     expect(payload?.xml).toContain('trust="untrusted"')
-    expect(mocks.prepareAttachmentFromText).toHaveBeenCalledWith(payload?.xml, expect.any(String))
+    expect(mocks.prepareAttachmentFromText).toHaveBeenCalledWith(
+      payload?.xml,
+      expect.any(String),
+      'Terminal · test runner lines 42-44.md',
+    )
     expect(useComposerStore.getState().attachments).toEqual([
       expect.objectContaining({
         id: 'attachment-1',
@@ -85,5 +95,25 @@ describe('appendTerminalContextToComposer', () => {
 
     await expect(attaching).rejects.toThrow('active draft changed')
     expect(useComposerStore.getState().attachments).toEqual([])
+  })
+
+  it.each([
+    ['wide letters', '终'.repeat(100)],
+    ['astral letters', '𝐝'.repeat(100)],
+  ])('keeps a long label with %s a whole, file-sized name', async (_kind, terminalLabel) => {
+    await appendTerminalContextToComposer({
+      terminalId: 'term-1',
+      terminalLabel,
+      cwd: '/repo',
+      provenance: 'session-worktree',
+      range: { startLine: 1000, endLine: 1010 },
+      selectedText: 'output',
+    })
+
+    const name: unknown = mocks.prepareAttachmentFromText.mock.calls[0]?.[2]
+    if (typeof name !== 'string') throw new Error('No attachment name was sent')
+    expect(name.isWellFormed()).toBe(true)
+    expect(new TextEncoder().encode(name).byteLength).toBeLessThanOrEqual(255)
+    expect(name).toMatch(/^Terminal · .+ lines 1000-1010\.md$/u)
   })
 })
