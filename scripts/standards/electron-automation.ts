@@ -2,6 +2,13 @@ import path from 'node:path'
 import { withoutCommentLines } from './comment-stripping'
 
 const DESKTOP_UI_POLICY_OWNERS = ['src/main/desktop-ui.ts', 'src/main/desktop-window-policy.ts']
+/**
+ * The detached-spawn primitive behind `desktop-ui.ts`: the boot shim launches the headless Session
+ * Host through it before the main bundle (and the desktop UI policy) loads. External applications
+ * still go through `launchExternalApplication`. Only the detached pattern is allowed there.
+ */
+const DETACHED_PROCESS_PRIMITIVE = 'src/main/detached-process.ts'
+const DETACHED_PROCESS_API = 'detached external application'
 const PLAYWRIGHT_ELECTRON_LAUNCH_OWNER = 'scripts/playwright-electron-launcher.ts'
 const ELECTRON_VITE_LAUNCH_OWNERS = [
   'scripts/measure-main-startup.ts',
@@ -135,6 +142,7 @@ export function collectUnguardedDesktopUiViolations(file: string, contents: stri
   const code = withoutCommentLines(contents)
 
   const callViolations = UNGUARDED_DESKTOP_UI_PATTERNS.flatMap(({ api, pattern }) => {
+    if (api === DETACHED_PROCESS_API && normalized === DETACHED_PROCESS_PRIMITIVE) return []
     pattern.lastIndex = 0
     return pattern.test(code)
       ? [

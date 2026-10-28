@@ -46,7 +46,7 @@ import {
   migrateOpenWaggleMcpSignInsOnce,
 } from './openwaggle-mcp-migration'
 import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
-import { openPiMcpUpstream } from './pi-mcp-upstream'
+import { openPiMcpUpstream, preparePiMcpUpstream } from './pi-mcp-upstream'
 
 /** How long a server with MCP App tools known at Run start can delay a message (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
@@ -191,16 +191,16 @@ export function openWaggleMcpTransport(
       catalogKey: mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
       lazyStart: transport === 'stdio',
       // A server that was off when the Run started reads its vault secrets only now.
-      open: async () =>
-        openPiMcpUpstream({
-          entry: {
-            ...entry,
-            config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
-          },
-          transport,
-          cwd,
-          authProvider: hardenedMcpAuthProvider(entry, authProvider),
-        }),
+      open: async () => {
+        const resolved = {
+          ...entry,
+          config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
+        }
+        // The first spawn of an `npx` server already skips the runner (D1.2).
+        await preparePiMcpUpstream({ entry: resolved, transport, cwd })
+        const authorized = hardenedMcpAuthProvider(entry, authProvider)
+        return openPiMcpUpstream({ entry: resolved, transport, cwd, authProvider: authorized })
+      },
       roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
     })
   }

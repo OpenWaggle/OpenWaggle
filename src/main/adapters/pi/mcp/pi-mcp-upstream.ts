@@ -42,7 +42,8 @@ function stringEnv(values: Readonly<Record<string, string | undefined>>) {
   )
 }
 
-function openStdio(entry: McpServerEntry, cwd: string, refreshPackage: boolean): McpUpstream {
+/** What a stdio server is spawned with before the package-runner bypass: as configured. */
+function stdioLaunchInput(entry: McpServerEntry, cwd: string) {
   if (!('command' in entry.config)) throw new Error(`MCP server "${entry.name}" has no command`)
   const { config } = entry
   const env: Record<string, string> = {}
@@ -53,18 +54,43 @@ function openStdio(entry: McpServerEntry, cwd: string, refreshPackage: boolean):
       mcpValueEnvironment(),
     )
   }
+  return {
+    command: expandHome(config.command),
+    args: (config.args ?? []).map(expandHome),
+    cwd: path.resolve(cwd, expandHome(config.cwd ?? '.')),
+    // Pi gives servers the user's environment (the login shell's, for a Dock-launched app); the
+    // packaged app's PATH also finds npx and uvx.
+    env: stringEnv({ ...mcpValueEnvironment(), PATH: getNpmCompatiblePath(), ...env }),
+  }
+}
+
+/** How long a server's first spawn waits for its package runner's bin to be resolved. */
+export const MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS = 30_000
+
+/**
+ * Before a stdio server's first spawn through a package runner, resolves the runner's bin (one
+ * probe per package for the whole Host), so even the first spawn skips the runner (D1.2). Any
+ * failure is left to the spawn, which reports it.
+ */
+export async function preparePiMcpUpstream(input: {
+  readonly entry: McpServerEntry
+  readonly transport: McpTransportKind
+  readonly cwd: string
+}) {
+  if (input.transport !== 'stdio') return
+  try {
+    const launch = stdioLaunchInput(input.entry, input.cwd)
+    await hostPackageRunnerBypass().prepare(launch, MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS)
+  } catch {
+    // The spawn reports what is wrong with the command or its values.
+  }
+}
+
+function openStdio(entry: McpServerEntry, cwd: string, refreshPackage: boolean): McpUpstream {
   // A package runner (`npx`, `pnpm dlx`, `bunx`) is skipped once its bin is known (D1.2).
-  const launch = hostPackageRunnerBypass().launch(
-    {
-      command: expandHome(config.command),
-      args: (config.args ?? []).map(expandHome),
-      cwd: path.resolve(cwd, expandHome(config.cwd ?? '.')),
-      // Pi gives servers the user's environment (the login shell's, for a Dock-launched app); the
-      // packaged app's PATH also finds npx and uvx.
-      env: stringEnv({ ...mcpValueEnvironment(), PATH: getNpmCompatiblePath(), ...env }),
-    },
-    { refresh: refreshPackage },
-  )
+  const launch = hostPackageRunnerBypass().launch(stdioLaunchInput(entry, cwd), {
+    refresh: refreshPackage,
+  })
   const transport = new StdioTransport({
     command: launch.command,
     ...(launch.args.length > 0 ? { args: [...launch.args] } : {}),

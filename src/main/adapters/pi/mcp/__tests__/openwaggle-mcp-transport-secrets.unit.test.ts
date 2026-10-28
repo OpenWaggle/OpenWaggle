@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(async (name: string) => `value-of-${name}`),
 }))
 
-vi.mock('../pi-mcp-upstream', () => ({ openPiMcpUpstream: mocks.open }))
+vi.mock('../pi-mcp-upstream', () => ({
+  openPiMcpUpstream: mocks.open,
+  preparePiMcpUpstream: async () => undefined,
+}))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../mcp/encrypted-mcp-secret-vault-service')>()),
   resolveMcpVaultSecret: mocks.resolve,

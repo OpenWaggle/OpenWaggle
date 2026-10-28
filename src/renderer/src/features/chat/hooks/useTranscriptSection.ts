@@ -196,7 +196,11 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     persistedAgentLoopEvents.interactionEvents,
     interactionEvents,
   )
-  const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
+  const waggleMetadataLookup = useWaggleMetadataLookup(
+    activeSession,
+    transcriptMessages,
+    activeWorkspace,
+  )
   const storedExpandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
   // A completed turn's optimistic user id is replaced by its persisted one; keep its fold state.
   const expandedTurnKeys = expandedTurnKeysWithAliases(

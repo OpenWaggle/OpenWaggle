@@ -64,7 +64,6 @@ async function hydrateSettingsFromHost(settingsStore: typeof SettingsStore) {
 export async function startGuiBackend(input: {
   readonly progress: GuiStartupProgress
   readonly signal: AbortSignal
-  readonly shellEnvironment: Promise<void>
   readonly onHostUnderway: () => void
   /** Settles once the Host process is launched or reached, or after a short bound. */
   readonly hostHeadStart: Promise<void>
@@ -113,9 +112,8 @@ export async function startGuiBackend(input: {
   const usageStatisticsModule = await import('./usage-statistics/usage-statistics-gui')
   usageStatisticsModule.startGuiUsageStatistics()
 
-  // Terminals and git run with the user's login-shell environment (A-F7).
-  await input.shellEnvironment
-  startupMark('desktop-shell-environment-installed')
+  // Desktop services start without the login-shell probe: terminals, project actions and git
+  // wait for `desktopShellEnvironmentReady()` before they start a process (A-F7).
   if (!cleanupDesktopServicesOnce) {
     const { startAppGuiDesktopServices } = await import('./gui-desktop-services')
     try {

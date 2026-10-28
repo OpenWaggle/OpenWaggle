@@ -33,6 +33,13 @@ export const sessionDetailCursorSchema = Schema.Struct({
   nodeMutationRevision: revisionSchema,
   messageCount: revisionSchema,
   lastMessageId: Schema.NullOr(sessionInputIdSchema),
+  maxMessages: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.positive(),
+      Schema.lessThanOrEqualTo(SESSION_WORKSPACE_MAX_ENTRIES),
+    ),
+  ),
 })
 
 export const sessionTreeSearchQuerySchema = Schema.String.pipe(

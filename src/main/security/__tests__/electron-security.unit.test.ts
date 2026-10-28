@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -7,6 +8,7 @@ import {
   CONTENT_SECURITY_POLICY,
   installCspHeaders,
   SECURE_WEB_PREFERENCES,
+  STARTUP_APPEARANCE_SCRIPT_HASH,
   shouldBlockInlineVisualizationDocumentRequest,
   shouldBlockInlineVisualizationFrameNavigation,
 } from '../electron-security'
@@ -159,10 +161,10 @@ describe('buildContentSecurityPolicy', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' openwaggle-extension:",
+      `script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${STARTUP_APPEARANCE_SCRIPT_HASH} openwaggle-extension:`,
     )
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "script-src-elem 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' openwaggle-extension:",
+      `script-src-elem 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${STARTUP_APPEARANCE_SCRIPT_HASH} openwaggle-extension:`,
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
@@ -176,6 +178,17 @@ describe('buildContentSecurityPolicy', () => {
   it('does not allow generic inline scripts in the app-level CSP', () => {
     expect(CONTENT_SECURITY_POLICY).not.toContain("script-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).not.toContain("script-src-elem 'self' 'unsafe-inline'")
+  })
+
+  it("allows exactly the renderer page's one inline script, by its hash", () => {
+    const inlineScripts = [
+      ...readRendererIndexHtml().matchAll(/<script>([\s\S]*?)<\/script>/gu),
+    ].map((match) => match[1] ?? '')
+    expect(inlineScripts).toHaveLength(1)
+    const digest = createHash('sha256')
+      .update(inlineScripts[0] ?? '')
+      .digest('base64')
+    expect(STARTUP_APPEARANCE_SCRIPT_HASH).toBe(`'sha256-${digest}'`)
   })
 
   it('keeps app-level CSP centralized in the Electron response header', () => {

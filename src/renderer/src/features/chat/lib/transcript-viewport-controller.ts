@@ -224,8 +224,9 @@ export class TranscriptViewportController {
     if (Math.abs(delta) > ANCHOR_TOLERANCE_PX) this.write(this.geometry.getScrollTop() + delta)
   }
 
+  /** Checked after every commit, before the layout is read, so it must not force one itself. */
   hasMountedRow(key: string) {
-    return this.geometry.getRowTop(key) !== null
+    return this.geometry.hasRow(key)
   }
 
   distanceToBottom() {

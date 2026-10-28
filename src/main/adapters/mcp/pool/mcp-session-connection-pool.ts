@@ -1,4 +1,4 @@
-import { mcpConnectionCatalogOptions } from './mcp-connection-catalog'
+import { McpCatalogFills, mcpConnectionCatalogOptions } from './mcp-connection-catalog'
 import { McpPooledConnection } from './mcp-pooled-connection'
 import {
   MCP_CLOSE_ALL_TIMEOUT_MS,
@@ -40,6 +40,8 @@ export class McpSessionConnectionPool {
   private readonly idleClose: McpSessionIdleClose
   private readonly maxWarmSessions: number
   private readonly closeAllTimeoutMs: number
+  /** One Session fills a missing catalog while the others of a cold wave wait (D1.3). */
+  private readonly catalogFills = new McpCatalogFills()
 
   constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
     this.clock = options.clock ?? systemClock
@@ -97,7 +99,12 @@ export class McpSessionConnectionPool {
       open: spec.open,
       ...(spec.roots ? { roots: spec.roots } : {}),
       ...hooks,
-      ...mcpConnectionCatalogOptions(this.options.catalogStore, spec, hooks?.observeResult),
+      ...mcpConnectionCatalogOptions(
+        this.options.catalogStore,
+        spec,
+        hooks?.observeResult,
+        this.catalogFills,
+      ),
       onClosed: () => {
         session.replaced.delete(connection)
         if (session.servers.get(spec.name)?.connection === connection) {

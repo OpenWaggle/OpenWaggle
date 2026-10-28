@@ -2,7 +2,19 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Completed blocks parse through the block processor; the live tail through react-markdown. */
-const parses = vi.hoisted(() => ({ count: 0, tails: 0 }))
+const parses = vi.hoisted(() => ({ count: 0, tails: 0, blockRenders: 0 }))
+
+vi.mock('../ChatDisplayPathContext', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../ChatDisplayPathContext')>()
+  return {
+    ...original,
+    // Called once per render of a completed block.
+    useChatDisplayMarkdown: (markdown: string) => {
+      parses.blockRenders += 1
+      return original.useChatDisplayMarkdown(markdown)
+    },
+  }
+})
 
 vi.mock('react-markdown', async (importOriginal) => {
   const original = await importOriginal<typeof import('react-markdown')>()
@@ -65,6 +77,7 @@ describe('streaming Markdown blocks', () => {
   beforeEach(() => {
     parses.count = 0
     parses.tails = 0
+    parses.blockRenders = 0
   })
 
   it('parses only the tail per token, however many blocks came before it', () => {
@@ -76,12 +89,14 @@ describe('streaming Markdown blocks', () => {
     expect(parses.count).toBe(PARAGRAPHS)
     parses.count = 0
     parses.tails = 0
+    parses.blockRenders = 0
 
     view.rerender(streamed(`${prefix}The tail grows`))
     view.rerender(streamed(`${prefix}The tail grows again`))
 
     expect(parses.count).toBe(0)
     expect(parses.tails).toBe(2)
+    expect(parses.blockRenders).toBe(0)
     // Display paths are shortened in completed blocks too.
     expect(view.container.textContent).toContain('Paragraph 29 about src/file-29.ts.')
   })

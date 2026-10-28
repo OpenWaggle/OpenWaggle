@@ -87,6 +87,50 @@ describe('App', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it("keeps the page's startup frame over the window until the shell is in place (W11)", () => {
+    const frame = document.createElement('div')
+    frame.id = 'startup-frame'
+    document.body.append(frame)
+    usePreferencesMock.mockReturnValue({ isLoaded: false, loadError: null })
+
+    const { rerender } = render(<App />)
+    expect(document.getElementById('startup-frame')).not.toBeNull()
+    publishStartup({ state: 'ready' })
+    expect(document.getElementById('startup-frame')).not.toBeNull()
+
+    usePreferencesMock.mockReturnValue({ isLoaded: true, loadError: null })
+    rerender(<App />)
+
+    expect(screen.getByTestId('router-provider')).toBeInTheDocument()
+    expect(document.getElementById('startup-frame')).toBeNull()
+  })
+
+  it.each([
+    ['the Host error screen', { state: 'failed', reason: 'error', message: 'database is locked' }],
+    ['the update notice', { state: 'updating' }],
+  ] as const)("uncovers %s, which the page's frame does not show", (_screen, status) => {
+    const frame = document.createElement('div')
+    frame.id = 'startup-frame'
+    document.body.append(frame)
+    usePreferencesMock.mockReturnValue({ isLoaded: false, loadError: null })
+    render(<App />)
+
+    publishStartup(status)
+
+    expect(document.getElementById('startup-frame')).toBeNull()
+  })
+
+  it('uncovers the settings error screen', () => {
+    const frame = document.createElement('div')
+    frame.id = 'startup-frame'
+    document.body.append(frame)
+    usePreferencesMock.mockReturnValue({ isLoaded: true, loadError: 'database is locked' })
+
+    render(<App />)
+
+    expect(document.getElementById('startup-frame')).toBeNull()
+  })
+
   it('shows the Host error screen with Retry and Open logs instead of quitting', async () => {
     usePreferencesMock.mockReturnValue({ isLoaded: false, loadError: null })
     render(<App />)

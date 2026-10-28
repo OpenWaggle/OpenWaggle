@@ -18,6 +18,18 @@ function sessionIdFromRoute(sessionId: string) {
   return SessionId(sessionId)
 }
 
+/** Shows the routed Session's workspace, read once for the route (session open latency). */
+function useRouteWorkspace(
+  sessionId: SessionId | null,
+  branchId: SessionBranchId | null,
+  nodeId: SessionNodeId | null,
+) {
+  const showSessionWorkspace = useSessionStore((state) => state.showSessionWorkspace)
+  useEffect(() => {
+    void showSessionWorkspace(sessionId, { branchId, nodeId })
+  }, [showSessionWorkspace, branchId, nodeId, sessionId])
+}
+
 export function useChatRouteEffects({
   branchId,
   diffOpen,
@@ -40,13 +52,16 @@ export function useChatRouteEffects({
   const setProjectPath = usePreferencesStore((state) => state.setProjectPath)
   const refreshGitStatus = useGitStore((state) => state.refreshStatus)
   const refreshGitBranches = useGitStore((state) => state.refreshBranches)
-  const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
   const hasActiveSession = activeSession !== null
   const hasDraftSession = draftSession !== null
+  /** The route Session this effect last followed; `undefined` before the first run. */
+  const followedRouteSessionId = useRef<SessionId | null | undefined>(undefined)
 
   useEffect(() => {
+    const routeChanged = followedRouteSessionId.current !== routeSessionId
+    followedRouteSessionId.current = routeSessionId
     if (routeSessionId === null) {
       if (!hasDraftSession && activeSessionId !== null && hasActiveSession) {
         void navigate({
@@ -70,7 +85,10 @@ export function useChatRouteEffects({
       return
     }
 
-    if (activeSessionId !== routeSessionId) {
+    // The store follows the route when the route moves. A Session selected in the store first
+    // (the sidebar sets it, then navigates) is not switched back while its navigation lands:
+    // that read the Session being left again, its detail, workspace and context usage.
+    if (activeSessionId !== routeSessionId && (routeChanged || activeSessionId === null)) {
       setActiveSession(routeSessionId)
     }
   }, [
@@ -123,12 +141,7 @@ export function useChatRouteEffects({
     }
   }, [clearDraftBranchForSession, draftBranch, routeBranchId, routeSessionTreeId])
 
-  useEffect(() => {
-    void refreshSessionWorkspace(routeSessionTreeId, {
-      branchId: routeBranchId,
-      nodeId: routeNodeId,
-    })
-  }, [refreshSessionWorkspace, routeBranchId, routeNodeId, routeSessionTreeId])
+  useRouteWorkspace(routeSessionTreeId, routeBranchId, routeNodeId)
 
   const routeProjectPath = routeSessionDetail?.projectPath ?? null
   const nextProjectPath = draftSession?.projectPath ?? routeProjectPath ?? projectPath

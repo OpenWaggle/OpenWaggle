@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AuthEvent, AuthPrompt } from '@earendil-works/pi-ai'
-import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
@@ -10,11 +10,12 @@ import {
   type ProviderOAuthServiceShape,
 } from '../../ports/provider-oauth-service'
 import { createOpenWaggleGlobalPiSettingsManager } from './openwaggle-pi-settings-storage'
+import { createPiModelRuntime } from './pi-model-runtime'
 
 const logger = createLogger('pi-provider-oauth')
 
 function createModelRuntime() {
-  return ModelRuntime.create()
+  return createPiModelRuntime()
 }
 
 function listOAuthProviders(modelRuntime: ModelRuntime) {

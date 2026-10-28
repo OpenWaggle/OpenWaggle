@@ -1,6 +1,7 @@
 import { ChevronDown, FolderOpen } from 'lucide-react'
 import { useState } from 'react'
-import openwaggleMark from '@/assets/openwaggle-mark.png'
+// The startup frame's inlined mark, already decoded, so the launch screen's mark never blinks.
+import openwaggleMark from '@/assets/openwaggle-mark.png?inline'
 import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'

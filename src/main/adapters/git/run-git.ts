@@ -4,7 +4,7 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { getEnvWithOverrides } from '../../env'
+import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../../env'
 
 const MODULE_VALUE_5 = 5
 
@@ -142,6 +142,8 @@ export async function runGit(
   options: RunGitOptions = {},
 ): Promise<GitExecResult> {
   const maxBuffer = options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER
+  // Hooks and credential helpers run with the user's PATH.
+  await desktopShellEnvironmentReady()
   try {
     const execOptions = {
       cwd: projectPath,

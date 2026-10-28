@@ -1,9 +1,8 @@
 import net from 'node:net'
-import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
-import { STARTUP_TIMINGS_ENVIRONMENT_VARIABLE, startupTimingsRequested } from '../startup-timing'
+import { startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
 import {
@@ -13,67 +12,32 @@ import {
 import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
 import { HOST_POLL_INTERVAL_MS, waitForCondition } from './local-session-host-polling'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
+import {
+  type SessionHostLogLevel,
+  sessionHostChildEnvironmentFrom,
+  sessionHostLaunchCommandFor,
+} from './session-host-launch-command'
 import type { SessionHostOwnership } from './session-host-ownership'
+import type { SessionHostPrelaunch } from './session-host-prelaunch-handoff'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const CONNECT_PROBE_TIMEOUT_MS = 250
 
-export function sessionHostLaunchArguments(input: {
-  readonly isPackaged: boolean
-  readonly appPath: string
-}) {
-  return input.isPackaged ? ['session-host-internal'] : [input.appPath, 'session-host-internal']
-}
-
-export function sessionHostLaunchCommand(input: {
-  readonly platform: NodeJS.Platform
-  readonly isPackaged: boolean
-  readonly executablePath: string
-  readonly appPath: string
-  readonly appImagePath?: string
-  readonly parentNoSandbox?: boolean
-  /** Chromium's --use-mock-keychain on the GUI: QA keeps credential prompts off the screen. */
-  readonly parentUseMockKeychain?: boolean
-  /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
-  readonly parentPasswordStore?: string
-}) {
-  // Restricted Linux environments may launch the GUI with this explicit Electron switch.
-  // Its detached authority needs the same policy; never disable the sandbox by default.
-  // The Host reads and writes credentials too, so it uses the GUI's credential store switches.
-  const electronArguments = [
-    ...(input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []),
-    ...(input.parentUseMockKeychain ? ['--use-mock-keychain'] : []),
-    ...(input.platform === 'linux' && input.parentPasswordStore
-      ? [`--password-store=${input.parentPasswordStore}`]
-      : []),
-  ]
-  if (
-    input.platform === 'linux' &&
-    input.isPackaged &&
-    input.appImagePath &&
-    path.isAbsolute(input.appImagePath)
-  ) {
-    return { command: input.appImagePath, args: [...electronArguments, 'session-host-internal'] }
-  }
-  return {
-    command: input.executablePath,
-    args: [...electronArguments, ...sessionHostLaunchArguments(input)],
-  }
-}
+export {
+  sessionHostLaunchArguments,
+  sessionHostLaunchCommand,
+} from './session-host-launch-command'
 
 /** The command that launches a Host with the switches this process was started with. */
 export function currentSessionHostLaunchCommand() {
-  const passwordStore = app.commandLine.getSwitchValue('password-store')
-  return sessionHostLaunchCommand({
+  return sessionHostLaunchCommandFor({
     platform: process.platform,
     isPackaged: app.isPackaged,
     executablePath: process.execPath,
     appPath: app.getAppPath(),
-    parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
-    parentUseMockKeychain: app.commandLine.hasSwitch('use-mock-keychain'),
-    ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
-    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+    appImagePath: env.APPIMAGE,
+    commandLine: app.commandLine,
   })
 }
 
@@ -85,16 +49,14 @@ export function currentSessionHostLaunchCommand() {
 export function sessionHostChildEnvironment(input: {
   readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
   readonly userDataRoot: string
-  readonly logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  readonly logLevel?: SessionHostLogLevel
   /** The launching GUI measures its startup, so the Host marks its own too. */
   readonly startupTimings?: boolean
 }) {
-  return {
-    ...(input.safeEnvironment ?? getSessionHostChildEnv()),
-    OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
-    ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
-    ...(input.startupTimings ? { [STARTUP_TIMINGS_ENVIRONMENT_VARIABLE]: '1' } : {}),
-  }
+  return sessionHostChildEnvironmentFrom({
+    ...input,
+    safeEnvironment: input.safeEnvironment ?? getSessionHostChildEnv(),
+  })
 }
 
 export interface LocalSessionHostLauncherDependencies {
@@ -302,4 +264,46 @@ export async function ensureLocalSessionHost(
   })
   const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
   return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+}
+
+/**
+ * Waits for the Host the boot shim launched (`boot/session-host-prelaunch.ts`) to answer, the way
+ * a client waits for a Host it launched itself. Resolves false, so the caller starts the Host the
+ * usual way, once that process has ended without answering: another Host owned the profile, or it
+ * failed to start.
+ */
+export async function waitForPrelaunchedLocalSessionHost(
+  input: LocalSessionClientConnectionInput & {
+    readonly prelaunch: Pick<SessionHostPrelaunch, 'hasEnded'>
+    readonly timeoutMs?: number
+  },
+  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
+) {
+  let answered = false
+  await waitForCondition({
+    timeoutMs: input.timeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
+    dependencies,
+    signal: input.signal,
+    condition: async () => {
+      if (input.prelaunch.hasEnded()) return true
+      const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+      if (
+        !(await awaitWithSignal(
+          dependencies.canConnect(paths.endpoint, input.signal),
+          input.signal,
+        ))
+      ) {
+        return false
+      }
+      try {
+        await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+        answered = true
+        return true
+      } catch (error) {
+        if (input.signal?.aborted) throw error
+        return false
+      }
+    },
+  })
+  return answered
 }

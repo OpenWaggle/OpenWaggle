@@ -45,6 +45,24 @@ describe('Session Host semantic discovery events', () => {
     release()
   })
 
+  it('does not wake discovery for a change to a Session’s catalog entry alone', () => {
+    const wake = vi.fn()
+    const release = subscribeSemanticDiscoverySourceChangesAfter(
+      currentSemanticDiscoverySourceRevision(),
+      wake,
+    )
+
+    publishSessionHostEvent({
+      kind: 'session-list-changed',
+      sessionId: 'session-1',
+      change: 'updated',
+      catalogOnly: true,
+    })
+
+    expect(wake).not.toHaveBeenCalled()
+    release()
+  })
+
   it('accepts host-wide semantic readiness events without a Session id', () => {
     expect(
       isSessionHostEventEnvelope({

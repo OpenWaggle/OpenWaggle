@@ -3,6 +3,8 @@ import {
   type CompileCacheApi,
   enableMainCompileCache,
   flushMainCompileCacheAfterLoad,
+  flushMainCompileCacheOnceStarted,
+  LONG_LIVED_PROCESS_FLUSH_DELAYS_MS,
   MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS,
 } from '../main-compile-cache'
 
@@ -84,5 +86,33 @@ describe('flushMainCompileCacheAfterLoad', () => {
     expect(unref).toHaveBeenCalledTimes(MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS.length)
     scheduled[0]?.callback()
     expect(flushCompileCache).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('flushMainCompileCacheOnceStarted', () => {
+  it("keeps the write off the window's and the Host's startup, then writes for each", () => {
+    const { api, flushCompileCache } = fakeApi(STATUS.ENABLED)
+    const cache = enableMainCompileCache({ kind: 'enabled', directory: '/c' }, api)
+    const scheduled: Array<{ callback: () => void; delayMs: number }> = []
+
+    flushMainCompileCacheOnceStarted(cache, (callback, delayMs) => {
+      scheduled.push({ callback, delayMs })
+      return {}
+    })
+
+    expect(flushCompileCache).not.toHaveBeenCalled()
+    expect(scheduled.map(({ delayMs }) => delayMs)).toEqual(LONG_LIVED_PROCESS_FLUSH_DELAYS_MS)
+    // A cold Host listens and a cold window shows its shell within about a second.
+    expect(Math.min(...LONG_LIVED_PROCESS_FLUSH_DELAYS_MS)).toBeGreaterThanOrEqual(2_000)
+    scheduled[0]?.callback()
+    expect(flushCompileCache).toHaveBeenCalledOnce()
+  })
+
+  it('schedules nothing for a disabled cache', () => {
+    const scheduleTimer = vi.fn(() => ({}))
+
+    flushMainCompileCacheOnceStarted({ enabled: false, flush: vi.fn() }, scheduleTimer)
+
+    expect(scheduleTimer).not.toHaveBeenCalled()
   })
 })

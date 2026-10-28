@@ -5,7 +5,7 @@ import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
-import { getInteractiveTerminalEnv } from '../../env'
+import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
 import {
   type OwnedTerminalProcessTree,
   shutdownDetachedTerminal,
@@ -163,12 +163,14 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
   const ptyRunner = makePtyRunner({ appVersion })
   return {
     validate: async (invocation, overrides) => {
+      await desktopShellEnvironmentReady()
       if (!(await stat(invocation.cwd)).isDirectory())
         throw new Error('The action working directory no longer exists.')
       await processCommand(invocation, getInteractiveTerminalEnv(appVersion, overrides))
     },
     start: async ({ invocation, environment, signal, onOutput }) => {
       if (signal?.aborted) throw new Error('Action launch canceled.')
+      await desktopShellEnvironmentReady()
       const execution = await processCommand(
         invocation,
         getInteractiveTerminalEnv(appVersion, environment),

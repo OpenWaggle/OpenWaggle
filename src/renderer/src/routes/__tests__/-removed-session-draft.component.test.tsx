@@ -61,7 +61,7 @@ describe('An open Session the Host removed', () => {
       refreshBranches: vi.fn().mockResolvedValue(undefined),
     })
     useSessionStore.setState({
-      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
+      showSessionWorkspace: vi.fn().mockResolvedValue(undefined),
       refreshSessionTree: vi.fn().mockResolvedValue(undefined),
       loadSessions: vi.fn().mockResolvedValue(undefined),
       draftBranch: null,

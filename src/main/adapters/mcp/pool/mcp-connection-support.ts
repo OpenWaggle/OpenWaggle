@@ -46,6 +46,8 @@ export interface McpPooledConnectionOptions {
    * is the costly part); until then `initialize`, `tools/list` and `ping` are answered from it.
    */
   readonly lazyStart?: boolean
+  /** Another Session is filling the missing catalog: wait for it, then serve it if fresh. */
+  readonly catalogFill?: Promise<void>
 }
 
 export class McpServerError extends Error {

@@ -54,4 +54,36 @@ describe('useSessionResourceBackfill', () => {
     await act(async () => vi.advanceTimersByTimeAsync(10_000))
     expect(advanceBackfill).toHaveBeenCalledTimes(5)
   })
+
+  it('starts indexing only once the renderer is idle after the Session is shown', async () => {
+    const idle: IdleRequestCallback[] = []
+    vi.stubGlobal('requestIdleCallback', (callback: IdleRequestCallback) => {
+      idle.push(callback)
+      return idle.length
+    })
+    try {
+      advanceBackfill.mockResolvedValue({ backfillComplete: true, progressed: false })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      renderHook(() => useSessionResourceBackfill('session-open'), {
+        wrapper: testWrapper(client),
+      })
+
+      await act(async () => vi.advanceTimersByTimeAsync(1_000))
+      expect(advanceBackfill).not.toHaveBeenCalled()
+
+      // Shown and idle; then the slice itself waits for the next idle period.
+      for (let round = 0; round < 2; round += 1) {
+        await act(async () => {
+          for (const callback of idle.splice(0)) {
+            callback({ didTimeout: false, timeRemaining: () => 50 })
+          }
+          await vi.advanceTimersByTimeAsync(0)
+        })
+      }
+
+      expect(advanceBackfill).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

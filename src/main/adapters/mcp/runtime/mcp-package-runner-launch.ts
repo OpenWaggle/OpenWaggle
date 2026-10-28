@@ -1,4 +1,5 @@
 /** How a package runner launch (`npx pkg args…`) is read, and how its bin is found (D1.2). */
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 
@@ -87,11 +88,39 @@ function runnerOptions(runner: PackageRunner, rest: readonly string[]): RunnerOp
 
 /**
  * The runner launch of a configured stdio command, or undefined when it is something else or uses
- * a form the bypass does not reproduce exactly (several packages, `-c`, git or file specs, …).
+ * a form the bypass does not reproduce exactly (several packages, `-c`, git or tarball specs, …).
+ * A `file:` folder is read from `cwd`.
  */
+/**
+ * The package name of a spec: a registry spec names it; a local folder (`file:<dir>`) names it in
+ * its `package.json`, found from the server's folder `cwd`.
+ */
+function packageNameOf(spec: string, cwd: string | undefined) {
+  if (spec.startsWith('file:')) {
+    if (cwd === undefined) return undefined
+    try {
+      const manifest: unknown = JSON.parse(
+        readFileSync(
+          path.join(path.resolve(cwd, spec.slice('file:'.length)), 'package.json'),
+          'utf8',
+        ),
+      )
+      if (typeof manifest !== 'object' || manifest === null || !('name' in manifest))
+        return undefined
+      return typeof manifest.name === 'string' ? { name: manifest.name, version: '' } : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const parsed = REGISTRY_SPEC.exec(spec)
+  const name = parsed?.groups?.name
+  return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
+}
+
 export function parsePackageRunnerCommand(
   command: string,
   args: readonly string[] = [],
+  cwd?: string,
 ): PackageRunnerLaunch | undefined {
   const found = runnerOf(command, args)
   if (!found) return undefined
@@ -101,16 +130,15 @@ export function parsePackageRunnerCommand(
   if (!options || positional === undefined) return undefined
   const binName = options.packageSpec === undefined ? undefined : positional
   const spec = options.packageSpec ?? positional
-  const parsed = REGISTRY_SPEC.exec(spec)
-  const name = parsed?.groups?.name
-  if (!name || (binName !== undefined && !/^[\w.@~-]+$/u.test(binName))) return undefined
+  const named = packageNameOf(spec, cwd)
+  if (!named || (binName !== undefined && !/^[\w.@~-]+$/u.test(binName))) return undefined
   return {
     runner,
     packageSpec: spec,
-    packageName: name,
+    packageName: named.name,
     binName,
     serverArgs: rest.slice(options.next + 1),
-    pinned: EXACT_VERSION.test(parsed.groups?.version ?? ''),
+    pinned: EXACT_VERSION.test(named.version),
   }
 }
 

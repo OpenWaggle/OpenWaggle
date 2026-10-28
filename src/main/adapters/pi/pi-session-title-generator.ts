@@ -1,7 +1,7 @@
 import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
 import {
   createAgentSessionFromServices,
-  ModelRuntime,
+  type ModelRuntime,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import { SESSION_TITLE_MODEL_AUTOMATIC } from '@shared/session-title-model'
@@ -20,6 +20,7 @@ import {
 } from '../../ports/session-title-generator'
 import type { OpenWagglePiExtensionSelectionServices } from './openwaggle-pi-extension-selection'
 import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
+import { createPiModelRuntime } from './pi-model-runtime'
 import { loadWithProjectExtensions } from './pi-project-runtime-load'
 import { createPiRuntimeServices } from './pi-provider-catalog'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
@@ -248,7 +249,7 @@ export function projectTitleModelRuntime(
   return async (projectPath) => {
     if (!projectPath) {
       registerPiBundledBedrockProvider()
-      return { modelRuntime: await ModelRuntime.create(), release: () => undefined }
+      return { modelRuntime: await createPiModelRuntime(), release: () => undefined }
     }
     const services = await Effect.runPromise(
       loadWithProjectExtensions({

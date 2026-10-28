@@ -15,6 +15,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
+import { checkBundledOAuthLoaders } from './pi-main-bundle-oauth-smoke'
 
 const MCP_CONNECT_TIMEOUT_MS = 20_000
 const MCP_POLL_MS = 50
@@ -408,6 +409,8 @@ async function main() {
   const workDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-pi-bundle-smoke-'))
   try {
     const temporaryDirectory = await useTemporaryDirectory(workDirectory)
+    // First, before anything else in the bundle could register Pi's OAuth loaders.
+    const oauth = await checkBundledOAuthLoaders()
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
     const bundledWaggle = await loadBundledWaggle()
@@ -419,7 +422,7 @@ async function main() {
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, waggle, imageWorker, packageAssets })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, waggle, imageWorker, packageAssets, oauth })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })
