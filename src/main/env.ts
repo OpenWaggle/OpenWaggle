@@ -1,7 +1,6 @@
-import { existsSync } from 'node:fs'
-import { homedir, userInfo } from 'node:os'
+import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import { installDesktopShellEnvironment as hydrateDesktopShellEnvironment } from './desktop-shell-environment'
+import { installProcessDesktopShellEnvironment } from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -57,6 +56,7 @@ const envSchema = Schema.Struct({
   USERPROFILE: Schema.optional(Schema.String),
 })
 
+export { desktopShellEnvironmentReady } from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
@@ -89,32 +89,14 @@ const TERMINAL_TYPE = 'xterm-256color'
 const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
-let desktopShellEnvironmentPromise: Promise<void> | null = null
 
-function userLoginShell() {
-  if (process.platform === 'win32') return undefined
-  try {
-    return userInfo().shell || undefined
-  } catch {
-    return undefined
-  }
-}
+/** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
+export const installDesktopShellEnvironment = (options: { readonly cacheFile?: string } = {}) =>
+  installProcessDesktopShellEnvironment(process.env, options)
 
 /** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
 export const applyPiPackageDirectory = (directory?: string) =>
   applyPiPackageDirectoryTo(directory, process.env)
-
-/** Hydrate GUI-launch gaps once before terminal/runtime services start. */
-export function installDesktopShellEnvironment(): Promise<void> {
-  desktopShellEnvironmentPromise ??= hydrateDesktopShellEnvironment({
-    env: process.env,
-    platform: process.platform,
-    userShell: userLoginShell(),
-    uid: process.getuid?.(),
-    exists: existsSync,
-  })
-  return desktopShellEnvironmentPromise
-}
 
 /** Safe environment for child processes: essential variables only, so no API key or other
  * secret of the parent process leaks. */

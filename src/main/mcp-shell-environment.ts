@@ -11,7 +11,7 @@ import {
   runBoundedShellEnvironmentCommand,
   type ShellEnvironmentCommandRunner,
 } from './desktop-shell-environment-probes'
-import { getEnvWithOverrides } from './env'
+import { desktopShellEnvironmentReady, getEnvWithOverrides } from './env'
 
 const START = '__OPENWAGGLE_ENV_ALL_START__'
 const END = '__OPENWAGGLE_ENV_ALL_END__'
@@ -104,8 +104,13 @@ export function loadMcpShellEnvironment(options: McpShellEnvironmentOptions = {}
  * Waits for the read the Host started, if any; never starts one (tests and the CLI's own process
  * use the app's environment only).
  */
-export function mcpShellEnvironmentReady() {
-  return loading ?? Promise.resolve(captured)
+export async function mcpShellEnvironmentReady() {
+  // Servers also start with the desktop PATH (`getNpmCompatiblePath`), hydrated after the Host listens.
+  const [environment] = await Promise.all([
+    loading ?? Promise.resolve(captured),
+    desktopShellEnvironmentReady(),
+  ])
+  return environment
 }
 
 /** What the read found so far: empty until `loadMcpShellEnvironment` has finished. */

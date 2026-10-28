@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
+import type { StartedDesktopShellEnvironment } from './desktop-shell-environment'
+import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
 import { installAutomationDesktopUiBlockers } from './desktop-ui'
 import { env, installDesktopShellEnvironment } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
@@ -80,19 +82,24 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
 
 /**
  * The Host hydrates its own login-shell environment (PATH, SSH agent, locale), the same bounded
- * way the desktop app does, instead of inheriting one the launching GUI waited for (A-F1/A-F7):
- * the GUI launches the Host before its own probe finishes. The probe runs while the Host opens
- * its database and runtime, and the Host serves no client before it settles, so every Run,
- * terminal, git or MCP process it starts still sees the hydrated environment.
+ * way the desktop app does, instead of inheriting one the launching GUI waited for (A-F1/A-F7).
+ * It never waits for it to serve: the last result applies at once from the profile's cache and
+ * the probe refreshes it meanwhile, and Runs, agent tools, git and stdio MCP servers wait for
+ * `desktopShellEnvironmentReady()` before they start a process. Settles when the probe has run.
  */
 export function hydrateSessionHostShellEnvironment(
-  install: () => Promise<void> = installDesktopShellEnvironment,
+  start: () => StartedDesktopShellEnvironment = () =>
+    installDesktopShellEnvironment({
+      cacheFile: shellEnvironmentCacheFile(app.getPath('userData')),
+    }),
 ): Promise<void> {
-  return install().catch((error: unknown) => {
-    logger.warn('The Session Host could not read the login-shell environment', {
-      error: describeError(error),
+  return Promise.resolve()
+    .then(() => start().refreshed)
+    .catch((error: unknown) => {
+      logger.warn('The Session Host could not read the login-shell environment', {
+        error: describeError(error),
+      })
     })
-  })
 }
 
 /** Exits with the log written, or once a disk that does not answer has had its short chance. */
@@ -212,8 +219,8 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             userDataDirectory: app.getPath('userData'),
             appVersion: app.getVersion(),
           })
-          await shellEnvironment
-          startupMark('host-shell-environment-installed')
+          // Not awaited: the Host listens first, and what needs the user's tools waits on its own.
+          void shellEnvironment.then(() => startupMark('host-shell-environment-installed'))
           const host = await startAppSessionHost({
             paths,
             startupMark,

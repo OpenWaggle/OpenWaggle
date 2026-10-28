@@ -3,9 +3,17 @@ import type { ShellEnvironmentCommand } from '../desktop-shell-environment-probe
 import {
   currentMcpShellEnvironment,
   loadMcpShellEnvironment,
+  mcpShellEnvironmentReady,
   mcpValueEnvironment,
   resetMcpShellEnvironmentForTests,
 } from '../mcp-shell-environment'
+
+const desktopShell = vi.hoisted(() => ({ ready: Promise.resolve() }))
+
+vi.mock('../env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../env')>()),
+  desktopShellEnvironmentReady: () => desktopShell.ready,
+}))
 
 const START = '__OPENWAGGLE_ENV_ALL_START__'
 const END = '__OPENWAGGLE_ENV_ALL_END__'
@@ -59,5 +67,20 @@ describe("the user's login-shell environment for MCP values", () => {
 
     expect(currentMcpShellEnvironment()).toEqual({})
     expect(runner).toHaveBeenCalledOnce()
+  })
+
+  it("starts no server before the desktop PATH is hydrated, which servers' commands resolve against", async () => {
+    const desktop = Promise.withResolvers<void>()
+    desktopShell.ready = desktop.promise
+    let ready = false
+    void mcpShellEnvironmentReady().then(() => {
+      ready = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(ready).toBe(false)
+    desktop.resolve()
+    await vi.waitFor(() => expect(ready).toBe(true))
+    desktopShell.ready = Promise.resolve()
   })
 })

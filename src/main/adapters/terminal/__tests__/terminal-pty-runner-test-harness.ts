@@ -14,6 +14,9 @@ const getInteractiveTerminalEnvMock = vi.hoisted(() =>
     (appVersion: string, overrides?: Readonly<Record<string, string>>) => Record<string, string>
   >(),
 )
+const desktopShellEnvironmentReadyMock = vi.hoisted(() =>
+  vi.fn<() => Promise<void>>(async () => undefined),
+)
 const existingShellsMock = vi.hoisted(() =>
   vi.fn<
     (options: {
@@ -46,6 +49,7 @@ const prepareTerminalShellLaunchMock = vi.hoisted(() =>
 export const ptyExitListeners: Array<(event: { readonly exitCode: number }) => void> = []
 
 vi.mock('../../../env', () => ({
+  desktopShellEnvironmentReady: desktopShellEnvironmentReadyMock,
   getInteractiveTerminalEnv: getInteractiveTerminalEnvMock,
   logLevel: 'error',
 }))
@@ -84,6 +88,7 @@ export function resetPtyRunnerHarness() {
   assertNativeAdmissionMock.mockReset()
   spawnMock.mockReset()
   getInteractiveTerminalEnvMock.mockReset()
+  desktopShellEnvironmentReadyMock.mockReset().mockResolvedValue()
   existingShellsMock.mockReset()
   integrationCleanupMock.mockReset().mockResolvedValue()
   readProcessMetadataMock.mockReset().mockResolvedValue({
@@ -153,6 +158,7 @@ export function makeRunner(
 
 export {
   assertNativeAdmissionMock,
+  desktopShellEnvironmentReadyMock,
   existingShellsMock,
   getInteractiveTerminalEnvMock,
   integrationCleanupMock,

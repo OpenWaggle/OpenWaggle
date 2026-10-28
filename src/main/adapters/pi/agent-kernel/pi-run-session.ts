@@ -12,7 +12,7 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
-import { getCurrentProcessPath } from '../../../env'
+import { desktopShellEnvironmentReady, getCurrentProcessPath } from '../../../env'
 import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,
@@ -58,6 +58,9 @@ export async function createPiSessionForRun(input: {
   readonly thinkingLevel?: ThinkingLevel
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
+  // Pi's tools start from this process's environment: the user's login-shell PATH, SSH agent
+  // and locale, which the Host hydrates after it listens.
+  await desktopShellEnvironmentReady()
   const windows = process.platform === 'win32'
   const evidenceDirectory = input.scratchDirectory
     ? preparedSessionEvidenceDirectory(input.scratchDirectory)

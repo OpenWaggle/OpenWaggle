@@ -7,7 +7,7 @@ import {
   capturePreparedEnvironment,
   type PreparedEnvironment,
 } from '../../domain/prepared-environment'
-import { getInteractiveTerminalEnv } from '../../env'
+import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { type ActionProcessRunner, resolveActionShell } from './action-process'
 import { createPreparationLaunches } from './preparation-launch'
@@ -85,6 +85,8 @@ export function createPreparationExecutor(
     readonly onOutput: (chunk: string) => void
   }) => {
     if (shuttingDown) throw new Error('The Session Host is stopping.')
+    // The baseline is the user's login-shell environment, never the launch-time one.
+    await desktopShellEnvironmentReady()
     const baseline = getInteractiveTerminalEnv(appVersion, {})
     const resolved = await resolveActionInvocation(input.workspace.workspacePath, input.invocation)
     const environment = {

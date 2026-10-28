@@ -26,7 +26,11 @@ const mocks = vi.hoisted(() => {
       order.push('initialize-settings')
     }),
     applyInstallerIntent: vi.fn(async () => null),
-    installShellEnvironment: vi.fn(async () => undefined),
+    installShellEnvironment: vi.fn((_options?: { readonly cacheFile?: string }) => ({
+      ready: Promise.resolve(),
+      refreshed: Promise.resolve(),
+      fromCache: false,
+    })),
     disableHardwareAcceleration: vi.fn(),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
@@ -64,7 +68,8 @@ vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 vi.mock('../env', () => ({
   env: {},
   logLevel: 'error',
-  installDesktopShellEnvironment: () => mocks.installShellEnvironment(),
+  installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
+    mocks.installShellEnvironment(options),
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
@@ -152,16 +157,20 @@ describe('detached Session Host shell environment and GPU', () => {
     mocks.initFileLogger.mockClear()
   })
 
-  it('reads its own login-shell environment while it opens its store, and serves only after (A-F7)', async () => {
+  it('listens before its login-shell probe settles, and reads it from the profile cache', async () => {
     const shell = Promise.withResolvers<void>()
     mocks.installShellEnvironment.mockImplementationOnce(() => {
       mocks.order.push('shell-environment-started')
-      return shell.promise.then(() => void mocks.order.push('shell-environment-installed'))
+      const refreshed = shell.promise.then(
+        () => void mocks.order.push('shell-environment-refreshed'),
+      )
+      return { ready: refreshed, refreshed, fromCache: false }
     })
 
     expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
-    await vi.waitFor(() => expect(mocks.order).toContain('initialize-settings'))
-    expect(mocks.startHost).not.toHaveBeenCalled()
+    // The probe (zsh -ilc env, 0.1-5 s) does not hold the Host back from its clients.
+    await vi.waitFor(() => expect(mocks.startHost).toHaveBeenCalledOnce())
+    expect(mocks.order).not.toContain('shell-environment-refreshed')
     shell.resolve()
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
 
@@ -169,11 +178,14 @@ describe('detached Session Host shell environment and GPU', () => {
     // Started as soon as this Host owns the profile, before its runtime loads.
     expect(position('acquire-ownership')).toBeLessThan(position('shell-environment-started'))
     expect(position('shell-environment-started')).toBeLessThan(position('initialize-runtime'))
-    expect(position('shell-environment-installed')).toBeLessThan(position('start-host'))
+    expect(position('start-host')).toBeLessThan(position('shell-environment-refreshed'))
+    expect(mocks.installShellEnvironment).toHaveBeenCalledWith({
+      cacheFile: '/tmp/openwaggle-profile/shell-environment.json',
+    })
   })
 
   it('serves even when the login shell cannot be read', async () => {
-    mocks.installShellEnvironment.mockImplementationOnce(async () => {
+    mocks.installShellEnvironment.mockImplementationOnce(() => {
       throw new Error('shell exited')
     })
 

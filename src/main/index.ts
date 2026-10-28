@@ -17,6 +17,7 @@ import { readInlineVisualizationSource } from './application/inline-visualizatio
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
 import { watchChromiumCacheSize } from './chromium-disk-cache'
+import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
@@ -150,10 +151,15 @@ async function persistActiveRunsBeforeQuit() {
 
 async function bootstrapServicesAndWindow() {
   startupMark('bootstrap-start')
-  // Not awaited before the window or the Host: only terminals and git need it (A-F7).
-  const shellEnvironment = installDesktopShellEnvironment().catch((error: unknown) => {
-    logger.warn('The login-shell environment could not be read', describeError(error))
-  })
+  // Never awaited by startup: terminals, project actions and git wait for it themselves (A-F7).
+  void installDesktopShellEnvironment({
+    cacheFile: shellEnvironmentCacheFile(app.getPath('userData')),
+  }).refreshed.then(
+    () => startupMark('desktop-shell-environment-refreshed'),
+    (error: unknown) => {
+      logger.warn('The login-shell environment could not be read', describeError(error))
+    },
+  )
   // The window has no database of its own; Settings come from the Host (A-F5).
   setAppDatabaseAccessMode('client-isolated')
 
@@ -169,7 +175,6 @@ async function bootstrapServicesAndWindow() {
       startGuiBackend({
         progress,
         signal,
-        shellEnvironment,
         onHostUnderway: hostUnderway.resolve,
         hostHeadStart,
         startupMark,
