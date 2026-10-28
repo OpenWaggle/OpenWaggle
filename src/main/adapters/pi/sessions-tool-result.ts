@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer'
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isRecord } from '@shared/utils/validation'
@@ -18,6 +19,8 @@ const PRIVATE_FILE_MODE = 0o600
 const HALF = 2
 /** The longest string field an item keeps when its body is cut to a preview. */
 const ITEM_IDENTITY_STRING_LIMIT = 200
+/** Characters of random suffix that keep two calls with the same tool-call id apart. */
+const RESULT_FILE_SUFFIX_LENGTH = 8
 
 /** Request bookkeeping the model never acts on. */
 const ENVELOPE_KEYS = new Set(['contract', 'contractVersion', 'requestId', 'idempotencyKey'])
@@ -189,7 +192,10 @@ async function savedFullResult(
 ) {
   if (!scratchDirectory) return undefined
   const directory = path.join(scratchDirectory, RESULTS_DIRECTORY)
-  const file = path.join(directory, `${toolCallId.replace(/[^A-Za-z0-9_-]/g, '_')}.json`)
+  // Some providers reuse tool-call ids (`call_0` on every turn), so a suffix keeps an earlier
+  // result the transcript still points at from being overwritten.
+  const suffix = randomUUID().slice(0, RESULT_FILE_SUFFIX_LENGTH)
+  const file = path.join(directory, `${toolCallId.replace(/[^A-Za-z0-9_-]/g, '_')}-${suffix}.json`)
   try {
     await ensurePrivateDirectory(directory)
     await writeFile(file, text, { mode: PRIVATE_FILE_MODE })

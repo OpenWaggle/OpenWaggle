@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { isRecord } from '@shared/utils/validation'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   compactHiveResult,
@@ -42,6 +43,13 @@ function itemsResult(count: number, contentBytes: number | ((index: number) => n
 function parsed(text: string) {
   const value: unknown = JSON.parse(text)
   return value
+}
+
+function fullResultOf(page: unknown) {
+  if (isRecord(page) && isRecord(page.truncated) && typeof page.truncated.fullResult === 'string') {
+    return page.truncated.fullResult
+  }
+  throw new Error('The result names no fullResult.')
 }
 
 describe('hive results the model reads', () => {
@@ -101,8 +109,42 @@ describe('hive results the model reads', () => {
       outcome: { nextCreatedOrder: expect.any(Number) },
       truncated: { omittedItems: expect.any(Number), fullResult: expect.any(String) },
     })
-    const fullResult = path.join(scratchDirectory, 'hive-results', 'call_1.json')
+    const fullResult = fullResultOf(page)
+    expect(path.dirname(fullResult)).toBe(path.join(scratchDirectory, 'hive-results'))
+    expect(path.basename(fullResult)).toMatch(/^call_1-[0-9a-f]{8}\.json$/)
     expect(parsed(await readFile(fullResult, 'utf8'))).toEqual(result)
+  })
+
+  it('keeps an earlier full result when a provider reuses the tool-call id', async () => {
+    const scratchDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-hive-result-'))
+    roots.push(scratchDirectory)
+    const first = itemsResult(600)
+    const second = itemsResult(700)
+
+    const firstPath = fullResultOf(
+      parsed(
+        await hiveResultText({
+          result: first,
+          verbose: false,
+          toolCallId: 'call_0',
+          scratchDirectory,
+        }),
+      ),
+    )
+    const secondPath = fullResultOf(
+      parsed(
+        await hiveResultText({
+          result: second,
+          verbose: false,
+          toolCallId: 'call_0',
+          scratchDirectory,
+        }),
+      ),
+    )
+
+    expect(secondPath).not.toBe(firstPath)
+    expect(parsed(await readFile(firstPath, 'utf8'))).toEqual(first)
+    expect(parsed(await readFile(secondPath, 'utf8'))).toEqual(second)
   })
 
   it('an oversized first item still advances the cursor', async () => {
