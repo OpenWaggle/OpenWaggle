@@ -8,6 +8,7 @@ import { markRetainedSnapshotNode } from '../../../store/session-details/retaine
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { contextOmittedEntryIds } from './context-edit-omissions'
 import { createEntryModelSelection } from './entry-model-selection'
+import { PI_ENTRY_PROJECTION_VERSION } from './entry-projection-version'
 import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
 import { previouslyOmittedEntryIds, retainedEntryCount } from './projection-base-entries'
@@ -261,13 +262,16 @@ function retainedPiEntryNode(
  * With `base`, the Session's current projection, the entries it already holds are kept rather
  * than projected again (D6): only Pi's appended entries, and earlier ones a later context edit
  * changed, are projected now. The snapshot is the same as a full projection; a kept node's content
- * is computed only if read, and snapshot persistence leaves its stored row as it is.
+ * is computed only if read, and snapshot persistence leaves its stored row as it is. A base stored
+ * by another entry-projection version is not used, so a projection change reaches stored rows.
  */
 export function projectPiSessionSnapshot(
   session: PiSessionSnapshotSource,
   nodeIds: PiEntryNodeIds = piEntryNodeIdsWithPrefix(undefined),
-  base: PiProjectionBase | null = null,
+  projectionBase: PiProjectionBase | null = null,
 ) {
+  const base =
+    projectionBase?.tail.projectionVersion === PI_ENTRY_PROJECTION_VERSION ? projectionBase : null
   const entries = session.sessionManager.getEntries()
   const entryById = new Map(entries.map((entry) => [entry.id, entry]))
   const depthById = new Map<string, number>()
@@ -282,6 +286,7 @@ export function projectPiSessionSnapshot(
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
+    piProjection: { version: PI_ENTRY_PROJECTION_VERSION },
     nodes: entries.map((entry, index) => {
       const input: PiEntryProjectionInput = {
         entry,

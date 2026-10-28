@@ -40,9 +40,11 @@ export const SESSION_NODE_CONTENT_HASH_MIGRATION_ID = 80
 export const PI_SESSION_FILE_TAIL_MIGRATION_ID = 81
 export const SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID = 82
 export const SESSION_AUTHORITY_REVISION_MIGRATION_ID = 83
+export const PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID = 84
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v16'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_AUTHORITY_REVISION_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID =
+  PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID

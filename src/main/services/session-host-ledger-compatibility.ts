@@ -10,6 +10,7 @@ import {
   PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
   PI_SESSION_FILE_STATE_MIGRATION_ID,
   PI_SESSION_FILE_TAIL_MIGRATION_ID,
+  PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID,
   SCHEDULED_TASK_MIGRATION_ID,
   SESSION_ARCHIVE_TIME_MIGRATION_ID,
   SESSION_AUTHORITY_REVISION_MIGRATION_ID,
@@ -126,6 +127,10 @@ const currentIdentities = [
   { id: PI_SESSION_FILE_TAIL_MIGRATION_ID, name: 'pi-session-file-tail' },
   { id: SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID, name: 'session-node-duplicate-index' },
   { id: SESSION_AUTHORITY_REVISION_MIGRATION_ID, name: 'session-authority-revision' },
+  {
+    id: PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID,
+    name: 'pi-session-file-tail-projection-version',
+  },
 ]
 
 export interface MigrationIdentity {
