@@ -1,10 +1,12 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { asarImage } from '../../__tests__/asar-fixtures'
+import { readAppIdentity } from '../app-identity'
 import { firstRequestOf, requestTokens } from '../request-tokens'
 
 /**
@@ -273,6 +275,45 @@ describe('benchmark container scripts', () => {
     const probe = inside.slice(inside.indexOf("<<'PYEOF'") + "<<'PYEOF'".length, inside.indexOf('PYEOF\n', inside.indexOf("<<'PYEOF'") + 1))
     expect(probe).toContain('os.environ')
     expect(probe).toMatch(/^import os$/m)
+  })
+})
+
+describe('benchmark OpenWaggle build identity', () => {
+  const COMMIT = 'f2e7d1fa5c0ffee'
+  const VERSION = '1.0.0-beta.27'
+
+  it('reads the version and build commit of a packaged app and of a built checkout', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-identity-'))
+    cleanups.push(() => rm(directory, { recursive: true, force: true }))
+    const bundle = path.join(directory, 'OpenWaggle.app')
+    await mkdir(path.join(bundle, 'Contents', 'Resources'), { recursive: true })
+    await writeFile(
+      path.join(bundle, 'Contents', 'Resources', 'app.asar'),
+      asarImage({ 'package.json': JSON.stringify({ version: VERSION }), 'out/build-meta.json': JSON.stringify({ commit: COMMIT }) }),
+    )
+    const checkout = path.join(directory, 'checkout')
+    await mkdir(path.join(checkout, 'out'), { recursive: true })
+    await writeFile(path.join(checkout, 'package.json'), JSON.stringify({ version: VERSION }))
+
+    expect(await readAppIdentity(bundle)).toEqual({ appVersion: VERSION, commit: COMMIT })
+    expect(await readAppIdentity(checkout)).toEqual({ appVersion: VERSION, commit: null })
+  })
+
+  it('lands in the OpenWaggle entry of results.json', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-identity-'))
+    cleanups.push(() => rm(directory, { recursive: true, force: true }))
+    await writeFile(path.join(directory, 'openwaggle.proxy.jsonl'), '')
+    await writeFile(path.join(directory, 'openwaggle.app.json'), JSON.stringify({ appVersion: VERSION, commit: COMMIT }))
+    execFileSync('python3', [PARSE_RESULTS, directory], { stdio: 'ignore' })
+    const results = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'))
+    expect(results.agents.openwaggle).toMatchObject({ appVersion: VERSION, commit: COMMIT })
+  })
+
+  it('points the OpenWaggle row at the address the proxy listens on, and only on macOS', async () => {
+    const run = await readFile(RUN, 'utf8')
+    expect(run).toContain('--proxy "http://$BENCH_PROXY_BIND:$PROXY_PORT/agent/openwaggle"')
+    expect(run).toContain('curl -s -o /dev/null "http://$BENCH_PROXY_BIND:$PROXY_PORT/__bench/ready"')
+    expect(run).toContain('runs on macOS only')
   })
 })
 

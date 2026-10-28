@@ -210,6 +210,12 @@ def main():
         if wire:
             entry["turnOneTokens"] = wire["turnOneTokens"]
             entry["modelCalls"] = wire["modelCalls"]
+        identity_path = results_dir / f"{agent}.app.json"
+        if identity_path.exists():
+            # The measured build (openwaggle-row.ts), so a published number names its commit.
+            identity = json.loads(identity_path.read_text())
+            entry["appVersion"] = identity.get("appVersion")
+            entry["commit"] = identity.get("commit")
         cli = cli_parser(results_dir)
         if "error" not in cli:
             entry["cliReported"] = cli.get("turnOneTokens")

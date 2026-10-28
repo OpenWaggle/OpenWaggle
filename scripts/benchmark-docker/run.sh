@@ -10,7 +10,8 @@
 #   BENCH_OPENWAGGLE_APP=/path/OpenWaggle.app OPENROUTER_API_KEY=... ./run.sh
 #
 # BENCH_OPENWAGGLE_APP adds the "openwaggle" row: the packaged app itself, on the host, in
-# hidden automation with first-party extensions, through the same proxy and model.
+# hidden automation with first-party extensions, through the same proxy and model. macOS only:
+# it uses the perf harness in scripts/perf. results.json records the app's version and commit.
 #
 # Results land in results/results.json (plus raw outputs in results/). The proxy log has
 # every request body and the provider-reported usage of every call; request-tokens.json has
@@ -33,6 +34,12 @@ if [[ "$(uname -s)" == "Linux" && -z "${BENCH_PROXY_BIND:-}" ]]; then
 fi
 export BENCH_PROXY_BIND="${BENCH_PROXY_BIND:-127.0.0.1}"
 
+# The OpenWaggle row drives the packaged app through the macOS-only perf harness (scripts/perf).
+if [[ -n "${BENCH_OPENWAGGLE_APP:-}" && "$(uname -s)" != "Darwin" ]]; then
+  echo "error: BENCH_OPENWAGGLE_APP (the OpenWaggle row) runs on macOS only" >&2
+  exit 1
+fi
+
 if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
   echo "error: set OPENROUTER_API_KEY (the proxy injects it; agents get a per-run token)" >&2
   exit 1
@@ -45,7 +52,7 @@ fi
 mkdir -p "$RESULTS_DIR"
 # Clear ALL prior artifacts: a subset run must never blend with stale outputs.
 rm -f "$RESULTS_DIR"/proxy-log.jsonl "$RESULTS_DIR"/proxy.out "$RESULTS_DIR"/results.json
-rm -f "$RESULTS_DIR"/*.out "$RESULTS_DIR"/*.err "$RESULTS_DIR"/*.proxy.jsonl "$RESULTS_DIR"/request-tokens.json
+rm -f "$RESULTS_DIR"/*.out "$RESULTS_DIR"/*.err "$RESULTS_DIR"/*.proxy.jsonl "$RESULTS_DIR"/*.app.json "$RESULTS_DIR"/request-tokens.json
 
 # The agents' API key: only a request carrying it gets the real key injected.
 BENCH_PROXY_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -112,7 +119,8 @@ done
 if [[ -n "${BENCH_OPENWAGGLE_APP:-}" ]]; then
   echo "=== openwaggle ==="
   (cd "$SCRIPT_DIR/../.." && pnpm -s exec tsx scripts/benchmark-docker/openwaggle-row.ts \
-    --app "$BENCH_OPENWAGGLE_APP" --proxy "http://127.0.0.1:$PROXY_PORT/agent/openwaggle" --model "$BENCH_MODEL") \
+    --app "$BENCH_OPENWAGGLE_APP" --proxy "http://$BENCH_PROXY_BIND:$PROXY_PORT/agent/openwaggle" \
+    --model "$BENCH_MODEL" --results "$RESULTS_DIR") \
     > "$RESULTS_DIR/openwaggle.out" 2> "$RESULTS_DIR/openwaggle.err" \
     || echo "warning: openwaggle exited non-zero (see $RESULTS_DIR/openwaggle.err)" >&2
   sliced+=(openwaggle)
