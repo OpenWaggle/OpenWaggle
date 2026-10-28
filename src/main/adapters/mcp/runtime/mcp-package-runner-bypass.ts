@@ -7,6 +7,7 @@
  * are gone, the runner launches the server as configured and the probe runs again.
  */
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -57,6 +58,32 @@ function installedNear(cwd: string, packageName: string) {
     }
     if (path.dirname(directory) === directory) return false
   }
+}
+
+/**
+ * Package-manager files a runner reads from the server's folder and its parents: a project
+ * `.npmrc` can name another registry, and `pnpm dlx` reads the nearest `pnpm-workspace.yaml`. Their
+ * nearest copies, by content, so folders that read the same configuration share a resolution.
+ */
+const FOLDER_CONFIG_FILES = ['.npmrc', 'pnpm-workspace.yaml'] as const
+
+function folderConfigOf(cwd: string) {
+  const hash = createHash('sha256')
+  for (const name of FOLDER_CONFIG_FILES) {
+    for (let directory = path.resolve(cwd); ; directory = path.dirname(directory)) {
+      const file = path.join(directory, name)
+      if (existsSync(file)) {
+        try {
+          hash.update(`${name}\0${readFileSync(file, 'utf8')}\0`)
+        } catch {
+          hash.update(`${name}\0${file}\0`)
+        }
+        break
+      }
+      if (path.dirname(directory) === directory) break
+    }
+  }
+  return hash.digest('hex')
 }
 
 /** The runner launch the bypass may replace: not one the folder's own install answers. */
@@ -210,14 +237,18 @@ export class PackageRunnerBypass {
   }
 
   private key(launch: PackageRunnerLaunch, input: StdioLaunch) {
-    // The PATH picks the runner and the `node` it runs. The folder does not, unless the package is
-    // installed in its project, which `installedNear` leaves to the runner.
+    // The PATH picks the runner and the `node` it runs. The folder matters only through what the
+    // runner reads from it: a `file:` spec's package (relative to the folder, so the same spec
+    // names another package elsewhere) and the folder's registry configuration. A package
+    // installed in the folder's project is left to the runner (`installedNear`).
     return JSON.stringify([
       launch.runner,
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
       input.env.PATH ?? '',
+      launch.localFolder ?? null,
+      folderConfigOf(input.cwd),
     ])
   }
 

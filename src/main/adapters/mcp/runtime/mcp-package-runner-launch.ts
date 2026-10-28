@@ -18,6 +18,11 @@ export interface PackageRunnerLaunch {
   readonly serverArgs: readonly string[]
   /** An exact version: a resolution stays valid longer than for a tag or range. */
   readonly pinned: boolean
+  /**
+   * The absolute folder of a local `file:<dir>` spec. The spec is relative to the server's folder,
+   * so the same spec names a different package in another folder (another project or worktree).
+   */
+  readonly localFolder?: string
 }
 
 const REGISTRY_SPEC =
@@ -87,27 +92,20 @@ function runnerOptions(runner: PackageRunner, rest: readonly string[]): RunnerOp
 }
 
 /**
- * The runner launch of a configured stdio command, or undefined when it is something else or uses
- * a form the bypass does not reproduce exactly (several packages, `-c`, git or tarball specs, …).
- * A `file:` folder is read from `cwd`.
- */
-/**
  * The package name of a spec: a registry spec names it; a local folder (`file:<dir>`) names it in
  * its `package.json`, found from the server's folder `cwd`.
  */
 function packageNameOf(spec: string, cwd: string | undefined) {
   if (spec.startsWith('file:')) {
     if (cwd === undefined) return undefined
+    const folder = path.resolve(cwd, spec.slice('file:'.length))
     try {
-      const manifest: unknown = JSON.parse(
-        readFileSync(
-          path.join(path.resolve(cwd, spec.slice('file:'.length)), 'package.json'),
-          'utf8',
-        ),
-      )
+      const manifest: unknown = JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8'))
       if (typeof manifest !== 'object' || manifest === null || !('name' in manifest))
         return undefined
-      return typeof manifest.name === 'string' ? { name: manifest.name, version: '' } : undefined
+      return typeof manifest.name === 'string'
+        ? { name: manifest.name, version: '', localFolder: folder }
+        : undefined
     } catch {
       return undefined
     }
@@ -117,6 +115,11 @@ function packageNameOf(spec: string, cwd: string | undefined) {
   return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
 }
 
+/**
+ * The runner launch of a configured stdio command, or undefined when it is something else or uses
+ * a form the bypass does not reproduce exactly (several packages, `-c`, git or tarball specs, …).
+ * A `file:` folder is read from `cwd`.
+ */
 export function parsePackageRunnerCommand(
   command: string,
   args: readonly string[] = [],
@@ -139,6 +142,7 @@ export function parsePackageRunnerCommand(
     binName,
     serverArgs: rest.slice(options.next + 1),
     pinned: EXACT_VERSION.test(named.version),
+    ...('localFolder' in named ? { localFolder: named.localFolder } : {}),
   }
 }
 
