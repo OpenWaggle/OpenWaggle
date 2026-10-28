@@ -1,4 +1,8 @@
-import type { AgentSession, PrecomputedCompaction } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type PrecomputedCompaction,
+  selectCompactionMechanism,
+} from '@earendil-works/pi-coding-agent'
 
 /**
  * Idle compaction (ADR 0025, amended). A Session left idle with a large context loses its prompt
@@ -22,16 +26,42 @@ export interface IdleCompactionPlan {
   readonly ttlMs: number
 }
 
-/** When to compact the Session `session` ran for, or undefined when it should not be. */
+/**
+ * Whether Pi's `precomputeIdleCompaction` could compute a handoff for the request's model: the
+ * Session still uses that model (the next Run refuses a handoff from another), compaction is on
+ * for it, and it compacts Portably (a Native model's compaction is the provider's).
+ */
+function compactsPortably(
+  session: AgentSession,
+  requestModel: { readonly provider: string; readonly id: string },
+) {
+  const { model } = session
+  if (!model || model.provider !== requestModel.provider || model.id !== requestModel.id) {
+    return false
+  }
+  return (
+    session.settingsManager.getCompactionSettings(model).enabled &&
+    selectCompactionMechanism(model) === 'portable'
+  )
+}
+
+/**
+ * When to compact the Session `session` ran for, or undefined when it should not be. `maxKeepMs`
+ * is how long the Host keeps an idle Pi session: a handoff due later would never be requested,
+ * and keeping the session (a whole context of 200k tokens or more) until then would be waste,
+ * as with a one-hour cache retention.
+ */
 export function planIdleCompaction(
   session: AgentSession,
   now: number,
+  maxKeepMs: number,
 ): IdleCompactionPlan | undefined {
   const candidate = session.idleCompactionCandidate
   if (!candidate || candidate.promptTokens < IDLE_COMPACTION_MIN_CONTEXT_TOKENS) return undefined
   const dueAt = candidate.sentAt + candidate.ttlMs - IDLE_COMPACTION_LEAD_MS
-  // Too late to read the entry before it expires.
-  if (dueAt <= now) return undefined
+  // Too late to read the entry before it expires, or later than the session is kept.
+  if (dueAt <= now || dueAt - now >= maxKeepMs) return undefined
+  if (!compactsPortably(session, candidate.model)) return undefined
   return { dueAt, ttlMs: candidate.ttlMs }
 }
 

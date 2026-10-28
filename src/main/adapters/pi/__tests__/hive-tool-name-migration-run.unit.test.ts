@@ -49,6 +49,7 @@ async function runTools(profileJson: string) {
       if (event === 'before_agent_start') beforeStart = handler
     },
     getActiveTools: () => ['read', 'bash', 'hive'],
+    getAllTools: () => [],
     setActiveTools,
     appendEntry: vi.fn(),
   })

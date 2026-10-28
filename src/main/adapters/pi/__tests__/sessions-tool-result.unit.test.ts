@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { isRecord } from '@shared/utils/validation'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   compactHiveResult,
@@ -14,7 +15,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
-function itemsResult(count: number, contentBytes = 1_000) {
+function itemsResult(count: number, contentBytes: number | ((index: number) => number) = 1_000) {
+  const bytesOf = typeof contentBytes === 'number' ? () => contentBytes : contentBytes
   return {
     contract: 'session-query-v2',
     response: {
@@ -30,7 +32,7 @@ function itemsResult(count: number, contentBytes = 1_000) {
           role: 'assistant',
           kind: 'message',
           createdOrder: index + 1,
-          content: 'x'.repeat(contentBytes),
+          content: 'x'.repeat(bytesOf(index)),
           metadata: { usage: { input: 1 }, cost: { total: 1 }, model: 'opus' },
         })),
       },
@@ -41,6 +43,13 @@ function itemsResult(count: number, contentBytes = 1_000) {
 function parsed(text: string) {
   const value: unknown = JSON.parse(text)
   return value
+}
+
+function fullResultOf(page: unknown) {
+  if (isRecord(page) && isRecord(page.truncated) && typeof page.truncated.fullResult === 'string') {
+    return page.truncated.fullResult
+  }
+  throw new Error('The result names no fullResult.')
 }
 
 describe('hive results the model reads', () => {
@@ -100,8 +109,75 @@ describe('hive results the model reads', () => {
       outcome: { nextCreatedOrder: expect.any(Number) },
       truncated: { omittedItems: expect.any(Number), fullResult: expect.any(String) },
     })
-    const fullResult = path.join(scratchDirectory, 'hive-results', 'call_1.json')
+    const fullResult = fullResultOf(page)
+    expect(path.dirname(fullResult)).toBe(path.join(scratchDirectory, 'hive-results'))
+    expect(path.basename(fullResult)).toMatch(/^call_1-[0-9a-f]{8}\.json$/)
     expect(parsed(await readFile(fullResult, 'utf8'))).toEqual(result)
+  })
+
+  it('keeps an earlier full result when a provider reuses the tool-call id', async () => {
+    const scratchDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-hive-result-'))
+    roots.push(scratchDirectory)
+    const first = itemsResult(600)
+    const second = itemsResult(700)
+
+    const firstPath = fullResultOf(
+      parsed(
+        await hiveResultText({
+          result: first,
+          verbose: false,
+          toolCallId: 'call_0',
+          scratchDirectory,
+        }),
+      ),
+    )
+    const secondPath = fullResultOf(
+      parsed(
+        await hiveResultText({
+          result: second,
+          verbose: false,
+          toolCallId: 'call_0',
+          scratchDirectory,
+        }),
+      ),
+    )
+
+    expect(secondPath).not.toBe(firstPath)
+    expect(parsed(await readFile(firstPath, 'utf8'))).toEqual(first)
+    expect(parsed(await readFile(secondPath, 'utf8'))).toEqual(second)
+  })
+
+  it('an oversized first item still advances the cursor', async () => {
+    const result = itemsResult(2, (index) => (index === 0 ? 40 * 1024 : 5))
+
+    const text = await hiveResultText({ result, verbose: false, toolCallId: 'call-3' })
+    const page = parsed(text)
+
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(HIVE_RESULT_TEXT_LIMIT_BYTES)
+    expect(page).toMatchObject({
+      outcome: {
+        nextCreatedOrder: 1,
+        items: [
+          { nodeId: 'node-0', createdOrder: 1, truncated: true, preview: expect.any(String) },
+        ],
+      },
+      truncated: { omittedItems: 1 },
+    })
+  })
+
+  it('pages an oversized verbose items result under its response', async () => {
+    const text = await hiveResultText({ result: itemsResult(600), verbose: true, toolCallId: 'c' })
+    const page = parsed(text)
+
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(HIVE_RESULT_TEXT_LIMIT_BYTES)
+    expect(page).toMatchObject({
+      contract: 'session-query-v2',
+      response: {
+        requestId: 'request-1',
+        outcome: { items: expect.any(Array), nextCreatedOrder: expect.any(Number) },
+      },
+      truncated: { omittedItems: expect.any(Number) },
+    })
   })
 
   it('previews an oversized result that has no items to page', async () => {

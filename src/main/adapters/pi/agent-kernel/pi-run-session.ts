@@ -12,7 +12,7 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
-import { desktopShellEnvironmentReady, getCurrentProcessPath } from '../../../env'
+import { desktopShellEnvironmentReady } from '../../../env'
 import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,
@@ -93,12 +93,9 @@ export async function createPiSessionForRun(input: {
       OPENWAGGLE_AGENT_RUN: '1',
     },
   })
-  const preparedPath = input.preparedEnvironment?.PATH
-  const toolSearchPath =
-    preparedPath === undefined ? getCurrentProcessPath() : (preparedPath ?? undefined)
   const customTools: ToolDefinition[] = [
     defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
-    ...(offersPowerShellTool(process.platform, toolSearchPath)
+    ...(offersPowerShellTool(process.platform)
       ? [
           defineTool(
             createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun }),

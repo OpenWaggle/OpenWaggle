@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer'
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isRecord } from '@shared/utils/validation'
@@ -16,6 +17,10 @@ const TRUNCATION_NOTE_BYTES = 1_024
 const RESULTS_DIRECTORY = 'hive-results'
 const PRIVATE_FILE_MODE = 0o600
 const HALF = 2
+/** The longest string field an item keeps when its body is cut to a preview. */
+const ITEM_IDENTITY_STRING_LIMIT = 200
+/** Characters of random suffix that keep two calls with the same tool-call id apart. */
+const RESULT_FILE_SUFFIX_LENGTH = 8
 
 /** Request bookkeeping the model never acts on. */
 const ENVELOPE_KEYS = new Set(['contract', 'contractVersion', 'requestId', 'idempotencyKey'])
@@ -42,7 +47,8 @@ function compactNode(value: unknown, key?: string): unknown {
 /**
  * What the model reads of a Session command result: the response without its envelope
  * (`contract`, `contractVersion`, `requestId`, `idempotencyKey`, a `replayed: false`), and items
- * without tree links or usage and cost metadata. `verbose: true` sends the whole result.
+ * without tree links or usage and cost metadata. `verbose: true` keeps all of it, under the same
+ * size cap.
  */
 export function compactHiveResult(result: unknown): unknown {
   if (!isRecord(result)) return result
@@ -60,48 +66,123 @@ function byteLength(text: string) {
   return Buffer.byteLength(text)
 }
 
-/** The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one. */
-function pagedOutcome(result: unknown) {
-  if (!isRecord(result) || !isRecord(result.outcome)) return undefined
-  const { outcome } = result
-  return Array.isArray(outcome.items) ? { result, outcome, items: outcome.items } : undefined
+interface PagedOutcome {
+  readonly outcome: Record<string, unknown>
+  readonly items: readonly unknown[]
+  /** The result with `outcome` replaced, wherever the result keeps it. */
+  readonly withOutcome: (outcome: Record<string, unknown>) => Record<string, unknown>
+}
+
+/**
+ * The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one: at the
+ * top of a compacted result, or under `response` in a verbose one.
+ */
+function pagedOutcome(result: unknown): PagedOutcome | undefined {
+  if (!isRecord(result)) return undefined
+  if (isRecord(result.outcome) && Array.isArray(result.outcome.items)) {
+    return {
+      outcome: result.outcome,
+      items: result.outcome.items,
+      withOutcome: (outcome) => ({ ...result, outcome }),
+    }
+  }
+  const { response } = result
+  if (isRecord(response) && isRecord(response.outcome) && Array.isArray(response.outcome.items)) {
+    return {
+      outcome: response.outcome,
+      items: response.outcome.items,
+      withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
+    }
+  }
+  return undefined
 }
 
 function createdOrderOf(item: unknown) {
   return isRecord(item) && typeof item.createdOrder === 'number' ? item.createdOrder : undefined
 }
 
-/**
- * Keeps the leading items that fit and points the next page after the last one, the way the Host
- * pages them (`nextCreatedOrder` is the last returned item's `createdOrder`).
- */
-function firstPageThatFits(result: unknown, note: Record<string, unknown>) {
-  const paged = pagedOutcome(result)
-  if (!paged) return undefined
-  let low = 0
-  let high = paged.items.length
+function pageText(
+  paged: PagedOutcome,
+  kept: readonly unknown[],
+  note: Record<string, unknown>,
+  omittedItems: number,
+) {
+  const nextCreatedOrder = createdOrderOf(kept.at(-1))
+  return JSON.stringify({
+    ...paged.withOutcome({
+      ...paged.outcome,
+      items: kept,
+      ...(nextCreatedOrder === undefined ? {} : { nextCreatedOrder }),
+    }),
+    truncated: { ...note, omittedItems },
+  })
+}
+
+/** The largest value in `[low, high]` whose text fits the limit, with that text. */
+function largestThatFits(low: number, high: number, textFor: (value: number) => string) {
   let best: string | undefined
-  while (low <= high) {
-    const count = Math.floor((low + high) / HALF)
-    const kept = paged.items.slice(0, count)
-    const nextCreatedOrder = createdOrderOf(kept.at(-1))
-    const text = JSON.stringify({
-      ...paged.result,
-      outcome: {
-        ...paged.outcome,
-        items: kept,
-        ...(nextCreatedOrder === undefined ? {} : { nextCreatedOrder }),
-      },
-      truncated: { ...note, omittedItems: paged.items.length - count },
-    })
+  let lower = low
+  let upper = high
+  while (lower <= upper) {
+    const value = Math.floor((lower + upper) / HALF)
+    const text = textFor(value)
     if (byteLength(text) <= HIVE_RESULT_TEXT_LIMIT_BYTES) {
       best = text
-      low = count + 1
+      lower = value + 1
     } else {
-      high = count - 1
+      upper = value - 1
     }
   }
   return best
+}
+
+/** An item's short scalar fields (ids, role, kind, order), kept when its body is cut. */
+function itemIdentity(item: unknown) {
+  if (!isRecord(item)) return {}
+  return Object.fromEntries(
+    Object.entries(item).filter(
+      ([, value]) =>
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        (typeof value === 'string' && value.length <= ITEM_IDENTITY_STRING_LIMIT),
+    ),
+  )
+}
+
+/**
+ * One item too large for a page on its own, cut to a preview of its JSON. The page still ends at
+ * its `createdOrder`, so the next call moves past it instead of returning an empty page again.
+ */
+function firstItemPreviewPage(paged: PagedOutcome, note: Record<string, unknown>) {
+  const [first] = paged.items
+  const itemText = JSON.stringify(first) ?? 'null'
+  const identity = itemIdentity(first)
+  const previewNote = {
+    ...note,
+    next: 'The first item is larger than a page and was cut to a preview; read it whole from fullResult. Continue with afterCreatedOrder set to outcome.nextCreatedOrder.',
+  }
+  return largestThatFits(0, itemText.length, (length) =>
+    pageText(
+      paged,
+      [{ ...identity, truncated: true, preview: itemText.slice(0, length) }],
+      previewNote,
+      paged.items.length - 1,
+    ),
+  )
+}
+
+/**
+ * Keeps the leading items that fit and points the next page after the last one, the way the Host
+ * pages them (`nextCreatedOrder` is the last returned item's `createdOrder`). A page always holds
+ * at least one item, cut to a preview when it alone is over the limit.
+ */
+function firstPageThatFits(result: unknown, note: Record<string, unknown>) {
+  const paged = pagedOutcome(result)
+  if (!paged || paged.items.length === 0) return undefined
+  const page = largestThatFits(1, paged.items.length, (count) =>
+    pageText(paged, paged.items.slice(0, count), note, paged.items.length - count),
+  )
+  return page ?? firstItemPreviewPage(paged, note)
 }
 
 async function savedFullResult(
@@ -111,7 +192,10 @@ async function savedFullResult(
 ) {
   if (!scratchDirectory) return undefined
   const directory = path.join(scratchDirectory, RESULTS_DIRECTORY)
-  const file = path.join(directory, `${toolCallId.replace(/[^A-Za-z0-9_-]/g, '_')}.json`)
+  // Some providers reuse tool-call ids (`call_0` on every turn), so a suffix keeps an earlier
+  // result the transcript still points at from being overwritten.
+  const suffix = randomUUID().slice(0, RESULT_FILE_SUFFIX_LENGTH)
+  const file = path.join(directory, `${toolCallId.replace(/[^A-Za-z0-9_-]/g, '_')}-${suffix}.json`)
   try {
     await ensurePrivateDirectory(directory)
     await writeFile(file, text, { mode: PRIVATE_FILE_MODE })

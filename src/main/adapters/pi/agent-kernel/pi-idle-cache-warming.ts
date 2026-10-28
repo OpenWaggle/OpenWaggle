@@ -181,7 +181,7 @@ export class IdleCacheWarming implements PromptCacheWarming {
     run: SettledRun,
   ): Promise<'compacting' | 'disposed'> {
     const plan = this.#mayCompact(sessionId, run)
-      ? planIdleCompaction(session, this.#clock.now())
+      ? planIdleCompaction(session, this.#clock.now(), this.#maxIdleMs)
       : undefined
     if (!plan) {
       await disposeOpenWagglePiSession(session)

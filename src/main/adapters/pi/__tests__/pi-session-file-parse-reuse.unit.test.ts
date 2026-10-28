@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
  * Every Run opens the Session's Pi file again, and Pi parsed the whole file each time (0.4 s for a
- * 174 MB file). The patched SessionManager keeps a parse per file and, when the file only grew,
+ * 174 MB file). The patched SessionManager keeps a parse per file up to 64 MiB and, when the file only grew,
  * parses only what was appended. Anything else is parsed whole.
  */
 
@@ -52,7 +52,22 @@ function ids(entries: ReadonlyArray<{ readonly type: string; readonly id?: strin
   return entries.filter((entry) => entry.type !== 'session').map((entry) => entry.id)
 }
 
+/** The most file bytes the parsed-file cache holds (64 MiB); its entries take 1.2–3.4× in heap. */
+const PARSED_FILE_CACHE_MAX_BYTES = 64 * 1024 * 1024
+
 describe('reusing a parsed Pi session file', () => {
+  it('keeps no parse of a file over the cache bound, whose entries would hold far more heap', () => {
+    const file = sessionFile(messageLine('a', null, 'x'.repeat(PARSED_FILE_CACHE_MAX_BYTES)))
+    const first = loadEntriesFromFileReusingParse(file)
+    appendFileSync(file, messageLine('b', 'a', 'second'))
+
+    const second = loadEntriesFromFileReusingParse(file)
+
+    expect(ids(second)).toEqual(['a', 'b'])
+    // Parsed again from the file, not taken from a kept parse.
+    expect(second[1]).not.toBe(first[1])
+  })
+
   it('parses only the appended tail of a file that grew', () => {
     const file = sessionFile(messageLine('a', null, 'first'))
     const first = loadEntriesFromFileReusingParse(file)
