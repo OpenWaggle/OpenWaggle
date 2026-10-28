@@ -11,7 +11,11 @@ import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
  * content, only when that revision is still the Session's current one in the same transaction.
  *
  * The mark belongs to the node object: any step that copies a node drops it, and the copy is then
- * compared like any other node. A missing mark only costs time, never correctness.
+ * compared like any other node. A missing mark only costs time, never correctness. That is why it is
+ * not a list of node ids in the snapshot: steps between the projection and persistence copy nodes
+ * and change them under the same id (inline-visualization ownership rewrites `metadataJson`, the
+ * ADR 0049 entry-id repair rewrites `contentJson`), and an id list would make the store trust and
+ * drop those changes unless every such step remembered to remove the id.
  */
 const retainedFromRevision = new WeakMap<ProjectedSessionNodeInput, number>()
 

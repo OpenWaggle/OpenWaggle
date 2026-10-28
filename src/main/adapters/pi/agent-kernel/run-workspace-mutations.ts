@@ -69,21 +69,46 @@ function mayRunExtensionCommand(promptText: string) {
   return promptText.trimStart().startsWith('/')
 }
 
+/**
+ * Extensions OpenWaggle runs in process: its own (`<inline:…>`) and Pi's built-in ones
+ * (`builtin:…`). Their event handlers change no files. Every other extension is code from disk (a
+ * project, user or package extension) whose handlers may do anything.
+ */
+function isInProcessExtension(extensionPath: string) {
+  return extensionPath.startsWith('<inline') || extensionPath.startsWith('builtin:')
+}
+
+/**
+ * Whether an extension loaded from disk handles any event. Handlers run during a Run without a tool
+ * call: a formatter on `agent_end` or a lint gate on `agent_before_settle` can write files, and an
+ * `input` handler can turn the prompt into an extension command.
+ */
+function diskExtensionHandlesEvents(session: Pick<AgentSession, 'resourceLoader'>) {
+  return session.resourceLoader
+    .getExtensions()
+    .extensions.some(
+      (extension) =>
+        !isInProcessExtension(extension.path) &&
+        [...extension.handlers.values()].some((handlers) => handlers.length > 0),
+    )
+}
+
 export interface RunWorkspaceMutationObserver {
-  /** False only when every tool the Run executed is known read-only. */
+  /** False only when every tool the Run executed is known read-only and nothing else could write. */
   readonly mayHaveChangedWorkspace: () => boolean
   readonly dispose: () => void
 }
 
 /**
  * Watches a Run's tool executions, nested ones included, so the turn checkpoint can skip the
- * worktree snapshot for a Run that cannot have changed a file (D11).
+ * worktree snapshot for a Run that cannot have changed a file (D11). A Run whose session loaded an
+ * extension from disk with event handlers always may have: those run without a tool call.
  */
 export function observeRunWorkspaceMutations(
-  session: Pick<AgentSession, 'subscribe'>,
+  session: Pick<AgentSession, 'subscribe' | 'resourceLoader'>,
   promptText: string,
 ): RunWorkspaceMutationObserver {
-  let mutated = mayRunExtensionCommand(promptText)
+  let mutated = mayRunExtensionCommand(promptText) || diskExtensionHandlesEvents(session)
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     if (mutated || event.type !== 'tool_execution_start') return
     if (!isReadOnlyToolCall(event.toolName, event.args)) mutated = true

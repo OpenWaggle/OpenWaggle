@@ -102,6 +102,7 @@ function persistKernelSnapshot(sessionId: SessionId, result: KernelSnapshotResul
       activeNodeId: result.sessionSnapshot.activeNodeId,
       piSessionId: result.piSessionId,
       piSessionFile: result.piSessionFile,
+      piProjection: result.sessionSnapshot.piProjection,
     })
   })
 }

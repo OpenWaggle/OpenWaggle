@@ -32,6 +32,8 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 - Persist projected snapshots before telling the renderer that manual compaction is complete.
 - Preserve compatible active-run rows across snapshot reprojection.
 - Keep transcript/workspace ordering aligned with Pi compaction: summary, kept messages, later messages.
+- Bump `PI_ENTRY_PROJECTION_VERSION` (`agent-kernel/entry-projection-version.ts`) whenever `projectPiEntry` output (kind, role, content or metadata JSON) changes. A Run keeps already-stored entries as they are (D6); only a version change makes every Session project all its entries again and repair stored rows.
+- Pass `sessionSnapshot.piProjection` on to `persistSnapshot` with the nodes; a snapshot saved without it records no version, so its tail is never reused.
 
 ## Transport And Tools
 

@@ -156,31 +156,43 @@ function branchThinkingLevel(branch: readonly SessionEntry[]) {
 type ReadSnapshotInput = Parameters<PiSessionFilesShape['readSnapshot']>[0]
 
 /**
+ * The most appended bytes taken as possibly only usage entries (a usage line is about 0.5 KB, and a
+ * warming session appends one or two per Run). More than that is read as a changed file, without
+ * reading or parsing the appended region first.
+ */
+const MAX_USAGE_ONLY_APPEND_BYTES = 64 * 1024
+/** How Pi's compact JSON lines name a usage entry; a line without it cannot be one. */
+const USAGE_ENTRY_MARKER = '"type":"usage"'
+
+function isUsageLine(line: string) {
+  if (!line.includes(USAGE_ENTRY_MARKER)) return false
+  try {
+    const entry: unknown = JSON.parse(line)
+    return typeof entry === 'object' && entry !== null && 'type' in entry && entry.type === 'usage'
+  } catch {
+    return false
+  }
+}
+
+/**
  * Whether everything Pi appended since the projection's recorded tail is usage entries, read from
  * the appended bytes alone (D6): the file still has the tail's bytes where they were, and holds
- * only complete usage lines after it. Anything else, a partial last line included, reads the file.
+ * only complete usage lines after it. Anything else, a partial last line or an append larger than
+ * a few usage lines included, reads the file.
  */
-function onlyUsageAppendedAfterTail(input: ReadSnapshotInput, size: number) {
+async function onlyUsageAppendedAfterTail(input: ReadSnapshotInput, size: number) {
   const tail = input.projectedTail
   if (!tail || size <= tail.offset) return false
+  if (size - tail.offset > MAX_USAGE_ONLY_APPEND_BYTES) return false
   if (!piSessionFileStillHasTail(input.piSessionFile, tail)) return false
-  const appended = readPiSessionFileAfterTail(input.piSessionFile, tail, size)
+  const appended = await readPiSessionFileAfterTail(input.piSessionFile, tail, size)
   if (!appended || appended.length !== size - tail.offset) return false
   const text = appended.toString('utf8')
   if (!text.endsWith('\n')) return false
   return text
     .split('\n')
     .filter((line) => line.trim() !== '')
-    .every((line) => {
-      try {
-        const entry: unknown = JSON.parse(line)
-        return (
-          typeof entry === 'object' && entry !== null && 'type' in entry && entry.type === 'usage'
-        )
-      } catch {
-        return false
-      }
-    })
+    .every(isUsageLine)
 }
 
 /** The Session's projection a changed file's snapshot can keep entries of, if it still applies. */
@@ -201,7 +213,9 @@ async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead
   const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
-  if (onlyUsageAppendedAfterTail(input, fingerprint.size)) return { kind: 'unchanged', fingerprint }
+  if (await onlyUsageAppendedAfterTail(input, fingerprint.size)) {
+    return { kind: 'unchanged', fingerprint }
+  }
   const content = await readFile(file)
   const fileEntries = parseSessionEntries(content.toString('utf8'))
   if (!fileEntries.some((entry) => entry.type === 'session')) {

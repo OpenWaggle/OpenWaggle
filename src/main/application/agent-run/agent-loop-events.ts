@@ -190,10 +190,7 @@ export function appendDurableAgentLoopEvents(input: {
   if (input.events.length === 0) {
     return nodes.length === input.snapshot.nodes.length
       ? input.snapshot
-      : {
-          nodes,
-          activeNodeId: input.snapshot.activeNodeId,
-        }
+      : { ...input.snapshot, nodes }
   }
 
   const nodeIds = new Set(nodes.map((node) => node.id))
@@ -229,8 +226,5 @@ export function appendDurableAgentLoopEvents(input: {
     eventIndex += 1
   }
 
-  return {
-    nodes,
-    activeNodeId: input.snapshot.activeNodeId,
-  }
+  return { ...input.snapshot, nodes }
 }

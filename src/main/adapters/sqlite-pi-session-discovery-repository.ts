@@ -83,6 +83,7 @@ function createPiSessionDiscoveryRepository(
             sessionId: SessionId(String(input.sessionId)),
             nodes: input.sessionSnapshot.nodes,
             activeNodeId: input.sessionSnapshot.activeNodeId,
+            piProjection: input.sessionSnapshot.piProjection,
             piSessionId: input.piSessionId,
             piSessionFile: input.piSessionFile,
             expectedRevision: input.expectedRevision,

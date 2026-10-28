@@ -118,6 +118,15 @@ describe('sessionTreeView', () => {
     })
   })
 
+  it('never ends the preview in half of a character outside the BMP', () => {
+    // An emoji is two UTF-16 units; this one starts at the last unit the preview can hold.
+    const text = `${'a'.repeat(SESSION_TREE_PREVIEW_CHARACTERS - 1)}😀 and more`
+    const [node] = sessionTreeView(tree([messageNode('a', null, text, 0)])).nodes
+
+    expect(node?.preview).toBe(`${'a'.repeat(SESSION_TREE_PREVIEW_CHARACTERS - 1)}😀`)
+    expect(node?.preview?.isWellFormed()).toBe(true)
+  })
+
   it('keeps the content of agent-loop audit nodes, which the transcript places as cards', () => {
     const audit = auditNode('audit', 'a', 1)
     const nodes = sessionTreeView(tree([messageNode('a', null, 'hi', 0), audit])).nodes

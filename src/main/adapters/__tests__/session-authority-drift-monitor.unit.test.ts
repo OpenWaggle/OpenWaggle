@@ -4,14 +4,21 @@ import {
   createAuthorityDriftMonitor,
 } from '../session-authority-drift-monitor'
 
-function harness(options: { readonly revisionPollMs?: number; readonly safetyPollMs?: number }) {
+function harness(options: {
+  readonly revisionPollMs?: number
+  readonly safetyPollMs?: number
+  /** Use the monitor's own clock instead of the test's. */
+  readonly ownClock?: boolean
+}) {
   let revision: number | null = 1
   let tick: (() => void) | undefined
   let timers = 0
+  let clock = 0
   const monitor = createAuthorityDriftMonitor({
     readRevision: () => Promise.resolve(revision),
     revisionPollMs: options.revisionPollMs ?? 500,
     safetyPollMs: options.safetyPollMs ?? 2_000,
+    ...(options.ownClock ? {} : { now: () => clock }),
     setTimer: (callback) => {
       timers += 1
       tick = callback
@@ -32,7 +39,14 @@ function harness(options: { readonly revisionPollMs?: number; readonly safetyPol
     },
     running: () => tick !== undefined,
     timers: () => timers,
+    advance: (ms: number) => {
+      clock += ms
+    },
   }
+}
+
+async function settle() {
+  await new Promise((resolve) => setImmediate(resolve))
 }
 
 function watcher(outcome: () => AuthorityDriftOutcome) {
@@ -43,34 +57,84 @@ function watcher(outcome: () => AuthorityDriftOutcome) {
 
 describe('authority drift monitor', () => {
   it('shares one timer and checks Runs in full only when the authority revision moves', async () => {
+    const host = harness({})
+    const first = watcher(() => 'current')
+    const second = watcher(() => 'current')
+    host.monitor.watch(first)
+    host.monitor.watch(second)
+    expect(host.timers()).toBe(1)
+    // Each Run is checked as soon as it is watched.
+    await settle()
+    expect(first.check).toHaveBeenCalledTimes(1)
+    expect(second.check).toHaveBeenCalledTimes(1)
+
+    // The first revision read is a change.
+    await host.tick()
+    expect(first.check).toHaveBeenCalledTimes(2)
+    expect(second.check).toHaveBeenCalledTimes(2)
+
+    // Same revision, safety interval not reached: only the one revision read.
+    host.advance(500)
+    await host.tick()
+    expect(first.check).toHaveBeenCalledTimes(2)
+
+    host.setRevision(2)
+    host.advance(500)
+    await host.tick()
+    expect(first.check).toHaveBeenCalledTimes(3)
+    expect(second.check).toHaveBeenCalledTimes(3)
+
+    // The filesystem safety poll still rechecks without any write.
+    host.advance(2_000)
+    await host.tick()
+    expect(first.check).toHaveBeenCalledTimes(4)
+  })
+
+  it('checks a Run again when the revision moves while its check is in flight', async () => {
+    const host = harness({})
+    const pending: Array<(outcome: AuthorityDriftOutcome) => void> = []
+    const check = vi.fn(
+      () =>
+        new Promise<AuthorityDriftOutcome>((resolve) => {
+          pending.push(resolve)
+        }),
+    )
+    const onDrift = vi.fn()
+    host.monitor.watch({ check, onDrift })
+    await settle()
+    expect(check).toHaveBeenCalledTimes(1)
+    pending.shift()?.('current')
+    await settle()
+
+    await host.tick()
+    expect(check).toHaveBeenCalledTimes(2)
+    // A revocation lands after the in-flight check read the authority it still allows.
+    host.setRevision(2)
+    host.advance(500)
+    await host.tick()
+    pending.shift()?.('current')
+    await settle()
+
+    // Checked again at once, not at the next safety poll.
+    expect(check).toHaveBeenCalledTimes(3)
+    // That check reads the revocation.
+    pending.shift()?.('changed')
+    await settle()
+    expect(onDrift).toHaveBeenCalledExactlyOnceWith('changed')
+  })
+
+  it('keeps its safety poll when the wall clock moves backwards', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
-      const host = harness({})
-      const first = watcher(() => 'current')
-      const second = watcher(() => 'current')
-      host.monitor.watch(first)
-      host.monitor.watch(second)
-      expect(host.timers()).toBe(1)
-
+      const host = harness({ safetyPollMs: 5, ownClock: true })
+      const run = watcher(() => 'current')
+      host.monitor.watch(run)
       await host.tick()
-      expect(first.check).toHaveBeenCalledTimes(1)
-      expect(second.check).toHaveBeenCalledTimes(1)
-
-      // Same revision, safety interval not reached: only the one revision read.
-      vi.advanceTimersByTime(500)
+      const checks = run.check.mock.calls.length
+      vi.setSystemTime(Date.now() - 3_600_000)
+      await new Promise((resolve) => setTimeout(resolve, 20))
       await host.tick()
-      expect(first.check).toHaveBeenCalledTimes(1)
-
-      host.setRevision(2)
-      vi.advanceTimersByTime(500)
-      await host.tick()
-      expect(first.check).toHaveBeenCalledTimes(2)
-      expect(second.check).toHaveBeenCalledTimes(2)
-
-      // The filesystem safety poll still rechecks without any write.
-      vi.advanceTimersByTime(2_000)
-      await host.tick()
-      expect(first.check).toHaveBeenCalledTimes(3)
+      expect(run.check).toHaveBeenCalledTimes(checks + 1)
     } finally {
       vi.useRealTimers()
     }

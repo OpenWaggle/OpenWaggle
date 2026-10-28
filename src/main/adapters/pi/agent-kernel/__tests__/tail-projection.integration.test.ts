@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, persistSessionSnapshot } from '../../../../store/session-details'
 import { retainedSnapshotNodeIds } from '../../../../store/session-details/retained-snapshot-nodes'
 import { runStoreEffect } from '../../../../store/store-runtime'
+import { PI_ENTRY_PROJECTION_VERSION } from '../entry-projection-version'
 import { readRunProjectionBase } from '../run-projection-base'
 import { projectPiSessionSnapshot } from '../session-projection'
 
@@ -94,6 +95,7 @@ function persist(
     piSessionFile: manager.getSessionFile(),
     activeNodeId: snapshot.activeNodeId,
     nodes: snapshot.nodes,
+    piProjection: snapshot.piProjection,
   })
 }
 
@@ -150,6 +152,25 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     expect(await readRows(sessionId)).toEqual(afterKept)
   })
 
+  it('saves the change of a kept node a later step copied and changed, keeping its id', async () => {
+    const { manager, session, sessionId, firstAnswer, file } = await projectedSession()
+    prompt(manager, 'fourth question')
+    const base = await readRunProjectionBase(session, file)
+    const kept = projectPiSessionSnapshot({ sessionManager: manager }, undefined, base)
+    expect(retainedSnapshotNodeIds(kept.nodes, base?.revision ?? -1).has(firstAnswer)).toBe(true)
+
+    // As inline-visualization ownership does: a copy with new metadata under the same id.
+    const owned = '{"visualizationSessionId":"owner-session"}'
+    const nodes = kept.nodes.map((node) =>
+      node.id === firstAnswer ? { ...node, metadataJson: owned } : node,
+    )
+    expect(retainedSnapshotNodeIds(nodes, base?.revision ?? -1).has(firstAnswer)).toBe(false)
+    await persist(sessionId, manager, { ...kept, nodes })
+
+    const rows = await readRows(sessionId)
+    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(owned)
+  })
+
   it('keeps the tree up to date for kept entries when a branch is added', async () => {
     const { manager, session, sessionId, firstAnswer, file } = await projectedSession()
     manager.branch(firstAnswer)
@@ -163,6 +184,64 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     const afterKept = await readRows(sessionId)
     await persist(sessionId, manager, projectPiSessionSnapshot({ sessionManager: manager }))
     expect(await readRows(sessionId)).toEqual(afterKept)
+  })
+
+  it('keeps nothing from a projection another entry-projection version stored', async () => {
+    const { manager, session, sessionId, firstAnswer, file } = await projectedSession()
+    prompt(manager, 'fourth question')
+    const current = await readRunProjectionBase(session, file)
+    expect(current?.tail.projectionVersion).toBe(PI_ENTRY_PROJECTION_VERSION)
+    // The rows were stored by the code before a change to how entries are projected.
+    await runStoreEffect(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`
+          UPDATE pi_session_file_projections
+          SET tail_projection_version = ${PI_ENTRY_PROJECTION_VERSION - 1}
+          WHERE session_id = ${sessionId}
+        `,
+      ),
+    )
+    const older = await readRunProjectionBase(session, file)
+    expect(older?.tail.projectionVersion).toBe(PI_ENTRY_PROJECTION_VERSION - 1)
+    const snapshot = projectPiSessionSnapshot({ sessionManager: manager }, undefined, older)
+    expect(retainedSnapshotNodeIds(snapshot.nodes, older?.revision ?? -1).size).toBe(0)
+
+    // Saving it repairs a stored row the older code got wrong.
+    await runStoreEffect(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`
+          UPDATE session_nodes SET metadata_json = ${'{"stale":true}'}
+          WHERE id = ${firstAnswer}
+        `,
+      ),
+    )
+    await persist(sessionId, manager, snapshot)
+    const rows = await readRows(sessionId)
+    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(
+      projectPiSessionSnapshot({ sessionManager: manager }).nodes.find(
+        (node) => node.id === firstAnswer,
+      )?.metadataJson,
+    )
+  })
+
+  it('keeps nothing from a snapshot saved without its projection version', async () => {
+    const { manager, session, sessionId, file } = await projectedSession()
+    const { piProjection: _version, ...unversioned } = projectPiSessionSnapshot({
+      sessionManager: manager,
+    })
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: manager.getSessionId(),
+      piSessionFile: file,
+      ...unversioned,
+    })
+    prompt(manager, 'fourth question')
+    const base = await readRunProjectionBase(session, file)
+    expect(base?.tail.projectionVersion).toBeNull()
+    const snapshot = projectPiSessionSnapshot({ sessionManager: manager }, undefined, base)
+    expect(retainedSnapshotNodeIds(snapshot.nodes, base?.revision ?? -1).size).toBe(0)
   })
 
   it('keeps nothing once the file was rewritten, as an upgrade by pi --resume does', async () => {

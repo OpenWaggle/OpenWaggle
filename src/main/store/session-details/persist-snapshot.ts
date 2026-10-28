@@ -150,7 +150,12 @@ function projectedPiEntries(input: PersistSessionSnapshotInput): PiProjectedEntr
     undefined,
   )
   if (!last || last.createdOrder !== entries.length - 1) return null
-  return { entryCount: entries.length, lastNodeId: last.id, leafNodeId: input.activeNodeId }
+  return {
+    entryCount: entries.length,
+    lastNodeId: last.id,
+    leafNodeId: input.activeNodeId,
+    projectionVersion: input.piProjection?.version ?? null,
+  }
 }
 
 export async function persistSessionSnapshot(input: PersistSessionSnapshotInput): Promise<void> {

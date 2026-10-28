@@ -6,6 +6,7 @@ import type {
 } from '../../ports/session-repository'
 import { makeEventLoopSlicer } from '../../utils/event-loop-slice'
 import { sessionNodeContentHash } from './node-content-hash'
+import { backfillContentHashes } from './snapshot-content-hash-backfill'
 import { nodeProjectionChanged, searchProjectionChanged } from './snapshot-transcript-term-changes'
 import type { ComparedSessionNodeRow, SessionNodeShapeRow } from './types'
 
@@ -165,23 +166,6 @@ function parkNodeOrders(
   `
 }
 
-/**
- * Stores the digest of a row stored before digests existed whose content the snapshot left as it
- * was, so the Session's next snapshot compares it by digest (D6). Only the digest changes, so no
- * search or export trigger runs for it.
- */
-function backfillContentHash(
-  sql: SqlClient.SqlClient,
-  sessionId: PersistSessionSnapshotInput['sessionId'],
-  nodeId: string,
-  contentHash: string,
-) {
-  return sql`
-    UPDATE session_nodes SET content_hash = ${contentHash}
-    WHERE id = ${nodeId} AND session_id = ${sessionId} AND content_hash IS NULL
-  `
-}
-
 /** Describes the first snapshot order that would break parking, or null when the snapshot is valid. */
 function describeUnparkableOrder(nodes: readonly ProjectedSessionNodeInput[]) {
   const seen = new Set<number>()
@@ -203,6 +187,7 @@ function rewriteExistingNode(
   existing: ComparedSessionNodeRow,
   node: ProjectedSessionNodeInput,
   restoreParkedOrder: boolean,
+  digestBackfills: (readonly [nodeId: string, contentHash: string])[],
 ) {
   return Effect.gen(function* () {
     const next = projectedNode(input, node)
@@ -219,9 +204,8 @@ function rewriteExistingNode(
       return true
     }
     if (!changed) {
-      if (existing.content_hash !== null) return false
-      yield* backfillContentHash(input.sql, input.sessionId, node.id, next.contentHash)
-      return true
+      if (existing.content_hash === null) digestBackfills.push([node.id, next.contentHash])
+      return false
     }
     yield* updateSnapshotNode({
       sql: input.sql,
@@ -256,11 +240,15 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
     const parkedIds = nodesToPark(input)
     const parked = new Set(parkedIds)
     yield* parkNodeOrders(input.sql, input.sessionId, parkedIds)
+    const digestBackfills: (readonly [nodeId: string, contentHash: string])[] = []
     for (const node of input.nodes) {
       const existing = existingById.get(node.id)
       if (!existing) continue
-      if (yield* rewriteExistingNode(input, existing, node, parked.has(node.id))) yield* slice
+      if (yield* rewriteExistingNode(input, existing, node, parked.has(node.id), digestBackfills)) {
+        yield* slice
+      }
     }
+    yield* backfillContentHashes(input.sql, input.sessionId, digestBackfills, slice)
     for (const existing of input.existingNodes) {
       if (!snapshotIds.has(existing.id)) {
         yield* input.sql`

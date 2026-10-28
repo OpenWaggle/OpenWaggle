@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs'
+import { open } from 'node:fs/promises'
 
 /**
  * Where the entries a Session's projection was read from end in its Pi file, and enough of the
@@ -140,9 +141,36 @@ export function piSessionFileStillHasTail(file: string, tail: PiSessionFileTail)
   )
 }
 
-/** The bytes appended after the tail, up to `end`. */
-export function readPiSessionFileAfterTail(file: string, tail: PiSessionFileTail, end: number) {
-  return withFile(file, (descriptor) => readRange(descriptor, tail.offset, end))
+/**
+ * The bytes appended after the tail, up to `end`, read without blocking the event loop; null when
+ * the file cannot be read.
+ */
+export async function readPiSessionFileAfterTail(
+  file: string,
+  tail: PiSessionFileTail,
+  end: number,
+): Promise<Buffer | null> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(file, 'r')
+    const buffer = Buffer.alloc(Math.max(0, end - tail.offset))
+    let read = 0
+    while (read < buffer.length) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        read,
+        buffer.length - read,
+        tail.offset + read,
+      )
+      if (bytesRead === 0) break
+      read += bytesRead
+    }
+    return read === buffer.length ? buffer : buffer.subarray(0, read)
+  } catch {
+    return null
+  } finally {
+    await handle?.close()
+  }
 }
 
 /** `piSessionFileStillHasTail` for content already read, as a refresh reads the whole file. */

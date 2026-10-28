@@ -26,6 +26,8 @@ export interface PiProjectedEntries {
   readonly entryCount: number
   readonly lastNodeId: string
   readonly leafNodeId: string | null
+  /** The Pi adapter's entry-projection version, or null for nodes that came from elsewhere. */
+  readonly projectionVersion: number | null
 }
 
 /**
@@ -35,6 +37,8 @@ export interface PiProjectedEntries {
 export interface PiProjectionTail extends PiSessionFileTail {
   readonly entryCount: number
   readonly leafNodeId: string | null
+  /** Which entry-projection version stored the entries before the tail; null when unknown. */
+  readonly projectionVersion: number | null
 }
 
 export interface PiProjectionFreshness {
@@ -86,6 +90,7 @@ function tailColumns(tail: PiProjectionTail | null) {
       lastEntryId: null,
       entryCount: null,
       leafNodeId: null,
+      projectionVersion: null,
     }
   }
   return tail
@@ -106,11 +111,11 @@ export function recordPiProjectionWithSql(
   return sql`
     INSERT INTO pi_session_file_projections (
       session_id, file_size, file_mtime_ms, revision, updated_at, tail_offset, tail_line_start,
-      tail_digest, tail_entry_id, tail_entry_count, tail_leaf_node_id
+      tail_digest, tail_entry_id, tail_entry_count, tail_leaf_node_id, tail_projection_version
     ) VALUES (
       ${sessionId}, ${fingerprint?.size ?? null}, ${fingerprint?.mtimeMs ?? null},
       ${FIRST_RECORDED_REVISION}, ${now}, ${tail.offset}, ${tail.lineStart}, ${tail.digest},
-      ${tail.lastEntryId}, ${tail.entryCount}, ${tail.leafNodeId}
+      ${tail.lastEntryId}, ${tail.entryCount}, ${tail.leafNodeId}, ${tail.projectionVersion}
     )
     ON CONFLICT (session_id) DO UPDATE SET
       file_size = excluded.file_size,
@@ -122,7 +127,8 @@ export function recordPiProjectionWithSql(
       tail_digest = excluded.tail_digest,
       tail_entry_id = excluded.tail_entry_id,
       tail_entry_count = excluded.tail_entry_count,
-      tail_leaf_node_id = excluded.tail_leaf_node_id
+      tail_leaf_node_id = excluded.tail_leaf_node_id,
+      tail_projection_version = excluded.tail_projection_version
   `
 }
 
@@ -136,6 +142,7 @@ interface PiProjectionRow {
   readonly tail_entry_id: string | null
   readonly tail_entry_count: number | null
   readonly tail_leaf_node_id: string | null
+  readonly tail_projection_version: number | null
 }
 
 function projectionTailOf(row: PiProjectionRow): PiProjectionTail | null {
@@ -155,6 +162,7 @@ function projectionTailOf(row: PiProjectionRow): PiProjectionTail | null {
     lastEntryId: row.tail_entry_id,
     entryCount: row.tail_entry_count,
     leafNodeId: row.tail_leaf_node_id,
+    projectionVersion: row.tail_projection_version,
   }
 }
 
@@ -162,7 +170,7 @@ export function readPiProjectionFreshnessWithSql(sql: SqlClient.SqlClient, sessi
   return Effect.map(
     sql<PiProjectionRow>`
       SELECT revision, file_size, file_mtime_ms, tail_offset, tail_line_start, tail_digest,
-        tail_entry_id, tail_entry_count, tail_leaf_node_id
+        tail_entry_id, tail_entry_count, tail_leaf_node_id, tail_projection_version
       FROM pi_session_file_projections
       WHERE session_id = ${sessionId} LIMIT 1
     `,

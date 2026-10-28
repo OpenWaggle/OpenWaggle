@@ -42,6 +42,15 @@ export interface ProjectedSessionNodeInput {
   readonly createdOrder: number
 }
 
+/**
+ * How a Pi projection produced a snapshot's nodes (D6). Stored with the projection's file tail, so
+ * a later projection keeps entries only from a projection made by the same entry-projection code.
+ */
+export interface PiSnapshotProjection {
+  /** The Pi adapter's entry-projection version; bumped whenever an entry's projection changes. */
+  readonly version: number
+}
+
 export interface PersistSessionSnapshotInput {
   readonly sessionId: SessionId
   readonly nodes: readonly ProjectedSessionNodeInput[]
@@ -49,6 +58,8 @@ export interface PersistSessionSnapshotInput {
   readonly piSessionId: string
   readonly piSessionFile?: string
   readonly waggleConfig?: WaggleConfig
+  /** Present when the nodes are a Pi projection; without it no recorded tail is reused. */
+  readonly piProjection?: PiSnapshotProjection
 }
 
 export interface UpdateSessionRuntimeInput {

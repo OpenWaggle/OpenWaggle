@@ -1,14 +1,26 @@
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, AgentSessionEvent, Extension } from '@earendil-works/pi-coding-agent'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { isReadOnlyToolCall, observeRunWorkspaceMutations } from '../run-workspace-mutations'
 
-function fakeSession() {
+/** A loaded extension at `path` with `count` handlers of `eventType`. */
+function extension(path: string, eventType: string, count = 1): Extension {
+  return fromPartial({
+    path,
+    handlers: new Map([[eventType, Array.from({ length: count }, () => () => undefined)]]),
+  })
+}
+
+function fakeSession(extensions: readonly Extension[] = []) {
   const listeners = new Set<(event: AgentSessionEvent) => void>()
-  const session: Pick<AgentSession, 'subscribe'> = {
+  const session: Pick<AgentSession, 'subscribe' | 'resourceLoader'> = {
     subscribe: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    resourceLoader: fromPartial({
+      getExtensions: () => ({ extensions: [...extensions], errors: [], runtime: fromPartial({}) }),
+    }),
   }
   const startTool = (toolName: string, args: unknown = {}) => {
     for (const listener of listeners)
@@ -84,6 +96,29 @@ describe('observeRunWorkspaceMutations', () => {
     expect(observeRunWorkspaceMutations(session, '  /deploy now').mayHaveChangedWorkspace()).toBe(
       true,
     )
+  })
+
+  it('treats a Run as a change when an extension from disk handles events', () => {
+    // A project extension that formats files when the agent ends writes without a tool call.
+    const { session } = fakeSession([
+      extension('<inline:openwaggle-run-attribution>', 'agent_end'),
+      extension('builtin:mcp', 'input'),
+      extension('/repo/.pi/extensions/format-on-end.ts', 'agent_end'),
+    ])
+    const observer = observeRunWorkspaceMutations(session, 'Explain the module')
+    expect(observer.mayHaveChangedWorkspace()).toBe(true)
+  })
+
+  it('ignores in-process extensions and disk extensions without handlers', () => {
+    const { session, startTool } = fakeSession([
+      extension('<inline:openwaggle-run-attribution>', 'agent_end'),
+      extension('<inline>', 'input'),
+      extension('builtin:codemode', 'agent_before_settle'),
+      extension('/repo/.pi/extensions/tools-only.ts', 'agent_end', 0),
+    ])
+    const observer = observeRunWorkspaceMutations(session, 'Explain the module')
+    startTool('read', { path: 'a.ts' })
+    expect(observer.mayHaveChangedWorkspace()).toBe(false)
   })
 
   it('stops listening once disposed', () => {
