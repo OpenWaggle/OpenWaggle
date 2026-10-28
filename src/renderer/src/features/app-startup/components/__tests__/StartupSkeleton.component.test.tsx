@@ -1,16 +1,11 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import indexHtml from '../../../../../index.html?raw'
 import { StartupSkeleton } from '../StartupSkeleton'
-
-// Component tests run from the repository root.
-const INDEX_HTML = path.resolve('src/renderer/index.html')
 
 /** The markup the page paints before its scripts run, in its `#startup-frame` cover. */
 function pageStartupFrame() {
-  const html = readFileSync(INDEX_HTML, 'utf8')
-  const match = /<div id="startup-frame"[^>]*>([\s\S]*?<\/main>)<\/div>/u.exec(html)
+  const match = /<div id="startup-frame"[^>]*>([\s\S]*?<\/main>)<\/div>/u.exec(indexHtml)
   if (!match?.[1]) throw new Error('index.html has no startup frame')
   return match[1]
 }
@@ -44,10 +39,8 @@ describe('startup frame', () => {
   })
 
   it("covers the window from outside React's root, hidden from assistive technology", () => {
-    const html = readFileSync(INDEX_HTML, 'utf8')
-
-    expect(html).toContain('<div id="root"></div>')
-    expect(html).toContain('<div id="startup-frame" aria-hidden="true" class="fixed inset-0">')
+    expect(indexHtml).toContain('<div id="root"></div>')
+    expect(indexHtml).toContain('<div id="startup-frame" aria-hidden="true" class="fixed inset-0">')
   })
 
   it('warms the fonts only once React renders the frame, after the first paint', () => {
