@@ -264,11 +264,19 @@ export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
       let text: string
       try {
         text = readFileSync(file(), 'utf8')
-      } catch {
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+          logger.warn('Could not read the MCP package runner resolutions', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
         return {}
       }
       const stored = safeDecodeUnknown(StoredResolutionsSchema, readJson(text))
-      return stored.success ? { ...stored.data.entries } : {}
+      if (stored.success) return { ...stored.data.entries }
+      // Every runner launch is probed again, and the file rewritten.
+      logger.warn('The MCP package runner resolutions file is unreadable; it is ignored')
+      return {}
     },
     save: (entries) => {
       try {

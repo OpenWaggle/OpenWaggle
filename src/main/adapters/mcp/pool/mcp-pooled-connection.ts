@@ -106,6 +106,7 @@ export class McpPooledConnection {
       options,
     })
     this.lazyStart = lazyStartOf(options, {
+      serverName: options.serverName,
       handshake: this.handshake,
       startUpstream: () => this.slot.start(),
       close: () => void this.close(),

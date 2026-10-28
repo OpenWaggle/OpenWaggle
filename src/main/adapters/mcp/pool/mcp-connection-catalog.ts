@@ -22,6 +22,10 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
+function isMissingFile(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
 /** Hex characters of a catalog key: its file name. */
 const CATALOG_KEY_LENGTH = 32
 
@@ -79,17 +83,30 @@ export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolC
   let pruned = false
   return {
     read: (key) => {
+      let text: string
       try {
-        const decoded = safeDecodeUnknown(
-          CatalogSchema,
-          parseJsonUnknown(readFileSync(file(key), 'utf8')),
-        )
-        if (!decoded.success) return undefined
-        const { version: _version, ...catalog } = decoded.data
-        return catalog
-      } catch {
+        text = readFileSync(file(key), 'utf8')
+      } catch (error) {
+        // No catalog yet is the usual case; anything else turns lazy start off for the server.
+        if (!isMissingFile(error)) {
+          logger.warn('Could not read an MCP tool catalog', { key, error: errorText(error) })
+        }
         return undefined
       }
+      try {
+        const decoded = safeDecodeUnknown(CatalogSchema, parseJsonUnknown(text))
+        if (decoded.success) {
+          const { version: _version, ...catalog } = decoded.data
+          return catalog
+        }
+        logger.warn('An MCP tool catalog has an unknown shape; it is ignored', { key })
+      } catch (error) {
+        logger.warn('An MCP tool catalog is not valid JSON; it is ignored', {
+          key,
+          error: errorText(error),
+        })
+      }
+      return undefined
     },
     write: (key, catalog) => {
       try {
