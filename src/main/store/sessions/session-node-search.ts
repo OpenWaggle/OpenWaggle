@@ -1,6 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { type SessionId, SessionNodeId } from '@shared/types/brand'
-import type { SessionTreeSearchCursor, SessionTreeSearchPage } from '@shared/types/session'
+import type {
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
+} from '@shared/types/session-tree-search'
 import * as Effect from 'effect/Effect'
 import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { runStoreEffect } from '../store-runtime'

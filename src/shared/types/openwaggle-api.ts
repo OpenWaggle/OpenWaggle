@@ -57,8 +57,6 @@ import type {
   SessionThinkingLevelChange,
   SessionTree,
   SessionTreeFilterMode,
-  SessionTreeSearchCursor,
-  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -66,6 +64,7 @@ import type {
 } from './session'
 import type { SessionTitleRegenerationResult } from './session-title'
 import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
+import type { SessionTreeSearchCursor, SessionTreeSearchPage } from './session-tree-search'
 import type { Settings, ThinkingLevel } from './settings'
 import type {
   AgentsInstructionStatus,

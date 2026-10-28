@@ -33,6 +33,8 @@ import { withPiSessionPromptOrigin } from './pi-session-prompt-origin'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
+/** `sessions:search-tree`'s optional third argument: the previous search's cursor. */
+const TREE_SEARCH_CURSOR_ARGUMENT = 2
 /** Matches the store's batch bound (`MAX_TURN_DIFF_FILE_BATCH`). */
 const MAX_TURN_DIFF_FILE_BATCH = 500
 
@@ -109,7 +111,7 @@ export function searchSessionTree(args: readonly unknown[]) {
     )
     const after = yield* decodeOptionalArgument(
       sessionTreeSearchCursorSchema,
-      args[2],
+      args[TREE_SEARCH_CURSOR_ARGUMENT],
       'Session tree search cursor',
     )
     return yield* (yield* SessionRepository).searchTreeNodes(sessionId, query ?? '', after)

@@ -1,4 +1,5 @@
-import type { SessionTree, SessionTreeSearchCursor } from '@shared/types/session'
+import type { SessionTree } from '@shared/types/session'
+import type { SessionTreeSearchCursor } from '@shared/types/session-tree-search'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'

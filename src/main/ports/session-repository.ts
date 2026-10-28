@@ -18,8 +18,6 @@ import type {
   SessionNodeKind,
   SessionProjectPage,
   SessionSummary,
-  SessionTreeSearchCursor,
-  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -27,6 +25,10 @@ import type {
   HiveSessionCatalogPage,
   HiveTreeSessionCatalogPage,
 } from '@shared/types/session-hive-catalog'
+import type {
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
+} from '@shared/types/session-tree-search'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'

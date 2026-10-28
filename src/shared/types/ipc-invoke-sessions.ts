@@ -20,8 +20,6 @@ import type {
   SessionSummary,
   SessionThinkingLevelChange,
   SessionTree,
-  SessionTreeSearchCursor,
-  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -30,6 +28,7 @@ import type {
 import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
 import type { SessionTitleRegenerationResult } from './session-title'
 import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
+import type { SessionTreeSearchCursor, SessionTreeSearchPage } from './session-tree-search'
 import type { ThinkingLevel } from './settings'
 
 export interface IpcSessionInvokeChannelMap {

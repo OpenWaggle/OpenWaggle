@@ -15,8 +15,8 @@ import {
   completedMarkdownBlocks,
   type StreamingMarkdownTail,
   splitStreamingMarkdown,
-  withReferenceDefinitions,
 } from '@/features/chat/lib/streaming-markdown-blocks'
+import { withReferenceDefinitions } from '@/features/chat/lib/streaming-markdown-definitions'
 import { NonFetchingMarkdownImage, SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import {
   type RehypePlugins,

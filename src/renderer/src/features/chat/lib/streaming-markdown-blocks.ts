@@ -27,6 +27,9 @@
  * and keeps the split a pure function of the text.
  */
 
+import { DefinitionCollector } from './streaming-markdown-definitions'
+import { HTML_BLOCK_START_PATTERN, rawHtmlBlockEnd } from './streaming-markdown-html'
+
 export interface StreamingMarkdownBlock {
   /** Offset of the block in the streamed text; stable while the text only grows. */
   readonly start: number
@@ -73,42 +76,6 @@ const INDENTED_CODE_COLUMNS = 4
 const LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/u
 /** A line still streaming that may yet become a list marker. */
 const PARTIAL_LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)]?)$/u
-
-/**
- * A line that may hold a link reference or footnote definition: inside quotes and list items too,
- * where definitions are still global.
- */
-const REFERENCE_DEFINITION_PATTERN = /^[ \t>]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?\[[^\]\n]+\]:/u
-/**
- * A whole link reference definition on one line, at most three columns in: its label (not a
- * footnote's `^`), its destination, and an optional title.
- */
-const PLAIN_DEFINITION_PATTERN =
-  /^ {0,3}\[(?<label>[^\]\n^][^\]\n]*)\]:[ \t]*(?:<[^<>\n]*>|[^<\s]\S*)(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?[ \t]*$/u
-/** An HTML block runs to the next blank line, past any fence line inside it. */
-const HTML_BLOCK_START_PATTERN = /^ {0,3}</u
-/**
- * The HTML blocks that run past blank lines, to their end marker (CommonMark HTML block kinds 1–5):
- * raw text elements, comments, processing instructions, declarations and CDATA.
- */
-const RAW_HTML_BLOCKS: ReadonlyArray<{ readonly start: RegExp; readonly end: RegExp }> = [
-  {
-    start: /^ {0,3}<(?:pre|script|style|textarea)(?:[\s>]|$)/iu,
-    end: /<\/(?:pre|script|style|textarea)>/iu,
-  },
-  { start: /^ {0,3}<!--/u, end: /-->/u },
-  { start: /^ {0,3}<\?/u, end: /\?>/u },
-  { start: /^ {0,3}<![A-Za-z]/u, end: />/u },
-  { start: /^ {0,3}<!\[CDATA\[/u, end: /\]\]>/u },
-]
-
-/** The end marker of a raw HTML block the line opens and does not close, if any. */
-function rawHtmlBlockEnd(line: string) {
-  const kind = RAW_HTML_BLOCKS.find((candidate) => candidate.start.test(line))
-  if (!kind) return null
-  const opening = line.match(kind.start)?.[0].length ?? 0
-  return kind.end.test(line.slice(opening)) ? null : kind.end
-}
 
 interface FenceRun {
   readonly character: '`' | '~'
@@ -311,63 +278,14 @@ function completedBlocks(text: string, boundaries: readonly number[]): Streaming
   })
 }
 
-type PreviousLine = 'start' | 'blank' | 'definition' | 'other'
-
-/** The text's plain definitions, and whether it holds another kind that needs one document. */
-class DefinitionCollector {
-  readonly lines: string[] = []
-  needsWholeDocument = false
-  private previous: PreviousLine = 'start'
-
-  read(line: MarkdownLine, literal: boolean) {
-    if (literal) {
-      this.previous = 'other'
-      return
-    }
-    if (isBlank(line.text)) {
-      this.previous = 'blank'
-      return
-    }
-    if (!REFERENCE_DEFINITION_PATTERN.test(line.text)) {
-      this.previous = 'other'
-      return
-    }
-    // A definition cannot interrupt a paragraph, so a plain one starts a block.
-    const plain = this.previous !== 'other' && PLAIN_DEFINITION_PATTERN.test(line.text)
-    if (plain) this.lines.push(line.text.trim())
-    else this.needsWholeDocument = true
-    this.previous = plain ? 'definition' : 'other'
-  }
-}
-
 function scan(text: string) {
   const scanner = new BlockBoundaryScanner()
   const definitions = new DefinitionCollector()
   for (const line of markdownLines(text)) {
-    definitions.read(line, scanner.inLiteralBlock())
+    definitions.read(line.text, scanner.inLiteralBlock())
     if (!scanner.read(line)) break
   }
   return { scanner, definitions }
-}
-
-/** A label as references match it: case-insensitive, with runs of whitespace as one space. */
-function normalizedLabel(label: string) {
-  return label.trim().replace(/\s+/gu, ' ').toLowerCase()
-}
-
-/**
- * `markdown` with the `definitions` it may refer to in front of it, so it parses as it does in the
- * whole text. A definition renders nothing; one whose label the text never mentions is left out,
- * so a block parses again only when a definition it uses arrives.
- */
-export function withReferenceDefinitions(markdown: string, definitions: string) {
-  if (!definitions) return markdown
-  const mentioned = normalizedLabel(markdown)
-  const used = definitions.split('\n').filter((line) => {
-    const label = PLAIN_DEFINITION_PATTERN.exec(line)?.groups?.label
-    return label !== undefined && mentioned.includes(normalizedLabel(label))
-  })
-  return used.length > 0 ? `${used.join('\n')}\n\n${markdown}` : markdown
 }
 
 /**
@@ -380,30 +298,27 @@ export function completedMarkdownBlocks(prefix: string): StreamingMarkdownBlock[
   return completedBlocks(prefix, scanner.boundaries)
 }
 
-export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
-  const { scanner, definitions: collected } = scan(text)
-  if (collected.needsWholeDocument) {
-    return {
-      blocks: [],
-      tail: text ? { kind: 'markdown', start: 0, text } : null,
-      definitions: '',
-    }
-  }
-  const definitions = collected.lines.join('\n')
-  const blocks = completedBlocks(text, scanner.boundaries)
-  const prefixEnd = scanner.boundaries.at(-1) ?? 0
-  if (prefixEnd >= text.length) return { blocks, tail: null, definitions }
-  const fence = scanner.fence
+/** The live tail after the completed blocks, which end at `prefixEnd`. */
+function liveTail(
+  text: string,
+  prefixEnd: number,
+  fence: Fence | null,
+): StreamingMarkdownTail | null {
+  if (prefixEnd >= text.length) return null
   if (fence?.topLevel && isBlank(text.slice(prefixEnd, fence.start))) {
-    return {
-      blocks,
-      tail: { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) },
-      definitions,
-    }
+    return { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) }
+  }
+  return { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) }
+}
+
+export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
+  const { scanner, definitions } = scan(text)
+  if (definitions.needsWholeDocument) {
+    return { blocks: [], tail: liveTail(text, 0, null), definitions: '' }
   }
   return {
-    blocks,
-    tail: { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) },
-    definitions,
+    blocks: completedBlocks(text, scanner.boundaries),
+    tail: liveTail(text, scanner.boundaries.at(-1) ?? 0, scanner.fence),
+    definitions: definitions.lines.join('\n'),
   }
 }

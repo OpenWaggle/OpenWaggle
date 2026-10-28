@@ -11,13 +11,10 @@ import type {
   ShellEnvironmentCommandRunner,
 } from '../desktop-shell-environment-probes'
 import { startDesktopShellEnvironment } from '../desktop-shell-environment-start'
+import { captured, inheritingLoginShell } from './desktop-shell-environment-cache-fixtures'
 
 const NOW = 1_800_000_000_000
 const KEY = { platform: 'darwin' as const, shell: '/bin/zsh', home: '/Users/test' }
-
-function captured(name: string, value: string) {
-  return `__OPENWAGGLE_ENV_${name}_START__\n${value}\n__OPENWAGGLE_ENV_${name}_END__\n`
-}
 
 /** A login shell whose answer the test releases, like a `.zshrc` that takes its time. */
 function slowLoginShell(output: string) {
@@ -41,25 +38,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
-
-/**
- * A login shell that behaves like zsh with `path_helper` and a `.zshrc`: it keeps the PATH and the
- * desktop-session variables it inherits, and adds its own PATH entry in front.
- */
-function inheritingLoginShell(added: string) {
-  const inherited: (Readonly<Record<string, string | undefined>> | undefined)[] = []
-  const runCommand = vi.fn(async (input: ShellEnvironmentCommand) => {
-    if (input.probe !== 'login-shell') return ''
-    inherited.push(input.env)
-    const env = input.env ?? {}
-    return [
-      captured('PATH', `${added}:${env.PATH ?? ''}`),
-      env.XDG_SESSION_TYPE ? captured('XDG_SESSION_TYPE', env.XDG_SESSION_TYPE) : '',
-      env.SSH_AUTH_SOCK ? captured('SSH_AUTH_SOCK', env.SSH_AUTH_SOCK) : '',
-    ].join('')
-  })
-  return { runCommand, inherited }
-}
 
 function launch(runCommand: ShellEnvironmentCommandRunner, extra: Record<string, string> = {}) {
   const env: Record<string, string | undefined> = {
@@ -242,52 +220,6 @@ describe('the cached login-shell environment', () => {
       'SSH_AUTH_SOCK',
     )
   })
-  it('does not cache the PATH entries a terminal launch brought with it', async () => {
-    const shell = inheritingLoginShell('/opt/homebrew/bin')
-    const { env, started } = launch(shell.runCommand, { PATH: '/proj/.venv/bin:/usr/bin:/bin' })
-    await started.refreshed
-
-    // This launch keeps its terminal's entries...
-    expect(env.PATH).toBe('/opt/homebrew/bin:/proj/.venv/bin:/usr/bin:/bin')
-    // ...but the next Dock launch, and every Host that reads the cache, does not get them.
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
-      '/opt/homebrew/bin:/usr/bin:/bin',
-    )
-  })
-
-  it('keeps a launch PATH entry in the cache when the last cached result had it', async () => {
-    fileShellEnvironmentCache(cacheFile).write(
-      KEY,
-      { environment: { PATH: '/opt/homebrew/bin:/usr/bin:/bin' } },
-      NOW - 1_000,
-    )
-    const shell = inheritingLoginShell('/Users/test/.local/bin')
-    const { started } = launch(shell.runCommand, {
-      PATH: '/proj/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin',
-    })
-    await started.refreshed
-
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
-      '/Users/test/.local/bin:/opt/homebrew/bin:/usr/bin:/bin',
-    )
-  })
-
-  it('marks a refresh that found nothing, keeping the last good result', async () => {
-    fileShellEnvironmentCache(cacheFile).write(
-      KEY,
-      { environment: { PATH: '/opt/homebrew/bin' } },
-      NOW - 1_000,
-    )
-    const { started } = launch(vi.fn(async () => ''))
-    await started.refreshed
-
-    const cache = fileShellEnvironmentCache(cacheFile)
-    expect(cache.refreshFailedAt(KEY)).toBe(NOW)
-    expect(cache.read(KEY, NOW)?.environment.PATH).toBe('/opt/homebrew/bin')
-    // A later refresh that succeeds clears the mark.
-    cache.write(KEY, { environment: { PATH: '/usr/bin' } }, NOW)
-    expect(cache.refreshFailedAt(KEY)).toBeNull()
-  })
 })
 
 describe('a Session Host launched by the desktop app', () => {
@@ -370,41 +302,5 @@ describe('a Session Host launched by the desktop app', () => {
     expect(env.PATH).toBe('/terminal/venv/bin:/usr/bin:/bin')
     // A Host's environment can be a terminal's; it never becomes every launch's.
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe('/old/bin')
-  })
-
-  it("probes at once when the app's refresh found nothing, without waiting out the timeout", async () => {
-    const probedAt: number[] = []
-    let clock = NOW
-    const runCommand = vi.fn(async (input: ShellEnvironmentCommand) => {
-      if (input.probe !== 'login-shell') return ''
-      probedAt.push(clock - NOW)
-      return captured('PATH', '/probed/bin')
-    })
-    const env: Record<string, string | undefined> = {
-      PATH: '/usr/bin:/bin',
-      SHELL: '/bin/zsh',
-      HOME: '/Users/test',
-      LANG: 'en_US.UTF-8',
-    }
-    // No cache at all: a fresh install, so `ready` waits for the refresh.
-    const started = startDesktopShellEnvironment({
-      env,
-      platform: 'darwin',
-      runCommand,
-      cache: fileShellEnvironmentCache(cacheFile),
-      writeCache: false,
-      refreshedElsewhere: { since: SINCE, timeoutMs: 12_000 },
-      now: () => clock,
-      sleep: async (milliseconds) => {
-        clock += milliseconds
-        // The app's own login shell times out after 5 s and finds nothing.
-        if (clock - NOW === 5_000)
-          fileShellEnvironmentCache(cacheFile).markRefreshFailed(KEY, clock)
-      },
-    })
-    await started.ready
-
-    expect(probedAt).toEqual([5_000])
-    expect(env.PATH).toBe('/probed/bin:/usr/bin:/bin')
   })
 })
