@@ -15,6 +15,7 @@ import {
   MCP_MAX_MESSAGE_BYTES,
   McpSdkTransportAdapter,
   type McpUpstream,
+  mcpStartupWaitMs,
 } from '../../mcp/pool/mcp-connection-pool-api'
 import { createLogger } from '../../../logger'
 import { hostPackageRunnerBypass } from '../../mcp/runtime/host-package-runner-bypass'
@@ -237,8 +238,9 @@ export function openPiMcpUpstream(input: OpenPiMcpUpstreamInput): McpUpstream {
 
 /**
  * `openPiMcpUpstream` for a Session's connection: before a stdio server's spawn through a package
- * runner, its bin is resolved first (one probe per package for the whole Host, waiting at most
- * `MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS`), so even the first spawn skips the runner (D1.2). The
+ * runner, its bin is resolved first (one probe per package for the whole Host, waiting a third of
+ * the server's timeout, at most `MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS`), so even the first spawn
+ * skips the runner (D1.2). The
  * server's values are resolved once for both (review R5 P2-1): a `!command` value can be slow,
  * prompt, or mint a token.
  */
@@ -250,7 +252,8 @@ export async function openPreparedPiMcpUpstream(
   try {
     await hostPackageRunnerBypass().prepare(
       launch,
-      input.prepareWaitMs ?? MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS,
+      input.prepareWaitMs ??
+        mcpStartupWaitMs(input.entry.config.timeout, MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS),
     )
   } catch (error) {
     // The spawn below runs the command as configured and reports what is wrong with it.

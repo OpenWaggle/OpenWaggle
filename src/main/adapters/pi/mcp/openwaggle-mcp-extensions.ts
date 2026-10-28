@@ -19,9 +19,11 @@ import {
   resolveMcpVaultSecret,
 } from '../../mcp/encrypted-mcp-secret-vault-service'
 import {
+  MCP_CATALOG_FILL_WAIT_MS,
   type McpConnectionPool,
   mcpConnectionFingerprint,
   mcpServerIdentity,
+  mcpStartupWaitMs,
 } from '../../mcp/pool/mcp-connection-pool-api'
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
@@ -195,6 +197,9 @@ export function openWaggleMcpTransport(
       // The last tools are declared at once, and a stdio server starts on first use (D1.3).
       catalogKey: mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
       lazyStart: transport === 'stdio',
+      // The fill wait (and the runner probe, `openPreparedPiMcpUpstream`) take at most a third of
+      // the server's timeout each.
+      catalogFillWaitMs: mcpStartupWaitMs(entry.config.timeout, MCP_CATALOG_FILL_WAIT_MS),
       // A server that was off when the Run started reads its vault secrets only now.
       open: async () => {
         const resolved = {

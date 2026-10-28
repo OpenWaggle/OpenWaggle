@@ -242,8 +242,25 @@ export class McpConnectionCatalog {
   }
 }
 
-/** How long a Session waits for another Session's server to fill a missing catalog. */
+/** How long a Session waits for another Session's server to fill a missing catalog, at most. */
 export const MCP_CATALOG_FILL_WAIT_MS = 30_000
+
+/** Pi's per-request timeout of an MCP server without `timeout`, in seconds. */
+const PI_DEFAULT_REQUEST_TIMEOUT_SECONDS = 60
+const MS_PER_SECOND = 1_000
+/** Each wait before a server's own start may take this share of its request timeout. */
+const STARTUP_WAIT_SHARE = 3
+
+/**
+ * How long one step before a server answers may wait (a cold wave's catalog fill, the package
+ * runner's probe): a third of Pi's request timeout for the server (`timeout`, 60 s by default),
+ * at most `cap`, so the waits and the server's own start fit in the `initialize` or `tools/call`
+ * that waits for them (review R5 P3-5).
+ */
+export function mcpStartupWaitMs(timeoutSeconds: number | undefined, cap: number) {
+  const timeoutMs = (timeoutSeconds ?? PI_DEFAULT_REQUEST_TIMEOUT_SECONDS) * MS_PER_SECOND
+  return Math.max(0, Math.min(cap, Math.floor(timeoutMs / STARTUP_WAIT_SHARE)))
+}
 
 /**
  * Catalogs being filled, one per catalog key (cold wave). When several Sessions start a server
@@ -256,9 +273,12 @@ export class McpCatalogFills {
   private readonly fills = new Map<string, Promise<void>>()
 
   /** The fill to wait for, or none when this caller fills it: `done` ends its fill. */
-  join(key: string): { readonly fill: Promise<void> } | { readonly done: () => void } {
+  join(
+    key: string,
+    waitMs: number = MCP_CATALOG_FILL_WAIT_MS,
+  ): { readonly fill: Promise<void> } | { readonly done: () => void } {
     const fill = this.fills.get(key)
-    if (fill) return { fill }
+    if (fill) return { fill: waitAtMost(fill, waitMs) }
     const { promise, resolve } = Promise.withResolvers<void>()
     const timer = setTimeout(resolve, MCP_CATALOG_FILL_WAIT_MS)
     timer.unref()
@@ -271,6 +291,18 @@ export class McpCatalogFills {
   }
 }
 
+/** `fill`, or nothing once `waitMs` passed: a waiter's own budget, whatever the filler's is. */
+function waitAtMost(fill: Promise<void>, waitMs: number) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, waitMs)
+    timer.unref()
+    void fill.then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 /**
  * The catalog options of a pooled server's connection, when the pool keeps catalogs: the
  * catalog records every `tools/list` result the connection sees, alongside the other observers.
@@ -278,14 +310,21 @@ export class McpCatalogFills {
  */
 export function mcpConnectionCatalogOptions(
   store: McpToolCatalogStore | undefined,
-  spec: { readonly catalogKey?: string; readonly lazyStart?: boolean },
+  spec: {
+    readonly catalogKey?: string
+    readonly lazyStart?: boolean
+    readonly catalogFillWaitMs?: number
+  },
   observeResult: McpPooledConnectionOptions['observeResult'],
   fills?: McpCatalogFills,
 ) {
   if (!store || spec.catalogKey === undefined) return observeResult ? { observeResult } : {}
   const catalog = new McpConnectionCatalog(store, spec.catalogKey)
   const lazyStart = spec.lazyStart === true
-  const joined = lazyStart && fills && !catalog.canServe ? fills.join(spec.catalogKey) : undefined
+  const joined =
+    lazyStart && fills && !catalog.canServe
+      ? fills.join(spec.catalogKey, spec.catalogFillWaitMs)
+      : undefined
   if (joined && 'done' in joined) catalog.filled = joined.done
   return {
     catalog,

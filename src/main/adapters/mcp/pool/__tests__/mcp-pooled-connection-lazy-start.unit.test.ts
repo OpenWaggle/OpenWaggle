@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MCP_CATALOG_FILL_WAIT_MS,
   MCP_TOOL_CATALOG_MAX_AGE_MS,
+  McpCatalogFills,
   type McpToolCatalog,
+  mcpStartupWaitMs,
   memoryMcpToolCatalogStore,
 } from '../mcp-connection-catalog'
 import { McpSessionConnectionPool } from '../mcp-session-connection-pool'
@@ -235,5 +238,24 @@ describe('a lazy start OpenWaggle interrupts (review R5 P3-1)', () => {
     await flush()
 
     expect(store.read('browser-key')).toBeDefined()
+  })
+})
+
+describe('waits before a server answers fit its request timeout (review R5 P3-5)', () => {
+  it('takes a third of the server timeout, at most the cap', () => {
+    expect(mcpStartupWaitMs(undefined, MCP_CATALOG_FILL_WAIT_MS)).toBe(20_000)
+    expect(mcpStartupWaitMs(10, MCP_CATALOG_FILL_WAIT_MS)).toBe(3_333)
+    expect(mcpStartupWaitMs(600, MCP_CATALOG_FILL_WAIT_MS)).toBe(MCP_CATALOG_FILL_WAIT_MS)
+  })
+
+  it('lets a waiting Session stop waiting for another Session’s fill after its own budget', async () => {
+    const fills = new McpCatalogFills()
+    const filler = fills.join('key')
+    const waiter = fills.join('key', 20)
+    if (!('fill' in waiter) || !('done' in filler)) throw new Error('expected one filler')
+    const started = Date.now()
+    await waiter.fill
+    expect(Date.now() - started).toBeLessThan(1_000)
+    filler.done()
   })
 })
