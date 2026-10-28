@@ -44,12 +44,28 @@ function treeNodeFields(node: SessionNode): SessionTreeNode {
   }
 }
 
+/**
+ * The first `limit` code points of `text`: slicing UTF-16 units could end the preview in half of an
+ * emoji, which JSON transport turns into U+FFFD. Reads only as far as the prefix, not the text.
+ */
+function codePointPrefix(text: string, limit: number) {
+  if (text.length <= limit) return text
+  let end = 0
+  let count = 0
+  for (const character of text) {
+    if (count === limit) break
+    end += character.length
+    count += 1
+  }
+  return text.slice(0, end)
+}
+
 function messagePreview(node: SessionNode) {
   if (!node.message) return {}
   const text = getMessageText(node.message).trimStart()
   return {
     hasMessage: true,
-    ...(text ? { preview: text.slice(0, SESSION_TREE_PREVIEW_CHARACTERS) } : {}),
+    ...(text ? { preview: codePointPrefix(text, SESSION_TREE_PREVIEW_CHARACTERS) } : {}),
   }
 }
 
