@@ -1,9 +1,19 @@
 import type { SessionTree } from '@shared/types/session'
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('session-tree-text-search')
 
 /** Typing pauses this long before the Host searches the Session's text. */
 const SEARCH_DEBOUNCE_MS = 200
+
+/** What a failed search may say about itself: never its message, which can hold the query. */
+function searchFailureContext(error: unknown) {
+  if (!(error instanceof Error)) return { errorType: typeof error }
+  const code: unknown = Reflect.get(error, 'code')
+  return { errorName: error.name, ...(typeof code === 'string' ? { code } : {}) }
+}
 
 interface TreeSearchResult {
   readonly key: string
@@ -35,8 +45,13 @@ export function useSessionTreeTextSearch(
         .then((ids) => {
           if (!cancelled) setResult({ key, nodeIds: new Set(ids.map(String)) })
         })
-        .catch(() => {
-          // The window still matches the start of each message it holds.
+        .catch((error: unknown) => {
+          // The window still matches the start of each message it holds; full-text matches are
+          // missing, so say so rather than show fewer matches silently.
+          logger.warn('Session tree text search failed', {
+            sessionId,
+            ...searchFailureContext(error),
+          })
           if (!cancelled) setResult({ key, nodeIds: new Set() })
         })
     }, SEARCH_DEBOUNCE_MS)
