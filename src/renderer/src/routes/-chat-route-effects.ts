@@ -1,6 +1,6 @@
 import { RepositoryPath, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
@@ -30,6 +30,91 @@ function useRouteWorkspace(
   }, [showSessionWorkspace, branchId, nodeId, sessionId])
 }
 
+interface StoreFollowsRouteInput {
+  readonly activeSessionId: SessionId | null
+  readonly diffOpen: boolean
+  readonly hasActiveSession: boolean
+  readonly hasDraftSession: boolean
+  readonly navigate: ReturnType<typeof useNavigate>
+  readonly routeSessionId: SessionId | null
+  readonly routeSessionMissing: boolean
+  readonly setActiveSession: (sessionId: SessionId | null) => void
+}
+
+/** Keeps the chat store's Session and the routed one together, redirecting where the route has none. */
+function useStoreFollowsRoute({
+  activeSessionId,
+  diffOpen,
+  hasActiveSession,
+  hasDraftSession,
+  navigate,
+  routeSessionId,
+  routeSessionMissing,
+  setActiveSession,
+}: StoreFollowsRouteInput) {
+  /** The route Session this effect last followed; `undefined` before the first run. */
+  const followedRouteSessionId = useRef<SessionId | null | undefined>(undefined)
+  /** The store's Session when this effect last ran; `undefined` before the first run. */
+  const seenActiveSessionId = useRef<SessionId | null | undefined>(undefined)
+  const routerStatus = useRouterState({ select: (state) => state.status })
+  const seenRouterStatus = useRef(routerStatus)
+
+  useEffect(() => {
+    const routeChanged = followedRouteSessionId.current !== routeSessionId
+    followedRouteSessionId.current = routeSessionId
+    const storeMoved = seenActiveSessionId.current !== activeSessionId
+    seenActiveSessionId.current = activeSessionId
+    // A navigation settled with the store still elsewhere: the one the store's selection started
+    // was blocked, failed or never came, so the route stands.
+    const navigationSettled =
+      seenRouterStatus.current !== 'idle' && routerStatus === 'idle' && !storeMoved
+    seenRouterStatus.current = routerStatus
+    if (routeSessionId === null) {
+      if (!hasDraftSession && activeSessionId !== null && hasActiveSession) {
+        void navigate({
+          to: '/sessions/$sessionId',
+          params: { sessionId: String(activeSessionId) },
+          replace: true,
+          search: diffOpen ? { diff: 1 } : {},
+        })
+      }
+      return
+    }
+
+    if (hasDraftSession) {
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
+    if (routeSessionMissing) {
+      setActiveSession(null)
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
+    // The store follows the route when the route moves. A Session selected in the store first
+    // (the sidebar sets it, then navigates) is not switched back while its navigation lands:
+    // that read the Session being left again, its detail, workspace and context usage. Once a
+    // navigation settles and the route still names another Session, the store follows the route.
+    if (
+      activeSessionId !== routeSessionId &&
+      (routeChanged || activeSessionId === null || navigationSettled)
+    ) {
+      setActiveSession(routeSessionId)
+    }
+  }, [
+    activeSessionId,
+    diffOpen,
+    hasActiveSession,
+    hasDraftSession,
+    navigate,
+    routeSessionId,
+    routeSessionMissing,
+    routerStatus,
+    setActiveSession,
+  ])
+}
+
 export function useChatRouteEffects({
   branchId,
   diffOpen,
@@ -56,42 +141,7 @@ export function useChatRouteEffects({
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
   const hasActiveSession = activeSession !== null
   const hasDraftSession = draftSession !== null
-  /** The route Session this effect last followed; `undefined` before the first run. */
-  const followedRouteSessionId = useRef<SessionId | null | undefined>(undefined)
-
-  useEffect(() => {
-    const routeChanged = followedRouteSessionId.current !== routeSessionId
-    followedRouteSessionId.current = routeSessionId
-    if (routeSessionId === null) {
-      if (!hasDraftSession && activeSessionId !== null && hasActiveSession) {
-        void navigate({
-          to: '/sessions/$sessionId',
-          params: { sessionId: String(activeSessionId) },
-          replace: true,
-          search: diffOpen ? { diff: 1 } : {},
-        })
-      }
-      return
-    }
-
-    if (hasDraftSession) {
-      void navigate({ to: '/', replace: true })
-      return
-    }
-
-    if (routeSessionMissing) {
-      setActiveSession(null)
-      void navigate({ to: '/', replace: true })
-      return
-    }
-
-    // The store follows the route when the route moves. A Session selected in the store first
-    // (the sidebar sets it, then navigates) is not switched back while its navigation lands:
-    // that read the Session being left again, its detail, workspace and context usage.
-    if (activeSessionId !== routeSessionId && (routeChanged || activeSessionId === null)) {
-      setActiveSession(routeSessionId)
-    }
-  }, [
+  useStoreFollowsRoute({
     activeSessionId,
     diffOpen,
     hasActiveSession,
@@ -100,7 +150,7 @@ export function useChatRouteEffects({
     routeSessionId,
     routeSessionMissing,
     setActiveSession,
-  ])
+  })
 
   const visitedSessionId = !hasDraftSession && !routeSessionMissing ? routeSessionId : null
   useEffect(() => {
