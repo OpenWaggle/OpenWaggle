@@ -1,7 +1,10 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { configureGuiSessionCommandClient } from '../application/gui-session-command-router'
 import { createLogger } from '../logger'
-import { prepareGuiSessionHostStartup } from './gui-session-host-startup'
+import {
+  moveLegacySessionStoreIfNeeded,
+  prepareGuiSessionHostStartup,
+} from './gui-session-host-startup'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
 import {
@@ -97,6 +100,20 @@ export async function prepareGuiSessionHostLifecycle(input: {
   const remoteClient = guiRemoteClient(paths, input.clientVersion)
   let stopRendererBridge: (() => void | Promise<void>) | null = null
   let stopping = false
+  /** The boot shim's Host, once taken; while it lives, it creates or moves the store itself. */
+  let claimedPrelaunch: SessionHostPrelaunch | null = null
+  let storeLeftToPrelaunchedHost = hostPrelaunched
+
+  /**
+   * Before this process launches a Host itself: a prelaunched Host that ended (it failed to start,
+   * or the profile was another Host's) left the store to move, which only this process may do.
+   */
+  const moveStoreUnlessPrelaunchedHostLives = async () => {
+    if (!storeLeftToPrelaunchedHost) return
+    if (claimedPrelaunch && !claimedPrelaunch.hasEnded()) return
+    await moveLegacySessionStoreIfNeeded({ paths, startupMark: input.startupMark })
+    storeLeftToPrelaunchedHost = false
+  }
 
   const attachToExistingHost = async (signal?: AbortSignal) => {
     const stopBridge = await attachToRemoteSessionHost({
@@ -116,6 +133,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
   const attachToPrelaunchedHost = async (signal?: AbortSignal) => {
     const prelaunch = takePrelaunchedHost(input.userDataRoot)
     if (!prelaunch) return false
+    claimedPrelaunch = prelaunch
     input.startupMark('session-host-prelaunch-adopted')
     input.onHostUnderway?.()
     const waitForPrelaunchedHost =
@@ -138,6 +156,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
       if (stopRendererBridge) return
       if (!(await attachToExistingHost(signal)) && !(await attachToPrelaunchedHost(signal))) {
         if (stopping) throw new Error('GUI Session Host startup was stopped.')
+        signal?.throwIfAborted()
+        await moveStoreUnlessPrelaunchedHostLives()
         signal?.throwIfAborted()
         await ensureLocalSessionHost({
           ...remoteClient,

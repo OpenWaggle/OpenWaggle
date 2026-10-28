@@ -1,5 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -28,7 +30,7 @@ function decide(overrides: Partial<SessionHostPrelaunchDecisionInput> = {}) {
     userDataRoot: PROFILE,
     temporaryRoot: () => TEMPORARY_ROOT,
     pathExists: () => false,
-    fileHasContent: () => false,
+    legacyStorePresent: () => false,
     ...overrides,
   })
 }
@@ -68,14 +70,16 @@ describe('sessionHostPrelaunchDecision', () => {
   })
 
   it('leaves a legacy store to the GUI, which moves it under its single-instance lock', () => {
-    const fileHasContent = (target: string) => target === LEGACY_DATABASE
+    const legacyStorePresent = (target: string) => target === LEGACY_DATABASE
 
-    expect(decide({ fileHasContent })).toEqual({ kind: 'skip', reason: 'legacy-store-to-move' })
-    // Already moved, or empty (#357): nothing for the GUI to move first.
-    expect(decide({ fileHasContent, pathExists: (target) => target === TARGET_DATABASE })).toEqual({
+    expect(decide({ legacyStorePresent })).toEqual({ kind: 'skip', reason: 'legacy-store-to-move' })
+    // Already moved, or nothing in it (#357): nothing for the GUI to move first.
+    expect(
+      decide({ legacyStorePresent, pathExists: (target) => target === TARGET_DATABASE }),
+    ).toEqual({
       kind: 'launch',
     })
-    expect(decide({ fileHasContent: () => false })).toEqual({ kind: 'launch' })
+    expect(decide({ legacyStorePresent: () => false })).toEqual({ kind: 'launch' })
   })
 })
 
@@ -116,7 +120,7 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
     homeDirectory: '/Users/person',
     temporaryDirectory: () => '/agent/scratch',
     pathExists: () => false,
-    fileHasContent: () => false,
+    legacyStorePresent: () => false,
     spawn,
     record,
     ...overrides,
@@ -125,6 +129,31 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
 }
 
 describe('startSessionHostPrelaunch', () => {
+  it('leaves an empty legacy database whose WAL holds frames to the GUI, as the Host would', async () => {
+    const profile = await mkdtemp(path.join(tmpdir(), 'ow-prelaunch-'))
+    try {
+      await writeFile(path.join(profile, 'openwaggle.db'), '')
+      await writeFile(path.join(profile, 'openwaggle.db-wal'), 'wal frames')
+      const { input, spawn } = prelaunchInput({
+        app: { ...prelaunchInput().input.app, getPath: () => profile },
+        temporaryDirectory: () => profile,
+      })
+      const { pathExists: _pathExists, legacyStorePresent: _legacyStorePresent, ...real } = input
+
+      expect(startSessionHostPrelaunch(real)).toEqual({
+        kind: 'skip',
+        reason: 'legacy-store-to-move',
+      })
+      expect(spawn).not.toHaveBeenCalled()
+
+      // With no WAL frames it holds nothing, and the Host is launched.
+      await writeFile(path.join(profile, 'openwaggle.db-wal'), '')
+      expect(startSessionHostPrelaunch(real)).toEqual({ kind: 'launch' })
+    } finally {
+      await rm(profile, { recursive: true, force: true })
+    }
+  })
+
   it("launches the Host as the GUI would, with the Host's environment, and records it", () => {
     const { input, spawn, record } = prelaunchInput()
 

@@ -16,10 +16,11 @@
  * launch before the compile cache exists.
  */
 import type { ChildProcess } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { type DetachedProcessLaunch, spawnDetachedProcess } from '../detached-process'
 import { buildNpmCompatiblePath } from '../environment-paths'
+import { legacyDatabaseFileStateSync } from '../session-host/legacy-database-file'
 import {
   legacySessionDatabasePath,
   sessionHostDatabasePath,
@@ -56,8 +57,11 @@ export interface SessionHostPrelaunchDecisionInput {
   /** The Host temp directory, where a profile whose socket path is too long has its socket. */
   readonly temporaryRoot: () => string
   readonly pathExists: (target: string) => boolean
-  /** Whether a file exists and is not empty: an empty legacy database holds nothing (#357). */
-  readonly fileHasContent: (target: string) => boolean
+  /**
+   * Whether a legacy database holds a store to move, judged as the Host's cutover judges it
+   * (`legacyDatabaseFileState`): an empty file holds nothing (#357), unless its `-wal` has frames.
+   */
+  readonly legacyStorePresent: (databasePath: string) => boolean
 }
 
 function skip(reason: SessionHostPrelaunchSkipReason): SessionHostPrelaunchDecision {
@@ -77,7 +81,7 @@ export function sessionHostPrelaunchDecision(
   // The GUI moves a legacy store under its single-instance lock before any Host starts.
   if (
     !input.pathExists(sessionHostDatabasePath(input.userDataRoot)) &&
-    input.fileHasContent(legacySessionDatabasePath(input.userDataRoot))
+    input.legacyStorePresent(legacySessionDatabasePath(input.userDataRoot))
   ) {
     return skip('legacy-store-to-move')
   }
@@ -101,7 +105,7 @@ export interface SessionHostPrelaunchInput {
   readonly homeDirectory: string
   readonly temporaryDirectory: () => string
   readonly pathExists?: (target: string) => boolean
-  readonly fileHasContent?: (target: string) => boolean
+  readonly legacyStorePresent?: (databasePath: string) => boolean
   readonly spawn?: (launch: DetachedProcessLaunch) => ChildProcess
   readonly record?: (prelaunch: SessionHostPrelaunch) => void
 }
@@ -113,12 +117,9 @@ function isLogLevel(value: string | undefined): value is SessionHostLogLevel {
   return value !== undefined && LOG_LEVELS.has(value)
 }
 
-function fileHasContent(target: string) {
-  try {
-    return statSync(target).size > 0
-  } catch {
-    return false
-  }
+function legacyStorePresent(databasePath: string) {
+  // An unreadable file throws, and the start then leaves the Host to the GUI's usual path.
+  return legacyDatabaseFileStateSync(databasePath) === 'present'
 }
 
 /**
@@ -177,7 +178,7 @@ export function startSessionHostPrelaunch(
       // The Host temp directory (`hostTemporaryDirectory`), which the main bundle reads the same way.
       temporaryRoot: () => input.environment.OPENWAGGLE_HOST_TMPDIR || input.temporaryDirectory(),
       pathExists: input.pathExists ?? existsSync,
-      fileHasContent: input.fileHasContent ?? fileHasContent,
+      legacyStorePresent: input.legacyStorePresent ?? legacyStorePresent,
     })
     if (decision.kind !== 'launch') return decision
     const command = sessionHostLaunchCommandFor({
