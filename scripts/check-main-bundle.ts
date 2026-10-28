@@ -23,6 +23,20 @@ async function fileBytes(file: string) {
   return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size
 }
 
+/**
+ * Every main chunk has its hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
+ */
+async function missingSourceMaps(files: readonly string[]) {
+  const missing: string[] = []
+  for (const file of files) {
+    const map = path.join(MAIN_OUT_DIRECTORY, `${file}.map`)
+    const exists = await fs.stat(map).then(() => true, () => false)
+    if (!exists) missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+  }
+  return missing
+}
+
 async function topLevelRequireFailures(files: readonly string[]) {
   const failures: string[] = []
   for (const file of files) {
@@ -46,6 +60,7 @@ async function main() {
     MAIN_BOOT_FILE,
     ...manifest.map((entry) => entry.file),
   ])
+  failures.push(...(await missingSourceMaps(manifest.map((entry) => entry.file))))
   const bootBytes = await fileBytes(MAIN_BOOT_FILE)
   if (bootBytes > MAX_MAIN_BOOT_BYTES) {
     failures.push(`out/main/${MAIN_BOOT_FILE} is ${String(bootBytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`)

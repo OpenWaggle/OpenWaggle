@@ -36,6 +36,11 @@ const PRUNED_ASAR_ENTRY_RULES: readonly AsarEntryRule[] = [
     matches: (entry) => /\/node_modules\/tesseract\.js-core\/[^/]+\.wasm\.js$/u.test(entry),
   },
   {
+    // The minified bundles' hidden source maps are release artifacts, never app files.
+    label: 'source maps',
+    matches: (entry) => /^\/out\/.+\.map$/u.test(entry),
+  },
+  {
     label: 'renderer-only packages',
     matches: (entry) =>
       /\/node_modules\/(?:shiki|@shikijs|@pierre\/diffs|lexical|@lexical|@lobehub|@headless-tree|@tanstack\/react-router|@modelcontextprotocol\/ext-apps)(?:\/|$)/u.test(

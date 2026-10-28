@@ -107,6 +107,9 @@ export default defineConfig({
       // (A-F6). Function and class names stay (`keepNames`) for logs and libraries that read them;
       // error reports scrub them anyway (src/shared/error-reporting).
       minify: true,
+      // Minified stack traces are `index.js:1:<column>`. Hidden maps (no sourceMappingURL) stay out
+      // of the app (electron-builder.ts) and are kept as release artifacts, to map field reports.
+      sourcemap: 'hidden',
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
@@ -152,6 +155,8 @@ export default defineConfig({
       // are unaffected: OpenWaggle's error classes set `name` explicitly.
       minify: true,
       cssMinify: true,
+      // See the main build: hidden maps, never packaged, kept with each release.
+      sourcemap: 'hidden',
       // The chunk graph scripts/check-syntax-bundle.ts budgets. Not packaged (electron-builder.ts).
       manifest: true,
     },
