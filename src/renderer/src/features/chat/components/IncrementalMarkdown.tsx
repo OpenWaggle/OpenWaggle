@@ -10,6 +10,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
+import { remarkStreamingListTail } from '@/features/chat/lib/streaming-list-tail'
 import {
   type StreamingMarkdownTail,
   splitStreamingMarkdown,
@@ -33,8 +34,11 @@ const blockProcessor = unified()
   .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 
 const REMARK_PLUGINS = [remarkGfm, remarkSessionLinks]
-/** A streaming block may hold half a Session link; it is linked once the block completes. */
-const STREAMING_REMARK_PLUGINS = [remarkGfm]
+/**
+ * A streaming block may hold half a Session link; it is linked once the block completes. The
+ * live tail parses a streaming list's finished items once (`remarkStreamingListTail`).
+ */
+const LIVE_TAIL_REMARK_PLUGINS = [remarkGfm, remarkStreamingListTail]
 
 interface IncrementalMarkdownProps {
   text: string
@@ -169,7 +173,7 @@ function LiveTail({
   if (tail.kind === 'open-fence') return <OpenFenceTail language={tail.language} code={tail.code} />
   return (
     <ReactMarkdown
-      remarkPlugins={STREAMING_REMARK_PLUGINS}
+      remarkPlugins={LIVE_TAIL_REMARK_PLUGINS}
       rehypePlugins={rehypePlugins}
       urlTransform={safeMarkdownUrlTransform}
       components={streamingTailMarkdownComponents}
