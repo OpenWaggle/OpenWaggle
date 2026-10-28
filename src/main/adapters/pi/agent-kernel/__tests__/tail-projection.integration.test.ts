@@ -152,6 +152,25 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     expect(await readRows(sessionId)).toEqual(afterKept)
   })
 
+  it('saves the change of a kept node a later step copied and changed, keeping its id', async () => {
+    const { manager, session, sessionId, firstAnswer, file } = await projectedSession()
+    prompt(manager, 'fourth question')
+    const base = await readRunProjectionBase(session, file)
+    const kept = projectPiSessionSnapshot({ sessionManager: manager }, undefined, base)
+    expect(retainedSnapshotNodeIds(kept.nodes, base?.revision ?? -1).has(firstAnswer)).toBe(true)
+
+    // As inline-visualization ownership does: a copy with new metadata under the same id.
+    const owned = '{"visualizationSessionId":"owner-session"}'
+    const nodes = kept.nodes.map((node) =>
+      node.id === firstAnswer ? { ...node, metadataJson: owned } : node,
+    )
+    expect(retainedSnapshotNodeIds(nodes, base?.revision ?? -1).has(firstAnswer)).toBe(false)
+    await persist(sessionId, manager, { ...kept, nodes })
+
+    const rows = await readRows(sessionId)
+    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(owned)
+  })
+
   it('keeps the tree up to date for kept entries when a branch is added', async () => {
     const { manager, session, sessionId, firstAnswer, file } = await projectedSession()
     manager.branch(firstAnswer)
