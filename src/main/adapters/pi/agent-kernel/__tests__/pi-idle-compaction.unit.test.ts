@@ -48,14 +48,26 @@ const COMPACTION = fromPartial<PrecomputedCompaction>({
   anchorEntryId: 'entry-3',
 })
 
-function idlePiSession(sentAt: number, promptTokens: number) {
+const OPUS = { provider: 'amazon-bedrock', id: 'eu.anthropic.claude-opus-5-5' }
+
+interface IdlePiSessionOptions {
+  readonly ttlMs?: number
+  readonly compactionEnabled?: boolean
+  readonly model?: Record<string, unknown>
+}
+
+function idlePiSession(sentAt: number, promptTokens: number, options: IdlePiSessionOptions = {}) {
   return fromPartial<AgentSession>({
     cacheWarmingStatus: { state: 'inactive', reason: 'agent run settled' },
     idleCompactionCandidate: {
       sentAt,
-      ttlMs: TTL_MS,
+      ttlMs: options.ttlMs ?? TTL_MS,
       promptTokens,
-      model: { provider: 'amazon-bedrock', id: 'eu.anthropic.claude-opus-5-5' },
+      model: OPUS,
+    },
+    model: { ...OPUS, api: 'bedrock-converse-stream', ...options.model },
+    settingsManager: {
+      getCompactionSettings: () => ({ enabled: options.compactionEnabled ?? true }),
     },
     precomputeIdleCompaction: vi.fn(async () => COMPACTION),
     extensionRunner: { emit: vi.fn(async () => undefined) },
@@ -159,5 +171,36 @@ describe('idle compaction', () => {
     await time.advance(TTL_MS)
 
     expect(warming.takeIdleCompaction('session-a')).toBeUndefined()
+  })
+
+  it('keeps no Pi session for a handoff due after the Host would end it (one-hour cache)', async () => {
+    const time = manualClock()
+    const warming = createIdleCacheWarming({ clock: time.clock })
+    const session = idlePiSession(time.now, 250_000, { ttlMs: 3_600_000 })
+
+    await expect(warming.settle('session-a', session, { aborted: false })).resolves.toBe('disposed')
+    expect(session.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('keeps no Pi session when compaction is off for the model', async () => {
+    const time = manualClock()
+    const warming = createIdleCacheWarming({ clock: time.clock })
+    const session = idlePiSession(time.now, 250_000, { compactionEnabled: false })
+
+    await expect(warming.settle('session-a', session, { aborted: false })).resolves.toBe('disposed')
+  })
+
+  it('keeps no Pi session for a model that compacts Natively, or the Session left', async () => {
+    const time = manualClock()
+    const warming = createIdleCacheWarming({ clock: time.clock })
+    const native = idlePiSession(time.now, 250_000, {
+      model: { api: 'openai-responses', compat: { supportsCompaction: true } },
+    })
+    const switched = idlePiSession(time.now, 250_000, { model: { id: 'another-model' } })
+
+    await expect(warming.settle('session-a', native, { aborted: false })).resolves.toBe('disposed')
+    await expect(warming.settle('session-b', switched, { aborted: false })).resolves.toBe(
+      'disposed',
+    )
   })
 })
