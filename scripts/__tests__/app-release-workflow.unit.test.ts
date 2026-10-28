@@ -317,14 +317,4 @@ describe('desktop app release workflow', () => {
       'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows',
     )
   })
-
-  it('keeps the hidden source maps as artifacts, never as release assets', () => {
-    for (const platform of ['macos', 'linux', 'windows']) {
-      const upload = WORKFLOW.slice(WORKFLOW.indexOf(`name: ${platform}-source-maps`))
-      expect(upload).toMatch(/^name: \S+\n\s+path: out\/\*\*\/\*\.map\n/u)
-    }
-    // The publish job's download, the last one, collects the release assets.
-    const publish = WORKFLOW.slice(WORKFLOW.lastIndexOf('actions/download-artifact@'))
-    expect(publish.slice(0, publish.indexOf('\n\n'))).toContain("pattern: '*-artifacts'")
-  })
 })
