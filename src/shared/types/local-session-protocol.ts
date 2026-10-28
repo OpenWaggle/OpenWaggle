@@ -29,6 +29,8 @@ export type LocalSessionCommandPayload =
         readonly entries: readonly {
           readonly path: string
           readonly origin?: AttachmentOrigin
+          /** The attachment's display name; the file's name when absent. */
+          readonly name?: string
           readonly browserPreview?: PreparedAttachment['browserPreview']
           readonly browserAnnotationText?: string
         }[]

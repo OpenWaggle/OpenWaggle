@@ -41,7 +41,8 @@ export interface IpcIntegrationInvokeChannelMap
     return: PreparedAttachment[]
   }
   'attachments:prepare-from-text': {
-    args: [text: string, operationId: string]
+    /** `name`: the composer's label, which the Host records instead of the temp file's name. */
+    args: [text: string, operationId: string, name?: string]
     return: PreparedAttachment
   }
   'attachments:discard': {

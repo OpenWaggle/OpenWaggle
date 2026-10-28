@@ -85,7 +85,8 @@ export function useAutoTextAttachment({
     }
 
     const autoAttachment = await trackAttachmentPreparation(
-      prepareAttachmentFromText(trimmedPastedText, operationId).catch(() => null),
+      // Named by the Host, so the sent message's copy shows, and matches, the chip's name.
+      prepareAttachmentFromText(trimmedPastedText, operationId, chipName).catch(() => null),
     )
     if (!isCurrentDraft()) {
       clearPendingChip(operationId)
@@ -98,7 +99,7 @@ export function useAutoTextAttachment({
     }
 
     setAttachmentError(null)
-    addAttachments([{ ...autoAttachment, name: chipName }])
+    addAttachments([autoAttachment])
     setPendingTextAttachmentChips((chips) =>
       chips.map((chip) =>
         chip.operationId === operationId

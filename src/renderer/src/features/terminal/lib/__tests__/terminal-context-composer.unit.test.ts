@@ -29,7 +29,13 @@ describe('appendTerminalContextToComposer', () => {
       lexicalEditor: null,
       cursorIndex: 0,
     })
-    mocks.prepareAttachmentFromText.mockResolvedValue(PREPARED_ATTACHMENT)
+    // The Host names the attachment after the label it is given.
+    mocks.prepareAttachmentFromText.mockImplementation(
+      async (_text: string, _operationId: string, name: string) => ({
+        ...PREPARED_ATTACHMENT,
+        name,
+      }),
+    )
   })
 
   it('preserves the draft and adds explicitly untrusted data as a removable context chip', async () => {
@@ -47,7 +53,11 @@ describe('appendTerminalContextToComposer', () => {
     expect(payload).not.toBeNull()
     expect(useComposerStore.getState().input).toBe('Please diagnose this.')
     expect(payload?.xml).toContain('trust="untrusted"')
-    expect(mocks.prepareAttachmentFromText).toHaveBeenCalledWith(payload?.xml, expect.any(String))
+    expect(mocks.prepareAttachmentFromText).toHaveBeenCalledWith(
+      payload?.xml,
+      expect.any(String),
+      'Terminal · test runner lines 42-44.md',
+    )
     expect(useComposerStore.getState().attachments).toEqual([
       expect.objectContaining({
         id: 'attachment-1',

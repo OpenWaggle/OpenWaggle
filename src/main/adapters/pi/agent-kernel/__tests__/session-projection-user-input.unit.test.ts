@@ -1,4 +1,6 @@
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import { expect, it } from 'vitest'
 import { projectPiSessionSnapshot } from '../session-projection'
 
@@ -130,4 +132,60 @@ it('ignores a malformed Scheduled task record instead of trusting it', () => {
   })
 
   expect(snapshot.nodes[1]?.metadataJson ?? '{}').not.toContain('scheduledTask')
+})
+
+it('keeps the pasted prompt of a projection recorded with its whole text, bounded', () => {
+  // Projections recorded before display parts were bounded hold an auto-paste's whole prompt.
+  const prompt = 'pasted line\n'.repeat(10_000)
+  const attachment = {
+    id: 'attachment-pasted',
+    kind: 'text' as const,
+    origin: 'auto-paste-text' as const,
+    name: 'prompt-1.md',
+    path: '/tmp/prompt-1.md',
+    mimeType: 'text/markdown',
+    sizeBytes: prompt.length,
+    extractedText: prompt,
+  }
+  const timestamp = '2026-05-19T10:00:00.000Z'
+  const entries = [
+    {
+      id: 'display',
+      parentId: null,
+      timestamp,
+      type: 'custom',
+      customType: 'openwaggle-user-input',
+      data: {
+        version: 1,
+        parts: [
+          { type: 'text', text: 'Redesign this' },
+          { type: 'attachment', attachment },
+        ],
+      },
+    },
+    {
+      id: 'prompt',
+      parentId: 'display',
+      timestamp,
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: `Redesign this\n\n[Attachment: prompt-1.md]\n${prompt}` }],
+        timestamp: 1,
+      },
+    },
+  ] satisfies SessionEntry[]
+
+  const snapshot = projectPiSessionSnapshot({
+    sessionManager: { getEntries: () => entries, getLeafId: () => 'prompt' },
+  })
+
+  expect(JSON.parse(snapshot.nodes[1]?.contentJson ?? '{}').parts).toEqual([
+    { type: 'text', text: 'Redesign this' },
+    {
+      type: 'attachment',
+      attachment: { ...attachment, extractedText: boundedAttachmentText(prompt) },
+    },
+  ])
+  expect(boundedAttachmentText(prompt).length).toBe(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)
 })

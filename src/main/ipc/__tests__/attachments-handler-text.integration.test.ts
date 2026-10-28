@@ -1,9 +1,11 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import { agentSendPayloadSchema, preparedAttachmentSchema } from '@shared/schemas/validation'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   broadcastToWindowsMock,
+  dispatchLocalSessionCommandMock,
   files,
   loadAttachmentHandlers,
   openMock,
@@ -63,6 +65,28 @@ describe('attachments:prepare-from-text', () => {
       stage: 'completed',
       progressPercent: 100,
     })
+  })
+
+  it('names the attachment after the label the composer shows, in a request the Host accepts', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-from-text')
+
+    const result = decodeUnknownExactOrThrow(
+      preparedAttachmentSchema,
+      await handler?.({}, 'x'.repeat(50_000), 'operation-named', 'Pasted Text 1.md'),
+    )
+
+    expect(result.name).toBe('Pasted Text 1.md')
+    expect(result.path).toMatch(/prompt-\d+\.md$/)
+    const [dispatched] = dispatchLocalSessionCommandMock.mock.calls.at(-1) ?? []
+    expect(() => decodeLocalSessionCommandPayload(dispatched?.payload)).not.toThrow()
+  })
+
+  it('rejects an empty attachment name', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-from-text')
+
+    await expect(handler?.({}, 'text', 'operation-unnamed', '')).rejects.toThrow()
   })
 
   it('rejects empty text input', async () => {

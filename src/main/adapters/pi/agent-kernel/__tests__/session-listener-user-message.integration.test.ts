@@ -15,6 +15,9 @@ import {
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent, AgentTransportUserMessage } from '@shared/types/stream'
@@ -140,6 +143,42 @@ describe('published user messages against a real Pi session', () => {
       { type: 'text', text: 'Fix the layout' },
       { type: 'text', text: 'Use the other API' },
     ])
+  })
+
+  it('keeps a long pasted prompt as an attachment the transcript and its clients can read', async () => {
+    const { session, faux, model, events } = await createRealPiSession()
+    // The Host resolves an auto-paste to its whole source, longer than any attachment preview.
+    const prompt = `${'pasted line\n'.repeat(10_000)}END OF PASTE`
+    const pasted = {
+      id: 'attachment-pasted',
+      kind: 'text' as const,
+      origin: 'auto-paste-text' as const,
+      name: 'Pasted Text 1.md',
+      path: '/tmp/prompt-1.md',
+      mimeType: 'text/markdown',
+      sizeBytes: prompt.length,
+      extractedText: prompt,
+      source: null,
+    }
+    faux.setResponses([fauxAssistantMessage('answer')])
+
+    await promptPiSession(session, model, { text: 'Redesign this', attachments: [pasted] })
+
+    const [published] = publishedUserMessages(events)
+    if (!published) throw new Error('The prompt was not published')
+    expect(() =>
+      decodeUnknownExactOrThrow(agentTransportUserMessageSchema, published),
+    ).not.toThrow()
+    expect(persistedNode(session, published)).toEqual({ kind: 'user_message', published })
+    const [text, attachment] = published.parts
+    expect(text).toEqual({ type: 'text', text: 'Redesign this' })
+    if (attachment?.type !== 'attachment') throw new Error('The pasted prompt was dropped')
+    expect(attachment.attachment.name).toBe('Pasted Text 1.md')
+    expect(attachment.attachment.extractedText.length).toBeLessThanOrEqual(
+      ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS,
+    )
+    // The model still reads the whole prompt.
+    expect(JSON.stringify(session.messages)).toContain('END OF PASTE')
   })
 
   it('equals the persisted node of a visible Waggle user request appended while idle', async () => {

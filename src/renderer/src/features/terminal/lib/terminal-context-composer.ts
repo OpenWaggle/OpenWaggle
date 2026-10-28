@@ -38,11 +38,15 @@ export async function appendTerminalContextToComposer(
     )
   }
   const draftContextKey = composer.activeDraftContextKey
-  const prepared = await api.prepareAttachmentFromText(payload.xml, crypto.randomUUID())
+  const prepared = await api.prepareAttachmentFromText(
+    payload.xml,
+    crypto.randomUUID(),
+    attachmentName(payload),
+  )
   const currentComposer = useComposerStore.getState()
   if (currentComposer.activeDraftContextKey !== draftContextKey) {
     throw new Error('The active draft changed before terminal context was attached.')
   }
-  currentComposer.addAttachments([{ ...prepared, name: attachmentName(payload) }])
+  currentComposer.addAttachments([prepared])
   return payload
 }

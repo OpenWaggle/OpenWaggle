@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { sessionInputItemTextSchema } from '@shared/schemas/session-input'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
@@ -39,6 +40,7 @@ const prepareArgsSchema = Schema.Struct({
 const prepareFromTextArgsSchema = Schema.Struct({
   text: Schema.String.pipe(Schema.minLength(1)),
   operationId: Schema.String.pipe(Schema.minLength(1)),
+  name: Schema.optional(sessionInputItemTextSchema.pipe(Schema.minLength(1))),
 })
 
 function describeUnknownError(error: unknown) {
@@ -53,7 +55,11 @@ export { hydrateAttachmentSources } from '../utils/attachment-hydration'
 
 function prepareAttachmentsThroughHost(
   baseDirectory: string,
-  entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
+  entries: readonly {
+    readonly path: string
+    readonly origin?: AttachmentOrigin
+    readonly name?: string
+  }[],
 ) {
   return Effect.gen(function* () {
     const result = yield* dispatchGuiSessionCommand({
@@ -93,11 +99,12 @@ function registerPrepareAttachmentHandler() {
 function registerPrepareFromTextAttachmentHandler() {
   typedHandle(
     'attachments:prepare-from-text',
-    (_event, rawText: unknown, rawOperationId: unknown) =>
+    (_event, rawText: unknown, rawOperationId: unknown, rawName?: unknown) =>
       Effect.gen(function* () {
-        const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
+        const { text, operationId, name } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
           text: rawText,
           operationId: rawOperationId,
+          ...(rawName === undefined ? {} : { name: rawName }),
         })
         const sizeBytes = Buffer.byteLength(text, 'utf8')
         if (sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) {
@@ -118,8 +125,9 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
+        // The Host records the composer's label, so the sent message shows the chip's name.
         const attachments = yield* prepareAttachmentsThroughHost(process.cwd(), [
-          { path: filePath, origin: 'auto-paste-text' },
+          { path: filePath, origin: 'auto-paste-text', ...(name === undefined ? {} : { name }) },
         ])
         const attachment = attachments[0]
         if (!attachment) {

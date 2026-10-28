@@ -4,6 +4,7 @@ import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { MessagePart, MessageScheduledTaskOrigin } from '@shared/types/agent'
+import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import {
   buildPersistedUserMessageParts,
   type PersistedUserMessagePartsPayload,
@@ -12,12 +13,21 @@ import { stripAtomicVisualizationContext } from '../pi-runtime-input'
 
 export const OPENWAGGLE_USER_INPUT_CUSTOM_TYPE = 'openwaggle-user-input'
 
+/**
+ * A recorded attachment. Projections written before display parts were bounded hold an auto-paste's
+ * whole prompt as its text, so the text is read at any length and bounded on the way out.
+ */
+const projectedAttachmentSchema = Schema.Struct({
+  ...preparedAttachmentSchema.fields,
+  extractedText: Schema.String,
+})
+
 const userInputProjectionSchema = Schema.Struct({
   version: Schema.Literal(1),
   parts: Schema.Array(
     Schema.Union(
       Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
-      Schema.Struct({ type: Schema.Literal('attachment'), attachment: preparedAttachmentSchema }),
+      Schema.Struct({ type: Schema.Literal('attachment'), attachment: projectedAttachmentSchema }),
     ),
   ),
   durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
@@ -126,9 +136,21 @@ export function enqueueUserInputProjection(
   return pending.cancel
 }
 
+function boundedPart(part: MessagePart): MessagePart {
+  return part.type === 'attachment'
+    ? {
+        ...part,
+        attachment: {
+          ...part.attachment,
+          extractedText: boundedAttachmentText(part.attachment.extractedText),
+        },
+      }
+    : part
+}
+
 function decodeProjection(value: unknown) {
   const decoded = safeDecodeUnknown(userInputProjectionSchema, value)
-  return decoded.success ? decoded.data : null
+  return decoded.success ? { ...decoded.data, parts: decoded.data.parts.map(boundedPart) } : null
 }
 
 export function decodeUserInputProjection(value: unknown): readonly MessagePart[] | null {

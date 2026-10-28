@@ -21,6 +21,8 @@ import { isPathInsideDirectory } from './project-path-validation'
 export interface AttachmentPreparationEntry {
   readonly path: string
   readonly origin?: AttachmentOrigin
+  /** The name the attachment is shown under; the file's own name when absent. */
+  readonly name?: string
   readonly browserPreview?: PreparedAttachment['browserPreview']
   readonly browserAnnotationText?: string
 }
@@ -248,6 +250,7 @@ export async function prepareAttachmentFiles(input: {
         path.isAbsolute(entry.path) ? entry.path : path.resolve(input.baseDirectory, entry.path),
       ),
       origin: entry.origin ?? 'user-file',
+      ...(entry.name === undefined ? {} : { name: entry.name }),
       ...(metadata === null ? {} : { browserPreview: parseBrowserAttachmentMetadata(metadata) }),
       ...(entry.browserAnnotationText === undefined
         ? {}
@@ -261,6 +264,7 @@ export async function prepareAttachmentFiles(input: {
   const snapshots = await Promise.all(
     unique.map(async (entry) => ({
       ...(await readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead)),
+      ...(entry.name === undefined ? {} : { name: entry.name }),
       browserPreview: entry.browserPreview,
       browserAnnotationText: entry.browserAnnotationText,
     })),
