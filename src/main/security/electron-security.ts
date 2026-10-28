@@ -20,7 +20,8 @@ const VALUE_SEPARATOR = ' '
 const VITE_REACT_PREAMBLE_HASH = "'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='" as const
 /**
  * The one inline script of src/renderer/index.html, which applies the cached interface scale
- * before the startup frame paints. A unit test recomputes it from the file.
+ * before the startup frame paints. A unit test recomputes it from the file, and
+ * `pnpm check:renderer-csp` from the page the build wrote.
  */
 export const STARTUP_APPEARANCE_SCRIPT_HASH =
   "'sha256-AzeWj8P/bvRHuRLOMEOepvQ0Qa2MUlvQ93kUJ7hu9co='" as const
