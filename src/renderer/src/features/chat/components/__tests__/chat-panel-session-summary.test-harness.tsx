@@ -32,16 +32,31 @@ export const readSessionResource: Mock<OpenWaggleApi['readSessionResource']> =
   mocks.readSessionResource
 export const advanceSessionResourceBackfill: Mock<OpenWaggleApi['advanceSessionResourceBackfill']> =
   mocks.advanceSessionResourceBackfill
-export let notifyResize = () => {}
+/** Every ResizeObserver still connected: the panel's is not the only one, nor the last made. */
+const resizeObservers = new Set<TestResizeObserver>()
+
+/** Reports a size change to every connected ResizeObserver, as a layout change would. */
+export function notifyResize() {
+  for (const observer of [...resizeObservers]) observer.notify()
+}
 
 class TestResizeObserver {
+  private readonly callback: ResizeObserverCallback
+
   constructor(callback: ResizeObserverCallback) {
-    notifyResize = () => callback([], this)
+    this.callback = callback
+    resizeObservers.add(this)
+  }
+
+  notify() {
+    this.callback([], this)
   }
 
   observe() {}
   unobserve() {}
-  disconnect() {}
+  disconnect() {
+    resizeObservers.delete(this)
+  }
   takeRecords(): ResizeObserverEntry[] {
     return []
   }
@@ -128,6 +143,7 @@ export function toggleSessionSummaryPanel(sessionId: string) {
 }
 
 export function setupChatPanelSessionSummaryHarness() {
+  resizeObservers.clear()
   vi.stubGlobal('ResizeObserver', TestResizeObserver)
   localStorage.clear()
   useSessionSummaryUIStore.setState({ panels: {} })

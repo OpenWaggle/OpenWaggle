@@ -1,7 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { lazy, Suspense, useCallback } from 'react'
 import {
   SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
@@ -13,7 +12,7 @@ import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
-import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
+import { useSessionSummarySpace } from '../hooks/use-session-summary-space'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
@@ -36,13 +35,6 @@ const LazySessionResourceViewer = lazy(() =>
   })),
 )
 
-const SESSION_SUMMARY_WIDTH_PX = 300
-const SESSION_SUMMARY_RIGHT_INSET_PX = 16
-const SESSION_SUMMARY_CONTENT_GAP_PX = 16
-const SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX =
-  CHAT_CONTENT_MAX_WIDTH_PX +
-  2 * (SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX)
-
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
   readonly onOpenSessionTree?: () => void
@@ -51,50 +43,6 @@ interface ChatPanelContentProps {
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean
-}
-
-function useSessionSummarySpace(rightSidebarOpen: boolean) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [hasSpace, setHasSpace] = useState(true)
-
-  const measure = useCallback(() => {
-    if (rightSidebarOpen) return
-    const container = panelRef.current
-    if (!container) return
-    const width = container.clientWidth
-    if (width === 0) {
-      setHasSpace(true)
-      return
-    }
-
-    const contentFrame = container.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    const containerRect = container.getBoundingClientRect()
-    const contentRect = contentFrame?.getBoundingClientRect()
-    const hasMeasuredGeometry =
-      containerRect.width > 0 && contentRect !== undefined && contentRect.width > 0
-    const roomForSummary = hasMeasuredGeometry
-      ? containerRect.right - contentRect.right >=
-        SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
-      : width >= SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX
-    setHasSpace(roomForSummary)
-  }, [rightSidebarOpen])
-
-  useEffect(() => {
-    const element = panelRef.current
-    if (!element || typeof ResizeObserver === 'undefined') return
-    /*
-     * A ResizeObserver reports each observed element once when it starts, after layout, so the
-     * first measurement needs no read in a layout effect: that read forced the shell's first layout
-     * inside its commit (B12). The update renders before paint, so the summary never flickers.
-     */
-    const observer = new ResizeObserver(() => flushSync(measure))
-    observer.observe(element)
-    const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    if (contentFrame) observer.observe(contentFrame)
-    return () => observer.disconnect()
-  }, [measure])
-
-  return { panelRef, hasSpace }
 }
 
 function SessionNotificationStack({
