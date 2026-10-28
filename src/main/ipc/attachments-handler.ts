@@ -35,6 +35,8 @@ const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
   paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
 })
+/** The longest file name common file systems (ext4, APFS, NTFS in UTF-8) accept. */
+const MAX_FILE_NAME_BYTES = 255
 /**
  * The file name a prompt attachment is written under, which the Host shows as its name: a single
  * Markdown file name of letters, digits, spaces, and `_ . · -`, so it can neither leave its
@@ -42,6 +44,7 @@ const prepareArgsSchema = Schema.Struct({
  */
 const promptAttachmentNameSchema = Schema.String.pipe(
   Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
+  Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
 )
 const prepareFromTextArgsSchema = Schema.Struct({
   text: Schema.String.pipe(Schema.minLength(1)),

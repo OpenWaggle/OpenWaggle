@@ -94,6 +94,7 @@ describe('attachments:prepare-from-text', () => {
     'Pasted Text 1.txt',
     'line\nbreak.md',
     '[Attachment: x].md',
+    `${'终'.repeat(100)}.md`,
   ])('rejects the attachment name %j', async (name) => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-from-text')

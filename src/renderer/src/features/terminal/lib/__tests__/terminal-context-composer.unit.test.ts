@@ -96,4 +96,24 @@ describe('appendTerminalContextToComposer', () => {
     await expect(attaching).rejects.toThrow('active draft changed')
     expect(useComposerStore.getState().attachments).toEqual([])
   })
+
+  it.each([
+    ['wide letters', '终'.repeat(100)],
+    ['astral letters', '𝐝'.repeat(100)],
+  ])('keeps a long label with %s a whole, file-sized name', async (_kind, terminalLabel) => {
+    await appendTerminalContextToComposer({
+      terminalId: 'term-1',
+      terminalLabel,
+      cwd: '/repo',
+      provenance: 'session-worktree',
+      range: { startLine: 1000, endLine: 1010 },
+      selectedText: 'output',
+    })
+
+    const name: unknown = mocks.prepareAttachmentFromText.mock.calls[0]?.[2]
+    if (typeof name !== 'string') throw new Error('No attachment name was sent')
+    expect(name.isWellFormed()).toBe(true)
+    expect(new TextEncoder().encode(name).byteLength).toBeLessThanOrEqual(255)
+    expect(name).toMatch(/^Terminal · .+ lines 1000-1010\.md$/u)
+  })
 })
