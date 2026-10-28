@@ -152,26 +152,30 @@ export function ChatPanelContent({
           worktreePath={sections.transcript.worktreePath}
           workingPath={sections.transcript.workingPath}
         >
-          <Suspense fallback={null}>
-            <LazySessionSummaryHub
-              key={activeSessionId ?? 'no-session-summary'}
-              input={{
-                session: sections.composer.session,
-                activeBranchId: sections.transcript.activeBranchId ?? null,
-                activePathNodeIds,
-                messageCount: summaryMessageCount,
-                hiveAvailable,
-                autoHidden: summaryNeedsTransientOverlay(hasSpace, floatingPreviewVisible),
-                rightSidebarOpen,
-                extensionRegistry: sections.extensionRegistry,
-                extensionProjectPaths: sections.extensionProjectPaths,
-                onOpenDiff,
-                onOpenChangeRequest,
-                onOpenResources,
-                onOpenExtensionSidePanel,
-              }}
-            />
-          </Suspense>
+          {/* A lazy surface's chunk can fail to load (an update swapped the hashed renderer
+            chunks): its own boundary keeps the transcript and composer mounted. */}
+          <PanelErrorBoundary name="Session Summary">
+            <Suspense fallback={null}>
+              <LazySessionSummaryHub
+                key={activeSessionId ?? 'no-session-summary'}
+                input={{
+                  session: sections.composer.session,
+                  activeBranchId: sections.transcript.activeBranchId ?? null,
+                  activePathNodeIds,
+                  messageCount: summaryMessageCount,
+                  hiveAvailable,
+                  autoHidden: summaryNeedsTransientOverlay(hasSpace, floatingPreviewVisible),
+                  rightSidebarOpen,
+                  extensionRegistry: sections.extensionRegistry,
+                  extensionProjectPaths: sections.extensionProjectPaths,
+                  onOpenDiff,
+                  onOpenChangeRequest,
+                  onOpenResources,
+                  onOpenExtensionSidePanel,
+                }}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
           {/* Anchored here rather than inside the composer: the composer area is reserved for
             requests that hold the run, so the surface a user must answer is always the one nearest
             the prompt input, and a notice that can never be answered floats clear of it. */}
@@ -182,14 +186,16 @@ export function ChatPanelContent({
               sessionId={sections.transcript.activeSessionId}
             />
           </PanelErrorBoundary>
-          <Suspense fallback={null}>
-            <LazySessionResourceViewer
-              activeSessionId={activeSessionId}
-              activeBranchId={sections.transcript.activeBranchId ?? null}
-              activeMessageIds={activeMessageIds}
-              activePathNodeIds={activePathNodeIds}
-            />
-          </Suspense>
+          <PanelErrorBoundary name="Resource viewer">
+            <Suspense fallback={null}>
+              <LazySessionResourceViewer
+                activeSessionId={activeSessionId}
+                activeBranchId={sections.transcript.activeBranchId ?? null}
+                activeMessageIds={activeMessageIds}
+                activePathNodeIds={activePathNodeIds}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
 
           <PanelErrorBoundary
             name="Chat transcript"

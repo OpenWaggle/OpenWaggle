@@ -12,6 +12,7 @@ import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { ToolRowSessionContext } from '../hooks/ToolRowSessionContext'
 import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
 import { WithNestedToolCalls } from './NestedToolCallList'
@@ -160,15 +161,17 @@ export function ToolCallRouter({
   ) : appLaunch ? (
     <div className="space-y-3">
       {toolCallBlock}
-      <Suspense fallback={null}>
-        <LazyMcpAppHost
-          descriptor={appLaunch.descriptor}
-          projectPath={extensionProjectPaths[0] ?? null}
-          sessionId={sessionId}
-          initialArguments={appLaunch.initialArguments}
-          initialResult={appLaunch.initialResult}
-        />
-      </Suspense>
+      <PanelErrorBoundary name="MCP app">
+        <Suspense fallback={null}>
+          <LazyMcpAppHost
+            descriptor={appLaunch.descriptor}
+            projectPath={extensionProjectPaths[0] ?? null}
+            sessionId={sessionId}
+            initialArguments={appLaunch.initialArguments}
+            initialResult={appLaunch.initialResult}
+          />
+        </Suspense>
+      </PanelErrorBoundary>
     </div>
   ) : (
     toolCallBlock

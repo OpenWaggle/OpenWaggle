@@ -55,34 +55,45 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   const showToast = useUIStore((state) => state.showToast)
   if (props.activeSurface?.kind === 'all-panels') {
     return (
-      <Suspense fallback={null}>
-        <LazyAllPanelsSurface />
-      </Suspense>
+      <PanelErrorBoundary name="All panels" className="size-full">
+        <Suspense fallback={null}>
+          <LazyAllPanelsSurface />
+        </Suspense>
+      </PanelErrorBoundary>
     )
   }
   if (props.activeSurface?.kind === 'project-actions') {
     return (
-      <Suspense fallback={null}>
-        <LazyWorkspaceProjectActionsSurface owner={props.owner} />
-      </Suspense>
+      <PanelErrorBoundary name="Project Actions" className="size-full">
+        <Suspense fallback={null}>
+          <LazyWorkspaceProjectActionsSurface owner={props.owner} />
+        </Suspense>
+      </PanelErrorBoundary>
     )
   }
   if (props.activeSurface?.kind === 'scheduled-tasks') {
     return (
-      <Suspense fallback={null}>
-        <LazyWorkspaceScheduledTasksSurface />
-      </Suspense>
+      <PanelErrorBoundary name="Scheduled tasks" className="size-full">
+        <Suspense fallback={null}>
+          <LazyWorkspaceScheduledTasksSurface />
+        </Suspense>
+      </PanelErrorBoundary>
     )
   }
   if (props.activeSurface?.kind === 'action')
     return (
-      <Suspense fallback={null}>
-        <LazyActionRunPanel
-          key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}
-          scope={{ projectPath: props.activeSurface.projectPath, sessionId: props.owner.ownerKey }}
-          runId={props.activeSurface.runId}
-        />
-      </Suspense>
+      <PanelErrorBoundary name="Action run" className="size-full">
+        <Suspense fallback={null}>
+          <LazyActionRunPanel
+            key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}
+            scope={{
+              projectPath: props.activeSurface.projectPath,
+              sessionId: props.owner.ownerKey,
+            }}
+            runId={props.activeSurface.runId}
+          />
+        </Suspense>
+      </PanelErrorBoundary>
     )
   if (props.activeSurface?.kind === 'terminal') {
     return (
