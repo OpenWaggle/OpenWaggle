@@ -107,7 +107,7 @@ export function startDesktopShellEnvironment(
     }
     posix.apply(resolved, 'probe')
     if (writesCache && !resolvedNothing(resolved)) {
-      cache?.write(key, resolved, now())
+      cache?.write(key, posix.cacheable(resolved, cached), now())
     }
   })
   return { ready: cached ? Promise.resolve() : refreshed, refreshed, fromCache: cached !== null }

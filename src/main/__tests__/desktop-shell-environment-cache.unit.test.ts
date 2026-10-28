@@ -242,6 +242,36 @@ describe('the cached login-shell environment', () => {
       'SSH_AUTH_SOCK',
     )
   })
+  it('does not cache the PATH entries a terminal launch brought with it', async () => {
+    const shell = inheritingLoginShell('/opt/homebrew/bin')
+    const { env, started } = launch(shell.runCommand, { PATH: '/proj/.venv/bin:/usr/bin:/bin' })
+    await started.refreshed
+
+    // This launch keeps its terminal's entries...
+    expect(env.PATH).toBe('/opt/homebrew/bin:/proj/.venv/bin:/usr/bin:/bin')
+    // ...but the next Dock launch, and every Host that reads the cache, does not get them.
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
+      '/opt/homebrew/bin:/usr/bin:/bin',
+    )
+  })
+
+  it('keeps a launch PATH entry in the cache when the last cached result had it', async () => {
+    fileShellEnvironmentCache(cacheFile).write(
+      KEY,
+      { environment: { PATH: '/opt/homebrew/bin:/usr/bin:/bin' } },
+      NOW - 1_000,
+    )
+    const shell = inheritingLoginShell('/Users/test/.local/bin')
+    const { started } = launch(shell.runCommand, {
+      PATH: '/proj/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin',
+    })
+    await started.refreshed
+
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
+      '/Users/test/.local/bin:/opt/homebrew/bin:/usr/bin:/bin',
+    )
+  })
+
   it('marks a refresh that found nothing, keeping the last good result', async () => {
     fileShellEnvironmentCache(cacheFile).write(
       KEY,

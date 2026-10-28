@@ -245,6 +245,51 @@ export async function installDesktopShellEnvironment(
   }
 }
 
+/**
+ * The PATH a desktop session starts with when nothing configured it: launchd's on macOS,
+ * systemd's on Linux. Every launch has these, so the cache keeps them in the shell's order.
+ */
+const DEFAULT_SESSION_PATHS: Readonly<Partial<Record<NodeJS.Platform, ReadonlySet<string>>>> = {
+  darwin: new Set(['/usr/bin', '/bin', '/usr/sbin', '/sbin']),
+  linux: new Set(['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin']),
+}
+
+/**
+ * A login shell keeps the PATH it inherits, so a launch from a terminal (`openwaggle <dir>`, or a
+ * GUI started from one) probes back that terminal's entries: a venv `bin`, a project's
+ * `node_modules/.bin`. Cached, they would reach the next Dock or Finder launch and every Host that
+ * reads the cache. An entry the launch PATH already had is cached only when it is a default
+ * session directory or the previous cached result had it too (a terminal's `/opt/homebrew/bin`
+ * that a Dock launch's shell produced), so it can only have come from a shell. This launch still
+ * gets its own entries through `apply`, which merges the launch PATH back in.
+ */
+function withoutLaunchOnlyPath(
+  platform: NodeJS.Platform,
+  resolved: ResolvedShellEnvironment,
+  launchEnvironment: Readonly<MutableEnvironment>,
+  previous: ResolvedShellEnvironment | null,
+): ResolvedShellEnvironment {
+  const probedPath = trimNonEmpty(resolved.environment.PATH)
+  const launchPath = readEnvPath(launchEnvironment)
+  if (!probedPath || !launchPath) return resolved
+  const delimiter = pathDelimiter(platform)
+  const entriesOf = (value: string | undefined) =>
+    (value ?? '')
+      .split(delimiter)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+  const fromShell = new Set([
+    ...(DEFAULT_SESSION_PATHS[platform] ?? []),
+    ...entriesOf(previous?.environment.PATH),
+  ])
+  const launchOnly = new Set(entriesOf(launchPath).filter((entry) => !fromShell.has(entry)))
+  const kept = probedPath.split(delimiter).filter((entry) => !launchOnly.has(entry.trim()))
+  const environment = { ...resolved.environment }
+  if (kept.length > 0) environment.PATH = kept.join(delimiter)
+  else Reflect.deleteProperty(environment, 'PATH')
+  return { ...resolved, environment }
+}
+
 /** A probe that found neither a PATH nor launchd's: nothing worth applying or caching. */
 export function resolvedNothing(resolved: ResolvedShellEnvironment) {
   return !trimNonEmpty(resolved.environment.PATH) && !resolved.launchctlPath
@@ -258,6 +303,14 @@ export interface PosixShellEnvironment {
   readonly apply: (resolved: ResolvedShellEnvironment, source: ShellEnvironmentResultSource) => void
   /** Probes the login shell from the launch environment, whatever `apply` has done since. */
   readonly probe: () => Promise<ResolvedShellEnvironment>
+  /**
+   * A probe result without the PATH entries only this launch had, for every later launch; an
+   * entry the `previous` cached result already had is kept.
+   */
+  readonly cacheable: (
+    resolved: ResolvedShellEnvironment,
+    previous: ResolvedShellEnvironment | null,
+  ) => ResolvedShellEnvironment
 }
 
 /** Snapshots the launch environment; call it before any result is applied. */
@@ -274,5 +327,7 @@ export function preparePosixShellEnvironment(
     key: shell && home ? { platform: options.platform, shell, home } : null,
     apply: (resolved, source) => applyPosixEnvironment(options, base, resolved, source),
     probe: () => probePosixEnvironment(options, runner, launchEnvironment),
+    cacheable: (resolved, previous) =>
+      withoutLaunchOnlyPath(options.platform, resolved, launchEnvironment, previous),
   }
 }
