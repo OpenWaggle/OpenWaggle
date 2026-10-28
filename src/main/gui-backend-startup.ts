@@ -14,6 +14,7 @@ import { releaseGuiBackendGate } from './gui-backend-gate'
 import type * as GuiRuntimeModule from './gui-runtime'
 import { type GuiStartupProgress, GuiStartupRestartRequiredError } from './gui-startup-coordinator'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
+import { awaitWithSignal } from './session-host/await-with-signal'
 import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
@@ -113,7 +114,8 @@ export async function startGuiBackend(input: {
   let usageStatisticsModule: typeof UsageStatisticsGuiModule
   try {
     signal.throwIfAborted()
-    await hydrateSettingsFromHost(settingsStoreModule)
+    // An aborted attempt stops waiting for a Host that does not answer, so a Retry can begin.
+    await awaitWithSignal(hydrateSettingsFromHost(settingsStoreModule), signal)
     startupMark('settings-store-hydrated-from-host')
     usageStatisticsModule = await import('./usage-statistics/usage-statistics-gui')
     // The last point an aborted attempt can stop at: desktop services are not undone.

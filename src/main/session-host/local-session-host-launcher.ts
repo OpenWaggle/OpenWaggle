@@ -149,15 +149,18 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
   refreshPaths: refreshLocalSessionHostEndpoint,
 }
 
+/** Waits until the Host at `endpoint` stops listening; false once `timeoutMs` passed first. */
 export async function waitForLocalSessionHostRelease(
   endpoint: string,
-  timeoutMs = HOST_TAKEOVER_TIMEOUT_MS,
+  options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
   dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
 ) {
+  const { signal } = options
   return waitForCondition({
-    timeoutMs,
-    condition: async () => !(await dependencies.canConnect(endpoint)),
+    timeoutMs: options.timeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
+    condition: async () => !(await dependencies.canConnect(endpoint, signal)),
     dependencies,
+    ...(signal ? { signal } : {}),
   })
 }
 

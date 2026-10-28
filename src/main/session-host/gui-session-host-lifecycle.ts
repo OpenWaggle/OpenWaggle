@@ -42,6 +42,8 @@ async function attachToRemoteSessionHost(input: {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly isStopping: () => boolean
   readonly onUpgradePending?: () => void
+  /** An aborted start stops waiting for an updating Host to hand over. */
+  readonly signal?: AbortSignal
 }) {
   let currentPaths = input.client.paths
   try {
@@ -58,7 +60,9 @@ async function attachToRemoteSessionHost(input: {
   } catch (error) {
     if (error instanceof LocalSessionHostUpgradePendingError) {
       input.onUpgradePending?.()
-      const released = await waitForLocalSessionHostRelease(currentPaths.endpoint)
+      const released = await waitForLocalSessionHostRelease(currentPaths.endpoint, {
+        ...(input.signal ? { signal: input.signal } : {}),
+      })
       if (released) return null
     }
     if (isLocalSessionHostUnavailable(error)) return null
@@ -88,11 +92,12 @@ export async function prepareGuiSessionHostLifecycle(input: {
   let stopRendererBridge: (() => void | Promise<void>) | null = null
   let stopping = false
 
-  const attachToExistingHost = async () => {
+  const attachToExistingHost = async (signal?: AbortSignal) => {
     const stopBridge = await attachToRemoteSessionHost({
       client: remoteClient,
       isStopping: () => stopping,
       ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
+      ...(signal ? { signal } : {}),
     })
     if (!stopBridge) return false
     stopRendererBridge = stopBridge
@@ -115,7 +120,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
       ...(signal ? { signal } : {}),
     })
     signal?.throwIfAborted()
-    return answered && (await attachToExistingHost())
+    return answered && (await attachToExistingHost(signal))
   }
 
   return {
@@ -124,7 +129,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
       stopping = false
       // Attached already: a second attachment would forward every Host event twice and leak.
       if (stopRendererBridge) return
-      if (!(await attachToExistingHost()) && !(await attachToPrelaunchedHost(signal))) {
+      if (!(await attachToExistingHost(signal)) && !(await attachToPrelaunchedHost(signal))) {
         if (stopping) throw new Error('GUI Session Host startup was stopped.')
         signal?.throwIfAborted()
         await ensureLocalSessionHost({
@@ -138,7 +143,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
           },
         })
         signal?.throwIfAborted()
-        if (!(await attachToExistingHost())) {
+        if (!(await attachToExistingHost(signal))) {
           if (stopping) throw new Error('GUI Session Host startup was stopped.')
           throw new Error('The isolated GUI could not attach to an authoritative Session Host.')
         }

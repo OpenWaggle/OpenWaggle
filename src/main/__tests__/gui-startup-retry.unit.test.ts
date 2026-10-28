@@ -211,4 +211,22 @@ describe('Retry while a late startup attempt is still running', () => {
     expect(h.coordinator.status()).toEqual({ state: 'ready' })
     expect(state.liveBridges).toBe(1)
   })
+
+  it('retries at once when the aborted attempt waits on Settings that never answer', async () => {
+    const h = harness()
+    h.coordinator.run()
+    await settle()
+    // This request is never answered: a Host that accepted the attachment and then hung.
+    const unanswered = takeSettingsRequest('earliest')
+    expect(unanswered).toBeDefined()
+    h.fireDeadline()
+
+    h.coordinator.retry()
+    await settle()
+    await answerEverySettingsRequest()
+
+    expect(h.coordinator.status()).toEqual({ state: 'ready' })
+    expect(state.route).toBe('remote')
+    expect(state.liveBridges).toBe(1)
+  })
 })
