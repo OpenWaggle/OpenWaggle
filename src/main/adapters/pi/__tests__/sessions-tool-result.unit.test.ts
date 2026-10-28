@@ -123,6 +123,21 @@ describe('hive results the model reads', () => {
     })
   })
 
+  it('pages an oversized verbose items result under its response', async () => {
+    const text = await hiveResultText({ result: itemsResult(600), verbose: true, toolCallId: 'c' })
+    const page = parsed(text)
+
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(HIVE_RESULT_TEXT_LIMIT_BYTES)
+    expect(page).toMatchObject({
+      contract: 'session-query-v2',
+      response: {
+        requestId: 'request-1',
+        outcome: { items: expect.any(Array), nextCreatedOrder: expect.any(Number) },
+      },
+      truncated: { omittedItems: expect.any(Number) },
+    })
+  })
+
   it('previews an oversized result that has no items to page', async () => {
     const result = { response: { outcome: { operation: 'read', text: 'y'.repeat(100_000) } } }
     const text = await hiveResultText({ result, verbose: false, toolCallId: 'call-2' })

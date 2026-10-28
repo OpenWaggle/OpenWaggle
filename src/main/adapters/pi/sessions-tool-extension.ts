@@ -114,7 +114,7 @@ async function executeSessionsToolCall(
   signal?: AbortSignal,
 ) {
   if (signal?.aborted) throw new Error('aborted')
-  // `verbose` asks for the whole result envelope; it is no action's parameter.
+  // `verbose` asks for the result envelope and item metadata; it is no action's parameter.
   const verbose = isMatching({ verbose: true }, rawParams)
   const params = resolveSessionsToolSessionLinks(
     parseSessionsToolActionArguments(withoutVerbose(rawParams)),

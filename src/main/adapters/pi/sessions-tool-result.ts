@@ -44,7 +44,8 @@ function compactNode(value: unknown, key?: string): unknown {
 /**
  * What the model reads of a Session command result: the response without its envelope
  * (`contract`, `contractVersion`, `requestId`, `idempotencyKey`, a `replayed: false`), and items
- * without tree links or usage and cost metadata. `verbose: true` sends the whole result.
+ * without tree links or usage and cost metadata. `verbose: true` keeps all of it, under the same
+ * size cap.
  */
 export function compactHiveResult(result: unknown): unknown {
   if (!isRecord(result)) return result
@@ -70,7 +71,8 @@ interface PagedOutcome {
 }
 
 /**
- * The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one.
+ * The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one: at the
+ * top of a compacted result, or under `response` in a verbose one.
  */
 function pagedOutcome(result: unknown): PagedOutcome | undefined {
   if (!isRecord(result)) return undefined
@@ -79,6 +81,14 @@ function pagedOutcome(result: unknown): PagedOutcome | undefined {
       outcome: result.outcome,
       items: result.outcome.items,
       withOutcome: (outcome) => ({ ...result, outcome }),
+    }
+  }
+  const { response } = result
+  if (isRecord(response) && isRecord(response.outcome) && Array.isArray(response.outcome.items)) {
+    return {
+      outcome: response.outcome,
+      items: response.outcome.items,
+      withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
     }
   }
   return undefined

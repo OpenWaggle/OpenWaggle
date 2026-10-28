@@ -26,7 +26,7 @@ function mentions(guideline: string, action: string) {
 
 function overview(input: HiveHelpInput) {
   const text = [
-    'Hive actions this Session can use. Pass parameters at the top level; * marks required ones. Call help with topic <action> for its full schema. Results are compact and capped at 32 KB (an items page then ends early with nextCreatedOrder); add verbose: true for the whole response.',
+    'Hive actions this Session can use. Pass parameters at the top level; * marks required ones. Call help with topic <action> for its full schema. Results are compact and capped at 32 KB (an items page then ends early with nextCreatedOrder); verbose: true keeps the response envelope and item metadata, under the same cap.',
     ...input.variants.map(actionLine),
     '',
     'Hive rules:',

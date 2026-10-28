@@ -104,6 +104,15 @@ describe('hive two-tier schema', () => {
     expect(text).not.toMatch(/- launch\(/)
   })
 
+  it('says verbose keeps the envelope under the same cap, not that it lifts the cap', async () => {
+    const text = await hiveHelpText(register())
+
+    expect(text).not.toMatch(/whole response/)
+    expect(text).toMatch(
+      /verbose: true keeps the response envelope and item metadata, under the same cap/,
+    )
+  })
+
   it('returns one action schema with its required properties for a topic', async () => {
     const help: unknown = JSON.parse(await hiveHelpText(register(), 'delegation_claim'))
 
