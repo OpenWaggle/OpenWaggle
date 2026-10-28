@@ -56,7 +56,7 @@ function memoryStore(): PackageBinStore {
   }
 }
 
-async function callServer(root: string, npx: string) {
+async function callServer(root: string, npx: string, cwd: string) {
   const upstream = openPiMcpUpstream({
     entry: {
       name: 'fixture',
@@ -68,7 +68,7 @@ async function callServer(root: string, npx: string) {
       source: 'test',
     },
     transport: 'stdio',
-    cwd: root,
+    cwd,
     authProvider: undefined,
   })
   const client = new McpClient({ name: 'pi', version: '1' })
@@ -100,15 +100,18 @@ describe.skipIf(process.platform === 'win32')('MCP package runner bypass (D1.2)'
     const npx = path.join(root, 'npx')
     writeFileSync(npx, FAKE_NPX)
     chmodSync(npx, 0o755)
+    // Run elsewhere: a package installed in the server's folder is left to the runner.
+    const cwd = mkdtempSync(path.join(tmpdir(), 'ow-npx-cwd-'))
+    directories.push(cwd)
     const bypass = new PackageRunnerBypass({ store: memoryStore() })
     setHostPackageRunnerBypassForTests(bypass)
 
-    const first = await callServer(root, npx)
+    const first = await callServer(root, npx, cwd)
     expect(first.ppid).not.toBe(process.pid)
     expect(first.args).toEqual(['--flag'])
     await bypass.settled()
 
-    const second = await callServer(root, npx)
+    const second = await callServer(root, npx, cwd)
     // No wrapper: the server is the Host's own child.
     expect(second.ppid).toBe(process.pid)
     expect(second.args).toEqual(['--flag'])

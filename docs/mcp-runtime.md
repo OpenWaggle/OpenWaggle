@@ -466,6 +466,12 @@ a lease on the pool, which can answer without a server process:
   `<userData>/mcp/tool-catalogs/`. A catalog younger than a day is served: a Session's Pi client gets
   `initialize`, `tools/list` and `ping` from it at once, so its tools are registered before the
   first model request of every Run instead of mid-Run.
+- **Cold wave.** Several Sessions starting a server whose catalog is missing or stale (a Hive's
+  first wave) do not each start it: the first starts it and lists its tools itself once
+  initialized; the others wait for that catalog (`McpCatalogFills`, at most 30 s) and are then
+  served from it, lazily. A failed or closed first connection ends the wait, and those Sessions
+  start their own. A package-runner server's first spawn waits (at most 30 s) for the runner's bin
+  to be resolved, one probe per package for the whole Host, so even the first wave runs no runner.
 - **Lazy start (stdio only).** A stdio server with a served catalog starts when a request needs it
   (`mcp-connection-lazy-start.ts`): a tool call, resources, prompts, or an OpenWaggle request. It is
   initialized with the client's own `initialize` params (and `notifications/initialized` if the

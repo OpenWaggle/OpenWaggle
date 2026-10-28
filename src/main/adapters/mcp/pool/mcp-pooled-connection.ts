@@ -1,7 +1,11 @@
 import { isRecord } from '@shared/utils/validation'
 import { McpClientRequestLedger } from './mcp-client-request-ledger'
 import { McpConnectionHandshake } from './mcp-connection-handshake'
-import { lazyStartOf, type McpConnectionLazyStart } from './mcp-connection-lazy-start'
+import {
+  fillCatalogAfterHandshake,
+  lazyStartOf,
+  type McpConnectionLazyStart,
+} from './mcp-connection-lazy-start'
 import { McpConnectionLease } from './mcp-connection-lease'
 import {
   CANCELLED,
@@ -70,6 +74,10 @@ export class McpPooledConnection {
       augmentParams: options.augmentInitializeParams,
       onProtocolVersion: (version) => this.slot.current?.transport.setProtocolVersion?.(version),
       onResult: (result) => options.catalog?.recordInitialize(result),
+      onInitialized: (result) =>
+        fillCatalogAfterHandshake(options, result, (method, params) =>
+          this.sendInternal(method, params),
+        ),
     })
     this.slot = new McpUpstreamSlot({
       serverName: options.serverName,
@@ -310,6 +318,7 @@ export class McpPooledConnection {
     )
     this.handshake.fail(error)
     for (const lease of [...this.leases]) lease.detach()
+    this.options.catalog?.closed()
     this.options.onClosed()
     void this.slot.release()
   }
