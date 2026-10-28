@@ -1,8 +1,13 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+interface ProviderState {
+  readonly provider: string
+  readonly connected: boolean
+}
+
 const mocks = vi.hoisted(() => ({
-  runGuiEffect: vi.fn(async () => [] as readonly { provider: string; connected: boolean }[]),
+  runGuiEffect: vi.fn(async (): Promise<readonly ProviderState[]> => []),
 }))
 
 vi.mock('../../gui-runtime', () => ({ runGuiEffect: mocks.runGuiEffect }))
