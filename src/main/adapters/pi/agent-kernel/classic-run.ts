@@ -56,30 +56,32 @@ function runtimeResources(
   }
 }
 
+/** What a classic Run's inline extensions read from its input. */
+export type ClassicRunExtensionInput = Pick<
+  AgentKernelRunInput,
+  | 'runId'
+  | 'peerAgentReports'
+  | 'onPeerAgentReportsDelivered'
+  | 'orchestrationUpdates'
+  | 'onOrchestrationUpdatesDelivered'
+  | 'delegationSpecificationUpdates'
+  | 'onDelegationSpecificationUpdatesDelivered'
+  | 'sessionIdentityContext'
+  | 'runIdentityContext'
+  | 'agentInstructions'
+  | 'toolAllowlist'
+  | 'mcpServerAllowlist'
+> & {
+  readonly sessionsExtensionFactory?: ExtensionFactory
+  readonly extensionFactories?: readonly InlineExtension[]
+}
+
 /**
- * Runs a classic (non-Waggle) Pi turn.
- *
- * `workingPath` is the tree this turn runs in, already resolved (and, for a worktree-mode
- * session, already born) by the caller. It is passed in rather than re-derived because
- * worktree birth is not idempotent against a stale in-memory session: it persists the new
- * path with SQL but does not mutate the `SessionDetail` it was given, so a second call would
- * still see `worktreePath` as null and try to create the same worktree twice - which fails,
- * because the directory now exists and the branch is already checked out there.
+ * The inline extensions of a classic Run, in the order Pi loads them, and the call that closes
+ * their delivery queues. The first-turn prefix budget (scripts/perf/first-turn-prefix) composes its
+ * Run with this function too, so an extension added here is measured against the budget.
  */
-export async function runPiSession(
-  input: AgentKernelRunInput &
-    PiRuntimeExtensionIsolationInput & {
-      readonly workingPath: string
-      readonly visualizationDirectory?: string
-      readonly scratchDirectory?: string
-      readonly sessionsExtensionFactory?: ExtensionFactory
-      readonly extensionFactories?: readonly InlineExtension[]
-      readonly trustedExtensionFactories?: readonly ExtensionFactory[]
-      readonly systemPromptAppendices?: readonly string[]
-    },
-) {
-  const startedAt = Date.now()
-  const projectPath = input.workingPath
+export function classicRunInlineExtensions(input: ClassicRunExtensionInput) {
   const peerReports = createPeerAgentReportExtension({
     runId: input.runId,
     pendingReports: input.peerAgentReports ?? [],
@@ -115,6 +117,42 @@ export async function runPiSession(
         ]
       : []),
   ].filter((factory): factory is InlineExtension => factory !== undefined)
+  return {
+    extensionFactories,
+    close: () => {
+      peerReports.close()
+      orchestrationUpdates.close()
+      specificationUpdates.close()
+    },
+  }
+}
+
+/**
+ * Runs a classic (non-Waggle) Pi turn.
+ *
+ * `workingPath` is the tree this turn runs in, already resolved (and, for a worktree-mode
+ * session, already born) by the caller. It is passed in rather than re-derived because
+ * worktree birth is not idempotent against a stale in-memory session: it persists the new
+ * path with SQL but does not mutate the `SessionDetail` it was given, so a second call would
+ * still see `worktreePath` as null and try to create the same worktree twice - which fails,
+ * because the directory now exists and the branch is already checked out there.
+ */
+export async function runPiSession(
+  input: AgentKernelRunInput &
+    PiRuntimeExtensionIsolationInput & {
+      readonly workingPath: string
+      readonly visualizationDirectory?: string
+      readonly scratchDirectory?: string
+      readonly sessionsExtensionFactory?: ExtensionFactory
+      readonly extensionFactories?: readonly InlineExtension[]
+      readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+      readonly systemPromptAppendices?: readonly string[]
+    },
+) {
+  const startedAt = Date.now()
+  const projectPath = input.workingPath
+  const inline = classicRunInlineExtensions(input)
+  const { extensionFactories } = inline
   const { model, session } = await createPiRunSessionRuntime({
     // The Session's own selection may continue on its last answering model (as Pi resumes).
     modelFallback: 'last-answering-model',
@@ -168,9 +206,7 @@ export async function runPiSession(
     operation: () => promptPiSession(session, model, input.payload, input.scheduledTask),
     buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
   }).finally(() => {
-    peerReports.close()
-    orchestrationUpdates.close()
-    specificationUpdates.close()
+    inline.close()
     unregisterLiveRun()
     workspaceMutations.dispose()
   })

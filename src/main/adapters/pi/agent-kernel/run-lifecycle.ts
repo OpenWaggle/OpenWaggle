@@ -82,9 +82,17 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly steeringInputHook?: boolean
 }
 
-function runSystemPromptAppendices(input: CreatePiRunSessionRuntimeInput) {
+/**
+ * The Run's system prompt appendices: the scratch guidance, then the caller's. The first-turn
+ * prefix budget composes its Run with this too; it names the evidence directory the Host would have
+ * prepared (`describeScratchDirectory`), since it prepares none.
+ */
+export function runSystemPromptAppendices(
+  input: Pick<CreatePiRunSessionRuntimeInput, 'scratchDirectory' | 'systemPromptAppendices'>,
+  describeScratchDirectory: (scratchDirectory: string) => string = scratchDirectorySystemPrompt,
+) {
   const appendices = [
-    ...(input.scratchDirectory ? [scratchDirectorySystemPrompt(input.scratchDirectory)] : []),
+    ...(input.scratchDirectory ? [describeScratchDirectory(input.scratchDirectory)] : []),
     ...(input.systemPromptAppendices ?? []),
   ]
   return appendices.length > 0 ? { systemPromptAppendices: appendices } : {}
