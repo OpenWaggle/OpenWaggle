@@ -7,6 +7,8 @@ export interface ViewportGeometry {
   getContentHeight(): number
   /** Reserves space after the last row so a sent message can sit near the top. */
   setEndSpace(height: number): void
+  /** Whether the row with this key is mounted; unlike measuring it, this forces no layout. */
+  hasRow(key: string): boolean
   /** Top of the row with this key relative to the viewport top, or `null` when not mounted. */
   getRowTop(key: string): number | null
   /** Height of the row with this key, or `null` when not mounted. */
@@ -130,6 +132,7 @@ export function createDomViewportGeometry(elements: TranscriptViewportElements):
       const endSpace = elements.endSpace()
       if (endSpace) endSpace.style.height = `${String(height)}px`
     },
+    hasRow: (key) => rowElement(elements.content(), key) !== null,
     getRowTop: (key) => {
       const row = rowElement(elements.content(), key)
       return row ? row.getBoundingClientRect().top - viewportTop() : null

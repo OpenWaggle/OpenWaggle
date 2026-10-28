@@ -119,4 +119,25 @@ describe('createDomViewportGeometry row lookup', () => {
     expect(querySelector).toHaveBeenCalledTimes(2)
     vi.unstubAllGlobals()
   })
+
+  it('tells whether a row is mounted without measuring it', () => {
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    const mounted = row('message:a', 100)
+    const measure = vi.fn(() => rect(100, 50))
+    const element = fromPartial<HTMLElement>({ ...mounted.element, getBoundingClientRect: measure })
+    const content = fromPartial<HTMLElement>({
+      querySelector: (selector: string) => (selector.includes('message:a') ? element : null),
+      contains: () => true,
+    })
+    const geometry = createDomViewportGeometry({
+      scroller: () => fromPartial<HTMLElement>({ getBoundingClientRect: () => rect(0, 500) }),
+      content: () => content,
+      endSpace: () => null,
+    })
+
+    expect(geometry.hasRow('message:a')).toBe(true)
+    expect(geometry.hasRow('message:b')).toBe(false)
+    expect(measure).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
 })

@@ -29,6 +29,7 @@ export function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) 
       endSpace = value
       scrollTop = clamp(scrollTop)
     },
+    hasRow: (key) => offsetOf(key) !== null,
     getRowTop: (key) => {
       const offset = offsetOf(key)
       return offset === null ? null : offset - scrollTop
