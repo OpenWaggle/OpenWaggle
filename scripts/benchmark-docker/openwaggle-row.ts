@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * The OpenWaggle row of the first-turn token benchmark: the packaged app itself on the host, in
  * hidden automation with its first-party extensions, sending the benchmark prompt through the
  * benchmark's logging proxy with the same model as the containerized agents (see run.sh).
@@ -54,7 +57,7 @@ async function configureBenchProvider(agentDir: string, proxy: string, model: st
 
 async function main() {
   if (!values.app || !values.proxy || !values.model) {
-    process.stderr.write('Use --app <OpenWaggle.app> --proxy <url> --model <openrouter model>\n')
+    process.stderr.write('Use --app <OpenWaggle.app> --proxy <url> --model <openrouter model> (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const app = resolvePerfApp(values.app, 'openwaggle')

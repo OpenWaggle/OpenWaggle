@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * Agent-context evaluation (decision 7 of the v1 performance plan), modelled on
  * `evaluate-session-titles.ts`: about 25 script-graded tasks that a real model runs through a
  * packaged build in hidden automation, each repetition on a fresh throwaway profile.
@@ -93,7 +96,7 @@ async function runPool<Job>(jobs: readonly Job[], concurrency: number, work: (jo
 
 async function main() {
   if (!values.app || !values.model || !values.out) {
-    process.stderr.write('Use --app <OpenWaggle.app> --model <provider/model> --out <dir> [--reps 5] [--tasks a,b] [--baseline <dir>]\n')
+    process.stderr.write('Use --app <OpenWaggle.app> --model <provider/model> --out <dir> [--reps 5] [--tasks a,b] [--baseline <dir>] (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const app = resolvePerfApp(values.app, values.label)

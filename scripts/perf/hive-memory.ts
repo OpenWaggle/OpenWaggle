@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * "Memory, 6-Run Hive" gate of the v1 performance plan: the app's total physical footprint (GUI,
  * renderer, helpers, Session Host and every MCP process) while a Queen and five Workers each have
  * a Run active, with the heavy-user MCP setup (six servers per Session, four through `npx`).
@@ -112,7 +115,7 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable)\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)

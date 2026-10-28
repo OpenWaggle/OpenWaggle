@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * "Open a large Session" gate of the v1 performance plan: from clicking a multi-megabyte Session
  * in the sidebar until its last message is on screen, with every main-process IPC response and
  * pushed event counted (bytes are JSON characters). Runs on a generated large profile.
@@ -165,7 +168,7 @@ function openOptions(): OpenOptions {
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0 || !values.template) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) --template <generated profile>\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) --template <generated profile> (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const template = path.resolve(values.template)

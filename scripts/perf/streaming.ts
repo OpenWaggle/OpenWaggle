@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * Streaming gate of the v1 performance plan: the renderer while a long markdown answer streams
  * from a local fake provider (about 125 tokens/s), at a 4x CPU throttle by default. Reports the
  * renderer main thread's busy share from a Chrome trace, rAF frame times, and the `agent:event`
@@ -161,7 +164,7 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable)\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)
