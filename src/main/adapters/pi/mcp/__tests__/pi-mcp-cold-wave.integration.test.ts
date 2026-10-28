@@ -19,7 +19,7 @@ import {
   PackageRunnerBypass,
   type ResolvedPackageBin,
 } from '../../../mcp/runtime/mcp-package-runner-bypass'
-import { openPiMcpUpstream, preparePiMcpUpstream } from '../pi-mcp-upstream'
+import { openPreparedPiMcpUpstream } from '../pi-mcp-upstream'
 
 /** An MCP server that appends `<pid> <ppid>` to a file when it starts. */
 const SERVER = `#!/usr/bin/env node
@@ -102,10 +102,8 @@ describe.skipIf(process.platform === 'win32')('a cold Hive wave of MCP Sessions'
       fingerprint: 'v1',
       catalogKey: 'fixture',
       lazyStart: true,
-      open: async () => {
-        await preparePiMcpUpstream({ entry, transport: 'stdio', cwd })
-        return openPiMcpUpstream({ entry, transport: 'stdio', cwd, authProvider: undefined })
-      },
+      open: () =>
+        openPreparedPiMcpUpstream({ entry, transport: 'stdio', cwd, authProvider: undefined }),
     }
     const connect = async (sessionId: string) => {
       // A Hive's Sessions each have a Run, so none is evicted as least recently used.

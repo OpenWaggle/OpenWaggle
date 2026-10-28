@@ -46,7 +46,7 @@ import {
   migrateOpenWaggleMcpSignInsOnce,
 } from './openwaggle-mcp-migration'
 import { mcpConnectionConfig, withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
-import { openPiMcpUpstream, preparePiMcpUpstream } from './pi-mcp-upstream'
+import { openPreparedPiMcpUpstream } from './pi-mcp-upstream'
 
 /** How long a server with MCP App tools known at Run start can delay a message (ADR 0051). */
 export const MCP_STARTUP_WAIT_MS = 1_500
@@ -197,9 +197,13 @@ export function openWaggleMcpTransport(
           config: await resolveDeferredMcpSecrets(entry.config, resolveMcpVaultSecret),
         }
         // The first spawn of an `npx` server already skips the runner (D1.2).
-        await preparePiMcpUpstream({ entry: resolved, transport, cwd })
         const authorized = hardenedMcpAuthProvider(entry, authProvider)
-        return openPiMcpUpstream({ entry: resolved, transport, cwd, authProvider: authorized })
+        return openPreparedPiMcpUpstream({
+          entry: resolved,
+          transport,
+          cwd,
+          authProvider: authorized,
+        })
       },
       roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
     })
