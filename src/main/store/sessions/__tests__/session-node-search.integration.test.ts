@@ -93,6 +93,110 @@ describe('Session tree search on the Host (B5)', () => {
     expect(await searchSessionTreeNodes(sessionId, '   ')).toEqual([])
   })
 
+  it('matches tool-call arguments, tool output and metadata, not only message text', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/project-node-search-tools',
+      piSessionId: 'pi-node-search-tools',
+    })
+    const sessionId = SessionId(String(session.id))
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-node-search-tools',
+      activeNodeId: 'tools-result',
+      nodes: [
+        {
+          id: 'tools-user',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 1,
+          contentJson: JSON.stringify({ parts: [{ type: 'text', text: 'read it' }], model: null }),
+          metadataJson: JSON.stringify({ openWaggle: { label: 'Checkpoint Gamma' } }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'tools-call',
+          parentId: 'tools-user',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 2,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'tool-call',
+                toolCall: {
+                  id: 'tool-1',
+                  name: 'read',
+                  args: { filePath: 'src/deep/needle-path.ts' },
+                  state: 'input-complete',
+                },
+              },
+            ],
+            model: 'openai/gpt-5.4',
+          }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+        {
+          id: 'tools-result',
+          parentId: 'tools-call',
+          piEntryType: 'message',
+          kind: 'tool_result',
+          role: null,
+          timestampMs: 3,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'tool-result',
+                toolResult: {
+                  id: 'tool-1',
+                  name: 'read',
+                  args: {},
+                  result: { content: [{ type: 'text', text: 'export const ResultToken42 = 1' }] },
+                  isError: false,
+                  duration: 4,
+                },
+              },
+            ],
+            model: null,
+          }),
+          metadataJson: '{}',
+          pathDepth: 2,
+          createdOrder: 2,
+        },
+      ],
+    })
+
+    expect((await searchSessionTreeNodes(sessionId, 'needle-path.ts')).map(String)).toEqual([
+      'tools-call',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'resulttoken42')).map(String)).toEqual([
+      'tools-result',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'checkpoint gamma')).map(String)).toEqual([
+      'tools-user',
+    ])
+    expect((await searchSessionTreeNodes(sessionId, 'gpt-5.4')).map(String)).toEqual([
+      'tools-call',
+    ])
+  })
+
+  it('reads a long Session page by page and still finds its last node', async () => {
+    const texts = Array.from({ length: 1_203 }, (_, index) =>
+      index === 1_202 ? 'the final pagedneedle' : `filler ${String(index)}`,
+    )
+    const sessionId = await sessionWithTexts('paged', texts)
+
+    expect((await searchSessionTreeNodes(sessionId, 'PagedNeedle')).map(String)).toEqual([
+      'paged-1202',
+    ])
+    expect(await searchSessionTreeNodes(sessionId, 'filler')).toHaveLength(1_202)
+  })
+
   it('has no revision without a control state, so nothing is reused', async () => {
     const sessionId = await sessionWithTexts('no-state', ['one'])
 
