@@ -14,6 +14,7 @@ import {
   applyPiPackageDirectoryTo,
   withShellPiPackageDirectory,
 } from './pi-package-directory-environment'
+import { sessionHostSafeEnvironment } from './session-host/session-host-launch-command'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
@@ -140,23 +141,12 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
   }
 }
 
-/**
- * Detached Session Hosts are the user's durable Pi runtime and need provider credentials and shell
- * agent state. Strip only client-scoped OpenWaggle credentials and Electron execution switches,
- * which must never become daemon authority.
- */
+/** The environment a detached Session Host starts with (see `sessionHostSafeEnvironment`). */
 export function getSessionHostChildEnv(): Record<string, string | undefined> {
-  const childEnvironment: NodeJS.ProcessEnv = {
-    ...withShellPiPackageDirectory(process.env),
-    PATH: getNpmCompatiblePath(),
-  }
-  delete childEnvironment.ELECTRON_RUN_AS_NODE
-  delete childEnvironment.OPENWAGGLE_CLI_OUTPUT_FD
-  delete childEnvironment.OPENWAGGLE_PROFILE
-  delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
-  delete childEnvironment.OPENWAGGLE_AGENT_RUN
-  delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
-  return childEnvironment
+  return sessionHostSafeEnvironment(
+    withShellPiPackageDirectory(process.env),
+    getNpmCompatiblePath(),
+  )
 }
 
 /**

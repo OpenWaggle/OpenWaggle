@@ -8,9 +8,15 @@ import {
   ensureLocalSessionHost,
   isLocalSessionHostUnavailable,
   waitForLocalSessionHostRelease,
+  waitForPrelaunchedLocalSessionHost,
 } from './local-session-host-launcher'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
+import {
+  hasSessionHostPrelaunch,
+  type SessionHostPrelaunch,
+  takeSessionHostPrelaunch,
+} from './session-host-prelaunch-handoff'
 import { startRemoteSessionHostRendererBridge } from './session-host-renderer-bridge'
 import { releaseSessionHostForUpdate } from './session-host-update-release'
 
@@ -68,8 +74,16 @@ export async function prepareGuiSessionHostLifecycle(input: {
   readonly onUpgradePending?: () => void
   /** This start attached to a running Host or launched one: the Host's own startup is under way. */
   readonly onHostUnderway?: () => void
+  /** Whether the boot shim launched this profile's Host (`boot/session-host-prelaunch`). */
+  readonly hasPrelaunchedHost?: (userDataRoot: string) => boolean
+  /** That Host, taken once: a Retry launches as usual. */
+  readonly takePrelaunchedHost?: (userDataRoot: string) => SessionHostPrelaunch | null
+  /** Waits for that Host to answer; false once it ended without answering. */
+  readonly waitForPrelaunchedHost?: typeof waitForPrelaunchedLocalSessionHost
 }): Promise<GuiSessionHostLifecycle> {
-  const { paths } = await prepareGuiSessionHostStartup(input)
+  const takePrelaunchedHost = input.takePrelaunchedHost ?? takeSessionHostPrelaunch
+  const hostPrelaunched = (input.hasPrelaunchedHost ?? hasSessionHostPrelaunch)(input.userDataRoot)
+  const { paths } = await prepareGuiSessionHostStartup({ ...input, hostPrelaunched })
   const remoteClient = guiRemoteClient(paths, input.clientVersion)
   let stopRendererBridge: (() => void | Promise<void>) | null = null
   let stopping = false
@@ -86,11 +100,29 @@ export async function prepareGuiSessionHostLifecycle(input: {
     return true
   }
 
+  /** Attaches to the Host the boot shim launched, once it answers; false if it ended first. */
+  const attachToPrelaunchedHost = async (signal?: AbortSignal) => {
+    const prelaunch = takePrelaunchedHost(input.userDataRoot)
+    if (!prelaunch) return false
+    input.startupMark('session-host-prelaunch-adopted')
+    input.onHostUnderway?.()
+    const waitForPrelaunchedHost =
+      input.waitForPrelaunchedHost ?? waitForPrelaunchedLocalSessionHost
+    const answered = await waitForPrelaunchedHost({
+      ...remoteClient,
+      clientKind: 'gui',
+      prelaunch,
+      ...(signal ? { signal } : {}),
+    })
+    signal?.throwIfAborted()
+    return answered && (await attachToExistingHost())
+  }
+
   return {
     client: remoteClient,
     start: async (signal) => {
       stopping = false
-      if (!(await attachToExistingHost())) {
+      if (!(await attachToExistingHost()) && !(await attachToPrelaunchedHost(signal))) {
         if (stopping) throw new Error('GUI Session Host startup was stopped.')
         signal?.throwIfAborted()
         await ensureLocalSessionHost({

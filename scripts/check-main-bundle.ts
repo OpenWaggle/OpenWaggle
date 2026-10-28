@@ -12,11 +12,12 @@ const KIBIBYTE = 1024
 const MAIN_OUT_DIRECTORY = path.resolve('out/main')
 /**
  * The boot shim runs before V8's compile cache exists, so it is compiled from source on every
- * launch (src/main/boot.ts). It holds the compile cache setup and the `--version`/`--help` router
- * (34 KB when this budget was set); anything more it imports is paid by every process.
+ * launch (src/main/boot.ts). It holds the compile cache setup, the `--version`/`--help` router
+ * (34 KB when this budget was set) and the desktop app's Session Host prelaunch (W11, 48 KB with
+ * it); anything more it imports is paid by every process.
  */
 const MAIN_BOOT_FILE = 'boot.js'
-const MAX_MAIN_BOOT_BYTES = 48 * KIBIBYTE
+const MAX_MAIN_BOOT_BYTES = 56 * KIBIBYTE
 
 async function fileBytes(file: string) {
   return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size

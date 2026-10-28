@@ -19,6 +19,11 @@ const importSessionHostCutover = (): Promise<typeof SessionHostCutover> =>
 export async function prepareGuiSessionHostStartup(input: {
   readonly userDataRoot: string
   readonly startupMark: (label: string) => void
+  /**
+   * The boot shim launched this profile's Host, which moves or creates its store itself while
+   * this runs; it did so only when there is no legacy store for this process to move first.
+   */
+  readonly hostPrelaunched?: boolean
 }): Promise<{
   readonly paths: LocalSessionHostPaths
 }> {
@@ -31,7 +36,7 @@ export async function prepareGuiSessionHostStartup(input: {
     targetDatabasePath: paths.databasePath,
     recoveryDatabasePath: paths.recoveryDatabasePath,
   }
-  if (!(await sessionHostTargetExists(cutoverPaths))) {
+  if (!input.hostPrelaunched && !(await sessionHostTargetExists(cutoverPaths))) {
     const { runSessionHostCutover } = await importSessionHostCutover()
     await withLegacySessionWriterFence(() => runSessionHostCutover(cutoverPaths))
     input.startupMark('session-host-cutover-ready')

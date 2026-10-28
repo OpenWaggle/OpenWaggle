@@ -29,25 +29,41 @@ function writeAnswer(answer: TopLevelCliAnswer, outputFd: number | null) {
 }
 
 /**
+ * What the boot shim did with an invocation: `answered` it and is exiting, or left it to the main
+ * bundle, which opens the `desktop-app` window, runs the detached `session-host`, or runs a
+ * command (`main-bundle`).
+ */
+export type BootTopLevelCliOutcome = 'answered' | 'desktop-app' | 'session-host' | 'main-bundle'
+
+const SESSION_HOST_COMMAND = 'session-host-internal'
+
+const DESKTOP_APP_ROUTES = new Set(['gui', 'open-project', 'open-session-link'])
+
+/**
  * Answers `openwaggle --version`, `--help` and usage errors from the boot shim, before the 25 MB
  * main bundle loads (A-F15): they need only the argument router and the app version, and agents
- * and scripts run them often. Returns false for every other invocation, having touched nothing,
- * so the main bundle routes it as before. The answers are the ones top-level-cli-entry.ts prints.
+ * and scripts run them often. Every other invocation is left untouched for the main bundle, which
+ * routes it as before; the outcome says whether that opens the desktop app. The answers are the
+ * ones top-level-cli-entry.ts prints.
  */
-export function answerTopLevelCliInBoot(input: BootTopLevelCliInput): boolean {
+export function answerTopLevelCliInBoot(input: BootTopLevelCliInput): BootTopLevelCliOutcome {
   let outputFd: number | null
   try {
     outputFd = parseCliOutputFd(input.cliOutputFd)
   } catch {
     // The main bundle reports a malformed descriptor the way every command does.
-    return false
+    return 'main-bundle'
   }
   const argv = applicationCliArguments(input.argv, { isPackaged: app.isPackaged })
   const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(app.isPackaged))
   const answer = topLevelCliAnswer(route, app.getVersion())
-  if (!answer) return false
+  if (!answer) {
+    if (DESKTOP_APP_ROUTES.has(route.kind)) return 'desktop-app'
+    if (route.kind === 'delegate' && route.argv[0] === SESSION_HOST_COMMAND) return 'session-host'
+    return 'main-bundle'
+  }
   hideCliFromDock(input.platform)
   ignoreCliOutputStreamErrors()
   writeCliOutputAndExit(() => writeAnswer(answer, outputFd), answer.exitCode, writeStderr)
-  return true
+  return 'answered'
 }

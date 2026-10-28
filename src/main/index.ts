@@ -33,6 +33,7 @@ import {
 } from './gui-backend-startup'
 import { exitAfterBootstrapFailure, reportGuiStartupFailure } from './gui-bootstrap-failure'
 import { createGuiStartupCoordinator, type GuiStartupCoordinator } from './gui-startup-coordinator'
+import { openWindowThenRegisterIpc } from './gui-window-bootstrap'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
@@ -44,6 +45,7 @@ import {
 import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
 import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
+import { hasSessionHostPrelaunch } from './session-host/session-host-prelaunch-handoff'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { installSessionLinkProtocol } from './session-link-protocol'
 import { requestOpenSessionLink } from './session-link-requests'
@@ -158,7 +160,10 @@ async function bootstrapServicesAndWindow() {
   // Renderer requests wait here until the backend is ready (A-F2).
   holdGuiBackendGate()
   const hostUnderway = Promise.withResolvers<void>()
-  const hostHeadStart = Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
+  // A Host the boot shim launched is under way already; the window need not wait for it.
+  const hostHeadStart = hasSessionHostPrelaunch()
+    ? Promise.resolve()
+    : Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
   const startup = createGuiStartupCoordinator({
     start: (progress, signal) =>
       startGuiBackend({
@@ -185,19 +190,22 @@ async function bootstrapServicesAndWindow() {
   await hostHeadStart
   startupMark('session-host-underway')
 
-  const runtimeModule = await getRuntimeModule()
-  await registerIpcHandlersOnce(startup)
-  startupMark('ipc-handlers-registered')
-
-  registerApplicationProtocols({
-    readInlineVisualizationSource: (input) =>
-      runtimeModule.runGuiEffect(readInlineVisualizationSource(input)),
+  await openWindowThenRegisterIpc({
+    registerProtocols: () =>
+      registerApplicationProtocols({
+        readInlineVisualizationSource: async (input) =>
+          (await getRuntimeModule()).runGuiEffect(readInlineVisualizationSource(input)),
+      }),
+    createWindow: () => {
+      createMainWindowWithVisualizationGuard()
+      mainWindowCreated = true
+    },
+    registerIpc: async () => {
+      await getRuntimeModule()
+      await registerIpcHandlersOnce(startup)
+    },
+    startupMark,
   })
-  startupMark('protocol-handlers-registered')
-
-  createMainWindowWithVisualizationGuard()
-  mainWindowCreated = true
-  startupMark('main-window-created')
 }
 
 /** A later launch focuses the window, or creates one after startup as the Dock icon does. */

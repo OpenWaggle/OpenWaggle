@@ -1,18 +1,20 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { DATABASE_FILE_NAME } from '../services/database-constants'
 import { hostTemporaryDirectory } from '../utils/session-scratch-directory'
+import {
+  legacySessionDatabasePath,
+  sessionHostDatabasePath,
+  sessionHostStateRoot,
+  unixSessionHostEndpoint,
+} from './local-session-host-layout'
 import { secureWindowsUserOnly, type WindowsUserOnlySecurity } from './windows-user-only-security'
 
-const PORTABLE_UNIX_SOCKET_PATH_BYTES = 100
-const ENDPOINT_HASH_CHARACTERS = 20
 const WINDOWS_ENDPOINT_CAPABILITY_BYTES = 32
 const WINDOWS_ENDPOINT_CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const WINDOWS_ENDPOINT_CAPABILITY_FILE = 'endpoint.capability'
 const OWNER_DIRECTORY_MODE = 0o700
 const OWNER_FILE_MODE = 0o600
-const PORTABLE_TEMPORARY_ROOT = '/tmp'
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_DIRECTORY_NO_FOLLOW =
   filesystemConstants.O_RDONLY |
@@ -30,25 +32,17 @@ export interface LocalSessionHostPaths {
   readonly endpointCapabilityPath: string | null
 }
 
-function endpointHash(userDataRoot: string) {
-  return createHash('sha256')
-    .update(path.resolve(userDataRoot))
-    .digest('hex')
-    .slice(0, ENDPOINT_HASH_CHARACTERS)
-}
-
 export function resolveLocalSessionHostPaths(input: {
   readonly userDataRoot: string
   readonly platform?: NodeJS.Platform
   readonly temporaryRoot?: string
 }): LocalSessionHostPaths {
   const platform = input.platform ?? process.platform
-  const stateRoot = path.join(input.userDataRoot, 'session-host')
-  const legacyDatabasePath = path.join(input.userDataRoot, DATABASE_FILE_NAME)
-  const databasePath = path.join(stateRoot, 'session-host.sqlite')
+  const stateRoot = sessionHostStateRoot(input.userDataRoot)
+  const legacyDatabasePath = legacySessionDatabasePath(input.userDataRoot)
+  const databasePath = sessionHostDatabasePath(input.userDataRoot)
   const recoveryDatabasePath = path.join(stateRoot, 'pre-cutover-openwaggle.sqlite')
   const credentialPath = path.join(stateRoot, 'local-user.credential')
-  const hash = endpointHash(input.userDataRoot)
   if (platform === 'win32') {
     return {
       stateRoot,
@@ -62,39 +56,18 @@ export function resolveLocalSessionHostPaths(input: {
     }
   }
 
-  const preferredEndpoint = path.join(stateRoot, 'host.sock')
-  if (Buffer.byteLength(preferredEndpoint, 'utf8') <= PORTABLE_UNIX_SOCKET_PATH_BYTES) {
-    return {
-      stateRoot,
-      legacyDatabasePath,
-      databasePath,
-      recoveryDatabasePath,
-      credentialPath,
-      endpoint: preferredEndpoint,
-      endpointDirectory: stateRoot,
-      endpointCapabilityPath: null,
-    }
-  }
-
-  const endpointDirectoryName = `owsh-${hash}`
-  const endpointName = 'host.sock'
-  const temporaryEndpointDirectory = path.join(
+  const { endpoint, endpointDirectory } = unixSessionHostEndpoint(
+    input.userDataRoot,
     // Not `os.tmpdir()`: an agent's tool process has TMPDIR set to its Session scratch directory.
-    input.temporaryRoot ?? hostTemporaryDirectory(),
-    endpointDirectoryName,
+    () => input.temporaryRoot ?? hostTemporaryDirectory(),
   )
-  const temporaryEndpoint = path.join(temporaryEndpointDirectory, endpointName)
-  const endpointDirectory =
-    Buffer.byteLength(temporaryEndpoint, 'utf8') <= PORTABLE_UNIX_SOCKET_PATH_BYTES
-      ? temporaryEndpointDirectory
-      : path.join(PORTABLE_TEMPORARY_ROOT, endpointDirectoryName)
   return {
     stateRoot,
     legacyDatabasePath,
     databasePath,
     recoveryDatabasePath,
     credentialPath,
-    endpoint: path.join(endpointDirectory, endpointName),
+    endpoint,
     endpointDirectory,
     endpointCapabilityPath: null,
   }

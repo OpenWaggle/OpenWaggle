@@ -9,10 +9,10 @@
 import { app } from 'electron'
 import { readEnvironmentVariables } from './env'
 import { createLogger } from './logger'
-
-export const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
-/** Passed to a Host launched by a GUI that measures its startup, which has no switches. */
-export const STARTUP_TIMINGS_ENVIRONMENT_VARIABLE = 'OPENWAGGLE_STARTUP_TIMINGS'
+import {
+  STARTUP_TIMINGS_ENVIRONMENT_VARIABLE,
+  startupTimingsRequestedBy,
+} from './session-host/session-host-launch-command'
 
 const STARTUP_TIMING_PRECISION = 1
 const MILLISECONDS_PER_SECOND = 1_000
@@ -21,11 +21,10 @@ const moduleLoadedAt = performance.now()
 export type StartupMark = (label: string) => void
 
 export function startupTimingsRequested() {
-  const variables = readEnvironmentVariables([STARTUP_TIMINGS_ENVIRONMENT_VARIABLE])
-  return (
-    variables[STARTUP_TIMINGS_ENVIRONMENT_VARIABLE] === '1' ||
-    app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)
-  )
+  return startupTimingsRequestedBy({
+    environment: readEnvironmentVariables([STARTUP_TIMINGS_ENVIRONMENT_VARIABLE]),
+    commandLine: app.commandLine,
+  })
 }
 
 function rounded(milliseconds: number) {

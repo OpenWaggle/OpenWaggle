@@ -12,6 +12,14 @@ export const MAIN_COMPILE_CACHE_LATE_FLUSH_DELAYS_MS: readonly number[] = [
   1_000, 3_000, 10_000, 60_000,
 ]
 
+/**
+ * When the desktop app and the Session Host first write it. Writing serializes what V8 compiled
+ * (≈40 ms for the main bundle on a cold cache), which right after the bundle loaded sat on both
+ * processes' path to the window and to listening (W11). They run for minutes, so it waits until
+ * they are up; either process stopped within these seconds only costs the next launch its cache.
+ */
+export const LONG_LIVED_PROCESS_FLUSH_DELAYS_MS: readonly number[] = [3_000, 10_000, 60_000]
+
 /** The part of `node:module` the shim uses. */
 export interface CompileCacheApi {
   readonly enableCompileCache: (directory: string) => { readonly status: number }
@@ -80,4 +88,18 @@ export function flushMainCompileCacheAfterLoad(
   if (!cache.enabled) return
   cache.flush()
   for (const delayMs of lateFlushDelaysMs) scheduleTimer(cache.flush, delayMs).unref?.()
+}
+
+/**
+ * The desktop app's and the Session Host's writes: none while they start, then the later ones
+ * (`LONG_LIVED_PROCESS_FLUSH_DELAYS_MS`). Short commands keep `flushMainCompileCacheAfterLoad`.
+ */
+export function flushMainCompileCacheOnceStarted(
+  cache: MainCompileCache,
+  scheduleTimer: ScheduleTimer,
+) {
+  if (!cache.enabled) return
+  for (const delayMs of LONG_LIVED_PROCESS_FLUSH_DELAYS_MS) {
+    scheduleTimer(cache.flush, delayMs).unref?.()
+  }
 }
