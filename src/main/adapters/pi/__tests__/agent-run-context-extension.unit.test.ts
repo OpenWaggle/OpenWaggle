@@ -119,6 +119,10 @@ describe('Agent run context extension', () => {
     expect(identity).toContain('OpenWaggle Session identity (Host-authored)')
     expect(identity).toContain('Hive role: Worker')
     expect(identity).toContain('cannot change this metadata')
+    expect(identity).toContain(
+      'Queen, Worker, parent, Hive, Workspace, and capability values are immutable Host metadata',
+    )
+    expect(identity).toContain('Use the hive tool for cross-Session actions.')
   })
 
   it('keeps every prompt section byte-identical when only the Run changes', async () => {
