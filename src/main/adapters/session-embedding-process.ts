@@ -8,7 +8,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { getNativeRuntimeChildEnv } from '../env'
+import { getNativeRuntimeChildEnv } from '../native-runtime-child-env'
 
 export const SESSION_EMBEDDING_IDLE_EXIT_MS = 60_000
 const STDERR_TAIL_CHARS = 2_000
