@@ -10,6 +10,8 @@ describe('openwaggle mcp and direct exposure', () => {
 
     expect(result.exitCode).toBe(2)
     expect(result.errors).toContain('no longer offers --exposure direct')
+    // The refusal says the command changed nothing, so a script knows to rerun it (review P3-10).
+    expect(result.errors).toContain('Nothing was added.')
     expect(result.errors).toContain('Use --exposure codemode.')
     expect(result.calls.some((call) => call.channel === 'mcp:add-server')).toBe(false)
   })
