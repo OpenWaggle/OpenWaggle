@@ -30,15 +30,13 @@ interface FrameCallbacks {
 
 /*
  * The frame's timers and coalescing, created once per mount (in a `useState` initializer) and
- * reading the latest callbacks through `latest`. Their identity used to come from compiler
- * memoization on the callbacks; the layout effect that sets `frame.src` depends on them, so a new
+ * reading the latest callbacks, which each commit hands it (`adoptCallbacks`). Their identity
+ * used to come from compiler memoization on the callbacks; the layout effect that sets `frame.src` depends on them, so a new
  * callback, or the compiler bailing out of the hook (the build runs with `panicThreshold: 'none'`),
  * reloaded the visualization on every render (PR #391 review R2 P3-10).
  */
-function createFrameControls(
-  latest: { readonly current: FrameCallbacks },
-  setErrorReason: (reason: string) => void,
-) {
+function createFrameControls(initial: FrameCallbacks, setErrorReason: (reason: string) => void) {
+  let callbacks = initial
   let healthCheckTimeout: number | null = null
   let healthCheckInterval: number | null = null
   let pendingState: JsonValue | null | undefined
@@ -73,7 +71,7 @@ function createFrameControls(
     stateTimeout = null
     const state = pendingState
     pendingState = undefined
-    if (state !== undefined) latest.current.onStateChange(state)
+    if (state !== undefined) callbacks.onStateChange(state)
   }
   const scheduleStateChange = (state: JsonValue | null) => {
     pendingState = state
@@ -83,7 +81,7 @@ function createFrameControls(
   const becomeUnavailable = (reason: string) => {
     setErrorReason(reason)
     clearPendingState()
-    latest.current.onUnavailable(reason)
+    callbacks.onUnavailable(reason)
   }
   const acceptMessage = () => {
     const now = performance.now()
@@ -101,13 +99,18 @@ function createFrameControls(
   }
   const armHealthCheckTimeout = () => {
     clearHealthCheckTimeout()
-    if (!latest.current.registrationId) return
+    if (!callbacks.registrationId) return
     healthCheckTimeout = window.setTimeout(() => {
       healthCheckTimeout = null
       becomeUnavailable('unresponsive')
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
   }
   return {
+    /** This commit's callbacks and registration, for everything the controls run later. */
+    adoptCallbacks(next: FrameCallbacks) {
+      callbacks = next
+    },
+    onDismiss: () => callbacks.onDismiss(),
     acceptMessage,
     armHealthCheckTimeout,
     becomeUnavailable,
@@ -135,12 +138,18 @@ export function useInlineVisualizationFrame(input: {
   const capabilityRef = useRef<string | null>(null)
   const brokerPendingRef = useRef(false)
   const { registrationId, onDismiss, onUnavailable, onStateChange } = input
-  const latest = useRef<FrameCallbacks>({ registrationId, onDismiss, onUnavailable, onStateChange })
+  // Created once, holding the latest callbacks itself: a ref passed to a function during render
+  // reads to the compiler as ref access and left this hook uncompiled.
+  const [controls] = useState(() =>
+    createFrameControls(
+      { registrationId, onDismiss, onUnavailable, onStateChange },
+      setErrorReason,
+    ),
+  )
   // Declared before the frame's effect, so the callbacks it reads are this render's.
   useLayoutEffect(() => {
-    latest.current = { registrationId, onDismiss, onUnavailable, onStateChange }
+    controls.adoptCallbacks({ registrationId, onDismiss, onUnavailable, onStateChange })
   })
-  const [controls] = useState(() => createFrameControls(latest, setErrorReason))
 
   const postToFrame = useCallback(
     (message: Record<string, unknown>) => {
@@ -186,7 +195,7 @@ export function useInlineVisualizationFrame(input: {
         postToFrame,
         setErrorReason: controls.becomeUnavailable,
         setHeight,
-        onDismiss: () => latest.current.onDismiss(),
+        onDismiss: controls.onDismiss,
         scheduleStateChange: controls.scheduleStateChange,
       })
     })
