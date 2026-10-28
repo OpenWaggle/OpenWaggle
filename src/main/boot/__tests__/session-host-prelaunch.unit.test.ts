@@ -114,11 +114,13 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
       OPENWAGGLE_LOG_LEVEL: 'debug',
       OPENWAGGLE_STARTUP_TIMINGS: '1',
       ANTHROPIC_API_KEY: 'provider-key',
+      OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1',
     },
     platform: 'darwin',
     executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
     homeDirectory: '/Users/person',
     temporaryDirectory: () => '/agent/scratch',
+    now: () => 1_800_000_000_000,
     pathExists: () => false,
     legacyStorePresent: () => false,
     spawn,
@@ -171,6 +173,8 @@ describe('startSessionHostPrelaunch', () => {
       ANTHROPIC_API_KEY: 'provider-key',
       // An agent shell's scratch directory is not the Host's temp directory (ADR 0042).
       TMPDIR: '/var/folders/xy/T',
+      // The app this shim starts refreshes the login-shell cache; the Host waits for that.
+      OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1800000000000',
     })
     expect(launch?.environment.PATH?.startsWith('/usr/bin')).toBe(true)
     for (const clientScoped of [

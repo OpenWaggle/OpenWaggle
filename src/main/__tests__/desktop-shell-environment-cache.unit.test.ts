@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { startDesktopShellEnvironment } from '../desktop-shell-environment'
 import {
   fileShellEnvironmentCache,
   SHELL_ENVIRONMENT_CACHE_MAX_AGE_MS,
@@ -11,6 +10,7 @@ import type {
   ShellEnvironmentCommand,
   ShellEnvironmentCommandRunner,
 } from '../desktop-shell-environment-probes'
+import { startDesktopShellEnvironment } from '../desktop-shell-environment-start'
 
 const NOW = 1_800_000_000_000
 const KEY = { platform: 'darwin' as const, shell: '/bin/zsh', home: '/Users/test' }
@@ -129,6 +129,7 @@ describe('the cached login-shell environment', () => {
     expect(env.SSH_AUTH_SOCK).toBe('/tmp/new-agent')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/fresh/bin:/usr/bin', SSH_AUTH_SOCK: '/tmp/new-agent' },
+      resolvedAt: NOW,
     })
   })
 
@@ -142,6 +143,7 @@ describe('the cached login-shell environment', () => {
     expect(env.PATH).toBe('/cached/bin:/usr/bin:/bin')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/cached/bin' },
+      resolvedAt: NOW,
     })
   })
 
@@ -168,6 +170,7 @@ describe('the cached login-shell environment', () => {
     await writeFile(cacheFile, JSON.stringify(raw))
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/cached/bin' },
+      resolvedAt: NOW,
     })
   })
 
@@ -198,6 +201,7 @@ describe('the cached login-shell environment', () => {
     expect(env.PATH).toBe('/opt/homebrew/bin:/usr/bin:/bin')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/opt/homebrew/bin:/usr/bin:/bin' },
+      resolvedAt: NOW,
     })
   })
 
@@ -237,5 +241,88 @@ describe('the cached login-shell environment', () => {
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).not.toHaveProperty(
       'SSH_AUTH_SOCK',
     )
+  })
+})
+
+describe('a Session Host launched by the desktop app', () => {
+  const SINCE = NOW - 500
+
+  /** The Host's start: it reads the cache but never writes it, and waits for the app's refresh. */
+  function launchHost(input: {
+    readonly runCommand: ShellEnvironmentCommandRunner
+    readonly duringWait?: (elapsedMs: number) => void
+  }) {
+    let clock = NOW
+    const env: Record<string, string | undefined> = {
+      PATH: '/usr/bin:/bin',
+      SHELL: '/bin/zsh',
+      HOME: '/Users/test',
+      LANG: 'en_US.UTF-8',
+    }
+    const started = startDesktopShellEnvironment({
+      env,
+      platform: 'darwin',
+      runCommand: input.runCommand,
+      cache: fileShellEnvironmentCache(cacheFile),
+      writeCache: false,
+      refreshedElsewhere: { since: SINCE, timeoutMs: 1_000 },
+      now: () => clock,
+      sleep: async (milliseconds) => {
+        clock += milliseconds
+        input.duringWait?.(clock - NOW)
+      },
+    })
+    return { env, started }
+  }
+
+  it("runs no login shell when the app's refresh for this launch is already cached", async () => {
+    fileShellEnvironmentCache(cacheFile).write(KEY, { environment: { PATH: '/fresh/bin' } }, SINCE)
+    const runCommand = vi.fn(async () => captured('PATH', '/probed/bin'))
+    const { env, started } = launchHost({ runCommand })
+
+    await started.ready
+    await started.refreshed
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(env.PATH).toBe('/fresh/bin:/usr/bin:/bin')
+  })
+
+  it("applies the app's refresh once it is written, still without a login shell", async () => {
+    fileShellEnvironmentCache(cacheFile).write(
+      KEY,
+      { environment: { PATH: '/old/bin' } },
+      NOW - 1e6,
+    )
+    const runCommand = vi.fn(async () => captured('PATH', '/probed/bin'))
+    const { env, started } = launchHost({
+      runCommand,
+      duringWait: (elapsedMs) => {
+        if (elapsedMs !== 300) return
+        fileShellEnvironmentCache(cacheFile).write(KEY, { environment: { PATH: '/app/bin' } }, NOW)
+      },
+    })
+    await started.ready
+    expect(env.PATH).toBe('/old/bin:/usr/bin:/bin')
+
+    await started.refreshed
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(env.PATH).toBe('/app/bin:/usr/bin:/bin')
+  })
+
+  it('probes itself when the app has not refreshed in time, and leaves the cache to the app', async () => {
+    fileShellEnvironmentCache(cacheFile).write(
+      KEY,
+      { environment: { PATH: '/old/bin' } },
+      NOW - 1e6,
+    )
+    const runCommand = vi.fn(async (input: ShellEnvironmentCommand) =>
+      input.probe === 'login-shell' ? captured('PATH', '/terminal/venv/bin:/usr/bin') : '',
+    )
+    const { env, started } = launchHost({ runCommand })
+    await started.refreshed
+
+    expect(runCommand).toHaveBeenCalled()
+    expect(env.PATH).toBe('/terminal/venv/bin:/usr/bin:/bin')
+    // A Host's environment can be a terminal's; it never becomes every launch's.
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe('/old/bin')
   })
 })

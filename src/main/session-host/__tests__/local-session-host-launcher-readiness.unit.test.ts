@@ -169,4 +169,17 @@ describe('Local Session Host launcher readiness', () => {
       sessionHostChildEnvironment({ safeEnvironment: {}, userDataRoot: '/profile' }),
     ).not.toHaveProperty('OPENWAGGLE_STARTUP_TIMINGS')
   })
+
+  it('tells a Host launched by the desktop app when the app began refreshing the login shell', () => {
+    expect(
+      sessionHostChildEnvironment({
+        safeEnvironment: {},
+        userDataRoot: '/profile',
+        shellEnvironmentRefreshedSince: 1_800_000_000_000,
+      }),
+    ).toMatchObject({ OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1800000000000' })
+    expect(
+      sessionHostChildEnvironment({ safeEnvironment: {}, userDataRoot: '/profile' }),
+    ).not.toHaveProperty('OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE')
+  })
 })

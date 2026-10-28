@@ -107,6 +107,7 @@ export interface SessionHostPrelaunchInput {
   readonly temporaryDirectory: () => string
   /** This user's id, for the Linux session bus under `/run/user/<uid>`. */
   readonly uid?: number
+  readonly now?: () => number
   readonly pathExists?: (target: string) => boolean
   readonly legacyStorePresent?: (databasePath: string) => boolean
   readonly spawn?: (launch: DetachedProcessLaunch) => ChildProcess
@@ -155,6 +156,8 @@ function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: st
       environment,
       commandLine: input.app.commandLine,
     }),
+    // The desktop app this shim starts probes the login shell and caches it from now on.
+    shellEnvironmentRefreshedSince: (input.now ?? Date.now)(),
   })
 }
 

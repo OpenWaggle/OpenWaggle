@@ -31,6 +31,7 @@ vi.mock('../env', () => ({
   env: mocks.env,
   installDesktopShellEnvironment: async () => undefined,
   installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
 }))
 vi.mock('../logger', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../logger')>()),

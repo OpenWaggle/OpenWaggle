@@ -15,6 +15,14 @@ export const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 
 export type SessionHostLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
+/**
+ * Passed to a Host launched by the desktop app, which probes the login shell itself and caches
+ * the result: the epoch ms from which a cached entry is that refresh. The Host waits for it
+ * instead of running a second login shell (`startDesktopShellEnvironment`).
+ */
+export const SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE =
+  'OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE'
+
 export function sessionHostLaunchArguments(input: {
   readonly isPackaged: boolean
   readonly appPath: string
@@ -110,6 +118,7 @@ export function sessionHostSafeEnvironment(
   delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
   delete childEnvironment.OPENWAGGLE_AGENT_RUN
   delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
+  delete childEnvironment[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE]
   return childEnvironment
 }
 
@@ -124,12 +133,18 @@ export function sessionHostChildEnvironmentFrom(input: {
   readonly logLevel?: SessionHostLogLevel
   /** The launching GUI measures its startup, so the Host marks its own too. */
   readonly startupTimings?: boolean
+  /** The launching desktop app refreshes the login-shell cache from this epoch ms on. */
+  readonly shellEnvironmentRefreshedSince?: number
 }) {
+  const refreshedSince = input.shellEnvironmentRefreshedSince
   return {
     ...input.safeEnvironment,
     OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
     ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
     ...(input.startupTimings ? { [STARTUP_TIMINGS_ENVIRONMENT_VARIABLE]: '1' } : {}),
+    ...(refreshedSince === undefined
+      ? {}
+      : { [SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE]: String(refreshedSince) }),
   }
 }
 

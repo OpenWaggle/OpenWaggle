@@ -1,7 +1,7 @@
 import net from 'node:net'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
-import { env, getSessionHostChildEnv } from '../env'
+import { desktopShellEnvironmentRefreshStartedAt, env, getSessionHostChildEnv } from '../env'
 import { startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
@@ -51,11 +51,18 @@ export function sessionHostChildEnvironment(input: {
   readonly logLevel?: SessionHostLogLevel
   /** The launching GUI measures its startup, so the Host marks its own too. */
   readonly startupTimings?: boolean
+  readonly shellEnvironmentRefreshedSince?: number
 }) {
   return sessionHostChildEnvironmentFrom({
     ...input,
     safeEnvironment: input.safeEnvironment ?? getSessionHostChildEnv(),
   })
+}
+
+/** Whether this process (the desktop app) refreshes the login-shell cache the Host can wait for. */
+function shellEnvironmentRefresh() {
+  const since = desktopShellEnvironmentRefreshStartedAt()
+  return since === null ? {} : { shellEnvironmentRefreshedSince: since }
 }
 
 export interface LocalSessionHostLauncherDependencies {
@@ -130,6 +137,7 @@ export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLaunch
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
         startupTimings: startupTimingsRequested(),
+        ...shellEnvironmentRefresh(),
       }),
     }),
   now: Date.now,

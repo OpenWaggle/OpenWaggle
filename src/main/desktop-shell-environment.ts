@@ -1,6 +1,6 @@
 import type {
   ResolvedShellEnvironment,
-  ShellEnvironmentCache,
+  ShellEnvironmentCacheKey,
 } from './desktop-shell-environment-cache'
 import {
   readLaunchctlPath,
@@ -172,8 +172,8 @@ const REPLACED_ENV_NAMES = [
 const APPLIED_ENV_NAMES = [...FILLED_ENV_NAMES, ...REPLACED_ENV_NAMES, ...LOCALE_ENV_NAMES] as const
 const BASE_ENV_NAMES = ['PATH', 'Path', 'path', ...APPLIED_ENV_NAMES] as const
 
-/** Where a result came from: this launch's probe, or the cache of an earlier launch. */
-type ResultSource = 'probe' | 'cache'
+/** Where a result came from: this process's probe, or a cache another launch or process wrote. */
+export type ShellEnvironmentResultSource = 'probe' | 'cache'
 
 /** Probes the login shell from the launch environment, never from one a cache already changed. */
 async function probePosixEnvironment(
@@ -206,7 +206,7 @@ function applyPosixEnvironment(
   options: DesktopShellEnvironmentOptions,
   base: MutableEnvironment,
   resolved: ResolvedShellEnvironment,
-  source: ResultSource,
+  source: ShellEnvironmentResultSource,
 ) {
   restoreBaseEnvironment(options, base)
   const shellEnvironment = resolved.environment
@@ -240,62 +240,39 @@ export async function installDesktopShellEnvironment(
     return
   }
   if (options.platform === 'darwin' || options.platform === 'linux') {
-    const base = snapshotBase(options.env)
-    const launchEnvironment = { ...options.env }
-    applyPosixEnvironment(
-      options,
-      base,
-      await probePosixEnvironment(options, runner, launchEnvironment),
-      'probe',
-    )
+    const posix = preparePosixShellEnvironment(options)
+    posix.apply(await posix.probe(), 'probe')
   }
 }
 
 /** A probe that found neither a PATH nor launchd's: nothing worth applying or caching. */
-function resolvedNothing(resolved: ResolvedShellEnvironment) {
+export function resolvedNothing(resolved: ResolvedShellEnvironment) {
   return !trimNonEmpty(resolved.environment.PATH) && !resolved.launchctlPath
 }
 
-export interface StartedDesktopShellEnvironment {
-  /** Settles once the environment is usable: at once from the cache, else after the probe. */
-  readonly ready: Promise<void>
-  /** Settles once the probe has run and its result is applied (and cached). */
-  readonly refreshed: Promise<void>
-  /** Whether `ready` came from the cache. */
-  readonly fromCache: boolean
+/** One POSIX hydration of `options.env`: whose shell it is, and its probe and results. */
+export interface PosixShellEnvironment {
+  /** Whose login shell this is (null without a shell or HOME): a cache entry is per key. */
+  readonly key: ShellEnvironmentCacheKey | null
+  /** Applies a result over the launch environment, replacing the previous result. */
+  readonly apply: (resolved: ResolvedShellEnvironment, source: ShellEnvironmentResultSource) => void
+  /** Probes the login shell from the launch environment, whatever `apply` has done since. */
+  readonly probe: () => Promise<ResolvedShellEnvironment>
 }
 
-/**
- * Hydrates the environment without blocking on the login shell when it can: a cached result for
- * the same shell and HOME applies at once, and the probe refreshes it (and the cache) in the
- * background. Without one, `ready` waits for the probe. Windows reads its PowerShell profile as
- * before; it is not cached.
- */
-export function startDesktopShellEnvironment(
-  options: DesktopShellEnvironmentOptions & {
-    readonly cache?: ShellEnvironmentCache
-    readonly now?: () => number
-  },
-): StartedDesktopShellEnvironment {
-  if (options.platform !== 'darwin' && options.platform !== 'linux') {
-    const installed = installDesktopShellEnvironment(options)
-    return { ready: installed, refreshed: installed, fromCache: false }
-  }
-  const now = options.now ?? Date.now
+/** Snapshots the launch environment; call it before any result is applied. */
+export function preparePosixShellEnvironment(
+  options: DesktopShellEnvironmentOptions,
+): PosixShellEnvironment {
   const runner = options.runCommand ?? runBoundedShellEnvironmentCommand
   const base = snapshotBase(options.env)
-  // Taken before the cache applies: the refresh probes the launch environment, not the cache's.
+  // The probe runs in the launch environment: a login shell keeps the PATH it inherits.
   const launchEnvironment = { ...options.env }
   const shell = loginShellCandidates(options)[0]
   const home = trimNonEmpty(options.env.HOME)
-  const key = shell && home ? { platform: options.platform, shell, home } : null
-  const cached = key ? (options.cache?.read(key, now()) ?? null) : null
-  if (cached) applyPosixEnvironment(options, base, cached, 'cache')
-  const refreshed = probePosixEnvironment(options, runner, launchEnvironment).then((resolved) => {
-    // A failed probe keeps what the cache gave; it is retried on the next launch.
-    if (cached && resolvedNothing(resolved)) return
-    applyPosixEnvironment(options, base, resolved, 'probe')
-    if (key && !resolvedNothing(resolved)) options.cache?.write(key, resolved, now())
-  })
-  return { ready: cached ? Promise.resolve() : refreshed, refreshed, fromCache: cached !== null }
+  return {
+    key: shell && home ? { platform: options.platform, shell, home } : null,
+    apply: (resolved, source) => applyPosixEnvironment(options, base, resolved, source),
+    probe: () => probePosixEnvironment(options, runner, launchEnvironment),
+  }
 }

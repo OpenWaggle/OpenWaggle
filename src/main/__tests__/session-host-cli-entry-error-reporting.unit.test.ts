@@ -38,6 +38,7 @@ vi.mock('../env', () => ({
   env: {},
   installDesktopShellEnvironment: async () => undefined,
   installLinuxSessionBusEnvironment: () => undefined,
+  takeShellEnvironmentRefreshedSince: () => undefined,
 }))
 vi.mock('../desktop-ui', () => ({
   installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,

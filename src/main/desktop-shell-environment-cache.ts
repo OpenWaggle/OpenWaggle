@@ -34,8 +34,13 @@ export interface ResolvedShellEnvironment {
   readonly launchctlPath?: string
 }
 
+/** A cached result and when its probe ran (epoch ms). */
+export interface CachedShellEnvironment extends ResolvedShellEnvironment {
+  readonly resolvedAt: number
+}
+
 export interface ShellEnvironmentCache {
-  readonly read: (key: ShellEnvironmentCacheKey, now: number) => ResolvedShellEnvironment | null
+  readonly read: (key: ShellEnvironmentCacheKey, now: number) => CachedShellEnvironment | null
   readonly write: (
     key: ShellEnvironmentCacheKey,
     resolved: ResolvedShellEnvironment,
@@ -105,6 +110,7 @@ export function fileShellEnvironmentCache(file: string): ShellEnvironmentCache {
       return {
         environment: allowlisted(entry.environment),
         ...(entry.launchctlPath === undefined ? {} : { launchctlPath: entry.launchctlPath }),
+        resolvedAt: entry.resolvedAt,
       }
     },
     write: (key, resolved, now) => {

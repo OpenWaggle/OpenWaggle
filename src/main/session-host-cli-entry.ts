@@ -1,10 +1,15 @@
 import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
-import type { StartedDesktopShellEnvironment } from './desktop-shell-environment'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
+import type { StartedDesktopShellEnvironment } from './desktop-shell-environment-start'
 import { installAutomationDesktopUiBlockers } from './desktop-ui'
-import { env, installDesktopShellEnvironment, installLinuxSessionBusEnvironment } from './env'
+import {
+  env,
+  installDesktopShellEnvironment,
+  installLinuxSessionBusEnvironment,
+  takeShellEnvironmentRefreshedSince,
+} from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
@@ -84,14 +89,20 @@ async function acquireOwnershipUnlessHeld(databasePath: string) {
  * The Host hydrates its own login-shell environment (PATH, SSH agent, locale), the same bounded
  * way the desktop app does, instead of inheriting one the launching GUI waited for (A-F1/A-F7).
  * It never waits for it to serve: the last result applies at once from the profile's cache and
- * the probe refreshes it meanwhile, and Runs, agent tools, git and stdio MCP servers wait for
+ * the probe refreshes it meanwhile (or, for a Host the desktop app launched, the app's own probe,
+ * so a launch runs one login shell, not two; only the app writes the cache), and Runs, agent tools, git and stdio MCP servers wait for
  * `desktopShellEnvironmentReady()` before they start a process. Settles when the probe has run.
  */
 export function hydrateSessionHostShellEnvironment(
-  start: () => StartedDesktopShellEnvironment = () =>
-    installDesktopShellEnvironment({
+  start: () => StartedDesktopShellEnvironment = () => {
+    const refreshedElsewhereSince = takeShellEnvironmentRefreshedSince()
+    return installDesktopShellEnvironment({
       cacheFile: shellEnvironmentCacheFile(app.getPath('userData')),
-    }),
+      // A Host may be started from a terminal: its PATH must not become every launch's.
+      writeCache: false,
+      ...(refreshedElsewhereSince === undefined ? {} : { refreshedElsewhereSince }),
+    })
+  },
 ): Promise<void> {
   return Promise.resolve()
     .then(() => start().refreshed)
