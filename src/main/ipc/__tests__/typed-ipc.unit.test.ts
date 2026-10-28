@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,6 +43,7 @@ vi.mock('../../gui-runtime', () => ({
     Effect.runPromiseExit(effect),
 }))
 
+import { EventEmitter } from 'node:events'
 import { hostHandle, typedHandle, typedOn } from '../typed-ipc'
 
 function okResult(): { readonly ok: true } {
@@ -284,5 +285,13 @@ describe('the backend gate (A-F2)', () => {
 })
 
 function fromPartialEvent(): IpcMainInvokeEvent {
-  return fromPartial<IpcMainInvokeEvent>({})
+  return fromAny<IpcMainInvokeEvent, { readonly sender: FakeSender }>({ sender: new FakeSender() })
+}
+
+/** A window's webContents: it can reload (a new document) or close. */
+class FakeSender extends EventEmitter {
+  destroyed = false
+  isDestroyed() {
+    return this.destroyed
+  }
 }
