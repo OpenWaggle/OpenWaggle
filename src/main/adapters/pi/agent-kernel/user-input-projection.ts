@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
@@ -19,7 +20,7 @@ export const OPENWAGGLE_USER_INPUT_CUSTOM_TYPE = 'openwaggle-user-input'
  */
 const projectedAttachmentSchema = Schema.Struct({
   ...preparedAttachmentSchema.fields,
-  extractedText: Schema.String,
+  extractedText: Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_SIZE_BYTES)),
 })
 
 const userInputProjectionSchema = Schema.Struct({

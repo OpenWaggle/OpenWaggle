@@ -37,9 +37,6 @@ import { sessionQueryRequestSchema } from './session-query'
 import { agentSendPayloadSchema, browserPreviewAttachmentSchema } from './validation'
 import { waggleConfigSchema } from './waggle'
 
-/** A display name for a prepared attachment; the file's own name when absent. */
-const attachmentDisplayNameSchema = sessionInputItemTextSchema.pipe(Schema.minLength(1))
-
 const localSessionCredentialSchema = Schema.String.pipe(
   Schema.filter((value) => isLocalSessionProfileCredential(value) || 'Invalid credential format.'),
 )
@@ -107,7 +104,6 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
             origin: Schema.optional(
               Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
             ),
-            name: Schema.optional(attachmentDisplayNameSchema),
             browserPreview: Schema.optional(browserPreviewAttachmentSchema),
             browserAnnotationText: Schema.optional(
               Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),

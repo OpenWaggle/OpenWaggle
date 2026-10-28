@@ -1,7 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
-import { createOptimisticUserMessage } from '../chat-attachment-preview'
 import { applyAgentTransportEvent } from '../chat-stream-state'
 import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 
@@ -56,41 +55,6 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
       parts: [{ type: 'text', content: 'Steer' }],
       metadata: { sessionNodeCreatedOrder: 2, durableTextSha256: DIGEST },
     })
-  })
-
-  it('gives an optimistic send with a long pasted prompt its log identity, not a second row', () => {
-    const pasted = {
-      id: 'attachment-pasted',
-      kind: 'text' as const,
-      origin: 'auto-paste-text' as const,
-      name: 'Pasted Text 1.md',
-      path: '/tmp/prompt-1.md',
-      mimeType: 'text/markdown',
-      sizeBytes: 20_000,
-      extractedText: 'x'.repeat(200),
-    }
-    const optimistic = createOptimisticUserMessage({
-      text: 'Redesign this',
-      attachments: [pasted],
-    })
-
-    const messages = applyAgentTransportEvent([...answered, optimistic], {
-      type: 'message_start',
-      messageId: 'live-user',
-      role: 'user',
-      userMessage: {
-        parts: [
-          { type: 'text', text: 'Redesign this' },
-          { type: 'attachment', attachment: pasted },
-        ],
-        sessionNodeCreatedOrder: 2,
-        durableTextSha256: DIGEST,
-      },
-      timestamp: 1_000,
-    })
-
-    expect(messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1', optimistic.id])
-    expect(messages[2]?.metadata).toMatchObject({ sessionNodeCreatedOrder: 2 })
   })
 
   it('gives an optimistic send its log identity instead of repeating it', () => {

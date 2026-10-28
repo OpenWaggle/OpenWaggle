@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { sessionInputItemTextSchema } from '@shared/schemas/session-input'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
@@ -16,9 +15,8 @@ import {
 } from '../utils/attachment-registry'
 import { discardRegisteredImageAttachment } from './attachment-preparation'
 import {
-  buildTempPromptFilename,
   cleanupTempAttachments,
-  ensureTempAttachmentsDirectory,
+  createTempPromptPath,
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
@@ -37,10 +35,18 @@ const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
   paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
 })
+/**
+ * The file name a prompt attachment is written under, which the Host shows as its name: a single
+ * Markdown file name of letters, digits, spaces, and `_ . · -`, so it can neither leave its
+ * directory nor carry markup into the `[Attachment: …]` line the model reads.
+ */
+const promptAttachmentNameSchema = Schema.String.pipe(
+  Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
+)
 const prepareFromTextArgsSchema = Schema.Struct({
   text: Schema.String.pipe(Schema.minLength(1)),
   operationId: Schema.String.pipe(Schema.minLength(1)),
-  name: Schema.optional(sessionInputItemTextSchema.pipe(Schema.minLength(1))),
+  name: Schema.optional(promptAttachmentNameSchema),
 })
 
 function describeUnknownError(error: unknown) {
@@ -55,11 +61,7 @@ export { hydrateAttachmentSources } from '../utils/attachment-hydration'
 
 function prepareAttachmentsThroughHost(
   baseDirectory: string,
-  entries: readonly {
-    readonly path: string
-    readonly origin?: AttachmentOrigin
-    readonly name?: string
-  }[],
+  entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
 ) {
   return Effect.gen(function* () {
     const result = yield* dispatchGuiSessionCommand({
@@ -113,9 +115,9 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        const tempAttachmentsDir = yield* Effect.promise(() => ensureTempAttachmentsDirectory())
-        const fileName = buildTempPromptFilename(Date.now())
-        const filePath = path.join(tempAttachmentsDir, fileName)
+        // Named after the composer's label, so the sent message shows the chip's name.
+        const filePath = yield* Effect.promise(() => createTempPromptPath(name))
+        const fileName = path.basename(filePath)
 
         yield* Effect.promise(() => writePromptTextFileWithProgress(filePath, text, operationId))
         const stats = yield* Effect.promise(() => fs.stat(filePath))
@@ -125,9 +127,8 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        // The Host records the composer's label, so the sent message shows the chip's name.
         const attachments = yield* prepareAttachmentsThroughHost(process.cwd(), [
-          { path: filePath, origin: 'auto-paste-text', ...(name === undefined ? {} : { name }) },
+          { path: filePath, origin: 'auto-paste-text' },
         ])
         const attachment = attachments[0]
         if (!attachment) {
