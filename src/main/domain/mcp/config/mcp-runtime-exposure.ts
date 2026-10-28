@@ -30,6 +30,26 @@ export function withOpenWaggleRuntimeExposure<Config extends McpServerConfigBase
 }
 
 /**
+ * Undoes `withOpenWaggleRuntimeExposure` for a Run in which codemode cannot reach MCP tools (Pi's
+ * `-builtin:codemode`, or `autoEnableCodemode: false` with codemode inactive): a file's `direct`
+ * stays `direct` there, as before OpenWaggle ran it as `codemode`, so those tools stay callable
+ * (review R5 P2-3, maintainer decision: keep direct when codemode is off). `file` is the server's
+ * configuration as its file says it.
+ */
+export function withFileDirectExposure<Config extends McpServerConfigBase>(
+  config: Config,
+  file: Pick<McpServerConfigBase, 'exposure' | 'toolExposure'>,
+): Config {
+  const directTool = Object.values(file.toolExposure ?? {}).includes('direct')
+  if (file.exposure !== 'direct' && !directTool) return config
+  return {
+    ...config,
+    ...(file.exposure === 'direct' ? { exposure: 'direct' as const } : {}),
+    ...(directTool && file.toolExposure ? { toolExposure: { ...file.toolExposure } } : {}),
+  }
+}
+
+/**
  * The one exception to `withOpenWaggleRuntimeExposure`: a tool that opens an MCP App
  * (`_meta.ui.resourceUri`) is declared to the model, so the model calls it itself and the App
  * shows under that call. Only tools that would run as `codemode` change; hidden and deferred

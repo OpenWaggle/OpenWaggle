@@ -7,6 +7,7 @@ import {
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import {
+  withFileDirectExposure,
   withMcpAppToolsDeclared,
   withOpenWaggleRuntimeExposure,
 } from '../../../domain/mcp/config/mcp-runtime-exposure'
@@ -42,8 +43,11 @@ export function withOpenWaggleMcpExposure(
     /** Whether the server's connection failed in this Run, so it will not list its tools. */
     readonly failed?: (server: McpServerEntry) => boolean
   },
+  /** Whether this Run's codemode reaches MCP tools; without it, `direct` stays `direct`. */
+  codemode?: McpCodemodeReach,
 ): ExtensionFactory {
   return (pi) => {
+    codemode?.capture(pi)
     const registeredLabels = new Set<string>()
     if (unknownApps) {
       registerUnknownMcpAppToolWait(pi, {
@@ -56,10 +60,12 @@ export function withOpenWaggleMcpExposure(
     // Only `direct` changes here, which is stable: Pi reconnects a registered server whose
     // configuration changes, so the App tools it learns are declared on registration instead.
     const getMcpServers: ExtensionAPI['getMcpServers'] = () =>
-      pi.getMcpServers().map((server) => ({
-        ...server,
-        config: withOpenWaggleRuntimeExposure(server.config),
-      }))
+      codemode && !codemode.reachable()
+        ? pi.getMcpServers()
+        : pi.getMcpServers().map((server) => ({
+            ...server,
+            config: withOpenWaggleRuntimeExposure(server.config),
+          }))
     const serverConfig = (name: string) =>
       loaded.servers.find((server) => server.name === name)?.config ??
       getMcpServers().find((server) => server.name === name)?.config
@@ -76,6 +82,58 @@ export function withOpenWaggleMcpExposure(
         },
       }),
     )
+  }
+}
+
+const CODEMODE_TOOL_NAME = 'codemode'
+
+/** What a Run's MCP extension knows of codemode, read once Pi's extensions are loaded. */
+export interface McpCodemodeReach {
+  readonly capture: (pi: Pick<ExtensionAPI, 'getAllTools' | 'getActiveTools'>) => void
+  /**
+   * Whether codemode can reach MCP tools in this Run: a `codemode` tool that reaches tools is
+   * registered, and Pi activates it (`autoEnableCodemode`) or it is active already. As Pi's MCP
+   * extension decides it (`ensureDiscoveryActive`). True until `capture`.
+   */
+  readonly reachable: () => boolean
+}
+
+export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
+  let api: Pick<ExtensionAPI, 'getAllTools' | 'getActiveTools'> | undefined
+  return {
+    capture: (pi) => {
+      api = pi
+    },
+    reachable: () => {
+      if (!api) return true
+      const registered = api
+        .getAllTools()
+        .some((tool) => tool.name === CODEMODE_TOOL_NAME && tool.reachesTools !== undefined)
+      return (
+        registered && (autoEnableCodemode || api.getActiveTools().includes(CODEMODE_TOOL_NAME))
+      )
+    },
+  }
+}
+
+/**
+ * The configuration Pi's MCP extension loads in a Run where codemode cannot reach MCP tools: each
+ * server's `direct` as its file says it (`withFileDirectExposure`). Otherwise unchanged.
+ */
+export function withDirectKeptWithoutCodemode<
+  Loaded extends { readonly servers: readonly McpServerEntry[] },
+>(
+  loaded: Loaded,
+  codemode: McpCodemodeReach,
+  fileConfigOf: (name: string) => Pick<McpServerConfig, 'exposure' | 'toolExposure'> | undefined,
+): Loaded {
+  if (codemode.reachable()) return loaded
+  return {
+    ...loaded,
+    servers: loaded.servers.map((server) => {
+      const file = fileConfigOf(server.name)
+      return file ? { ...server, config: withFileDirectExposure(server.config, file) } : server
+    }),
   }
 }
 

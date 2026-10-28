@@ -28,7 +28,12 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { createMcpExtensionServers } from './mcp-extension-servers'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
-import { withKnownMcpAppToolsOf, withOpenWaggleMcpExposure } from './mcp-openwaggle-exposure'
+import {
+  mcpCodemodeReach,
+  withDirectKeptWithoutCodemode,
+  withKnownMcpAppToolsOf,
+  withOpenWaggleMcpExposure,
+} from './mcp-openwaggle-exposure'
 import { forOpenWaggleMcpSurface } from './mcp-openwaggle-surface'
 import { attachSessionMcpContext } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
@@ -249,6 +254,10 @@ export async function createOpenWaggleMcpExtensions(
   const extensionServers = createMcpExtensionServers()
   const cachedAppTools = (entry: McpServerEntry) =>
     cachedMcpAppToolNames(mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }))
+  // With codemode off (`-builtin:codemode`), a file's `direct` stays `direct` (review R5 P2-3).
+  const codemode = mcpCodemodeReach(config.loaded.autoEnableCodemode ?? true)
+  const fileConfigOf = (name: string) =>
+    config.merged.servers.find((server) => server.name === name)?.config
   const mcp = forOpenWaggleMcpSurface(
     withOpenWaggleMcpExposure(
       input.sessionId,
@@ -257,7 +266,11 @@ export async function createOpenWaggleMcpExtensions(
         loadConfig: () =>
           withCachedMcpDescriptions(
             withShellResolvedClientSecrets(
-              withKnownMcpAppToolsOf(input.sessionId, config.loaded, cachedAppTools),
+              withKnownMcpAppToolsOf(
+                input.sessionId,
+                withDirectKeptWithoutCodemode(config.loaded, codemode, fileConfigOf),
+                cachedAppTools,
+              ),
             ),
             (entry) => mcpToolCatalogKeyOf({ entry, config, projectPath: input.projectPath }),
           ),
@@ -284,6 +297,7 @@ export async function createOpenWaggleMcpExtensions(
         cached: cachedAppTools,
         failed: (server) => input.pool.connectionFailed(input.sessionId, server.name),
       },
+      codemode,
     ),
   )
   return [
