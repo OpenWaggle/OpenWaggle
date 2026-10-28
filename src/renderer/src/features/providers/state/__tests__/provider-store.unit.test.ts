@@ -95,6 +95,36 @@ describe("a Session's model that is not enabled in OpenWaggle", () => {
     )
   })
 
+  // PR 391 review R2 P3-4: the startup catalog lists only runnable models, so a signed-out
+  // provider's model is missing from it, though its provider is listed with its sign-in state.
+  it('names the provider to sign in to when the startup catalog leaves the model out', () => {
+    const signedOutAvailableScope = PROVIDER_MODELS.map((group) =>
+      group.provider === 'anthropic'
+        ? {
+            ...group,
+            auth: { ...group.auth, configured: false, source: 'none' as const },
+            models: [],
+          }
+        : group,
+    )
+
+    expect(modelUnavailableMessage(signedOutAvailableScope, SONNET)).toBe(
+      'Claude Sonnet 4.5 needs a sign-in to Anthropic. Connect Anthropic in Settings > Connections, or choose another model.',
+    )
+  })
+
+  it('names the provider of a model it cannot run even when signed in', () => {
+    const withoutSonnet = PROVIDER_MODELS.map((group) =>
+      group.provider === 'anthropic'
+        ? { ...group, models: group.models.filter((model) => model.id !== SONNET) }
+        : group,
+    )
+
+    expect(modelUnavailableMessage(withoutSonnet, SONNET)).toBe(
+      'anthropic/claude-sonnet-4-5 is not available from Anthropic. Choose another model.',
+    )
+  })
+
   it('asks for a model when there is none', () => {
     expect(modelUnavailableMessage(PROVIDER_MODELS, undefined)).toBe(
       'Select a model before sending.',
