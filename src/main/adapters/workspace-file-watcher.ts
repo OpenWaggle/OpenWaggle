@@ -38,6 +38,11 @@ export function setWorkspaceWatcherPlatformForTests(platform: NodeJS.Platform) {
   watchPlatform = platform
 }
 
+/** The repository's own `info/exclude`: a source of the ignore list, so its changes are kept. */
+const GIT_EXCLUDE_PATH = '.git/info/exclude'
+/** What chokidar must watch of `.git` to see `info/exclude` change, and nothing more. */
+const GIT_EXCLUDE_ANCESTORS = new Set(['.git', '.git/info', GIT_EXCLUDE_PATH])
+
 function ignored(candidatePath: string) {
   const normalized = candidatePath.replaceAll('\\', '/')
   return /(?:^|\/)(?:\.git|node_modules|dist|out|coverage)(?:\/|$)/u.test(normalized)
@@ -78,9 +83,19 @@ function scheduleFlush(projectRoot: string, entry: WorkspaceWatcher) {
 function queueChange(projectRoot: string, entry: WorkspaceWatcher, changedPath: string) {
   const relative = relativeTo(projectRoot, changedPath)
   if (relative === undefined) return
-  if (ignored(relative) || entry.gitIgnore?.isKnownIgnored(relative)) return
+  if (
+    relative !== GIT_EXCLUDE_PATH &&
+    (ignored(relative) || entry.gitIgnore?.isKnownIgnored(relative))
+  )
+    return
   if (entry.changedPaths.size < WATCH_BATCH_PATH_LIMIT) entry.changedPaths.add(relative)
   else entry.overflow = true
+  scheduleFlush(projectRoot, entry)
+}
+
+/** Which files changed is unknown: subscribers read the whole listing again. */
+function queueRescan(projectRoot: string, entry: WorkspaceWatcher) {
+  entry.overflow = true
   scheduleFlush(projectRoot, entry)
 }
 
@@ -89,8 +104,7 @@ function queueOverflow(projectRoot: string, entry: WorkspaceWatcher, error: unkn
     projectRoot,
     error: error instanceof Error ? error.message : String(error),
   })
-  entry.overflow = true
-  scheduleFlush(projectRoot, entry)
+  queueRescan(projectRoot, entry)
 }
 
 async function closeWatcher(entry: WorkspaceWatcher) {
@@ -105,6 +119,13 @@ interface BackendEvents {
 }
 
 /**
+ * A native event without a path: libuv reports a ReadDirectoryChangesW buffer overflow on Windows
+ * this way, after a burst such as a checkout. Which files changed is unknown (review R5 P3-3).
+ */
+const NATIVE_EVENT_WITHOUT_PATH =
+  'The file watcher lost track of changes (an event without a path, such as a buffer overflow)'
+
+/**
  * macOS and Windows: one recursive watcher (FSEvents, ReadDirectoryChangesW) for the whole tree,
  * with no initial scan and no per-directory state. chokidar kept a watcher and a listing per
  * directory: +703 MB and 10.8 s on a 100k-file repository (D10).
@@ -115,6 +136,7 @@ function nativeBackend(projectRoot: string, events: BackendEvents): Promise<Watc
     try {
       watcher = watchNative(projectRoot, { recursive: true, persistent: false }, (_event, name) => {
         if (typeof name === 'string') events.onChange(path.join(projectRoot, name))
+        else events.onError(new Error(NATIVE_EVENT_WITHOUT_PATH))
       })
     } catch (error) {
       reject(error)
@@ -141,8 +163,9 @@ async function chokidarBackend(
   const watcher = watch(projectRoot, {
     ignoreInitial: true,
     ignored: (candidate: string) => {
-      if (ignored(candidate)) return true
       const relative = relativeTo(projectRoot, candidate)
+      if (relative !== undefined && GIT_EXCLUDE_ANCESTORS.has(relative)) return false
+      if (ignored(candidate)) return true
       return relative !== undefined && gitIgnore?.isKnownIgnored(relative) === true
     },
     followSymlinks: false,
@@ -185,6 +208,39 @@ async function chokidarBackend(
   }
 }
 
+/**
+ * A linked worktree's `info/exclude` is in the repository's common git directory, outside the
+ * tree the watcher sees, so its folder is watched on its own. Undefined when the tree's own
+ * `.git/info/exclude` is the file, or there is none.
+ */
+function watchExternalGitExclude(
+  projectRoot: string,
+  gitIgnore: WorkspaceGitIgnoreFilter | undefined,
+  onChange: () => void,
+): NativeWatcher | undefined {
+  const excludeFile = gitIgnore?.excludeFile
+  if (!excludeFile || relativeTo(projectRoot, excludeFile) === GIT_EXCLUDE_PATH) return undefined
+  try {
+    const watcher = watchNative(
+      path.dirname(excludeFile),
+      { persistent: false },
+      (_event, name) => {
+        if (name === null || name === path.basename(excludeFile)) onChange()
+      },
+    )
+    watcher.on('error', (error) =>
+      logger.warn('Could not watch the repository info/exclude', {
+        projectRoot,
+        error: error.message,
+      }),
+    )
+    return watcher
+  } catch {
+    // No `info` folder yet: git reads none, and a new one is picked up when the watcher restarts.
+    return undefined
+  }
+}
+
 async function createWatcher(projectRoot: string, subscribers: Map<number, WebContents>) {
   const gitIgnore = await WorkspaceGitIgnoreFilter.create(projectRoot)
   const pending: { entry?: WorkspaceWatcher } = {}
@@ -196,10 +252,25 @@ async function createWatcher(projectRoot: string, subscribers: Map<number, WebCo
       if (pending.entry) queueOverflow(projectRoot, pending.entry, error)
     },
   }
-  const backend =
+  const tree =
     watchPlatform === 'linux'
       ? await chokidarBackend(projectRoot, gitIgnore, events)
       : await nativeBackend(projectRoot, events)
+  const exclude = watchExternalGitExclude(projectRoot, gitIgnore, () => {
+    const entry = pending.entry
+    if (!entry || !gitIgnore) return
+    // Which files git ignores changed, not which files exist: the listing is read again.
+    void gitIgnore.refresh().then(() => queueRescan(projectRoot, entry))
+  })
+  const backend: WatchBackend = exclude
+    ? {
+        close: async () => {
+          exclude.close()
+          await tree.close()
+        },
+        stopErrors: tree.stopErrors,
+      }
+    : tree
   const entry: WorkspaceWatcher = {
     backend,
     subscribers,

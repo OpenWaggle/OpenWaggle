@@ -188,4 +188,22 @@ describe('workspace watcher lifecycle', () => {
     await unwatchWorkspaceFiles(root, secondSubscriber.id)
     expect(watcher.close).toHaveBeenCalledOnce()
   })
+
+  it('watches only info/exclude of .git, a source of the ignore list (review R5 P3-3)', async () => {
+    const root = '/project/exclude'
+    const subscriber = webContents(12)
+    const pending = watchWorkspaceFiles(root, subscriber)
+    const watcher = await watcherAt(0)
+    watcher.emitReady()
+    await pending
+    const options: { ignored: (candidate: string) => boolean } =
+      watcherMocks.watch.mock.calls[0]?.[1]
+
+    expect(options.ignored(`${root}/.git`)).toBe(false)
+    expect(options.ignored(`${root}/.git/info`)).toBe(false)
+    expect(options.ignored(`${root}/.git/info/exclude`)).toBe(false)
+    expect(options.ignored(`${root}/.git/objects`)).toBe(true)
+    expect(options.ignored(`${root}/node_modules`)).toBe(true)
+    await unwatchWorkspaceFiles(root, subscriber.id)
+  })
 })

@@ -21,6 +21,8 @@ The first icon, **All panels**, opens a list of every panel you can open here, w
 
 Some panels open from elsewhere: a file link in the conversation opens Files, a change request opens under Changes, **Add action** opens under Project Actions, and a page the agent opens appears in Browser. The rail highlights the icon each one belongs to.
 
+Files follows changes on disk as they happen, except in files git ignores and inside a folder that is a symbolic link, such as a linked package in a monorepo: changes there are not followed.
+
 The terminal is not on the rail. The terminal button in the header and `Cmd+J` / `Ctrl+J` show or hide it wherever its tabs are, in the bottom drawer or in the right panel.
 
 ## Arranging the rail
