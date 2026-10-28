@@ -14,8 +14,8 @@ import {
   INITIALIZE,
   INITIALIZED,
   type McpPooledConnectionOptions,
-  McpServerError,
 } from './mcp-connection-support'
+import { deliverPooledResponse } from './mcp-pooled-response'
 import { deliverServerNotification } from './mcp-server-notifications'
 import { McpServerRequestRouter } from './mcp-server-request-router'
 import { McpUpstreamReplacement } from './mcp-upstream-replacement'
@@ -42,10 +42,7 @@ const RETIRE_GRACE_MS = 30_000
  */
 export class McpPooledConnection {
   private closed = false
-  /**
-   * Closed by OpenWaggle (idle close, eviction, archive, a settings change, Host stop), not by a
-   * failure of the server: a lazy start it interrupts says nothing against the catalog.
-   */
+  /** Closed by OpenWaggle (idle close, eviction, archive, Host stop), not by a server failure. */
   private closedByOwner = false
   /** No longer offered to new clients; closes once its open requests are answered. */
   private retiring = false
@@ -304,26 +301,12 @@ export class McpPooledConnection {
   }
 
   private handleResponse(message: JsonRpcResponse) {
-    this.deliverResponse(message)
+    deliverPooledResponse(message, {
+      ledger: this.ledger,
+      replacement: this.replacement,
+      options: this.options,
+    })
     this.closeIfRetiredAndIdle()
-  }
-
-  private deliverResponse(message: JsonRpcResponse) {
-    const pending = this.ledger.forget(message.id)
-    if (!pending) return
-    if (pending.kind === 'internal') {
-      if ('result' in message) return pending.resolve(message.result)
-      const { message: text, code, data } = message.error
-      return pending.reject(new McpServerError(text, code, data))
-    }
-    if (pending.lease.isDetached) return
-    if (!('result' in message)) {
-      if (this.replacement.handleError(pending, message)) return
-      return pending.lease.deliver({ ...message, id: pending.id })
-    }
-    this.options.observeResult?.(pending.method, pending.params, message.result)
-    const result = this.options.adaptResult?.(pending.method, message.result) ?? message.result
-    pending.lease.deliver({ ...message, id: pending.id, result })
   }
 
   private markClosed(error: Error) {

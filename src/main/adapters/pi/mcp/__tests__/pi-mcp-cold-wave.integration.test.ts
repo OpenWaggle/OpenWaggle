@@ -14,11 +14,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { setHostPackageRunnerBypassForTests } from '../../../mcp/runtime/host-package-runner-bypass'
-import {
-  type PackageBinStore,
-  PackageRunnerBypass,
-  type ResolvedPackageBin,
-} from '../../../mcp/runtime/mcp-package-runner-bypass'
+import type { PackageBinStore } from '../../../mcp/runtime/mcp-package-runner-bin-store'
+import type { ResolvedPackageBin } from '../../../mcp/runtime/mcp-package-runner-bins'
+import { PackageRunnerBypass } from '../../../mcp/runtime/mcp-package-runner-bypass'
 import { openPreparedPiMcpUpstream } from '../pi-mcp-upstream'
 
 /** An MCP server that appends `<pid> <ppid>` to a file when it starts. */

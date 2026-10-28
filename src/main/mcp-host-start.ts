@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { forgetStatesOfSwitchedMcpServers } from './adapters/pi/mcp/mcp-server-status-freshness'
 import { installMcpTurnedOffServerClosing } from './adapters/pi/mcp/mcp-turned-off-servers'
 import { getOpenWaggleMcpConfigurationService } from './adapters/pi/mcp/openwaggle-mcp-configuration'
@@ -9,12 +10,23 @@ import {
   type WorkerDelegationStateOf,
 } from './mcp-settled-worker-idle-policy'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
+import { SessionDelegationRepository } from './ports/session-delegation-repository'
 
 const logger = createLogger('mcp-host-start')
 
 export interface McpHostServiceDependencies {
-  /** A Worker's Delegation state, from the Delegation repository (the Host's app runtime). */
-  readonly workerDelegationState: WorkerDelegationStateOf
+  /** Runs an effect in the Host's app runtime, which provides the Delegation repository. */
+  readonly runEffect: <A, E>(effect: Effect.Effect<A, E, SessionDelegationRepository>) => Promise<A>
+}
+
+/** A Worker's Delegation state, read through the Delegation repository port (D1.1). */
+function workerDelegationState(dependencies: McpHostServiceDependencies): WorkerDelegationStateOf {
+  return (sessionId) =>
+    dependencies.runEffect(
+      Effect.flatMap(SessionDelegationRepository, (delegations) =>
+        delegations.delegationStateOf(sessionId),
+      ),
+    )
 }
 
 function installMcpServerStatusFreshness() {
@@ -39,7 +51,7 @@ export function startMcpHostServices(dependencies: McpHostServiceDependencies) {
   installMcpSessionRemoval(hostMcpConnectionPool)
   // Settled Hive Workers close their MCP servers a minute after their Run (D1.1).
   hostMcpConnectionPool.setIdleClosePolicy(
-    settledWorkerIdleClosePolicy(dependencies.workerDelegationState),
+    settledWorkerIdleClosePolicy(workerDelegationState(dependencies)),
   )
   // A server turned off or removed stops being used by MCP Apps and running Runs alike.
   installMcpTurnedOffServerClosing(hostMcpConnectionPool)

@@ -11,7 +11,7 @@ vi.mock('../../../../logger', () => ({
 const { fileBackedMcpToolCatalogStore, memoryMcpToolCatalogStore } = await import(
   '../mcp-connection-catalog'
 )
-const { fileBackedPackageBinStore } = await import('../../runtime/mcp-package-runner-bypass')
+const { fileBackedPackageBinStore } = await import('../../runtime/mcp-package-runner-bin-store')
 const { McpSessionConnectionPool } = await import('../mcp-session-connection-pool')
 const { FakeUpstream, flush, INITIALIZE_RESULT, initializeRequest } = await import(
   './fake-upstream'

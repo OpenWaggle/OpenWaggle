@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 type NativeListener = (event: string, name: string | null) => void
 
-const native = vi.hoisted(() => ({ listeners: [] as NativeListener[] }))
+const native = vi.hoisted(() => {
+  const listeners: NativeListener[] = []
+  return { listeners }
+})
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:fs')>()),

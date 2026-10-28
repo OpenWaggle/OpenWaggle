@@ -197,9 +197,7 @@ const NPM_CMD_SHIM = /node_modules[\\/]\.bin[\\/][^\\/]+\.cmd$/iu
 function cmdEscapedArgument(argument: string, twice: boolean) {
   // Backslashes before a quote, or at the end (before the closing quote), are doubled, and the
   // quote itself escaped, as the C runtime of the program parses its command line.
-  const quoted = `"${argument
-    .replace(/(\\*)"/gu, '$1$1\\"')
-    .replace(/(\\*)$/u, '$1$1')}"`
+  const quoted = `"${argument.replace(/(\\*)"/gu, '$1$1\\"').replace(/(\\*)$/u, '$1$1')}"`
   const escaped = quoted.replace(CMD_META_CHARACTERS, '^$1')
   return twice ? escaped.replace(CMD_META_CHARACTERS, '^$1') : escaped
 }

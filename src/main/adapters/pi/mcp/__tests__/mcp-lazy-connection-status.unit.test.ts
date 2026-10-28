@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
-import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import {
   FakeUpstream,
   flush,
   INITIALIZE_RESULT,
   initializeRequest,
 } from '../../../mcp/pool/__tests__/fake-upstream'
+import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-catalog'
+import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import {
   forgetKnownMcpServerStates,
   knownMcpServerState,

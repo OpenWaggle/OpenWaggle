@@ -167,9 +167,9 @@ describe('codemode reach of a Run (review R5 P2-3)', () => {
       { command: 'a', exposure: 'direct' },
       { command: 'b', toolExposure: { t: 'direct' } },
     ])
-    expect(withDirectKeptWithoutCodemode(loaded, reach([reaching], []), (name) => files[name])).toBe(
-      loaded,
-    )
+    expect(
+      withDirectKeptWithoutCodemode(loaded, reach([reaching], []), (name) => files[name]),
+    ).toBe(loaded)
   })
 })
 

@@ -2,7 +2,10 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import type { McpUpstream } from '../../../mcp/pool/mcp-connection-pool-api'
 
-const resolved = vi.hoisted(() => ({ values: [] as string[] }))
+const resolved = vi.hoisted(() => {
+  const values: string[] = []
+  return { values }
+})
 
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => {
   const original = await importOriginal<typeof import('@earendil-works/pi-coding-agent')>()

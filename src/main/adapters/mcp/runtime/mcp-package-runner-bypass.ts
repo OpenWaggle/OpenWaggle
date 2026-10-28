@@ -6,64 +6,24 @@
  * configured command stays the fallback: whenever the resolution is missing, expired, or its files
  * are gone, the runner launches the server as configured and the probe runs again.
  */
-import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import {
-  accessSync,
-  closeSync,
-  constants,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
-import { createLogger } from '../../../logger'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
+import type { PackageBinStore } from './mcp-package-runner-bin-store'
+import {
+  PACKAGE_BIN_PINNED_TTL_MS,
+  PACKAGE_BIN_UNPINNED_TTL_MS,
+  type ResolvedPackageBin,
+  readJson,
+  resolveBinFromProbe,
+} from './mcp-package-runner-bins'
 import {
   type PackageRunnerLaunch,
-  packageBinPath,
   parsePackageRunnerCommand,
   probeCommand,
-  windowsCommandLine,
 } from './mcp-package-runner-launch'
-
-export interface ResolvedPackageBin {
-  /** What to spawn: the runner's `node` for a JavaScript bin, else the bin itself. */
-  readonly command: string
-  /** The bin script first for a JavaScript bin. */
-  readonly prefixArgs: readonly string[]
-  /** The runner's `node_modules/.bin`, kept first on PATH as the runner had it. */
-  readonly binDirectory: string
-  readonly resolvedAt: number
-  readonly pinned: boolean
-}
-
-/** A tag or range (`@latest`, none) is resolved again after a day, so updates still arrive. */
-export const PACKAGE_BIN_UNPINNED_TTL_MS = 24 * 60 * 60 * 1_000
-/** An exact version only needs its files to still exist. */
-export const PACKAGE_BIN_PINNED_TTL_MS = 7 * PACKAGE_BIN_UNPINNED_TTL_MS
-const PROBE_TIMEOUT_MS = 180_000
-const PROBE_OUTPUT_BYTES = 1_000_000
-const SHEBANG_BYTES = 256
-const BINS_DIRECTORY_MODE = 0o700
-const BINS_FILE_MODE = 0o600
-
-const logger = createLogger('mcp-package-runner')
-
-const PackageJsonSchema = Schema.Struct({ bin: Schema.optional(Schema.Unknown) })
-
-function readJson(text: string): unknown {
-  try {
-    return parseJsonUnknown(text)
-  } catch {
-    return undefined
-  }
-}
+import { execProbe, type PackageRunnerProbe } from './mcp-package-runner-probe'
 
 /** Whether the package is installed in a project above `cwd`: a runner uses that copy. */
 function installedNear(cwd: string, packageName: string) {
@@ -113,189 +73,7 @@ function runnerLaunchOf(input: {
   return launch && !installedNear(input.cwd, launch.packageName) ? launch : undefined
 }
 
-function firstLineOf(file: string) {
-  let descriptor: number | undefined
-  try {
-    descriptor = openSync(file, 'r')
-    const buffer = Buffer.alloc(SHEBANG_BYTES)
-    const read = readSync(descriptor, buffer, 0, SHEBANG_BYTES, 0)
-    return buffer.subarray(0, read).toString('utf8').split('\n', 1)[0]?.replace(/\r$/u, '') ?? ''
-  } catch {
-    return undefined
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor)
-  }
-}
-
-function isExecutable(file: string) {
-  try {
-    accessSync(file, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/** `#!/usr/bin/env node` or `#!/path/to/node`, and nothing after it. */
-const PLAIN_NODE_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+node|\/\S*\/node)\s*$/u
-
-/**
- * How a resolved bin is spawned as the runner would run it: `node <file>` only for a plain node
- * shebang (or a JavaScript file with none). A shebang with flags (`env -S node --no-warnings`) or
- * another runtime (`bun`) runs the file itself, as the runner's `.bin` link does, which only POSIX
- * can; on Windows such a bin keeps the runner. A bin that is not JavaScript is spawned itself.
- */
-export function binLaunchOf(
-  file: string,
-  platform: NodeJS.Platform = process.platform,
-): 'node' | 'self' | undefined {
-  const firstLine = firstLineOf(file)
-  if (firstLine === undefined) return undefined
-  if (firstLine.startsWith('#!')) {
-    if (PLAIN_NODE_SHEBANG.test(firstLine)) return 'node'
-    return platform !== 'win32' && isExecutable(file) ? 'self' : undefined
-  }
-  return /\.[cm]?js$/u.test(file) ? 'node' : 'self'
-}
-
-/**
- * The bin a runner's PATH leads to: the first `node_modules/.bin` entry next to the package. The
- * package's own `package.json` names the file, so Windows `.cmd` shims are never needed.
- */
-export async function resolveBinFromProbe(
-  probe: { readonly path: string; readonly node: string },
-  launch: PackageRunnerLaunch,
-  now: number,
-): Promise<ResolvedPackageBin | undefined> {
-  for (const entry of probe.path.split(path.delimiter)) {
-    if (!/node_modules[\\/]\.bin[\\/]?$/u.test(entry)) continue
-    const packageDir = path.join(entry, '..', ...launch.packageName.split('/'))
-    let text: string
-    try {
-      text = await readFile(path.join(packageDir, 'package.json'), 'utf8')
-    } catch {
-      continue
-    }
-    const packageJson = safeDecodeUnknown(PackageJsonSchema, readJson(text))
-    if (!packageJson.success) continue
-    const relative = packageBinPath(packageJson.data, launch.packageName, launch.binName)
-    if (!relative) return undefined
-    const file = path.resolve(packageDir, relative)
-    if (!existsSync(file)) return undefined
-    const how = binLaunchOf(file)
-    if (!how) return undefined
-    const javascript = how === 'node'
-    return {
-      command: javascript ? probe.node : file,
-      prefixArgs: javascript ? [file] : [],
-      binDirectory: entry,
-      resolvedAt: now,
-      pinned: launch.pinned,
-    }
-  }
-  return undefined
-}
-
-export type PackageRunnerProbe = (input: {
-  readonly command: string
-  readonly args: readonly string[]
-  readonly cwd: string
-  readonly env: Readonly<Record<string, string>>
-}) => Promise<string>
-
-/** How a probe is spawned: never through Node's `shell`, which leaves arguments unquoted. */
-export function probeSpawnOf(
-  input: Parameters<PackageRunnerProbe>[0],
-  platform: NodeJS.Platform = process.platform,
-) {
-  if (platform !== 'win32') {
-    return { file: input.command, args: [...input.args], windowsVerbatimArguments: false }
-  }
-  // `npx.cmd` needs `cmd.exe` (Node refuses to spawn a `.cmd` without it), which gets one line
-  // escaped for it.
-  return {
-    file: input.env.ComSpec ?? input.env.COMSPEC ?? 'cmd.exe',
-    args: ['/d', '/s', '/c', windowsCommandLine(input.command, input.args)],
-    windowsVerbatimArguments: true,
-  }
-}
-
-const execProbe: PackageRunnerProbe = (input) =>
-  new Promise((resolve, reject) => {
-    const spawned = probeSpawnOf(input)
-    execFile(
-      spawned.file,
-      spawned.args,
-      {
-        cwd: input.cwd,
-        env: { ...input.env },
-        timeout: PROBE_TIMEOUT_MS,
-        maxBuffer: PROBE_OUTPUT_BYTES,
-        windowsHide: true,
-        windowsVerbatimArguments: spawned.windowsVerbatimArguments,
-        shell: false,
-      },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
-    )
-  })
-
-const ResolvedPackageBinSchema = Schema.Struct({
-  command: Schema.String,
-  prefixArgs: Schema.Array(Schema.String),
-  binDirectory: Schema.String,
-  resolvedAt: Schema.Number,
-  pinned: Schema.Boolean,
-})
-const StoredResolutionsSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  entries: Schema.Record({ key: Schema.String, value: ResolvedPackageBinSchema }),
-})
 const ProbeOutputSchema = Schema.Struct({ path: Schema.String, node: Schema.String })
-
-export interface PackageBinStore {
-  readonly load: () => Record<string, ResolvedPackageBin>
-  readonly save: (entries: Record<string, ResolvedPackageBin>) => void
-}
-
-/** A JSON file of resolutions, so a new Session Host does not start every server via its runner. */
-export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
-  return {
-    load: () => {
-      let text: string
-      try {
-        text = readFileSync(file(), 'utf8')
-      } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-          logger.warn('Could not read the MCP package runner resolutions', {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-        return {}
-      }
-      const stored = safeDecodeUnknown(StoredResolutionsSchema, readJson(text))
-      if (stored.success) return { ...stored.data.entries }
-      // Every runner launch is probed again, and the file rewritten.
-      logger.warn('The MCP package runner resolutions file is unreadable; it is ignored')
-      return {}
-    },
-    save: (entries) => {
-      try {
-        // The keys hold the user's PATH: private, like the rest of `<userData>/mcp`, and replaced
-        // whole, so a crash mid-write does not lose every resolution (review R5 P3-2).
-        mkdirSync(path.dirname(file()), { recursive: true, mode: BINS_DIRECTORY_MODE })
-        const stored = { version: 1, entries } satisfies typeof StoredResolutionsSchema.Type
-        const temporary = `${file()}.${process.pid}.tmp`
-        writeFileSync(temporary, JSON.stringify(stored), { mode: BINS_FILE_MODE })
-        renameSync(temporary, file())
-      } catch (error) {
-        // A resolution that is not saved is probed again by the next Host.
-        logger.warn('Could not save the MCP package runner resolutions', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    },
-  }
-}
 
 export interface PackageRunnerBypassOptions {
   readonly store?: PackageBinStore

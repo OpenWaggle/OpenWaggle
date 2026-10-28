@@ -208,8 +208,11 @@ export class SessionEmbeddingProcess {
     else pending.reject(new Error(outcome.error))
     // An answer: the next waiting batch gets the whole deadline.
     this.clearAnswerDeadline()
-    if (this.pending.size === 0) this.scheduleIdleExit()
-    else if (this.child) this.answerDeadline = this.armAnswerDeadline(this.child)
+    if (this.pending.size === 0) {
+      this.scheduleIdleExit()
+      return
+    }
+    if (this.child) this.answerDeadline = this.armAnswerDeadline(this.child)
   }
 
   private childEnded(child: ChildProcess, reason: string) {

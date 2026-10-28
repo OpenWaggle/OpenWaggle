@@ -56,13 +56,6 @@ function nonNegativeSafeInteger(value: number, description: string) {
   }
 }
 
-/** Clients and Runs let background work run (`hostBackgroundGate`); other work does not. */
-function backgroundPresenceOf(kind: SessionHostLivenessKind) {
-  if (kind === 'client') return hostBackgroundGate.clientAttached()
-  if (kind === 'run') return hostBackgroundGate.runStarted()
-  return undefined
-}
-
 export class SessionHostLiveness {
   private readonly owners = new Map<SessionHostLivenessKind, number>()
   private idleGracePeriodMs: number
@@ -245,7 +238,7 @@ export class SessionHostLiveness {
     }
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
     if (kind === 'client') this.acceptedClient = true
-    const releasePresence = backgroundPresenceOf(kind)
+    const releasePresence = hostBackgroundGate.presenceOf(kind)
     let released = false
     return () => {
       if (released) return

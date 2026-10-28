@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fileBackedPackageBinStore } from '../../runtime/mcp-package-runner-bypass'
+import { fileBackedPackageBinStore } from '../../runtime/mcp-package-runner-bin-store'
 import {
   fileBackedMcpToolCatalogStore,
   MCP_TOOL_CATALOG_MAX_AGE_MS,

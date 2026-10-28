@@ -109,9 +109,7 @@ export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
       const registered = api
         .getAllTools()
         .some((tool) => tool.name === CODEMODE_TOOL_NAME && tool.reachesTools !== undefined)
-      return (
-        registered && (autoEnableCodemode || api.getActiveTools().includes(CODEMODE_TOOL_NAME))
-      )
+      return registered && (autoEnableCodemode || api.getActiveTools().includes(CODEMODE_TOOL_NAME))
     },
   }
 }

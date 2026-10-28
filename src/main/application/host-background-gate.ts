@@ -121,6 +121,13 @@ export class HostBackgroundGate {
     })
   }
 
+  /** A Host liveness owner's presence for the gate: a client or a Run; none for other work. */
+  presenceOf(kind: string) {
+    if (kind === 'client') return this.clientAttached()
+    if (kind === 'run') return this.runStarted()
+    return undefined
+  }
+
   private get present() {
     return this.clients + this.runs
   }

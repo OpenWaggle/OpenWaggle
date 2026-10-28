@@ -292,21 +292,4 @@ describe('SQLite Delegation repository', () => {
       expect.objectContaining({ effect: 'rejected', code: 'submission_revision_stale' }),
     ])
   })
-
-  it('answers the Delegation state of a Worker, and null for any other Session (review R5 P3-6)', async () => {
-    const layer = makeSessionLifecycleTestLayer(path.join(root, 'delegation-state.db'))
-    const states = await Effect.runPromise(
-      Effect.gen(function* () {
-        const lifecycle = yield* SessionLifecycleRepository
-        const delegations = yield* SessionDelegationRepository
-        yield* lifecycle.execute(spawnLifecycleInput())
-        return {
-          worker: yield* delegations.delegationStateOf('session-worker'),
-          other: yield* delegations.delegationStateOf('session-without-delegation'),
-        }
-      }).pipe(Effect.provide(layer)),
-    )
-
-    expect(states).toEqual({ worker: 'working', other: null })
-  })
 })

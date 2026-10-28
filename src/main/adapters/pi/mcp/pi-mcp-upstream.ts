@@ -8,6 +8,7 @@ import {
 import { type AuthProvider, StdioTransport, StreamableHttpTransport } from '@earendil-works/pi-mcp'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { getNpmCompatiblePath } from '../../../env'
+import { createLogger } from '../../../logger'
 import { mcpValueEnvironment } from '../../../mcp-shell-environment'
 import {
   createMcpServerFetch,
@@ -17,10 +18,9 @@ import {
   type McpUpstream,
   mcpStartupWaitMs,
 } from '../../mcp/pool/mcp-connection-pool-api'
-import { createLogger } from '../../../logger'
 import { hostPackageRunnerBypass } from '../../mcp/runtime/host-package-runner-bypass'
-import type { StdioLaunch } from '../../mcp/runtime/mcp-package-runner-bypass'
 import { createLegacySseClientTransport } from '../../mcp/runtime/legacy-sse-client-transport'
+import type { StdioLaunch } from '../../mcp/runtime/mcp-package-runner-bypass'
 import { LegacyWebSocketClientTransport } from '../../mcp/runtime/websocket-transport'
 import { createMcpAuthorizedFetch } from './mcp-authorized-fetch'
 import { mcpAuthorizationServerUrls } from './mcp-sign-in-page'
