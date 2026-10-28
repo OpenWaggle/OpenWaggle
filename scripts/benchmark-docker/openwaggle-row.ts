@@ -26,7 +26,7 @@ const { values } = parseArgs({
   options: { app: { type: 'string' }, proxy: { type: 'string' }, model: { type: 'string' } },
 })
 
-async function configureBenchProvider(agentDir: string, proxy: string, model: string) {
+async function configureBenchProvider(agentDir: string, proxy: string, model: string, token: string) {
   await mkdir(agentDir, { recursive: true })
   const models = {
     providers: {
@@ -34,7 +34,8 @@ async function configureBenchProvider(agentDir: string, proxy: string, model: st
         name: 'Bench OpenRouter',
         baseUrl: `${proxy}/api/v1`,
         api: 'openai-completions',
-        apiKey: 'bench-proxy',
+        // The proxy's per-run token (run.sh): the proxy refuses requests without it.
+        apiKey: token,
         models: [{ id: model, name: model, reasoning: true, input: ['text', 'image'], contextWindow: CONTEXT_WINDOW, maxTokens: MAX_TOKENS }],
       },
     },
@@ -48,6 +49,11 @@ async function main() {
     process.exit(USAGE_EXIT_CODE)
   }
   const app = resolvePerfApp(values.app, 'openwaggle')
+  const token = process.env.BENCH_PROXY_TOKEN
+  if (!token) {
+    process.stderr.write('Set BENCH_PROXY_TOKEN to the proxy\'s per-run token (run.sh does).\n')
+    process.exit(USAGE_EXIT_CODE)
+  }
   const { proxy, model } = { proxy: values.proxy, model: values.model }
   const exit = await withRunningApp(
     app,
@@ -56,7 +62,7 @@ async function main() {
       sessionListText: null,
       timeoutMs: TIMEOUT_MS,
       warmHostIdleMs: 0,
-      prepareProfile: (profile) => configureBenchProvider(profile.agentDir, proxy, model),
+      prepareProfile: (profile) => configureBenchProvider(profile.agentDir, proxy, model, token),
     },
     async ({ profile }) => {
       const run = startCliRun(app, profile, { prompt: PROBE, model: `${PROVIDER}/${model}` })

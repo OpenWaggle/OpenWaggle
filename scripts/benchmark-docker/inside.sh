@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs inside the benchmark container. Usage: inside.sh <agent>
-# Every agent gets: fresh HOME, empty project, dummy API key, zero plugins,
+# Every agent gets: fresh HOME, empty project, the proxy's per-run token as its API key, zero plugins,
 # extensions, skills, MCP servers, or AGENTS.md files to discover.
 set -euo pipefail
 
@@ -8,6 +8,8 @@ AGENT="$1"
 PROBE="Reply with exactly OK and nothing else."
 PROXY="${BENCH_PROXY_URL:-http://host.docker.internal:8399}"
 MODEL="z-ai/glm-5.3-flash"
+# The proxy refuses any request without it (run.sh makes a new one per run).
+TOKEN="${BENCH_PROXY_TOKEN:?run through run.sh, which sets BENCH_PROXY_TOKEN}"
 OUT=/bench/out
 
 export HOME=/bench/home
@@ -25,7 +27,7 @@ case "$AGENT" in
       "name": "Bench OpenRouter",
       "baseUrl": "$PROXY/api/v1",
       "api": "openai-completions",
-      "apiKey": "bench-proxy",
+      "apiKey": "$TOKEN",
       "models": [
         {
           "id": "$MODEL",
@@ -41,14 +43,14 @@ case "$AGENT" in
   }
 }
 EOF
-    echo '{"bench":{"type":"api_key","key":"bench-proxy"}}' > "$PI_CODING_AGENT_DIR/auth.json"
+    echo "{\"bench\":{\"type\":\"api_key\",\"key\":\"$TOKEN\"}}" > "$PI_CODING_AGENT_DIR/auth.json"
     exec pi -p --mode json --no-session \
       --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files \
       --model "bench/$MODEL" "$PROBE"
     ;;
   claude)
     export ANTHROPIC_BASE_URL="$PROXY/api"
-    export ANTHROPIC_AUTH_TOKEN=bench-proxy
+    export ANTHROPIC_AUTH_TOKEN=$TOKEN
     export ANTHROPIC_MODEL="$MODEL"
     export ANTHROPIC_SMALL_FAST_MODEL="$MODEL"
     export DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1
@@ -69,7 +71,7 @@ base_url = "$PROXY/api/v1"
 env_key = "OPENROUTER_API_KEY"
 wire_api = "responses"
 EOF
-    export OPENROUTER_API_KEY=bench-proxy
+    export OPENROUTER_API_KEY=$TOKEN
     exec codex exec --json --skip-git-repo-check "$PROBE" < /dev/null
     ;;
   opencode)
@@ -87,7 +89,7 @@ EOF
     "bench": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Bench OpenRouter",
-      "options": { "baseURL": "$PROXY/api/v1", "apiKey": "bench-proxy" },
+      "options": { "baseURL": "$PROXY/api/v1", "apiKey": "$TOKEN" },
       "models": { "$MODEL": {} }
     }
   }
@@ -110,12 +112,12 @@ default = "$MODEL"
 api_key_env = "OPENROUTER_API_KEY"
 context_window = 1000000
 EOF
-    echo "OPENROUTER_API_KEY=bench-proxy" > "$REASONIX_HOME/.env"
+    echo "OPENROUTER_API_KEY=$TOKEN" > "$REASONIX_HOME/.env"
     exec reasonix -p --output-format json "$PROBE"
     ;;
   aider)
     export OPENAI_API_BASE="$PROXY/api/v1"
-    export OPENAI_API_KEY=bench-proxy
+    export OPENAI_API_KEY=$TOKEN
     export AIDER_CHECK_UPDATE=false AIDER_ANALYTICS=false
     exec aider --model "openai/$MODEL" \
       --message "$PROBE" \
@@ -124,7 +126,7 @@ EOF
     ;;
   dsh)
     export DSH_HOME=/bench/dsh-home
-    export DEEPSEEK_API_KEY=bench-proxy
+    export DEEPSEEK_API_KEY=$TOKEN
     export DEEPSEEK_BASE_URL="$PROXY/api/v1"
     mkdir -p "$DSH_HOME" /bench/project
     cat > /bench/dsh-run.py <<'PYEOF'

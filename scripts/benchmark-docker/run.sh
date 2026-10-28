@@ -23,16 +23,18 @@ PROXY_PORT="${BENCH_PROXY_PORT:-8399}"
 IMAGE="openwaggle-bench-agents:latest"
 BENCH_MODEL="z-ai/glm-5.3-flash"
 AGENTS=(pi claude codex opencode)
-# The proxy injects the real key, so it listens on loopback only. Docker Desktop (macOS,
-# Windows) reaches host loopback through host.docker.internal; on Linux the containers use
-# the bridge gateway, so the proxy binds there instead of on every interface.
+# The proxy injects the real key, so it never listens on every interface: loopback on Docker
+# Desktop (macOS, Windows), which containers reach through host.docker.internal, and the bridge
+# gateway on Linux. Every container on the machine can reach either address, so the proxy also
+# requires a per-run token (the agents' API key) and forwards only the benchmark's endpoints and
+# model; the real key reaches it through its environment, never its argv.
 if [[ "$(uname -s)" == "Linux" && -z "${BENCH_PROXY_BIND:-}" ]]; then
   BENCH_PROXY_BIND="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')"
 fi
 export BENCH_PROXY_BIND="${BENCH_PROXY_BIND:-127.0.0.1}"
 
 if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
-  echo "error: set OPENROUTER_API_KEY (the proxy injects it; agents get a dummy key)" >&2
+  echo "error: set OPENROUTER_API_KEY (the proxy injects it; agents get a per-run token)" >&2
   exit 1
 fi
 
@@ -45,12 +47,17 @@ mkdir -p "$RESULTS_DIR"
 rm -f "$RESULTS_DIR"/proxy-log.jsonl "$RESULTS_DIR"/proxy.out "$RESULTS_DIR"/results.json
 rm -f "$RESULTS_DIR"/*.out "$RESULTS_DIR"/*.err "$RESULTS_DIR"/*.proxy.jsonl "$RESULTS_DIR"/request-tokens.json
 
-python3 "$SCRIPT_DIR/proxy.py" "$PROXY_PORT" "$OPENROUTER_API_KEY" \
+# The agents' API key: only a request carrying it gets the real key injected.
+BENCH_PROXY_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export BENCH_PROXY_TOKEN BENCH_MODEL
+OPENROUTER_API_KEY="$OPENROUTER_API_KEY" python3 "$SCRIPT_DIR/proxy.py" "$PROXY_PORT" \
   "$RESULTS_DIR/proxy-log.jsonl" > "$RESULTS_DIR/proxy.out" 2>&1 &
 PROXY_PID=$!
+# Nothing else this script starts (docker, the OpenWaggle row) needs the real key.
+unset OPENROUTER_API_KEY
 trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
 for _ in $(seq 1 50); do
-  if curl -s -o /dev/null "http://127.0.0.1:$PROXY_PORT/api/v1/models"; then break; fi
+  if curl -s -o /dev/null "http://$BENCH_PROXY_BIND:$PROXY_PORT/__bench/ready"; then break; fi
   sleep 0.2
 done
 touch "$RESULTS_DIR/proxy-log.jsonl"
@@ -93,6 +100,7 @@ for agent in "${requested[@]}"; do
   docker run --rm \
     --add-host=host.docker.internal:host-gateway \
     -e "BENCH_PROXY_URL=http://host.docker.internal:$PROXY_PORT/agent/$agent" \
+    -e BENCH_PROXY_TOKEN \
     -v "$SCRIPT_DIR/inside.sh:/bench/inside.sh:ro" \
     -v "$RESULTS_DIR:/bench/out" \
     "$IMAGE" \
