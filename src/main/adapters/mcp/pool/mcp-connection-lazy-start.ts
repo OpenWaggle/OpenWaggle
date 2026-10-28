@@ -89,7 +89,7 @@ export class McpConnectionLazyStart {
     const page =
       message.method === 'tools/list' ? catalog.servedToolsPage(message.params) : undefined
     if (page) {
-      options.observeResult?.(message.method, message.params, page.result)
+      options.observeResult?.(message.method, message.params, page.result, { served: true })
       return answer(options.adaptResult?.(message.method, page.result) ?? page.result)
     }
     await this.wake()

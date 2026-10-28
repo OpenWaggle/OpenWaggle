@@ -118,9 +118,17 @@ export class McpPooledConnection {
     return this.closed || this.retiring
   }
 
-  /** Open and past its handshake. */
+  /** Open and past its handshake with the server itself, not one answered from its catalog. */
   get isReady() {
-    return !this.isClosed && this.handshake.isDone
+    return !this.isClosed && this.handshake.isDone && !this.isServingCatalog
+  }
+
+  /**
+   * Answering from the server's catalog without having started it (D1.3): it says nothing about
+   * whether the server runs now (review R5 P2-4).
+   */
+  get isServingCatalog() {
+    return this.lazyStart?.waiting === true
   }
 
   get attachedLeases() {

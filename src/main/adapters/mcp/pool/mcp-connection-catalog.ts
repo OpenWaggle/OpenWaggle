@@ -9,6 +9,10 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import path from 'node:path'
 import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import type {
+  McpObservedResultContext,
+  McpPooledConnectionOptions,
+} from './mcp-connection-support'
 
 /** A catalog older than this is not served: the server starts and the catalog is refreshed. */
 /** Hex characters of a catalog key: its file name. */
@@ -223,7 +227,7 @@ export class McpCatalogFills {
 export function mcpConnectionCatalogOptions(
   store: McpToolCatalogStore | undefined,
   spec: { readonly catalogKey?: string; readonly lazyStart?: boolean },
-  observeResult: ((method: string, params: unknown, result: unknown) => void) | undefined,
+  observeResult: McpPooledConnectionOptions['observeResult'],
   fills?: McpCatalogFills,
 ) {
   if (!store || spec.catalogKey === undefined) return observeResult ? { observeResult } : {}
@@ -235,9 +239,17 @@ export function mcpConnectionCatalogOptions(
     catalog,
     lazyStart,
     ...(joined && 'fill' in joined ? { catalogFill: joined.fill } : {}),
-    observeResult: (method: string, params: unknown, result: unknown) => {
-      observeResult?.(method, params, result)
-      if (method === 'tools/list') catalog.recordToolsPage(params, result)
+    observeResult: (
+      method: string,
+      params: unknown,
+      result: unknown,
+      context?: McpObservedResultContext,
+    ) => {
+      observeResult?.(method, params, result, context)
+      // A page the catalog served is its own: only what the server lists is recorded.
+      if (method === 'tools/list' && context?.served !== true) {
+        catalog.recordToolsPage(params, result)
+      }
     },
   }
 }
