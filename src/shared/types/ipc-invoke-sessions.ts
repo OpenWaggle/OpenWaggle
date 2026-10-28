@@ -20,6 +20,8 @@ import type {
   SessionSummary,
   SessionThinkingLevelChange,
   SessionTree,
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -149,12 +151,14 @@ export interface IpcSessionInvokeChannelMap {
     return: SessionWorkspace | null
   }
   /**
-   * The Session tree nodes whose transcript text contains `query` (whitespace collapsed, case
-   * folded), read from the transcript search projection: the tree itself carries no content.
+   * The Session tree nodes whose content, metadata or transcript text contains `query`
+   * (whitespace collapsed, case folded): the tree itself carries no content. Given the cursor of
+   * the previous search for the same query, only nodes appended since are read while no node
+   * changed (`incremental`).
    */
   'sessions:search-tree': {
-    args: [sessionId: SessionId, query: string]
-    return: readonly SessionNodeId[]
+    args: [sessionId: SessionId, query: string, after?: SessionTreeSearchCursor]
+    return: SessionTreeSearchPage
   }
   'sessions:navigate-tree': {
     args: [

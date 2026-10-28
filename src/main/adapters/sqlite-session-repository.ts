@@ -84,9 +84,9 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('getSessionNodeMutationRevision', () =>
         deps.store.getSessionNodeMutationRevision(sessionId),
       ),
-    searchTreeNodes: (sessionId, query) =>
+    searchTreeNodes: (sessionId, query, after) =>
       repositoryOperation('searchSessionTreeNodes', () =>
-        deps.store.searchSessionTreeNodes(sessionId, query),
+        deps.store.searchSessionTreePage(sessionId, query, after),
       ),
     listResourceProjectionPage: (sessionId, afterCreatedOrder, limit) =>
       repositoryOperation('listSessionResourceProjectionPage', () =>

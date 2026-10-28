@@ -57,6 +57,8 @@ import type {
   SessionThinkingLevelChange,
   SessionTree,
   SessionTreeFilterMode,
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -234,7 +236,11 @@ export interface OpenWaggleApi
     selection?: SessionWorkspaceSelection,
     request?: SessionWorkspaceRequest,
   ): Promise<SessionWorkspace | null>
-  searchSessionTree(sessionId: SessionId, query: string): Promise<readonly SessionNodeId[]>
+  searchSessionTree(
+    sessionId: SessionId,
+    query: string,
+    after?: SessionTreeSearchCursor,
+  ): Promise<SessionTreeSearchPage>
   navigateSessionTree(
     sessionId: SessionId,
     model: SupportedModelId,

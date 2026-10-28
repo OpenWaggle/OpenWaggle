@@ -27,7 +27,7 @@ export const emptySessionCatalogMethods = {
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
   getNodeMutationRevision: () => Effect.succeed(null),
-  searchTreeNodes: () => Effect.succeed([]),
+  searchTreeNodes: () => Effect.succeed({ nodeIds: [], incremental: false, cursor: null }),
 } satisfies Pick<
   SessionRepositoryShape,
   | 'listCatalogPage'

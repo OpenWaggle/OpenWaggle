@@ -24,7 +24,7 @@ export {
 export { listArchivedSessionBranches, listSessions } from './sessions/session-list'
 export {
   getSessionNodeMutationRevision,
-  searchSessionTreeNodes,
+  searchSessionTreePage,
 } from './sessions/session-node-search'
 export {
   getSessionResourceProjectionNodes,

@@ -1,5 +1,5 @@
-import type { SessionTree } from '@shared/types/session'
-import { useEffect, useState } from 'react'
+import type { SessionTree, SessionTreeSearchCursor } from '@shared/types/session'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -16,15 +16,23 @@ function searchFailureContext(error: unknown) {
 }
 
 interface TreeSearchResult {
+  /** The Session and query it answers. */
   readonly key: string
   readonly nodeIds: ReadonlySet<string>
+  /** The loaded tree it answered (`updatedAt:nodeCount`): a later one is searched again. */
+  readonly treeRevision: string
+  /** Where it stopped: the next search for the same key reads only nodes appended since. */
+  readonly cursor: SessionTreeSearchCursor | null
 }
 
 /**
  * The tree nodes whose full transcript text matches `query`, searched on the Host (B5): the tree
  * carries only the start of each message, so a match deeper in a message must come from there.
- * The loaded tree's revision is part of the key, so new or changed nodes are searched again; a
- * result for an earlier query or tree is never shown for the current one.
+ * When the loaded tree changes, the Host is asked again with the previous search's cursor, so a
+ * Run's appends are searched alone, not the whole Session on each one (review V2 P3-1); the Host
+ * reads everything again once a node it read has changed. Until that answer comes, the previous
+ * matches for the same Session and query stay shown; a result for another query or Session never
+ * is.
  */
 export function useSessionTreeTextSearch(
   tree: SessionTree | null,
@@ -33,17 +41,36 @@ export function useSessionTreeTextSearch(
   const sessionId = tree?.session.id ?? null
   const treeRevision = tree ? `${String(tree.session.updatedAt)}:${String(tree.nodes.length)}` : ''
   const normalized = query.trim().replace(/\s+/g, ' ')
-  const key = `${String(sessionId)}|${treeRevision}|${normalized}`
+  const key = `${String(sessionId)}|${normalized}`
   const [result, setResult] = useState<TreeSearchResult | null>(null)
+  // The last answer, read when the next search starts; the effect does not re-run on it.
+  const latest = useRef<TreeSearchResult | null>(null)
 
   useEffect(() => {
     if (!sessionId || !normalized) return
     let cancelled = false
     const timer = setTimeout(() => {
-      api
-        .searchSessionTree(sessionId, normalized)
-        .then((ids) => {
-          if (!cancelled) setResult({ key, nodeIds: new Set(ids.map(String)) })
+      const previous = latest.current?.key === key ? latest.current : null
+      const accept = (next: TreeSearchResult) => {
+        if (cancelled) return
+        latest.current = next
+        setResult(next)
+      }
+      // Without a cursor the call has two arguments: an absent third one crosses as nothing.
+      const search = previous?.cursor
+        ? api.searchSessionTree(sessionId, normalized, previous.cursor)
+        : api.searchSessionTree(sessionId, normalized)
+      search
+        .then((page) => {
+          const found = page.nodeIds.map(String)
+          accept({
+            key,
+            treeRevision,
+            nodeIds: new Set(
+              page.incremental && previous ? [...previous.nodeIds, ...found] : found,
+            ),
+            cursor: page.cursor,
+          })
         })
         .catch((error: unknown) => {
           // The window still matches the start of each message it holds; full-text matches are
@@ -52,14 +79,14 @@ export function useSessionTreeTextSearch(
             sessionId,
             ...searchFailureContext(error),
           })
-          if (!cancelled) setResult({ key, nodeIds: new Set() })
+          accept({ key, treeRevision, nodeIds: new Set(), cursor: null })
         })
     }, SEARCH_DEBOUNCE_MS)
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [key, normalized, sessionId])
+  }, [key, normalized, sessionId, treeRevision])
 
   return result?.key === key ? result.nodeIds : undefined
 }

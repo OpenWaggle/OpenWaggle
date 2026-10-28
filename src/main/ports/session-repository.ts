@@ -7,7 +7,7 @@ import type {
   ArchivedItemsRefsQuery,
 } from '@shared/types/archived-items'
 import type { RunMode } from '@shared/types/background-run'
-import type { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
@@ -18,6 +18,8 @@ import type {
   SessionNodeKind,
   SessionProjectPage,
   SessionSummary,
+  SessionTreeSearchCursor,
+  SessionTreeSearchPage,
   SessionTreeUiStatePatch,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -164,11 +166,15 @@ export interface SessionRepositoryShape {
   readonly getNodeMutationRevision: (
     sessionId: SessionId,
   ) => Effect.Effect<number | null, SessionProjectionRepositoryError>
-  /** Tree node ids whose transcript search text contains `query`, case folded. */
+  /**
+   * Tree node ids whose content, metadata or transcript search text contains `query`, case
+   * folded; after a cursor whose revision still holds, only among the nodes appended since.
+   */
   readonly searchTreeNodes: (
     sessionId: SessionId,
     query: string,
-  ) => Effect.Effect<readonly SessionNodeId[], SessionProjectionRepositoryError>
+    after?: SessionTreeSearchCursor,
+  ) => Effect.Effect<SessionTreeSearchPage, SessionProjectionRepositoryError>
   readonly listResourceProjectionPage: (
     sessionId: SessionId,
     afterCreatedOrder: number,

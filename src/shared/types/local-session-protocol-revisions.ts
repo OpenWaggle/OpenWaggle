@@ -79,8 +79,8 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * carries no node content (`SessionTreeNode`), the workspace returns a transcript window and omits
  * content the caller holds (`sessions:get-workspace`'s third argument), the detail returns only
  * appended messages for a cursor (`sessions:get-detail`'s second argument), the tree filter
- * searches on the Host (`sessions:search-tree`), and a Session's turns' changed files are read
- * in one call (`sessions:turn-diff-files:list`), and the provider catalog takes a scope
+ * searches on the Host (`sessions:search-tree`, which a cursor resumes after appends), and a
+ * Session's turns' changed files are read in one call (`sessions:turn-diff-files:list`), and the provider catalog takes a scope
  * (`providers:get-models`'s second argument). A detail cursor may also bound the messages to the
  * newest `maxMessages`, and the detail then says where they start (`messagesWindow`). A
  * `session-list-changed` event for a pin or a read receipt carries `catalogOnly`, so windows do

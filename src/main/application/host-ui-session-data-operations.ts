@@ -1,6 +1,7 @@
 import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
   sessionDetailCursorSchema,
+  sessionTreeSearchCursorSchema,
   sessionTreeSearchQuerySchema,
   sessionWorkspaceRequestSchema,
 } from '@shared/schemas/session-data-requests'
@@ -99,14 +100,19 @@ export function getSessionWorkspace(args: readonly unknown[]) {
 
 export function searchSessionTree(args: readonly unknown[]) {
   return Effect.gen(function* () {
-    yield* requireArgCount(args, TWO_ARGUMENTS)
+    yield* requireOptionalArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
     const sessionId = yield* openedSessionId(args[0])
     const query = yield* decodeOptionalArgument(
       sessionTreeSearchQuerySchema,
       args[1],
       'Session tree search query',
     )
-    return yield* (yield* SessionRepository).searchTreeNodes(sessionId, query ?? '')
+    const after = yield* decodeOptionalArgument(
+      sessionTreeSearchCursorSchema,
+      args[2],
+      'Session tree search cursor',
+    )
+    return yield* (yield* SessionRepository).searchTreeNodes(sessionId, query ?? '', after)
   })
 }
 

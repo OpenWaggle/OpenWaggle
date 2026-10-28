@@ -229,15 +229,24 @@ describe('Host UI Session data reads (B5/D5)', () => {
     expect(getNodeMutationRevision).not.toHaveBeenCalled()
   })
 
-  it('searches the tree on the Host', async () => {
-    const searchTreeNodes = vi.fn(() => Effect.succeed([SessionNodeId('b')]))
+  it('searches the tree on the Host, after the previous search’s cursor when given', async () => {
+    const page = { nodeIds: [SessionNodeId('b')], incremental: false, cursor: null }
+    const searchTreeNodes = vi.fn(() => Effect.succeed(page))
     const result = await run(
       dispatchHostBackedSessionGuiOperation('sessions:search-tree', [SESSION, 'needle']),
       { sessions: { searchTreeNodes } },
     )
+    const cursor = { throughCreatedOrder: 7, nodeMutationRevision: 2 }
+    await run(
+      dispatchHostBackedSessionGuiOperation('sessions:search-tree', [SESSION, 'needle', cursor]),
+      { sessions: { searchTreeNodes } },
+    )
 
-    expect(result).toEqual([SessionNodeId('b')])
-    expect(searchTreeNodes).toHaveBeenCalledWith(SESSION, 'needle')
+    expect(result).toEqual(page)
+    expect(searchTreeNodes.mock.calls).toEqual([
+      [SESSION, 'needle', undefined],
+      [SESSION, 'needle', cursor],
+    ])
   })
 
   it('reads every requested turn’s changed files in one repository call', async () => {

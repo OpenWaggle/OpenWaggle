@@ -42,6 +42,11 @@ export const sessionDetailCursorSchema = Schema.Struct({
   ),
 })
 
+export const sessionTreeSearchCursorSchema = Schema.Struct({
+  throughCreatedOrder: Schema.Number.pipe(Schema.int()),
+  nodeMutationRevision: revisionSchema,
+})
+
 export const sessionTreeSearchQuerySchema = Schema.String.pipe(
   Schema.maxLength(SESSION_TREE_SEARCH_MAX_QUERY_LENGTH),
 )

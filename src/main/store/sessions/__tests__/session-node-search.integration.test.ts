@@ -8,7 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, persistSessionSnapshot } from '../../session-details'
 import { runStoreEffect } from '../../store-runtime'
 import { listTurnDiffFiles, recordTurnCheckpoint } from '../../turn-checkpoints'
-import { getSessionNodeMutationRevision, searchSessionTreeNodes } from '../session-node-search'
+import { getSessionNodeMutationRevision, searchSessionTreePage } from '../session-node-search'
+
+async function searchSessionTreeNodes(sessionId: SessionId, query: string) {
+  return (await searchSessionTreePage(sessionId, query)).nodeIds
+}
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -75,6 +79,20 @@ async function sessionWithTextsAgain(
       createdOrder: index,
     })),
   })
+}
+
+/** The control state a Session Host gives every Session; it carries the node mutation revision. */
+async function withControlState(sessionId: SessionId) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO session_control_states (
+          session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+        ) VALUES (${sessionId}, 0, NULL, 'running', 0, 1)
+      `
+    }),
+  )
 }
 
 describe('Session tree search on the Host (B5)', () => {
@@ -183,6 +201,39 @@ describe('Session tree search on the Host (B5)', () => {
     expect((await searchSessionTreeNodes(sessionId, 'gpt-5.4')).map(String)).toEqual(['tools-call'])
   })
 
+  /*
+   * Review V2 P3-1: a query left open in the tree filter read and folded the whole Session again
+   * on every append while a Run streamed. After an append, only the appended nodes are read; once a
+   * node it read changes, the search reads every node again.
+   */
+  it('reads only the nodes appended since the last search while no node changed', async () => {
+    const sessionId = await sessionWithTexts('grow', ['needle one', 'reply'])
+    await withControlState(sessionId)
+    const first = await searchSessionTreePage(sessionId, 'needle')
+    expect(first.nodeIds.map(String)).toEqual(['grow-0'])
+    expect(first.incremental).toBe(false)
+    expect(first.cursor?.throughCreatedOrder).toBe(1)
+    const cursor = first.cursor ?? undefined
+
+    await sessionWithTextsAgain(sessionId, 'grow', ['needle one', 'reply', 'needle two', 'end'])
+    const appended = await searchSessionTreePage(sessionId, 'needle', cursor)
+    expect(appended).toEqual({
+      nodeIds: ['grow-2'],
+      incremental: true,
+      cursor: { throughCreatedOrder: 3, nodeMutationRevision: cursor?.nodeMutationRevision },
+    })
+    // Nothing appended since: nothing to read.
+    expect(
+      (await searchSessionTreePage(sessionId, 'needle', appended.cursor ?? undefined)).nodeIds,
+    ).toEqual([])
+
+    await sessionWithTextsAgain(sessionId, 'grow', ['edited', 'reply', 'needle two', 'end'])
+    const edited = await searchSessionTreePage(sessionId, 'needle', appended.cursor ?? undefined)
+    expect(edited.incremental).toBe(false)
+    expect(edited.nodeIds.map(String)).toEqual(['grow-2'])
+    expect(edited.cursor?.nodeMutationRevision).not.toBe(cursor?.nodeMutationRevision)
+  })
+
   it('reads a long Session page by page and still finds its last node', async () => {
     const texts = Array.from({ length: 1_203 }, (_, index) =>
       index === 1_202 ? 'the final pagedneedle' : `filler ${String(index)}`,
@@ -199,20 +250,12 @@ describe('Session tree search on the Host (B5)', () => {
     const sessionId = await sessionWithTexts('no-state', ['one'])
 
     expect(await getSessionNodeMutationRevision(sessionId)).toBeNull()
+    expect((await searchSessionTreePage(sessionId, 'one')).cursor).toBeNull()
   })
 
   it('bumps the revision when an existing node changes, not when nodes are appended', async () => {
     const sessionId = await sessionWithTexts('rev', ['one', 'two'])
-    await runStoreEffect(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* sql`
-          INSERT INTO session_control_states (
-            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
-          ) VALUES (${sessionId}, 0, NULL, 'running', 0, 1)
-        `
-      }),
-    )
+    await withControlState(sessionId)
     const start = await getSessionNodeMutationRevision(sessionId)
     await sessionWithTextsAgain(sessionId, 'rev', ['one', 'two', 'three'])
     const afterAppend = await getSessionNodeMutationRevision(sessionId)
