@@ -42,12 +42,15 @@ function ProvenanceIndicator({ indicator }: { readonly indicator: SessionProvena
         indicator.kind === 'terminal' ? 'text-progress' : 'text-text-tertiary',
       )}
     >
-      <Icon
+      {/* Pulsed on an HTML box: an SVG's animation repaints on the main thread every frame. */}
+      <span
         className={cn(
-          'size-2.5',
+          'grid size-2.5 place-items-center',
           indicator.kind === 'terminal' ? 'animate-pulse motion-reduce:animate-none' : null,
         )}
-      />
+      >
+        <Icon className="size-2.5" />
+      </span>
       {indicator.count === undefined ? null : (
         <span className="text-xs tabular-nums">{indicator.count}</span>
       )}

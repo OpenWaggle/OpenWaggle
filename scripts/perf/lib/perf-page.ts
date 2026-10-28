@@ -64,7 +64,15 @@ function installBootProbe(conditions: BootProbeConditions) {
     // Observers are best effort; the milestones below do not depend on them.
   }
   let scheduled = false
-  const check = () => {
+  const wanted = ['shell', 'composer', 'chatReady', ...(conditions.sessionListText ? ['sessionList'] : [])]
+  // Each check reads the whole page's text, which costs the renderer a layout and more per frame
+  // the DOM changes: left watching, it was part of every later measurement, such as streaming.
+  const observer = new MutationObserver(() => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(check)
+  })
+  function check() {
     scheduled = false
     const body = document.body
     if (!body) return
@@ -76,13 +84,9 @@ function installBootProbe(conditions: BootProbeConditions) {
     if (document.querySelector('[contenteditable]')) mark('composer')
     if (conditions.sessionListText && text.includes(conditions.sessionListText)) mark('sessionList')
     if (shell && !text.includes(conditions.loadingText)) mark('chatReady')
+    if (wanted.every((name) => state.milestones[name] !== undefined)) observer.disconnect()
   }
-  const schedule = () => {
-    if (scheduled) return
-    scheduled = true
-    requestAnimationFrame(check)
-  }
-  new MutationObserver(schedule).observe(document, { subtree: true, childList: true, characterData: true })
+  observer.observe(document, { subtree: true, childList: true, characterData: true })
 }
 
 async function waitForCdp(port: number, deadline: number) {

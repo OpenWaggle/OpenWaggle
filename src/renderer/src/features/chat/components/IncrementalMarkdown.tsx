@@ -10,6 +10,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
+import { remarkStreamingListTail } from '@/features/chat/lib/streaming-list-tail'
 import {
   type StreamingMarkdownTail,
   splitStreamingMarkdown,
@@ -33,8 +34,11 @@ const blockProcessor = unified()
   .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 
 const REMARK_PLUGINS = [remarkGfm, remarkSessionLinks]
-/** A streaming block may hold half a Session link; it is linked once the block completes. */
-const STREAMING_REMARK_PLUGINS = [remarkGfm]
+/**
+ * A streaming block may hold half a Session link; it is linked once the block completes. The
+ * live tail parses a streaming list's finished items once (`remarkStreamingListTail`).
+ */
+const LIVE_TAIL_REMARK_PLUGINS = [remarkGfm, remarkStreamingListTail]
 
 interface IncrementalMarkdownProps {
   text: string
@@ -169,7 +173,7 @@ function LiveTail({
   if (tail.kind === 'open-fence') return <OpenFenceTail language={tail.language} code={tail.code} />
   return (
     <ReactMarkdown
-      remarkPlugins={STREAMING_REMARK_PLUGINS}
+      remarkPlugins={LIVE_TAIL_REMARK_PLUGINS}
       rehypePlugins={rehypePlugins}
       urlTransform={safeMarkdownUrlTransform}
       components={streamingTailMarkdownComponents}
@@ -177,6 +181,17 @@ function LiveTail({
       {formatDisplayMarkdown(tail.text)}
     </ReactMarkdown>
   )
+}
+
+/**
+ * The completed blocks, from the text before the live tail. That text only changes when a block
+ * completes, so a token re-renders none of them: the element is the same while the prefix is.
+ * Mapped inline, every block's component ran again on each token.
+ */
+function CompletedBlocks({ prefix }: { readonly prefix: string }) {
+  return splitStreamingMarkdown(prefix).blocks.map((block) => (
+    <StreamingMarkdownBlock key={block.start} text={block.text} />
+  ))
 }
 
 /**
@@ -205,12 +220,10 @@ export function IncrementalMarkdown({
     )
   }
 
-  const { blocks, tail } = splitStreamingMarkdown(text)
+  const { tail } = splitStreamingMarkdown(text)
   return (
     <>
-      {blocks.map((block) => (
-        <StreamingMarkdownBlock key={block.start} text={block.text} />
-      ))}
+      <CompletedBlocks prefix={tail ? text.slice(0, tail.start) : text} />
       {tail ? (
         <LiveTail
           key={`tail-${String(tail.start)}`}

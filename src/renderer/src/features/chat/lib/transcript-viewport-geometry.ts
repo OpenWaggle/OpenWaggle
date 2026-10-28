@@ -7,6 +7,8 @@ export interface ViewportGeometry {
   getContentHeight(): number
   /** Reserves space after the last row so a sent message can sit near the top. */
   setEndSpace(height: number): void
+  /** Whether the row with this key is mounted; unlike measuring it, this forces no layout. */
+  hasRow(key: string): boolean
   /** Top of the row with this key relative to the viewport top, or `null` when not mounted. */
   getRowTop(key: string): number | null
   /** Height of the row with this key, or `null` when not mounted. */
@@ -74,15 +76,40 @@ function minHeightSlack(content: HTMLElement | null, endSpace: HTMLElement | nul
   )
 }
 
-function rowElement(content: HTMLElement | null, key: string) {
-  return (
-    content?.querySelector<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}="${CSS.escape(key)}"]`) ??
-    null
+function queryRowElement(content: HTMLElement, key: string) {
+  return content.querySelector<HTMLElement>(
+    `[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}="${CSS.escape(key)}"]`,
   )
+}
+
+/**
+ * Row elements by key, checked on every use. A layout pass reads the same few rows several times
+ * (the held message's top and height, the anchored row), and each read searched the whole
+ * transcript with an attribute selector, on every streamed frame. A row keeps its element while
+ * its key stays mounted, so a found element is reused for as long as it is still that row.
+ */
+function createRowElementLookup() {
+  const found = new Map<string, HTMLElement>()
+  return (content: HTMLElement | null, key: string) => {
+    if (!content) return null
+    const cached = found.get(key)
+    if (
+      cached?.isConnected &&
+      cached.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE) === key &&
+      content.contains(cached)
+    ) {
+      return cached
+    }
+    const row = queryRowElement(content, key)
+    if (row) found.set(key, row)
+    else found.delete(key)
+    return row
+  }
 }
 
 /** The browser-backed geometry the viewport controller reads and writes. */
 export function createDomViewportGeometry(elements: TranscriptViewportElements): ViewportGeometry {
+  const rowElement = createRowElementLookup()
   function viewportTop() {
     return elements.scroller()?.getBoundingClientRect().top ?? 0
   }
@@ -105,6 +132,7 @@ export function createDomViewportGeometry(elements: TranscriptViewportElements):
       const endSpace = elements.endSpace()
       if (endSpace) endSpace.style.height = `${String(height)}px`
     },
+    hasRow: (key) => rowElement(elements.content(), key) !== null,
     getRowTop: (key) => {
       const row = rowElement(elements.content(), key)
       return row ? row.getBoundingClientRect().top - viewportTop() : null
