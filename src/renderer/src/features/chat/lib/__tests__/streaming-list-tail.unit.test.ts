@@ -54,7 +54,7 @@ describe('remarkStreamingListTail', () => {
       text += token
       processor.parse(text)
     }
-    const parsedDocuments = parse.mock.calls.map(([document]) => document)
+    const parsedDocuments = parse.mock.calls.map(([document]) => document ?? '')
     // The twelve finished items are parsed once; each token parses only the last item.
     expect(parsedDocuments.filter((document) => document === items)).toHaveLength(1)
     expect(parsedDocuments.filter((document) => document.length > items.length)).toHaveLength(0)
