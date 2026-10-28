@@ -61,6 +61,14 @@ export interface SessionState extends SessionCatalogState {
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
+  /**
+   * The workspace a view shows: read unless this window already shows it or is reading it. A
+   * refresh after a change uses `refreshSessionWorkspace`, which always reads.
+   */
+  showSessionWorkspace: (
+    sessionId: SessionId | null,
+    selection?: SessionWorkspaceSelection,
+  ) => Promise<void>
   /** Reads the next older page of the shown transcript window from the Host (ADR 0036). */
   loadEarlierTranscript: (sessionId: SessionId) => Promise<void>
   /** Reads the shown transcript window back to `nodeId`, for a saved reading position. */

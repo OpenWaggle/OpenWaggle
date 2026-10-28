@@ -13,7 +13,7 @@ import type {
   SessionTranscriptNode,
   SessionTreeNode,
 } from './session-node'
-import type { SessionTranscriptWindow } from './session-transcript-window'
+import type { SessionDetailReadWindow, SessionTranscriptWindow } from './session-transcript-window'
 import type { ThinkingLevel } from './settings'
 import type { WaggleConfig } from './waggle'
 
@@ -111,7 +111,7 @@ export interface SessionInterruptedRun {
   readonly interruptedAt: number
 }
 
-export interface SessionDetail {
+export interface SessionDetail extends SessionDetailReadWindow {
   readonly id: SessionId
   readonly title: string
   /** Where the title came from (ADR 0043); absent where the store does not read it. */
@@ -168,8 +168,6 @@ export interface SessionDetail {
   readonly piSessionLastPromptOutside?: true
   /** Node mutation revision when read, for the next `SessionDetailCursor` (D5). */
   readonly nodeMutationRevision?: number
-  /** `messages` continues the caller's first `baseMessageCount` ones (a cursor read). */
-  readonly messagesDelta?: { readonly baseMessageCount: number }
 }
 
 /**

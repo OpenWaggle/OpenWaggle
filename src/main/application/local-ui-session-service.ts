@@ -192,6 +192,25 @@ function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEd
   })
 }
 
+/**
+ * Whether a command changes only the Session's catalog entry, its pin or its read receipt, and
+ * neither its transcript nor its tree: windows then refresh the entry without reading the
+ * Session again. Opening a Session writes its read receipt, and the full refresh that event
+ * caused read the Session being opened a second time (v1 performance, session open).
+ */
+export function changesOnlySessionCatalogEntry(
+  command: Exclude<LocalUiCommand, RenewFollowUpEditHoldCommand>,
+) {
+  if (command.operation === 'pin' || command.operation === 'unpin') return true
+  if (command.operation === 'move-pin') return true
+  return (
+    command.operation === 'update-tree-ui-state' &&
+    command.patch.lastVisitedAt !== undefined &&
+    command.patch.expandedNodeIds === undefined &&
+    command.patch.branchesSidebarCollapsed === undefined
+  )
+}
+
 export function executeLocalUiSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalUiPayload
@@ -210,7 +229,12 @@ export function executeLocalUiSessionCommand(input: {
     }
     const outcome = yield* executeLocalUiMutation(command)
     if (outcome.effect !== 'session-deleted') {
-      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+      publishSessionHostEvent({
+        kind: 'session-list-changed',
+        sessionId,
+        change: 'updated',
+        ...(changesOnlySessionCatalogEntry(command) ? { catalogOnly: true as const } : {}),
+      })
     }
     const result: LocalUiResult = {
       contract: 'local-ui-v1',

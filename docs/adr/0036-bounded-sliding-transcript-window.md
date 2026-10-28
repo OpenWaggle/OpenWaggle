@@ -103,3 +103,23 @@ The window bounded the rows that mount, but every read still moved the whole bra
 - Entries the window already holds come back without content while the Session's node mutation revision is unchanged (`cached`, `contentOmitted`), and a Session detail read with a cursor returns only the messages appended after the caller's (`messagesDelta`). The revision is read before the nodes it labels, so held content is never newer than its label.
 
 This ships with Local Session revision 28. Measured on hidden packaged-style builds: a 12-message open 720 KB → 77 KB, the 80-message open 13.2 MB → 0.40 MB (first open 15.4 → 2.5 MB).
+
+### The detail is bounded too, and an open reads each part once
+
+The paged workspace did not make a long Session open faster. On the generated medium profile (a 3,600-message Session) the integrated build took 976 ms from the click to the last message, against 434 ms on beta.27. The transcript waits for both the workspace and the Session detail. The detail still carried every message of the active path, 11.4 MB, so a single read took 450–640 ms: the Host split it into base64 frames, the main process parsed it, and the renderer cloned it. One open also read the detail twice, the workspace three times and the tree once more.
+
+- A detail read can be bounded: `SessionDetailCursor.maxMessages` returns at most that many of the newest messages, and `messagesWindow { startIndex, pathLength }` says where they start (same shape as `transcriptWindow`). The cursor's `messageCount` counts the path's messages through the caller's last one, so the delta rules above are unchanged. More appended messages than the bound come back as the newest window instead of a delta. The desktop window holds the newest 400 messages per Session (`SESSION_DETAIL_MESSAGE_WINDOW`), above the workspace's first page of 200 entries so every message the transcript shows at first is held. Older history comes from the workspace pages. Where the detail stood in for the whole history, the code now reads `messagesWindow.pathLength` (the sidebar message count) and the loaded workspace path (persisted Waggle attribution).
+- Detail reads of one Session never overlap. A read asked for while one is in flight runs after it, with the cursor it leaves, and every call asked for in the meantime shares that read.
+- Opening a Session writes its read receipt. The Host used to publish that as an ordinary `session-list-changed`, and every window then read the open Session's detail and workspace again. Commands that change only a Session's catalog entry (a pin, a read receipt) now publish `catalogOnly: true`: windows refresh the entry and nothing else, and semantic discovery is not woken.
+- The detail read that opens an uncached Session no longer refreshes the tree after it lands, because the view reads the workspace, which carries the tree. A tree read waits 100 ms (`SESSION_TREE_READ_GRACE_MS`) and is skipped when a workspace read starts in that time. The route shows a workspace that is already shown or being read without reading it again (`showSessionWorkspace`). Refreshes after a change still read.
+- Indexing a historical Session's resources (`sessions:resources:backfill`) used to start with the open. Each slice reads the Session's history on the Host. It now starts once the renderer is idle after the transcript has painted, and each slice waits for an idle period.
+
+One open now moves one bounded detail (1.3 MB) and one workspace (2.4 MB) instead of two 11.4 MB details, three workspaces and a tree. Measured on packaged builds with `pnpm perf:session-open` (medium profile, 10 interleaved opens per build, same machine):
+
+| Build | Click → last message (median) | IPC bytes per open |
+| --- | --- | --- |
+| beta.27 | 438 ms | 166.6 MB |
+| integrated, before this change | 694 ms | 30.7 MB |
+| this change | 340 ms | 3.8 MB |
+
+The harness's median includes Playwright's click and the app's boot work. Opened 1.5 s after launch instead, the first open takes about 200 ms (beta.27 430 ms), and opening it again after another Session about 150 ms (beta.27 310 ms).

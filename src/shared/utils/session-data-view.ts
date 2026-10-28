@@ -142,10 +142,24 @@ function continuesCursor(detail: SessionDetail, cursor: SessionDetailCursor) {
   return last !== undefined && String(last.id) === cursor.lastMessageId
 }
 
+/** The newest `maxMessages` of the detail's messages, and where they start. */
+function newestMessages(detail: SessionDetail, maxMessages: number | undefined): SessionDetail {
+  if (maxMessages === undefined) return detail
+  const pathLength = detail.messages.length
+  const startIndex = Math.max(0, pathLength - maxMessages)
+  return {
+    ...detail,
+    messages: startIndex === 0 ? detail.messages : detail.messages.slice(startIndex),
+    messagesWindow: { startIndex, pathLength },
+  }
+}
+
 /**
  * A detail read with a cursor: while the node mutation revision is unchanged, nodes were only
  * appended, so the caller's messages are still the start of the active path whenever its last
- * message sits at the same position; only the messages after it are returned.
+ * message sits at the same position; only the messages after it are returned. With
+ * `maxMessages`, at most that many are returned: more appended messages than that, or a detail
+ * that does not continue the caller's, come back as the newest window of the path instead.
  */
 export function sessionDetailView(
   detail: SessionDetail | null,
@@ -153,18 +167,30 @@ export function sessionDetailView(
   nodeMutationRevision: number | null,
 ): SessionDetail | null {
   if (!detail) return null
-  if (nodeMutationRevision === null) return detail
+  if (nodeMutationRevision === null) return newestMessages(detail, cursor?.maxMessages)
   const revised = { ...detail, nodeMutationRevision }
   if (
     !cursor ||
     cursor.nodeMutationRevision !== nodeMutationRevision ||
     !continuesCursor(detail, cursor)
   ) {
-    return revised
+    return newestMessages(revised, cursor?.maxMessages)
+  }
+  const appended = detail.messages.slice(cursor.messageCount)
+  if (cursor.maxMessages !== undefined && appended.length > cursor.maxMessages) {
+    return newestMessages(revised, cursor.maxMessages)
   }
   return {
     ...revised,
-    messages: detail.messages.slice(cursor.messageCount),
+    messages: appended,
     messagesDelta: { baseMessageCount: cursor.messageCount },
+    ...(cursor.maxMessages === undefined
+      ? {}
+      : {
+          messagesWindow: {
+            startIndex: cursor.messageCount,
+            pathLength: detail.messages.length,
+          },
+        }),
   }
 }

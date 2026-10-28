@@ -34,8 +34,9 @@ const semanticDiscoverySourceObservers = new Set<{
 }>()
 
 function changesSemanticDiscoverySource(payload: SessionHostEventPayload) {
-  if (payload.kind === 'session-list-changed' || payload.kind === 'session-state-changed')
-    return true
+  // A pin or read receipt (opening a Session writes one) changes nothing discovery indexes.
+  if (payload.kind === 'session-list-changed') return payload.catalogOnly !== true
+  if (payload.kind === 'session-state-changed') return true
   return payload.kind === 'session-transport' && payload.event.type === 'message_end'
 }
 

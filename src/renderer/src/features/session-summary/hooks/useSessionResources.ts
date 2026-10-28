@@ -7,8 +7,9 @@ import type {
   SessionResourceThumbnailPreview,
 } from '@shared/types/session-resource'
 import { type QueryClient, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { OpenWaggleQueryOptions } from '@/queries/query-options'
+import { whenRendererIdle } from '@/shared/lib/idle-task'
 import { api } from '@/shared/lib/ipc'
 
 export { useSessionImageResourcesByNodeIds } from './useSessionMessageResources'
@@ -63,9 +64,29 @@ export function invalidateSessionResourceQueries(queryClient: QueryClient, sessi
   })
 }
 
+/**
+ * The Session once the renderer was idle after it was shown. Indexing an old Session's resources
+ * reads its whole history on the Host, slice after slice; started as the Session opened, it ran
+ * beside the reads that open the Session and delayed its transcript.
+ */
+function useSessionShownAndIdle(sessionId: string | null) {
+  const [idleSessionId, setIdleSessionId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!sessionId) return
+    let current = true
+    void whenRendererIdle().then(() => {
+      if (current) setIdleSessionId(sessionId)
+    })
+    return () => {
+      current = false
+    }
+  }, [sessionId])
+  return sessionId !== null && idleSessionId === sessionId ? sessionId : null
+}
+
 export function useSessionResourceBackfill(sessionId: string | null) {
   const queryClient = useQueryClient()
-  const query = useQuery(sessionResourceBackfillQueryOptions(sessionId))
+  const query = useQuery(sessionResourceBackfillQueryOptions(useSessionShownAndIdle(sessionId)))
   const progressedAt = query.data?.progressed ? query.dataUpdatedAt : 0
   useEffect(() => {
     if (!sessionId || progressedAt === 0) return
@@ -87,6 +108,8 @@ export function sessionResourceBackfillQueryOptions(
     queryFn: async ({ client, queryKey }): Promise<SessionResourceBackfillState> => {
       if (!sessionId) return { backfillComplete: true, progressed: false, stalledAttempts: 0 }
       const previous = client.getQueryData<SessionResourceBackfillState>(queryKey)
+      // Each slice is background work: it waits for the renderer to be idle.
+      await whenRendererIdle()
       const status = await api.advanceSessionResourceBackfill(SessionId(sessionId))
       const stalledAttempts =
         status.backfillComplete || status.progressed ? 0 : (previous?.stalledAttempts ?? 0) + 1
