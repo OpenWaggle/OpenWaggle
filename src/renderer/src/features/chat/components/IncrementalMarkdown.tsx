@@ -15,6 +15,7 @@ import {
   completedMarkdownBlocks,
   type StreamingMarkdownTail,
   splitStreamingMarkdown,
+  withReferenceDefinitions,
 } from '@/features/chat/lib/streaming-markdown-blocks'
 import { NonFetchingMarkdownImage, SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import {
@@ -128,9 +129,16 @@ function openFenceHast(language: string | null, code: string): Root {
  * A completed block: parsed and rendered once. Its text never changes while the answer streams,
  * so the compiler keeps its tree, and a token re-renders none of the blocks before it (ADR 0026).
  * Display paths are shortened per block, so they are not rewritten across the answer per token.
+ * The answer's reference definitions the block uses are parsed with it.
  */
-function StreamingMarkdownBlock({ text }: { readonly text: string }) {
-  const markdown = useChatDisplayMarkdown(text)
+function StreamingMarkdownBlock({
+  text,
+  definitions,
+}: {
+  readonly text: string
+  readonly definitions: string
+}) {
+  const markdown = useChatDisplayMarkdown(withReferenceDefinitions(text, definitions))
   return (
     <>
       {toJsxRuntime(parseBlock(markdown), {
@@ -165,9 +173,11 @@ function OpenFenceTail({
 
 function LiveTail({
   tail,
+  definitions,
   rehypePlugins,
 }: {
   readonly tail: StreamingMarkdownTail
+  readonly definitions: string
   readonly rehypePlugins: RehypePlugins
 }) {
   const formatDisplayMarkdown = useChatDisplayMarkdownFormatter()
@@ -179,19 +189,26 @@ function LiveTail({
       urlTransform={safeMarkdownUrlTransform}
       components={streamingTailMarkdownComponents}
     >
-      {formatDisplayMarkdown(tail.text)}
+      {formatDisplayMarkdown(withReferenceDefinitions(tail.text, definitions))}
     </ReactMarkdown>
   )
 }
 
 /**
- * The completed blocks, from the text before the live tail. That text only changes when a block
- * completes, so a token re-renders none of them: the element is the same while the prefix is.
- * Mapped inline, every block's component ran again on each token.
+ * The completed blocks, from the text before the live tail. That text (and the definitions) only
+ * changes when a block (or a definition line) completes, so a token re-renders none of them: the
+ * element is the same while the prefix is. Mapped inline, every block's component ran again on
+ * each token.
  */
-function CompletedBlocks({ prefix }: { readonly prefix: string }) {
+function CompletedBlocks({
+  prefix,
+  definitions,
+}: {
+  readonly prefix: string
+  readonly definitions: string
+}) {
   return completedMarkdownBlocks(prefix).map((block) => (
-    <StreamingMarkdownBlock key={block.start} text={block.text} />
+    <StreamingMarkdownBlock key={block.start} text={block.text} definitions={definitions} />
   ))
 }
 
@@ -221,14 +238,15 @@ export function IncrementalMarkdown({
     )
   }
 
-  const { tail } = splitStreamingMarkdown(text)
+  const { tail, definitions } = splitStreamingMarkdown(text)
   return (
     <>
-      <CompletedBlocks prefix={tail ? text.slice(0, tail.start) : text} />
+      <CompletedBlocks prefix={tail ? text.slice(0, tail.start) : text} definitions={definitions} />
       {tail ? (
         <LiveTail
           key={`tail-${String(tail.start)}`}
           tail={tail}
+          definitions={definitions}
           rehypePlugins={tailRehypePlugins ?? rehypePlugins}
         />
       ) : null}

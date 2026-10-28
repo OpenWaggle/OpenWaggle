@@ -16,6 +16,13 @@
  * A tail that is a column-0 fence still open is code the reader sees as plain text until it
  * closes, so it is not parsed at all: re-parsing a long open fence on every token was quadratic.
  *
+ * A link reference definition makes references in every block resolve. A plain one (one line, at
+ * the start of a block or after another definition) leaves the split as it is: each block and the
+ * live tail is parsed with the definitions it mentions put in front of it
+ * (`withReferenceDefinitions`). Any other definition (a footnote, one inside a quote, one over
+ * several lines) makes the text one document again. Lines in fenced code and raw HTML are never
+ * definitions, so a Markdown or INI example in a fence never costs the split (review V1 P3-4).
+ *
  * The scan reads each line's first characters only, so a whole-answer rescan per token is cheap
  * and keeps the split a pure function of the text.
  */
@@ -40,6 +47,8 @@ export type StreamingMarkdownTail =
 export interface StreamingMarkdownSplit {
   readonly blocks: readonly StreamingMarkdownBlock[]
   readonly tail: StreamingMarkdownTail | null
+  /** The text's link reference definitions, one per line in text order; '' without any. */
+  readonly definitions: string
 }
 
 interface Fence {
@@ -66,12 +75,16 @@ const LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/u
 const PARTIAL_LIST_MARKER_PATTERN = /^(?:[-+*]|\d{1,9}[.)]?)$/u
 
 /**
- * A link reference or footnote definition anywhere: one makes references in other blocks resolve,
- * so text that holds one is read as one document, the live tail included (a definition still
- * streaming resolves references in blocks above it). Matches inside quotes and list items too,
+ * A line that may hold a link reference or footnote definition: inside quotes and list items too,
  * where definitions are still global.
  */
-const REFERENCE_DEFINITION_PATTERN = /^[ \t>]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?\[[^\]\n]+\]:/mu
+const REFERENCE_DEFINITION_PATTERN = /^[ \t>]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?\[[^\]\n]+\]:/u
+/**
+ * A whole link reference definition on one line, at most three columns in: its label (not a
+ * footnote's `^`), its destination, and an optional title.
+ */
+const PLAIN_DEFINITION_PATTERN =
+  /^ {0,3}\[(?<label>[^\]\n^][^\]\n]*)\]:[ \t]*(?:<[^<>\n]*>|[^<\s]\S*)(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?[ \t]*$/u
 /** An HTML block runs to the next blank line, past any fence line inside it. */
 const HTML_BLOCK_START_PATTERN = /^ {0,3}</u
 /**
@@ -216,6 +229,11 @@ class BlockBoundaryScanner {
   /** The end marker of the raw HTML block open here: blank lines inside it end nothing. */
   private rawHtmlEnd: RegExp | null = null
 
+  /** Inside fenced code or a raw HTML block, where no line is a definition. */
+  inLiteralBlock() {
+    return this.fence !== null || this.rawHtmlEnd !== null
+  }
+
   /** Ends the block at `offset`; blank lines before a block's content stay with that block. */
   endBlockAt(offset: number) {
     if (this.blockHasContent && offset > this.blockStart) {
@@ -287,20 +305,69 @@ class BlockBoundaryScanner {
 }
 
 function completedBlocks(text: string, boundaries: readonly number[]): StreamingMarkdownBlock[] {
-  const prefix = text.slice(0, boundaries.at(-1) ?? 0)
-  if (REFERENCE_DEFINITION_PATTERN.test(prefix)) return [{ start: 0, text: prefix }]
   return boundaries.map((end, index) => {
     const start = boundaries[index - 1] ?? 0
     return { start, text: text.slice(start, end) }
   })
 }
 
+type PreviousLine = 'start' | 'blank' | 'definition' | 'other'
+
+/** The text's plain definitions, and whether it holds another kind that needs one document. */
+class DefinitionCollector {
+  readonly lines: string[] = []
+  needsWholeDocument = false
+  private previous: PreviousLine = 'start'
+
+  read(line: MarkdownLine, literal: boolean) {
+    if (literal) {
+      this.previous = 'other'
+      return
+    }
+    if (isBlank(line.text)) {
+      this.previous = 'blank'
+      return
+    }
+    if (!REFERENCE_DEFINITION_PATTERN.test(line.text)) {
+      this.previous = 'other'
+      return
+    }
+    // A definition cannot interrupt a paragraph, so a plain one starts a block.
+    const plain = this.previous !== 'other' && PLAIN_DEFINITION_PATTERN.test(line.text)
+    if (plain) this.lines.push(line.text.trim())
+    else this.needsWholeDocument = true
+    this.previous = plain ? 'definition' : 'other'
+  }
+}
+
 function scan(text: string) {
   const scanner = new BlockBoundaryScanner()
+  const definitions = new DefinitionCollector()
   for (const line of markdownLines(text)) {
+    definitions.read(line, scanner.inLiteralBlock())
     if (!scanner.read(line)) break
   }
-  return scanner
+  return { scanner, definitions }
+}
+
+/** A label as references match it: case-insensitive, with runs of whitespace as one space. */
+function normalizedLabel(label: string) {
+  return label.trim().replace(/\s+/gu, ' ').toLowerCase()
+}
+
+/**
+ * `markdown` with the `definitions` it may refer to in front of it, so it parses as it does in the
+ * whole text. A definition renders nothing; one whose label the text never mentions is left out,
+ * so a block parses again only when a definition it uses arrives.
+ */
+export function withReferenceDefinitions(markdown: string, definitions: string) {
+  if (!definitions) return markdown
+  const mentioned = normalizedLabel(markdown)
+  const used = definitions.split('\n').filter((line) => {
+    const label = PLAIN_DEFINITION_PATTERN.exec(line)?.groups?.label
+    return label !== undefined && mentioned.includes(normalizedLabel(label))
+  })
+  return used.length > 0 ? `${used.join('\n')}\n\n${markdown}` : markdown
 }
 
 /**
@@ -308,22 +375,35 @@ function scan(text: string) {
  * same blocks the split found there, its end included, though no line after it shows it ended.
  */
 export function completedMarkdownBlocks(prefix: string): StreamingMarkdownBlock[] {
-  const scanner = scan(prefix)
+  const { scanner } = scan(prefix)
   scanner.endBlockAt(prefix.length)
   return completedBlocks(prefix, scanner.boundaries)
 }
 
 export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
-  if (REFERENCE_DEFINITION_PATTERN.test(text)) {
-    return { blocks: [], tail: text ? { kind: 'markdown', start: 0, text } : null }
+  const { scanner, definitions: collected } = scan(text)
+  if (collected.needsWholeDocument) {
+    return {
+      blocks: [],
+      tail: text ? { kind: 'markdown', start: 0, text } : null,
+      definitions: '',
+    }
   }
-  const scanner = scan(text)
+  const definitions = collected.lines.join('\n')
   const blocks = completedBlocks(text, scanner.boundaries)
   const prefixEnd = scanner.boundaries.at(-1) ?? 0
-  if (prefixEnd >= text.length) return { blocks, tail: null }
+  if (prefixEnd >= text.length) return { blocks, tail: null, definitions }
   const fence = scanner.fence
   if (fence?.topLevel && isBlank(text.slice(prefixEnd, fence.start))) {
-    return { blocks, tail: { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) } }
+    return {
+      blocks,
+      tail: { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) },
+      definitions,
+    }
   }
-  return { blocks, tail: { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) } }
+  return {
+    blocks,
+    tail: { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) },
+    definitions,
+  }
 }
