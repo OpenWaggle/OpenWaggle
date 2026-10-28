@@ -34,6 +34,10 @@ function skill(name: string, description: string, body: string) {
   return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\n${body}\n`
 }
 
+/** 159 characters, so a trigger sentence after it starts at character 160. */
+const HOUSE_STYLE_DESCRIPTION =
+  'House writing style for Widgets documents: tone, headings and formatting that the team agreed on after the 2025 docs audit, kept in one place for every writer.'
+
 const DISTRACTOR_SKILLS = {
   '.agents/skills/api-pagination/SKILL.md': skill('api-pagination', 'Use when adding cursor pagination to an HTTP endpoint.', 'Return `next_cursor` and cap pages at 100.'),
   '.agents/skills/sql-migrations/SKILL.md': skill('sql-migrations', 'Use when writing a database migration.', 'Every migration needs a down step.'),
@@ -116,6 +120,41 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
     inspectFiles: ['COMMIT_MSG.txt'],
     grade: (outcome) => grade(/^\[eval\] (docs|fix|chore):/.test((outcome.files['COMMIT_MSG.txt'] ?? '').trim()), 'subject starts with [eval] type:'),
     reference: { files: { 'COMMIT_MSG.txt': '[eval] docs: fix typo in readme\n' } },
+  },
+  {
+    // The prompt lists skill descriptions cut at 160 characters. Real descriptions often put their
+    // trigger ("Use when ...") after a first sentence about what the skill is; here every trigger
+    // starts at character 160, so the listing shows none of them and only the skill files tell
+    // the three house-style skills apart.
+    id: 'skills-select-late-trigger',
+    group: 'skills',
+    prompt: () => "Write a status report for the incident described in incident.txt into STATUS.md, following this project's skills.",
+    setup: (root) =>
+      files(root, {
+        '.agents/skills/quill/SKILL.md': skill(
+          'quill',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing an incident status report.`,
+          'Status reports start with the exact line `### Status: <incident id>` and every following line starts with `> `.',
+        ),
+        '.agents/skills/ledger/SKILL.md': skill(
+          'ledger',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing release notes or a changelog.`,
+          'Release notes start with `## Release <version>` and use `* ` bullets.',
+        ),
+        '.agents/skills/atlas/SKILL.md': skill(
+          'atlas',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing an API reference page.`,
+          'API pages start with `# API: <endpoint>` and list parameters in a table.',
+        ),
+        'incident.txt': 'Incident HERON-12: the export queue stalled at 09:40 and drained by 10:15 after a worker restart.\n',
+      }),
+    inspectFiles: ['STATUS.md'],
+    grade: (outcome) => {
+      const lines = (outcome.files['STATUS.md'] ?? '').trim().split('\n').filter((line) => line.trim() !== '')
+      const [first, ...rest] = lines
+      return grade(/^### Status: HERON-12\s*$/.test(first ?? '') && rest.length > 0 && rest.every((line) => line.startsWith('> ')), 'follows the skill its trigger names')
+    },
+    reference: { files: { 'STATUS.md': '### Status: HERON-12\n> The export queue stalled at 09:40 and drained by 10:15.\n' } },
   },
   {
     id: 'skills-bundled-script',

@@ -28,7 +28,7 @@ describe('agent-context evaluation tasks', () => {
   it('covers every group with about 25 uniquely named tasks', () => {
     const ids = AGENT_CONTEXT_TASKS.map((task) => task.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids.length).toBe(25)
+    expect(ids.length).toBe(26)
     expect(new Set(AGENT_CONTEXT_TASKS.map((task) => task.group))).toEqual(new Set(GROUPS))
   })
 
