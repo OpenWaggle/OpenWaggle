@@ -55,12 +55,14 @@ for _ in $(seq 1 50); do
 done
 touch "$RESULTS_DIR/proxy-log.jsonl"
 
-# Snapshot the proxy log slice for one agent: per-call wire truth. The proxy writes its record
-# after the response ends, so wait until the line count stops changing before slicing.
-slice_proxy_log() {
-  local agent="$1" before="$2" stable=0 prev current
+# Every agent's base URL carries its name (`/agent/<name>`), and the proxy records it, so each
+# agent's slice is selected by name: a request still in flight when its agent exits (opencode's
+# background title call) lands in its own slice, not the next agent's. The proxy writes its record
+# after the response ends, so wait until the log has not grown for 10 s before slicing.
+wait_for_quiet_proxy_log() {
+  local stable=0 prev current
   prev=$(wc -l < "$RESULTS_DIR/proxy-log.jsonl")
-  while [[ $stable -lt 2 ]]; do
+  while [[ $stable -lt 20 ]]; do
     sleep 0.5
     current=$(wc -l < "$RESULTS_DIR/proxy-log.jsonl")
     if [[ "$current" -eq "$prev" ]]; then
@@ -70,35 +72,46 @@ slice_proxy_log() {
       prev=$current
     fi
   done
-  tail -n "+$((before + 1))" "$RESULTS_DIR/proxy-log.jsonl" > "$RESULTS_DIR/$agent.proxy.jsonl"
+}
+
+slice_proxy_log() {
+  local agent="$1"
+  python3 - "$RESULTS_DIR/proxy-log.jsonl" "$agent" > "$RESULTS_DIR/$agent.proxy.jsonl" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    if line.strip() and json.loads(line).get("agent") == sys.argv[2]:
+        sys.stdout.write(line)
+PY
 }
 
 requested=()
+sliced=()
 if [[ $# -gt 0 ]]; then requested=("$@"); else requested=("${AGENTS[@]}"); fi
 
 for agent in "${requested[@]}"; do
   echo "=== $agent ==="
-  before=$(wc -l < "$RESULTS_DIR/proxy-log.jsonl")
   docker run --rm \
     --add-host=host.docker.internal:host-gateway \
-    -e "BENCH_PROXY_URL=http://host.docker.internal:$PROXY_PORT" \
+    -e "BENCH_PROXY_URL=http://host.docker.internal:$PROXY_PORT/agent/$agent" \
     -v "$SCRIPT_DIR/inside.sh:/bench/inside.sh:ro" \
     -v "$RESULTS_DIR:/bench/out" \
     "$IMAGE" \
     bash /bench/inside.sh "$agent" > "$RESULTS_DIR/$agent.out" 2> "$RESULTS_DIR/$agent.err" \
     || echo "warning: $agent exited non-zero (see $RESULTS_DIR/$agent.err)" >&2
-  slice_proxy_log "$agent" "$before"
+  sliced+=("$agent")
 done
 
 if [[ -n "${BENCH_OPENWAGGLE_APP:-}" ]]; then
   echo "=== openwaggle ==="
-  before=$(wc -l < "$RESULTS_DIR/proxy-log.jsonl")
   (cd "$SCRIPT_DIR/../.." && pnpm -s exec tsx scripts/benchmark-docker/openwaggle-row.ts \
-    --app "$BENCH_OPENWAGGLE_APP" --proxy "http://127.0.0.1:$PROXY_PORT" --model "$BENCH_MODEL") \
+    --app "$BENCH_OPENWAGGLE_APP" --proxy "http://127.0.0.1:$PROXY_PORT/agent/openwaggle" --model "$BENCH_MODEL") \
     > "$RESULTS_DIR/openwaggle.out" 2> "$RESULTS_DIR/openwaggle.err" \
     || echo "warning: openwaggle exited non-zero (see $RESULTS_DIR/openwaggle.err)" >&2
-  slice_proxy_log openwaggle "$before"
+  sliced+=(openwaggle)
 fi
+
+wait_for_quiet_proxy_log
+for agent in ${sliced[@]+"${sliced[@]}"}; do slice_proxy_log "$agent"; done
 
 (cd "$SCRIPT_DIR/../.." && pnpm -s exec tsx scripts/benchmark-docker/count-request-tokens.ts "$RESULTS_DIR") \
   || echo "warning: request token counting failed" >&2

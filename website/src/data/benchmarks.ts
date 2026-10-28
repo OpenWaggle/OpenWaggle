@@ -51,7 +51,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     name: 'opencode',
     version: '1.19.4',
     routing: 'OpenAI-compatible provider via proxy',
-    notes: ['The run made two model calls; the chart counts the first.'],
+    notes: ['The run made two model calls, the second a background title request; the chart counts the first.'],
   },
   codex: {
     name: 'Codex CLI',

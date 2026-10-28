@@ -10,7 +10,7 @@
         "toolCount": 7,
         "prefixO200k": 3694
       },
-      "turnOneTokens": 4201,
+      "turnOneTokens": 4196,
       "modelCalls": 3,
       "cliError": "wire only"
     },
@@ -39,12 +39,12 @@
         "toolCount": 11,
         "prefixO200k": 12138
       },
-      "turnOneTokens": 12811,
+      "turnOneTokens": 12784,
       "modelCalls": 1,
-      "cliReported": 12811,
+      "cliReported": 12784,
       "cli": {
-        "turnOneTokens": 12811,
-        "outputTokens": 226,
+        "turnOneTokens": 12784,
+        "outputTokens": 25,
         "isError": false
       }
     },
@@ -56,13 +56,13 @@
         "toolCount": 9,
         "prefixO200k": 7658
       },
-      "turnOneTokens": 8769,
+      "turnOneTokens": 8799,
       "modelCalls": 1,
-      "cliReported": 8769,
+      "cliReported": 8799,
       "cli": {
-        "turnOneTokens": 8769,
+        "turnOneTokens": 8799,
         "cachedInputTokens": 0,
-        "outputTokens": 3
+        "outputTokens": 12
       }
     },
     "opencode": {

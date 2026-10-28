@@ -41,7 +41,7 @@ OpenWaggle's first call is smaller than opencode's, Codex's and Claude Code's, a
 
 ## Details worth knowing
 
-- Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 8,980 o200k tokens. MCP tools are not declared on the first turn; the skills listing is most of the increase.
+- Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 9,008 o200k tokens. MCP tools are not declared on the first turn; the skills listing is most of the increase.
 - The counts are provider-reported prompt tokens of the first call, including the probe message. The proxy log also holds an o200k count of each first request's system prompt and tool declarations.
 - OpenWaggle also asks the model for a Session title in the same run. That call is not counted.
 - Codex used an explicit `model_reasoning_effort` setting for its OpenRouter Responses request.
