@@ -5,12 +5,12 @@
     "openwaggle": {
       "name": "OpenWaggle (packaged app, first-party extensions, default settings)",
       "requestO200k": {
-        "systemO200k": 1613,
+        "systemO200k": 1602,
         "toolsO200k": 2063,
         "toolCount": 7,
-        "prefixO200k": 3676
+        "prefixO200k": 3665
       },
-      "turnOneTokens": 4179,
+      "turnOneTokens": 4175,
       "modelCalls": 3,
       "cliError": "wire only"
     },
@@ -39,12 +39,12 @@
         "toolCount": 11,
         "prefixO200k": 12138
       },
-      "turnOneTokens": 12773,
+      "turnOneTokens": 12766,
       "modelCalls": 1,
-      "cliReported": 12773,
+      "cliReported": 12766,
       "cli": {
-        "turnOneTokens": 12773,
-        "outputTokens": 3,
+        "turnOneTokens": 12766,
+        "outputTokens": 105,
         "isError": false
       }
     },
@@ -62,7 +62,7 @@
       "cli": {
         "turnOneTokens": 8799,
         "cachedInputTokens": 0,
-        "outputTokens": 9
+        "outputTokens": 3
       }
     },
     "opencode": {

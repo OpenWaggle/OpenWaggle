@@ -17,8 +17,8 @@ This report compares 1.0.0-beta.27 (`77b9814b5`) with the v1 performance integra
 | Open a large Session: time to the last message | faster | | 431 ms (422–494) | 342 ms (297–437) | yes |
 | Streaming at 4× CPU throttle: main thread busy | ≤ 30% | 61.5% | 72.7% (69.4–74.4) | 21.9% (21.5–22.8) | yes |
 | Streaming at 4× CPU throttle: p99 frame | ≤ 20 ms | 42.6 ms | 16.9 ms (16.3–17.3) | 10.4 ms (10.4–10.4) | yes |
-| First-turn prefix, empty project | ≤ 4k o200k | ~10k | 13,096 o200k | 3,710 o200k | yes |
-| First-turn prefix, maintainer-like setup | ≤ 15k Opus | 52.5k | 54,684 Opus (32,804 o200k) | 14,476 Opus (8,684 o200k) | yes, see [the skills cap](#the-160-character-skill-description-cap) |
+| First-turn prefix, empty project | ≤ 4k o200k | ~10k | 13,096 o200k | 3,702 o200k | yes |
+| First-turn prefix, maintainer-like setup | ≤ 15k Opus | 52.5k | 54,684 Opus (32,804 o200k) | 14,538 Opus (8,721 o200k) | yes |
 | Memory, 6-Run Hive with heavy MCP | ≤ 4 GB | 8.0 GB | 5,027 MB (4,985–5,273) | 1,478 MB (1,472–1,485) | yes |
 | Idle Host 240 s after window close | ≤ 250 MB, ~0% CPU | 0.4–1.5 GB | 404 MB, 0.5% | 135 MB, 0.3% | yes |
 | Bedrock time to first byte per call | −250 ms | | 2,545 / 1,792 ms | 1,043 / 1,069 ms | yes |
@@ -35,7 +35,7 @@ Both apps were built the same way: `pnpm build`, then `electron-builder --dir` w
 
 - beta.27: `77b9814b5`.
 - v1: the integration branch at `ac6df366f`, merged into the W0 branch. Only `scripts/` differ from the integration branch, and they are not packaged.
-- The prefix rows, the competitor benchmark and the skills evals were then re-run on `dbb0d5187`, which adds one change on top: skill descriptions in the prompt listing are cut at 160 characters instead of 200. Nothing else differs from `ac6df366f`.
+- The prefix rows, the competitor benchmark and the skills evals were then re-run on `f2e7d1fa5`, which adds one change on top: skill descriptions in the prompt listing are capped at 160 characters instead of 200, keeping a trigger sentence ("Use when …") and shortening the opening before it. The other harnesses were not re-run; nothing else that they measure differs from `ac6df366f`.
 
 ### Harnesses
 
@@ -179,19 +179,25 @@ beta.27 measures better here than in earlier runs: 72.7% busy against 86.6%, and
 | Measurement | beta.27 | v1 |
 |---|---|---|
 | In-process, independent / Queen / Worker | 13,304 / 13,301 / 11,289 o200k | 3,779 / 3,782 / 3,777 o200k |
-| Packaged, empty project | 13,096 o200k (21,831 Opus), 24 tools | 3,710 o200k (6,185 Opus), 7 tools |
-| Packaged, empty project, real-ish HOME (slow `.zshrc`, real PATH) | 13,091 o200k, 24 tools | 3,703 o200k, 7 tools |
-| Packaged, maintainer-like, first request | 20,643 o200k, 24 tools | 8,684 o200k (14,476 Opus), 7 tools |
-| Packaged, maintainer-like, once MCP has connected | 32,804 o200k (54,684 Opus), 81 tools | 8,684 o200k (14,476 Opus), 7 tools |
+| Packaged, empty project | 13,096 o200k (21,831 Opus), 24 tools | 3,702 o200k (6,171 Opus), 7 tools |
+| Packaged, empty project, real-ish HOME (slow `.zshrc`, real PATH) (`dbb0d5187`) | 13,091 o200k, 24 tools | 3,703 o200k, 7 tools |
+| Packaged, maintainer-like, first request | 20,643 o200k, 24 tools | 8,721 o200k (14,538 Opus), 7 tools |
+| Packaged, maintainer-like, once MCP has connected | 32,804 o200k (54,684 Opus), 81 tools | 8,721 o200k (14,538 Opus), 7 tools |
 
-With the earlier 200-character skill description cap (`ac6df366f`), the maintainer-like request was 9,008 o200k (15,016 Opus), 16 over the gate, and the empty project 3,728 o200k.
+Maintainer-like request under each skill description cap:
+
+| Cap | o200k | Opus | Gate |
+|---|---|---|---|
+| 200 characters (`ac6df366f`) | 9,008 | 15,016 | 16 over |
+| 160 characters, plain cut (`dbb0d5187`) | 8,684 | 14,476 | met |
+| 160 characters, keeping the trigger (`f2e7d1fa5`, final) | 8,721 | 14,538 | met |
 
 v1's empty-project request:
 
 - System prompt: about 1,620 o200k. The largest parts are the rules at 501 and the Session identity at 343.
 - Tool declarations: 2,021 o200k. These are `hive` (774), `codemode` (449), `edit`, `read`, `bash`, `tool_search` and `write`.
 
-In the maintainer-like setup, the skills listing is 3,224 o200k (3,523 with the 200-character cap), project context 1,803, and the MCP server listing 136. MCP tools are no longer declared, before or after their servers connect.
+In the maintainer-like setup, the skills listing is 3,239 o200k (3,523 with the 200-character cap), project context 1,803, and the MCP server listing 136. MCP tools are no longer declared, before or after their servers connect.
 
 The CI ratchet in `scripts/perf/first-turn-prefix/first-turn-prefix-budget.ts` holds the in-process prefix at 3,900 / 3,905 / 3,905 o200k.
 
@@ -290,56 +296,54 @@ Most first-party tools are now deferred behind `tool_search`, and most tasks tha
 
 ### The 160-character skill description cap
 
-`dbb0d5187` lists skill descriptions up to 160 characters instead of 200, cut at a word. It is model-facing, so the skills group was re-run on that build with both models, 5 repetitions per task:
+The maintainer-like prefix met its gate only after the prompt listing's skill descriptions were capped at 160 characters instead of 200. That change is model-facing, so the skills group was evaluated on each version of it.
 
-| Skills group | beta.27 | v1, 200-char cap | v1, 160-char cap |
-|---|---|---|---|
-| Opus 5.5: passes / tokens | 15/15, 1.12 M | 15/15, 325 k | 15/15, 324 k |
-| Sonnet 5: passes / tokens | 15/15, 1.29 M | 15/15, 361 k | 15/15, 359 k |
-
-The group does not regress. But every fixture description in it is shorter than 160 characters, so the cap leaves them untouched.
-
-A new task, `skills-select-late-trigger`, tests the case the cap can break:
+The group's original three fixtures all have descriptions shorter than 160 characters, so no cap touches them. A fourth task, `skills-select-late-trigger`, tests the case a cap can break:
 
 - Three house-style skills share a 159-character first sentence.
 - They differ only in a "Use when …" sentence that starts at character 160. Many real descriptions follow this pattern, including some in this repository.
-- With the 160-character cap, the listing shows none of the triggers. With the 200-character cap, it shows most of each one, and beta.27 shows all of them.
 
-| `skills-select-late-trigger` | beta.27 | v1, 200-char cap | v1, 160-char cap |
+**First version: a plain cut at a word (`dbb0d5187`).** The listing showed none of the three triggers.
+
+| `skills-select-late-trigger`, plain cut | beta.27 | v1, 200-char cap | v1, 160-char plain cut |
 |---|---|---|---|
 | Opus 5.5 | 5/5 | not run | 5/5 |
-| Sonnet 5, first batch (4 eval runners at once) | 5/5 | | 2/5 |
-| Sonnet 5, second batch | | 5/5 | 5/5 |
+| Sonnet 5 | 5/5 | 5/5 | 7/10 |
 
-The three failures in the first Sonnet batch on the 160-character build:
+- Two Sonnet failures came from Runs that did not know which skill applied. They searched the whole disk with `find / -iname SKILL.md` and ran past the 8-minute timeout while four eval runners were loading the machine.
+- The third Run wrote its tool call as text.
 
-- Two Runs did not know which skill applied and searched the whole disk with `find / -iname SKILL.md`. Under that batch's load, the search ran past the task's 8-minute timeout.
-- One Run wrote its tool call as text. It had already chosen the right format.
+**Final version (`f2e7d1fa5`).** The cap stays at 160 characters, but a trigger sentence ("Use when …", "Use this skill for …", "Triggers on …", "Run before …") is kept, and the opening before it is shortened instead, to no fewer than 72 characters. Each late-trigger skill is now listed as its first 110 or so characters, "…", and its full trigger.
 
-The second batch, run with less load, passed 5 of 5. Together, Sonnet passed 7 of 10 with the 160-character cap, against 5 of 5 with the 200-character cap and 5 of 5 on beta.27.
+That version was evaluated with at most two eval runners at a time, one app each. Sonnet got 10 repetitions per task on both sides; beta.27 has 5 Opus repetitions per task.
 
-The disk-wide search is the risk the cap adds: a model that cannot see a skill's trigger has to look for it. Two other fixes would keep the triggers and still meet the gate:
+| Skills group with `skills-select-late-trigger` | beta.27 | v1, final cap |
+|---|---|---|
+| Opus 5.5: passes | 20/20 | 20/20 |
+| Opus 5.5: tokens / cost | 1.61 M / $3.21 | 0.48 M / $0.55 |
+| Sonnet 5: passes | 40/40 | 40/40 |
+| Sonnet 5: tokens / cost | 3.58 M / $3.56 | 1.02 M / $0.60 |
+| `skills-select-late-trigger`: Opus / Sonnet | 5/5 / 10/10 | 5/5 / 10/10 |
 
-- Cut the description around a "Use when" sentence rather than at a fixed length.
-- Shorten the first sentence and keep the trigger.
+No task lost a pass and model calls per task are unchanged (late-trigger: Opus 4.0 → 4.2, Sonnet 4.1 → 4.1). The longest late-trigger Run took 33 s; no Run searched the disk. Accepted.
 
 ## Competitor benchmark (decision 6)
 
-`scripts/benchmark-docker/run.sh` was run on the final build (`dbb0d5187`), with the v1 packaged app as the OpenWaggle row. The model was `z-ai/glm-5.3-flash` through OpenRouter, and every agent went through the same local logging proxy. The numbers are provider-reported prompt tokens of each agent's first model call in an empty project.
+`scripts/benchmark-docker/run.sh` was run on the final build (`f2e7d1fa5`), with the v1 packaged app as the OpenWaggle row. The model was `z-ai/glm-5.3-flash` through OpenRouter, and every agent went through the same local logging proxy. The numbers are provider-reported prompt tokens of each agent's first model call in an empty project.
 
 | Agent | First-call prompt tokens | Prefix o200k | Tools |
 |---|---|---|---|
 | Pi CLI 1.4.0 | 1,395 | 1,213 | 4 |
-| OpenWaggle v1 (packaged) | 4,179 | 3,676 | 7 |
+| OpenWaggle v1 (packaged) | 4,175 | 3,665 | 7 |
 | opencode 1.19.4 | 7,035 | 6,731 | 10 |
 | Codex CLI 0.164.0 | 8,799 | 7,658 | 9 |
-| Claude Code 2.1.311 | 12,773 | 12,138 | 11 |
+| Claude Code 2.1.311 | 12,766 | 12,138 | 11 |
 
 beta.27 measured 15,688 in the baseline run of the same benchmark.
 
 Decision: keep the page.
 
-- The as-shipped empty-project prefix is 3,676–3,710 o200k, under the 4k bar.
+- The as-shipped empty-project prefix is 3,665–3,702 o200k, under the 4k bar.
 - OpenWaggle's first call is below opencode, Codex and Claude Code, and about 3× the Pi CLI it is built on.
 
 Changes to the page:
@@ -352,7 +356,7 @@ Changes to the page:
 
 - **LCP on profiles with Sessions: 390 ms medium, 392 ms large; gate 350 ms, met on the empty profile at 152 ms.** There the LCP element is the Session list, which waits for the Host's first page of Sessions. It improved from 512 ms on beta.27. The gate itself, measured on the empty profile, is met.
 
-Every gate in the table is met. The maintainer-like prefix meets its gate only with the 160-character skill description cap, whose eval risk is described in [the skills cap](#the-160-character-skill-description-cap).
+Every gate in the table is met.
 
 ## Harness fixes made during the final measurement
 
