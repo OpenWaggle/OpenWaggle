@@ -242,6 +242,22 @@ describe('the cached login-shell environment', () => {
       'SSH_AUTH_SOCK',
     )
   })
+  it('marks a refresh that found nothing, keeping the last good result', async () => {
+    fileShellEnvironmentCache(cacheFile).write(
+      KEY,
+      { environment: { PATH: '/opt/homebrew/bin' } },
+      NOW - 1_000,
+    )
+    const { started } = launch(vi.fn(async () => ''))
+    await started.refreshed
+
+    const cache = fileShellEnvironmentCache(cacheFile)
+    expect(cache.refreshFailedAt(KEY)).toBe(NOW)
+    expect(cache.read(KEY, NOW)?.environment.PATH).toBe('/opt/homebrew/bin')
+    // A later refresh that succeeds clears the mark.
+    cache.write(KEY, { environment: { PATH: '/usr/bin' } }, NOW)
+    expect(cache.refreshFailedAt(KEY)).toBeNull()
+  })
 })
 
 describe('a Session Host launched by the desktop app', () => {
@@ -324,5 +340,41 @@ describe('a Session Host launched by the desktop app', () => {
     expect(env.PATH).toBe('/terminal/venv/bin:/usr/bin:/bin')
     // A Host's environment can be a terminal's; it never becomes every launch's.
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe('/old/bin')
+  })
+
+  it("probes at once when the app's refresh found nothing, without waiting out the timeout", async () => {
+    const probedAt: number[] = []
+    let clock = NOW
+    const runCommand = vi.fn(async (input: ShellEnvironmentCommand) => {
+      if (input.probe !== 'login-shell') return ''
+      probedAt.push(clock - NOW)
+      return captured('PATH', '/probed/bin')
+    })
+    const env: Record<string, string | undefined> = {
+      PATH: '/usr/bin:/bin',
+      SHELL: '/bin/zsh',
+      HOME: '/Users/test',
+      LANG: 'en_US.UTF-8',
+    }
+    // No cache at all: a fresh install, so `ready` waits for the refresh.
+    const started = startDesktopShellEnvironment({
+      env,
+      platform: 'darwin',
+      runCommand,
+      cache: fileShellEnvironmentCache(cacheFile),
+      writeCache: false,
+      refreshedElsewhere: { since: SINCE, timeoutMs: 12_000 },
+      now: () => clock,
+      sleep: async (milliseconds) => {
+        clock += milliseconds
+        // The app's own login shell times out after 5 s and finds nothing.
+        if (clock - NOW === 5_000)
+          fileShellEnvironmentCache(cacheFile).markRefreshFailed(KEY, clock)
+      },
+    })
+    await started.ready
+
+    expect(probedAt).toEqual([5_000])
+    expect(env.PATH).toBe('/probed/bin:/usr/bin:/bin')
   })
 })

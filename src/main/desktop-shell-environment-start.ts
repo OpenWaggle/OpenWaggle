@@ -35,7 +35,11 @@ function defaultSleep(milliseconds: number) {
   })
 }
 
-/** The other process's refresh, once it is in the cache; null if none is due or in time. */
+/**
+ * The other process's refresh, once it is in the cache; null if none is due, it found nothing
+ * (the app marks that, so this process probes at once instead of waiting out the timeout), or it
+ * does not come in time.
+ */
 async function awaitRefreshElsewhere(input: {
   readonly cache: ShellEnvironmentCache | undefined
   readonly key: ShellEnvironmentCacheKey | null
@@ -50,6 +54,8 @@ async function awaitRefreshElsewhere(input: {
   while (true) {
     const entry = cache.read(key, input.now())
     if (entry && entry.resolvedAt >= elsewhere.since) return entry
+    const failedAt = cache.refreshFailedAt(key)
+    if (failedAt !== null && failedAt >= elsewhere.since) return null
     if (input.now() >= deadline) return null
     await sleep(REFRESH_ELSEWHERE_POLL_MS)
   }
@@ -92,10 +98,15 @@ export function startDesktopShellEnvironment(
       return
     }
     const resolved = await posix.probe()
-    // A failed probe keeps what the cache gave; it is retried on the next launch.
-    if (cached && resolvedNothing(resolved)) return
+    const writesCache = key !== null && options.writeCache !== false
+    if (resolvedNothing(resolved)) {
+      // A Host waiting for this refresh learns at once that it has to probe itself.
+      if (writesCache) cache?.markRefreshFailed(key, now())
+      // A failed probe keeps what the cache gave; it is retried on the next launch.
+      if (cached) return
+    }
     posix.apply(resolved, 'probe')
-    if (key && options.writeCache !== false && !resolvedNothing(resolved)) {
+    if (writesCache && !resolvedNothing(resolved)) {
       cache?.write(key, resolved, now())
     }
   })

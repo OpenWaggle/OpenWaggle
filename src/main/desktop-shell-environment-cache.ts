@@ -10,7 +10,7 @@ import { createLogger } from './logger'
 
 const logger = createLogger('desktop-shell-environment')
 
-const CACHE_VERSION = 1
+const CACHE_VERSION = 1 as const
 const CACHE_FILE_NAME = 'shell-environment.json'
 /** Older than this, a cached login-shell environment is not used, only refreshed. */
 export const SHELL_ENVIRONMENT_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -46,6 +46,13 @@ export interface ShellEnvironmentCache {
     resolved: ResolvedShellEnvironment,
     now: number,
   ) => void
+  /**
+   * Records that a refresh ran at `now` and found nothing, keeping the last good result, so a
+   * Host waiting for that refresh (`refreshedElsewhere`) stops waiting and probes itself.
+   */
+  readonly markRefreshFailed: (key: ShellEnvironmentCacheKey, now: number) => void
+  /** When the last refresh for `key` found nothing (epoch ms); null if the last one succeeded. */
+  readonly refreshFailedAt: (key: ShellEnvironmentCacheKey) => number | null
 }
 
 const cacheFileSchema = Schema.Struct({
@@ -56,7 +63,10 @@ const cacheFileSchema = Schema.Struct({
   resolvedAt: Schema.Number,
   environment: Schema.Record({ key: Schema.String, value: Schema.String }),
   launchctlPath: Schema.optional(Schema.String),
+  refreshFailedAt: Schema.optional(Schema.Number),
 })
+
+type CacheFileEntry = typeof cacheFileSchema.Type
 
 /** Only the probe's allowlisted names are ever read from or written to disk. */
 function allowlisted(environment: Readonly<Record<string, string>>): ShellEnvironmentPatch {
@@ -85,6 +95,33 @@ function readCacheFile(file: string) {
   }
 }
 
+function writeCacheFile(file: string, entry: CacheFileEntry) {
+  const temporary = `${file}.${process.pid}.tmp`
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(temporary, `${JSON.stringify(entry)}\n`, { mode: PRIVATE_FILE_MODE })
+    // The GUI and the Host both refresh it; a rename never leaves a half-written file.
+    renameSync(temporary, file)
+  } catch (error) {
+    logger.warn('The login-shell environment could not be cached', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+function decodeCacheFile(file: string): CacheFileEntry | null {
+  const raw = readCacheFile(file)
+  if (raw === null) return null
+  const decoded = safeDecodeUnknown(cacheFileSchema, raw)
+  if (!decoded.success) {
+    logger.warn('Ignoring a malformed cached login-shell environment', {
+      issues: decoded.issues,
+    })
+    return null
+  }
+  return decoded.data
+}
+
 /**
  * The last login-shell environment, kept in one private file per profile (like VS Code's resolved
  * shell environment), so a launch uses it at once while the probe refreshes it. Only the probe's
@@ -94,16 +131,8 @@ function readCacheFile(file: string) {
 export function fileShellEnvironmentCache(file: string): ShellEnvironmentCache {
   return {
     read: (key, now) => {
-      const raw = readCacheFile(file)
-      if (raw === null) return null
-      const decoded = safeDecodeUnknown(cacheFileSchema, raw)
-      if (!decoded.success) {
-        logger.warn('Ignoring a malformed cached login-shell environment', {
-          issues: decoded.issues,
-        })
-        return null
-      }
-      const entry = decoded.data
+      const entry = decodeCacheFile(file)
+      if (!entry) return null
       if (!sameKey(entry, key) || now - entry.resolvedAt > SHELL_ENVIRONMENT_CACHE_MAX_AGE_MS) {
         return null
       }
@@ -114,24 +143,27 @@ export function fileShellEnvironmentCache(file: string): ShellEnvironmentCache {
       }
     },
     write: (key, resolved, now) => {
-      const entry = {
+      writeCacheFile(file, {
         version: CACHE_VERSION,
         ...key,
         resolvedAt: now,
         environment: allowlisted(resolved.environment),
         ...(resolved.launchctlPath === undefined ? {} : { launchctlPath: resolved.launchctlPath }),
-      }
-      const temporary = `${file}.${process.pid}.tmp`
-      try {
-        mkdirSync(dirname(file), { recursive: true })
-        writeFileSync(temporary, `${JSON.stringify(entry)}\n`, { mode: PRIVATE_FILE_MODE })
-        // The GUI and the Host both refresh it; a rename never leaves a half-written file.
-        renameSync(temporary, file)
-      } catch (error) {
-        logger.warn('The login-shell environment could not be cached', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
+      })
+    },
+    markRefreshFailed: (key, now) => {
+      const entry = decodeCacheFile(file)
+      // Without a result for this key, an entry with no environment that `read` treats as
+      // expired (`resolvedAt` 0) carries the mark.
+      const kept =
+        entry && sameKey(entry, key)
+          ? entry
+          : { version: CACHE_VERSION, ...key, resolvedAt: 0, environment: {} }
+      writeCacheFile(file, { ...kept, refreshFailedAt: now })
+    },
+    refreshFailedAt: (key) => {
+      const entry = decodeCacheFile(file)
+      return entry && sameKey(entry, key) ? (entry.refreshFailedAt ?? null) : null
     },
   }
 }
