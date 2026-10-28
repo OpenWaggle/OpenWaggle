@@ -38,7 +38,6 @@ interface StoreFollowsRouteInput {
   readonly navigate: ReturnType<typeof useNavigate>
   readonly routeSessionId: SessionId | null
   readonly routeSessionMissing: boolean
-  readonly setActiveSession: (sessionId: SessionId | null) => void
 }
 
 /** Keeps the chat store's Session and the routed one together, redirecting where the route has none. */
@@ -50,8 +49,8 @@ function useStoreFollowsRoute({
   navigate,
   routeSessionId,
   routeSessionMissing,
-  setActiveSession,
 }: StoreFollowsRouteInput) {
+  const setActiveSession = useChatStore((state) => state.setActiveSession)
   /** The route Session this effect last followed; `undefined` before the first run. */
   const followedRouteSessionId = useRef<SessionId | null | undefined>(undefined)
   /** The store's Session when this effect last ran; `undefined` before the first run. */
@@ -126,7 +125,6 @@ export function useChatRouteEffects({
   const activeSessionId = useChatStore((state) => state.activeSessionId)
   const activeSession = useChatStore((state) => state.activeSession)
   const draftSession = useChatStore((state) => state.draftSession)
-  const setActiveSession = useChatStore((state) => state.setActiveSession)
   const routeSessionDetail = useChatStore((state) =>
     routeSessionId === null ? null : (state.sessionById.get(routeSessionId) ?? null),
   )
@@ -149,7 +147,6 @@ export function useChatRouteEffects({
     navigate,
     routeSessionId,
     routeSessionMissing,
-    setActiveSession,
   })
 
   const visitedSessionId = !hasDraftSession && !routeSessionMissing ? routeSessionId : null
