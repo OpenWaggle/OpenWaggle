@@ -12,6 +12,13 @@ const FIXTURE_PACKAGE = path.join(import.meta.dirname, '..', 'fixtures', 'mcp-fi
 const CHROME_DEVTOOLS_MCP = 'chrome-devtools-mcp@1.12.0'
 const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.83'
 const JSON_INDENT = 2
+/**
+ * Where the fixture `electron-devtools` server would attach: a privileged port nothing listens on.
+ * Never 9223, the maintainer's `pnpm dev:debug` CDP port: a measured Run that called the tool
+ * (`--setup maintainer` runs YOLO) would drive the maintainer's QA window. The server connects only
+ * when a tool is called, so starting it, which is what the measurements count, is unaffected.
+ */
+export const FIXTURE_BROWSER_URL = 'http://127.0.0.1:1'
 
 /** One npm cache for every measured profile, so the real servers download once. */
 export const PERF_NPM_CACHE = path.join(os.tmpdir(), 'owperf-npm-cache')
@@ -39,7 +46,7 @@ export async function writeHeavyUserMcpConfig(input: { readonly agentDir: string
   )
   const project = {
     mcpServers: {
-      'electron-devtools': { command: 'npx', args: ['-y', CHROME_DEVTOOLS_MCP, '--browserUrl=http://127.0.0.1:9223'] },
+      'electron-devtools': { command: 'npx', args: ['-y', CHROME_DEVTOOLS_MCP, `--browserUrl=${FIXTURE_BROWSER_URL}`] },
     },
   }
   await writeFile(path.join(input.projectPath, '.mcp.json'), `${JSON.stringify(project, null, JSON_INDENT)}\n`)
