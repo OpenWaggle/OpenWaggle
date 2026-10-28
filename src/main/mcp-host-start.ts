@@ -4,18 +4,17 @@ import { getOpenWaggleMcpConfigurationService } from './adapters/pi/mcp/openwagg
 import { createLogger } from './logger'
 import { hostMcpConnectionPool } from './mcp-runtime-layers'
 import { installMcpSessionRemoval } from './mcp-session-removal'
-import { settledWorkerIdleCloseMs, workerDelegationState } from './mcp-settled-worker-idle-policy'
+import {
+  settledWorkerIdleClosePolicy,
+  type WorkerDelegationStateOf,
+} from './mcp-settled-worker-idle-policy'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
 
 const logger = createLogger('mcp-host-start')
 
-/** Settled Hive Workers close their MCP servers a minute after their Run (D1.1). */
-function installSettledWorkerIdleClose() {
-  hostMcpConnectionPool.setIdleClosePolicy(async (sessionId) => {
-    // Lazily: the runtime imports this module.
-    const { runAppEffect } = await import('./runtime')
-    return settledWorkerIdleCloseMs(await runAppEffect(workerDelegationState(sessionId)))
-  })
+export interface McpHostServiceDependencies {
+  /** A Worker's Delegation state, from the Delegation repository (the Host's app runtime). */
+  readonly workerDelegationState: WorkerDelegationStateOf
 }
 
 function installMcpServerStatusFreshness() {
@@ -35,10 +34,13 @@ function installMcpServerStatusFreshness() {
  * whose MCP channels are all Host-backed: it would read the login shell's environment, tokens
  * included, and install connection pool hooks for nothing.
  */
-export function startMcpHostServices() {
+export function startMcpHostServices(dependencies: McpHostServiceDependencies) {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
   installMcpSessionRemoval(hostMcpConnectionPool)
-  installSettledWorkerIdleClose()
+  // Settled Hive Workers close their MCP servers a minute after their Run (D1.1).
+  hostMcpConnectionPool.setIdleClosePolicy(
+    settledWorkerIdleClosePolicy(dependencies.workerDelegationState),
+  )
   // A server turned off or removed stops being used by MCP Apps and running Runs alike.
   installMcpTurnedOffServerClosing(hostMcpConnectionPool)
   // A server turned off or on no longer shows a state from before, wherever it was switched.

@@ -55,6 +55,7 @@ import {
   McpServicesLive,
 } from './mcp-runtime-layers'
 import { OperationAdapterLive } from './operation-adapter-layer'
+import { SessionDelegationRepository } from './ports/session-delegation-repository'
 import {
   ActionKernelServicesLive,
   ActionServicesLive,
@@ -297,7 +298,14 @@ export async function startSessionHostServicesAfterListening() {
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return
   // Host-only: the desktop app's MCP channels are all Host-backed (ADR 0051).
-  startMcpHostServices()
+  startMcpHostServices({
+    workerDelegationState: (sessionId) =>
+      runAppEffect(
+        Effect.flatMap(SessionDelegationRepository, (delegations) =>
+          delegations.delegationStateOf(sessionId),
+        ),
+      ),
+  })
   // Background work waits for a client; without one the Host slims down (A-F9, decision 4).
   installHostIdleSlim()
   promptCacheWarming().start()

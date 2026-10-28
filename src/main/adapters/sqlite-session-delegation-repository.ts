@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
 import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
+import type { DelegationState } from '@shared/types/session-collaboration'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -217,6 +218,13 @@ export const SqliteSessionDelegationRepositoryLive = Layer.effect(
               ? cause
               : delegationRepositoryError('execute-delegation', cause),
           ),
+        ),
+      delegationStateOf: (sessionId) =>
+        sql<{ readonly state: DelegationState }>`
+          SELECT state FROM delegation_contracts WHERE child_session_id = ${sessionId} LIMIT 1
+        `.pipe(
+          Effect.map((rows) => rows[0]?.state ?? null),
+          Effect.mapError((cause) => delegationRepositoryError('delegation-state-of', cause)),
         ),
     })
   }),
