@@ -22,6 +22,12 @@ export const HOST_BACKGROUND_CLIENT_SETTLE_MS = 5_000
 /** A window reload reconnects within this; a Host left without clients slims after it. */
 export const HOST_IDLE_SLIM_DELAY_MS = 2_000
 /**
+ * A Host slims at most once in this long. Each short CLI command attaches as a client, so
+ * scripted CLI use left the Host without clients every few seconds, and each time it collected
+ * the whole heap, closed every idle Session's MCP servers and ended the embedding child.
+ */
+export const HOST_IDLE_SLIM_MIN_INTERVAL_MS = 60_000
+/**
  * A client's next request usually follows its last answer within this: a Session open is a
  * burst of dependent requests with gaps of a few tens of milliseconds between them.
  */
@@ -59,6 +65,9 @@ interface QuietWaiter {
 export class HostBackgroundGate {
   private enabled = false
   private clients = 0
+  /** Runs in progress: they make Sessions to index without any client (CLI Hives, Schedules). */
+  private runs = 0
+  private lastSlimAt = Number.NEGATIVE_INFINITY
   private open = false
   private timer: { readonly cancel: () => void } | undefined
   private waiters: Array<() => void> = []
@@ -95,14 +104,36 @@ export class HostBackgroundGate {
   /** An authenticated client attached; the returned function detaches it. */
   clientAttached() {
     this.clients += 1
+    return this.presenceStarted(() => {
+      this.clients -= 1
+    })
+  }
+
+  /**
+   * A Run started; the returned function ends it. Background work runs while a Run does, as while
+   * a client is attached, so Sessions a headless Host creates (`openwaggle run`, a CLI Hive, a
+   * Scheduled task) are indexed for `hive search` without a window (review R5 P3-7).
+   */
+  runStarted() {
+    this.runs += 1
+    return this.presenceStarted(() => {
+      this.runs -= 1
+    })
+  }
+
+  private get present() {
+    return this.clients + this.runs
+  }
+
+  private presenceStarted(end: () => void) {
     this.slimmed = false
-    if (this.clients === 1 && this.enabled) this.scheduleOpen()
+    if (this.present === 1 && this.enabled) this.scheduleOpen()
     let released = false
     return () => {
       if (released) return
       released = true
-      this.clients -= 1
-      if (this.clients === 0) this.clientsLeft()
+      end()
+      if (this.present === 0) this.clientsLeft()
     }
   }
 
@@ -193,7 +224,7 @@ export class HostBackgroundGate {
     this.timer?.cancel()
     this.timer = this.clock.setTimeout(() => {
       this.timer = undefined
-      if (this.clients === 0) return
+      if (this.present === 0) return
       this.open = true
       for (const resolve of this.waiters.splice(0)) resolve()
     }, HOST_BACKGROUND_CLIENT_SETTLE_MS)
@@ -203,10 +234,20 @@ export class HostBackgroundGate {
     this.timer?.cancel()
     if (!this.enabled) return
     this.open = false
+    this.scheduleSlim(HOST_IDLE_SLIM_DELAY_MS)
+  }
+
+  private scheduleSlim(delayMs: number) {
     this.timer = this.clock.setTimeout(() => {
       this.timer = undefined
-      if (this.clients > 0 || this.slimmed) return
+      if (this.present > 0 || this.slimmed) return
+      const sinceLastSlim = this.clock.elapsedMs() - this.lastSlimAt
+      if (sinceLastSlim < HOST_IDLE_SLIM_MIN_INTERVAL_MS) {
+        this.scheduleSlim(HOST_IDLE_SLIM_MIN_INTERVAL_MS - sinceLastSlim)
+        return
+      }
       this.slimmed = true
+      this.lastSlimAt = this.clock.elapsedMs()
       for (const hook of this.slimHooks) {
         try {
           void Promise.resolve(hook()).catch(this.onSlimFailed)
@@ -214,7 +255,7 @@ export class HostBackgroundGate {
           this.onSlimFailed(error)
         }
       }
-    }, HOST_IDLE_SLIM_DELAY_MS)
+    }, delayMs)
   }
 }
 
