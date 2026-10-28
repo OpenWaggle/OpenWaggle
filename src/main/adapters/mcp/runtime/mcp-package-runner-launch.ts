@@ -57,7 +57,8 @@ const PASSIVE_FLAGS: Readonly<Record<PackageRunner, ReadonlySet<string>>> = {
     '--prefer-online',
   ]),
   'pnpm-dlx': new Set(['-s', '--silent']),
-  bunx: new Set(['--bun', '--silent']),
+  // Not `--bun`: it runs even a `node` bin under Bun, which a direct spawn would not.
+  bunx: new Set(['--silent']),
 }
 
 const PACKAGE_FLAGS = new Set(['-p', '--package'])

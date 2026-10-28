@@ -8,7 +8,17 @@
  */
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  accessSync,
+  closeSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  writeFileSync,
+} from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
@@ -97,14 +107,49 @@ function runnerLaunchOf(input: {
   return launch && !installedNear(input.cwd, launch.packageName) ? launch : undefined
 }
 
-function isJavaScriptBin(file: string) {
-  if (/\.[cm]?js$/u.test(file)) return true
+function firstLineOf(file: string) {
+  let descriptor: number | undefined
   try {
-    const head = readFileSync(file, { encoding: 'utf8', flag: 'r' }).slice(0, SHEBANG_BYTES)
-    return head.startsWith('#!') && /\bnode\b/u.test(head.split('\n', 1)[0] ?? '')
+    descriptor = openSync(file, 'r')
+    const buffer = Buffer.alloc(SHEBANG_BYTES)
+    const read = readSync(descriptor, buffer, 0, SHEBANG_BYTES, 0)
+    return buffer.subarray(0, read).toString('utf8').split('\n', 1)[0]?.replace(/\r$/u, '') ?? ''
+  } catch {
+    return undefined
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor)
+  }
+}
+
+function isExecutable(file: string) {
+  try {
+    accessSync(file, constants.X_OK)
+    return true
   } catch {
     return false
   }
+}
+
+/** `#!/usr/bin/env node` or `#!/path/to/node`, and nothing after it. */
+const PLAIN_NODE_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+node|\/\S*\/node)\s*$/u
+
+/**
+ * How a resolved bin is spawned as the runner would run it: `node <file>` only for a plain node
+ * shebang (or a JavaScript file with none). A shebang with flags (`env -S node --no-warnings`) or
+ * another runtime (`bun`) runs the file itself, as the runner's `.bin` link does, which only POSIX
+ * can; on Windows such a bin keeps the runner. A bin that is not JavaScript is spawned itself.
+ */
+export function binLaunchOf(
+  file: string,
+  platform: NodeJS.Platform = process.platform,
+): 'node' | 'self' | undefined {
+  const firstLine = firstLineOf(file)
+  if (firstLine === undefined) return undefined
+  if (firstLine.startsWith('#!')) {
+    if (PLAIN_NODE_SHEBANG.test(firstLine)) return 'node'
+    return platform !== 'win32' && isExecutable(file) ? 'self' : undefined
+  }
+  return /\.[cm]?js$/u.test(file) ? 'node' : 'self'
 }
 
 /**
@@ -131,7 +176,9 @@ export async function resolveBinFromProbe(
     if (!relative) return undefined
     const file = path.resolve(packageDir, relative)
     if (!existsSync(file)) return undefined
-    const javascript = isJavaScriptBin(file)
+    const how = binLaunchOf(file)
+    if (!how) return undefined
+    const javascript = how === 'node'
     return {
       command: javascript ? probe.node : file,
       prefixArgs: javascript ? [file] : [],
