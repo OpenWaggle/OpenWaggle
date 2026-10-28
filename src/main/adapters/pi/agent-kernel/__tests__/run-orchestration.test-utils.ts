@@ -86,6 +86,9 @@ export interface FakeRunSession {
     readonly getRegisteredCommands: () => readonly never[]
   }
   readonly isStreaming: boolean
+  readonly resourceLoader: {
+    readonly getExtensions: () => { readonly extensions: readonly never[] }
+  }
   readonly sessionManager: {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
     readonly appendCustomEntry: (customType: string, data?: unknown) => string
@@ -202,6 +205,7 @@ export function createFakeSession(
     isCompacting: false,
     isStreaming: false,
     extensionRunner: { onError: vi.fn(() => () => undefined), getRegisteredCommands: () => [] },
+    resourceLoader: { getExtensions: () => ({ extensions: [] }) },
     sessionManager: {
       appendCustomEntry: vi.fn(() => 'mode-state-entry'),
       buildSessionContext: () => ({ messages: [] }),
