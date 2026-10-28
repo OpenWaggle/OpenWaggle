@@ -1,17 +1,18 @@
-import { MessageId, SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type {
-  SessionBranch,
-  SessionNode,
-  SessionTree,
-  SessionWorkspace,
-} from '@shared/types/session'
+import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { node, treeUiState } from '../../lib/__tests__/session-tree-test-fixtures'
 import { useSessionTreeNodeSelection } from '../useSessionTreeNodeSelection'
+import {
+  ASSISTANT_NODE,
+  ROOT_NODE,
+  SESSION_ID,
+  tree,
+  USER_NODE,
+  workspace,
+} from './session-tree-selection-fixtures'
 
 const selectionMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -31,63 +32,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSessionWorkspace: selectionMocks.getSessionWorkspace,
   },
 }))
-
-const SESSION_ID = SessionId('session-1')
-const ROOT_NODE = node({ id: 'root', depth: 0, order: 1 })
-const USER_NODE: SessionNode = {
-  ...node({ id: 'user', parentId: 'root', depth: 1, order: 2, kind: 'user_message' }),
-  role: 'user',
-  message: {
-    id: MessageId('user'),
-    role: 'user',
-    parts: [{ type: 'text', text: 'Use this prompt' }],
-    createdAt: 2,
-  },
-}
-const ASSISTANT_NODE = node({ id: 'assistant', parentId: 'user', depth: 2, order: 3 })
-
-function branch(): SessionBranch {
-  return {
-    id: SessionBranchId('branch-1'),
-    sessionId: SESSION_ID,
-    sourceNodeId: USER_NODE.id,
-    headNodeId: ASSISTANT_NODE.id,
-    name: 'branch-1',
-    isMain: false,
-    createdAt: 1,
-    updatedAt: 2,
-  }
-}
-
-function tree(): SessionTree {
-  return {
-    session: {
-      id: SESSION_ID,
-      title: 'Session tree',
-      projectPath: '/repo',
-      createdAt: 1,
-      updatedAt: 2,
-    },
-    nodes: [ROOT_NODE, USER_NODE, ASSISTANT_NODE],
-    branches: [branch()],
-    branchStates: [],
-    uiState: treeUiState({ expandedNodeIds: ['root'], expandedNodeIdsTouched: true }),
-  }
-}
-
-function workspace(): SessionWorkspace {
-  const sessionTree = tree()
-  return {
-    tree: sessionTree,
-    activeBranchId: SessionBranchId('main'),
-    activeNodeId: ASSISTANT_NODE.id,
-    transcriptPath: [
-      { node: ROOT_NODE, isActive: true },
-      { node: USER_NODE, isActive: true },
-      { node: ASSISTANT_NODE, isActive: true },
-    ],
-  }
-}
 
 describe('useSessionTreeNodeSelection', () => {
   beforeEach(() => {
