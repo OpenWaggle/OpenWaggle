@@ -107,16 +107,29 @@ export function hasToolsCapability(initialize: unknown) {
 export class McpConnectionCatalog {
   private initialize: { readonly value: unknown } | undefined
   private pages: Record<string, unknown> = {}
-  private readonly served: McpToolCatalog | undefined
+  private served: McpToolCatalog | undefined
+  /** Set on the connection that fills a missing catalog for others (`McpCatalogFills`). */
+  filled: (() => void) | undefined
 
   constructor(
     private readonly store: McpToolCatalogStore,
     private readonly key: string,
     private readonly now: () => number = Date.now,
   ) {
-    const stored = store.read(key)
-    const age = stored ? now() - stored.savedAt : Number.POSITIVE_INFINITY
+    this.reload()
+  }
+
+  /** Reads the stored catalog again, as another connection may have filled it; fresh or not. */
+  reload() {
+    const stored = this.store.read(this.key)
+    const age = stored ? this.now() - stored.savedAt : Number.POSITIVE_INFINITY
     this.served = stored && age >= 0 && age < MCP_TOOL_CATALOG_MAX_AGE_MS ? stored : undefined
+    return this.canServe
+  }
+
+  /** The connection closed: a fill it owed others ends, filled or not. */
+  closed() {
+    this.filled?.()
   }
 
   /** A fresh catalog exists, so the connection can answer without its server. */
@@ -169,23 +182,59 @@ export class McpConnectionCatalog {
       toolsPages: { ...this.pages },
       savedAt: this.now(),
     })
+    this.filled?.()
+  }
+}
+
+/** How long a Session waits for another Session's server to fill a missing catalog. */
+export const MCP_CATALOG_FILL_WAIT_MS = 30_000
+
+/**
+ * Catalogs being filled, one per catalog key (cold wave). When several Sessions start a server
+ * whose catalog is missing or stale, the first starts it and fills the catalog; the others wait
+ * for that (at most `MCP_CATALOG_FILL_WAIT_MS`) and are then answered from it, starting their own
+ * server only when they need it, so a Hive's first wave does not start every server in every
+ * Session. Each Session still has its own server process (ADR 0013).
+ */
+export class McpCatalogFills {
+  private readonly fills = new Map<string, Promise<void>>()
+
+  /** The fill to wait for, or none when this caller fills it: `done` ends its fill. */
+  join(key: string): { readonly fill: Promise<void> } | { readonly done: () => void } {
+    const fill = this.fills.get(key)
+    if (fill) return { fill }
+    const { promise, resolve } = Promise.withResolvers<void>()
+    const timer = setTimeout(resolve, MCP_CATALOG_FILL_WAIT_MS)
+    timer.unref()
+    const ended = promise.then(() => {
+      clearTimeout(timer)
+      if (this.fills.get(key) === ended) this.fills.delete(key)
+    })
+    this.fills.set(key, ended)
+    return { done: resolve }
   }
 }
 
 /**
  * The catalog options of a pooled server's connection, when the pool keeps catalogs: the
  * catalog records every `tools/list` result the connection sees, alongside the other observers.
+ * A lazy server without a fresh catalog either fills it or waits for the Session that does.
  */
 export function mcpConnectionCatalogOptions(
   store: McpToolCatalogStore | undefined,
   spec: { readonly catalogKey?: string; readonly lazyStart?: boolean },
   observeResult: ((method: string, params: unknown, result: unknown) => void) | undefined,
+  fills?: McpCatalogFills,
 ) {
   if (!store || spec.catalogKey === undefined) return observeResult ? { observeResult } : {}
   const catalog = new McpConnectionCatalog(store, spec.catalogKey)
+  const lazyStart = spec.lazyStart === true
+  const joined = lazyStart && fills && !catalog.canServe ? fills.join(spec.catalogKey) : undefined
+  if (joined && 'done' in joined) catalog.filled = joined.done
   return {
     catalog,
-    lazyStart: spec.lazyStart === true,
+    lazyStart,
+    ...(joined && 'fill' in joined ? { catalogFill: joined.fill } : {}),
     observeResult: (method: string, params: unknown, result: unknown) => {
       observeResult?.(method, params, result)
       if (method === 'tools/list') catalog.recordToolsPage(params, result)

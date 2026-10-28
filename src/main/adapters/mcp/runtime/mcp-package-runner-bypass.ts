@@ -47,6 +47,28 @@ function readJson(text: string): unknown {
   }
 }
 
+/** Whether the package is installed in a project above `cwd`: a runner uses that copy. */
+function installedNear(cwd: string, packageName: string) {
+  for (let directory = path.resolve(cwd); ; directory = path.dirname(directory)) {
+    if (
+      existsSync(path.join(directory, 'node_modules', ...packageName.split('/'), 'package.json'))
+    ) {
+      return true
+    }
+    if (path.dirname(directory) === directory) return false
+  }
+}
+
+/** The runner launch the bypass may replace: not one the folder's own install answers. */
+function runnerLaunchOf(input: {
+  readonly command: string
+  readonly args: readonly string[]
+  readonly cwd: string
+}) {
+  const launch = parsePackageRunnerCommand(input.command, input.args)
+  return launch && !installedNear(input.cwd, launch.packageName) ? launch : undefined
+}
+
 function isJavaScriptBin(file: string) {
   if (/\.[cm]?js$/u.test(file)) return true
   try {
@@ -188,14 +210,13 @@ export class PackageRunnerBypass {
   }
 
   private key(launch: PackageRunnerLaunch, input: StdioLaunch) {
-    // A runner prefers a package installed in the working directory's project, so the folder is
-    // part of the key; so is the PATH, which picks the runner and the `node` it runs.
+    // The PATH picks the runner and the `node` it runs. The folder does not, unless the package is
+    // installed in its project, which `installedNear` leaves to the runner.
     return JSON.stringify([
       launch.runner,
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
-      input.cwd,
       input.env.PATH ?? '',
     ])
   }
@@ -219,7 +240,7 @@ export class PackageRunnerBypass {
    * probes again, so a tag such as `@latest` picks up a new version.
    */
   launch(input: StdioLaunch, options: { readonly refresh?: boolean } = {}): StdioLaunch {
-    const launch = parsePackageRunnerCommand(input.command, input.args)
+    const launch = runnerLaunchOf(input)
     if (!launch) return input
     const key = this.key(launch, input)
     const entry = this.cache()[key]
@@ -234,6 +255,28 @@ export class PackageRunnerBypass {
     }
     this.resolveInBackground(key, launch, input)
     return input
+  }
+
+  /**
+   * Resolves a runner launch's bin before its first spawn, waiting at most `waitMs`: the probe
+   * costs about what the runner's own start does, and then even a cold Hive's first servers start
+   * without a runner beside them. A probe that takes longer keeps running for the next spawn.
+   */
+  async prepare(input: StdioLaunch, waitMs: number) {
+    const launch = runnerLaunchOf(input)
+    if (!launch) return
+    const key = this.key(launch, input)
+    const entry = this.cache()[key]
+    if (entry && this.fresh(entry)) return
+    this.resolveInBackground(key, launch, input)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      this.probing.get(key),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, waitMs)
+      }),
+    ])
+    clearTimeout(timer)
   }
 
   /** Waits for every probe started so far (tests and measurement). */

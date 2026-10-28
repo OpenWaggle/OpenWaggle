@@ -192,3 +192,50 @@ describe('package runner bypass (D1.2)', () => {
     expect(ambiguous.launch(launchInput).command).toBe('npx')
   })
 })
+
+describe('package runner bin before the first spawn (D1.2, cold wave)', () => {
+  it('resolves once for every folder, so even the first spawn skips the runner', async () => {
+    const cache = runnerCache()
+    let probes = 0
+    const bypass = new PackageRunnerBypass({
+      store: memoryStore(),
+      probe: async () => {
+        probes += 1
+        return JSON.stringify({ path: cache.binDirectory, node: process.execPath })
+      },
+    })
+    const worktrees = ['/work/a', '/work/b', '/work/c'].map((cwd) => ({ ...launchInput, cwd }))
+
+    await Promise.all(worktrees.map((input) => bypass.prepare(input, 5_000)))
+
+    expect(probes).toBe(1)
+    for (const input of worktrees) expect(bypass.launch(input).command).toBe(process.execPath)
+  })
+
+  it('gives up waiting after the bound and keeps the runner for that spawn', async () => {
+    const bypass = new PackageRunnerBypass({
+      store: memoryStore(),
+      probe: () => new Promise<string>(() => undefined),
+    })
+    const started = Date.now()
+    await bypass.prepare(launchInput, 30)
+    expect(Date.now() - started).toBeLessThan(1_000)
+    expect(bypass.launch(launchInput).command).toBe('npx')
+  })
+
+  it('leaves a package installed in the project to the runner, which uses that copy', async () => {
+    const project = runnerCache('@scope/server')
+    const cwd = path.dirname(path.dirname(project.binDirectory))
+    let probes = 0
+    const bypass = new PackageRunnerBypass({
+      store: memoryStore(),
+      probe: async () => {
+        probes += 1
+        return ''
+      },
+    })
+    await bypass.prepare({ ...launchInput, cwd }, 1_000)
+    expect(probes).toBe(0)
+    expect(bypass.launch({ ...launchInput, cwd })).toEqual({ ...launchInput, cwd })
+  })
+})

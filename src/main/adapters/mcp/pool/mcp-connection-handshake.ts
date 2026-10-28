@@ -23,6 +23,8 @@ interface HandshakeChannel {
   readonly onProtocolVersion: (version: string) => void
   /** Sees each result the server gave, for the connection's catalog. */
   readonly onResult?: (result: unknown) => void
+  /** The server was sent `notifications/initialized`, with the `initialize` result it gave. */
+  readonly onInitialized?: (result: unknown) => void
 }
 
 /**
@@ -117,7 +119,7 @@ export class McpConnectionHandshake {
   initialized(message: JsonRpcMessage) {
     if (this.initializedSent) return Promise.resolve()
     this.initializedSent = true
-    return this.channel.notify(message)
+    return this.channel.notify(message).then(() => this.channel.onInitialized?.(this.resultValue))
   }
 
   /** Answers a client's `initialize` from the handshake. */

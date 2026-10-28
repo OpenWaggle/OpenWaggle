@@ -147,3 +147,50 @@ describe('MCP connection catalogs and lazy start (D1.3)', () => {
     expect(eager.upstreams).toHaveLength(1)
   })
 })
+
+describe('cold wave: one Session fills a missing catalog (D1.3)', () => {
+  it('starts one server for several Sessions without a catalog, then serves the others', async () => {
+    const { store, upstreams, pool, spec } = harness()
+    const leases = ['a', 'b', 'c'].map((id) => pool.lease(id, spec))
+    const clients = leases.map((lease) => collect(lease))
+    await Promise.all(leases.map((lease) => connect(lease)))
+    await flush()
+    await flush()
+
+    expect(upstreams).toHaveLength(1)
+    expect(store.read('browser-key')?.toolsPages).toEqual({ '': TOOLS })
+    for (const client of clients) {
+      expect(client.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: TOOLS })
+    }
+
+    // A waiting Session still gets its own server once it calls a tool (ADR 0013).
+    const [, second] = leases
+    await second?.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'x' } })
+    await flush()
+    await flush()
+    expect(upstreams).toHaveLength(2)
+  })
+
+  it('lets the waiting Sessions start their own server when the filling one fails', async () => {
+    const { upstreams, pool, spec } = harness()
+    let opens = 0
+    const flaky = {
+      ...spec,
+      open: () => {
+        opens += 1
+        const opened = spec.open()
+        if (opens === 1) opened.transport.failStart = new Error('first start failed')
+        return opened
+      },
+    }
+    const first = pool.lease('a', flaky)
+    const second = pool.lease('b', flaky)
+    const secondClient = collect(second)
+    await Promise.allSettled([connect(first), connect(second)])
+    await flush()
+    await flush()
+
+    expect(upstreams).toHaveLength(2)
+    expect(secondClient.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: TOOLS })
+  })
+})

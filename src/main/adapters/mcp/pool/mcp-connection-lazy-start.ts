@@ -24,8 +24,15 @@ interface LazyStartHost {
 export class McpConnectionLazyStart {
   private started = false
   private waking: Promise<void> | undefined
+  /** Whether the catalog can be served: at once, or once another Session filled it. */
+  private readonly servable: Promise<boolean> | undefined
 
-  constructor(private readonly host: LazyStartHost) {}
+  constructor(
+    private readonly host: LazyStartHost,
+    fill?: Promise<void>,
+  ) {
+    this.servable = fill?.then(() => host.catalog.reload())
+  }
 
   /** Still answering from the catalog: the server has not been asked to start. */
   get waiting() {
@@ -58,6 +65,11 @@ export class McpConnectionLazyStart {
   async answer(lease: McpConnectionLease, message: JsonRpcMessage) {
     if (this.waking) await this.waking.catch(() => undefined)
     if (this.started) return false
+    if (this.servable && !(await this.servable)) {
+      // Still no catalog: this Session starts its server and lists for itself.
+      await this.wake()
+      return false
+    }
     const { catalog, handshake, options } = this.host
     if (isJsonRpcNotification(message)) {
       if (message.method === INITIALIZED) handshake.markInitialized()
@@ -89,15 +101,7 @@ export class McpConnectionLazyStart {
     const { catalog, handshake, options } = this.host
     if (!hasToolsCapability(handshake.resultValue)) return
     try {
-      let cursor: string | undefined
-      do {
-        const params = cursor === undefined ? {} : { cursor }
-        const result = await this.host.sendInternal('tools/list', params)
-        // The catalog records it through the connection's observers.
-        options.observeResult?.('tools/list', params, result)
-        cursor =
-          isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
-      } while (cursor !== undefined)
+      await listToolsForCatalog(this.host.sendInternal, options.observeResult)
       if (!catalog.differsFromServed()) return
       for (const lease of this.host.leases()) {
         lease.deliver({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' })
@@ -108,15 +112,50 @@ export class McpConnectionLazyStart {
   }
 }
 
-/** The lazy start of a connection whose server has a fresh catalog and may start late. */
+/**
+ * Lists every page of a started server's tools over the connection; the catalog records them
+ * through the connection's observers (`mcpConnectionCatalogOptions`).
+ */
+export async function listToolsForCatalog(
+  sendInternal: (method: string, params: unknown) => Promise<unknown>,
+  observeResult: McpPooledConnectionOptions['observeResult'],
+) {
+  let cursor: string | undefined
+  do {
+    const params = cursor === undefined ? {} : { cursor }
+    const result = await sendInternal('tools/list', params)
+    observeResult?.('tools/list', params, result)
+    cursor =
+      isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
+  } while (cursor !== undefined)
+}
+
+/**
+ * The Session filling a missing catalog for others lists the tools itself once initialized, so
+ * the waiting Sessions do not depend on when its client lists them.
+ */
+export function fillCatalogAfterHandshake(
+  options: Pick<McpPooledConnectionOptions, 'catalog' | 'observeResult'>,
+  initializeResult: unknown,
+  sendInternal: (method: string, params: unknown) => Promise<unknown>,
+) {
+  if (!options.catalog?.filled || !hasToolsCapability(initializeResult)) return
+  listToolsForCatalog(sendInternal, options.observeResult).catch(() => options.catalog?.closed())
+}
+
+/**
+ * The lazy start of a connection whose server has a fresh catalog, or whose catalog another
+ * Session is filling, and may start late.
+ */
 export function lazyStartOf(
   options: Pick<
     McpPooledConnectionOptions,
-    'catalog' | 'lazyStart' | 'observeResult' | 'adaptResult'
+    'catalog' | 'lazyStart' | 'catalogFill' | 'observeResult' | 'adaptResult'
   >,
   host: Omit<LazyStartHost, 'catalog' | 'options'>,
 ) {
   const catalog = options.catalog
-  if (options.lazyStart !== true || !catalog?.canServe) return undefined
-  return new McpConnectionLazyStart({ ...host, catalog, options })
+  if (options.lazyStart !== true || !catalog) return undefined
+  if (!catalog.canServe && !options.catalogFill) return undefined
+  return new McpConnectionLazyStart({ ...host, catalog, options }, options.catalogFill)
 }
