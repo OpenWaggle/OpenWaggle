@@ -20,7 +20,7 @@ import {
   type SessionsToolActionGrant,
   sessionsToolSchemaForGrant,
 } from './sessions-tool-capability-schema'
-import { assertSessionsToolActionArguments } from './sessions-tool-flat-schema'
+import { parseSessionsToolActionArguments } from './sessions-tool-flat-schema'
 import {
   sessionsToolEssentialGuidelines,
   sessionsToolPromptGuidelines,
@@ -116,9 +116,9 @@ async function executeSessionsToolCall(
   if (signal?.aborted) throw new Error('aborted')
   // `verbose` asks for the whole result envelope; it is no action's parameter.
   const verbose = isMatching({ verbose: true }, rawParams)
-  const callParams = withoutVerbose(rawParams)
-  assertSessionsToolActionArguments(callParams)
-  const params = resolveSessionsToolSessionLinks(callParams)
+  const params = resolveSessionsToolSessionLinks(
+    parseSessionsToolActionArguments(withoutVerbose(rawParams)),
+  )
   const successfulToolResult = async (result: unknown) => ({
     content: [
       {
@@ -180,7 +180,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
   }
   return (pi) => {
-    // Typed as a plain schema: arguments stay unknown until assertSessionsToolActionArguments.
+    // Typed as a plain schema: arguments stay unknown until parseSessionsToolActionArguments.
     pi.registerTool<TSchema, unknown>({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
