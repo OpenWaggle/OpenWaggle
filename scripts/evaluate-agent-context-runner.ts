@@ -19,6 +19,7 @@ const LOCALHOST = '127.0.0.1'
 const HTTP_OK = 200
 const JSON_INDENT = 2
 const KEPT_OUTPUT_CHARS = 2_000
+const KEPT_CLI_LINES = 40
 const KEPT_ANSWER_CHARS = 1_000
 const FIXTURE_SERVER = path.join(import.meta.dirname, 'perf', 'fixtures', 'mcp-fixture-server', 'server.ts')
 
@@ -161,6 +162,8 @@ export async function runEvalTask(input: EvalRunInput) {
           totalTokens: usage.input + usage.output + usage.cacheRead + usage.cacheWrite,
           toolNames: outcome.toolNames,
           answer: outcome.answer.slice(0, KEPT_ANSWER_CHARS),
+          // A failed `openwaggle run` keeps the end of its output, so the failure can be read later.
+          ...(exit === 0 ? {} : { cliOutput: run.launched.logLines.slice(-KEPT_CLI_LINES).join('\n') }),
         }
       },
     )

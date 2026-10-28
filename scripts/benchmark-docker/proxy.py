@@ -79,10 +79,22 @@ def usage_of(payload):
     return found
 
 
+AGENT_PREFIX = "/agent/"
+
+
+def split_agent_path(path):
+    """`/agent/<name>/rest` -> (name, `/rest`): each agent's base URL names it, so a request
+    that finishes after its agent exited (a background title call) is still that agent's."""
+    if not path.startswith(AGENT_PREFIX):
+        return None, path
+    name, _, rest = path[len(AGENT_PREFIX):].partition("/")
+    return (name or None), "/" + rest
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _forward(self):
+    def _forward(self, upstream_path):
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else None
         if UPSTREAM.scheme == "https":
@@ -90,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             upstream = http.client.HTTPConnection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS)
         headers = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
-        upstream.request(self.command, self.path, body=body, headers=headers)
+        upstream.request(self.command, upstream_path, body=body, headers=headers)
         response = upstream.getresponse()
 
         self.send_response(response.status)
@@ -119,7 +131,8 @@ class Handler(BaseHTTPRequestHandler):
         return body, response.status, b"".join(chunks)
 
     def _run(self):
-        body, status, payload = self._forward()
+        agent, upstream_path = split_agent_path(self.path)
+        body, status, payload = self._forward(upstream_path)
         if body is None:
             return
         try:
@@ -128,7 +141,8 @@ class Handler(BaseHTTPRequestHandler):
             request = None
         log({
             "command": self.command,
-            "path": self.path,
+            "agent": agent,
+            "path": upstream_path,
             "status": status,
             "model": request.get("model") if isinstance(request, dict) else None,
             "request_bytes": len(body),

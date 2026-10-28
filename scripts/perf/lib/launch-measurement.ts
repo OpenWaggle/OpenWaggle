@@ -1,4 +1,5 @@
 import type { PerfApp } from './perf-app'
+import type { PerfProfile } from './perf-profile'
 import { readRendererBoot } from './perf-page'
 import { delay, type LaunchMode, withRunningApp } from './running-app'
 
@@ -12,6 +13,8 @@ export interface LaunchMeasurementOptions {
   readonly timeoutMs: number
   readonly warmHostIdleMs: number
   readonly settleMs: number
+  /** Runs on the fresh profile before launch, such as seeding a warm compile cache. */
+  readonly prepareProfile?: (profile: PerfProfile) => Promise<void>
 }
 
 function sinceSpawn(spawnedAt: number, timeOrigin: number, rendererMs: number | null | undefined) {
@@ -50,6 +53,8 @@ export function measureLaunch(app: PerfApp, options: LaunchMeasurementOptions) {
       chatReadyMs: at('chatReady'),
       composerMs: at('composer'),
       lcpAfterNavigationMs: afterNavigation(boot.largestContentfulPaint),
+      // The window may open before the Host is ready (decision 3), so LCP is also given from spawn.
+      lcpSinceSpawnMs: sinceSpawn(spawnedAt, boot.timeOrigin, boot.largestContentfulPaint),
       domContentLoadedAfterNavigationMs: afterNavigation(boot.domContentLoaded),
       rendererLongTaskMs: Math.round(boot.longTaskMs),
       marks,
@@ -67,6 +72,7 @@ export const LAUNCH_METRICS = [
   'chatReadyMs',
   'composerMs',
   'lcpAfterNavigationMs',
+  'lcpSinceSpawnMs',
   'domContentLoadedAfterNavigationMs',
   'rendererLongTaskMs',
 ] as const

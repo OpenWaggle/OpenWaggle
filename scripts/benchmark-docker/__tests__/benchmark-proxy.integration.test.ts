@@ -38,8 +38,10 @@ function freePort() {
 
 async function startUpstream() {
   const seen: IncomingHttpHeaders[] = []
+  const paths: string[] = []
   const server: Server = createServer((request, response) => {
     seen.push(request.headers)
+    paths.push(request.url ?? '')
     request.resume()
     request.on('end', () => {
       response.writeHead(UPSTREAM_STATUS, { 'content-type': 'text/event-stream' })
@@ -49,7 +51,7 @@ async function startUpstream() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
   cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())))
   const address = server.address()
-  return { url: `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`, seen }
+  return { url: `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`, seen, paths }
 }
 
 async function startProxy(upstream: string, logPath: string) {
@@ -99,6 +101,24 @@ describe('benchmark proxy', () => {
     expect(post).toMatchObject({ status: UPSTREAM_STATUS, model: 'z-ai/glm-5.3-flash', request: { messages: [{ role: 'system' }] } })
     expect(post.usage_events).toContainEqual({ prompt_tokens: 1234, completion_tokens: 2 })
     expect(JSON.stringify(records)).not.toContain(REAL_KEY)
+  })
+
+  it('records the agent named in the base URL and forwards the rest of the path', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-proxy-'))
+    cleanups.push(() => rm(directory, { recursive: true, force: true }))
+    const logPath = path.join(directory, 'proxy-log.jsonl')
+    const upstream = await startUpstream()
+    const port = await startProxy(upstream.url, logPath)
+
+    await fetch(`http://127.0.0.1:${String(port)}/agent/opencode/api/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'z-ai/glm-5.3-flash', messages: [] }),
+    }).then((response) => response.text())
+
+    expect(upstream.paths.at(-1)).toBe('/api/v1/chat/completions')
+    const records = (await readFile(logPath, 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
+    expect(records.find((record) => record.command === 'POST')).toMatchObject({ agent: 'opencode', path: '/api/v1/chat/completions' })
   })
 
   it.skipIf(!nonLoopbackAddress())('does not listen on other interfaces', async () => {

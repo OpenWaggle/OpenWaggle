@@ -5,11 +5,12 @@ import type { FakeProviderRequest, StreamWriter } from './fake-openai-provider'
  * per-parent limit; Worker 1 spawns the rest), then every Session runs one long `bash sleep`, so
  * `workers + 1` Runs are active at once, and then answers.
  */
-const SESSION_ID_PATTERN = /"sessionId": "([^"]+)"/
-const PARENT_SESSION_PATTERN = /"parentSessionId": "/
+// v1 prints the Session identity as compact JSON and the Run identity indented; match both.
+const SESSION_ID_PATTERN = /"sessionId":\s*"([^"]+)"/
+const PARENT_SESSION_PATTERN = /"parentSessionId":\s*"/
+const FIRST_WORKER_PATTERN = /"sessionTitle":\s*"Memory Worker 1"/
 /** The Host refuses a fifth concurrently running child of one parent (`parent_capacity_reached`). */
 const PARENT_CONCURRENCY_LIMIT = 4
-const FIRST_WORKER_TITLE = 'Memory Worker 1'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -80,7 +81,7 @@ export function createScriptedHive(input: {
     if (!PARENT_SESSION_PATTERN.test(system)) {
       return script(stream, sessionId, answered, spawnCalls(1, direct, input.model))
     }
-    const isFirstWorker = messages.some((message) => textOf(message.content).includes(`"sessionTitle": "${FIRST_WORKER_TITLE}"`))
+    const isFirstWorker = messages.some((message) => FIRST_WORKER_PATTERN.test(textOf(message.content)))
     return script(stream, sessionId, answered, isFirstWorker ? spawnCalls(direct + 1, nested, input.model) : [])
   }
   return { respond, allActive, sleeping }

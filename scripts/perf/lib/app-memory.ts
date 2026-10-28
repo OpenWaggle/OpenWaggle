@@ -1,9 +1,16 @@
-import { processRole, processTree, profileHostPids, sampleProcesses } from './perf-processes'
+import { appBundleOf, processRole, processTree, profileHostPids, sampleProcesses } from './perf-processes'
 
 const BYTES_PER_MEGABYTE = 1_048_576
 
 /** Footprint and resident size of the GUI tree plus the profile's Host tree, by process role. */
-export function sampleAppMemory(guiPid: number | undefined, userData: string) {
+export function sampleAppMemory(input: {
+  readonly guiPid: number | undefined
+  readonly userData: string
+  /** The measured app's executable, which tells its own processes from MCP servers. */
+  readonly appExecutable: string
+}) {
+  const { guiPid, userData } = input
+  const appBundle = appBundleOf(input.appExecutable)
   const roots = [...(guiPid === undefined ? [] : [guiPid]), ...profileHostPids(userData)]
   const tree = processTree(roots)
   const samples = sampleProcesses(tree.map((entry) => entry.pid))
@@ -14,7 +21,7 @@ export function sampleAppMemory(guiPid: number | undefined, userData: string) {
   for (const entry of tree) {
     const sample = samples.get(entry.pid)
     if (!sample) continue
-    const role = processRole(entry.command)
+    const role = processRole(entry.command, appBundle)
     const totals = (byRole[role] ??= { count: 0, footprintMb: 0, residentMb: 0 })
     totals.count += 1
     totals.footprintMb += sample.footprint / BYTES_PER_MEGABYTE

@@ -6,11 +6,21 @@ import { answerMatches, type EvalTask, grade, usedTool } from './evaluate-agent-
 /** MCP through the fixture server, project skills, and recall across a compaction. */
 
 const INVENTORY_TOOL = /inventory/
-const SKILL_TOKEN = 'SKILLTOKEN-7781'
+/**
+ * The release name the skill's script prints. A "deployment token" fixture made Opus 5.5 on Bedrock
+ * stop with content_filtered on 4 of 5 runs (v1 final eval), so the fixture names a release instead.
+ */
+const SKILL_RELEASE_NAME = 'KESTREL-7781'
 const VAULT_CODE = 'MARMOT-4417'
 /** Compaction triggers at this share of the model's window in the compaction tasks. */
 const LOW_COMPACTION_PERCENT = 4
 const FILLER_PARAGRAPHS = 600
+/**
+ * Compaction fires at a share of the context window, so it needs the files in context. At v1 the
+ * prefix shrank by ~15k Opus tokens, and runs that scanned the files with bash instead of reading
+ * them stayed under the threshold and never compacted (on both sides). Every recall was right.
+ */
+const READ_EVERY_PAGE = 'Use the read tool for every page; do not grep, count or summarize the files with bash.'
 const COMPACTION_TIMEOUT_MS = 900_000
 
 async function files(root: string, entries: Readonly<Record<string, string>>) {
@@ -23,6 +33,10 @@ async function files(root: string, entries: Readonly<Record<string, string>>) {
 function skill(name: string, description: string, body: string) {
   return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\n${body}\n`
 }
+
+/** 159 characters, so a trigger sentence after it starts at character 160. */
+const HOUSE_STYLE_DESCRIPTION =
+  'House writing style for Widgets documents: tone, headings and formatting that the team agreed on after the 2025 docs audit, kept in one place for every writer.'
 
 const DISTRACTOR_SKILLS = {
   '.agents/skills/api-pagination/SKILL.md': skill('api-pagination', 'Use when adding cursor pagination to an HTTP endpoint.', 'Return `next_cursor` and cap pages at 100.'),
@@ -108,28 +122,63 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
     reference: { files: { 'COMMIT_MSG.txt': '[eval] docs: fix typo in readme\n' } },
   },
   {
+    // The prompt lists skill descriptions cut at 160 characters. Real descriptions often put their
+    // trigger ("Use when ...") after a first sentence about what the skill is; here every trigger
+    // starts at character 160, so the listing shows none of them and only the skill files tell
+    // the three house-style skills apart.
+    id: 'skills-select-late-trigger',
+    group: 'skills',
+    prompt: () => "Write a status report for the incident described in incident.txt into STATUS.md, following this project's skills.",
+    setup: (root) =>
+      files(root, {
+        '.agents/skills/quill/SKILL.md': skill(
+          'quill',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing an incident status report.`,
+          'Status reports start with the exact line `### Status: <incident id>` and every following line starts with `> `.',
+        ),
+        '.agents/skills/ledger/SKILL.md': skill(
+          'ledger',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing release notes or a changelog.`,
+          'Release notes start with `## Release <version>` and use `* ` bullets.',
+        ),
+        '.agents/skills/atlas/SKILL.md': skill(
+          'atlas',
+          `${HOUSE_STYLE_DESCRIPTION} Use when writing an API reference page.`,
+          'API pages start with `# API: <endpoint>` and list parameters in a table.',
+        ),
+        'incident.txt': 'Incident HERON-12: the export queue stalled at 09:40 and drained by 10:15 after a worker restart.\n',
+      }),
+    inspectFiles: ['STATUS.md'],
+    grade: (outcome) => {
+      const lines = (outcome.files['STATUS.md'] ?? '').trim().split('\n').filter((line) => line.trim() !== '')
+      const [first, ...rest] = lines
+      return grade(/^### Status: HERON-12\s*$/.test(first ?? '') && rest.length > 0 && rest.every((line) => line.startsWith('> ')), 'follows the skill its trigger names')
+    },
+    reference: { files: { 'STATUS.md': '### Status: HERON-12\n> The export queue stalled at 09:40 and drained by 10:15.\n' } },
+  },
+  {
     id: 'skills-bundled-script',
     group: 'skills',
-    prompt: () => "Use this project's token-generator skill to produce today's deployment token, and tell me the token.",
+    prompt: () => "Use this project's release-namer skill to get the name of today's release, and tell me the name.",
     setup: (root) =>
       files(root, {
         ...DISTRACTOR_SKILLS,
-        '.agents/skills/token-generator/SKILL.md': skill(
-          'token-generator',
-          'Use when asked for a deployment token.',
-          'Run `node scripts/token.mjs` from this skill\'s directory and report its output verbatim.',
+        '.agents/skills/release-namer/SKILL.md': skill(
+          'release-namer',
+          'Use when asked for the name of a release.',
+          'Run `node scripts/name.mjs` from this skill\'s directory and report its output verbatim.',
         ),
-        '.agents/skills/token-generator/scripts/token.mjs': `console.log(['SKILLTOKEN', 7700 + 81].join('-'))\n`,
+        '.agents/skills/release-namer/scripts/name.mjs': `console.log(['KESTREL', 7700 + 81].join('-'))\n`,
       }),
-    grade: (outcome) => grade(answerMatches(outcome, new RegExp(SKILL_TOKEN)), 'ran the skill script by its path'),
-    reference: { answer: SKILL_TOKEN },
+    grade: (outcome) => grade(answerMatches(outcome, new RegExp(SKILL_RELEASE_NAME)), 'ran the skill script by its path'),
+    reference: { answer: SKILL_RELEASE_NAME },
   },
   {
     id: 'compaction-recall-start',
     group: 'compaction-recall',
     settings: { compactionThresholdPercent: LOW_COMPACTION_PERCENT },
     prompt: () =>
-      'Read notes.txt completely (it is long; read it in full, all pages), then read appendix.txt completely. Then tell me the vault code mentioned in the first paragraph of notes.txt.',
+      `Read notes.txt completely (it is long; read it in full, all pages), then read appendix.txt completely. ${READ_EVERY_PAGE} Then tell me the vault code mentioned in the first paragraph of notes.txt.`,
     setup: (root) => files(root, { 'notes.txt': longNotes(`The vault code is ${VAULT_CODE}.`), 'appendix.txt': longNotes('Appendix.') }),
     grade: (outcome) => grade(outcome.compactions > 0 && answerMatches(outcome, new RegExp(VAULT_CODE)), 'compacted and still recalls the code'),
     reference: { answer: `The vault code is ${VAULT_CODE}.`, compactions: 1 },
@@ -140,7 +189,7 @@ export const CONTEXT_TASKS: readonly EvalTask[] = [
     group: 'compaction-recall',
     settings: { compactionThresholdPercent: LOW_COMPACTION_PERCENT },
     prompt: () =>
-      'First, decide on a name for our new cache service: call it "Heronstore" and remember that decision. Then read notes.txt and appendix.txt completely (both are long; read every page). Finally, write the cache service name we decided on into decision.txt.',
+      `First, decide on a name for our new cache service: call it "Heronstore" and remember that decision. Then read notes.txt and appendix.txt completely (both are long; read every page). ${READ_EVERY_PAGE} Finally, write the cache service name we decided on into decision.txt.`,
     setup: (root) => files(root, { 'notes.txt': longNotes('Notes.'), 'appendix.txt': longNotes('Appendix.') }),
     inspectFiles: ['decision.txt'],
     grade: (outcome) => grade(outcome.compactions > 0 && (outcome.files['decision.txt'] ?? '').includes('Heronstore'), 'compacted and keeps the decision'),
