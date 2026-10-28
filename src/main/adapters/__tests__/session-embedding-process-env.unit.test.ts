@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { embeddingChildEnv } from '../session-embedding-process'
+
+/** `env` decodes the process environment once at import, so each case imports after stubbing. */
+async function loadEmbeddingChildEnv() {
+  vi.resetModules()
+  return (await import('../session-embedding-process')).embeddingChildEnv
+}
 
 /**
  * R6 P3-7: the embedding child runs onnxruntime-node as Node with a minimal environment. On
@@ -20,8 +25,9 @@ function stubWindowsEnvironment() {
 }
 
 describe('Session embedding child environment', () => {
-  it('carries the Windows system, temp and profile roots on win32', () => {
+  it('carries the Windows system, temp and profile roots on win32', async () => {
     stubWindowsEnvironment()
+    const embeddingChildEnv = await loadEmbeddingChildEnv()
     expect(embeddingChildEnv('win32')).toMatchObject({
       ELECTRON_RUN_AS_NODE: '1',
       SystemRoot: 'C:\\Windows',
@@ -32,8 +38,9 @@ describe('Session embedding child environment', () => {
     })
   })
 
-  it('stays the minimal environment elsewhere, and never carries secrets', () => {
+  it('stays the minimal environment elsewhere, and never carries secrets', async () => {
     stubWindowsEnvironment()
+    const embeddingChildEnv = await loadEmbeddingChildEnv()
     const posix = embeddingChildEnv('darwin')
     expect(posix).not.toHaveProperty('LOCALAPPDATA')
     expect(posix).not.toHaveProperty('SystemRoot')

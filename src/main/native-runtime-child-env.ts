@@ -1,4 +1,4 @@
-import { getSafeChildEnv } from './env'
+import { env, getSafeChildEnv } from './env'
 
 /**
  * `getSafeChildEnv()` for a child that loads a native runtime (onnxruntime-node in the Session
@@ -12,10 +12,10 @@ export function getNativeRuntimeChildEnv(
   if (platform !== 'win32') return getSafeChildEnv()
   return {
     ...getSafeChildEnv(),
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERPROFILE: process.env.USERPROFILE,
-    LOCALAPPDATA: process.env.LOCALAPPDATA,
+    SystemRoot: env.SystemRoot,
+    TEMP: env.TEMP,
+    TMP: env.TMP,
+    USERPROFILE: env.USERPROFILE,
+    LOCALAPPDATA: env.LOCALAPPDATA,
   }
 }

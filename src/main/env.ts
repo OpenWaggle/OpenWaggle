@@ -62,6 +62,7 @@ const envSchema = Schema.Struct({
   TEMP: Schema.optional(Schema.String),
   TMP: Schema.optional(Schema.String),
   USERPROFILE: Schema.optional(Schema.String),
+  LOCALAPPDATA: Schema.optional(Schema.String),
 })
 
 export {
