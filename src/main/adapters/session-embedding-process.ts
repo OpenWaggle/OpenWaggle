@@ -12,8 +12,16 @@ import { getSafeChildEnv } from '../env'
 
 export const SESSION_EMBEDDING_IDLE_EXIT_MS = 60_000
 const STDERR_TAIL_CHARS = 2_000
+const MS_PER_SECOND = 1_000
 /** How long a disconnected child may finish a batch before it is killed. */
 const STOP_GRACE_MS = 5_000
+/**
+ * How long the child may go without answering while a batch waits: a batch of 32 takes well under
+ * a second and the model load ~1 s. A child stuck in ORT or a model load (a corrupted model cache)
+ * never answers, which stalled the semantic loop and kept `dispose()` from ending it (review R5
+ * P3-9), so it is killed and its batches fail.
+ */
+export const SESSION_EMBEDDING_REQUEST_TIMEOUT_MS = 120_000
 
 export interface SessionEmbeddingProcessConfig {
   readonly modelId: string
@@ -93,6 +101,8 @@ const spawnEmbeddingChild: EmbeddingChildFactory = (config) =>
 export interface SessionEmbeddingProcessOptions {
   readonly spawnChild?: EmbeddingChildFactory
   readonly idleExitMs?: number
+  /** How long a waiting batch may go without an answer (`SESSION_EMBEDDING_REQUEST_TIMEOUT_MS`). */
+  readonly requestTimeoutMs?: number
   /** Where the child loads transformers.js from; defaults to the Host's own copy. */
   readonly transformersPath?: string
 }
@@ -102,8 +112,10 @@ export class SessionEmbeddingProcess {
   private readonly pending = new Map<number, PendingEmbedding>()
   private nextId = 1
   private idleTimer: ReturnType<typeof setTimeout> | undefined
+  private answerDeadline: ReturnType<typeof setTimeout> | undefined
   private stderrTail = ''
   private readonly idleExitMs: number
+  private readonly requestTimeoutMs: number
   private readonly spawnChild: EmbeddingChildFactory
 
   constructor(
@@ -111,6 +123,7 @@ export class SessionEmbeddingProcess {
     private readonly options: SessionEmbeddingProcessOptions = {},
   ) {
     this.idleExitMs = options.idleExitMs ?? SESSION_EMBEDDING_IDLE_EXIT_MS
+    this.requestTimeoutMs = options.requestTimeoutMs ?? SESSION_EMBEDDING_REQUEST_TIMEOUT_MS
     this.spawnChild = options.spawnChild ?? spawnEmbeddingChild
   }
 
@@ -125,10 +138,29 @@ export class SessionEmbeddingProcess {
     const id = this.nextId++
     return new Promise<EmbeddingTensor>((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
+      this.answerDeadline ??= this.armAnswerDeadline(child)
       child.send({ type: 'embed', id, texts: [...texts] }, (error) => {
         if (error) this.settle(id, { error: error.message })
       })
     })
+  }
+
+  /** Kills a child that answers nothing for `requestTimeoutMs` while batches wait. */
+  private armAnswerDeadline(child: ChildProcess) {
+    const timer = setTimeout(() => {
+      this.answerDeadline = undefined
+      if (this.child !== child || this.pending.size === 0) return
+      const seconds = Math.round(this.requestTimeoutMs / MS_PER_SECOND)
+      this.childEnded(child, `The embedding process did not answer within ${String(seconds)} s.`)
+      child.kill('SIGKILL')
+    }, this.requestTimeoutMs)
+    timer.unref()
+    return timer
+  }
+
+  private clearAnswerDeadline() {
+    if (this.answerDeadline) clearTimeout(this.answerDeadline)
+    this.answerDeadline = undefined
   }
 
   /** Ends the model process now unless it is working; returns whether it ended. */
@@ -174,13 +206,17 @@ export class SessionEmbeddingProcess {
     this.pending.delete(id)
     if ('tensor' in outcome) pending.resolve(outcome.tensor)
     else pending.reject(new Error(outcome.error))
+    // An answer: the next waiting batch gets the whole deadline.
+    this.clearAnswerDeadline()
     if (this.pending.size === 0) this.scheduleIdleExit()
+    else if (this.child) this.answerDeadline = this.armAnswerDeadline(this.child)
   }
 
   private childEnded(child: ChildProcess, reason: string) {
     if (this.child !== child) return
     this.child = undefined
     this.cancelIdleExit()
+    this.clearAnswerDeadline()
     const stderr = this.stderrTail.trim()
     const message = stderr ? `${reason}\n${stderr}` : reason
     for (const id of [...this.pending.keys()]) this.settle(id, { error: message })
