@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { type DetachedProcessLaunch, spawnDetachedProcess } from '../detached-process'
 import { buildNpmCompatiblePath } from '../environment-paths'
+import { fillLinuxSessionBusAddress } from '../linux-session-bus-environment'
 import { legacyDatabaseFileStateSync } from '../session-host/legacy-database-file'
 import {
   legacySessionDatabasePath,
@@ -104,6 +105,8 @@ export interface SessionHostPrelaunchInput {
   readonly executablePath: string
   readonly homeDirectory: string
   readonly temporaryDirectory: () => string
+  /** This user's id, for the Linux session bus under `/run/user/<uid>`. */
+  readonly uid?: number
   readonly pathExists?: (target: string) => boolean
   readonly legacyStorePresent?: (databasePath: string) => boolean
   readonly spawn?: (launch: DetachedProcessLaunch) => ChildProcess
@@ -134,6 +137,12 @@ function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: st
   if (hostTemporaryDirectory) {
     for (const name of TEMPORARY_DIRECTORY_VARIABLES) environment[name] = hostTemporaryDirectory
   }
+  // Before Electron is ready in the Host, whose secret store reaches the session bus through it.
+  fillLinuxSessionBusAddress(environment, {
+    platform: input.platform,
+    ...(input.uid === undefined ? {} : { uid: input.uid }),
+    exists: input.pathExists ?? existsSync,
+  })
   const logLevel = environment.OPENWAGGLE_LOG_LEVEL
   return sessionHostChildEnvironmentFrom({
     safeEnvironment: sessionHostSafeEnvironment(

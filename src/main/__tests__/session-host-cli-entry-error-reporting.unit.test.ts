@@ -34,7 +34,11 @@ vi.mock('electron', () => ({
   },
 }))
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }))
-vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
+vi.mock('../env', () => ({
+  env: {},
+  installDesktopShellEnvironment: async () => undefined,
+  installLinuxSessionBusEnvironment: () => undefined,
+}))
 vi.mock('../desktop-ui', () => ({
   installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,
 }))

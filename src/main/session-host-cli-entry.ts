@@ -4,7 +4,7 @@ import { flushCliOutput } from './cli-output-flush'
 import type { StartedDesktopShellEnvironment } from './desktop-shell-environment'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
 import { installAutomationDesktopUiBlockers } from './desktop-ui'
-import { env, installDesktopShellEnvironment } from './env'
+import { env, installDesktopShellEnvironment, installLinuxSessionBusEnvironment } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
@@ -176,6 +176,9 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   // (dialogs, the browser) the same way, for example a sign-in page an MCP server asks to open.
   installAutomationDesktopUiBlockers()
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+  // Before ready: Electron's secret store reaches the Linux session bus through this process's
+  // environment, which no longer comes from a GUI that hydrated before launching the Host.
+  installLinuxSessionBusEnvironment()
   void app
     .whenReady()
     .then(async () => {

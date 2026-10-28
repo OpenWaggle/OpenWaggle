@@ -15,18 +15,10 @@ const mocks = vi.hoisted(() => {
     quitHandlers,
     exit: vi.fn(),
     endpointExists: vi.fn(() => true),
-    releaseOwnership: vi.fn(async () => {
-      order.push('release-ownership')
-    }),
-    initializeRuntime: vi.fn(async () => {
-      order.push('initialize-runtime')
-    }),
-    disposeRuntime: vi.fn(async () => {
-      order.push('dispose-runtime')
-    }),
-    initializeSettings: vi.fn(async () => {
-      order.push('initialize-settings')
-    }),
+    releaseOwnership: vi.fn(async () => void order.push('release-ownership')),
+    initializeRuntime: vi.fn(async () => void order.push('initialize-runtime')),
+    disposeRuntime: vi.fn(async () => void order.push('dispose-runtime')),
+    initializeSettings: vi.fn(async () => void order.push('initialize-settings')),
     applyInstallerIntent: vi.fn(async () => null),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
@@ -65,7 +57,11 @@ vi.mock('electron', () => ({
 
 vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
-vi.mock('../env', () => ({ env: {}, installDesktopShellEnvironment: async () => undefined }))
+vi.mock('../env', () => ({
+  env: {},
+  installDesktopShellEnvironment: async () => undefined,
+  installLinuxSessionBusEnvironment: () => undefined,
+}))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))

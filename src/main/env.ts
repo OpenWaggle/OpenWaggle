@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { installProcessDesktopShellEnvironment } from './desktop-shell-environment-process'
@@ -9,6 +10,7 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
   withShellPiPackageDirectory,
@@ -93,6 +95,14 @@ let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 /** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
 export const installDesktopShellEnvironment = (options: { readonly cacheFile?: string } = {}) =>
   installProcessDesktopShellEnvironment(process.env, options)
+
+/** Fills a missing Linux session bus address in this process before Electron is ready. */
+export const installLinuxSessionBusEnvironment = () =>
+  fillLinuxSessionBusAddress(process.env, {
+    platform: process.platform,
+    ...(process.getuid ? { uid: process.getuid() } : {}),
+    exists: existsSync,
+  })
 
 /** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
 export const applyPiPackageDirectory = (directory?: string) =>

@@ -183,6 +183,37 @@ describe('startSessionHostPrelaunch', () => {
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ userDataRoot: PROFILE }))
   })
 
+  it('gives a Linux Host the session bus the GUI used to hydrate before launching it', () => {
+    const linux = (overrides: Partial<SessionHostPrelaunchInput>) => {
+      const { input, spawn } = prelaunchInput({
+        platform: 'linux',
+        executablePath: '/opt/OpenWaggle/openwaggle',
+        ...overrides,
+      })
+      startSessionHostPrelaunch(input)
+      return spawn.mock.calls[0]?.[0]?.environment
+    }
+    const runtime = { ...prelaunchInput().input.environment, XDG_RUNTIME_DIR: '/run/user/1000' }
+
+    expect(
+      linux({ environment: runtime, pathExists: (target) => target === '/run/user/1000/bus' }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })
+    // Without XDG_RUNTIME_DIR, the user's own runtime directory.
+    expect(
+      linux({ uid: 1001, pathExists: (target) => target === '/run/user/1001/bus' }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1001/bus' })
+    // The launch's own address wins, and no bus means none is made up.
+    expect(
+      linux({
+        environment: { ...runtime, DBUS_SESSION_BUS_ADDRESS: 'unix:path=/tmp/dbus-launch' },
+        pathExists: () => false,
+      }),
+    ).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/tmp/dbus-launch' })
+    expect(linux({ environment: runtime, pathExists: () => false })).not.toHaveProperty(
+      'DBUS_SESSION_BUS_ADDRESS',
+    )
+  })
+
   it('launches for the profile OPENWAGGLE_USER_DATA_DIR names', () => {
     const profile = '/tmp/qa-profile/user-data'
     const { input, spawn } = prelaunchInput()

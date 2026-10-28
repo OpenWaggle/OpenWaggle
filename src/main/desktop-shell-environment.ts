@@ -10,6 +10,7 @@ import {
   type ShellEnvironmentCommandRunner,
   type ShellEnvironmentPatch,
 } from './desktop-shell-environment-probes'
+import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 
 type MutableEnvironment = Record<string, string | undefined>
 
@@ -143,16 +144,11 @@ function installLocaleEnvironment(
 }
 
 function installLinuxDbusEnvironment(options: DesktopShellEnvironmentOptions) {
-  if (options.platform !== 'linux' || trimNonEmpty(options.env.DBUS_SESSION_BUS_ADDRESS)) return
-  const runtimeDirectories = [trimNonEmpty(options.env.XDG_RUNTIME_DIR)]
-  if (options.uid !== undefined) runtimeDirectories.push(`/run/user/${options.uid}`)
-  for (const runtimeDirectory of runtimeDirectories) {
-    if (!runtimeDirectory) continue
-    const busPath = `${runtimeDirectory.replace(/\/+$/u, '')}/bus`
-    if (options.exists?.(busPath) !== true) continue
-    options.env.DBUS_SESSION_BUS_ADDRESS = `unix:path=${busPath}`
-    return
-  }
+  fillLinuxSessionBusAddress(options.env, {
+    platform: options.platform,
+    ...(options.uid === undefined ? {} : { uid: options.uid }),
+    exists: (path) => options.exists?.(path) === true,
+  })
 }
 
 const FILLED_ENV_NAMES = [
