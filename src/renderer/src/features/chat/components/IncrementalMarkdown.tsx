@@ -184,6 +184,17 @@ function LiveTail({
 }
 
 /**
+ * The completed blocks, from the text before the live tail. That text only changes when a block
+ * completes, so a token re-renders none of them: the element is the same while the prefix is.
+ * Mapped inline, every block's component ran again on each token.
+ */
+function CompletedBlocks({ prefix }: { readonly prefix: string }) {
+  return splitStreamingMarkdown(prefix).blocks.map((block) => (
+    <StreamingMarkdownBlock key={block.start} text={block.text} />
+  ))
+}
+
+/**
  * Markdown that may still be streaming (B9). While it streams, completed blocks render once each
  * and only the tail is parsed per token; a fence still open is not parsed at all. Settled text
  * renders as one document.
@@ -209,12 +220,10 @@ export function IncrementalMarkdown({
     )
   }
 
-  const { blocks, tail } = splitStreamingMarkdown(text)
+  const { tail } = splitStreamingMarkdown(text)
   return (
     <>
-      {blocks.map((block) => (
-        <StreamingMarkdownBlock key={block.start} text={block.text} />
-      ))}
+      <CompletedBlocks prefix={tail ? text.slice(0, tail.start) : text} />
       {tail ? (
         <LiveTail
           key={`tail-${String(tail.start)}`}
