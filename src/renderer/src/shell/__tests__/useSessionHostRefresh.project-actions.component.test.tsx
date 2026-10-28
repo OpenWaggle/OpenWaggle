@@ -107,6 +107,8 @@ describe('useSessionHostRefresh: Project Actions reads on Session changes', () =
         summary(ACTIVE, '/active-project'),
         ...WORKERS.map((worker) => summary(worker, '/hive-project')),
       ],
+      archivedSessions: [],
+      hiveSessions: [],
     })
   })
 
@@ -138,5 +140,43 @@ describe('useSessionHostRefresh: Project Actions reads on Session changes', () =
       '/active-project:runs',
       '/active-project:shortcut-presentation',
     ])
+  })
+
+  /*
+   * Review V1 P3-5: a Session the window has not loaded (created in the same batch, or a Worker
+   * beyond the loaded catalog page) has no known project, so narrowing by project read nothing and
+   * its Project Action run never reached the open panel.
+   */
+  it("reads every project's queries, without discovery, for a Session the window has not loaded", async () => {
+    const receive = renderRefresh()
+    await act(async () => {})
+    manageProjectActions.mockClear()
+
+    await act(async () => {
+      receive(stateChanged(SessionId('worker-beyond-the-loaded-page')))
+    })
+
+    expect(readKinds().sort()).toEqual([
+      '/active-project:catalog',
+      '/active-project:runs',
+      '/active-project:shortcut-presentation',
+      '/another-project:catalog',
+    ])
+  })
+
+  it('finds a changed Hive Worker in the Hive list', async () => {
+    useSessionStore.setState({
+      sessions: [summary(ACTIVE, '/active-project')],
+      hiveSessions: WORKERS.map((worker) => summary(worker, '/hive-project')),
+    })
+    const receive = renderRefresh()
+    await act(async () => {})
+    manageProjectActions.mockClear()
+
+    await act(async () => {
+      receive(stateChanged(WORKERS[0] ?? ACTIVE))
+    })
+
+    expect(readKinds()).toEqual([])
   })
 })

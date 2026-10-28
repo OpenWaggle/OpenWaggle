@@ -110,16 +110,24 @@ function takePendingSessionHostRefresh(
  * Project Actions are no longer polled (B7/D9): a Session's Run starting or settling is when its
  * agent may have started an action, changed the catalog, or birthed a worktree. Only the changed
  * Sessions' queries and their projects' are read again, never discovery: invalidating every
- * project's queries on each Worker's state change read more than the polls it replaced.
+ * project's queries on each Worker's state change read more than the polls it replaced. A changed
+ * Session the window has not loaded falls back to every project for that batch.
  */
 function invalidateChangedProjectActions(queryClient: QueryClient, sessionIds: readonly string[]) {
   const changed = new Set(sessionIds)
   const projectPaths = new Set<string>()
-  for (const session of useSessionStore.getState().sessions) {
-    if (changed.has(String(session.id)) && session.projectPath)
-      projectPaths.add(session.projectPath)
+  const known = new Set<string>()
+  const { sessions, archivedSessions, hiveSessions } = useSessionStore.getState()
+  for (const session of [...sessions, ...archivedSessions, ...hiveSessions]) {
+    const sessionId = String(session.id)
+    if (!changed.has(sessionId)) continue
+    known.add(sessionId)
+    if (session.projectPath) projectPaths.add(session.projectPath)
   }
-  const change = { sessionIds: changed, projectPaths }
+  // The catalog reloads after this, so a Session this batch created is not loaded yet; neither is
+  // a Worker beyond the loaded page. Their project is unknown: read every project's queries.
+  const unknownProject = [...changed].some((sessionId) => !known.has(sessionId))
+  const change = { sessionIds: changed, projectPaths, unknownProject }
   void queryClient.invalidateQueries({
     predicate: (query) => isProjectActionQueryAffected(query.queryKey, change),
   })
