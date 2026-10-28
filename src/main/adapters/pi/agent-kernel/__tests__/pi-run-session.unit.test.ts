@@ -45,7 +45,7 @@ beforeEach(() => {
   mocks.offersPowerShell.mockReset().mockReturnValue(true)
 })
 
-it('leaves PowerShell out where pwsh is not on the PATH tools run with', async () => {
+it('leaves PowerShell out where Pi cannot run it', async () => {
   mocks.offersPowerShell.mockReturnValue(false)
   await createPiSessionForRun(
     fromPartial({
@@ -57,7 +57,7 @@ it('leaves PowerShell out where pwsh is not on the PATH tools run with', async (
     }),
   )
 
-  expect(mocks.offersPowerShell).toHaveBeenCalledWith(process.platform, '/prepared/bin')
+  expect(mocks.offersPowerShell).toHaveBeenCalledWith(process.platform)
   expect(mocks.createSession).toHaveBeenCalledWith(
     expect.objectContaining({ customTools: [{ name: 'bash' }] }),
   )
