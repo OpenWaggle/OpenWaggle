@@ -4,7 +4,7 @@ import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { isPathInside } from '../../utils/paths'
 
 /** Longest skill description the prompt lists; the whole one stays in the skill's SKILL.md. */
-export const SKILL_PROMPT_DESCRIPTION_LIMIT = 200
+export const SKILL_PROMPT_DESCRIPTION_LIMIT = 160
 
 const ELLIPSIS = '…'
 
