@@ -106,6 +106,27 @@ describe('bounded desktop shell environment probes', () => {
     return result
   })
 
+  it('starts a probe with the environment it is given, not this process', () => {
+    const probe = fakeChild(PROBE_PID)
+    spawnMock.mockReturnValue(probe.child)
+
+    const result = runBoundedShellEnvironmentCommand({
+      probe: 'login-shell',
+      command: '/bin/example-shell',
+      args: [],
+      timeoutMs: PROBE_TIMEOUT_MS,
+      env: { PATH: '/launch/bin', HOME: '/Users/test' },
+    })
+    probe.child.emit('close', 0, null)
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      '/bin/example-shell',
+      [],
+      expect.objectContaining({ env: { PATH: '/launch/bin', HOME: '/Users/test' } }),
+    )
+    return result
+  })
+
   it.runIf(process.platform === 'win32')(
     'uses bounded taskkill tree termination for a live Windows root',
     async () => {
