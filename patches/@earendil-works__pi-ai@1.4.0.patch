@@ -80,7 +80,7 @@ index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a
  //# sourceMappingURL=bedrock-converse-stream.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f121afe6883 100644
+index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..5cfdd1639c4ae31efff6e0d5b18e22a973038c36 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
 @@ -1,5 +1,6 @@
@@ -116,7 +116,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
          const config = {
              profile: optionsProfile || getProviderEnvValue("AWS_PROFILE", options.env),
              customUserAgent: bedrockUserAgent(options.identity),
-@@ -105,14 +110,23 @@ export const stream = (model, context, options = {}) => {
+@@ -105,14 +110,31 @@ export const stream = (model, context, options = {}) => {
                  // Bedrock runtime uses NodeHttp2Handler by default since v3.798.0, which is based
                  // on `http2` module and has no support for http agent.
                  // Use NodeHttpHandler to support HTTP(S) proxy agents.
@@ -141,11 +141,19 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
 +                // The SDK's default HTTP/2 handler sets disableConcurrentStreams, which opens a new
 +                // session (and TLS handshake) for every request. Converse streams are ordinary
 +                // request/response streams, so the cached client's requests share one session.
-+                requestHandlerSpec = { key: "http2", create: () => new NodeHttp2Handler({ disableConcurrentStreams: false }) };
++                // A pooled session is destroyed after BEDROCK_HTTP2_SESSION_TIMEOUT_MS without activity,
++                // the bound each isolated session had, so a dead connection cannot hang a request forever.
++                requestHandlerSpec = {
++                    key: "http2",
++                    create: () => new NodeHttp2Handler({
++                        disableConcurrentStreams: false,
++                        sessionTimeout: BEDROCK_HTTP2_SESSION_TIMEOUT_MS,
++                    }),
++                };
              }
          }
          else {
-@@ -128,32 +142,27 @@ export const stream = (model, context, options = {}) => {
+@@ -128,32 +150,27 @@ export const stream = (model, context, options = {}) => {
          // Kept outside the try so the catch can still correlate a mid-stream failure:
          // exceptions delivered as stream events carry no HTTP metadata of their own.
          let responseRequestId;
@@ -186,7 +194,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
                  additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
                  ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
              };
-@@ -162,6 +171,16 @@ export const stream = (model, context, options = {}) => {
+@@ -162,6 +179,16 @@ export const stream = (model, context, options = {}) => {
                  commandInput = nextCommandInput;
              }
              const command = new ConverseStreamCommand(commandInput);
@@ -203,7 +211,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
              const response = await client.send(command, { abortSignal: options.signal });
              responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
              if (!observedRawResponse && response.$metadata.httpStatusCode !== undefined) {
-@@ -242,9 +261,125 @@ export const stream = (model, context, options = {}) => {
+@@ -242,9 +269,138 @@ export const stream = (model, context, options = {}) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -217,6 +225,15 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
 +const BEDROCK_CLIENT_CACHE_SIZE = 8;
 +/** A client unused this long is closed, with its credential provider and HTTP/2 session. */
 +const BEDROCK_CLIENT_IDLE_MS = 10 * 60_000;
++/**
++ * A client unused this long opens new connections for its next request and keeps its credentials.
++ * An idle HTTP/2 session (or keep-alive socket) can die without a GOAWAY or close (Wi-Fi roam, VPN,
++ * NAT or firewall idle expiry), and a request sent on it waits until TCP gives up, minutes later.
++ * Back-to-back tool-loop turns, which the reuse speeds up, are seconds apart.
++ */
++const BEDROCK_CONNECTION_REUSE_IDLE_MS = 30_000;
++/** The SDK's own idle bound for an isolated HTTP/2 session (`requestTimeout ?? 300_000`). */
++const BEDROCK_HTTP2_SESSION_TIMEOUT_MS = 300_000;
 +const bedrockClients = new Map();
 +let bedrockClientSweep;
 +function fingerprint(value) {
@@ -272,6 +289,10 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
 +    if (entry) {
 +        // Re-insert so iteration order stays least recently used first.
 +        bedrockClients.delete(key);
++        if (entry.inFlight === 0 && Date.now() - entry.lastUsedAt >= BEDROCK_CONNECTION_REUSE_IDLE_MS) {
++            // Closes the handler's sessions and sockets; the handler opens new ones on demand.
++            entry.client.config.requestHandler?.destroy?.();
++        }
 +    }
 +    else {
 +        entry = {
@@ -329,7 +350,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
  /**
   * Human-readable prefixes for Bedrock SDK exception names.
   * The downstream retry logic in agent-session matches patterns like
-@@ -356,7 +491,7 @@ function bedrockUserAgent(identity) {
+@@ -356,7 +512,7 @@ function bedrockUserAgent(identity) {
   * SigV4 / auth headers (`x-amz-*`, `authorization`, `host`) are silently skipped;
   * all other caller headers override any existing same-named header on the request.
   */
@@ -338,7 +359,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
      const middleware = (next) => async (args) => {
          const request = args.request;
          if (request && typeof request === "object" && "headers" in request) {
-@@ -369,7 +504,7 @@ function addCustomHeadersMiddleware(client, headers) {
+@@ -369,7 +525,7 @@ function addCustomHeadersMiddleware(client, headers) {
          }
          return next(args);
      };
@@ -347,7 +368,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
  }
  function isSmithyHttpResponse(response) {
      if (!response || typeof response !== "object")
-@@ -388,7 +523,7 @@ function toProviderResponse(response) {
+@@ -388,7 +544,7 @@ function toProviderResponse(response) {
   * `onResponse`. Capture the raw Smithy HTTP response at the deserialize step,
   * after the SDK receives the response but before the event stream is consumed.
   */
@@ -356,7 +377,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
      const middleware = (next) => async (args) => {
          const result = await next(args);
          const providerResponse = toProviderResponse(result.response);
-@@ -398,7 +533,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
+@@ -398,7 +554,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
          }
          return result;
      };
@@ -365,7 +386,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
  }
  export const streamSimple = (model, context, options) => {
      const base = {
-@@ -473,7 +608,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+@@ -473,7 +629,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -374,7 +395,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
          stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
      }
      else if (delta?.reasoningContent) {
-@@ -540,6 +675,10 @@ function flushRedactedContent(block) {
+@@ -540,6 +696,10 @@ function flushRedactedContent(block) {
   */
  function finalizeStreamingBlock(block) {
      delete block.index;
@@ -385,7 +406,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
      // partialJson is only a streaming scratch buffer; never persist it.
      delete block.partialJson;
      flushRedactedContent(block);
-@@ -591,15 +730,7 @@ function getModelMatchCandidates(modelId, modelName) {
+@@ -591,15 +751,7 @@ function getModelMatchCandidates(modelId, modelName) {
      });
  }
  function supportsAdaptiveThinking(modelId, modelName) {
@@ -402,7 +423,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
  }
  function supportsNativeXhighEffort(model) {
      const candidates = getModelMatchCandidates(model.id, model.name);
-@@ -715,17 +846,50 @@ function supportsPromptCaching(model, env) {
+@@ -715,17 +867,50 @@ function supportsPromptCaching(model, env) {
  function supportsThinkingSignature(model) {
      return isAnthropicClaudeModel(model);
  }
@@ -461,7 +482,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
  }
  function normalizeToolCallId(id) {
      const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-@@ -924,7 +1088,7 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -924,7 +1109,7 @@ function convertMessages(context, model, cacheRetention, env) {
      }
      return result;
  }
@@ -470,7 +491,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..123d8466ed3c887a34eaef5913173f12
      if (!tools?.length)
          return undefined;
      if (toolChoice === "none")
-@@ -940,6 +1104,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+@@ -940,6 +1125,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
              },
          };
      });

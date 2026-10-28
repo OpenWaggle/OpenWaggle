@@ -1,5 +1,4 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http'
-import { createServer as createHttp2Server } from 'node:http2'
 import type { AddressInfo } from 'node:net'
 import type { Context } from '@earendil-works/pi-ai'
 import { stream as streamBedrock } from '@earendil-works/pi-ai/api/bedrock-converse-stream'
@@ -9,9 +8,9 @@ import {
 } from '@earendil-works/pi-ai/bedrock-provider'
 import { AMAZON_BEDROCK_MODELS } from '@earendil-works/pi-ai/providers/amazon-bedrock.models'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withExpiredCredentialRetry } from '../pi-bedrock-credential-retry'
-import { bedrockEventFrame } from './bedrock-event-stream.test-utils'
+import { BEDROCK_TEXT_FRAMES as TEXT_FRAMES } from './bedrock-event-stream.test-utils'
 
 /**
  * Pi's real Bedrock stream against a loopback server. Pi used to build a new BedrockRuntimeClient
@@ -20,17 +19,6 @@ import { bedrockEventFrame } from './bedrock-event-stream.test-utils'
  */
 
 const MODEL = AMAZON_BEDROCK_MODELS['eu.anthropic.claude-haiku-4-5-20251001-v1:0']
-
-const TEXT_FRAMES = Buffer.concat([
-  bedrockEventFrame('messageStart', { role: 'assistant' }),
-  bedrockEventFrame('contentBlockDelta', { contentBlockIndex: 0, delta: { text: 'Hello' } }),
-  bedrockEventFrame('contentBlockStop', { contentBlockIndex: 0 }),
-  bedrockEventFrame('messageStop', { stopReason: 'end_turn' }),
-  bedrockEventFrame('metadata', {
-    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-    metrics: { latencyMs: 1 },
-  }),
-])
 
 interface RecordedRequest {
   readonly headers: IncomingHttpHeaders
@@ -128,6 +116,24 @@ describe('Amazon Bedrock client reuse', () => {
     })
 
     expect(connections).toEqual([1, 1, 1])
+  })
+
+  it('keeps the client but opens a new HTTP/1.1 connection after sitting idle', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const connections = await withServer(async (baseUrl, requests) => {
+        await send(baseUrl)
+        await send(baseUrl)
+        vi.setSystemTime(Date.now() + 31_000)
+        expect((await send(baseUrl)).stopReason).toBe('stop')
+        expect(getBedrockClientCacheSize()).toBe(1)
+        return requests.map((request) => request.connection)
+      })
+
+      expect(connections).toEqual([1, 1, 2])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps per-request headers on their own request', async () => {
@@ -291,41 +297,5 @@ describe('Amazon Bedrock cache points', () => {
 
     expect(body.system).toHaveLength(1)
     expect(body.toolConfig?.tools).toHaveLength(1)
-  })
-})
-
-describe('Amazon Bedrock HTTP/2 sessions', () => {
-  it('share one session between requests, where the SDK default opened one per request', async () => {
-    const server = createHttp2Server()
-    let sessions = 0
-    server.on('session', () => {
-      sessions += 1
-    })
-    server.on('stream', (stream) => {
-      stream.on('data', () => undefined)
-      stream.on('end', () => {
-        stream.respond({ ':status': 200, 'content-type': 'application/vnd.amazon.eventstream' })
-        stream.end(TEXT_FRAMES)
-      })
-    })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    try {
-      const address: AddressInfo | string | null = server.address()
-      if (address === null || typeof address === 'string') throw new Error('No TCP address')
-      const baseUrl = `http://127.0.0.1:${String(address.port)}`
-      const env = { AWS_BEDROCK_SKIP_AUTH: '1', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' }
-      for (let index = 0; index < 3; index++) {
-        const result = await streamBedrock({ ...MODEL, baseUrl }, normalizeContext(userContext()), {
-          region: 'eu-west-1',
-          maxRetries: 0,
-          env,
-        }).result()
-        expect(result.stopReason).toBe('stop')
-      }
-      expect(sessions).toBe(1)
-    } finally {
-      clearBedrockClients()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-    }
   })
 })

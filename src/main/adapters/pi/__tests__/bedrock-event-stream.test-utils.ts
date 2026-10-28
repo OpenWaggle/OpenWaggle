@@ -46,6 +46,18 @@ export function bedrockEventFrame(eventType: string, payload: unknown) {
   return Buffer.concat([message, messageCrc])
 }
 
+/** A whole Bedrock text reply, "Hello", as one response body. */
+export const BEDROCK_TEXT_FRAMES = Buffer.concat([
+  bedrockEventFrame('messageStart', { role: 'assistant' }),
+  bedrockEventFrame('contentBlockDelta', { contentBlockIndex: 0, delta: { text: 'Hello' } }),
+  bedrockEventFrame('contentBlockStop', { contentBlockIndex: 0 }),
+  bedrockEventFrame('messageStop', { stopReason: 'end_turn' }),
+  bedrockEventFrame('metadata', {
+    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    metrics: { latencyMs: 1 },
+  }),
+])
+
 /** JSON arguments for a `write` tool call whose content is about `contentBytes` long. */
 export function writeFileArguments(contentBytes: number) {
   const line = '  const value = "quoted\\tstring" + `template`; // a \\ backslash\n'
