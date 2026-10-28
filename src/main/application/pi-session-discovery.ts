@@ -15,7 +15,7 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { hostBackgroundGate } from './host-background-gate'
+import { awaitHostBackgroundTurn } from './host-background-turn'
 import { announceCreatedSessionsWithMissingPiFiles } from './pi-session-created-file-notices'
 import { removeSessionsWithDeletedPiFiles } from './pi-session-deleted-files'
 import {
@@ -300,8 +300,9 @@ export function runPiSessionDiscoveryBackground<R>(createSession: DiscoveredSess
       if (Cause.isInterruptedOnly(cause)) return
       logger.warn('Pi session discovery failed', { cause: Cause.pretty(cause) })
     })
-  // Each pass waits until a client has been attached a moment, and while none is (A-F9).
-  const whenAllowed = Effect.promise(() => hostBackgroundGate.whenOpen())
+  // Each pass waits until a client has been attached a moment, and while none is (A-F9), and
+  // starts when the clients' requests are quiet (W12).
+  const whenAllowed = awaitHostBackgroundTurn
   return Effect.forkScoped(
     whenAllowed.pipe(
       Effect.zipRight(removeUnattachedDiscoveredSessions()),

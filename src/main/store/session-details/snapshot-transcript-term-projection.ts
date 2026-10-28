@@ -3,7 +3,10 @@ import * as Data from 'effect/Data'
 import * as Deferred from 'effect/Deferred'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
-import { hostBackgroundGate } from '../../application/host-background-gate'
+import {
+  awaitHostBackgroundTurn,
+  yieldToHostForeground,
+} from '../../application/host-background-turn'
 import { createLogger } from '../../logger'
 import {
   applyIncrementalSessionTranscriptTerms,
@@ -245,9 +248,10 @@ export function repairStaleTranscriptTermProjections(
     for (const { id } of rows) {
       // Each Session, and each slice of a large one, gives clients a turn: the repair of a freshly
       // opened 1,800-Session profile held the Host's thread for 50 s straight before it listened.
-      yield* yieldToEventLoop
+      // The turn lasts while their requests do: a Session open waited behind slice after slice.
+      yield* yieldToHostForeground
       const ok = yield* rebuildSessionTranscriptTermsInSlices(sql, id, {
-        betweenSlices: yieldToEventLoop,
+        betweenSlices: yieldToHostForeground,
       }).pipe(
         Effect.as(true),
         Effect.catchAll((error) =>
@@ -284,7 +288,7 @@ export const runTranscriptTermRepairBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const loop = Effect.gen(function* () {
     // Waits until a client has been attached a moment, and while none is (A-F9).
-    yield* Effect.promise(() => hostBackgroundGate.whenOpen())
+    yield* awaitHostBackgroundTurn
     const wake = yield* Deferred.make<void>()
     repairWake = wake
     const result = yield* repairStaleTranscriptTermProjections(sql).pipe(

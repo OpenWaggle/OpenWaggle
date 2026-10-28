@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { hostBackgroundGate } from '../application/host-background-gate'
 
 const MAX_LABEL_LENGTH = 64
 const DEFAULT_OLDEST_DESCRIBED_COMMANDS = 8
@@ -75,18 +76,30 @@ export class LocalSessionInflightCommands {
   /** Insertion order is start order, which `describe` relies on. */
   private readonly commands = new Map<number, InflightCommand>()
 
-  constructor(private readonly now: () => number = () => performance.now()) {}
+  /**
+   * @param onForegroundCommand told when a command that is not a long-poll starts; the function it
+   *   returns is called when the command ends. By default the Host's background gate, so its
+   *   background work gives way while clients' commands are in flight (W12).
+   */
+  constructor(
+    private readonly now: () => number = () => performance.now(),
+    private readonly onForegroundCommand: () => () => void = () =>
+      hostBackgroundGate.foregroundStarted(),
+  ) {}
 
   track(payload: unknown): () => void {
     const id = this.nextId
     this.nextId += 1
+    const longPoll = isLongPollLocalSessionCommand(payload)
     this.commands.set(id, {
       command: describeLocalSessionCommand(payload),
       startedAt: this.now(),
-      longPoll: isLongPollLocalSessionCommand(payload),
+      longPoll,
     })
+    const endForeground = longPoll ? undefined : this.onForegroundCommand()
     return () => {
       this.commands.delete(id)
+      endForeground?.()
     }
   }
 
