@@ -10,6 +10,7 @@ import {
   type useChat,
 } from '@/features/chat/hooks'
 import { useBackgroundRunStore } from '@/features/chat/state'
+import { isProjectActionQueryAffected } from '@/features/project-actions'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
@@ -105,6 +106,25 @@ function takePendingSessionHostRefresh(
   return refresh
 }
 
+/**
+ * Project Actions are no longer polled (B7/D9): a Session's Run starting or settling is when its
+ * agent may have started an action, changed the catalog, or birthed a worktree. Only the changed
+ * Sessions' queries and their projects' are read again, never discovery: invalidating every
+ * project's queries on each Worker's state change read more than the polls it replaced.
+ */
+function invalidateChangedProjectActions(queryClient: QueryClient, sessionIds: readonly string[]) {
+  const changed = new Set(sessionIds)
+  const projectPaths = new Set<string>()
+  for (const session of useSessionStore.getState().sessions) {
+    if (changed.has(String(session.id)) && session.projectPath)
+      projectPaths.add(session.projectPath)
+  }
+  const change = { sessionIds: changed, projectPaths }
+  void queryClient.invalidateQueries({
+    predicate: (query) => isProjectActionQueryAffected(query.queryKey, change),
+  })
+}
+
 function invalidateSessionHostQueries(
   queryClient: QueryClient,
   refresh: ReturnType<typeof takePendingSessionHostRefresh>,
@@ -112,11 +132,7 @@ function invalidateSessionHostQueries(
   for (const sessionId of refresh.queueSessionIds) {
     void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
   }
-  if (refresh.catalog) {
-    // Project Actions are no longer polled (B7/D9): a Session's Run starting or settling is when
-    // its agent may have started an action, changed the catalog, or birthed a worktree.
-    void queryClient.invalidateQueries({ queryKey: queryKeys.projectActions })
-  }
+  if (refresh.catalog) invalidateChangedProjectActions(queryClient, refresh.queueSessionIds)
   if (refresh.archivedBranches) {
     // Archiving, restoring, and deleting anywhere (another window, the CLI, Hive cleanup)
     // changes what Settings > Archived items lists.

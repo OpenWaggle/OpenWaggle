@@ -139,9 +139,10 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: queryKeys.archivedItems,
     })
-    // Project Actions are read on Host Session-state changes instead of polled (B7/D9).
+    // Project Actions are read on Host Session-state changes instead of polled (B7/D9), only
+    // the changed Session's and its project's (useSessionHostRefresh.project-actions).
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: queryKeys.projectActions,
+      predicate: expect.any(Function),
     })
     expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
       initialCountRevision + 1,
