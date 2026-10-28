@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * Launch-time gates of the v1 performance plan, measured on packaged builds in hidden automation
  * with throwaway profiles: cold and warm launch to first paint, Session list and chat, renderer
  * LCP, and `openwaggle --version`. Several `--app` builds are interleaved run by run.
@@ -63,7 +66,7 @@ function numberOption(raw: string | undefined, fallback: number) {
 function resolveApps(): PerfApp[] {
   const appPaths = values.app ?? []
   if (appPaths.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app | built checkout> (repeatable).\n')
+    process.stderr.write('Use --app <OpenWaggle.app | built checkout> (repeatable) (macOS only).\n')
     process.exit(USAGE_EXIT_CODE)
   }
   return appPaths.map((appPath, index) => resolvePerfApp(appPath, values.label?.[index]))

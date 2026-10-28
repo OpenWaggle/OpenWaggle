@@ -23,7 +23,6 @@ export const BUNDLED_DEPS = [
   '@modelcontextprotocol/client',
   '@modelcontextprotocol/node',
   '@modelcontextprotocol/server',
-  '@modelcontextprotocol/ext-apps',
   'typebox',
   '@electron-toolkit/utils',
   'fast-glob',

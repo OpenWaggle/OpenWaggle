@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * Generates the large measurement profile (decision 8 of the v1 performance plan): about 1,800
  * Sessions and 300,000 transcript nodes, most of them archived as in a long-used profile, plus a
  * few multi-megabyte Sessions. Measurements clone it instead of touching anyone's real profile.
@@ -94,7 +97,7 @@ function plannedSessions(projects: readonly string[]) {
 
 async function main() {
   if (!values.app || !values.out) {
-    process.stderr.write('Use --app <OpenWaggle.app> --out <directory> [--sessions N] [--nodes N]\n')
+    process.stderr.write('Use --app <OpenWaggle.app> --out <directory> [--sessions N] [--nodes N] (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   await mkdir(values.out, { recursive: true })

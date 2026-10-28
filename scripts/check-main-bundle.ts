@@ -6,6 +6,7 @@ import {
   processStartupChunks,
 } from './main-bundle-graph'
 import { disallowedTopLevelRequires } from './main-bundle-requires'
+import { probeStartupExternals, startupExternalFailures } from './main-bundle-startup-externals'
 import { MAIN_CHUNK_MANIFEST_PATH } from './vite/main-chunk-manifest'
 
 const KIBIBYTE = 1024
@@ -21,6 +22,20 @@ const MAX_MAIN_BOOT_BYTES = 56 * KIBIBYTE
 
 async function fileBytes(file: string) {
   return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size
+}
+
+/**
+ * Every main chunk has its hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
+ */
+async function missingSourceMaps(files: readonly string[]) {
+  const missing: string[] = []
+  for (const file of files) {
+    const map = path.join(MAIN_OUT_DIRECTORY, `${file}.map`)
+    const exists = await fs.stat(map).then(() => true, () => false)
+    if (!exists) missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+  }
+  return missing
 }
 
 async function topLevelRequireFailures(files: readonly string[]) {
@@ -46,11 +61,19 @@ async function main() {
     MAIN_BOOT_FILE,
     ...manifest.map((entry) => entry.file),
   ])
+  failures.push(...(await missingSourceMaps(manifest.map((entry) => entry.file))))
   const bootBytes = await fileBytes(MAIN_BOOT_FILE)
   if (bootBytes > MAX_MAIN_BOOT_BYTES) {
     failures.push(`out/main/${MAIN_BOOT_FILE} is ${String(bootBytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`)
   }
   const lines = [`${MAIN_BOOT_FILE}: ${String(bootBytes)} bytes`, `${String(manifest.length)} main chunks`]
+  // Where a require sits is not when it runs: run the bundle's startup and see what it loads.
+  const entry = manifest.find((chunk) => chunk.isEntry)
+  if (entry) {
+    const probed = probeStartupExternals(path.join(MAIN_OUT_DIRECTORY, entry.file))
+    failures.push(...startupExternalFailures(probed))
+    lines.push(...probed.map((result) => `startup of ${result.argv.join(' ')}: loads ${result.loaded.join(', ') || 'nothing external'}`))
+  }
   for (const budget of MAIN_PROCESS_BUDGETS) {
     const chunks = processStartupChunks(manifest, budget.startupModules)
     const sizes = await Promise.all(chunks.map(fileBytes))

@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import tls from 'node:tls'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createPiRuntimeServices } from '../../../../src/main/adapters/pi/pi-provider-catalog'
+import { copyAwsSsoConfiguration } from '../../lib/aws-sso-home'
 import { measurementEnvironment } from '../../lib/perf-results'
 import { summarize } from '../../lib/perf-stats'
 
@@ -15,8 +16,8 @@ import { summarize } from '../../lib/perf-stats'
  *   OPENWAGGLE_PERF_BEDROCK_MODEL=eu.anthropic.claude-sonnet-5 AWS_PROFILE=<sso profile> \
  *     OPENWAGGLE_PERF_OUT=<dir> pnpm perf:bedrock-ttfb
  *
- * The test home has no AWS configuration, so the user's `~/.aws` is linked into it (read as the
- * AWS CLI reads it; a refreshed SSO token is written back there as the CLI would).
+ * The test home has no AWS configuration, so it gets read-only copies of the user's `~/.aws/config`
+ * and SSO token cache (never a link to the real `~/.aws`, and never its long-lived keys).
  */
 const modelId = process.env.OPENWAGGLE_PERF_BEDROCK_MODEL
 const outDirectory = process.env.OPENWAGGLE_PERF_OUT
@@ -59,16 +60,15 @@ afterAll(async () => {
   await Promise.all(cleanups.map((directory) => rm(directory, { recursive: true, force: true })))
 })
 
-async function linkUserAwsConfiguration() {
-  const home = process.env.HOME ?? os.homedir()
-  await symlink(path.join(os.userInfo().homedir, '.aws'), path.join(home, '.aws')).catch(() => undefined)
+async function copyUserAwsConfiguration() {
+  await copyAwsSsoConfiguration(os.userInfo().homedir, process.env.HOME ?? os.homedir())
 }
 
 describe.skipIf(!modelId)('Bedrock time to first byte', () => {
   it(
     'times sequential requests through the OpenWaggle Pi runtime',
     async () => {
-      await linkUserAwsConfiguration()
+      await copyUserAwsConfiguration()
       const project = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-bedrock-ttfb-'))
       cleanups.push(project)
       const services = await createPiRuntimeServices(project)

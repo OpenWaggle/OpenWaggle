@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * The first-turn prefix as a packaged build sends it (decision 6 of the v1 performance plan): a
  * Run started with `openwaggle run` in hidden automation, with first-party extensions on, whose
  * requests a local fake provider records. Counts o200k tokens of the system prompt (by section),
@@ -93,7 +96,7 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer|real-home]\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer|real-home] (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const setup = values.setup ?? 'empty'

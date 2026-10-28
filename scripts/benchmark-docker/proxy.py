@@ -1,30 +1,43 @@
 #!/usr/bin/env python3
 """Logging reverse proxy in front of OpenRouter for the first-turn token benchmark.
 
-Forwards every request to https://openrouter.ai with the real key in place of the
-agent's dummy one, streams the upstream status, headers and body back exactly once
-(SSE clients see chunks as they arrive), and appends one JSONL record per request:
-the upstream status, the request body (agents' requests carry no credentials; the
-Authorization header is never logged) and every usage object in the response.
+Forwards the benchmark's model requests to https://openrouter.ai with the real key in
+place of the agent's per-run token, streams the upstream status, headers and body back
+exactly once (SSE clients see chunks as they arrive), and appends one JSONL record per
+request: the upstream status, the request body (agents' requests carry no credentials;
+the Authorization header is never logged) and every usage object in the response.
+Records are appended when a response ends; each carries `seq`, the request's arrival
+order, which readers sort by to find an agent's first request.
 
 The listener binds to 127.0.0.1 unless BENCH_PROXY_BIND names another local address
-(run.sh passes Docker's bridge gateway on Linux). It injects a real key, so it must
-never listen on every interface.
+(run.sh passes Docker's bridge gateway on Linux). Binding alone does not isolate it:
+every container on the machine can reach host loopback (Docker Desktop) or the bridge
+gateway (Linux). So the proxy also
+- reads the real key from its environment (OPENROUTER_API_KEY), never from argv, which
+  other local users can read;
+- refuses (403) any request that does not present the per-run token BENCH_PROXY_TOKEN
+  as `Authorization: Bearer <token>` or `x-api-key: <token>`;
+- forwards only the model endpoints the agents use and only the model BENCH_MODEL.
+`GET /__bench/ready` answers locally, so a readiness check never reaches OpenRouter.
 
-Usage: proxy.py <port> <openrouter-api-key> <log-path>
+Usage: OPENROUTER_API_KEY=... BENCH_PROXY_TOKEN=... BENCH_MODEL=... proxy.py <port> <log-path>
 """
+import hmac
 import http.client
 import json
 import os
 import ssl
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 PORT = int(sys.argv[1])
-KEY = sys.argv[2]
-LOG_PATH = sys.argv[3]
+LOG_PATH = sys.argv[2]
+KEY = os.environ.get("OPENROUTER_API_KEY", "")
+RUN_TOKEN = os.environ.get("BENCH_PROXY_TOKEN", "")
+MODEL = os.environ.get("BENCH_MODEL", "")
 BIND = os.environ.get("BENCH_PROXY_BIND", "127.0.0.1")
 # Overridable only so the proxy's tests can stand in a local upstream.
 UPSTREAM = urlsplit(os.environ.get("BENCH_PROXY_UPSTREAM", "https://openrouter.ai"))
@@ -34,7 +47,29 @@ FORWARDED_RESPONSE_HEADERS = {"content-type", "cache-control"}
 USAGE_KEYS = {"prompt_tokens", "input_tokens", "completion_tokens", "output_tokens", "total_tokens"}
 # python.org builds ship without a CA bundle; fall back to the system one (macOS, most Linux).
 SYSTEM_CA_FILES = ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt")
+READY_PATH = "/__bench/ready"
+# The endpoints the benchmarked agents call (chat completions, responses, messages) and the
+# model list some of them read. Anything else, `/api/v1/key` included, is refused.
+ALLOWED_ROUTES = {
+    ("POST", "/api/v1/chat/completions"),
+    ("POST", "/api/v1/responses"),
+    ("POST", "/api/v1/messages"),
+    ("GET", "/api/v1/models"),
+}
+HTTP_NO_CONTENT = 204
+HTTP_FORBIDDEN = 403
 log_lock = threading.Lock()
+arrival_lock = threading.Lock()
+arrivals = 0
+
+
+def next_arrival():
+    """Arrival order of the requests: the log is written in completion order, and a short
+    background call (a Session title) can finish before the first model call it overlaps."""
+    global arrivals
+    with arrival_lock:
+        arrivals += 1
+        return arrivals
 
 
 def tls_context():
@@ -91,12 +126,45 @@ def split_agent_path(path):
     return (name or None), "/" + rest
 
 
+def presented_token(headers):
+    authorization = headers.get("Authorization") or ""
+    if authorization.lower().startswith("bearer "):
+        return authorization[len("bearer "):].strip()
+    return (headers.get("x-api-key") or "").strip()
+
+
+def refusal(command, upstream_path, headers, body):
+    """Why a request must not reach OpenRouter, or None when it may."""
+    if not hmac.compare_digest(presented_token(headers).encode(), RUN_TOKEN.encode()):
+        return "missing or wrong run token"
+    route = upstream_path.split("?", 1)[0]
+    if (command, route) not in ALLOWED_ROUTES:
+        return f"{command} {route} is not a benchmark endpoint"
+    if command == "POST":
+        try:
+            model = json.loads(body or b"null").get("model")
+        except (ValueError, AttributeError):
+            return "the request body is not a JSON object"
+        if model != MODEL:
+            return f"model {model!r} is not the benchmark model"
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _forward(self, upstream_path):
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        body = self.rfile.read(length) if length else None
+    def _respond_locally(self, status, text=""):
+        payload = text.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        if payload:
+            self.wfile.write(payload)
+        self.close_connection = True
+
+    def _forward(self, upstream_path, body):
         if UPSTREAM.scheme == "https":
             upstream = http.client.HTTPSConnection(UPSTREAM.netloc, timeout=UPSTREAM_TIMEOUT_SECONDS, context=tls_context())
         else:
@@ -131,8 +199,19 @@ class Handler(BaseHTTPRequestHandler):
         return body, response.status, b"".join(chunks)
 
     def _run(self):
+        if self.path == READY_PATH:
+            self._respond_locally(HTTP_NO_CONTENT)
+            return
+        seq = next_arrival()
+        arrived_at = time.time()
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(length) if length else None
         agent, upstream_path = split_agent_path(self.path)
-        body, status, payload = self._forward(upstream_path)
+        reason = refusal(self.command, upstream_path, self.headers, body)
+        if reason:
+            self._respond_locally(HTTP_FORBIDDEN, f"benchmark proxy: {reason}\n")
+            return
+        _, status, payload = self._forward(upstream_path, body)
         if body is None:
             return
         try:
@@ -140,6 +219,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             request = None
         log({
+            "seq": seq,
+            "arrived_at": arrived_at,
             "command": self.command,
             "agent": agent,
             "path": upstream_path,
@@ -161,4 +242,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    if not KEY or not RUN_TOKEN or not MODEL:
+        sys.exit("proxy.py: set OPENROUTER_API_KEY, BENCH_PROXY_TOKEN and BENCH_MODEL in its environment")
     ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()

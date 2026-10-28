@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from '../../qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
+import { interruptCleanup } from './interrupt-cleanup'
 import { processTree, profileHostPids } from './perf-processes'
 
 /**
@@ -53,6 +54,9 @@ export async function createGitProject(projectPath: string) {
   return projectPath
 }
 
+/** Profiles not yet disposed, with the call that unregisters each from the interrupt cleanup. */
+const liveProfiles = new Map<string, () => void>()
+
 export async function createPerfProfile(options: PerfProfileOptions): Promise<PerfProfile> {
   // The real path: Session authority compares resolved roots, and /tmp is /private/tmp on macOS.
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), `owperf-${options.label}-`)))
@@ -64,7 +68,13 @@ export async function createPerfProfile(options: PerfProfileOptions): Promise<Pe
   await mkdir(userData, { recursive: true })
   await mkdir(agentDir, { recursive: true })
   const projectPath = options.projectPath ?? (await createGitProject(path.join(root, 'project')))
-  return { root, userData, home, agentDir, projectPath }
+  const profile = { root, userData, home, agentDir, projectPath }
+  // An interrupted harness still stops the profile's Host and removes the profile.
+  liveProfiles.set(
+    root,
+    interruptCleanup.register('profile', () => disposePerfProfile(profile, process.env.OWPERF_KEEP_PROFILE === '1')),
+  )
+  return profile
 }
 
 /**
@@ -145,6 +155,8 @@ export async function stopProfileHost(
 }
 
 export async function disposePerfProfile(profile: PerfProfile, keep = false) {
+  liveProfiles.get(profile.root)?.()
+  liveProfiles.delete(profile.root)
   await stopProfileHost(profile, async (ownership) =>
     keep ? undefined : prepareQaProfileRemoval(profile.userData, ownership),
   )

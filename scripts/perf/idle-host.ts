@@ -1,4 +1,7 @@
 /**
+ * macOS only: the perf harness reads process environments with BSD `ps -E`, clones profiles with
+ * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
+ *
  * "Idle Host with no window" gate of the v1 performance plan: after a normal session (the window
  * opened, one Run with the heavy-user MCP setup answered), the window closes and the Session Host
  * keeps running for its idle grace period with no client. Its footprint (alone and with its
@@ -117,7 +120,7 @@ async function measureIdle(appPath: string, label: string | undefined) {
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable)\n')
+    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
     process.exit(USAGE_EXIT_CODE)
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULT_RUNS), DECIMAL)

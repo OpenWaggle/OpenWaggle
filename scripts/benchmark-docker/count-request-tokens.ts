@@ -8,23 +8,14 @@
  */
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { requestTokens } from './request-tokens'
+import { firstRequestOf, requestTokens } from './request-tokens'
 
 const PROXY_SLICE_SUFFIX = '.proxy.jsonl'
 const JSON_INDENT = 2
 const RESULTS_ARGUMENT = 2
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 async function firstRequest(file: string) {
-  const lines = (await readFile(file, 'utf8')).split('\n').filter((line) => line.trim() !== '')
-  for (const line of lines) {
-    const record: unknown = JSON.parse(line)
-    if (isRecord(record) && record.command === 'POST' && isRecord(record.request)) return record.request
-  }
-  return null
+  return firstRequestOf((await readFile(file, 'utf8')).split('\n'))
 }
 
 async function main() {

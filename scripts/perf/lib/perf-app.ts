@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
+import { interruptCleanup } from './interrupt-cleanup'
 
 /** An OpenWaggle build to launch: a packaged `.app`, or a repository whose `out/` was built. */
 export interface PerfApp {
@@ -30,8 +31,22 @@ const STARTUP_TIMING_PATTERN = /Startup timing.*label: '([^']+)'.*elapsedMs: ([0
 const LABEL_GROUP = 1
 const ELAPSED_GROUP = 2
 
-/** Resolves `--app <path>`: an `OpenWaggle.app` bundle or a repository checkout with `out/`. */
-export function resolvePerfApp(appPath: string, label = path.basename(appPath)): PerfApp {
+/**
+ * Resolves `--app <path>`: an `OpenWaggle.app` bundle or a repository checkout with `out/`.
+ * Every harness that launches the app comes through here, so this is where it refuses to run off
+ * macOS: elsewhere `profileHostPids` (BSD `ps -E`) finds nothing, so a Host that did not drain
+ * could not be stopped, and the profile clones (`cp -c`) and `.app` paths fail.
+ */
+export function resolvePerfApp(
+  appPath: string,
+  label = path.basename(appPath),
+  platform: NodeJS.Platform = process.platform,
+): PerfApp {
+  if (platform !== 'darwin') {
+    throw new Error(
+      `The OpenWaggle perf harnesses run on macOS only (this is ${platform}): they read process environments with BSD ps -E, clone profiles with cp -c and launch .app bundles.`,
+    )
+  }
   const resolved = path.resolve(appPath)
   if (resolved.endsWith('.app')) {
     return { label, executable: path.join(resolved, PACKAGED_EXECUTABLE), leadingArguments: [] }
@@ -75,7 +90,11 @@ function forwardLines(stream: Readable, onLine: (line: string) => void) {
   })
 }
 
-/** Starts the app in its own process group, recording the main process's startup timing marks. */
+/**
+ * Starts the app in its own process group, recording the main process's startup timing marks.
+ * Until it exits, an interrupted harness stops the group (interrupt-cleanup.ts): Ctrl-C reaches
+ * only the harness's own group.
+ */
 export function launchApp(
   app: PerfApp,
   environment: Readonly<Record<string, string>>,
@@ -104,6 +123,9 @@ export function launchApp(
   }
   forwardLines(child.stdout, onLine)
   forwardLines(child.stderr, onLine)
+  const unregister = interruptCleanup.register('process', () => stopProcessGroup(child))
+  child.once('exit', unregister)
+  child.once('error', unregister)
   return { child, spawnedAt, marks, logLines }
 }
 

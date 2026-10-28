@@ -38,7 +38,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     routing: 'Packaged app on the host, OpenRouter provider via proxy',
     notes: [
       'The packaged app in hidden automation with its first-party extensions and default settings, not a bare SDK probe.',
-      'Its other model calls in the run (Session title) are not counted.',
+      'Its two other model calls in the run, which generate and then refine the Session title, are not counted.',
     ],
   },
   pi: {
@@ -68,6 +68,9 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     ],
   },
 }
+
+/** The OpenWaggle build the run measured: its package version and source commit. */
+export const openwaggleBuild: { readonly appVersion: string; readonly commit: string } = results.openwaggleBuild
 
 const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
   const copy = ENTRY_COPY[result.id]

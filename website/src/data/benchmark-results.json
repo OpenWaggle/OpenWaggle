@@ -1,6 +1,7 @@
 {
   "measuredAt": "2026-10-28",
   "model": "z-ai/glm-5.3-flash",
+  "openwaggleBuild": {"appVersion": "1.0.0-beta.27", "commit": "f2e7d1fa5"},
   "entries": [
     {"id": "openwaggle", "turnOneTokens": 4175, "prefixO200k": 3665, "toolCount": 7},
     {"id": "pi", "turnOneTokens": 1395, "prefixO200k": 1213, "toolCount": 4},

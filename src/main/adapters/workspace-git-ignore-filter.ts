@@ -1,16 +1,23 @@
 import { execFile } from 'node:child_process'
-import { getSafeChildEnv } from '../env'
+import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../env'
 
 const GIT_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024
 const GIT_TIMEOUT_MS = 30_000
 
-function git(root: string, args: readonly string[], input?: string) {
+/**
+ * The user's environment, as `runGit` gives every other git command: git finds the global
+ * excludes file (`core.excludesFile`, `$XDG_CONFIG_HOME/git/ignore`) through HOME, or through
+ * USERPROFILE / HOMEDRIVE+HOMEPATH on Windows, so a minimal environment would report globally
+ * ignored files there.
+ */
+async function git(root: string, args: readonly string[], input?: string) {
+  await desktopShellEnvironmentReady()
   return new Promise<{ readonly code: number; readonly stdout: string }>((resolve, reject) => {
     const child = execFile(
       'git',
       ['-C', root, ...args],
       {
-        env: getSafeChildEnv(),
+        env: getEnvWithOverrides({}),
         maxBuffer: GIT_OUTPUT_LIMIT_BYTES,
         timeout: GIT_TIMEOUT_MS,
         windowsHide: true,
