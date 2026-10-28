@@ -7,6 +7,8 @@ import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as PiSessionFileTail from '../../../store/pi-session-file-tail'
+import { readPiSessionFileAfterTail } from '../../../store/pi-session-file-tail'
 import { createSession, persistSessionSnapshot } from '../../../store/session-details'
 import { getPiSessionProjectionState } from '../../../store/session-details/pi-session-discovery-store'
 import { projectPiSessionSnapshot } from '../agent-kernel/session-projection'
@@ -38,6 +40,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
   const readFile = vi.fn(actual.readFile)
   return { ...actual, default: { ...actual, readFile }, readFile }
+})
+
+vi.mock('../../../store/pi-session-file-tail', async (importOriginal) => {
+  const actual = await importOriginal<typeof PiSessionFileTail>()
+  return { ...actual, readPiSessionFileAfterTail: vi.fn(actual.readPiSessionFileAfterTail) }
 })
 
 function filesRead() {
@@ -137,6 +144,16 @@ describe('refreshing a Pi file that only grew', () => {
     })
     expect(JSON.stringify(read.sessionSnapshot)).toBe(JSON.stringify(full))
     expect(read.fingerprint.tail?.lastEntryId).toBe(manager.getLeafId())
+  })
+
+  it('reads a large append as a changed file without reading or parsing the appended bytes', async () => {
+    const { manager, sessionId, file } = await projectedSession()
+    answer(manager, 'x'.repeat(5 * 1024 * 1024))
+    vi.mocked(readPiSessionFileAfterTail).mockClear()
+
+    const read = await readSnapshot(sessionId, file)
+    expect(read.kind).toBe('changed')
+    expect(readPiSessionFileAfterTail).not.toHaveBeenCalled()
   })
 
   it('reads the whole file when the appended bytes end in a partial line', async () => {
