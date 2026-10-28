@@ -8,8 +8,8 @@ import {
   ensureLocalSessionHost,
   isLocalSessionHostUnavailable,
   waitForLocalSessionHostRelease,
-  waitForPrelaunchedLocalSessionHost,
 } from './local-session-host-launcher'
+import { waitForPrelaunchedLocalSessionHost } from './local-session-host-prelaunch-wait'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 import {

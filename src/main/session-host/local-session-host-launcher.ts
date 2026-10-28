@@ -18,7 +18,6 @@ import {
   sessionHostLaunchCommandFor,
 } from './session-host-launch-command'
 import type { SessionHostOwnership } from './session-host-ownership'
-import type { SessionHostPrelaunch } from './session-host-prelaunch-handoff'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
@@ -110,7 +109,8 @@ function canConnect(endpoint: string, signal?: AbortSignal) {
   })
 }
 
-const defaultDependencies: LocalSessionHostLauncherDependencies = {
+/** The real socket, probe, ownership lock, launch and clock. */
+export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLauncherDependencies = {
   canConnect,
   probe: probeLocalSessionHost,
   tryAcquireOwnership: async (databasePath) => {
@@ -153,7 +153,7 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
 export async function waitForLocalSessionHostRelease(
   endpoint: string,
   options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
-  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
 ) {
   const { signal } = options
   return waitForCondition({
@@ -253,7 +253,7 @@ export async function ensureLocalSessionHost(
     /** Called once this call has launched a Host process, before it waits for it to listen. */
     readonly onLaunched?: () => void
   },
-  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
 ) {
   const takeoverTimeoutMs = input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
@@ -267,46 +267,4 @@ export async function ensureLocalSessionHost(
   })
   const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
   return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
-}
-
-/**
- * Waits for the Host the boot shim launched (`boot/session-host-prelaunch.ts`) to answer, the way
- * a client waits for a Host it launched itself. Resolves false, so the caller starts the Host the
- * usual way, once that process has ended without answering: another Host owned the profile, or it
- * failed to start.
- */
-export async function waitForPrelaunchedLocalSessionHost(
-  input: LocalSessionClientConnectionInput & {
-    readonly prelaunch: Pick<SessionHostPrelaunch, 'hasEnded'>
-    readonly timeoutMs?: number
-  },
-  dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
-) {
-  let answered = false
-  await waitForCondition({
-    timeoutMs: input.timeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
-    dependencies,
-    signal: input.signal,
-    condition: async () => {
-      if (input.prelaunch.hasEnded()) return true
-      const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
-      if (
-        !(await awaitWithSignal(
-          dependencies.canConnect(paths.endpoint, input.signal),
-          input.signal,
-        ))
-      ) {
-        return false
-      }
-      try {
-        await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
-        answered = true
-        return true
-      } catch (error) {
-        if (input.signal?.aborted) throw error
-        return false
-      }
-    },
-  })
-  return answered
 }

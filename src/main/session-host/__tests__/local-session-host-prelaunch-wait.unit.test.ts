@@ -4,11 +4,9 @@ import {
   LOCAL_SESSION_PROTOCOL_NAME,
 } from '@shared/types/local-session-protocol'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  type LocalSessionHostLauncherDependencies,
-  waitForPrelaunchedLocalSessionHost,
-} from '../local-session-host-launcher'
+import type { LocalSessionHostLauncherDependencies } from '../local-session-host-launcher'
 import { HOST_FAST_POLL_INTERVAL_MS } from '../local-session-host-polling'
+import { waitForPrelaunchedLocalSessionHost } from '../local-session-host-prelaunch-wait'
 
 const paths = {
   stateRoot: '/state',
