@@ -31,13 +31,11 @@ async function filesystemIdentity(candidate: string) {
 }
 
 /**
- * The Workspace resource of the folder being removed. A resource records its Session's project
+ * The Workspace resources of the folder being removed. A resource records its Session's project
  * path, which may be a subfolder or a linked worktree of the repository, while removal runs from
- * the main checkout, so the folder alone identifies it. When several records name the folder,
- * the one of this project wins.
+ * the main checkout, so the folder alone identifies it.
  */
-async function findRemovalCandidate(
-  projectPath: string,
+async function findRemovalCandidates(
   workingPath: string,
   candidates: readonly {
     readonly id: string
@@ -47,7 +45,7 @@ async function findRemovalCandidate(
 ) {
   const resolvedWorking = path.resolve(workingPath)
   const workingIdentity = await filesystemIdentity(resolvedWorking)
-  const sameFolder = (
+  return (
     await Promise.all(
       candidates.map(async (candidate) =>
         candidate.workingPath === resolvedWorking ||
@@ -58,19 +56,18 @@ async function findRemovalCandidate(
       ),
     )
   ).filter((candidate) => candidate !== undefined)
-  if (sameFolder.length <= 1) return sameFolder[0]
-  const projectIdentity = await filesystemIdentity(projectPath)
-  for (const candidate of sameFolder) {
-    if (candidate.projectPath === path.resolve(projectPath)) return candidate
-    if (
-      projectIdentity !== null &&
-      (await filesystemIdentity(candidate.projectPath)) === projectIdentity
-    ) {
-      return candidate
-    }
-  }
-  return sameFolder[0]
 }
+
+/**
+ * Several Workspaces in one folder (different projects' Sessions share it): one admission can
+ * fence only one of them, so a Run could start through another while the folder is deleted.
+ */
+const SHARED_WORKTREE_REMOVAL = {
+  ok: false,
+  code: 'workspace-bound',
+  message:
+    'Sessions of more than one project use this worktree. Remove it from Git once none of them needs it.',
+} satisfies GitWorktreeMutationResult
 
 function unavailableRemoval(options: { readonly admitArchivedBindings?: boolean }) {
   return {
@@ -98,9 +95,9 @@ export function removePreparedWorktree<E, R>(
     const workspaces = yield* SessionWorkspaceResourceRepository
     const actions = yield* ActionRunService
     const candidates = yield* workspaces.listManagedWorktreeRemovalCandidates()
-    const candidate = yield* Effect.promise(() =>
-      findRemovalCandidate(projectPath, payload.path, candidates),
-    )
+    const matches = yield* Effect.promise(() => findRemovalCandidates(payload.path, candidates))
+    if (matches.length > 1) return SHARED_WORKTREE_REMOVAL
+    const candidate = matches[0]
     const workspaceId = candidate?.id ?? `worktree-removal:${randomUUID()}`
     const operation = Effect.uninterruptible(
       Effect.acquireUseRelease(

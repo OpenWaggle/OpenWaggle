@@ -40,6 +40,7 @@ export function attentionLabel(attention: WorktreeAttention) {
     .with({ kind: 'locked' }, () => 'Locked by Git')
     .with({ kind: 'unknown-state' }, () => 'Git could not report its changes')
     .with({ kind: 'unmanaged' }, () => 'Created outside OpenWaggle')
+    .with({ kind: 'unrecorded' }, () => 'Not recorded by this OpenWaggle profile')
     .exhaustive()
 }
 

@@ -1,6 +1,7 @@
 import type { WorktreeInventoryEntry } from '@shared/types/worktree-inventory'
 import { FolderOpen } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { WorkspaceCleanupFailure } from '@/features/project-actions/components'
 import { formatBytes } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
@@ -93,13 +94,13 @@ function AutomaticRemovalNote({ entry, now }: Pick<WorktreeRowProps, 'entry' | '
   return null
 }
 
-function RevealButton({ path }: { readonly path: string }) {
+function RevealButton({ path, title }: { readonly path: string; readonly title: string }) {
   const showToast = useUIStore((state) => state.showToast)
   return (
     <Button
       variant="ghost"
       size="xs"
-      aria-label="Show folder"
+      aria-label={`Show folder of ${title}`}
       title={path}
       onClick={() =>
         void api
@@ -112,16 +113,31 @@ function RevealButton({ path }: { readonly path: string }) {
   )
 }
 
-/** Remove, then a second click to confirm: these worktrees hold nothing that is not kept. */
-function InlineRemove(props: { readonly busy: boolean; readonly onConfirm: () => void }) {
+/**
+ * Remove, then a second click to confirm: these worktrees hold nothing that is not kept. Each
+ * click swaps the focused button for others, so focus moves to the one that replaces it.
+ */
+function InlineRemove(props: {
+  readonly busy: boolean
+  readonly title: string
+  readonly onConfirm: () => void
+}) {
   const [confirming, setConfirming] = useState(false)
+  const removeRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const show = (next: boolean) => {
+    flushSync(() => setConfirming(next))
+    ;(next ? cancelRef : removeRef).current?.focus()
+  }
   if (!confirming) {
     return (
       <Button
+        ref={removeRef}
         variant="secondary"
         size="xs"
+        aria-label={props.busy ? `Removing ${props.title}` : `Remove ${props.title}`}
         disabled={props.busy}
-        onClick={() => setConfirming(true)}
+        onClick={() => show(true)}
       >
         {props.busy ? 'Removing…' : 'Remove'}
       </Button>
@@ -129,14 +145,15 @@ function InlineRemove(props: { readonly busy: boolean; readonly onConfirm: () =>
   }
   return (
     <span className="flex items-center gap-1">
-      <Button variant="ghost" size="xs" onClick={() => setConfirming(false)}>
+      <Button ref={cancelRef} variant="ghost" size="xs" onClick={() => show(false)}>
         Cancel
       </Button>
       <Button
         variant="danger"
         size="xs"
+        aria-label={`Confirm remove ${props.title}`}
         onClick={() => {
-          setConfirming(false)
+          show(false)
           props.onConfirm()
         }}
       >
@@ -146,34 +163,56 @@ function InlineRemove(props: { readonly busy: boolean; readonly onConfirm: () =>
   )
 }
 
+/** The forced removal a row offers: discarding changes, ignoring Git's lock, or both. */
+function forcedRemoval(entry: WorktreeInventoryEntry) {
+  const discardsChanges = hasAttention(entry, 'uncommitted-changes')
+  const ignoresLock = hasAttention(entry, 'locked')
+  return { force: discardsChanges || ignoresLock, discardsChanges, ignoresLock }
+}
+
+function forcedLabel(forced: ReturnType<typeof forcedRemoval>) {
+  if (forced.discardsChanges) return 'Discard & remove'
+  return forced.ignoresLock ? 'Unlock & remove' : 'Remove'
+}
+
 function RowAction(props: WorktreeRowProps) {
   const { entry } = props
+  const title = worktreeTitle(entry)
   if (entry.group === 'safe') {
-    return <InlineRemove busy={props.busy} onConfirm={() => props.onRemove(request(entry))} />
+    return (
+      <InlineRemove
+        busy={props.busy}
+        title={title}
+        onConfirm={() => props.onRemove(request(entry))}
+      />
+    )
   }
-  const discard = hasAttention(entry, 'uncommitted-changes') || hasAttention(entry, 'locked')
+  const forced = forcedRemoval(entry)
   if (entry.group === 'in-use') {
     if (hardBlockers(entry).length > 0) return null
     return (
       <Button
         variant="secondary"
         size="xs"
+        aria-label={`Archive & remove ${title}…`}
         disabled={props.busy}
-        onClick={() => props.onConfirm(request(entry, { archiveSessions: true, force: discard }))}
+        onClick={() => props.onConfirm(request(entry, { archiveSessions: true, ...forced }))}
       >
         Archive & remove…
       </Button>
     )
   }
   if (entry.cleanupFailure) return null
+  const label = forcedLabel(forced)
   return (
     <Button
-      variant={discard ? 'danger' : 'secondary'}
+      variant={forced.discardsChanges ? 'danger' : 'secondary'}
       size="xs"
+      aria-label={`${label} ${title}…`}
       disabled={props.busy}
-      onClick={() => props.onConfirm(request(entry, { force: discard }))}
+      onClick={() => props.onConfirm(request(entry, forced))}
     >
-      {discard ? 'Discard & remove…' : 'Remove…'}
+      {label}…
     </Button>
   )
 }
@@ -203,7 +242,7 @@ export function WorktreeInventoryRow(props: WorktreeRowProps) {
         <span className="shrink-0 text-xs tabular-nums">
           <SpaceLabel space={props.space} />
         </span>
-        <RevealButton path={entry.path} />
+        <RevealButton path={entry.path} title={worktreeTitle(entry)} />
         <RowAction {...props} />
       </div>
       {entry.cleanupFailure ? (

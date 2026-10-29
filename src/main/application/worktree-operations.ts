@@ -98,6 +98,13 @@ export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPa
         `This worktree is in use. ${others.map((blocker) => blocker.message).join(' ')}`,
       )
     }
+    const named = new Set(payload.sessionIds)
+    if (
+      named.size !== usage.sessions.length ||
+      usage.sessions.some((session) => !named.has(session.sessionId))
+    ) {
+      return refused('The Sessions in this worktree changed. Review it again before removing it.')
+    }
     const running = usage.sessions.find((session) => session.running)
     if (running) {
       return refused(`The Session “${running.title}” has a Run in this worktree. Stop it first.`)

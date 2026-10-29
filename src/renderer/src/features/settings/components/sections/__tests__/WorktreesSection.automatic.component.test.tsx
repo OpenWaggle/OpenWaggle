@@ -58,6 +58,8 @@ it('is off until turned on, and previews what it would remove', async () => {
     name: 'Remove worktrees of archived Sessions automatically',
   })
   expect(toggle).not.toBeChecked()
+  // The one removal without a confirmation says what it deletes.
+  expect(screen.getByText(/deletes the files Git ignores in it, such as \.env/)).toBeInTheDocument()
   await waitFor(() =>
     expect(
       screen.getByText('Would remove 1 worktree (about 1.0 MB) now. 1 is kept to protect work.'),

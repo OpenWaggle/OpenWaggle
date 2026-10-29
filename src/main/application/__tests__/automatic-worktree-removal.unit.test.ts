@@ -60,6 +60,7 @@ function layer(options: {
   readonly enabled: boolean
   readonly lastCheckedAt?: number
   readonly recorded: AutomaticWorktreeRemovalRun[]
+  readonly checks?: boolean[]
 }) {
   return Layer.mergeAll(
     Layer.succeed(SettingsService, {
@@ -79,15 +80,20 @@ function layer(options: {
           runs: [],
           unannouncedRunId: null,
         }),
-      record: (run) => Effect.sync(() => void options.recorded.push(run)),
+      record: (run, { checked }) =>
+        Effect.sync(() => {
+          options.recorded.push(run)
+          options.checks?.push(checked)
+        }),
       acknowledge: () => Effect.succeed(false),
     }),
     Layer.succeed(WorktreeSpaceService, {
-      measure: () => Effect.die('not used'),
-      cached: (path) =>
-        Effect.succeed(
-          path === '/wt/a' ? { reclaimableBytes: MEASURED_BYTES, measuredAt: 1 } : null,
-        ),
+      // Each due worktree is measured just before its removal; one that cannot be has no size.
+      measure: (path) =>
+        path === '/wt/a'
+          ? Effect.succeed({ reclaimableBytes: MEASURED_BYTES, measuredAt: 1 })
+          : Effect.fail(new Error('Unreadable.')),
+      cached: () => Effect.die('not used'),
       forget: () => Effect.void,
     }),
   )
@@ -145,8 +151,11 @@ describe('Automatic worktree removal pass', () => {
         return { ok: true }
       }),
     )
-    const run = await runPass({ enabled: true, recorded: [] }, () => draining)
+    const checks: boolean[] = []
+    const run = await runPass({ enabled: true, recorded: [], checks }, () => draining)
     expect(run?.removed.map((removed) => removed.path)).toEqual(['/wt/a'])
+    // The next Host's pass finishes the job instead of waiting a day.
+    expect(checks).toEqual([false])
   })
 
   it('removes only due worktrees, one at a time, and records what happened', async () => {
@@ -171,8 +180,9 @@ describe('Automatic worktree removal pass', () => {
             : Effect.fail(new Error('Git crashed.')),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
+    const checks: boolean[] = []
 
-    const run = await runPass({ enabled: true, recorded })
+    const run = await runPass({ enabled: true, recorded, checks })
 
     expect(removeHostUiWorktreeMock.mock.calls.map(([, payload]) => payload)).toEqual([
       { path: '/wt/a' },
@@ -196,5 +206,6 @@ describe('Automatic worktree removal pass', () => {
       ],
     })
     expect(recorded).toEqual([run])
+    expect(checks).toEqual([true])
   })
 })

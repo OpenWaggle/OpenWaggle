@@ -123,7 +123,7 @@ export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string
         },
         catch: asError('Could not read the automatic worktree removal record.'),
       }),
-    record: (run: AutomaticWorktreeRemovalRun) =>
+    record: (run: AutomaticWorktreeRemovalRun, options) =>
       Effect.tryPromise({
         try: () =>
           update((log) => {
@@ -135,7 +135,7 @@ export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string
             return {
               log: {
                 version: 1,
-                lastCheckedAt: run.startedAt,
+                lastCheckedAt: options.checked ? run.startedAt : log.lastCheckedAt,
                 runs: runs.slice(0, AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT),
               },
               result: undefined,

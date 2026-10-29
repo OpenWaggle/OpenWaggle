@@ -62,7 +62,11 @@ export function WorktreeStorageCard(props: {
           <span className="text-xl font-semibold text-text-primary tabular-nums">
             {formatBytes(totals.total)}
           </span>
-          <span className="text-xs text-text-tertiary" aria-live="polite">
+          <span
+            className="text-xs text-text-tertiary"
+            aria-live="polite"
+            aria-busy={totals.measuring > 0}
+          >
             {totals.measuring > 0
               ? `Measuring ${String(totals.measuring)} more…`
               : 'Files shared with other folders, such as a package store, are not counted.'}

@@ -1,6 +1,7 @@
 import type {
   AutomaticWorktreeRemovalDecision,
   AutomaticWorktreeRemovalKeptReason,
+  AutomaticWorktreeRemovalRun,
   AutomaticWorktreeRemovalSettings,
   WorktreeAttention,
   WorktreeInventoryEntry,
@@ -52,4 +53,12 @@ export function decideAutomaticWorktreeRemoval(
   if (now < dueAt) return { kind: 'waiting', dueAt }
   const reason = keptReason(candidate)
   return reason === null ? { kind: 'due', dueAt } : { kind: 'kept', dueAt, reason }
+}
+
+/** The space a run freed, or null when none of its removals was measured. */
+export function automaticRemovalFreedBytes(run: AutomaticWorktreeRemovalRun) {
+  const measured = run.removed.flatMap((removed) =>
+    removed.reclaimableBytes === null ? [] : [removed.reclaimableBytes],
+  )
+  return measured.length === 0 ? null : measured.reduce((sum, bytes) => sum + bytes, 0)
 }

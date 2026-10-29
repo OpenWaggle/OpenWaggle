@@ -34,9 +34,18 @@ function removalPreviewQueryOptions(repositoryPath: RepositoryPath, worktreePath
   })
 }
 
+/** A forced removal that is not a cleanup recovery: it discards changes, ignores a lock, or both. */
+function forcedFor(request: WorktreeRemovalRequest) {
+  return request.force && !request.skipCleanup
+}
+
 function removalTitle(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) return 'Archive its Sessions and remove this worktree?'
-  if (request.force && !request.skipCleanup) return 'Discard the changes and remove this worktree?'
+  if (forcedFor(request)) {
+    return request.ignoresLock && !request.discardsChanges
+      ? 'Unlock and remove this worktree?'
+      : 'Discard the changes and remove this worktree?'
+  }
   if (request.force) return 'Remove this worktree without its cleanup?'
   if (request.skipCleanup) return 'Delete this worktree without its cleanup?'
   return 'Remove this worktree?'
@@ -44,14 +53,23 @@ function removalTitle(request: WorktreeRemovalRequest) {
 
 const RECREATE_NOTE =
   'If you restore a Session later, it offers to recreate the worktree from the kept branch, or to continue in the current checkout.'
+const LOCK_NOTE = ' Git has it locked; removing it ignores the lock.'
+
+function forcedConsequence(request: WorktreeRemovalRequest) {
+  const lock = request.ignoresLock ? LOCK_NOTE : ''
+  if (request.ignoresLock && !request.discardsChanges) {
+    return `Its folder is deleted, including ignored files such as .env and node_modules.${lock} The branch is kept.`
+  }
+  return `Its folder is deleted with its uncommitted changes, which cannot be undone.${lock} The branch and its commits are kept.`
+}
 
 function removalConsequence(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) {
-    const discard = request.force ? ' Its uncommitted changes are discarded.' : ''
-    return `Each Session below is archived, then the folder is deleted.${discard} The branch is kept. ${RECREATE_NOTE}`
+    const discard = request.discardsChanges ? ' Its uncommitted changes are discarded.' : ''
+    const lock = request.ignoresLock ? LOCK_NOTE : ''
+    return `Each Session below is archived, then the folder is deleted.${discard}${lock} The branch is kept. ${RECREATE_NOTE}`
   }
-  if (request.force && !request.skipCleanup)
-    return 'Its folder is deleted with its uncommitted changes, which cannot be undone. The branch and its commits are kept.'
+  if (forcedFor(request)) return forcedConsequence(request)
   if (request.force)
     return 'Its folder is deleted even if it has uncommitted changes or is locked, and Workspace cleanup is skipped. This cannot be undone.'
   if (request.skipCleanup)
@@ -130,7 +148,9 @@ function PreviewDetails(props: {
 
 function confirmLabel(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) return 'Archive & remove'
-  if (request.force && !request.skipCleanup) return 'Discard & remove'
+  if (forcedFor(request)) {
+    return request.ignoresLock && !request.discardsChanges ? 'Unlock & remove' : 'Discard & remove'
+  }
   if (request.force) return 'Remove without cleanup'
   return 'Remove worktree'
 }
@@ -179,7 +199,12 @@ export function WorktreeRemovalDialog(props: {
             variant="danger"
             size="sm"
             disabled={blocked}
-            onClick={() => props.onConfirm(props.request)}
+            onClick={() =>
+              props.onConfirm({
+                ...props.request,
+                sessionIds: preview.data?.usage.sessions.map((session) => session.sessionId) ?? [],
+              })
+            }
           >
             {confirmLabel(props.request)}
           </Button>

@@ -102,7 +102,8 @@ function InventoryProblems(props: {
         </p>
       ) : null}
       {props.problems.length > 0 ? (
-        <p role="alert" className="text-xs text-warning">
+        // A status, not an alert: every refetch renders the same problems again.
+        <p role="status" aria-label="Inventory problems" className="text-xs text-warning">
           {props.problems.join(' ')}
         </p>
       ) : null}
@@ -156,11 +157,15 @@ export function WorktreesSection() {
   const inventory = useWorktreeInventory()
   const rule = usePreferencesStore((state) => state.settings.automaticWorktreeRemoval)
   const setRule = usePreferencesStore((state) => state.setAutomaticWorktreeRemoval)
-  const [project, setProject] = useState(ALL_PROJECTS)
+  const [chosenProject, setProject] = useState(ALL_PROJECTS)
   const [pending, setPending] = useState<WorktreeRemovalRequest | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const removal = useWorktreeRemoval()
   const projects = inventory.data?.projects ?? []
+  // A project whose last worktree was removed leaves the list; so does the filter on it.
+  const project = projects.some((entry) => entry.projectPath === chosenProject)
+    ? chosenProject
+    : ALL_PROJECTS
   const all = orderEntries(inventory.data?.entries ?? [], projects)
   const byGroup = GROUPS.flatMap((group) => all.filter((entry) => entry.group === group))
   const space = useWorktreeSpace(byGroup)

@@ -146,6 +146,22 @@ describe('Host-backed worktree operations', () => {
     )
   })
 
+  it('refuses a folder that Workspaces of more than one project record', async () => {
+    const shared = [
+      { id: 'sub', projectPath: '/repo/packages/app', workingPath: '/worktrees/feature' },
+      { id: 'main', projectPath: '/repo', workingPath: '/worktrees/feature' },
+    ]
+    const result = await Effect.runPromise(
+      removeHostUiWorktree('/repo', { path: '/worktrees/feature' }).pipe(
+        Effect.provide(operationLayer(workspaceRepository({ candidates: shared }))),
+      ),
+    )
+
+    expect(result).toMatchObject({ ok: false, code: 'workspace-bound' })
+    expect(mocks.admitRemoval).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
   it('rejects removal while an authoritative Workspace binding remains', async () => {
     const effect = removeHostUiWorktree('/project', {
       path: '/project/.openwaggle/worktrees/shared',

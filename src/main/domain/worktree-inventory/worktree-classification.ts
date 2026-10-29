@@ -7,7 +7,10 @@ import type { WorktreeRemovalBlocker } from '@shared/types/worktree-usage'
 
 /** What the inventory knows about one worktree before it is classified. */
 export interface WorktreeFacts {
+  /** This profile records it as a managed Workspace. */
   readonly managed: boolean
+  /** It lives in OpenWaggle's managed worktree folder, which other profiles share. */
+  readonly underManagedRoot: boolean
   readonly locked: boolean
   readonly sessions: readonly WorktreeInventorySession[]
   readonly blockers: readonly WorktreeRemovalBlocker[]
@@ -61,8 +64,12 @@ export function worktreeAttention(facts: WorktreeFacts): readonly WorktreeAttent
     attention.push({ kind: 'unpublished-commits', count: facts.unpublishedCommitCount })
   }
   if (facts.locked) attention.push({ kind: 'locked' })
-  // Removing it deletes its ignored files too, which nothing of OpenWaggle's can bring back.
-  if (!facts.managed) attention.push({ kind: 'unmanaged' })
+  /*
+   * Removing it deletes its ignored files too, which nothing here can bring back. One in the
+   * managed folder that this profile does not record belongs to another profile, whose
+   * Sessions, Runs and terminals this Host cannot see.
+   */
+  if (!facts.managed) attention.push({ kind: facts.underManagedRoot ? 'unrecorded' : 'unmanaged' })
   return attention
 }
 

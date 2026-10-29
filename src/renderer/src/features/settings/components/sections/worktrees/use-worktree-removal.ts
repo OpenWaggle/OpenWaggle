@@ -20,15 +20,24 @@ export interface WorktreeRemovalRequest {
   readonly skipCleanup: boolean
   /** Discard uncommitted changes, and remove a locked worktree. */
   readonly force: boolean
+  /** What `force` is for, so the confirmation says only what is true. */
+  readonly discardsChanges?: boolean
+  readonly ignoresLock?: boolean
   /** Archive every Session working in it first (Archive & remove). */
   readonly archiveSessions?: boolean
+  /** The Sessions the confirmation named, which are all Archive & remove may archive. */
+  readonly sessionIds?: readonly string[]
 }
 
 function sendRemoval(request: WorktreeRemovalRequest): Promise<GitWorktreeMutationResult> {
   const repositoryPath = RepositoryPath(request.projectPath)
   const force = request.force ? { force: true } : {}
   if (request.archiveSessions) {
-    return api.archiveAndRemoveWorktree(repositoryPath, { path: request.path, ...force })
+    return api.archiveAndRemoveWorktree(repositoryPath, {
+      path: request.path,
+      sessionIds: request.sessionIds ?? [],
+      ...force,
+    })
   }
   return api.removeGitWorktree(repositoryPath, {
     path: request.path,
@@ -97,6 +106,8 @@ export function useWorktreeRemoval() {
     setBusy(paths, true)
     const removed: WorktreeRemovalRequest[] = []
     let failed = 0
+    // One at a time on purpose: each removal takes the repository's worktree lock and the
+    // Host's Workspace fence, so parallel requests would only queue or fail there.
     for (const request of requests) {
       const result = await attempt(request)
       if (result.ok) removed.push(request)

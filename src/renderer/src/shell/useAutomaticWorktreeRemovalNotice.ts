@@ -1,4 +1,5 @@
 import type { AutomaticWorktreeRemovalLog } from '@shared/types/worktree-inventory'
+import { automaticRemovalFreedBytes } from '@shared/utils/automatic-worktree-removal'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent } from 'react'
 import { formatBytes } from '@/shared/lib/format'
@@ -9,10 +10,13 @@ import { useUIStore } from '@/shell/ui-store'
 const logger = createRendererLogger('worktrees')
 
 export const AutomaticWorktreeRemovalNoticeCopy = {
-  message: (count: number, bytes: number) =>
-    `Automatic removal freed about ${formatBytes(bytes)} (${String(count)} ${
-      count === 1 ? 'worktree' : 'worktrees'
-    }).`,
+  /** `bytes` is null when no removed worktree was measured, so no size is claimed. */
+  message: (count: number, bytes: number | null) => {
+    const worktrees = `${String(count)} ${count === 1 ? 'worktree' : 'worktrees'}`
+    return bytes === null
+      ? `Automatic removal removed ${worktrees}.`
+      : `Automatic removal freed about ${formatBytes(bytes)} (${worktrees}).`
+  },
   action: 'View',
 } as const
 
@@ -28,7 +32,7 @@ function unannouncedRun(log: AutomaticWorktreeRemovalLog) {
  */
 export function useAutomaticWorktreeRemovalNotice() {
   const navigate = useNavigate()
-  const announce = useEffectEvent((count: number, bytes: number) => {
+  const announce = useEffectEvent((count: number, bytes: number | null) => {
     useUIStore.getState().showActionToast({
       message: AutomaticWorktreeRemovalNoticeCopy.message(count, bytes),
       variant: 'success',
@@ -46,8 +50,7 @@ export function useAutomaticWorktreeRemovalNotice() {
         if (cancelled || !run) return
         // Only the window that claimed the run announces it.
         if (!(await api.acknowledgeAutomaticWorktreeRemoval(run.id)) || cancelled) return
-        const bytes = run.removed.reduce((sum, removed) => sum + (removed.reclaimableBytes ?? 0), 0)
-        announce(run.removed.length, bytes)
+        announce(run.removed.length, automaticRemovalFreedBytes(run))
       } catch (error) {
         logger.warn('Could not read the automatic worktree removal record', {
           error: error instanceof Error ? error.message : String(error),

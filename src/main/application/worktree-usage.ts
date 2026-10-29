@@ -17,6 +17,7 @@ import {
 } from '../ports/session-workspace-resource-repository'
 import { TerminalService } from '../ports/terminal-service'
 import { SettingsService } from '../services/settings-service'
+import { sessionBlocker, workspaceBlocker } from './worktree-usage-blockers'
 
 /** The renderer's owner key for terminals opened before a draft Session's first send. */
 const DRAFT_TERMINAL_OWNER_PREFIX = 'draft:'
@@ -80,25 +81,6 @@ function sessionUsage(occupant: CanonicalOccupant, worktreePath: string): Worktr
   }
 }
 
-function sessionBlocker(sessions: readonly WorktreeSessionUsage[]): WorktreeRemovalBlocker | null {
-  const using = sessions.filter((session) => !session.archived || session.running)
-  const [first] = using
-  if (!first) return null
-  if (using.length > 1) {
-    return {
-      kind: 'session',
-      message: `${String(using.length)} Sessions work in it. Archive them, and stop any Run they still have, first.`,
-    }
-  }
-  return {
-    kind: 'session',
-    // An archived Session only blocks while its Run goes on, so archiving is no remedy there.
-    message: first.archived
-      ? `The archived Session “${first.title}” still has a Run in it. Stop that Run first.`
-      : `The Session “${first.title}” works in it. Archive that Session first.`,
-  }
-}
-
 function terminalBlocker(
   facts: WorktreeUsageFacts,
   worktreePath: string,
@@ -142,19 +124,8 @@ export function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts)
   }
   const session = sessionBlocker(sessions)
   if (session) blockers.push(session)
-  if (
-    occupants.some(
-      (occupant) =>
-        occupant.workspace?.kind === 'managed-worktree' &&
-        occupant.canonicalWorkingPath === worktreePath &&
-        occupant.workspace.lifecycleState !== 'ready',
-    )
-  ) {
-    blockers.push({
-      kind: 'workspace',
-      message: 'Its Workspace is being created, changed or removed. Try again in a moment.',
-    })
-  }
+  const workspace = workspaceBlocker(occupants, worktreePath)
+  if (workspace) blockers.push(workspace)
   if (facts.activeActionPaths.some((workspacePath) => isWithin(workspacePath, worktreePath))) {
     blockers.push({
       kind: 'action',

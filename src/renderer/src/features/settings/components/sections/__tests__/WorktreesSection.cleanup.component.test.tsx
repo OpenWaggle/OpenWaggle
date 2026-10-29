@@ -178,6 +178,8 @@ it('still lists worktrees when part of the inventory could not be read', async (
     problems: ['Could not load cleanup recovery: Invalid actions.json'],
   })
   renderWithQueryClient(<WorktreesSection />)
-  expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('Invalid actions.json')
+  expect(await screen.findByRole('button', { name: 'Remove free' })).toBeInTheDocument()
+  expect(screen.getByRole('status', { name: 'Inventory problems' })).toHaveTextContent(
+    'Invalid actions.json',
+  )
 })

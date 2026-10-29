@@ -43,6 +43,8 @@ export type WorktreeAttention =
   | { readonly kind: 'unknown-state' }
   /** Created outside OpenWaggle: nothing records what its ignored files are for. */
   | { readonly kind: 'unmanaged' }
+  /** In the managed worktree folder but not recorded here: another profile may be using it. */
+  | { readonly kind: 'unrecorded' }
 
 export type WorktreeInventoryGroup = 'safe' | 'decide' | 'in-use'
 
@@ -81,7 +83,7 @@ export interface WorktreeInventoryEntry {
   /** The repository's main checkout, which removal runs from. */
   readonly projectPath: string
   readonly branch: string | null
-  /** Under OpenWaggle's managed worktree folder, or recorded as a managed Workspace. */
+  /** Recorded by this profile as a managed Workspace. */
   readonly managed: boolean
   readonly sessions: readonly WorktreeInventorySession[]
   readonly blockers: readonly WorktreeRemovalBlocker[]
@@ -121,6 +123,11 @@ export interface WorktreeReclaimableSpace {
 /** `worktrees:archive-and-remove`: archive every Session working in it, then remove it. */
 export interface WorktreeArchiveAndRemovePayload {
   readonly path: string
+  /**
+   * Every Session the confirmation named. The Host refuses when the Sessions working in the
+   * worktree have changed since, so it never archives one the user was not shown.
+   */
+  readonly sessionIds: readonly string[]
   /** Discard uncommitted changes, as Force remove does. */
   readonly force?: boolean
 }

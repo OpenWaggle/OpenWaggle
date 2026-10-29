@@ -43,6 +43,7 @@ interface InventoryCandidate {
   readonly worktree: GitWorktreeInfo
   readonly canonicalPath: string
   readonly managed: boolean
+  readonly underManagedRoot: boolean
 }
 
 function knownProjectPaths(settings: Settings, managedProjects: readonly string[]) {
@@ -112,6 +113,8 @@ function listRepositories(
 /**
  * Every managed worktree across projects, and every worktree of the opened project. A worktree
  * someone made outside OpenWaggle in another project is not OpenWaggle's to show (ADR 0060).
+ * Managed means this profile records it: the managed folder is shared with other profiles (a
+ * development build, `OPENWAGGLE_USER_DATA_DIR`), whose Sessions this Host cannot see.
  */
 function inventoryCandidates(
   repositories: readonly ListedRepository[],
@@ -120,17 +123,22 @@ function inventoryCandidates(
 ) {
   return Effect.promise(async () => {
     const root = await canonical(managedWorktreeRoot())
-    const candidates: InventoryCandidate[] = []
-    for (const repository of repositories) {
-      for (const worktree of repository.worktrees) {
-        if (worktree.isMain) continue
+    const linked = repositories.flatMap((repository) =>
+      repository.worktrees
+        .filter((worktree) => !worktree.isMain)
+        .map((worktree) => ({ repository, worktree })),
+    )
+    const resolved = await Promise.all(
+      linked.map(async ({ repository, worktree }): Promise<InventoryCandidate> => {
         const canonicalPath = await canonical(worktree.path)
-        const managed = managedPaths.has(canonicalPath) || isWithin(canonicalPath, root)
-        if (!managed && !repository.opened) continue
-        candidates.push({ repository, worktree, canonicalPath, managed })
-      }
-    }
-    return candidates
+        const managed = managedPaths.has(canonicalPath)
+        const underManagedRoot = isWithin(canonicalPath, root)
+        return { repository, worktree, canonicalPath, managed, underManagedRoot }
+      }),
+    )
+    return resolved.filter(
+      (candidate) => candidate.managed || candidate.underManagedRoot || candidate.repository.opened,
+    )
   })
 }
 
@@ -218,6 +226,7 @@ export function listWorktreeInventory(now: number = Date.now()) {
           const cleanupFailure = cleanupFailures.get(candidate.canonicalPath)
           const worktreeFacts: WorktreeFacts = {
             managed: candidate.managed,
+            underManagedRoot: candidate.underManagedRoot,
             locked: candidate.worktree.locked === true,
             sessions: usage.sessions,
             blockers: usage.blockers,

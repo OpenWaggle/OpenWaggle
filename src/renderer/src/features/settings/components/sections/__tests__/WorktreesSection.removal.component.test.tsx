@@ -55,14 +55,26 @@ describe('removing a worktree that is safe to remove', () => {
 
     const row = await rowTitled('free')
     expect(await row.findByText('Frees about 1.0 MB')).toBeInTheDocument()
-    fireEvent.click(row.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
     expect(api.removeGitWorktree).not.toHaveBeenCalled()
-    fireEvent.click(row.getByRole('button', { name: 'Confirm remove' }))
+    fireEvent.click(row.getByRole('button', { name: 'Confirm remove free' }))
 
     await waitFor(() =>
       expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, { path: '/wt/free' }),
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps keyboard focus on the buttons that replace the one pressed', async () => {
+    api.getWorktreeInventory.mockResolvedValue(inventory([entry({ path: '/wt/free' })]))
+    renderWithQueryClient(<WorktreesSection />)
+
+    const row = await rowTitled('free')
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+    expect(row.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.click(row.getByRole('button', { name: 'Cancel' }))
+    expect(row.getByRole('button', { name: 'Remove free' })).toHaveFocus()
+    expect(api.removeGitWorktree).not.toHaveBeenCalled()
   })
 
   it('frees every safe worktree from one confirmation that lists them', async () => {
@@ -110,12 +122,32 @@ describe('a worktree that needs a decision', () => {
 
     const row = await rowTitled('dirty')
     expect(row.getByText('3 uncommitted changes')).toBeInTheDocument()
-    fireEvent.click(row.getByRole('button', { name: 'Discard & remove…' }))
+    fireEvent.click(row.getByRole('button', { name: 'Discard & remove dirty…' }))
     await confirmIn('Discard the changes and remove this worktree?', 'Discard & remove')
 
     await waitFor(() =>
       expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
         path: '/wt/dirty',
+        force: true,
+      }),
+    )
+  })
+
+  it('says a locked worktree is unlocked, not that changes are discarded', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([entry({ path: '/wt/held', group: 'decide', attention: [{ kind: 'locked' }] })]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click(
+      (await rowTitled('held')).getByRole('button', { name: 'Unlock & remove held…' }),
+    )
+    const dialog = await confirmIn('Unlock and remove this worktree?', 'Unlock & remove')
+
+    expect(dialog).not.toHaveTextContent(/uncommitted/)
+    await waitFor(() =>
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/held',
         force: true,
       }),
     )
@@ -144,7 +176,7 @@ describe('a worktree that needs a decision', () => {
     )
     renderWithQueryClient(<WorktreesSection />)
 
-    fireEvent.click((await rowTitled('ahead')).getByRole('button', { name: 'Remove…' }))
+    fireEvent.click((await rowTitled('ahead')).getByRole('button', { name: 'Remove ahead…' }))
     const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
     expect(
       await within(dialog).findByText(/ow\/ahead has 2 commits that are not on any remote/),
@@ -183,7 +215,9 @@ describe('a worktree in use', () => {
     expect(screen.queryByText('Fix the login bug')).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /In use/ }))
     fireEvent.click(
-      (await rowTitled('Fix the login bug')).getByRole('button', { name: 'Archive & remove…' }),
+      (await rowTitled('Fix the login bug')).getByRole('button', {
+        name: 'Archive & remove Fix the login bug…',
+      }),
     )
     const dialog = await screen.findByRole('dialog', {
       name: 'Archive its Sessions and remove this worktree?',
@@ -194,7 +228,10 @@ describe('a worktree in use', () => {
     await confirmIn('Archive its Sessions and remove this worktree?', 'Archive & remove')
 
     await waitFor(() =>
-      expect(api.archiveAndRemoveWorktree).toHaveBeenCalledWith(PROJECT, { path: '/wt/open' }),
+      expect(api.archiveAndRemoveWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/open',
+        sessionIds: [OPEN_SESSION.sessionId, 'visitor'],
+      }),
     )
   })
 

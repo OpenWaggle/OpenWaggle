@@ -21,6 +21,7 @@ function session(overrides: Partial<WorktreeInventorySession> = {}): WorktreeInv
 function facts(overrides: Partial<WorktreeFacts> = {}): WorktreeFacts {
   return {
     managed: true,
+    underManagedRoot: true,
     locked: false,
     sessions: [session()],
     blockers: [],
@@ -72,9 +73,15 @@ describe('Worktree groups', () => {
     ])
     expect(classifyWorktree(facts({ cleanupFailed: true })).group).toBe('decide')
     // A clean worktree made outside OpenWaggle always goes through the confirmation.
-    expect(classifyWorktree(facts({ managed: false, sessions: [] }))).toEqual({
+    const outside = { managed: false, underManagedRoot: false, sessions: [] }
+    expect(classifyWorktree(facts(outside))).toEqual({
       group: 'decide',
       attention: [{ kind: 'unmanaged' }],
+    })
+    // Another profile's worktree in the shared managed folder is never safe to remove here.
+    expect(classifyWorktree(facts({ managed: false, sessions: [] }))).toEqual({
+      group: 'decide',
+      attention: [{ kind: 'unrecorded' }],
     })
   })
 

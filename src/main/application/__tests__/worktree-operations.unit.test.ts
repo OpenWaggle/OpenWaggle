@@ -73,10 +73,12 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
 }
 
 /** The mocked operations need only Git's worktree list. */
-function run(path = WORKTREE) {
-  const provided = archiveAndRemoveWorktreeOperation(PROJECT, { path, force: true }).pipe(
-    Effect.provide(gitLayer),
-  )
+function run(path = WORKTREE, sessionIds: readonly string[] = ['open', 'done']) {
+  const provided = archiveAndRemoveWorktreeOperation(PROJECT, {
+    path,
+    sessionIds,
+    force: true,
+  }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
     fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
       provided,
@@ -133,10 +135,22 @@ describe('Archive & remove', () => {
         ],
       }),
     )
-    await expect(run()).resolves.toMatchObject({
+    await expect(run(WORKTREE, ['r'])).resolves.toMatchObject({
       ok: false,
       message: expect.stringContaining('“Busy” has a Run'),
     })
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('archives nothing when the Sessions differ from the ones the confirmation named', async () => {
+    mocks.usage.mockReturnValue(usage())
+    for (const named of [['open'], ['open', 'done', 'gone'], ['open', 'other']]) {
+      await expect(run(WORKTREE, named)).resolves.toMatchObject({
+        ok: false,
+        message: expect.stringContaining('The Sessions in this worktree changed'),
+      })
+    }
     expect(mocks.dispatch).not.toHaveBeenCalled()
     expect(mocks.remove).not.toHaveBeenCalled()
   })

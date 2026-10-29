@@ -19,13 +19,19 @@ export const worktreePathSchema = Schema.String.pipe(
   Schema.maxLength(MAX_WORKTREE_PATH_LENGTH),
 )
 
+const MAX_RUN_ID_LENGTH = 128
+const MAX_SESSION_ID_LENGTH = 128
+/** More Sessions than any one worktree holds; a longer list is refused, not truncated. */
+const MAX_NAMED_SESSIONS = 1000
+
 export const worktreeArchiveAndRemovePayloadSchema: Schema.Schema<WorktreeArchiveAndRemovePayload> =
   Schema.Struct({
     path: worktreePathSchema,
+    sessionIds: Schema.Array(
+      Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MAX_SESSION_ID_LENGTH)),
+    ).pipe(Schema.maxItems(MAX_NAMED_SESSIONS)),
     force: Schema.optional(Schema.Boolean),
   })
-
-const MAX_RUN_ID_LENGTH = 128
 
 export const automaticWorktreeRemovalRunIdSchema = Schema.String.pipe(
   Schema.minLength(1),

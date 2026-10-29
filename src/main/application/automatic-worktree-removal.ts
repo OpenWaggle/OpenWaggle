@@ -7,6 +7,7 @@ import type {
 import * as Cause from 'effect/Cause'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import { createLogger } from '../logger'
 import { AutomaticWorktreeRemovalLogStore } from '../ports/automatic-worktree-removal-log'
 import { WorktreeSpaceService } from '../ports/worktree-space-service'
@@ -21,6 +22,8 @@ const logger = createLogger('automatic-worktree-removal')
 export const AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS = 86_400_000
 /** How often the Host checks whether a pass is due, so turning the rule on acts soon. */
 export const AUTOMATIC_WORKTREE_REMOVAL_CHECK = Duration.minutes(10)
+/** How long a pass waits to measure a worktree before it removes it without a size. */
+export const AUTOMATIC_WORKTREE_REMOVAL_MEASURE_TIMEOUT = Duration.minutes(2)
 /** The first check waits until the Host has answered its first clients. */
 export const AUTOMATIC_WORKTREE_REMOVAL_START_DELAY = Duration.minutes(1)
 
@@ -55,11 +58,19 @@ export function runAutomaticWorktreeRemovalPass(
     const inventory = yield* listWorktreeInventory(startedAt)
     const removed: AutomaticWorktreeRemovalRemoved[] = []
     const failed: AutomaticWorktreeRemovalFailure[] = []
+    let interrupted = false
     for (const entry of inventory.entries) {
-      // A draining Host hands over or shuts down; the rest waits for the next pass.
-      if (isDraining()) break
+      // A draining Host hands over or shuts down; the rest waits for the next Host's pass.
+      if (isDraining()) {
+        interrupted = true
+        break
+      }
       if (entry.automaticRemoval.kind !== 'due') continue
-      const measured = yield* space.cached(entry.path)
+      const measured = yield* space.measure(entry.path).pipe(
+        Effect.timeoutOption(AUTOMATIC_WORKTREE_REMOVAL_MEASURE_TIMEOUT),
+        Effect.map(Option.getOrNull),
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
       const result = yield* removeHostUiWorktree(entry.projectPath, { path: entry.path }).pipe(
         Effect.catchAll((error) =>
           Effect.succeed({ ok: false, code: 'unknown', message: errorMessage(error) } as const),
@@ -85,7 +96,8 @@ export function runAutomaticWorktreeRemovalPass(
       removed,
       failed,
     }
-    yield* log.record(run)
+    // An interrupted pass keeps the last check time, so the next Host finishes it.
+    yield* log.record(run, { checked: !interrupted })
     if (removed.length > 0 || failed.length > 0) {
       logger.info('Automatic worktree removal finished', {
         removed: removed.length,

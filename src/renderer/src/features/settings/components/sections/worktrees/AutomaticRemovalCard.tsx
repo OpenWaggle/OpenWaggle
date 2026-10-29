@@ -6,7 +6,10 @@ import {
   isAutomaticWorktreeRemovalDays,
   type WorktreeInventoryEntry,
 } from '@shared/types/worktree-inventory'
-import { decideAutomaticWorktreeRemoval } from '@shared/utils/automatic-worktree-removal'
+import {
+  automaticRemovalFreedBytes,
+  decideAutomaticWorktreeRemoval,
+} from '@shared/utils/automatic-worktree-removal'
 import { useId } from 'react'
 import { formatBytes, formatRelativeTime, projectName } from '@/shared/lib/format'
 import { Select } from '@/shared/ui/Select'
@@ -43,11 +46,14 @@ function previewLine(
 }
 
 function runSummary(run: AutomaticWorktreeRemovalRun) {
-  const freed = run.removed.reduce((total, removed) => total + (removed.reclaimableBytes ?? 0), 0)
+  const freed = automaticRemovalFreedBytes(run)
+  const count = plural(run.removed.length, 'worktree', 'worktrees')
   const removed =
     run.removed.length === 0
       ? 'removed nothing'
-      : `removed ${plural(run.removed.length, 'worktree', 'worktrees')} (about ${formatBytes(freed)})`
+      : freed === null
+        ? `removed ${count}`
+        : `removed ${count} (about ${formatBytes(freed)})`
   const failed = run.failed.length > 0 ? `, ${String(run.failed.length)} failed` : ''
   return `Last removal ${formatRelativeTime(run.finishedAt)} · ${removed}${failed}`
 }
@@ -109,7 +115,8 @@ export function AutomaticRemovalCard(props: {
           <span className="text-xs leading-5 text-text-tertiary">
             Archiving keeps a worktree, so restoring the Session is instant. With this on, a
             worktree is removed once every Session in it has been archived this long, in every
-            project. Worktrees with uncommitted changes or commits that are not on a remote are
+            project. Removing a worktree deletes the files Git ignores in it, such as .env and
+            node_modules. Worktrees with uncommitted changes or commits that are not on a remote are
             kept. Branches are always kept.
           </span>
         </div>
@@ -138,7 +145,12 @@ export function AutomaticRemovalCard(props: {
             </option>
           ))}
         </Select>
-        <span className="text-text-tertiary" aria-live="polite">
+        {/* Busy while sizes arrive, so a screen reader hears the finished line once. */}
+        <span
+          className="text-text-tertiary"
+          aria-live="polite"
+          aria-busy={props.entries.some((entry) => props.space.get(entry.path) === undefined)}
+        >
           {previewLine(props.rule, props.entries, props.space, props.now)}
         </span>
       </div>

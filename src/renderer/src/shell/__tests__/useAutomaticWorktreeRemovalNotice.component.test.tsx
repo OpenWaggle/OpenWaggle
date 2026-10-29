@@ -65,6 +65,21 @@ it('says once what Automatic worktree removal freed, and opens Settings > Worktr
   expect(navigate).toHaveBeenCalledWith({ to: '/settings/$tab', params: { tab: 'worktrees' } })
 })
 
+it('claims no size when none of the removed worktrees was measured', async () => {
+  const unmeasured = {
+    ...RUN,
+    removed: RUN.removed.map((removed) => ({ ...removed, reclaimableBytes: null })),
+  }
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [unmeasured], unannouncedRunId: 'run-1' })
+  renderHook(() => useAutomaticWorktreeRemovalNotice())
+
+  await waitFor(() =>
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Automatic removal removed 2 worktrees.',
+    }),
+  )
+})
+
 it('leaves the notice to the window that claimed the run', async () => {
   getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: 'run-1' })
   acknowledge.mockResolvedValueOnce(false)

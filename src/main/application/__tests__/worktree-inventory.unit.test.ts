@@ -76,6 +76,8 @@ const WORKTREES: Record<string, readonly { path: string; isMain: boolean; locked
     { path: '/other', isMain: true },
     { path: '/managed/old', isMain: false },
     { path: '/managed/failed', isMain: false },
+    // In the shared managed folder, but another profile's: this database has no record of it.
+    { path: '/managed/foreign', isMain: false },
     { path: '/other-by-hand', isMain: false },
   ],
 }
@@ -98,7 +100,11 @@ const layer = Layer.mergeAll(
     SessionWorkspaceResourceRepository,
     fromPartial({
       listManagedWorktreeRemovalCandidates: () =>
-        Effect.succeed([{ id: 'w1', projectPath: '/other', workingPath: '/managed/old' }]),
+        Effect.succeed([
+          { id: 'w1', projectPath: '/other', workingPath: '/managed/old' },
+          { id: 'w2', projectPath: '/open', workingPath: '/managed/open' },
+          { id: 'w3', projectPath: '/other', workingPath: '/managed/failed' },
+        ]),
     }),
   ),
   Layer.succeed(
@@ -135,6 +141,7 @@ describe('Settings > Worktrees inventory', () => {
 
     expect(listed.entries.map((entry) => entry.path).sort()).toEqual([
       '/managed/failed',
+      '/managed/foreign',
       '/managed/old',
       '/managed/open',
       '/open-feature',
@@ -165,6 +172,12 @@ describe('Settings > Worktrees inventory', () => {
       group: 'decide',
       cleanupFailure: { preparation: {} },
       attention: [{ kind: 'cleanup-failed' }, { kind: 'unknown-state' }],
+    })
+    expect(byPath.get('/managed/foreign')).toMatchObject({
+      managed: false,
+      group: 'decide',
+      attention: [{ kind: 'unrecorded' }],
+      automaticRemoval: { kind: 'not-applicable' },
     })
     expect(byPath.get('/open-feature')).toMatchObject({
       managed: false,
